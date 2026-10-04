@@ -33,6 +33,12 @@ static void ui_leds(void)
     uint8_t nl[FM1_NCOL] = {0};
     uint32_t k, c, fam = cur_fam();
     static uint8_t ready;
+    if (safe_start) {                                 /* safe start: LEDs off */
+        uint32_t c0;
+        for (c0 = 0; c0 < FM1_NCOL; c0++)
+            fm1_led[c0] = 0;
+        return;
+    }
     if (!ready) {
         led_pos_init();
         ready = 1;
@@ -182,6 +188,8 @@ static void ui_input(void)
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
     uint32_t rec = btn_hold(&ui.rec_t0, B_REC, now, !ui.menu && (fam == FAM_SEQ || fam == FAM_MIX));
     int32_t s;
+    if (safe_start)                                     /* safe start: no pages, no edits */
+        return;
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {
             menu_close();

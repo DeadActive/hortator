@@ -148,6 +148,28 @@ static void track_select(uint32_t i)
     ui.force = 1;
 }
 
+/* power-on, before audio_init (IRQs still off): SEQ held -> safe start. The HAL's polled scan
+ * (TIMER4 waits, GPIO only) runs FM1_DEBOUNCE + 4 frames, ~7 ms */
+static void safe_start_check(void)
+{
+    uint32_t k;
+    for (k = 0; k < FM1_DEBOUNCE + 4u; k++)
+        fm1_input_scan();
+    safe_start = (uint8_t)((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u);
+    if (safe_start)
+        for (k = 0; k < SMP_USER_SLOTS; k++)
+            usr_nz[k] = 0;
+}
+
+/* felucca_init (main.c): everything the drum firmware sets up before audio and USB start */
+static void drum_boot_init(void)
+{
+    safe_start_check();
+    drum_tracks_init();
+    ui.home = 1;
+    ui.force = 1;
+}
+
 /* the next / previous model on the selected track, with its default sound; with the audio IRQ off,
  * so the ISR never renders a model with another model's parameters */
 static void model_step(int32_t dir)

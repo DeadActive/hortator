@@ -582,8 +582,56 @@ static void test_project_rejects(void)
     check("project: a bad checksum is not used", !project_used(2));
 }
 
+/* SEQ held at power-on: a silent start with USB intact (spec §4) */
+static void safe_boot(int seq_held)
+{
+    ui_host_init();
+    fm1_in.buttons = seq_held ? 1u << panel.btn[B_SEQ] : 0u;
+    host_scans = 0;
+    drum_boot_init();
+    fm1_in.buttons = 0;
+}
+
+static void test_safe_start(void)
+{
+    uint32_t i, peak = 0, a;
+    safe_boot(1);
+    check("safe start: SEQ held through the boot's polled scan (FM1_DEBOUNCE + 4 scans)",
+          safe_start && host_scans == FM1_DEBOUNCE + 4u);
+    a = dvage;
+    keys(1u << KEY_TRK_KEY[0]);                      /* a white key */
+    ui_frame();
+    keys(0);
+    midi_in_q[mi_w % MQ] = 0x09u | (0x90u | 9u) << 8 | (uint32_t)trk[1].p[P_NOTE] << 16 | 100u << 24;
+    mi_w++;                                          /* a USB-MIDI note on the drum channel (as drum_test's midi_in) */
+    drum_hit(&trk[2], 127);                          /* the editor's audition path */
+    for (i = 0; i < 40; i++) {
+        ui_frame();
+        peak |= (uint32_t)abs(mixo[0]) | (uint32_t)abs(mixo[1]);
+    }
+    check("safe start: keys, MIDI and direct hits start no voice; the mix is silent", dvage == a && peak == 0);
+    snap_page("safe_start");
+    check("safe start: the SAFE START screen draws", fb_lit(90, 160) > 200);
+    for (i = 0; i < SMP_USER_SLOTS; i++)
+        peak |= usr_nz[i];
+    check("safe start: user sample slots unusable", peak == 0);
+    safe_boot(0);
+    check("normal start: SEQ not held: no safe mode, the same scans", !safe_start && host_scans == FM1_DEBOUNCE + 4u);
+    {
+        panel_t keep = panel;                        /* a recalibrated panel: SEQ on another matrix id */
+        uint8_t t = panel.btn[B_SEQ];
+        panel.btn[B_SEQ] = panel.btn[B_PLAY];
+        panel.btn[B_PLAY] = t;
+        safe_boot(1);
+        check("safe start: SEQ found through a learned panel map", safe_start);
+        panel = keep;
+    }
+    safe_boot(0);                                    /* leave the other tests a normal start */
+}
+
 int main(void)
 {
+    test_safe_start();
     test_engine_screens();
     test_seq_screens();
     test_families();

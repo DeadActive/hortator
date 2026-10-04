@@ -216,6 +216,11 @@ static void mix_part(track_t *t, uint32_t n)
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    if (safe_start) {                                 /* safe start: silence, no track / model / FX code */
+        for (i = 0; i < n; i++)
+            out[2u * i] = out[2u * i + 1u] = 0;
+        return;
+    }
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);

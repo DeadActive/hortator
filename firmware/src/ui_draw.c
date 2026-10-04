@@ -579,6 +579,17 @@ static void draw_columns(void)
 
 static void ui_draw(void)
 {
+    if (safe_start) {                                 /* safe start: one static screen */
+        static uint8_t drawn;
+        if (!drawn) {
+            lcd_fill(0, 0, 240, 240, C_BLACK);
+            draw_text_box(0, 92, 240, &FONT_L, "SAFE START", C_HI, 1);
+            draw_text_box(0, 128, 240, &FONT_S, "NO AUDIO - USB UPDATE READY", C_WHITE, 1);
+            draw_text_box(0, 148, 240, &FONT_S, "POWER OFF TO LEAVE", C_GRAY, 1);
+            drawn = 1;
+        }
+        return;
+    }
     ui.frame++;
     if (ui.menu) {
         draw_menu();

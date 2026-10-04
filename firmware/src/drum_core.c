@@ -5,6 +5,7 @@
  * render fx.c mixes (track_render). A cut voice is not dropped: its last sample decays in dtail. */
 
 static uint32_t dvage;                                   /* hit counter: voice ages, noise seeds */
+static uint8_t safe_start;                            /* SEQ held at power-on: no drum audio (drum_boot_init) */
 
 /* power-on kit: model and MIDI note of each track */
 static const uint8_t KIT_DEF[NTRK][2] = {
@@ -121,6 +122,8 @@ static void drum_hit(track_t *t, uint32_t vel)
     const dmodel_t *m = trk_model(t);
     uint32_t i, nv = m->voices < NDV ? m->voices : NDV;
     dvoice_t *v;
+    if (safe_start)
+        return;
     if (t->p[P_MUTE])
         return;
     if (t->p[P_CHOKE])

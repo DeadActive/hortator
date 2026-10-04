@@ -74,9 +74,7 @@ static void fm1_fault(const fm1_crash_t *c)
 /* power-on: the drum kit (drum_core.c KIT_DEF), empty patterns */
 static void felucca_init(void)
 {
-    drum_tracks_init();
-    ui.home = 1;
-    ui.force = 1;
+    drum_boot_init();
 }
 
 static void fm1_main(void)

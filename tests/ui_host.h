@@ -1,7 +1,9 @@
 /* Host build of the drum firmware's UI: the DSP harness, a 240x240 framebuffer for the LCD, and the
  * input / IRQ HAL replaced by state the tests set. Screens are written as PPM (tests convert to PNG). */
 #include "drum_host.h"
+#ifndef FELUCCA_FLASH
 #define FELUCCA_FLASH 0
+#endif
 #define FELUCCA_OTA 0
 #define FELUCCA_CDC 0
 /* ---- LCD: framebuffer (RGB565, native order) */
@@ -46,6 +48,9 @@ static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static void fm1_irq_off(void) {}
 static void fm1_irq_on(void) {}
 static void fm1_wdt_feed(void) {}
+#define FM1_DEBOUNCE 8u
+static uint32_t host_scans;                          /* the boot's polled scans (tests: SEQ held = fm1_in.buttons) */
+static void fm1_input_scan(void) { host_scans++; }
 #define SCOPE_N 512u
 static int16_t scope_buf[SCOPE_N];
 static uint32_t scope_w;
