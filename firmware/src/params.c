@@ -74,10 +74,12 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
 {
     *unit = "";
     switch (d->fmt) {
-    case F_PCT:
-        fmt_int(val, (v * 100 + 63) / 127);
+    case F_PCT: {                                     /* the share of the knob's own range (0..100 swing, 0..127) */
+        int32_t r = d->max - d->min > 0 ? d->max - d->min : 1;
+        fmt_int(val, ((v - d->min) * 100 + r / 2) / r);
         *unit = "%";
         break;
+    }
     case F_BIPCT:
         fmt_int(val, v * 100 / 64);
         if (v > 0) {

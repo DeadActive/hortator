@@ -1101,8 +1101,22 @@ static void test_m1c_swap(void)
           peak_of(wl, 0, SECS(1)) <= 3 * VOICE_FS && dm_qover == q0 && trk[0].model == DM_SSNAP);
 }
 
+/* a percent shows the share of the knob's own range (swing 0..100 is 60 % at 60, 100 % at its end) */
+static void test_percent_display(void)
+{
+    char a[8], b[8], c[8], d[8];
+    const char *u;
+    param_format(&TP[P_SSWING], 60, a, &u);
+    param_format(&TP[P_SSWING], 100, b, &u);
+    param_format(&GP[G_DFDBK], 120, c, &u);
+    param_format(&TP[P_REV], 127, d, &u);
+    check("display: swing 60 shows 60 %, swing 100 shows 100 %, feedback at its end 100 %, a 0..127 knob at 127 100 %",
+          str_eq(a, "60") && str_eq(b, "100") && str_eq(c, "100") && str_eq(d, "100") && str_eq(u, "%"));
+}
+
 int main(void)
 {
+    test_percent_display();
     test_q24();
     test_tables();
     test_idle_silence();
