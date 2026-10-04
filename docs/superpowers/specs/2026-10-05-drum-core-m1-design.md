@@ -42,17 +42,19 @@ editor + user presets (M5).
 ### 2.2 Code frozen to upstream
 These files must stay byte-identical to `upstream` @ 1e838e1:
 `firmware/hal/*`, `firmware/loader/*`, `firmware/src/ota.c`, `firmware/src/usb.c`,
-`firmware/crt0.S`, `firmware/app.ld`, and `firmware/src/storage.c` except one line: the
-settings record magic `ST_MAGIC` (storage.c line 14) changes value; `check_untouched.sh`
-allows exactly that one-line difference in that file and nothing else.
+`firmware/crt0.S`, `firmware/app.ld`, and `firmware/src/storage.c` (`tools/check_untouched.py`
+tolerates a changed `ST_MAGIC` line, but since M1-B the drum firmware leaves it unchanged, §2.3).
 `tools/check_untouched.sh` compares them with `git diff --exit-code 1e838e1 -- <paths>`;
 `tests/run_tests.sh` fails if it fails. Rationale: USB-MIDI update entry is the primary
 recovery path; it must never be broken by our changes.
 
 ### 2.3 Flash layout
 Unchanged: app area, user sample slots (0xA0000..0xDBFFF), user preset banks, project slots,
-settings and update records keep their addresses. No new flash regions. The settings/project
-record magic changes (new value, e.g. `"FDRM"`) so leftover Felucca records are ignored, not misread.
+settings and update records keep their addresses. No new flash regions. Leftover Felucca records are
+ignored, not misread: projects get a new format magic (`"FDR1"`); the settings record keeps Felucca's
+format and `ST_MAGIC` (amended in M1-B: its content — palette, low-cut, zoom, the learned panel
+calibration — means the same in the drum firmware, and a new magic would discard the user's panel
+calibration). `storage.c` therefore stays fully unchanged.
 
 ### 2.4 Device identity
 Package family stays `FM-1_9xx` so M-VAVE's updater and the Felucca web installer still
