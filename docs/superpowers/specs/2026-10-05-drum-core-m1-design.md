@@ -177,6 +177,14 @@ Common macro knobs for every model: **TUNE / DECAY / TONE / CHAR**; 4 extras on 
   note-off ignored. Clock/sync and USB-MIDI in/out unchanged.
 - **Keys:** the 8 white keys from F3 trigger tracks 1–8 at velocity 100; SHIFT (or the existing
   modifier) + white key selects the track. Black keys unused in M1.
+- **Device controls (user decisions for M1-B, 2026-10-05):** page buttons reused by position — HOME =
+  the selected track's macros (TUNE/DECAY/TONE/CHAR), EDIT = SOUND (macros, extras), ENV = TRACK
+  (MODEL/LEVEL/PAN/CHOKE, NOTE), LFO = LAYER, FX = FX, SEQ = STEP/PATTERN, GLO = GLOBAL, SAVE = PROJECT,
+  REC = TRACKS overview + arm; SCL and ARP unused. Step entry: on the SEQ page the lowest 16 keys show and
+  toggle the 16 steps of the current bank of the selected track (tap: off → on → accent → off), OCT-/OCT+
+  move between the 4 banks, key LEDs show steps and the playhead. PRESET encoder = swap the selected
+  track's model (its default sound) on HOME/TRACK; ALGORITHM selects the track. The editor SysEx is off
+  (`ed_service` stub; `ota_take` frees every frame, so the update handshake is unaffected).
 - **Pages:** TRACK (MODEL / LEVEL / PAN / CHOKE; ALGORITHM cycles tracks), SOUND (macros + page 2),
   LAYER (SET / LEVEL / TUNE / DECAY), FX (existing DIST / sends / SLICER pages for the selected
   track), GLOBAL (BPM, swing, MIDI ch, sync, FX bus params, info). Existing drawing/input code reused.
