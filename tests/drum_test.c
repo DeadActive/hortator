@@ -479,6 +479,34 @@ static void test_perc(void)
     check("claves: near 2.5 kHz", f > 2400 && f < 2600);
 }
 
+static void test_layer(void)
+{
+    double a, b;
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    drum_hit(&trk[0], 127);
+    check("layer: LLEVEL 0 starts no layer voice", !trk[0].lv[0].active && !trk[0].lv[1].active);
+    render_track(&trk[0], wl, SECS(0.3));
+    a = hf_of(wl, 0, SECS(0.3));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;                            /* PERC */
+    trk[0].p[P_LKEY] = 38;                           /* the GM snare sample on top of the kick */
+    drum_hit(&trk[0], 127);
+    check("layer: a hit starts the model and the layer", trk[0].v[0].active && trk[0].lv[0].active);
+    render_track(&trk[0], wl, SECS(6));
+    b = hf_of(wl, 0, SECS(0.3));
+    check("layer: adds the sample (more high-frequency energy)", b > 1.5 * a);
+    check("layer: ends with the hit, no voice left", track_idle(&trk[0]));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = SMP_NSETS;                    /* USR1, empty */
+    drum_hit(&trk[0], 127);
+    check("layer: an empty user slot adds nothing", !trk[0].lv[0].active && trk[0].v[0].active);
+}
+
 int main(void)
 {
     test_tables();
@@ -501,6 +529,7 @@ int main(void)
     test_snares_claps();
     test_metal();
     test_perc();
+    test_layer();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
