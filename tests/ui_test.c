@@ -382,6 +382,55 @@ static void test_screens(void)
           cur_page() == &PAGES[0] && str_eq(PAGES[0].title, "SOUND") && fb_lit(26, 70) > 100 && fb_lit(202, 240) > 100);
 }
 
+/* every engine's SOUND pages, chosen and edited through the UI, for looking at: build/ui_shots/engines/
+ * NN_name_P_default / _min / _max (page P = 1 or 2; every knob of the page turned to its end) */
+static void engine_page_shots(uint32_t mi, uint32_t pg)
+{
+    char name[64], low[8];
+    uint32_t k, j;
+    for (j = 0; N_MODEL[mi][j] && j < sizeof low - 1; j++)
+        low[j] = (char)(N_MODEL[mi][j] >= 'A' && N_MODEL[mi][j] <= 'Z' ? N_MODEL[mi][j] + 32 : N_MODEL[mi][j]);
+    low[j] = 0;
+    for (k = 0; k < NPAGES && (cur_page() != &PAGES[pg] || ui.home); k++) {
+        press(B_EDIT);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+    snprintf(name, sizeof name, "engines/%02u_%s_%u_default", (unsigned)mi, low, (unsigned)pg + 1u);
+    snap_page(name);
+    for (k = 0; k < 4; k++)
+        turn(EN_K1 + k, -999);
+    ui_frame();
+    snprintf(name, sizeof name, "engines/%02u_%s_%u_min", (unsigned)mi, low, (unsigned)pg + 1u);
+    snap_page(name);
+    for (k = 0; k < 4; k++)
+        turn(EN_K1 + k, 999);
+    ui_frame();
+    snprintf(name, sizeof name, "engines/%02u_%s_%u_max", (unsigned)mi, low, (unsigned)pg + 1u);
+    snap_page(name);
+}
+
+static void test_engine_screens(void)
+{
+    uint32_t mi, k, n = 0;
+    for (mi = 0; mi < NMODELS; mi++) {
+        ui_host_init();
+        for (k = 0; k < 2u * NMODELS && (uint32_t)TSEL->p[P_MODEL] != mi; k++) {   /* PRESET on HOME: next engine */
+            turn(EN_PRESET, 1);
+            ui_frame();
+        }
+        engine_page_shots(mi, 0);
+        n++;
+        for (k = 4; k < 8; k++)
+            if (DMODELS[mi].edit[k].max != DMODELS[mi].edit[k].min) {   /* SOUND 2/2 has knobs */
+                engine_page_shots(mi, 1);
+                break;
+            }
+    }
+    printf("     engines: %u engines, SOUND pages at default / min / max in build/ui_shots/engines\n", (unsigned)n);
+}
+
 static void test_project_roundtrip(void)
 {
     ui_host_init();
@@ -423,6 +472,7 @@ static void test_project_rejects(void)
 
 int main(void)
 {
+    test_engine_screens();
     test_families();
     test_track_select();
     test_model_swap();

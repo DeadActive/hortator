@@ -1,4 +1,5 @@
-/* WAV renders for listening: one file per model and the kit demo.  drumsim OUTDIR */
+/* WAV renders for listening: one file per model, the kit demo and the demo kits (808, 909, Plaits, mixed).
+ * drumsim OUTDIR */
 #include "drum_host.h"
 #include <sys/stat.h>
 
@@ -31,6 +32,68 @@ static void hit_and_write(FILE *f, track_t *t, uint32_t vel, uint32_t *frames)
     for (i = 0; i < GAP; i++)
         wav_put(f, L[i], R[i]);
     *frames += GAP;
+}
+
+/* a demo kit: 8 tracks (model, TUNE, DECAY or -1 = default), a 16-step pattern ('x' hit, 'X' accent) per track,
+ * played 4 bars at 120 BPM through the whole mix (FX sends on the snare, clap and hats), written to DIR/NAME */
+typedef struct {
+    const char *name;
+    uint32_t model[NTRK];
+    int16_t tune[NTRK], decay[NTRK];
+    const char *pat[NTRK];
+} demo_kit_t;
+
+static const demo_kit_t KITS[] = {
+    {"kit_808.wav", {DM_K808, DM_S808, DM_C808, DM_HATC, DM_HATO, DM_TOM, DM_COWB, DM_CYMB},
+     {0, 0, 0, 0, 0, 0, 0, 0}, {-1, -1, -1, -1, -1, -1, -1, -1},
+     {"X..x..x...x..x..", "....X.......X...", "....x.......x..x", "x.x.x.x.x.x.x.x.", "..x...x...x...x.",
+      "..........x.x.xX", ".x.....x...x....", "X..............."}},
+    {"kit_909.wav", {DM_K909, DM_S909, DM_C909, DM_HATC, DM_HATO, DM_RIM, DM_CLAVE, DM_CONGA},
+     {0, 0, 0, 0, 0, 0, 0, 0}, {-1, -1, -1, -1, -1, -1, -1, -1},
+     {"X...x...x...x...", "....X.......X..x", "....x.......x...", "xxxxxxxxxxxxxxXx", "..x...x...x...x.",
+      "...x.....x....x.", ".x....x...x.....", "......x.x.....x."}},
+    {"kit_plaits.wav", {DM_KBOOM, DM_SSNAP, DM_SCRAK, DM_HMETL, DM_HNOIS, DM_KPUNC, DM_KBOOM, DM_SSNAP},
+     {0, 0, 0, 0, 0, 0, 12, 12}, {-1, -1, -1, -1, -1, 40, 30, 10},
+     {"X..x..x...x..x..", "....X.......X...", "....x.......x..x", "x.x.x.x.x.x.x.x.", "..x...x...x...x.",
+      "X.......X.......", "..........x.x.x.", ".x.....x...x...."}},
+    {"kit_mix.wav", {DM_KBOOM, DM_S808, DM_SCRAK, DM_HATC, DM_HNOIS, DM_K909, DM_TOM, DM_CYMB},
+     {0, 0, 0, 0, 0, 0, 0, 0}, {-1, -1, -1, -1, -1, -1, -1, -1},
+     {"X...x...x...x...", "....X.......X...", "....x.......x..x", "x.x.x.x.x.x.x.x.", "..x...x...x...x.",
+      "..x.......x..x..", "..........x.x.xX", "X..............."}},
+};
+
+static void write_kit(const char *dir, const demo_kit_t *kit)
+{
+    char path[256];
+    uint32_t total = 4 * 16 * (FS * 60 / 120 / 4) / CTL * CTL, frames, i, k;
+    FILE *f;
+    snprintf(path, sizeof path, "%s/%s", dir, kit->name);
+    f = fopen(path, "wb");
+    wav_hdr(f, total);
+    host_init();
+    for (i = 0; i < NTRK; i++) {
+        track_t *t = &trk[i];
+        drum_set_model(t, kit->model[i]);
+        t->p[P_E0] = kit->tune[i];
+        if (kit->decay[i] >= 0)
+            t->p[P_E1] = kit->decay[i];
+        for (k = 0; k < 16; k++) {
+            t->step[k].on = kit->pat[i][k] != '.';
+            t->step[k].acc = kit->pat[i][k] == 'X';
+        }
+    }
+    trk[1].p[P_REV] = 40;
+    trk[2].p[P_REV] = 50;
+    trk[3].p[P_DLY] = 25;
+    transport_req = 1;
+    for (frames = 0; frames < total; frames += GAP < total - frames ? GAP : total - frames) {
+        uint32_t n = GAP < total - frames ? GAP : total - frames;
+        render_mix(L, R, n);
+        for (i = 0; i < n; i++)
+            wav_put(f, L[i], R[i]);
+    }
+    fclose(f);
+    printf("drumsim: %s\n", path);
 }
 
 int main(int argc, char **argv)
@@ -91,5 +154,7 @@ int main(int argc, char **argv)
         fclose(f);
         printf("drumsim: %s\n", path);
     }
+    for (i = 0; i < sizeof KITS / sizeof KITS[0]; i++)
+        write_kit(dir, &KITS[i]);
     return 0;
 }
