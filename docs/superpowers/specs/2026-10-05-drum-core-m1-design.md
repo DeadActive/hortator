@@ -85,8 +85,10 @@ Felucca is a single compilation unit (`felucca.c` includes the sources). Kept.
 New:
 - `firmware/src/drum_core.c` — 8 tracks: trigger, voice allocation, choke groups, sample layer, per-track render.
 - `firmware/src/dmodels.c` — model table; includes:
-  - `dm_808.c`, `dm_909.c`, `dm_perc.c` (integer models),
-  - `dm_metal.c` (shared 6-square source),
+  - `dm_dsp.c` (helpers), `dm_sample.c` (sample playback), `dm_kick.c` (kicks + pitched body),
+    `dm_snare.c` (snares, claps), `dm_perc.c` (tom, conga, rimshot, claves) — grouped by instrument,
+    not by 808/909, because the two versions of an instrument share code,
+  - `dm_metal.c` (shared 6-square source: hats, cymbal, cowbell),
   - `dm_plaits.c` (Plaits models in C, float; compiled only with `DRUM_PLAITS=1`).
 
 Kept, changed: `core.h`, `seq.c`, `fx.c`, `slicer.c` (NTRK = 8), `params.c`, `ui.c`,
@@ -148,7 +150,7 @@ Common macro knobs for every model: **TUNE / DECAY / TONE / CHAR**; 4 extras on 
 | RIMSHOT | 2 resonators (1,667/455 Hz) → drive → HP | 1 | drive | – |
 | CLAVES | resonator ~2.5 kHz | 1 | pitch | – |
 | COWBELL | squares 540/800 Hz → BP ~880 Hz, 2-stage decay | 1 | tail | – |
-| SAMPLE | Felucca ADPCM player (built-in kit or user slot) | 2 | start | – |
+| SAMPLE | Felucca ADPCM player (built-in kit or user slot) | 2 | drive (a start offset is not possible: IMA ADPCM must be decoded from the start) | – |
 | Plaits (flag) | analog/synth kick, analog/synth snare, hi-hat ×2 | 1 | per model | – |
 
 - **Voices:** retrigger takes a free voice, else the oldest; a stolen voice fades over ~1 ms
@@ -191,8 +193,11 @@ Common macro knobs for every model: **TUNE / DECAY / TONE / CHAR**; 4 extras on 
 - Choke: open hat silent within ~2 ms (≤ 100 samples at 44.1 kHz) of a closed-hat hit.
 - Voices: a 2-voice model's tail survives one retrigger; a 1-voice model's steal has no step
   larger than a set threshold (declick).
-- Cost: worst-case kit (8 tracks, 2-voice models + layers) ≤ 1,500 cycles/sample in Felucca's
-  target-budget metric; per-model budgets recorded in `tests/target_budget.txt`.
+- Cost: worst-case kit (8 tracks, 2-voice models + layers, every FX) ≤ 1,566 host instructions per
+  sample (`proc_pid_rusage`, as Felucca's `regress.c`) — the cost of stock Felucca's heaviest mix
+  (`cpu/mix/3parts_full_drums`), which runs on the FM-1. If it is exceeded, the user decides
+  (optimise, cap voices, or rely on overload shedding). Target-side loop budgets
+  (`tests/target_budget.txt`) are recorded in M1-B with the real build.
 - Felucca's existing host tests that remain applicable (storage, MIDI parser, OTA entry,
   loader, installer, package format) still pass unchanged.
 
@@ -209,6 +214,11 @@ WAV renders of every model and the kit demo are sent to the user; the user appro
 3. All checks in §6.2 pass.
 4. The user approves the renders.
 5. Nothing has been installed on the FM-1.
+
+## 6.6 Plans
+M1 is implemented in three plans: **M1-A** host drum core (models, layer, mix, sequencer, tests, WAVs);
+**M1-B** device UI, firmware integration (`felucca.c`, `main.c`, `audio.c`, `project.c`), real drum build,
+`tests/run_tests.sh`; **M1-C** Plaits models behind `DRUM_PLAITS=1` (approach set by the C++ probe in M1-A Task 1).
 
 ## 7. Risks
 
