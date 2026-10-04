@@ -111,6 +111,57 @@ static int led_lit(uint32_t id)                     /* the LED of button / key i
     return q != 0xFF && ((fm1_led[q >> 3] >> (q & 7u)) & 1u);
 }
 
+/* a key held on the grid for ms (frames advance the host clock), then let go */
+static void grid_hold(uint32_t key, uint32_t ms)
+{
+    uint32_t t;
+    keys(1u << key);
+    ui_frame();
+    for (t = 0; t < ms; t += 50u) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+    keys(0);
+    ui_frame();
+}
+
+/* a tap turns a step on / off; a hold (0.4 s) flips its accent and leaves it on */
+static void test_grid_hold_accent(void)
+{
+    step_t *s = &trk[0].step[4];
+    ui_host_init();
+    open_step_page();
+    grid_hold(WHITE[4], 0);
+    check("grid: a tap turns step 5 on, no accent", s->on && !s->acc);
+    grid_hold(WHITE[4], 0);
+    check("grid: a tap on an on step turns it off", !s->on && !s->acc);
+    grid_hold(WHITE[4], 300);
+    check("grid: a 0.3 s press is still a tap (on, no accent)", s->on && !s->acc);
+    grid_hold(WHITE[4], 600);
+    check("grid: a 0.6 s hold on an on step adds the accent (it stays on)", s->on && s->acc);
+    grid_hold(WHITE[4], 600);
+    check("grid: a hold on an accented step removes the accent (it stays on)", s->on && !s->acc);
+    s->on = 0;
+    s->acc = 0;
+    grid_hold(WHITE[4], 600);
+    check("grid: a hold on an off step makes it on with accent", s->on && s->acc);
+    grid_hold(WHITE[4], 0);
+    check("grid: a tap on an accented step turns it off", !s->on && !s->acc);
+    {
+        uint32_t ms;
+        keys(1u << WHITE[4]);                        /* the accent appears while still held */
+        ui_frame();
+        for (ms = 0; ms < 500u; ms += 50u) {
+            host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+            ui_frame();
+        }
+        check("grid: the accent shows while the key is still held", s->on && s->acc);
+        keys(0);
+        ui_frame();
+        check("grid: letting go after a hold changes nothing more", s->on && s->acc);
+    }
+}
+
 static void test_grid_keys(void)
 {
     uint32_t a;
@@ -137,12 +188,7 @@ static void test_grid_keys(void)
     ui_frame();
     keys(0);
     ui_frame();
-    check("grid: second tap = accent", trk[0].step[2].on && trk[0].step[2].acc);
-    keys(1u << WHITE[2]);
-    ui_frame();
-    keys(0);
-    ui_frame();
-    check("grid: third tap = off", !trk[0].step[2].on && !trk[0].step[2].acc);
+    check("grid: a second tap turns the step off", !trk[0].step[2].on && !trk[0].step[2].acc);
     trk[0].p[P_SLEN] = 64;
     press(B_OCTUP);
     ui_frame();
@@ -733,6 +779,7 @@ int main(void)
 {
     test_safe_start();
     test_key_selects_track();
+    test_grid_hold_accent();
     test_engine_screens();
     test_seq_screens();
     test_families();

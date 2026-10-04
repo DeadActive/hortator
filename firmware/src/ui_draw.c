@@ -212,7 +212,7 @@ static void graph_grid(const track_t *t, uint16_t c)
     fmt_int(b + str_len(b), (int32_t)bank_count());
     cv_text(4, 4, &FONT_S, "BANK", C_GRAY);
     cv_text(48, 4, &FONT_S, b, C_HI);
-    cv_text(4, 84, &FONT_S, "KEYS: OFF > ON > ACC", C_DIM);
+    cv_text(4, 84, &FONT_S, "TAP: ON/OFF  HOLD: ACCENT", C_DIM);
 }
 
 static void graph_fx(const track_t *t, uint16_t c)

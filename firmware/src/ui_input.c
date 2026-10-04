@@ -165,6 +165,7 @@ static void edit_param(uint32_t slot, int32_t steps)
 /* HOME / REC: tap on release, hold 0.7 s fires once. t0 = press time | 1,
  * bit 1 = fired (or swallowed: then the release is no tap either) */
 enum { BT_NONE, BT_TAP, BT_HOLD };
+#define STEP_HOLD_MS 400u                               /* a STEP grid key held this long: accent (user, 0.4 s) */
 static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok)
 {
     uint32_t tap;
@@ -264,9 +265,18 @@ static void ui_input(void)
         }
     }
     if (grid_mode()) {
-        for (k = 0; k < 16u; k++)                       /* steps on the white keys (seq.c STEP_KEY) */
-            if ((notes >> STEP_KEY[k]) & 1u)
-                step_tap(k);
+        for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a press */
+            uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off, a hold flips its accent */
+            if ((notes >> STEP_KEY[k]) & 1u) {
+                step_press(k);
+                *t0 = (now | 1u) & ~2u;
+            } else if (!((fm1_in.notes >> STEP_KEY[k]) & 1u)) {
+                *t0 = 0;
+            } else if (*t0 && !(*t0 & 2u) && now - (*t0 & ~3u) > STEP_HOLD_MS * 1000u * FM1_TICKS_PER_US) {
+                *t0 |= 2u;
+                step_hold(k);
+            }
+        }
     } else if (!ui.home && !ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ) {
         for (k = 0; k < NTRK; k++)                      /* a per-track page: a white key selects its track */
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */

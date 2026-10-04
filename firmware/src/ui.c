@@ -41,6 +41,9 @@ static struct {
     uint8_t bpm_t;
     uint8_t arm, arm_t;          /* destructive action armed: param id, frames left to confirm */
     uint32_t rec_t0;             /* REC press time (btn_hold) */
+    uint32_t step_t0[16];        /* STEP grid: a white key's press time (as btn_hold: bit1 = the hold acted) */
+    uint16_t step_si[16];        /* the step it pressed, 0xFFFF none */
+    uint8_t step_was[16];        /* that step before the press: bit0 on, bit1 accent */
     uint8_t confirm;             /* 1 = "clear track n?" */
     uint8_t confirm_trk;
     char msg[24];
@@ -115,20 +118,31 @@ static void bank_fix(void)                             /* LEN shortened (knob, p
         bank_set((int32_t)bank_count() - 1);
 }
 
-/* key k of the grid: step bank * 16 + k cycles off -> on -> accent -> off (inside LEN only) */
-static void step_tap(uint32_t k)
+/* key k of the grid pressed: step bank * 16 + k turns on / off (an accented step off), inside LEN only; its
+ * state before is kept for a hold (step_hold) */
+static void step_press(uint32_t k)
 {
     uint32_t si = ui.bank * 16u + k;
     step_t *s;
+    ui.step_si[k] = 0xFFFFu;
     if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN])
         return;
     s = &TSEL->step[si];
-    if (!s->on)
-        s->on = 1;
-    else if (!s->acc)
-        s->acc = 1;
-    else
-        s->on = s->acc = 0;
+    ui.step_si[k] = (uint16_t)si;
+    ui.step_was[k] = (uint8_t)(s->on | s->acc << 1);
+    s->on = !s->on;
+    s->acc = 0;
+}
+
+/* key k held STEP_HOLD: the step's accent flips from before the press, and the step is on */
+static void step_hold(uint32_t k)
+{
+    step_t *s;
+    if (k >= 16u || ui.step_si[k] == 0xFFFFu)
+        return;
+    s = &TSEL->step[ui.step_si[k]];
+    s->on = 1;
+    s->acc = (uint8_t)!((ui.step_was[k] >> 1) & 1u);
 }
 
 static void track_clear(track_t *t)
