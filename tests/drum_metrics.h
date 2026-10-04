@@ -19,7 +19,7 @@ typedef struct {
     double win;                        /* envelope window, s */
     double peak_db;                    /* loudest 1 ms RMS window (noise-based: 40 ms), dB */
     double decay_s;                    /* end of the last window >= env_max - 40 dB */
-    double centroid;                   /* Hz: power-weighted, 0..20 kHz, first 200 ms (noise-based: 4 x 50 ms) */
+    double centroid;                   /* Hz: power-weighted, 0..20 kHz, first 200 ms (noise-based: 4 x 50 ms, those >= loudest - 40 dB) */
     double pitch[DMM_NPITCH];          /* Hz per 50 ms window from zero-crossing periods, 0 = not measurable */
 } dmm_t;
 
@@ -144,9 +144,19 @@ static void dmm_measure(const float *y, int n, double sr, int noisy, double base
     for (w = 0; w < m->nenv; w++)
         if (m->env_db[w] >= m->env_max - 40.0)
             m->decay_s = (w + 1) * win;
-    if (noisy) {
-        for (w = 0; w < 4; w++)
-            m->centroid += dmm_centroid(y, w * (int)(sr * 0.05), (int)(sr * 0.05), sr) / 4.0;
+    if (noisy) {                 /* the windows within 40 dB of the loudest: a tail far below hearing does not count (user, M1-C) */
+        int l = (int)(sr * 0.05), k, nw = 0;
+        double sum = 0.0;
+        for (w = 0; w < 4; w++) {
+            double e = 0.0;
+            for (k = 0; k < l && w * l + k < n; k++)
+                e += (double)y[w * l + k] * y[w * l + k];
+            if (dmm_db(sqrt(e / l)) >= m->env_max - 40.0) {
+                sum += dmm_centroid(y, w * l, l, sr);
+                nw++;
+            }
+        }
+        m->centroid = nw ? sum / nw : 0.0;
     } else {
         m->centroid = dmm_centroid(y, 0, (int)(sr * 0.2), sr);
     }

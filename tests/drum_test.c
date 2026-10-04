@@ -411,6 +411,7 @@ static void test_snares_claps(void)
     model_health(DM_S909);
     model_health(DM_C808);
     model_health(DM_C909);
+    model_health(DM_SSNAP);
     check("808 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S808) > 3);
     check("909 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S909) > 3);
     host_init();

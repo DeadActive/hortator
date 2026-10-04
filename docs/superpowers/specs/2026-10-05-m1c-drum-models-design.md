@@ -96,7 +96,10 @@ cap, cost reference, tests) still applies.
     (KPUNC research: the body pitch matched within 0.2 %, the first-window reading moved up to 30 % either
     way) — §6 step 4, approved by the user after an A/B listening check. The reference renders 0.1 s idle
     before each hit, so its filters start from rest as in the running module (the ports start from the same
-    rest state).
+    rest state). The noise-based models' brightness averages only the 50 ms windows within 40 dB of the
+    loudest envelope window: at the shortest DECAY the later windows are at −85 to −156 dB in the reference,
+    far below hearing, yet each weighed a quarter (SSNAP research: ours/reference 0.74–0.77 from one such
+    window) — §6 step 4, approved by the user after an A/B listening check.
   - The test prints, per model, how many renders meet strict and how many only loose; a render that
     misses loose fails the suite.
   - Procedure: a model first gets one round of §6 steps 1–2 (find and fix the cause) against strict.

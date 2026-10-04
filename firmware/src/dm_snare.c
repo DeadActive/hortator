@@ -144,3 +144,108 @@ static void c909_trigger(track_t *t, dvoice_t *v)
 #define DM_C909_DEF {"C909", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("TONE", F_INT, 0, 127, 64), PD("SPRD", F_INT, 0, 127, 40), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, c909_trigger, clap_render}
+
+/* ---- M1-C: integer ports of Mutable Instruments' drum algorithms (Plaits, stmlib), MIT licence:
+ * Copyright 2012-2016 Emilie Gillet (emilie.o.gillet@gmail.com).
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+ * documentation files (the "Software"), to deal in the Software without restriction, including without
+ * limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
+ * Software, and to permit persons to whom the Software is furnished to do so, subject to the following
+ * conditions: The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+ * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE. */
+
+static void ssnap_start(ssnap_t *k, int32_t note, int32_t tone, int32_t decay, int32_t chr, int32_t vel, uint32_t seed)
+{
+    static const int32_t MODE[5] = {Q24(1.00), Q24(2.00), Q24(3.18), Q24(4.16), Q24(5.62)};
+    int32_t sn = qknob(chr), d = qknob(decay), t = qknob(tone), acc = qknob(vel);
+    int32_t f0 = qnote(note), dxt = qm(d, QONE + qm(d, d - QONE)), q, fn, i;
+    q = qratio(Q24(2000.0 / 65536.0), qm(dxt, Q24(84.0)));     /* q / 2^16 */
+    k->ndec = QONE - qm(qratio(Q24(0.0017), -qm(d, Q24(50.0) + qm(sn, Q24(10.0)))), K44);
+    k->leak = qm(qm(sn, 2 * QONE - sn), Q24(0.1));
+    k->snappy = qlim(qm(sn, Q24(1.1)) - Q24(0.05), 0, QONE);
+    k->pulse_h = Q24(3.0) + qm(Q24(7.0), acc);
+    for (i = 0; i < 5; i++) {
+        int32_t f = qmin(qm(f0, MODE[i]), Q24(0.499)), qi = i == 0 ? q : q / 4;
+        qsvf_set(&k->res[i], qtan_fast(f), qinv12(4096 + (int32_t)(((int64_t)qi * q48(f)) >> 20)));
+        k->res[i].s1 = k->res[i].s2 = 0;
+    }
+    if (t < Q24(0.666667)) {
+        t = qm(t, Q24(1.5));
+        k->gain[0] = Q24(1.5) + qm(qm(QONE - t, QONE - t), Q24(4.5));
+        k->gain[1] = 2 * t + Q24(0.15);
+        k->gain[2] = k->gain[3] = k->gain[4] = 0;
+    } else {
+        t = qm(t - Q24(0.666667), Q24(3.0));
+        k->gain[0] = Q24(1.5) - t / 2;
+        k->gain[1] = Q24(2.15) - qm(t, Q24(0.7));
+        for (i = 2; i < 5; i++) {
+            k->gain[i] = t;
+            t = qm(t, t);
+        }
+    }
+    fn = qlim(16 * f0, 0, Q24(0.499));
+    qsvf_set(&k->nf, qtan_fast(fn), qdiv(QONE, QONE + qm(q48(fn), Q24(1.5))));
+    k->nf.s1 = k->nf.s2 = 0;
+    k->rem = FS / 1000;
+    k->nenv = 2 * QONE;
+    k->pulse = k->pulse_lp = 0;
+    k->rng = seed;
+}
+
+static int32_t ssnap_tick(ssnap_t *k)
+{
+    static const int32_t PDEC = Q24(1.0 - 1.0 / (0.1e-3 * FS));
+    int32_t pulse, shell = 0, noise, i, lp, bp;
+    if (k->rem) {
+        k->rem--;
+        pulse = k->rem ? k->pulse_h : k->pulse_h - QONE;
+        k->pulse = pulse;
+    } else {
+        k->pulse = qdecay(k->pulse, PDEC);
+        pulse = k->pulse;
+    }
+    k->pulse_lp += qm(C44_75, pulse - k->pulse_lp);
+    for (i = 0; i < 5; i++) {
+        int32_t ex = i == 0 ? (pulse - k->pulse_lp) + qm(Q24(0.006), pulse) : qm(Q24(0.026), pulse);
+        if (!k->gain[i])
+            continue;
+        qsvf_tick(&k->res[i], ex, &lp, &bp);
+        shell += qm(k->gain[i], bp + qm(ex, k->leak));
+    }
+    shell = qsoftclip(shell);
+    noise = qmax(2 * qrand(&k->rng) - QONE, 0);
+    k->nenv = qdecay(k->nenv, k->ndec);
+    noise = qm(qm(noise, k->nenv), 2 * k->snappy);
+    qsvf_tick(&k->nf, noise, &lp, &bp);
+    return bp + qm(shell, QONE - k->snappy);
+}
+
+/* SSNAP: TUNE DECAY TONE SNAP; analog snare: five resonator modes of the shell, a pulse exciter, band-passed noise */
+#define SSNAP_NOTE 55                                     /* MIDI note at TUNE 0 (196 Hz) */
+static void ssnap_trigger(track_t *t, dvoice_t *v)
+{
+    const int16_t *p = &t->p[P_E0];
+    ssnap_start(&v->ms.ss, SSNAP_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+}
+
+static void ssnap_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    int32_t pk = 0;
+    (void)t;
+    for (i = 0; i < n; i++) {
+        int32_t y = ssnap_tick(&v->ms.ss);
+        dm_putq(v, out, i, y);
+        pk = qmax(pk, qabs(y));
+    }
+    dm_qend(v, n, pk, FS / 20);
+}
+
+#define DM_SSNAP_DEF {"SSNAP", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+    PD("TONE", F_INT, 0, 127, 64), PD("SNAP", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), \
+    PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, ssnap_trigger, ssnap_render, 2}

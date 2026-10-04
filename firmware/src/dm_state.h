@@ -19,8 +19,16 @@ typedef struct {
     uint32_t rng;
     qsvf_t click;
 } kpunc_t;
+typedef struct {
+    int32_t gain[5], snappy, leak, ndec, pulse_h;
+    int32_t pulse, pulse_lp, nenv;
+    int32_t rem;
+    uint32_t rng;
+    qsvf_t res[5], nf;
+} ssnap_t;
 typedef union {
     int32_t raw[2];
+    ssnap_t ss;
     kpunc_t kp;
     kboom_t kb;
 } dm_state_t;
