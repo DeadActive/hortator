@@ -1,0 +1,3 @@
+# host instructions per sample (proc_pid_rusage) of stock Felucca's heaviest mix
+# cpu/mix/3parts_full_drums in tests/cpu_baseline.txt @ 1e838e1: it runs on the FM-1.
+1566

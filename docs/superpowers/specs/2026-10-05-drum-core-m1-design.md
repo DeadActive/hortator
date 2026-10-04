@@ -155,6 +155,10 @@ Common macro knobs for every model: **TUNE / DECAY / TONE / CHAR**; 4 extras on 
 
 - **Voices:** retrigger takes a free voice, else the oldest; a stolen voice fades over ~1 ms
   (declick tail, as `drums.c` does today).
+- **Voice cap (user decision, M1-A Task 10):** at most `DRUM_MAXV` = 8 voices sound at once over all
+  tracks, model and layer voices counted together; a hit over the cap stops the oldest sounding voice
+  with the declick fade. Measured worst case 1,388 host instructions/sample (≤ 1,566 reference).
+  M1-B adds Felucca's overload shedding (85 % CPU) on the device as the second guard.
 - **Choke:** per-track group 0–4; a hit cuts other tracks in the same group with the same fade.
   Hat C / Hat O default to group 1.
 - **Sample layer:** SET/zone, LEVEL (0 = off), TUNE, DECAY. Triggers with the model, same DIST /

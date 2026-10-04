@@ -39,13 +39,40 @@ static void model_follow(track_t *t)                     /* the model changed: t
     }
 }
 
+#ifndef DRUM_MAXV
+#define DRUM_MAXV 8       /* voices sounding at once over all tracks, model + layer: the worst case then costs 1388 of the 1566 reference */
+#endif
+
+/* over the cap: the oldest sounding voice of any track stops (declick tail) */
+static void dv_make_room(void)
+{
+    uint32_t i, k, n = 0;
+    track_t *ot = 0;
+    dvoice_t *ov = 0;
+    for (i = 0; i < NTRK; i++)
+        for (k = 0; k < 2u * NDV; k++) {
+            dvoice_t *v = k < NDV ? &trk[i].v[k] : &trk[i].lv[k - NDV];
+            if (!v->active)
+                continue;
+            n++;
+            if (!ov || v->age < ov->age) {
+                ov = v;
+                ot = &trk[i];
+            }
+        }
+    if (n >= DRUM_MAXV && ov)
+        dv_cut(ot, ov);
+}
+
 static dvoice_t *dv_alloc(track_t *t, dvoice_t *pool, uint32_t nv)   /* free, else the oldest */
 {
     uint32_t i;
     dvoice_t *v = &pool[0];
     for (i = 0; i < nv; i++) {
-        if (!pool[i].active)
+        if (!pool[i].active) {
+            dv_make_room();
             return &pool[i];
+        }
         if (pool[i].age < v->age)
             v = &pool[i];
     }

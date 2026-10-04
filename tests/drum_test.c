@@ -507,6 +507,167 @@ static void test_layer(void)
     check("layer: an empty user slot adds nothing", !trk[0].lv[0].active && trk[0].v[0].active);
 }
 
+static void test_extremes(void)
+{
+    static const int16_t V[] = {-24, 0, 127};
+    uint32_t mi, k, j, ok = 1;
+    for (mi = 0; mi < NMODELS; mi++)
+        for (k = 0; k < 8; k++)
+            for (j = 0; j < 3; j++) {
+                const param_desc_t *d = &DMODELS[mi].edit[k];
+                int32_t val = clamp(V[j], d->min, d->max);
+                uint32_t e;
+                host_init();
+                drum_set_model(&trk[0], mi);
+                trk[0].p[P_E0 + k] = (int16_t)val;
+                drum_hit(&trk[0], 127);
+                render_track(&trk[0], wl, SECS(7));
+                e = end_of(wl, SECS(7));
+                if (e >= SECS(6.5) || !track_idle(&trk[0]) || peak_of(wl, 0, SECS(7)) > 4 * VOICE_FS) {
+                    printf("     %s %s=%d: end %.2f s peak %d\n", N_MODEL[mi], d->label, val, e / (double)FS,
+                           peak_of(wl, 0, SECS(7)));
+                    ok = 0;
+                }
+            }
+    check("every model, every knob at min / 0 / max: bounded and ends", ok);
+}
+
+static void test_stress(void)
+{
+    uint32_t i, k, ok = 1;
+    host_init();
+    for (i = 0; i < NTRK; i++)
+        drum_set_model(&trk[i], i % 2 ? DM_CYMB : DM_TOM);
+    for (k = 0; k < 400; k++) {                      /* two hits per block on every track, 400 blocks */
+        for (i = 0; i < NTRK; i++) {
+            drum_hit(&trk[i], 127);
+            drum_hit(&trk[i], 1 + k % 127);
+        }
+        render_mix(wl, wr, CTL);
+        ok &= peak_of(wl, 0, CTL) <= 32767;
+    }
+    render_mix(wl, wr, SECS(7));
+    for (i = 0; i < NTRK; i++)
+        ok &= track_idle(&trk[i]);
+    check("stress: double hits every block on 8 tracks: bounded, every voice ends", ok);
+}
+
+static void test_cost(void)
+{
+    FILE *f = fopen("tests/drum_cost_ref.txt", "r");
+    char line[128];
+    double ref = 0, ipc;
+    uint64_t i0;
+    uint32_t i;
+    while (f && fgets(line, sizeof line, f))
+        if (line[0] != '#')
+            ref = atof(line);
+    if (f)
+        fclose(f);
+    host_init();                                     /* worst case: 2-voice models + layers + every FX */
+    for (i = 0; i < NTRK; i++) {
+        track_t *t = &trk[i];
+        drum_set_model(t, i % 2 ? DM_CYMB : DM_TOM);
+        t->p[P_LLEVEL] = 100;
+        t->p[P_LKEY] = 38;
+        t->p[P_DIST] = 60;
+        t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 60;
+        t->p[P_SLCR] = 1;
+        t->p[P_SDIV] = 3;                            /* 1/32 */
+        memset(t->step, 0, sizeof t->step);
+        t->step[0].on = t->step[1].on = 1;
+        t->p[P_SLEN] = 2;
+    }
+    song.g[G_BPM] = 240;
+    transport_req = 1;
+    render_mix(0, 0, SECS(0.5));                     /* every voice busy */
+    i0 = instr_now();
+    render_mix(wl, wr, SECS(4));
+    ipc = i0 ? (double)(instr_now() - i0) / SECS(4) : 0;
+    printf("     worst-case kit: %.0f host instructions / sample (reference %.0f)\n", ipc, ref);
+    check("cost: worst-case kit within the stock Felucca reference", !i0 || ref == 0 || ipc <= ref);
+}
+
+static uint32_t fnv(const int32_t *x, uint32_t n)
+{
+    uint32_t h = 2166136261u, i;
+    for (i = 0; i < n; i++)
+        h = (h ^ (uint32_t)x[i]) * 16777619u;
+    return h;
+}
+
+static void test_golden(void)
+{
+    FILE *f;
+    char name[32];
+    unsigned want;
+    uint32_t mi, ok = 1, have[NMODELS], upd = getenv("GOLDEN_UPDATE") != 0;
+    for (mi = 0; mi < NMODELS; mi++) {
+        hit_model(mi, 127, SECS(1));
+        have[mi] = fnv(wl, SECS(1));
+    }
+    if (upd) {
+        f = fopen("tests/drum_golden.txt", "w");
+        for (mi = 0; mi < NMODELS; mi++)
+            fprintf(f, "%s %08x\n", N_MODEL[mi], have[mi]);
+        fclose(f);
+        check("golden: tests/drum_golden.txt rewritten", 1);
+        return;
+    }
+    f = fopen("tests/drum_golden.txt", "r");
+    if (!f) {
+        check("golden: tests/drum_golden.txt exists (GOLDEN_UPDATE=1 writes it)", 0);
+        return;
+    }
+    while (fscanf(f, "%31s %x", name, &want) == 2)
+        for (mi = 0; mi < NMODELS; mi++)
+            if (!strcmp(name, N_MODEL[mi]) && have[mi] != want) {
+                printf("     %s render changed: %08x, golden %08x\n", name, have[mi], want);
+                ok = 0;
+            }
+    fclose(f);
+    check("golden: every model's default render is unchanged", ok);
+}
+
+static uint32_t voices_sounding(void)
+{
+    uint32_t i, k, n = 0;
+    for (i = 0; i < NTRK; i++)
+        for (k = 0; k < NDV; k++)
+            n += trk[i].v[k].active + trk[i].lv[k].active;
+    return n;
+}
+
+static void test_voice_cap(void)
+{
+    uint32_t i, k, ok = 1, mx = 0;
+    host_init();
+    for (i = 0; i < NTRK; i++) {
+        drum_set_model(&trk[i], i % 2 ? DM_CYMB : DM_TOM);
+        trk[i].p[P_LLEVEL] = 100;
+        trk[i].p[P_LKEY] = 38;
+    }
+    for (k = 0; k < 200; k++) {
+        for (i = 0; i < NTRK; i++) {
+            drum_hit(&trk[i], 127);
+            ok &= voices_sounding() <= DRUM_MAXV;
+        }
+        if (voices_sounding() > mx)
+            mx = voices_sounding();
+        render_mix(wl, wr, CTL);
+    }
+    printf("     max voices sounding: %u (cap %u)\n", mx, (unsigned)DRUM_MAXV);
+    check("voice cap: never more than DRUM_MAXV voices sound at once", ok && mx <= DRUM_MAXV);
+    host_init();
+    for (i = 0; i < NTRK; i++)
+        drum_set_model(&trk[i], DM_CYMB);
+    for (i = 0; i < DRUM_MAXV; i++)
+        drum_hit(&trk[i % NTRK], 127);
+    render_track(&trk[0], 0, CTL);
+    drum_hit(&trk[NTRK - 1], 127);                   /* one over the cap: the oldest (track 1) is stolen */
+    check("voice cap: the oldest voice is stolen with the declick tail", trk[0].dtail != 0 || !DRUM_MAXV);
+}
+
 int main(void)
 {
     test_tables();
@@ -530,6 +691,11 @@ int main(void)
     test_metal();
     test_perc();
     test_layer();
+    test_extremes();
+    test_stress();
+    test_cost();
+    test_golden();
+    test_voice_cap();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

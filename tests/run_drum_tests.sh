@@ -8,6 +8,8 @@ OUT=build/host
 mkdir -p "$OUT"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test" tests/drum_test.c -lm
 "$OUT/drum_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drumsim" tests/drumsim.c -lm
+"$OUT/drumsim" build/drum_renders >/dev/null && echo "renders: build/drum_renders"
 sh tests/guard_test.sh
 python3 tools/check_untouched.py
 echo "ALL DRUM HOST TESTS PASSED"
