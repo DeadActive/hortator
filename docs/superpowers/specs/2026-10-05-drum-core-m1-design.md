@@ -19,7 +19,7 @@ the real firmware is built but **never installed** in M1.
 | Real firmware build | Yes — build `felucca.bin` / `ota.bin` to verify toolchain and flash size. |
 | Repo | Fork with history: `./felucca`, branch `drum-m1`, `upstream` = hugelton/Felucca. |
 | Approach | A: drum-centric core; synth engines and `voice.c` removed; FX, seq timing, USB, OTA, HAL untouched. |
-| Models | Own integer 808/909 models (always) + Plaits models ported to C (float) behind `DRUM_PLAITS=1`. |
+| Models | Own integer 808/909 models + six integer ports of Mutable Instruments' drum algorithms, always built (M1-C, see `2026-10-05-m1c-drum-models-design.md`; replaces the earlier float-behind-`DRUM_PLAITS` plan). |
 | Model set in M1 | Kick/snare 808+909, clap 808+909, 808 hats, 808 cymbal, tom/conga, rimshot, claves, cowbell, sample. |
 | Voices | Per-model: 1 voice (kick, snare, clap, hats, rim, claves, cowbell) or 2 (cymbal, tom/conga, sample). |
 | Layering | Every track: synth model + optional sample layer. |
@@ -91,7 +91,7 @@ New:
     `dm_snare.c` (snares, claps), `dm_perc.c` (tom, conga, rimshot, claves) — grouped by instrument,
     not by 808/909, because the two versions of an instrument share code,
   - `dm_metal.c` (shared 6-square source: hats, cymbal, cowbell),
-  - `dm_plaits.c` (Plaits models in C, float; compiled only with `DRUM_PLAITS=1`).
+  - M1-C adds KBOOM/KPUNC (`dm_kick.c`), SSNAP/SCRAK (`dm_snare.c`), HMETL/HNOIS (`dm_metal.c`) — see the M1-C addendum.
 
 Kept, changed: `core.h`, `seq.c`, `fx.c`, `slicer.c` (NTRK = 8), `params.c`, `ui.c`,
 `ui_draw.c`, `ui_input.c`, `ui_menu.c`, `panel.c`, `project.c`, `felucca.c`, `main.c` (if needed),
@@ -153,7 +153,7 @@ Common macro knobs for every model: **TUNE / DECAY / TONE / CHAR**; 4 extras on 
 | CLAVES | resonator ~2.5 kHz | 1 | pitch | – |
 | COWBELL | squares 540/800 Hz → BP ~880 Hz, 2-stage decay | 1 | tail | – |
 | SAMPLE | Felucca ADPCM player (built-in kit or user slot) | 2 | drive (a start offset is not possible: IMA ADPCM must be decoded from the start) | – |
-| Plaits (flag) | analog/synth kick, analog/synth snare, hi-hat ×2 | 1 | per model | – |
+| M1-C: KBOOM KPUNC SSNAP SCRAK HMETL HNOIS | integer ports of Mutable Instruments' drum algorithms (M1-C addendum) | 1 | per model | hats: 1 |
 
 - **Voices:** retrigger takes a free voice, else the oldest; a stolen voice fades over ~1 ms
   (declick tail, as `drums.c` does today).
@@ -235,7 +235,7 @@ WAV renders of every model and the kit demo are sent to the user; the user appro
 ## 6.6 Plans
 M1 is implemented in three plans: **M1-A** host drum core (models, layer, mix, sequencer, tests, WAVs);
 **M1-B** device UI, firmware integration (`felucca.c`, `main.c`, `audio.c`, `project.c`), real drum build,
-`tests/run_tests.sh`; **M1-C** Plaits models behind `DRUM_PLAITS=1` (approach set by the C++ probe in M1-A Task 1).
+`tests/run_tests.sh`; **M1-C** six integer drum models after Mutable Instruments' algorithms, always built (`2026-10-05-m1c-drum-models-design.md`).
 
 ## 7. Risks
 
@@ -243,7 +243,7 @@ M1 is implemented in three plans: **M1-A** host drum core (models, layer, mix, s
 |---|---|
 | JieLi toolchain/SDK download fails (gitee/JieLi servers) | Report and stop; simulator work can proceed without it. |
 | Docker/Rosetta issues on macOS 26 | Report; try native Linux container image options only with user approval. |
-| Plaits is C++; JieLi clang 4 C++ support unknown | Port to C; keep behind `DRUM_PLAITS`; host-measure only. |
-| FM-1 float speed unknown | Plaits flag stays off by default until measured on hardware (M4). |
+| Plaits is C++ and float | M1-C ports it to integer C; the C++ original is a host-only test reference. |
+| FM-1 FPU trap state unknown (`-mfprev1` works) | No float in the firmware; revisit only if a later feature needs it (M4 measures). |
 | UI pages touch much shared code | Keep drawing/input code; only change page tables and parameter bindings. |
 | Sample upload depends on `editor.c` | Checked in planning; defer to M5 if coupled. |
