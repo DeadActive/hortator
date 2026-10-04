@@ -157,8 +157,11 @@ Common macro knobs for every model: **TUNE / DECAY / TONE / CHAR**; 4 extras on 
   (declick tail, as `drums.c` does today).
 - **Voice cap (user decision, M1-A Task 10):** at most `DRUM_MAXV` = 8 voices sound at once over all
   tracks, model and layer voices counted together; a hit over the cap stops the oldest sounding voice
-  with the declick fade. Measured worst case 1,388 host instructions/sample (≤ 1,566 reference).
-  M1-B adds Felucca's overload shedding (85 % CPU) on the device as the second guard.
+  with the declick fade. Realistic heavy use (demo pattern + layer/DIST/SLICER/sends on all 8 tracks)
+  costs ~1,100 host instructions/sample (≤ 1,566 reference). The extreme case (8 tracks of the heaviest
+  model kept busy, every FX) costs ~2,388 — a corrected measurement after the final review; by the
+  user's decision it is allowed above the reference and is covered by Felucca's overload shedding
+  (85 % CPU), ported to the device in M1-B; real headroom is measured on the FM-1 in M4.
 - **Choke:** per-track group 0–4; a hit cuts other tracks in the same group with the same fade.
   Hat C / Hat O default to group 1.
 - **Sample layer:** SET/zone, LEVEL (0 = off), TUNE, DECAY. Triggers with the model, same DIST /
@@ -197,10 +200,10 @@ Common macro knobs for every model: **TUNE / DECAY / TONE / CHAR**; 4 extras on 
 - Choke: open hat silent within ~2 ms (≤ 100 samples at 44.1 kHz) of a closed-hat hit.
 - Voices: a 2-voice model's tail survives one retrigger; a 1-voice model's steal has no step
   larger than a set threshold (declick).
-- Cost: worst-case kit (8 tracks, 2-voice models + layers, every FX) ≤ 1,566 host instructions per
-  sample (`proc_pid_rusage`, as Felucca's `regress.c`) — the cost of stock Felucca's heaviest mix
-  (`cpu/mix/3parts_full_drums`), which runs on the FM-1. If it is exceeded, the user decides
-  (optimise, cap voices, or rely on overload shedding). Target-side loop budgets
+- Cost (`proc_pid_rusage` host instructions/sample, as Felucca's `regress.c`): realistic heavy use ≤ 1,566,
+  the cost of stock Felucca's heaviest mix (`cpu/mix/3parts_full_drums`), which runs on the FM-1; the extreme
+  case (every model kept busy on 8 tracks) is reported and may not grow past +10 % of its recorded value
+  (user decision: overload shedding on the device covers it). Target-side loop budgets
   (`tests/target_budget.txt`) are recorded in M1-B with the real build.
 - Felucca's existing host tests that remain applicable (storage, MIDI parser, OTA entry,
   loader, installer, package format) still pass unchanged.

@@ -1,3 +1,8 @@
-# host instructions per sample (proc_pid_rusage) of stock Felucca's heaviest mix
-# cpu/mix/3parts_full_drums in tests/cpu_baseline.txt @ 1e838e1: it runs on the FM-1.
-1566
+# host instructions per sample (proc_pid_rusage), checked by tests/drum_test.c test_cost
+# ref: stock Felucca's heaviest mix (cpu/mix/3parts_full_drums in tests/cpu_baseline.txt @ 1e838e1), known to
+#      run on the FM-1. Realistic heavy use must stay within it (demo pattern + layer/DIST/SLICER/sends on all 8).
+ref 1566
+# extreme: 8 tracks of the heaviest model kept busy, every FX, voice cap 8 = 2388 measured (2026-10-05);
+#          by the user's decision it may exceed ref (M1-B overload shedding on the device), but must not grow
+#          past +10 %.
+extreme_max 2627

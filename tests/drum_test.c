@@ -552,40 +552,91 @@ static void test_stress(void)
     check("stress: double hits every block on 8 tracks: bounded, every voice ends", ok);
 }
 
-static void test_cost(void)
+/* the cost of 8 tracks of model mi kept busy (1/32 at 240 BPM, DECAY 127, every FX), with or without layers */
+static double kit_cost(uint32_t mi, int layers)
 {
-    FILE *f = fopen("tests/drum_cost_ref.txt", "r");
-    char line[128];
-    double ref = 0, ipc;
     uint64_t i0;
     uint32_t i;
-    while (f && fgets(line, sizeof line, f))
-        if (line[0] != '#')
-            ref = atof(line);
-    if (f)
-        fclose(f);
-    host_init();                                     /* worst case: 2-voice models + layers + every FX */
+    host_init();
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        drum_set_model(t, i % 2 ? DM_CYMB : DM_TOM);
-        t->p[P_LLEVEL] = 100;
+        drum_set_model(t, mi);
+        t->p[P_E1] = 127;
+        if (mi == DM_SMPL) {                         /* the heaviest sample: 3 octaves up, driven */
+            t->p[P_E0] = 24;
+            t->p[P_E3] = 127;
+            t->p[P_E5] = 38;
+        }
+        t->p[P_LLEVEL] = layers ? 100 : 0;
         t->p[P_LKEY] = 38;
         t->p[P_DIST] = 60;
         t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 60;
         t->p[P_SLCR] = 1;
-        t->p[P_SDIV] = 3;                            /* 1/32 */
+        t->p[P_SDIV] = 3;
         memset(t->step, 0, sizeof t->step);
         t->step[0].on = t->step[1].on = 1;
         t->p[P_SLEN] = 2;
     }
     song.g[G_BPM] = 240;
     transport_req = 1;
-    render_mix(0, 0, SECS(0.5));                     /* every voice busy */
+    render_mix(0, 0, SECS(0.5));
+    i0 = instr_now();
+    render_mix(wl, wr, SECS(2));
+    return i0 ? (double)(instr_now() - i0) / SECS(2) : 0;
+}
+
+static double cost_ref(const char *key)               /* tests/drum_cost_ref.txt "key value" */
+{
+    FILE *f = fopen("tests/drum_cost_ref.txt", "r");
+    char line[160], k[32];
+    double v, r = 0;
+    while (f && fgets(line, sizeof line, f))
+        if (line[0] != '#' && sscanf(line, "%31s %lf", k, &v) == 2 && !strcmp(k, key))
+            r = v;
+    if (f)
+        fclose(f);
+    return r;
+}
+
+static void test_cost(void)
+{
+    static const char *const PAT[NTRK] = {
+        "x...x...x...x..x", "....x.......x...", "....x.......x..x", "x.x.x.x.x.x.x.x.",
+        "..x...x...x...x.", "......x....x....", ".x.....x..x.....", "x...............",
+    };
+    double ref = cost_ref("ref"), emax = cost_ref("extreme_max"), worst = 0, real, c;
+    uint32_t mi, wm = 0, lay, wl_ = 0, i, k;
+    uint64_t i0;
+    host_init();                                     /* realistic heavy use: the demo with everything on */
+    for (i = 0; i < NTRK; i++) {
+        track_t *t = &trk[i];
+        for (k = 0; k < 16; k++)
+            t->step[k].on = PAT[i][k] == 'x';
+        t->p[P_LLEVEL] = 100;
+        t->p[P_LKEY] = 38;
+        t->p[P_DIST] = 40;
+        t->p[P_SLCR] = 1;
+        t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 40;
+    }
+    transport_req = 1;
+    render_mix(0, 0, SECS(0.5));
     i0 = instr_now();
     render_mix(wl, wr, SECS(4));
-    ipc = i0 ? (double)(instr_now() - i0) / SECS(4) : 0;
-    printf("     worst-case kit: %.0f host instructions / sample (reference %.0f)\n", ipc, ref);
-    check("cost: worst-case kit within the stock Felucca reference", !i0 || ref == 0 || ipc <= ref);
+    real = i0 ? (double)(instr_now() - i0) / SECS(4) : 0;
+    for (mi = 0; mi < NMODELS; mi++)                 /* the extreme: every model kept busy on 8 tracks */
+        for (lay = 0; lay < 2; lay++) {
+            c = kit_cost(mi, (int)lay);
+            if (c > worst) {
+                worst = c;
+                wm = mi;
+                wl_ = lay;
+            }
+        }
+    printf("     realistic heavy kit: %.0f host instructions / sample (reference %.0f)\n", real, ref);
+    printf("     extreme kit: %.0f (8 x %s%s; limit %.0f, above the reference by design: device shedding)\n", worst,
+           N_MODEL[wm], wl_ ? " + layers" : "", emax);
+    check("cost: realistic heavy use within the stock Felucca reference", !i0 || ref == 0 || real <= ref);
+    check("cost: the extreme case has not grown past its recorded limit", !i0 || emax == 0 || worst <= emax);
 }
 
 static uint32_t fnv(const int32_t *x, uint32_t n)

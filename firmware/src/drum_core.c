@@ -40,7 +40,8 @@ static void model_follow(track_t *t)                     /* the model changed: t
 }
 
 #ifndef DRUM_MAXV
-#define DRUM_MAXV 8       /* voices sounding at once over all tracks, model + layer: the worst case then costs 1388 of the 1566 reference */
+#define DRUM_MAXV 8       /* voices sounding at once over all tracks, model + layer (user decision: realistic use fits the
+                           * 1566 reference; the extreme case, ~2388, relies on the device's overload shedding, M1-B) */
 #endif
 
 /* over the cap: the oldest sounding voice of any track stops (declick tail) */
