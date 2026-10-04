@@ -55,7 +55,7 @@ static void ui_leds(void)
             int on = si < (uint32_t)t->p[P_SLEN] && t->step[si].on;
             if (song.playing && si == t->seq_idx)
                 on = !on;
-            led_put(nl, 14u + k, on);
+            led_put(nl, 14u + STEP_KEY[k], on);
         }
     } else {
         for (k = 0; k < 27u; k++)
@@ -264,8 +264,8 @@ static void ui_input(void)
         }
     }
     if (grid_mode()) {
-        for (k = 0; k < 16u; k++)
-            if ((notes >> k) & 1u)
+        for (k = 0; k < 16u; k++)                       /* steps on the white keys (seq.c STEP_KEY) */
+            if ((notes >> STEP_KEY[k]) & 1u)
                 step_tap(k);
     } else if (!ui.home && !ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ) {
         for (k = 0; k < NTRK; k++)                      /* a per-track page: a white key selects its track */

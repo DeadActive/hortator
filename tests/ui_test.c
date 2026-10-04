@@ -102,6 +102,15 @@ static void open_step_page(void)
     release_all();
 }
 
+/* the STEP grid's keys: the 16 white keys F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 (key index from F3) */
+static const uint8_t WHITE[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
+
+static int led_lit(uint32_t id)                     /* the LED of button / key id, as ui_leds left it */
+{
+    uint8_t q = led_pos[id];
+    return q != 0xFF && ((fm1_led[q >> 3] >> (q & 7u)) & 1u);
+}
+
 static void test_grid_keys(void)
 {
     uint32_t a;
@@ -109,17 +118,27 @@ static void test_grid_keys(void)
     open_step_page();
     check("SEQ opens the STEP grid (keys belong to it)", str_eq(cur_page()->title, "STEP") && song.seq_mode);
     a = dvage;
-    keys(1u << 2);
+    keys(1u << WHITE[2]);                            /* the third white key, A3 */
     ui_frame();
     keys(0);
     ui_frame();
-    check("grid: key 3 sets step 3 on, no drum hit", trk[0].step[2].on && !trk[0].step[2].acc && dvage == a);
-    keys(1u << 2);
+    check("grid: the third white key (A3) sets step 3 on, no drum hit",
+          trk[0].step[2].on && !trk[0].step[2].acc && dvage == a);
+    {
+        uint32_t i, others = 0;
+        for (i = 0; i < NSTEP; i++)                  /* only step 3 on: only its key is lit */
+            trk[0].step[i].on = i == 2;
+        ui_frame();
+        for (i = 0; i < 27u; i++)
+            others += i != WHITE[2] && led_lit(14u + i);
+        check("grid: step 3's LED is the third white key's (A3), no other key lit", led_lit(14u + WHITE[2]) && !others);
+    }
+    keys(1u << WHITE[2]);
     ui_frame();
     keys(0);
     ui_frame();
     check("grid: second tap = accent", trk[0].step[2].on && trk[0].step[2].acc);
-    keys(1u << 2);
+    keys(1u << WHITE[2]);
     ui_frame();
     keys(0);
     ui_frame();
@@ -132,19 +151,24 @@ static void test_grid_keys(void)
     ui_frame();
     keys(0);
     ui_frame();
-    check("grid: OCT+ moves to bank 2 (key 1 = step 17)", ui.bank == 1 && trk[0].step[16].on);
+    check("grid: OCT+ moves to bank 2 (white key 1 = step 17)", ui.bank == 1 && trk[0].step[16].on);
     {
         uint32_t i, on0 = 0, on1 = 0;
         for (i = 0; i < NSTEP; i++)
             on0 += trk[0].step[i].on + trk[0].step[i].acc;
-        keys(1u << 20);
+        keys(1u << 1 | 1u << 3 | 1u << 20 | 1u << 25);  /* black keys: F#3 G#3 C#5 F#5 */
         ui_frame();
         keys(0);
         ui_frame();
         for (i = 0; i < NSTEP; i++)
             on1 += trk[0].step[i].on + trk[0].step[i].acc;
-        check("grid: keys above the lowest 16 change no step", on0 == on1);
+        check("grid: black keys change no step", on0 == on1);
     }
+    keys(1u << WHITE[15]);                           /* G5, the 16th white key: step 32 of bank 2 */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("grid: the 16th white key (G5) is step 16 of the bank", trk[0].step[31].on);
     press(B_SEQ);                                    /* PATTERN page: keys play drums again */
     ui_frame();
     release_all();
@@ -169,7 +193,7 @@ static void test_bank_follows_len(void)
     trk[0].p[P_SLEN] = 20;                           /* LEN shortened elsewhere (knob, project) */
     ui_frame();
     check("shorter LEN: the bank follows (20 steps = banks 1..2)", ui.bank == 1);
-    keys(1u << 10);                                  /* step 27 > LEN: ignored */
+    keys(1u << WHITE[10]);                           /* step 27 > LEN: ignored */
     ui_frame();
     keys(0);
     ui_frame();
