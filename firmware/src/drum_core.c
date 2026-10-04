@@ -44,24 +44,41 @@ static void model_follow(track_t *t)                     /* the model changed: t
                            * 1566 reference; the extreme case, ~2388, relies on the device's overload shedding, M1-B) */
 #endif
 
-/* over the cap: the oldest sounding voice of any track stops (declick tail) */
-static void dv_make_room(void)
+/* the oldest sounding voice of any track (model or layer): *ot its track; returns how many sound */
+static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
 {
     uint32_t i, k, n = 0;
-    track_t *ot = 0;
-    dvoice_t *ov = 0;
+    *ot = 0;
+    *ov = 0;
     for (i = 0; i < NTRK; i++)
         for (k = 0; k < 2u * NDV; k++) {
             dvoice_t *v = k < NDV ? &trk[i].v[k] : &trk[i].lv[k - NDV];
             if (!v->active)
                 continue;
             n++;
-            if (!ov || v->age < ov->age) {
-                ov = v;
-                ot = &trk[i];
+            if (!*ov || v->age < (*ov)->age) {
+                *ov = v;
+                *ot = &trk[i];
             }
         }
-    if (n >= DRUM_MAXV && ov)
+    return n;
+}
+
+/* over the cap: the oldest sounding voice of any track stops (declick tail) */
+static void dv_make_room(void)
+{
+    track_t *ot;
+    dvoice_t *ov;
+    if (dv_oldest(&ot, &ov) >= DRUM_MAXV && ov)
+        dv_cut(ot, ov);
+}
+
+/* audio overload (audio.c, > 85 % of a half): the oldest sounding voice stops */
+static void drum_shed(void)
+{
+    track_t *ot;
+    dvoice_t *ov;
+    if (dv_oldest(&ot, &ov) && ov)
         dv_cut(ot, ov);
 }
 

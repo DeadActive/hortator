@@ -798,6 +798,43 @@ static void test_stress_seq(void)
     check("stress (sequencer 1/32 @ 240, MIDI flams, layers, every model): cap holds, bounded, all voices end", ok);
 }
 
+static void test_shed(void)
+{
+    uint32_t before;
+    host_init();
+    drum_set_model(&trk[0], DM_CYMB);
+    drum_set_model(&trk[1], DM_CYMB);
+    drum_hit(&trk[0], 127);                          /* the oldest */
+    render_mix(0, 0, CTL);
+    drum_hit(&trk[1], 127);
+    drum_hit(&trk[1], 127);
+    render_mix(0, 0, CTL);
+    before = voices_sounding();
+    drum_shed();
+    check("shed: one voice fewer, the oldest (track 1) with its declick tail",
+          before == 3 && voices_sounding() == 2 && !trk[0].v[0].active && trk[0].dtail != 0);
+    host_init();
+    drum_shed();
+    check("shed: nothing sounding is a no-op", voices_sounding() == 0);
+}
+
+static void test_step_mode_keys(void)
+{
+    uint32_t a;
+    host_init();
+    song.seq_mode = 1;                               /* the STEP grid owns the keys */
+    a = dvage;
+    fm1_in.notes = 1u << KEY_TRK_KEY[0];
+    render_mix(0, 0, CTL);
+    check("STEP grid open: keys do not hit drums", dvage == a);
+    song.seq_mode = 0;
+    fm1_in.notes = 0;
+    render_mix(0, 0, CTL);
+    fm1_in.notes = 1u << KEY_TRK_KEY[0];
+    render_mix(0, 0, CTL);
+    check("STEP grid closed: keys hit drums again", dvage != a);
+}
+
 int main(void)
 {
     test_tables();
@@ -829,6 +866,8 @@ int main(void)
     test_swing_grid();
     test_silent_sample_keeps_voices();
     test_stress_seq();
+    test_shed();
+    test_step_mode_keys();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

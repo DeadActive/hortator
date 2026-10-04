@@ -49,6 +49,8 @@ static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, i;
     kb_prev = cur;
+    if (song.seq_mode)
+        return;                                     /* the STEP grid (ui_input.c) owns the keys */
     for (i = 0; ch && i < NTRK; i++) {
         uint32_t k = KEY_TRK_KEY[i], note = (uint32_t)trk[i].p[P_NOTE] & 127u;
         if (!((ch >> k) & 1u))
