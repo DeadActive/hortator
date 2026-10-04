@@ -178,6 +178,37 @@ int main(int argc, char **argv)
           bad++;
         }
       }
+    {                                                  // the same guard through the suite's 4 x 4 takes pairing
+      const float scale = getenv("SELFTEST_SCALE") ? (float)atof(getenv("SELFTEST_SCALE")) : 0.7f;
+      for (int m = 0; m < REF_NMODELS; m++) {
+        int pass = 0, n = 0;
+        for (int g = 0; g < REF_NGRID; g += 4) {
+          dmm_t a[REF_NVAR], c[REF_NVAR];
+          char why[160];
+          int ok = 0;
+          for (int k = 0; k < REF_NVAR; k++) {
+            g_idle = REF_IDLE[k];
+            std::vector<float> y = render(m, REF_NOTE[m] + ref_knob(m, g, 0), ref_knob(m, g, 1), ref_knob(m, g, 2),
+                                          ref_knob(m, g, 3), 127, REF_SECONDS);
+            dmm_measure(y.data(), (int)y.size(), 48000.0, REF_NOISY[m], ref_hz(REF_NOTE[m] + ref_knob(m, g, 0)), &a[k]);
+            for (size_t i = 0; i < y.size(); i++) y[i] *= scale;
+            dmm_measure(y.data(), (int)y.size(), 48000.0, REF_NOISY[m], ref_hz(REF_NOTE[m] + ref_knob(m, g, 0)), &c[k]);
+          }
+          for (int i = 0; i < REF_NVAR && !ok; i++)
+            for (int j = 0; j < REF_NVAR && !ok; j++)
+              ok = dmm_compare(&a[i], &c[j], REF_KICK[m], &DMM_LOOSE, why, sizeof why);
+          pass += ok;
+          n++;
+        }
+        g_idle = 0.1;
+        printf("%s: a copy x %.2f through the 4 x 4 pairing still passes loose on %d of %d renders\n", REF_NAME[m], scale,
+               pass, n);
+        if (2 * pass > n) {                            // at least half must fail: a level error cannot hide in the pairing
+          printf("%s: the pairing hides a level error\n", REF_NAME[m]);
+          bad++;
+        }
+      }
+    }
     printf("selftest: %d of %d bad\n", bad, total);
     return bad != 0;
   }
