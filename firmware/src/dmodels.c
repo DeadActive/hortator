@@ -4,7 +4,8 @@
 /* The drum model table. New models go above DM_SMPL in the enum, DMODELS and N_MODEL (same order). */
 #include "dm_dsp.c"
 #include "dm_sample.c"
+#include "dm_kick.c"
 
-enum { DM_SMPL, NMODELS };
-static const dmodel_t DMODELS[NMODELS] = {DM_SMPL_DEF};
-static const char *const N_MODEL[NMODELS] = {"SMPL"};
+enum { DM_K808, DM_K909, DM_SMPL, NMODELS };
+static const dmodel_t DMODELS[NMODELS] = {DM_K808_DEF, DM_K909_DEF, DM_SMPL_DEF};
+static const char *const N_MODEL[NMODELS] = {"K808", "K909", "SMPL"};

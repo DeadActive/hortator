@@ -300,6 +300,68 @@ static void test_accent(void)
     check("seq: an accented step hits at velocity 127", trk[0].v[0].vel == 127 || trk[0].v[1].vel == 127);
 }
 
+static uint32_t rising(const int32_t *x, uint32_t a, uint32_t b)   /* upward zero crossings */
+{
+    uint32_t c = 0;
+    for (a++; a < b; a++)
+        if (x[a - 1] < 0 && x[a] >= 0)
+            c++;
+    return c;
+}
+
+static double freq_of(const int32_t *x, uint32_t a, uint32_t b) { return rising(x, a, b) * (double)FS / (b - a); }
+
+/* default hit at velocity 127: audible, bounded, ends within 6 s, then stays silent */
+static void model_health(uint32_t mi)
+{
+    char what[96];
+    uint32_t e = hit_model(mi, 127, SECS(7));
+    int32_t pk = peak_of(wl, 0, SECS(7));
+    snprintf(what, sizeof what, "%s: audible, bounded, ends in 6 s (peak %d, end %.2f s)", N_MODEL[mi], pk, e / (double)FS);
+    check(what, pk >= 1500 && pk <= 3 * VOICE_FS && e < SECS(6) && track_idle(&trk[0]));
+}
+
+static void test_kicks(void)
+{
+    double f0, f12, fs;
+    model_health(DM_K909);
+    model_health(DM_K808);
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_E1] = 127;                            /* long, for a precise pitch */
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(1.2));
+    f0 = freq_of(wl, SECS(0.1), SECS(1.1));
+    fs = freq_of(wl, 0, SECS(0.015));
+    trk[0].p[P_E0] = 12;
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(1.2));
+    f12 = freq_of(wl, SECS(0.1), SECS(1.1));
+    check("909 kick: settles near 52 Hz", f0 > 49 && f0 < 55);
+    check("909 kick: TUNE +12 doubles it", f12 / f0 > 1.9 && f12 / f0 < 2.1);
+    check("909 kick: the start sweeps from above", fs > 1.5 * f0);
+    hit_model(DM_K808, 127, SECS(0.01));
+    check("808 kick: starts without a click (|first sample| < 2 % of full)", abs(wl[0]) < VOICE_FS / 50);
+    hit_model(DM_K909, 127, SECS(1));
+    {
+        int32_t hi = peak_of(wl, 0, SECS(1));
+        hit_model(DM_K909, 40, SECS(1));
+        check("909 kick: velocity 40 is clearly quieter than 127", peak_of(wl, 0, SECS(1)) * 2 < hi);
+    }
+}
+
+static void test_model_change(void)
+{
+    host_init();
+    drum_set_model(&trk[0], DM_K808);
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], 0, SECS(0.05));
+    trk[0].p[P_MODEL] = DM_K909;                     /* the knob turns while it sounds */
+    render_track(&trk[0], wl, SECS(0.05));
+    check("model change: the old voices stop, the tail fades, nothing hangs",
+          !trk[0].v[0].active && !trk[0].v[1].active && trk[0].model == DM_K909 && end_of(wl, SECS(0.05)) < SECS(0.02));
+}
+
 int main(void)
 {
     test_tables();
@@ -317,6 +379,8 @@ int main(void)
     test_midi();
     test_live_record();
     test_accent();
+    test_kicks();
+    test_model_change();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

@@ -9,7 +9,7 @@ static uint32_t dblock;                                  /* blocks rendered (dm_
 
 /* power-on kit: model and MIDI note of each track */
 static const uint8_t KIT_DEF[NTRK][2] = {
-    {DM_SMPL, 36}, {DM_SMPL, 38}, {DM_SMPL, 39}, {DM_SMPL, 42},
+    {DM_K909, 36}, {DM_SMPL, 38}, {DM_SMPL, 39}, {DM_SMPL, 42},
     {DM_SMPL, 46}, {DM_SMPL, 45}, {DM_SMPL, 37}, {DM_SMPL, 49},
 };
 
