@@ -327,6 +327,7 @@ static void test_kicks(void)
     model_health(DM_K909);
     model_health(DM_K808);
     model_health(DM_KBOOM);
+    model_health(DM_KPUNC);
     host_init();
     drum_set_model(&trk[0], DM_K909);
     trk[0].p[P_E1] = 127;                            /* long, for a precise pitch */

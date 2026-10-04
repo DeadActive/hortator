@@ -152,12 +152,13 @@ static void dmm_measure(const float *y, int n, double sr, int noisy, double base
     }
     for (w = 0; w < DMM_NPITCH; w++) {           /* rising zero crossings, interpolated; >= 2 per window */
         double first = -1.0, last = -1.0, s = 0.0;
-        int c = 0;
-        for (i = w * plen + 1; i < (w + 1) * plen && i < n; i++)
+        int c = 0, i0 = w * plen + 1 + (w ? 0 : (int)(sr * 0.010));   /* the first window from 10 ms: after the
+                                                       * click / noise transient, whose crossings are luck (user, M1-C) */
+        for (i = i0; i < (w + 1) * plen && i < n; i++)
             s += (double)y[i] * y[i];
         if (dmm_db(sqrt(s / plen)) < m->env_max - 40.0)
             continue;
-        for (i = w * plen + 1; i < (w + 1) * plen && i < n; i++)
+        for (i = i0; i < (w + 1) * plen && i < n; i++)
             if (y[i - 1] < 0.0f && y[i] >= 0.0f) {
                 double t = (i - 1 + y[i - 1] / (double)(y[i - 1] - y[i])) / sr;
                 if (first < 0.0)

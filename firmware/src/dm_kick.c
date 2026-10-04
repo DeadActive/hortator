@@ -178,3 +178,101 @@ static void kboom_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 #define DM_KBOOM_DEF {"KBOOM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("TONE", F_INT, 0, 127, 64), PD("PUNCH", F_INT, 0, 127, 32), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, kboom_trigger, kboom_render, 2}
+
+static void kpunc_start(kpunc_t *k, int32_t note, int32_t tone, int32_t decay, int32_t chr, int32_t vel, uint32_t seed)
+{
+    int32_t h = qknob(chr), morph = qknob(decay), timbre = qknob(tone), acc = qknob(vel);
+    int32_t f0 = qnote(note), dec = qm(morph, morph), fed = qmax(2 * h - QONE, 0), lvl;
+    k->f0 = f0;
+    k->dirt = qm(Q24(0.4) - qm(Q24(0.25), dec), qmax(QONE - 8 * q48(f0), 0));
+    k->fm_amt = qm(qmin(2 * h, QONE), Q24(3.5));
+    fed = qm(fed, fed);
+    /* 1 - 1 / (0.008 (1 + 4 fed) SR) */
+    k->fm_dec = QONE - (int32_t)((1LL << 40) / (int32_t)(((int64_t)23121101 * (QONE + 4 * fed)) >> 24));   /* 352.8 = 0.008 SR, Q16; a 32-bit divisor: native divide */
+    k->body_dec = QONE - qratio(Q24(1.0 / (0.02 * FS)), -qm(dec, Q24(60.0)));
+    k->tone_f = qmin(qratio(4 * f0, qm(timbre, Q24(108.0))), QONE);
+    k->tlevel = timbre;
+    lvl = Q24(0.3) + qm(Q24(0.7), acc);
+    k->fm = QONE;
+    k->body = k->trans = lvl;
+    k->phase = k->pnoise = k->fm_lp = k->body_lp = k->trans_lp = k->tone_lp = 0;
+    k->c_lp = k->c_hp = QONE;                             /* the click's rest state: its input is 1 between hits */
+    k->n_lp = k->n_hp = QONE / 2;                         /* the noise filters at rest: the noise's mean */
+    k->bpw = FS / 1000;                                   /* 1 ms */
+    k->fpw = (int32_t)(FS * 0.0013);                      /* 1.3 ms */
+    k->rng = seed;
+    qsvf_set(&k->click, qtan_fast(Q24(5000.0 / FS)), Q24(0.5));
+    k->click.s1 = k->click.s2 = 0;
+}
+
+static int32_t kpunc_dsine(int32_t ph, int32_t pn, int32_t dirt)   /* DistortedSine */
+{
+    int32_t x = ph + qm(pn, dirt), p = x >= 0 ? x & (QONE - 1) : -((-x) & (QONE - 1)), tri, s;   /* x - trunc(x) */
+    tri = (p < QONE / 2 ? p : QONE - p) * 4 - QONE;
+    s = qdiv(2 * tri, QONE + qabs(tri));
+    return s + qm(QONE - dirt, qsine(p + Q24(0.75)) - s);
+}
+
+static int32_t kpunc_tick(kpunc_t *k)
+{
+    static const int32_t TDEC = Q24(1.0 - 1.0 / (0.005 * FS));
+    int32_t mix, body, tr, s, g, lp, bp;
+    k->pnoise += qm(C44_002, qrand(&k->rng) - QONE / 2 - k->pnoise);
+    if (k->fpw) {
+        k->fpw--;
+        k->phase = QONE / 4;
+    } else {
+        k->fm = qdecay(k->fm, k->fm_dec);
+        k->phase += qmin(k->f0 + qm(k->f0, qm(k->fm_amt, k->fm_lp)), QONE / 2);
+        if (k->phase >= QONE)
+            k->phase -= QONE;
+    }
+    if (k->bpw) {
+        k->bpw--;
+    } else {
+        k->body = qdecay(k->body, k->body_dec);
+        k->trans = qdecay(k->trans, TDEC);
+    }
+    k->body_lp += qm(C44_10, k->body - k->body_lp);
+    k->trans_lp += qm(C44_10, k->trans - k->trans_lp);
+    k->fm_lp += qm(C44_10, k->fm - k->fm_lp);
+    body = kpunc_dsine(k->phase, k->pnoise, k->dirt);
+    s = (k->bpw ? 0 : QONE) - k->c_lp;                       /* click: SLOPE, ONE_POLE, Svf LP */
+    k->c_lp += qm(s > 0 ? C44_50 : C44_10, s);
+    k->c_hp += qm(C44_04, k->c_lp - k->c_hp);
+    qsvf_tick(&k->click, k->c_lp - k->c_hp, &lp, &bp);
+    k->n_lp += qm(C44_05, qrand(&k->rng) - k->n_lp);         /* attack noise */
+    k->n_hp += qm(C44_005, k->n_lp - k->n_hp);
+    tr = lp + k->n_lp - k->n_hp;
+    g = k->body_lp;                                          /* TransistorVCA */
+    s = qm(body - Q24(0.6), g);
+    mix = -(qdiv(3 * s, 2 * QONE + qabs(s)) + qm(g, Q24(0.3)));
+    mix -= qm(qm(tr, k->trans_lp), k->tlevel);
+    k->tone_lp += qm(k->tone_f, mix - k->tone_lp);
+    return k->tone_lp;
+}
+
+/* KPUNC: TUNE DECAY TONE FM (FM amount, then FM decay); synthetic bass drum: a distorted sine, FM and pitch envelopes, click */
+#define KPUNC_NOTE 31                                     /* MIDI note at TUNE 0 (49 Hz) */
+static void kpunc_trigger(track_t *t, dvoice_t *v)
+{
+    const int16_t *p = &t->p[P_E0];
+    kpunc_start(&v->ms.kp, KPUNC_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+}
+
+static void kpunc_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    int32_t pk = 0;
+    (void)t;
+    for (i = 0; i < n; i++) {
+        int32_t y = kpunc_tick(&v->ms.kp);
+        dm_putq(v, out, i, y);
+        pk = qmax(pk, qabs(y));
+    }
+    dm_qend(v, n, pk, FS / 20);
+}
+
+#define DM_KPUNC_DEF {"KPUNC", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+    PD("TONE", F_INT, 0, 127, 64), PD("FM", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), \
+    PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, kpunc_trigger, kpunc_render, 2}

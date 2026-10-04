@@ -39,8 +39,10 @@ static std::vector<float> render(int m, int note, int decay, int tone, int chr, 
   static HiHat<RingModNoise, LinearVCA, false, true> hh2;
   abd.Init(); sbd.Init(); od.Init(); asd.Init(); ssd.Init(); hh1.Init(); hh2.Init();
   stmlib::Random::Seed(0x21);
-  for (size_t done = 0, b = 0; done < n; b++) {   // block 0: idle (interpolators settle), block 1: trigger
-    bool trig = b == 1;
+  const size_t idle = (size_t)(0.1 * kSampleRate) / kBlockSize;   // 0.1 s idle before the hit: interpolators and
+                                                                   // filters settle, as in the running module
+  for (size_t done = 0, b = 0; done < n; b++) {
+    bool trig = b == idle;
     switch (m) {
     case 0: {
       float afm = std::min(harmonics * 4.0f, 1.0f);
@@ -59,7 +61,7 @@ static std::vector<float> render(int m, int note, int decay, int tone, int chr, 
     case 4: hh1.Render(false, trig, accent, f0, timbre, morph, harmonics, temp, temp + kBlockSize, blk, kBlockSize); break;
     default: hh2.Render(false, trig, accent, f0, timbre, morph, harmonics, temp, temp + kBlockSize, blk, kBlockSize); break;
     }
-    if (b >= 1) {                                  // the hit starts at the trigger block
+    if (b >= idle) {
       memcpy(&out[done], blk, sizeof blk);
       done += kBlockSize;
     }

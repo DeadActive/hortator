@@ -91,7 +91,12 @@ cap, cost reference, tests) still applies.
     is low-passed at 20 kHz before it is measured (content a 44.1 kHz port cannot have); envelope windows
     span at least two periods of the base pitch (a 12 Hz kick: its envelope, not its phase); peaks are RMS
     windows, not sample peaks (sample phase); for the noise-based models 40 ms (a short window of noise is
-    luck — the §6 step 4 case, approved with this spec).
+    luck — the §6 step 4 case, approved with this spec). The kick pitch track's first window starts at
+    10 ms: before that it counts the zero crossings of the click / noise transient, which flip with the noise
+    (KPUNC research: the body pitch matched within 0.2 %, the first-window reading moved up to 30 % either
+    way) — §6 step 4, approved by the user after an A/B listening check. The reference renders 0.1 s idle
+    before each hit, so its filters start from rest as in the running module (the ports start from the same
+    rest state).
   - The test prints, per model, how many renders meet strict and how many only loose; a render that
     misses loose fails the suite.
   - Procedure: a model first gets one round of §6 steps 1–2 (find and fix the cause) against strict.

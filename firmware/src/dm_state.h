@@ -11,7 +11,16 @@ typedef struct {
     int32_t rem, fmrem, n;
     qsvf_t res;
 } kboom_t;
+typedef struct {
+    int32_t f0, dirt, fm_amt, fm_dec, body_dec, tone_f, tlevel;
+    int32_t phase, pnoise, fm, fm_lp, body, body_lp, trans, trans_lp, tone_lp;
+    int32_t c_lp, c_hp, n_lp, n_hp;
+    int32_t bpw, fpw;
+    uint32_t rng;
+    qsvf_t click;
+} kpunc_t;
 typedef union {
     int32_t raw[2];
+    kpunc_t kp;
     kboom_t kb;
 } dm_state_t;
