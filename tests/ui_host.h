@@ -67,6 +67,9 @@ static void ui_draw(void) {}
 #endif
 #include "../firmware/src/ui_menu.c"
 #include "../firmware/src/ui_input.c"
+#if FELUCCA_FLASH
+#include "flash_host.h"                               /* tests/boot_test.c: the boot path with flash */
+#endif
 #ifdef UI_NO_PROJECT                                  /* until Task 4 rewrites project.c */
 static void project_save(uint32_t s) { (void)s; }
 static void project_load(uint32_t s) { (void)s; }

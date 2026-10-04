@@ -17,6 +17,10 @@ rm -rf build/ui_shots
 mkdir -p build/ui_shots/engines build/ui_shots/seq
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
 "$OUT/ui_test"
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
+    -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/boot_test" tests/boot_test.c -lm
+"$OUT/boot_test" > "$OUT/boot_test.txt" 2>&1 || { tail -30 "$OUT/boot_test.txt"; exit 1; }
+tail -1 "$OUT/boot_test.txt"
 "$PY" -c "import glob,PIL.Image as I; [I.open(p).resize((480,480),I.NEAREST).save(p[:-4]+'.png') for p in glob.glob('build/ui_shots/**/*.ppm', recursive=True)]" && rm -f build/ui_shots/*.ppm build/ui_shots/engines/*.ppm build/ui_shots/seq/*.ppm && echo "screens: build/ui_shots"
 REF=build/drum_ref
 FID=""
