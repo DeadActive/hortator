@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* I2S output (ALNK0 -> external codec) and the audio ISR: each half buffer is
- * rendered in blocks of CTL samples by mix_block (fx.c: events -> each synth part
- * -> dist -> level / pan -> sends -> drums -> buses -> master), then scaled to 24-bit stereo. */
+ * rendered in blocks of CTL samples by mix_block (fx.c: events -> each drum track
+ * -> dist -> level / pan -> sends -> buses -> master), then scaled to 24-bit stereo. */
 /* registers: hal/fm1_audio.h */
 #define HALF_WORDS (HALF_FRAMES * 2u)
 #define OUT_SHIFT 7               /* Q15 -> 24-bit, -6 dBFS ceiling */
@@ -34,43 +34,15 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
     }
 }
 
-/* overload: a half that took > 85 % of its time sheds one voice before the
- * next one, over all parts: the quietest releasing voice fades out over the next
- * block (voice_kill), else the oldest held one goes into its release (stopped by
- * a later shed if still needed). The only held voice is never touched, so a dense
- * chord on a heavy engine thins out instead of starving the CPU. */
+/* overload: a half that took > 85 % of its time sheds one voice before the next one: the oldest
+ * sounding drum voice of any track fades out (drum_shed, the declick tail). */
 static volatile uint8_t shed_req;
 static uint32_t shed_count;
 
 static void shed_voice(void)
 {
-    uint32_t p, i, ngate = 0;
-    voice_t *best = 0;
-    for (p = 0; p < NPART; p++)
-        for (i = 0; i < NVOICE; i++) {
-            voice_t *v = &trk[p].v[i];
-            if (v->active && !v->gate && v->stage != 4u && (!best || v->env < best->env))
-                best = v;
-        }
-    if (best) {
-        voice_kill(best);
-        shed_count++;
-        return;
-    }
-    for (p = 0; p < NPART; p++)
-        for (i = 0; i < NVOICE; i++) {
-            voice_t *v = &trk[p].v[i];
-            if (v->active && v->gate) {
-                ngate++;
-                if (!best || v->age < best->age)
-                    best = v;
-            }
-        }
-    if (ngate > 1u) {
-        best->gate = 0;
-        best->stage = 3;
-        shed_count++;
-    }
+    drum_shed();
+    shed_count++;
 }
 
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */

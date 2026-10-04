@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* FELUCCA: one compilation unit (the HAL is header-only). Order matters. */
+/* FM-1 drum machine (Felucca fork): one compilation unit (the HAL is header-only). Order matters. */
 #include <stdint.h>
 #include "fm1_time.h"
 #include "fm1_sys.h"
@@ -17,10 +17,11 @@
 #include "lcd.c"
 #include "gfx.c"
 #include "core.h"
-#include "engines.c"
-#include "drums.c"
+#include "dsp.c"
+#include "eng_sample.c"      /* ADPCM decoder + user sample slots */
+#include "dmodels.c"         /* drum models */
 #include "params.c"
-#include "voice.c"
+#include "drum_core.c"       /* 8 drum tracks */
 #include "slicer.c"          /* per-track SLICER insert, used by fx.c */
 #include "fx.c"
 #ifndef FELUCCA_OTA
@@ -45,6 +46,7 @@
 #include "seq.c"
 #include "audio.c"
 #include "panel.c"
+#include "pages.c"
 #include "ui.c"
 #include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
 #include "ui_draw.c"
@@ -96,7 +98,6 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 }
 #include "storage.c"
 #endif
-#include "upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
 #include "project.c"
 #if FELUCCA_OTA
 #include "ota.c"
@@ -152,7 +153,9 @@ static void ota_commit(const uint8_t *parm)
 }
 #endif
 #if FELUCCA_OTA
-#include "editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
+/* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)
+ * frees every SysEx frame, so editor frames cannot block the update handshake. */
+static void ed_service(void) {}
 #endif
 #if FELUCCA_CDC
 #include "console.c"

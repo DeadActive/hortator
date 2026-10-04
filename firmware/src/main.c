@@ -71,24 +71,10 @@ static void fm1_fault(const fm1_crash_t *c)
     fm1_reboot();
 }
 
-/* power-on: three parts with their default sounds (TRK_DEF), the drum track, empty patterns */
+/* power-on: the drum kit (drum_core.c KIT_DEF), empty patterns */
 static void felucca_init(void)
 {
-    uint32_t i;
-    for (i = 0; i < G_COUNT; i++)
-        song.g[i] = GP[i].def;
-    for (i = 0; i < NTRK; i++) {
-        track_t *t = &trk[i];
-        track_defaults(t);
-        if (i < NPART) {
-            set_engine_of(t, TRK_DEF[i][0]);
-            apply_preset_to(t, TRK_DEF[i][1]);   /* with its sends */
-            t->engine = t->eng_req;
-        }
-        track_defaults_steps(t);              /* the sequencers start empty */
-    }
-    song.sel = 0;
-    song.master_q12 = 2048;
+    drum_tracks_init();
     ui.home = 1;
     ui.force = 1;
 }
@@ -103,8 +89,8 @@ static void fm1_main(void)
 #endif
     settings_init();
     lcd_init();
-    draw_text_box(0, 100, 240, &FONT_L, "FELUCCA", C_HI, 1);
-    draw_text_box(0, 130, 240, &FONT_S, "MULTI-ENGINE SYNTH", C_GRAY, 1);
+    draw_text_box(0, 100, 240, &FONT_L, "FM-1 DRUMS", C_HI, 1);
+    draw_text_box(0, 130, 240, &FONT_S, "DRUM MACHINE (UNTESTED)", C_GRAY, 1);
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
