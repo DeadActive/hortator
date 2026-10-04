@@ -53,11 +53,20 @@ tools that write them).
 Pass: no sanitizer report, no out-of-range index, every audio block bounded, the boot reaches the point where
 `ota_service` would run.
 
-**H2 — the safety code is upstream's, in the linked binary** (`tools/compare_upstream.py`). Build upstream
-Felucca 1e838e1 (a git worktree under `build/`, same toolchain, same `build.sh`), disassemble both `.elf` files,
-and compare the machine code of every function in the frozen files (`hal/*`, `usb.c`, `ota.c`, `crt0.S`,
-`storage.c`) and of `fm1_cstart`, with addresses and PC-relative offsets normalised. The loader (`ota.bin`)
-bytes in both packages must be identical. A function inlined differently is listed by name and fails.
+**H2 — the safety code is upstream's, in the linked binary** (`tools/compare_upstream.py`, with
+`tools/elf_syms.py`). Build upstream Felucca 1e838e1 (`tools/upstream_build.sh`: a git worktree under `build/`,
+same toolchain, same `build.sh`); compare every function of the frozen files (`hal/*`, `usb.c`, `ota.c`,
+`crt0.S`, `storage.c`) and `fm1_cstart`. Exact machine-code identity is impossible for some of them: the compiler
+places the globals of the whole program in one merged block (a variable's offset, and the instructions forming
+its address, change with code outside the frozen files) and inlines by the whole program's call graph (research:
+10 of 43 differed, none in logic). So (user decision after review) a function passes when (1) its instructions
+are identical with data resolved by name (ELF symbols), strings by text, constants by value; or (2) its effects
+are identical — memory read and written (resolved, with width; a read-modify-write and a doubleword counted as
+their reads and writes), hardware-register constants, calls (a tail jump counts), branches, returns; or (3) it is
+on the reviewed inlining list (`ota_send_msg` with `ota_wire_send` inlined; `fm1_cstart`, into which upstream
+inlines `fm1_main`) and its effects are upstream's with the callee inlined (resp. all found in upstream's). Any
+other difference, or a frozen function upstream has and ours lacks: FAIL. Self-tests: a changed hardware-register
+constant and a changed call target in a frozen function are caught.
 
 **H3 — worst-case stack** (`tools/stack_depth.py`). From the target disassembly: each function's frame (its
 prologue's stack adjustment and pushes) and its direct calls → the deepest path of the main loop (user stack,
