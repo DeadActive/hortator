@@ -626,6 +626,12 @@ static void test_safe_start(void)
         check("safe start: SEQ found through a learned panel map", safe_start);
         panel = keep;
     }
+    safe_boot(1);                                    /* an update cancelled in safe start: main.c clears the */
+    ui_frame();                                      /* screen and sets ui.force; the safe screen must come back */
+    memset(fb, 0, sizeof fb);
+    ui.force = 1;
+    ui_frame();
+    check("safe start: the screen is redrawn after an update session (ui.force)", fb_lit(90, 160) > 200 && !ui.force);
     safe_boot(0);                                    /* leave the other tests a normal start */
 }
 
