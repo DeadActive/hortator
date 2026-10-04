@@ -249,3 +249,97 @@ static void ssnap_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 #define DM_SSNAP_DEF {"SSNAP", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("TONE", F_INT, 0, 127, 64), PD("SNAP", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, ssnap_trigger, ssnap_render, 2}
+
+static void scrak_start(scrak_t *k, int32_t note, int32_t tone, int32_t decay, int32_t chr, int32_t vel, uint32_t seed)
+{
+    int32_t sn = qknob(chr), d = qknob(decay), fa = qknob(tone), acc = qknob(vel);
+    int32_t f0 = qnote(note), dxt = qm(d, QONE + qm(d, d - QONE)), r;
+    fa = qm(fa, fa);
+    k->f0 = f0;
+    k->fm_amt = 4 * fa;
+    k->ddec = QONE - qratio(Q24(1.0 / (0.015 * FS)), -qm(dxt, Q24(72.0)) - qm(fa, Q24(12.0)) + qm(sn, Q24(7.0)));
+    k->sdec = QONE - qratio(Q24(1.0 / (0.01 * FS)), -qm(d, Q24(60.0)) - qm(sn, Q24(7.0)));
+    sn = qlim(qm(sn, Q24(1.1)) - Q24(0.05), 0, QONE);
+    k->dlvl = qsqrt(QONE - sn);
+    k->slvl = qsqrt(sn);
+    r = qlim(qm(Q24(0.125) - q48(f0), Q24(8.0)), 0, QONE);
+    k->rna = qm(qm(r, r), fa);
+    qpole_set(&k->shp, qtan_fast(qmin(10 * f0, QONE / 2)));
+    qsvf_set(&k->slp, qtan48(qmin(35 * q48(f0), QONE / 2)), qdiv(QONE, Q24(0.5) + 2 * sn));   /* up to Nyquist: in Hz */
+    qpole_set(&k->dlp, qtan_fast(3 * f0));
+    k->dlp.s = k->shp.s = k->slp.s1 = k->slp.s2 = 0;
+    k->samp = k->damp = Q24(0.3) + qm(Q24(0.7), acc);
+    k->fm = QONE;
+    k->ph0 = k->ph1 = 0;
+    k->hold = (int32_t)(((int64_t)(Q24(0.04) + qm(d, Q24(0.03))) * FS) >> 24);
+    k->t = 0;
+    k->rng = seed;
+}
+
+static int32_t scrak_dsine(int32_t p)
+{
+    int32_t tri = (p < QONE / 2 ? p : QONE - p) * 4 - Q24(1.3);
+    return qdiv(2 * tri, QONE + qabs(tri));
+}
+
+static int32_t scrak_tick(scrak_t *k)
+{
+    static const int32_t FDEC = Q24(1.0 - 1.0 / (0.007 * FS));
+    int32_t rn, f, drum, noise, snare, lp, bp;
+    if (k->damp > Q24(0.03) || (k->t & 1))
+        k->damp = qdecay(k->damp, k->ddec);
+    if (k->hold)
+        k->hold--;
+    else
+        k->samp = qdecay(k->samp, k->sdec);
+    k->fm = qdecay(k->fm, FDEC);
+    k->t++;
+    rn = (k->ph0 > QONE / 2 ? -QONE : QONE) + (k->ph1 > QONE / 2 ? -QONE : QONE);
+    rn = qm(rn, qm(k->rna, Q24(0.025)));
+    f = k->f0 + qm(k->f0, qm(k->fm_amt, k->fm));
+    k->ph0 += f;
+    k->ph1 += qm(f, Q24(1.47));
+    if (k->rna > Q24(0.1)) {
+        if (k->ph0 >= QONE + rn)
+            k->ph0 = QONE - k->ph0;
+        if (k->ph1 >= QONE + rn)
+            k->ph1 = QONE - k->ph1;
+    } else {
+        if (k->ph0 >= QONE)
+            k->ph0 -= QONE;
+        if (k->ph1 >= QONE)
+            k->ph1 -= QONE;
+    }
+    drum = -Q24(0.1) + qm(scrak_dsine(k->ph0), Q24(0.60)) + qm(scrak_dsine(k->ph1), Q24(0.25));
+    drum = qpole_lp(&k->dlp, qm(qm(drum, k->damp), k->dlvl));
+    noise = qrand(&k->rng);
+    qsvf_tick(&k->slp, noise, &lp, &bp);
+    snare = lp - qpole_lp(&k->shp, lp);                      /* OnePole high-pass */
+    snare = qm(qm(snare + Q24(0.1), k->samp + k->fm), k->slvl);
+    return snare + drum;
+}
+
+/* SCRAK: TUNE DECAY FM SNAP; synthetic snare: two distorted sines with FM, filtered noise, a hold */
+#define SCRAK_NOTE 55                                     /* MIDI note at TUNE 0 (196 Hz) */
+static void scrak_trigger(track_t *t, dvoice_t *v)
+{
+    const int16_t *p = &t->p[P_E0];
+    scrak_start(&v->ms.sc, SCRAK_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+}
+
+static void scrak_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    int32_t pk = 0;
+    (void)t;
+    for (i = 0; i < n; i++) {
+        int32_t y = scrak_tick(&v->ms.sc);
+        dm_putq(v, out, i, y);
+        pk = qmax(pk, qabs(y));
+    }
+    dm_qend(v, n, pk, FS / 10);
+}
+
+#define DM_SCRAK_DEF {"SCRAK", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+    PD("FM", F_INT, 0, 127, 64), PD("SNAP", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), \
+    PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, scrak_trigger, scrak_render, 2}

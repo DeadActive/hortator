@@ -412,6 +412,7 @@ static void test_snares_claps(void)
     model_health(DM_C808);
     model_health(DM_C909);
     model_health(DM_SSNAP);
+    model_health(DM_SCRAK);
     check("808 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S808) > 3);
     check("909 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S909) > 3);
     host_init();
@@ -945,6 +946,15 @@ static void test_q24(void)
         emax = e > emax ? e : emax;
     }
     check("q24: qsvf (50 Hz, Q 100) and qpole follow the double filters within 1e-4 for 0.1 s", emax < 1e-4);
+    qsvf_set(&f, Q24(10.4), Q24(2.0));                           /* a cutoff near Nyquist: 1 + r g + g^2 > 128 */
+    check("q24: qsvf_set damping term exact for a near-Nyquist cutoff (g 10.4, r 2)",
+          fabs(f.h / (double)QONE * (1 + 2.0 * 10.4 + 10.4 * 10.4) - 1) < 1e-3);
+    for (emax = 0, i = 1; i <= 500; i++) {                       /* the 48 kHz cutoff in Hz, f48 = 0.001 .. 0.5 */
+        double f48 = i / 1000.0, x = M_PI * f48, g48 = x * (1 + x * x * (0.326 + 0.1823 * x * x));
+        e = fabs(qtan48(Q24(f48)) / (double)QONE / tan(atan(g48) * 48000.0 / 44100.0) - 1);
+        emax = e > emax ? e : emax;
+    }
+    check("q24: qtan48 keeps a 48 kHz FAST-tan filter's cutoff in Hz within 1e-3 (up to f48 0.5)", emax < 1e-3);
     check("q24: qnote(69) = 440 Hz at 44.1 kHz", fabs(qnote(69) / (double)QONE * 44100.0 / 440.0 - 1) < 1e-4);
     memset(&v, 0, sizeof v);
     out[0] = 0;

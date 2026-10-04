@@ -26,8 +26,17 @@ typedef struct {
     uint32_t rng;
     qsvf_t res[5], nf;
 } ssnap_t;
+typedef struct {
+    int32_t f0, fm_amt, ddec, sdec, dlvl, slvl, rna;
+    int32_t ph0, ph1, damp, samp, fm;
+    int32_t hold, t;
+    uint32_t rng;
+    qpole_t dlp, shp;
+    qsvf_t slp;
+} scrak_t;
 typedef union {
     int32_t raw[2];
+    scrak_t sc;
     ssnap_t ss;
     kpunc_t kp;
     kboom_t kb;

@@ -163,6 +163,32 @@ static inline int32_t qtan_acc(int32_t f)
     p = Q24(3.333314036e-01) + qm(p, x2);
     return qm(x, QONE + qm(p, x2));
 }
+/* atan(x) in radians (Q24), x >= 0 (Abramowitz & Stegun 4.4.49 on [0, 1]; above 1: pi / 2 - atan(1 / x)) */
+static int32_t qatan(int32_t x)
+{
+    int32_t inv = x > QONE, t = inv ? qdiv(QONE, x) : x, t2 = qm(t, t), p;
+    p = Q24(0.0028662257);
+    p = Q24(-0.0161657367) + qm(p, t2);
+    p = Q24(0.0429096138) + qm(p, t2);
+    p = Q24(-0.0752896400) + qm(p, t2);
+    p = Q24(0.1065626393) + qm(p, t2);
+    p = Q24(-0.1420889944) + qm(p, t2);
+    p = Q24(0.1999355085) + qm(p, t2);
+    p = Q24(-0.3333314528) + qm(p, t2);
+    p = qm(t, QONE + qm(p, t2));
+    return inv ? Q24(1.57079632679) - p : p;
+}
+/* the 44.1 kHz coefficient g of a stmlib filter Plaits sets with FREQUENCY_FAST at f48 (normalized at 48 kHz,
+ * <= 0.5): the same analog cutoff in Hz, tan(atan(g48) * 48000 / 44100). Near Nyquist the 48 kHz normalized
+ * value (or its clamp at 0.5) would land elsewhere in Hz at 44.1 kHz. Above pi / 4, tan(x) = 1 / tan(pi / 2 - x). */
+static int32_t qtan48(int32_t f48)
+{
+    int32_t a = qm(qatan(qtan_fast(f48)), Q24(48000.0 / 44100.0 / 3.14159265358979)), b, t;   /* the 44.1 kHz f */
+    b = a <= QONE / 4 ? a : QONE / 2 - a;
+    t = qtan_acc(b / 2);                                   /* tan(pi b) = 2 t / (1 - t^2): the polynomial below pi / 8 */
+    t = qdiv(2 * t, QONE - qm(t, t));
+    return a <= QONE / 4 ? t : qdiv(QONE, t);
+}
 /* 1 / q with q in Q12 (q up to ~5e5): the damping of a resonator */
 static inline int32_t qinv12(int32_t q12) { return (int32_t)((1LL << 36) / q12); }
 /* stmlib Svf (trapezoidal, Simper); state type qsvf_t in dm_state.h */
@@ -170,7 +196,9 @@ static inline void qsvf_set(qsvf_t *f, int32_t g, int32_t r)
 {
     f->g = g;
     f->r = r;
-    f->h = qdiv(QONE, QONE + qm(r, g) + qm(g, g));
+    /* 1 / (1 + r g + g^2); near Nyquist (g ~ 10) the sum passes 128: then a 4-bit shorter 32-bit divisor (native) */
+    int64_t d = (int64_t)QONE + qm(r, g) + qm(g, g);
+    f->h = d <= INT32_MAX ? (int32_t)((1LL << 48) / (int32_t)d) : (int32_t)((1LL << 44) / (int32_t)(d >> 4));
 }
 /* one sample: returns hp, *lp, *bp */
 static inline int32_t qsvf_tick(qsvf_t *f, int32_t in, int32_t *lp, int32_t *bp)
