@@ -4,6 +4,7 @@
 /* Drum machine core types: 8 drum tracks; each plays one drum model (1 or 2 voices) and an
  * optional sample layer, through Felucca's per-track DIST / SLICER / sends (fx.c). */
 #include <stdint.h>
+#include "dm_state.h"
 #define NTRK 8                   /* drum tracks */
 #define NPART NTRK               /* fx.c / slicer.c: every track is mixed the same way */
 #define NDV 2                    /* voices per track; a model uses 1 or 2 */
@@ -71,6 +72,7 @@ typedef struct {                 /* one drum voice; the fields' meaning is the m
     int32_t rng;                 /* noise state, seeded per hit */
     int32_t last;                /* last sample added to the output (declick when cut) */
     voice_t sv;                  /* sample playback (SAMPLE model, layer) */
+    dm_state_t ms;               /* M1-C model state (dm_state.h) */
 } dvoice_t;
 
 struct track;

@@ -607,6 +607,10 @@ static void test_cost(void)
     double ref = cost_ref("ref"), emax = cost_ref("extreme_max"), worst = 0, real, c;
     uint32_t mi, wm = 0, lay, wl_ = 0, i, k;
     uint64_t i0;
+#ifdef DM_QCHECK
+    printf("     cost: measured by the build without overflow checks (drum_test)\n");
+    return;
+#endif
     host_init();                                     /* realistic heavy use: the demo with everything on */
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
@@ -670,12 +674,23 @@ static void test_golden(void)
         check("golden: tests/drum_golden.txt exists (GOLDEN_UPDATE=1 writes it)", 0);
         return;
     }
-    while (fscanf(f, "%31s %x", name, &want) == 2)
+    {
+        uint32_t seen[NMODELS] = {0};
+        while (fscanf(f, "%31s %x", name, &want) == 2)
+            for (mi = 0; mi < NMODELS; mi++)
+                if (!strcmp(name, N_MODEL[mi])) {
+                    seen[mi] = 1;
+                    if (have[mi] != want) {
+                        printf("     %s render changed: %08x, golden %08x\n", name, have[mi], want);
+                        ok = 0;
+                    }
+                }
         for (mi = 0; mi < NMODELS; mi++)
-            if (!strcmp(name, N_MODEL[mi]) && have[mi] != want) {
-                printf("     %s render changed: %08x, golden %08x\n", name, have[mi], want);
+            if (!seen[mi]) {
+                printf("     %s has no golden entry (GOLDEN_UPDATE=1 adds it; check the diff adds only it)\n", N_MODEL[mi]);
                 ok = 0;
             }
+    }
     fclose(f);
     check("golden: every model's default render is unchanged", ok);
 }
@@ -857,8 +872,111 @@ static void test_step_mode_note_off(void)
     song.seq_mode = 0;
 }
 
+#ifndef DM_QCHECK
+static uint32_t dm_qover;                        /* counted only by the -DDM_QCHECK build (drum_test_q) */
+#endif
+
+static double svf_ref(double g, double r, double in, double *s1, double *s2)   /* stmlib Svf in double: bp */
+{
+    double h = 1.0 / (1.0 + r * g + g * g), hp = (in - (r + g) * *s1 - *s2) * h, bp = g * hp + *s1, lp;
+    *s1 = g * hp + bp;
+    lp = g * bp + *s2;
+    *s2 = g * bp + lp;
+    return bp;
+}
+
+static void test_q24(void)
+{
+    double e, emax, s1 = 0, s2 = 0, ps = 0;
+    int32_t i, lp, bp, out[1];
+    uint32_t st = 1;
+    qsvf_t f;
+    qpole_t p;
+    dvoice_t v;
+    check("q24: qm / qdiv on exact values",
+          qm(QONE, 12345) == 12345 && qm(-QONE / 2, 3 * QONE) == -3 * QONE / 2 && qdiv(QONE, 4 * QONE) == QONE / 4);
+    for (emax = 0, i = -256; i <= 256; i++) {
+        double x = i / 4.0;
+        e = fabs(qsat(Q24(x)) / (double)QONE - x / (1 + fabs(x)));
+        emax = e > emax ? e : emax;
+    }
+    check("q24: qsat = x / (1 + |x|) within 1e-6", emax < 1e-6);
+    for (emax = 0, i = -400; i <= 400; i++) {
+        double x = i / 100.0, r = x < -3 ? -1 : x > 3 ? 1 : x * (27 + x * x) / (27 + 9 * x * x);
+        e = fabs(qsoftclip(Q24(x)) / (double)QONE - r);
+        emax = e > emax ? e : emax;
+    }
+    check("q24: qsoftclip = stmlib SoftClip within 1e-6", emax < 1e-6);
+    for (emax = 0, i = -960; i <= 1080; i += 7) {                /* -96 .. +108 semitones */
+        double s = i / 10.0, v0 = s < 0 ? 64.0 * QONE : QONE / 1024.0;
+        e = fabs(qratio((int32_t)v0, Q24(s)) / v0 / pow(2, s / 12) - 1);
+        emax = e > emax ? e : emax;
+    }
+    check("q24: qratio = 2^(st / 12) within 2e-4 over -96..108 semitones", emax < 2e-4);
+    for (emax = 0, i = 1; i <= 450; i++) {                       /* f = 0.001 .. 0.45 */
+        double fq = i / 1000.0, x = M_PI * fq;
+        e = fabs(qtan_dirty(Q24(fq)) / (double)QONE / (x * (1 + 0.3736 * x * x)) - 1);
+        e = fmax(e, fabs(qtan_fast(Q24(fq)) / (double)QONE / (x * (1 + x * x * (0.326 + 0.1823 * x * x))) - 1));
+        e = fmax(e, fabs(qtan_acc(Q24(fq)) / (double)QONE /
+                            (x * (1 + x * x * (3.333314036e-01 + x * x * (1.333923995e-01 + x * x * (5.33740603e-02 +
+                             x * x * (2.900525e-03 + x * x * 9.5168091e-03)))))) - 1));
+        emax = e > emax ? e : emax;
+    }
+    check("q24: qtan_dirty / fast / acc = the stmlib approximations within 1e-4", emax < 1e-4);
+    for (emax = 0, i = 0; i <= 400; i++) {
+        e = fabs(qsqrt(Q24(i / 100.0)) / (double)QONE - sqrt(i / 100.0));
+        emax = e > emax ? e : emax;
+    }
+    check("q24: qsqrt within 1e-6", emax < 1e-6);
+    check("q24: qrand is stmlib's LCG", qrand(&st) == (int32_t)((1u * 1664525u + 1013904223u) >> 8));
+    qsvf_set(&f, qtan_acc(Q24(50.0 / 44100.0)), Q24(0.01));      /* 50 Hz, Q 100: the hardest case of the models */
+    f.s1 = f.s2 = 0;
+    qpole_set(&p, qtan_fast(Q24(1000.0 / 44100.0)));
+    p.s = 0;
+    for (emax = 0, i = 0; i < 4410; i++) {
+        double g = tan(M_PI * 50.0 / 44100.0), in = i == 0 ? 1.0 : 0.0, gp = qtan_fast(Q24(1000.0 / 44100.0)) / (double)QONE;
+        double ref = svf_ref(g, 0.01, in, &s1, &s2), lpr = (gp * in + ps) / (1 + gp);
+        ps = gp * (in - lpr) + lpr;
+        qsvf_tick(&f, i == 0 ? QONE : 0, &lp, &bp);
+        e = fmax(fabs(bp / (double)QONE - ref), fabs(qpole_lp(&p, i == 0 ? QONE : 0) / (double)QONE - lpr));
+        emax = e > emax ? e : emax;
+    }
+    check("q24: qsvf (50 Hz, Q 100) and qpole follow the double filters within 1e-4 for 0.1 s", emax < 1e-4);
+    check("q24: qnote(69) = 440 Hz at 44.1 kHz", fabs(qnote(69) / (double)QONE * 44100.0 / 440.0 - 1) < 1e-4);
+    memset(&v, 0, sizeof v);
+    out[0] = 0;
+    dm_putq(&v, out, 0, QONE);
+    e = out[0];
+    v.t = LIFE_A + (LIFE_B - LIFE_A) / 2;
+    out[0] = 0;
+    dm_putq(&v, out, 0, QONE);
+    check("q24: dm_putq maps 1.0 to DM_FLOAT1 x VOICE_FS, half way through the fade to half",
+          fabs(e - DM_FLOAT1 * (double)VOICE_FS / 32768) <= 1 && fabs(out[0] - e / 2) <= 1);
+    v.t = LIFE_B;
+    out[0] = 0;
+    dm_putq(&v, out, 0, QONE);
+    check("q24: dm_putq is silent from LIFE_B", out[0] == 0);
+#ifdef DM_QCHECK
+    dm_qover = 0;
+    qm(Q24(100), Q24(100));
+    check("q24: an overflowing product is counted (DM_QCHECK)", dm_qover == 1);
+    dm_qover = 0;
+#else
+    (void)dm_qover;
+#endif
+    {
+        int32_t x = QONE, n = 0;                          /* a decay reaches 0 (no rounding fixed point) */
+        while (x && n < 200000) {
+            x = qdecay(x, Q24(1.0 - 1.0 / 4410.0));
+            n++;
+        }
+        check("q24: qdecay reaches 0 (rounding alone would stop at ~2200 LSB)", x == 0);
+    }
+}
+
 int main(void)
 {
+    test_q24();
     test_tables();
     test_idle_silence();
     test_sample_hit();
