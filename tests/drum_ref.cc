@@ -26,6 +26,7 @@ extern "C" {
 }
 using namespace plaits;
 
+static double g_idle = 0.1;
 static std::vector<float> render(int m, int note, int decay, int tone, int chr, int vel, double seconds)
 {
   const float f0 = NoteToFrequency((float)note), timbre = tone / 127.0f, morph = decay / 127.0f,
@@ -39,7 +40,7 @@ static std::vector<float> render(int m, int note, int decay, int tone, int chr, 
   static HiHat<RingModNoise, LinearVCA, false, true> hh2;
   abd.Init(); sbd.Init(); od.Init(); asd.Init(); ssd.Init(); hh1.Init(); hh2.Init();
   stmlib::Random::Seed(0x21);
-  const size_t idle = (size_t)(0.1 * kSampleRate) / kBlockSize;   // 0.1 s idle before the hit: interpolators and
+  const size_t idle = (size_t)(g_idle * kSampleRate) / kBlockSize;   // 0.1 s idle before the hit: interpolators and
                                                                    // filters settle, as in the running module
   for (size_t done = 0, b = 0; done < n; b++) {
     bool trig = b == idle;
@@ -84,19 +85,22 @@ int main(int argc, char **argv)
 {
   if (argc >= 3 && !strcmp(argv[1], "grid")) {     // the reference metrics of every grid render
     FILE *f = fopen(argv[2], "wb");
-    uint32_t hdr[4] = {0x31524D44u, REF_NMODELS, REF_NGRID, (uint32_t)sizeof(dmm_t)};   // "DMR1"
+    uint32_t hdr[4] = {0x32524D44u, REF_NMODELS, REF_NGRID * REF_NVAR, (uint32_t)sizeof(dmm_t)};   // "DMR2"
     if (!f) { perror(argv[2]); return 1; }
     fwrite(hdr, sizeof hdr, 1, f);
     for (int m = 0; m < REF_NMODELS; m++)
       for (int g = 0; g < REF_NGRID; g++)
-        for (int v = 0; v < 2; v++) {
-          int note = REF_NOTE[m] + ref_knob(m, g, 0);
-          std::vector<float> y = render(m, note, ref_knob(m, g, 1), ref_knob(m, g, 2), ref_knob(m, g, 3), REF_VEL[v],
-                                        REF_SECONDS);
-          dmm_t r;
-          dmm_measure(y.data(), (int)y.size(), 48000.0, REF_NOISY[m], ref_hz(note), &r);
-          fwrite(&r, sizeof r, 1, f);
-        }
+        for (int v = 0; v < 2; v++)
+          for (int k = 0; k < REF_NVAR; k++) {
+            int note = REF_NOTE[m] + ref_knob(m, g, 0);
+            g_idle = REF_IDLE[k];
+            std::vector<float> y = render(m, note, ref_knob(m, g, 1), ref_knob(m, g, 2), ref_knob(m, g, 3), REF_VEL[v],
+                                          REF_SECONDS);
+            dmm_t r;
+            dmm_measure(y.data(), (int)y.size(), 48000.0, REF_NOISY[m], ref_hz(note), &r);
+            fwrite(&r, sizeof r, 1, f);
+          }
+    g_idle = 0.1;
     fclose(f);
     return 0;
   }

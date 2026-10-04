@@ -34,10 +34,20 @@ typedef struct {
     qpole_t dlp, shp;
     qsvf_t slp;
 } scrak_t;
+typedef struct { int32_t ph, f, next; int32_t lp, hp; uint8_t high; } qbosc_t;   /* Plaits Oscillator, square / saw */
+typedef struct {
+    int32_t env, edec, cdec, noisy, nf, nclk, nsmp;
+    uint32_t ph[6], inc[6];
+    qbosc_t osc[6];
+    uint8_t ring;                       /* 0 HMETL (squares, swing VCA, resonance), 1 HNOIS (ring mod, linear, 2-stage) */
+    uint32_t rng;
+    qsvf_t col, hpf;
+} hh_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
     ssnap_t ss;
     kpunc_t kp;
     kboom_t kb;
+    hh_t hh;
 } dm_state_t;

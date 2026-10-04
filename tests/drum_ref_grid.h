@@ -7,6 +7,10 @@
 #define REF_NMODELS 6
 #define REF_SECONDS 1.5
 #define REF_NGRID 81
+/* each grid render is taken REF_NVAR times, the reference idling this long first: other start phases and noise
+ * (the hats' sources run freely; user decision, M1-C) */
+#define REF_NVAR 4
+static const double REF_IDLE[REF_NVAR] = {0.1, 0.1137, 0.1291, 0.1503};
 static const char *const REF_NAME[REF_NMODELS] = {"KBOOM", "KPUNC", "SSNAP", "SCRAK", "HMETL", "HNOIS"};
 static const int REF_NOTE[REF_NMODELS] = {31, 31, 55, 55, 60, 72};          /* MIDI note at TUNE 0 */
 static const int REF_DEF[REF_NMODELS][4] = {                                 /* TUNE DECAY TONE CHAR */

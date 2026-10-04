@@ -99,7 +99,13 @@ cap, cost reference, tests) still applies.
     rest state). The noise-based models' brightness averages only the 50 ms windows within 40 dB of the
     loudest envelope window: at the shortest DECAY the later windows are at −85 to −156 dB in the reference,
     far below hearing, yet each weighed a quarter (SSNAP research: ours/reference 0.74–0.77 from one such
-    window) — §6 step 4, approved by the user after an A/B listening check.
+    window) — §6 step 4, approved by the user after an A/B listening check. Each grid render is taken 4 times
+    on both sides (the reference idling 0.1 / 0.1137 / 0.1291 / 0.1503 s; ours with other hit counts, so other
+    noise seeds and start phases), and a render meets a tier if any pairing does: both are random processes
+    (the hats' oscillators run freely, so their phases at a hit are arbitrary), and the original misses loose
+    against itself on 2–19 of 162 hat renders when only those change — §6 step 4, approved by the user after
+    an A/B listening check. The ports start from the running module's state where it matters (KPUNC's click
+    and noise filters at rest; the hats' oscillator phases and held noise value random).
   - The test prints, per model, how many renders meet strict and how many only loose; a render that
     misses loose fails the suite.
   - Procedure: a model first gets one round of §6 steps 1–2 (find and fix the cause) against strict.

@@ -246,6 +246,18 @@ static int32_t qsqrt(int32_t x)
 /* MIDI note -> normalized frequency at 44.1 kHz (Q24); its 48 kHz equivalent (f * 44100 / 48000) */
 static inline int32_t qnote(int32_t note) { return qratio(Q24(8.17579891564 / 44100.0 * 64.0), note << 24) >> 6; }
 static inline int32_t q48(int32_t f) { return qm(f, Q24(44100.0 / 48000.0)); }
+/* MIDI note (0..127) -> the exact phase increment 2^32 f at 44.1 kHz: one semitone table (2^16 more bits, folded
+ * at compile time) shifted by octaves. Naive squares need it: their aliased edges move with a 1e-4 pitch error. */
+#define QNI(k) ((uint64_t)(4294967296.0 * 65536.0 * 8.17579891564 / 44100.0 * (k) + 0.5))
+static uint32_t qnote_inc(int32_t note)
+{
+    static const uint64_t SEMI[12] = {QNI(1.0), QNI(1.0594630943593), QNI(1.1224620483094), QNI(1.1892071150027),
+                                      QNI(1.2599210498949), QNI(1.3348398541700), QNI(1.4142135623731),
+                                      QNI(1.4983070768767), QNI(1.5874010519682), QNI(1.6817928305074),
+                                      QNI(1.7817974362807), QNI(1.8877486253634)};
+    note = qlim(note, 0, 127);
+    return (uint32_t)(((SEMI[note % 12] << (note / 12)) + 32768u) >> 16);
+}
 /* per-sample coefficient c of Plaits (48 kHz) at 44.1 kHz: 1 - (1 - c)^(48000 / 44100) (literals) */
 #define C44_75 Q24(0.7788451)
 #define C44_50 Q24(0.5297289)

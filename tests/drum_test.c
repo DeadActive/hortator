@@ -438,6 +438,17 @@ static void test_metal(void)
     model_health(DM_HATO);
     model_health(DM_CYMB);
     model_health(DM_COWB);
+    model_health(DM_HMETL);
+    model_health(DM_HNOIS);
+    host_init();
+    drum_set_model(&trk[0], DM_HNOIS);
+    drum_set_model(&trk[1], DM_HMETL);
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(0.05));
+    drum_hit(&trk[1], 127);
+    render_track(&trk[0], wl, SECS(0.01));
+    check("HMETL / HNOIS: choke group 1 by default, one cuts the other",
+          trk[0].p[P_CHOKE] == 1 && trk[1].p[P_CHOKE] == 1 && !trk[0].v[0].active);
     ec = hit_model(DM_HATC, 127, SECS(3));
     eo = hit_model(DM_HATO, 127, SECS(3));
     check("hats: the open hat rings > 2x longer than the closed one", eo > 2 * ec);
@@ -955,6 +966,9 @@ static void test_q24(void)
         emax = e > emax ? e : emax;
     }
     check("q24: qtan48 keeps a 48 kHz FAST-tan filter's cutoff in Hz within 1e-3 (up to f48 0.5)", emax < 1e-3);
+    for (emax = 0, i = 0; i <= 120; i++)                           /* exact phase increments (the hats' squares) */
+        emax = fmax(emax, fabs(qnote_inc(i) - 4294967296.0 * 440.0 * pow(2, (i - 69) / 12.0) / 44100.0));
+    check("q24: qnote_inc = 2^32 f of a MIDI note, rounded (within 0.5, notes 0..120)", emax <= 0.5 + 1e-6);
     check("q24: qnote(69) = 440 Hz at 44.1 kHz", fabs(qnote(69) / (double)QONE * 44100.0 / 440.0 - 1) < 1e-4);
     memset(&v, 0, sizeof v);
     out[0] = 0;
