@@ -709,6 +709,44 @@ static void test_silent_sample_keeps_voices(void)
           before == DRUM_MAXV && voices_sounding() == DRUM_MAXV && !trk[NTRK - 1].v[0].active && !trk[NTRK - 1].v[1].active);
 }
 
+/* every model on 8 tracks: the sequencer at 1/32, 240 BPM, MIDI flams (two note-ons per block), layers on
+ * half the tracks, DECAY 127: the cap holds every block, the mix stays in range, every voice ends */
+static void test_stress_seq(void)
+{
+    uint32_t mi, i, k, ok = 1;
+    for (mi = 0; mi < NMODELS; mi++) {
+        host_init();
+        for (i = 0; i < NTRK; i++) {
+            track_t *t = &trk[i];
+            drum_set_model(t, mi);
+            t->p[P_E1] = 127;
+            t->p[P_NOTE] = (int16_t)(36 + (i & 3));
+            t->p[P_LLEVEL] = i & 1 ? 100 : 0;
+            t->p[P_LKEY] = 38;
+            t->p[P_SDIV] = 3;
+            t->p[P_SLEN] = 1;
+            t->step[0].on = 1;
+            t->step[0].acc = (uint8_t)(i & 1);
+        }
+        song.g[G_BPM] = 240;
+        play();
+        for (k = 0; k < 600; k++) {
+            midi_in(0x90, 9, 36 + k % 4, 1 + k % 127);
+            midi_in(0x90, 9, 36 + k % 4, 127);
+            render_mix(wl, wr, CTL);
+            ok &= voices_sounding() <= DRUM_MAXV && peak_of(wl, 0, CTL) <= 32767;
+        }
+        transport_req = 2;
+        render_mix(wl, wr, SECS(7));
+        for (i = 0; i < NTRK; i++)
+            if (!track_idle(&trk[i])) {
+                printf("     %s: track %u still sounding after stop\n", N_MODEL[mi], i + 1);
+                ok = 0;
+            }
+    }
+    check("stress (sequencer 1/32 @ 240, MIDI flams, layers, every model): cap holds, bounded, all voices end", ok);
+}
+
 int main(void)
 {
     test_tables();
@@ -739,6 +777,7 @@ int main(void)
     test_voice_cap();
     test_swing_grid();
     test_silent_sample_keeps_voices();
+    test_stress_seq();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
