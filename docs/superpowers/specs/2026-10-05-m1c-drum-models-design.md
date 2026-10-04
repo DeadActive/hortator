@@ -64,15 +64,22 @@ cap, cost reference, tests) still applies.
 ## 5. Verification
 
 - Fidelity, per model: one hit, 1.5 s, TUNE / DECAY / TONE / CHAR ∈ {min, default, max} (81 renders),
-  velocity 127 and 64; against the reference:
-  - level envelope (10 ms RMS windows; 40 ms for the noise-based SSNAP, SCRAK, HMETL, HNOIS) within ±3 dB
-    wherever the reference is above −40 dB of its peak;
-  - decay time to −40 dB within ±20 %;
-  - brightness (spectral centroid, first 200 ms; averaged over 50 ms windows for the noise-based models)
-    within ±15 %;
-  - kicks: pitch track within ±5 % (about a semitone);
-  - peak level within ±2 dB.
-  (Loosened by the user's request; the listening review below is the final gate.)
+  velocity 127 and 64, against the reference. Two tiers (user decision): **strict** is the target,
+  **loose** the fallback when strict fails too much.
+
+  | Metric | Strict (target) | Loose (fallback) |
+  |---|---|---|
+  | Level envelope, RMS windows (10 ms; noise-based SSNAP SCRAK HMETL HNOIS: 40 ms) | ±1.5 dB above −50 dB of the reference peak | ±3 dB above −40 dB |
+  | Decay time to −40 dB | ±10 % | ±20 % |
+  | Brightness: spectral centroid, first 200 ms (noise-based: 50 ms window average) | ±8 % | ±15 % |
+  | Kicks: pitch track | ±3 % | ±5 % (≈ a semitone) |
+  | Peak level | ±1 dB | ±2 dB |
+
+  - The test prints, per model, how many renders meet strict and how many only loose; a render that
+    misses loose fails the suite.
+  - Procedure: a model first gets one round of §6 steps 1–2 (find and fix the cause) against strict.
+    Whatever still misses strict after that passes on loose; its strict misses (model, metric, corner)
+    are listed for the user with the listening review. Missing loose → §6 step 3 (stop and ask).
 - Offline (reference not fetchable): the fidelity section prints `SKIPPED (offline)` and the suite's last
   line says so; it never passes silently.
 - The usual checks for the new models: golden hashes, extremes, stress, voice cap, choke (hats), project
@@ -89,7 +96,7 @@ cap, cost reference, tests) still applies.
    conversion, a stage clipping in its fixed-point range).
 2. Fix that cause (more bits, a better approximation, a re-scaled range) — never widen a tolerance or
    tune a constant just to pass.
-3. If a corner still fails at a sensible CPU cost: stop and bring the user the numbers and the WAV pair,
+3. If a corner still misses the loose tier at a sensible CPU cost: stop and bring the user the numbers and the WAV pair,
    with the options: accept a documented exception for that corner, spend more CPU on that model, narrow
    that knob's range, or leave the model out until after M4.
 4. A metric that measures randomness instead of sound (noise-based models) is changed only with the
@@ -97,7 +104,7 @@ cap, cost reference, tests) still applies.
 
 ## 7. Done when
 
-1. All six models pass fidelity, health, cost and the existing suites (`tests/run_drum_tests.sh`,
+1. All six models pass fidelity (loose tier at least, strict misses listed), health, cost and the existing suites (`tests/run_drum_tests.sh`,
    `tests/run_tests.sh`), and the drum firmware builds and fits.
 2. The user approves the renders.
 3. Nothing has been installed on the FM-1.
