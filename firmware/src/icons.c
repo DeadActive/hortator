@@ -65,6 +65,10 @@ static const icon_map_t ICON_MAP[] = {
     {"NOTE", ICON_PITCH}, {"STEP", ICON_STEPS}, {"FLAG", ICON_ACCENT}, {"ACC", ICON_ACCENT}, {"SLD", ICON_SLIDE}, {"USB", ICON_MIDI},
     {"TRACK", ICON_MIX},                  /* TRACKS page (LEVEL, LEN, PAN: above) */
     {"SLCR", ICON_SLICE}, {"PAT", ICON_STEPS}, {"DEPTH", ICON_MIX},   /* SLICER page (RATE: param_icon) */
+    /* drum models and pages (TUNE TONE SET CLICK LEN MUTE: above) */
+    {"DECAY", ICON_DECAY}, {"MODEL", ICON_DRUM}, {"CHOKE", ICON_GATE}, {"LSET", ICON_SAMPLE},
+    {"LKEY", ICON_PITCH}, {"LLVL", ICON_LEVEL}, {"LTUNE", ICON_PITCH}, {"LDEC", ICON_DECAY},
+    {"BANK", ICON_STEPS}, {"KEY", ICON_PITCH}, {"DRIVE", ICON_MOD}, {"SNAP", ICON_NOISE},
 };
 
 static uint32_t icon_for_label(const char *l)
@@ -96,20 +100,8 @@ static uint32_t param_icon(const param_desc_t *d, int32_t v)
         for (i = 0; i < sizeof(WAVE_ICON) / sizeof(WAVE_ICON[0]); i++)
             if (str_eq(d->names[v], WAVE_ICON[i].label))
                 return WAVE_ICON[i].icon;
-    if (d == &TP[P_LWAVE])
-        return ICON_LFO_WAVE;                 /* "WAVE" is also the oscillator wave */
-    if (d == &TP[P_ARATE] || d == &TP[P_SLRATE])
-        return ICON_DIVISION;                 /* arp / SLICER RATE is a note division, not Hz */
-    if (d->names == N_TRIO_MODE)
-        return ICON_CUTOFF;                   /* TRIO's MODE is the filter type, not the arp mode */
-#if FELUCCA_SLICE
-    if (d->names == N_SLC_DIV)
-        return ICON_SLICE;                    /* SLICE: DIV is the slicing, MODE the gate, REV the direction */
-    if (d->names == N_SLC_MODE)
-        return ICON_GATE;
-    if (d->names == N_SLC_REV)
-        return ICON_ORDER;
-#endif
+    if (d == &TP[P_SLRATE])
+        return ICON_DIVISION;                 /* SLICER RATE is a note division, not Hz */
     return icon_for_label(d->label);
 }
 
