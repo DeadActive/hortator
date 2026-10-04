@@ -431,6 +431,118 @@ static void test_engine_screens(void)
     printf("     engines: %u engines, SOUND pages at default / min / max in build/ui_shots/engines\n", (unsigned)n);
 }
 
+/* ---- the sequencer at work, for looking at: build/ui_shots/seq/ (no checks: the user looks) */
+static void seq_play_to(uint32_t ti, uint32_t step)  /* play until track ti's playhead is on step */
+{
+    uint32_t k;
+    for (k = 0; k < 4000u && !(song.playing && trk[ti].seq_idx == step); k++)
+        ui_frame();
+}
+
+static void seq_open(const char *title)              /* SEQ until the page shows (STEP, PATTERN) */
+{
+    uint32_t k;
+    for (k = 0; k < NPAGES && (!str_eq(cur_page()->title, title) || ui.home); k++) {
+        press(B_SEQ);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+}
+
+static void seq_select(uint32_t ti)                  /* the track encoder, one detent at a time */
+{
+    uint32_t k;
+    for (k = 0; k < NTRK && song.sel != ti; k++) {
+        turn(EN_ALGO, ti > song.sel ? 1 : -1);
+        ui_frame();
+    }
+}
+
+static void seq_snap_at(uint32_t ti, uint32_t step, const char *name)
+{
+    char path[64];
+    seq_play_to(ti, step);
+    snprintf(path, sizeof path, "seq/%s", name);
+    snap_page(path);
+}
+
+static void test_seq_screens(void)
+{
+    static const uint32_t S[4] = {0, 4, 8, 12};
+    char name[48];
+    uint32_t i, k;
+    ui_host_init();
+    kit_session();
+    song.rec = 0;
+    trk[5].p[P_SLEN] = 32;                           /* TOM: two banks, a second-bar fill */
+    for (k = 16; k < 32; k++)
+        trk[5].step[k].on = k == 20 || k == 26 || k >= 29;
+    trk[5].step[31].acc = 1;
+    trk[4].p[P_SLEN] = 12;                           /* HATO: a 12-step loop, swung */
+    trk[4].p[P_SSWING] = 60;
+    seq_open("STEP");
+    snap_page("seq/01_step_t1_stopped");
+    transport_req = 1;
+    for (i = 0; i < 4; i++) {                        /* the playhead walks the kick's bar */
+        snprintf(name, sizeof name, "%02u_step_t1_play_step%02u", (unsigned)(2 + i), (unsigned)S[i] + 1u);
+        seq_snap_at(0, S[i], name);
+    }
+    seq_select(3);                                   /* HATC: 8ths with gaps */
+    seq_snap_at(3, 6, "06_step_t4_hats_step07");
+    seq_select(5);                                   /* TOM, 32 steps: bank 2 while its playhead is there */
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    seq_snap_at(5, 26, "07_step_t6_bank2_step27");
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    seq_open("PATTERN");
+    seq_snap_at(5, 29, "08_pattern_t6_len32_step30");
+    seq_select(4);                                   /* HATO: LEN 12, swing 60 */
+    seq_snap_at(4, 9, "09_pattern_t5_len12_swing_step10");
+    seq_select(0);
+    seq_snap_at(0, 4, "10_pattern_t1_step05");
+    press(B_HOME);                                   /* REC tap off the SEQ pages: the TRACKS mixer */
+    ui_frame();
+    release_all();
+    ui_frame();
+    press(B_REC);
+    ui_frame();
+    release_all();
+    ui_frame();
+    seq_snap_at(0, 2, "11_tracks_step03");
+    seq_snap_at(0, 13, "12_tracks_step14");
+    press(B_HOME);
+    ui_frame();
+    release_all();
+    ui_frame();
+    seq_snap_at(0, 8, "13_home_play_step09");
+    for (k = 0; k < 16; k++)                         /* live recording: the snare's steps cleared, track 2 armed */
+        trk[1].step[k].on = trk[1].step[k].acc = 0;
+    seq_select(1);
+    seq_open("STEP");
+    seq_snap_at(1, 0, "14_rec_t2_before");
+    seq_open("PATTERN");                             /* off the grid: the keys play (and record) the drums */
+    song.rec = 1u << 1;
+    for (i = 0; i < 4; i++) {                        /* a player hits the snare key on steps 3, 7, 11, 15 */
+        seq_play_to(1, 2 + 4 * i);
+        keys(1u << KEY_TRK_KEY[1]);
+        ui_frame();
+        keys(0);
+        ui_frame();
+    }
+    seq_snap_at(1, 0, "15_rec_t2_pattern_after");
+    seq_open("STEP");
+    seq_snap_at(1, 1, "16_rec_t2_step_after");
+    transport_req = 2;
+    for (k = 0; k < 8; k++)
+        ui_frame();
+    snap_page("seq/17_step_t2_stopped_after");
+    printf("     sequencer: screens in build/ui_shots/seq\n");
+}
+
 static void test_project_roundtrip(void)
 {
     ui_host_init();
@@ -473,6 +585,7 @@ static void test_project_rejects(void)
 int main(void)
 {
     test_engine_screens();
+    test_seq_screens();
     test_families();
     test_track_select();
     test_model_swap();
