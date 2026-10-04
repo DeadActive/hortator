@@ -34,10 +34,12 @@ run "target cost of the render loops" python3 tests/target_budget.py build/feluc
 if [ -f build/upstream/build/felucca.dis ]; then
     run "frozen code in the binary = upstream's (H2)" python3 tools/compare_upstream.py build build/upstream/build
     run "H2 self-test (changed effects are caught)" python3 tools/compare_upstream.py --selftest build build/upstream/build
+    run "worst-case stack (H3)" python3 tools/stack_depth.py build --compare build/upstream/build
 else
     echo "== H2/H3 SKIPPED: no upstream build (sh tools/upstream_build.sh)"
     UPSKIP=" (H2/H3 SKIPPED: no upstream build)"
 fi
+run "H3 self-test (an unknown stack form is caught)" python3 tools/stack_depth.py --selftest
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
