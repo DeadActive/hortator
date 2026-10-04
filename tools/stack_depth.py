@@ -21,7 +21,7 @@ import dis_parse  # noqa: E402
 USER_STACK = 0x01C7A000 - 0x01C74100                 # app.ld _ustack_lo .. _ustack_top
 SYS_STACK = 0x01C7C000 - 0x01C7A100                  # _sstack_lo .. _sstack_top
 LIMIT = 0.75
-PUSH = re.compile(r"^\[--sp\] = \{([^}]*)\}$")
+PUSH = re.compile(r"^\[--sp\] = (?:\{([^}]*)\}|(\w+))$")
 POP = re.compile(r"^\{[^}]*\} = \[sp\+\+\]$")
 ADJ = re.compile(r"^sp \+= (-?\d+)$")
 CALL = re.compile(r"^call -?\d+ <([^+ >]+)")
@@ -49,7 +49,7 @@ def frame(name, insns):
     for _, t in insns:
         m = PUSH.match(t)
         if m:
-            size += 4 * regs(m.group(1))
+            size += 4 * regs(m.group(1)) if m.group(1) else 4
             continue
         m = ADJ.match(t)
         if m:
@@ -89,22 +89,33 @@ def analyse(funcs, blobs):
     ram = {n for n, a in starts.items() if 0x01C00000 <= a < 0x01D00000}
     taken = address_taken(funcs, starts, blobs)
     entries = {n for n in funcs if n in ("_start", "fm1_cstart") or n.startswith("isr_")}   # reached from the vectors
-    targets = (ram | taken) - indirect - entries
-    edges = {}
+    targets = (ram | taken) - entries                # a pointer call back into the path is skipped in deep()
+    by_addr = {a: n for n, a in starts.items()}
+    edges, iedges = {}, {}
     for n, ins in funcs.items():
-        e = set()
-        for _, t in ins:
+        e, ie = set(), set()
+        for a, t in ins:
             m = CALL.match(t)
             if m:
                 if m.group(1) not in funcs:
                     raise StackError(f"{n}: call to an unknown function {m.group(1)}")
                 e.add(m.group(1))
+                continue
+            mu = re.match(r"^call (-?\d+)$", t)          # unannotated: the target is address + 4 + N
+            if mu:
+                tgt = by_addr.get(a + 4 + int(mu.group(1)))
+                if tgt is None:
+                    raise StackError(f"{n}: call to an unknown address {a + 4 + int(mu.group(1)):#x}")
+                e.add(tgt)
+                continue
+            if t.startswith("call") and not ICALL.match(t):
+                raise StackError(f"{n}: unknown call form: {t}")
             m = GOTO.search(t)
             if m and m.group(1) != n and m.group(1) in funcs:
                 e.add(m.group(1))
             if ICALL.match(t):
-                e |= targets
-        edges[n] = e
+                ie |= targets
+        edges[n], iedges[n] = e, ie
     memo, onpath = {}, set()
 
     def deep(n):
@@ -114,7 +125,7 @@ def analyse(funcs, blobs):
             raise StackError(f"recursion through {n}")
         onpath.add(n)
         best, path = 0, []
-        for c in edges.get(n, ()):
+        for c in list(edges.get(n, ())) + [c for c in iedges.get(n, ()) if c not in onpath]:
             d, p = deep(c)
             if d > best:
                 best, path = d, p
@@ -135,19 +146,53 @@ def report(build):
     return main_b, main_p, t5_b + au_b, (t5_p, au_p)
 
 
-def selftest():
-    lines = ["a:", " 1000:    00 00             \t[--sp] = {rets, r5-r4}", " 1002:    00 00             \tsp += -16",
-             " 1004:    00 00             \tcall 2 <b : 1010 >", "b:", " 1010:    00 00             \tsp = r3"]
+def _listing(lines):
     p = Path("build/host/stack_selftest.dis")
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text("\n".join(lines) + "\n")
-    try:
-        analyse(dis_parse.functions(p), [])
+    return dis_parse.functions(p)
+
+
+def _insn(addr, text):
+    return " %x:    00 00             \t%s" % (addr, text)
+
+
+def selftest():
+    ok = True
+    try:                                             # an unknown stack form fails
+        analyse(_listing(["a:", _insn(0x1000, "[--sp] = {rets, r5-r4}"), _insn(0x1002, "sp = r3")]), [])
+        print("stack_depth selftest: an unknown stack form was NOT caught")
+        ok = False
     except StackError as e:
         print(f"stack_depth selftest: an unknown stack form is caught ({e})")
-        return 0
-    print("stack_depth selftest: an unknown stack form was NOT caught")
-    return 1
+    try:                                             # an unknown call form fails
+        analyse(_listing(["a:", _insn(0x1000, "call [r3+4]")]), [])
+        print("stack_depth selftest: an unknown call form was NOT caught")
+        ok = False
+    except StackError as e:
+        print(f"stack_depth selftest: an unknown call form is caught ({e})")
+    cases = (
+        ("an unannotated call (address + 4 + N) reaches its callee",
+         ["a:", _insn(0x1000, "[--sp] = {rets, r4}"), _insn(0x1002, "call 10"), "b:", _insn(0x1010, "sp += -100"),
+          _insn(0x1012, "rts")], "a", 8 + 100),
+        ("a brace-less push counts its register",
+         ["a:", _insn(0x1000, "[--sp] = rets"), _insn(0x1002, "sp += -8")], "a", 4 + 8),
+        ("a jump-table label stays inside its function",
+         ["a:", _insn(0x1000, "[--sp] = {rets, r4}"), ".GJTI0_1:", _insn(0x1004, "sp += -40")], "a", 8 + 40),
+        ("an indirect call reaches a function that itself calls indirectly",
+         ["a:", _insn(0x1000, "[--sp] = {rets, r4}"), _insn(0x1002, "call r2"),
+          "b:", _insn(0x1010, "sp += -200"), _insn(0x1012, "call r3"), _insn(0x1014, "rts")], "a", 8 + 200),
+    )
+    for what, lines, root, want in cases:
+        funcs = _listing(lines)
+        blob = struct.pack("<I", 0x1010)             # b's address in data: b is address-taken
+        try:
+            got = analyse(funcs, [blob])(root)[0]
+        except StackError as e:
+            got = f"error: {e}"
+        print(f"stack_depth selftest: {what}: {'ok' if got == want else f'NOT ok (got {got}, want {want})'}")
+        ok &= got == want
+    return 0 if ok else 1
 
 
 def main(argv):

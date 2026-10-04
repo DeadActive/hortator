@@ -2,7 +2,8 @@
 # Drum machine fork: 2026 DEADACTIVE
 """Parser of the JieLi objdump -d listing (build/felucca.dis): functions and their instructions.
 A function starts at a line "name:" in column 0; an instruction line is " ADDR:    BYTES \tTEXT";
-"}" lines of the pretty-printer belong to the instruction before them and are kept as text."""
+"}" lines of the pretty-printer belong to the instruction before them and are kept as text; a local label
+(".GJTI..." jump tables) does not start a function."""
 import re
 
 FUNC_RE = re.compile(r"^([A-Za-z_.$][\w.$]*):$")
@@ -15,6 +16,8 @@ def functions(path):
         line = line.rstrip("\n")
         m = FUNC_RE.match(line)
         if m:
+            if m.group(1).startswith(".") and cur is not None:   # a local label (.GJTI jump table): same function
+                continue
             cur = funcs.setdefault(m.group(1), [])
             continue
         m = INSN_RE.match(line)

@@ -78,7 +78,12 @@ prologue's stack adjustment and pushes) and its direct calls → the deepest pat
 `_ustack_lo`..`_ustack_top`, 24,320 B) and of each interrupt (system stack, `_sstack_lo`..`_sstack_top`,
 7,936 B; the audio ISR and the timer ISR nested on it). Indirect calls (the model `render` / `trigger` pointers)
 resolve to every `dmodel_t` entry. Pass: each deepest path ≤ 75 % of its stack; the report also gives upstream's
-figures for comparison (same tool on the H2 build). Recursion fails the check.
+figures for comparison (same tool on the H2 build). Recursion fails the check. (After the final review: calls the
+listing leaves unannotated resolve as address + 4 + N; a brace-less push counts; ".GJTI" jump-table labels stay in
+their function; any unknown call or stack form fails; an indirect call reaches every address-taken function,
+those that call indirectly included, and a pointer call back into the current path is skipped as an artefact of
+that over-approximation, while direct recursion still fails. Result: main 1,680 B (7 %), interrupts 1,168 B
+(15 %); upstream 2,304 B / 1,724 B.)
 
 **H4 — the first seconds' cost** (`tests/drum_test.c`, `tests/ui_test.c`). On the host (instruction counts):
 (a) the power-on init (`drum_tracks_init`; the safe-start scan adds only its fixed ~7 ms of waits) under
