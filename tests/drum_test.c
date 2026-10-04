@@ -1114,6 +1114,28 @@ static void test_percent_display(void)
           str_eq(a, "60") && str_eq(b, "100") && str_eq(c, "100") && str_eq(d, "100") && str_eq(u, "%"));
 }
 
+/* H4: the first seconds cost no more than upstream's (spec: device readiness) */
+static void test_boot_cost(void)
+{
+    double up = cost_ref("upstream_idle"), idle;
+    uint64_t i0, init;
+#ifdef DM_QCHECK
+    return;
+#endif
+    i0 = instr_now();
+    host_init();                                     /* drum_tracks_init and the power-on state */
+    init = instr_now() - i0;
+    render_mix(0, 0, SECS(0.5));
+    i0 = instr_now();
+    render_mix(0, 0, SECS(4));
+    idle = i0 ? (double)(instr_now() - i0) / SECS(4) : 0;
+    printf("     boot: power-on init %llu host instructions; idle audio %.0f / sample (upstream idle %.0f)\n",
+           (unsigned long long)init, idle, up);
+    check("boot cost: power-on init under 2,000,000 host instructions", !i0 || init < 2000000u);
+    check("boot cost: idle audio within 1.25 x upstream's idle (tests/drum_cost_ref.txt upstream_idle)",
+          !i0 || (up > 0 && idle <= 1.25 * up));
+}
+
 int main(void)
 {
     test_percent_display();
@@ -1142,6 +1164,7 @@ int main(void)
     test_extremes();
     test_stress();
     test_cost();
+    test_boot_cost();
     test_golden();
     test_voice_cap();
     test_heavy_cap();

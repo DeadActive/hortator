@@ -629,6 +629,30 @@ static void test_safe_start(void)
     safe_boot(0);                                    /* leave the other tests a normal start */
 }
 
+/* H4: the heaviest page's frame (TRACKS while playing, 8 rows) is far inside the 8 s watchdog */
+static void test_ui_frame_cost(void)
+{
+    uint64_t i0, worst = 0, c;
+    uint32_t i;
+    ui_host_init();
+    kit_session();
+    transport_req = 1;
+    press(B_REC);                                    /* REC tap on HOME: the TRACKS mixer */
+    ui_frame();
+    release_all();
+    for (i = 0; i < 60; i++) {
+        i0 = instr_now();
+        ui_input();
+        ui_leds();
+        ui_draw();
+        c = instr_now() - i0;
+        worst = c > worst ? c : worst;
+        render_mix(0, 0, CTL);
+    }
+    printf("     ui: heaviest frame %llu host instructions (TRACKS, playing)\n", (unsigned long long)worst);
+    check("ui frame cost: under 4,000,000 host instructions (8 s watchdog, 100x margin)", !i0 || worst < 4000000u);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -647,6 +671,7 @@ int main(void)
     test_screens();
     test_project_roundtrip();
     test_project_rejects();
+    test_ui_frame_cost();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

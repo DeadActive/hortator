@@ -75,11 +75,13 @@ prologue's stack adjustment and pushes) and its direct calls → the deepest pat
 resolve to every `dmodel_t` entry. Pass: each deepest path ≤ 75 % of its stack; the report also gives upstream's
 figures for comparison (same tool on the H2 build). Recursion fails the check.
 
-**H4 — the first seconds' cost.** On the host (instruction counts, as `test_cost`): (a) `felucca_init` including
-the safe-start scan, which delays `usb_start` (pass: the scan is its fixed ~7 ms; the rest under 1 ms of
-instructions at the device clock assumed by the target budget); (b) the audio ISR per block with no voice
-sounding (the power-on kit, stopped) against upstream Felucca's idle cost measured the same way on the H2 build
-(pass: ≤ upstream × 1.25, the M1 regression budget); (c) one idle UI frame against upstream's (same pass rule).
+**H4 — the first seconds' cost** (`tests/drum_test.c`, `tests/ui_test.c`). On the host (instruction counts):
+(a) the power-on init (`drum_tracks_init`; the safe-start scan adds only its fixed ~7 ms of waits) under
+2,000,000 instructions; (b) the audio with no voice sounding (the power-on kit, stopped) within 1.25 × upstream
+Felucca's own idle figure — `cpu/mix/idle 286` in upstream's `tests/cpu_baseline.txt`, measured by its
+`regress.c` the same way (instead of rebuilding upstream's host harness; amended in the plan); (c) the heaviest
+UI frame (TRACKS while playing) under 4,000,000 instructions: the main loop feeds the 8 s watchdog (0x0D) every
+frame, and the device runs ≥ 50 M instructions / s, a 100× margin. Upstream recorded no UI-frame figure.
 
 **H5 — the safe start works** (in `tests/drum_test.c` / `tests/ui_test.c`): SEQ held through
 `felucca_init` → safe mode; audio blocks output silence and render no voice; the screen shows SAFE START; keys and

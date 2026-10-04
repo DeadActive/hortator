@@ -6,3 +6,6 @@ ref 1566
 #          by the user's decision it may exceed ref (M1-B overload shedding on the device), but must not grow
 #          past +10 %.
 extreme_max 2627
+# upstream Felucca's idle mix (its tests/cpu_baseline.txt, cpu/mix/idle, host instructions / sample): the
+# first seconds of the drum firmware stay within 1.25 x of it (device-readiness spec H4)
+upstream_idle 286
