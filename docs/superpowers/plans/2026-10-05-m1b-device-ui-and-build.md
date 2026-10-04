@@ -18,7 +18,7 @@
 - Package identity stays `FM-1_900`; version string `DRUM-0.1` (`FELUCCA_VERSION`).
 - The update path must keep working: `ota_service()`/`ota_session()` untouched; `ed_service()` becomes an empty stub (safe: `ota_take()` frees every SysEx frame itself).
 - All UI strings shown as values are at most 5 characters; labels at most 5.
-- New-file licence header: `/* SPDX-License-Identifier: GPL-3.0-only` + Felucca copyright + `Drum machine fork: 2026 Eugene Vech */`.
+- New-file licence header: `/* SPDX-License-Identifier: GPL-3.0-only` + Felucca copyright + `Drum machine fork: 2026 DEADACTIVE */`.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Controls (spec §5, user decisions): HOME = macros of the selected track; EDIT = SOUND / SOUND 2; ENV = TRACK / MIDI; LFO = LAYER / LAYER 2; FX = FX / SLICER / DLY / REV-CHO; SEQ = STEP (16-key grid) / PATTERN; GLO = GLOBAL / SYSTEM; SAVE = PROJECT / TOOLS; REC = TRACKS mixer (tap there arms recording); SCL and ARP unused. STEP page: lowest 16 keys toggle off → on → accent → off on the current bank; OCT- / OCT+ change bank; key LEDs show steps and the playhead. PRESET = swap the selected track's model on HOME / TRACK pages; ALGORITHM = track select; SELECT = BPM.
 
@@ -558,7 +558,7 @@ Expected: FAIL — `pages.c` not found (compile error).
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum UI pages: a family per page button (pressing it again steps through its pages), and what
  * the four knobs edit on each page. */
 enum { FAM_HOME, FAM_SND, FAM_TRK, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_MIX, FAM_COUNT };
@@ -615,7 +615,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum machine user interface: state, page navigation, track / model selection, the STEP grid.
  * Four columns map to KNOB 1..4; rendering (ui_draw.c) is lazy: every element remembers what it
  * last drew and is redrawn only on change. */
@@ -790,7 +790,7 @@ Replace everything above `/* ---------------------------------------------------
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum UI input: LEDs, knobs and buttons, the STEP grid on the keys, panel setup. */
 /* ----------------------------------------------------------- LEDs --- */
 /* The LED picture is built off-line and copied one byte per column: clearing
@@ -1100,7 +1100,7 @@ Append to `ICON_MAP[]` (drum labels):
             cv_text(4, 36, &FONT_S, "DRUM MACHINE ON FELUCCA", C_AMB);
             cv_text(4, 54, &FONT_S, FELUCCA_VERSION, C_HI);
             cv_text(236 - text_w(&FONT_S, __DATE__), 54, &FONT_S, __DATE__, C_GRAY);   /* build date */
-            cv_text(4, 72, &FONT_S, "FORK: EUGENE VECH", C_HI);
+            cv_text(4, 72, &FONT_S, "FORK: DEADACTIVE", C_HI);
             cv_text(cv_text(4, 88, &FONT_S, "FELUCCA: LEO KUROSHITA", C_HI) + 8, 88, &FONT_S, "", C_AMB);
             cv_text(4, 104, &FONT_S, "H\xDCGELTON INSTRUMENTS", C_AMB);
             cv_text(4, 119, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
@@ -1216,7 +1216,7 @@ Expected: FAIL — compile errors in the old `ui_draw.c` (engines, `is_drum`, `s
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum UI drawing: status bar (top), columns + gauges, graphs, focus readout, footer
  * (the bank's steps + model / track / page). */
 static void draw_menu(void);
@@ -1860,7 +1860,7 @@ Expected: FAIL — compile errors in the old `project.c` (engines, `TRK_DEF`, `a
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
  * Format "FDR1": the globals, the selected track, and per track every parameter and its 64 steps.
@@ -2206,7 +2206,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-# Drum machine fork: 2026 Eugene Vech
+# Drum machine fork: 2026 DEADACTIVE
 # Host tests of the drum firmware (no hardware). Run from anywhere after a packaged build:
 #   DRUM_PACKAGE=1 ./build.sh && tests/run_tests.sh
 # The package is only for the update-protocol tests; it is never installed (M1).

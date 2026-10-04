@@ -23,7 +23,7 @@
 - All DSP integer/fixed-point; no `float`/`double` in `firmware/src` (host tests may use them).
 - Blocks are always `CTL` = 32 samples at `FS` = 44100.
 - UI value strings are at most 5 characters: model names and parameter labels ≤ 5 chars.
-- Licence header on new files: `/* SPDX-License-Identifier: GPL-3.0-only` + Felucca copyright line + `Drum machine fork: 2026 Eugene Vech */`.
+- Licence header on new files: `/* SPDX-License-Identifier: GPL-3.0-only` + Felucca copyright line + `Drum machine fork: 2026 DEADACTIVE */`.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Model levels: when `model_health` reports a peak below 1500, scale that model's signal up inside its render (before `dm_put`); never relax a test threshold. Pitch tests failing means wrong increment math, not a loose tolerance.
 
@@ -191,7 +191,7 @@ Expected: FAIL — `python3: can't open file '.../tools/check_untouched.py'`.
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-# Drum machine fork: 2026 Eugene Vech
+# Drum machine fork: 2026 DEADACTIVE
 """Fail when code the USB update / recovery path depends on differs from upstream Felucca.
 
   tools/check_untouched.py [--tree DIR]     DIR: a copy of the repo root (default: the repo)
@@ -668,7 +668,7 @@ Replace everything above the last 5 lines (from `#define RING_PUBLISH()` to the 
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum machine core types: 8 drum tracks; each plays one drum model (1 or 2 voices) and an
  * optional sample layer, through Felucca's per-track DIST / SLICER / sends (fx.c). */
 #include <stdint.h>
@@ -825,7 +825,7 @@ Expected: `0`, and `#define SMP_SET_NAMES_INIT "PERC"`.
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum model building blocks, all fixed point. Envelopes are Q24 (ENV1 = full) and fall by a
  * per-sample factor from DECAY_K (Q16; index 0..127 = 5 ms .. 4 s to -60 dB, exponential). */
 #define ENV1 (1 << 24)
@@ -899,7 +899,7 @@ static inline void dm_end(dvoice_t *v)
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* One-shot IMA ADPCM playback (eng_sample.c decoder) for the SAMPLE model and the sample layer. */
 
 /* zone index of key in set (built-in sets, then USR1..3), 0xFFFF = none */
@@ -1002,7 +1002,7 @@ static void smpl_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* The drum model table. New models go above DM_SMPL in the enum, DMODELS and N_MODEL (same order). */
 #include "dm_dsp.c"
 #include "dm_sample.c"
@@ -1019,7 +1019,7 @@ Replace lines 1–122 (from the SPDX header through the end of `track_desc`) wit
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Parameter descriptions and value formatting. P_E0..P_E7 are described by the track's model. */
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};
@@ -1095,7 +1095,7 @@ Keep `param_format` unchanged. Delete everything from the line `/* -------------
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* The 8 drum tracks: power-on kit, hits (voice choice, choke groups, sample layer), and the per-track
  * render fx.c mixes (track_render). A cut voice is not dropped: its last sample decays in dtail. */
 
@@ -1278,7 +1278,7 @@ Verify: `grep -n "TDRUM\|TRK_DRUM\|is_drum\|drums_\|G_DRREV\|G_DRLVL" firmware/s
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum sequencer and input (replaced in Task 4 of the M1-A plan) */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 static volatile uint8_t panic_req;       /* bit per track: cut its voices */
@@ -1477,7 +1477,7 @@ Expected: FAIL — `KEY_TRK_KEY` undeclared (compile error).
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum sequencer and input. 8 tracks x 64 steps (hit / accent), per-track length, division and swing.
  * The 8 white keys F3..F4 hit tracks 1..8; MIDI notes on the drum channel hit every track whose NOTE
  * matches; an armed track records hits into the nearest step while playing. Runs in the audio ISR
@@ -1716,7 +1716,7 @@ Expected: FAIL — `DM_K909` undeclared.
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Pitched-body drums: a sine whose pitch falls from a sweep to its base, a transient (noise, a sine
  * blip or low-passed noise) and a soft-clip drive. 808 / 909 kick here; tom, conga, claves in dm_perc.c. */
 
@@ -1909,7 +1909,7 @@ Expected: FAIL — `DM_S808` undeclared.
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Snares (two decaying tones + filtered noise) and claps (band-passed noise in sawtooth bursts + tail). */
 
 /* ph/inc[0..1] tones, env[0..1] their decays, env[2] noise; x[0], x[1] tone gains, x[2] noise gain;
@@ -2128,7 +2128,7 @@ Expected: FAIL — `DM_HATC` undeclared.
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* The TR-808 metal source: six square waves (205.3 .. 800 Hz), made once per block for every hat,
  * cymbal and cowbell voice; each model shapes it with its own band-passes and envelopes. */
 static uint32_t dblock;                              /* blocks rendered (drum_core.c drum_block_begin) */
@@ -2338,7 +2338,7 @@ Expected: FAIL — `DM_TOM` undeclared.
 ```c
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Tuned percussion: tom, conga, claves (body_render, dm_kick.c) and the rimshot. */
 
 /* TOM: TUNE DECAY NOISE DROP */

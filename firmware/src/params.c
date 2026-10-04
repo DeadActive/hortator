@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Parameter descriptions and value formatting. P_E0..P_E7 are described by the track's model. */
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};

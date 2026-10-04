@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum model building blocks, all fixed point. Envelopes are Q24 (ENV1 = full) and fall by a
  * per-sample factor from DECAY_K (Q16; index 0..127 = 5 ms .. 4 s to -60 dB, exponential). */
 #define ENV1 (1 << 24)

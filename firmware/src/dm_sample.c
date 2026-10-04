@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* One-shot IMA ADPCM playback (eng_sample.c decoder) for the SAMPLE model and the sample layer. */
 
 /* zone index of key in set (built-in sets, then USR1..3), 0xFFFF = none */

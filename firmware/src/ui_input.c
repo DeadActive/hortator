@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum UI input: LEDs, knobs and buttons, the STEP grid on the keys, panel setup. */
 /* ----------------------------------------------------------- LEDs --- */
 /* The LED picture is built off-line and copied one byte per column: clearing

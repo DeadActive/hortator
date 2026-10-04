@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-# Drum machine fork: 2026 Eugene Vech
+# Drum machine fork: 2026 DEADACTIVE
 """Fail when code the USB update / recovery path depends on differs from upstream Felucca.
 
   tools/check_untouched.py [--tree DIR]     DIR: a copy of the repo root (default: the repo)

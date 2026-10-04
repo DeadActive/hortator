@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Snares (two decaying tones + filtered noise) and claps (band-passed noise in sawtooth bursts + tail). */
 
 /* ph/inc[0..1] tones, env[0..1] their decays, env[2] noise; x[0], x[1] tone gains, x[2] noise gain;

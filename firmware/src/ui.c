@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum machine user interface: state, page navigation, track / model selection, the STEP grid.
  * Four columns map to KNOB 1..4; rendering (ui_draw.c) is lazy: every element remembers what it
  * last drew and is redrawn only on change. */

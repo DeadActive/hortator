@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Pitched-body drums: a sine whose pitch falls from a sweep to its base, a transient (noise, a sine
  * blip or low-passed noise) and a soft-clip drive. 808 / 909 kick here; tom, conga, claves in dm_perc.c. */
 

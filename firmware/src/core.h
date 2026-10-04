@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum machine core types: 8 drum tracks; each plays one drum model (1 or 2 voices) and an
  * optional sample layer, through Felucca's per-track DIST / SLICER / sends (fx.c). */
 #include <stdint.h>

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* The TR-808 metal source: six square waves (205.3 .. 800 Hz), made once per block for every hat,
  * cymbal and cowbell voice; each model shapes it with its own band-passes and envelopes. */
 static uint32_t dblock;                              /* blocks rendered (drum_core.c drum_block_begin) */

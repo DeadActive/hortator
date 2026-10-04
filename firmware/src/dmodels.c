@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* The drum model table. New models go above DM_SMPL in the enum, DMODELS and N_MODEL (same order). */
 #include "dm_dsp.c"
 #include "dm_sample.c"

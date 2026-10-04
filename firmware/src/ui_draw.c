@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* Drum UI drawing: status bar (top), columns + gauges, graphs, focus readout, footer
  * (the bank's steps + model / track / page). */
 static void draw_menu(void);

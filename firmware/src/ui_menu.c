@@ -26,7 +26,7 @@ static void draw_menu(void)
             cv_text(4, 36, &FONT_S, "DRUM MACHINE ON FELUCCA", C_AMB);
             cv_text(4, 54, &FONT_S, FELUCCA_VERSION, C_HI);
             cv_text(236 - text_w(&FONT_S, __DATE__), 54, &FONT_S, __DATE__, C_GRAY);   /* build date */
-            cv_text(4, 72, &FONT_S, "FORK: EUGENE VECH", C_HI);
+            cv_text(4, 72, &FONT_S, "FORK: DEADACTIVE", C_HI);
             cv_text(4, 88, &FONT_S, "FELUCCA: LEO KUROSHITA", C_HI);
             cv_text(4, 104, &FONT_S, "H\xDCGELTON INSTRUMENTS", C_AMB);
             cv_text(4, 119, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);

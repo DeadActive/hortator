@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 Eugene Vech */
+ * Drum machine fork: 2026 DEADACTIVE */
 /* The 8 drum tracks: power-on kit, hits (voice choice, choke groups, sample layer), and the per-track
  * render fx.c mixes (track_render). A cut voice is not dropped: its last sample decays in dtail. */
 

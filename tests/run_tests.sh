@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-# Drum machine fork: 2026 Eugene Vech
+# Drum machine fork: 2026 DEADACTIVE
 # Host tests of the drum firmware (no hardware). Run from anywhere after a packaged build:
 #   DRUM_PACKAGE=1 ./build.sh && tests/run_tests.sh
 # The package is only for the update-protocol tests; it is never installed (M1).
