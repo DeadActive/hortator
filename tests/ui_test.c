@@ -35,7 +35,15 @@ static void test_families(void)
     press(B_EDIT);
     ui_frame();
     release_all();
-    check("EDIT again: SOUND 2", str_eq(cur_page()->title, "SOUND 2"));
+    check("EDIT again: the second SOUND page", ui.page == page_first(FAM_SND) + 1u && str_eq(cur_page()->title, "SOUND"));
+    {
+        uint32_t i, ok = 1;
+        const char *c;
+        for (i = 0; i < NPAGES; i++)                 /* the footer numbers pages ("2/2"): titles carry none */
+            for (c = PAGES[i].title; *c; c++)
+                ok &= *c < '0' || *c > '9';
+        check("page titles have no page number in them", ok);
+    }
 }
 
 static void test_track_select(void)
