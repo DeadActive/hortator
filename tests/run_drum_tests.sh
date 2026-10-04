@@ -10,8 +10,10 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 "$OUT/drum_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drumsim" tests/drumsim.c -lm
 "$OUT/drumsim" build/drum_renders >/dev/null && echo "renders: build/drum_renders"
-cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DUI_NO_DRAW -DUI_NO_PROJECT -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
+mkdir -p build/ui_shots
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DUI_NO_PROJECT -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
 "$OUT/ui_test"
+"$PY" -c "import glob,PIL.Image as I; [I.open(p).resize((480,480),I.NEAREST).save(p[:-4]+'.png') for p in glob.glob('build/ui_shots/*.ppm')]" && rm -f build/ui_shots/*.ppm && echo "screens: build/ui_shots"
 sh tests/guard_test.sh
 python3 tools/check_untouched.py
 echo "ALL DRUM HOST TESTS PASSED"

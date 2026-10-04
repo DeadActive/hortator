@@ -215,6 +215,63 @@ static void test_oct_both_reaches_main(void)
     release_all();
 }
 
+static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows y0..y1 */
+{
+    uint32_t n = 0, i;
+    for (i = y0 * 240u; i < y1 * 240u; i++)
+        n += fb[i] != 0;
+    return n;
+}
+
+static void snap_page(const char *name)
+{
+    char path[96];
+    uint32_t i;
+    for (i = 0; i < 3; i++)
+        ui_frame();
+    snprintf(path, sizeof path, "build/ui_shots/%s.ppm", name);
+    shot(path);
+}
+
+static void test_screens(void)
+{
+    static const struct { uint32_t btn; uint32_t presses; const char *name; } P[] = {
+        {B_EDIT, 1, "01_sound"}, {B_EDIT, 2, "02_sound2"}, {B_ENV, 1, "03_track"}, {B_ENV, 2, "04_midi"},
+        {B_LFO, 1, "05_layer"}, {B_FX, 1, "06_fx"}, {B_FX, 2, "07_slicer"}, {B_SEQ, 1, "08_step"},
+        {B_SEQ, 2, "09_pattern"}, {B_GLO, 1, "10_global"}, {B_SAVE, 1, "11_project"},
+    };
+    uint32_t i, k, ok = 1;
+    ui_host_init();
+    for (i = 0; i < NTRK; i++)                       /* a pattern to show */
+        for (k = 0; k < 16; k += 1 + i % 4)
+            trk[i].step[k].on = 1;
+    trk[0].step[4].acc = 1;
+    transport_req = 1;
+    snap_page("00_home");
+    ok &= fb_lit(0, 20) > 50 && fb_lit(26, 70) > 200 && fb_lit(202, 240) > 100;
+    for (i = 0; i < sizeof P / sizeof P[0]; i++) {
+        press(FAM_BTN[FAM_HOME]);                    /* from HOME, n presses of the button */
+        ui_frame();
+        release_all();
+        for (k = 0; k < 800; k++)
+            ui_input();                              /* (HOME acts on release) */
+        for (k = 0; k < P[i].presses; k++) {
+            press(P[i].btn);
+            ui_frame();
+            release_all();
+        }
+        snap_page(P[i].name);
+        ok &= fb_lit(26, 70) > 100 && fb_lit(202, 240) > 100;
+    }
+    press(B_REC);
+    ui_frame();
+    release_all();
+    ui_frame();
+    snap_page("12_tracks");
+    ok &= fb_lit(74, 198) > 300;                     /* 8 strips */
+    check("every page draws header, columns and footer (screens in build/ui_shots)", ok);
+}
+
 int main(void)
 {
     test_families();
@@ -226,6 +283,7 @@ int main(void)
     test_mixer_and_rec();
     test_clear_confirm();
     test_oct_both_reaches_main();
+    test_screens();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

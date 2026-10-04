@@ -46,6 +46,10 @@ static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static void fm1_irq_off(void) {}
 static void fm1_irq_on(void) {}
 static void fm1_wdt_feed(void) {}
+#define SCOPE_N 512u
+static int16_t scope_buf[SCOPE_N];
+static uint32_t scope_w;
+static struct { uint32_t stage, page, home, ui_frames; } felucca_dbg;
 #include "../firmware/src/gfx.c"
 #include "../firmware/src/panel.c"
 #include "../firmware/src/pages.c"
