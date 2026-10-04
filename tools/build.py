@@ -300,7 +300,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
+    ap.add_argument("--gen-only", action="store_true", help="only the generated headers (host tests)")
     a = ap.parse_args()
+    if a.gen_only:
+        generate()
+        return 0
     name = "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
@@ -330,6 +334,12 @@ def main():
         print("  FAIL ", e)
     if errors:
         raise SystemExit("build: checks failed")
+    if os.environ.get("DRUM_PACKAGE") != "1":     # drum fork: no installable file unless asked
+        print(f"app      {OUT / 'felucca.bin'}  {len(img)} B ({APP_SLOT - len(img)} B free)")
+        print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
+        print("package  skipped (DRUM_PACKAGE=1 writes build/felucca-UNTESTED.fwsc; never install it in M1)")
+        return 0
+    name = name.replace(".fwsc", "-UNTESTED.fwsc")
     pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
