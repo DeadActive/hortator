@@ -1070,6 +1070,8 @@ static void test_m1c_ends_early(void)
         {DM_HMETL, {0, 96, 80, 40}, 127, 3.0},       /* hat envelope reaches 0 (DECAY 96: ~2.4 s) */
         {DM_HMETL, {0, 72, 80, 40}, 1, 1.5},
         {DM_HNOIS, {0, 127, 100, 40}, 127, 5.0},
+        {DM_KBOOM, {-12, 0, 100, 100}, 127, 1.0},    /* an integer DC fixed point after the drive */
+        {DM_SSNAP, {12, 100, 127, 0}, 127, 4.0},     /* a +-300 LSB limit cycle of the shell resonators */
     };
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof C / sizeof C[0]; i++) {

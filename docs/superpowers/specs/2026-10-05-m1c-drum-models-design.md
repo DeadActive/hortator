@@ -53,7 +53,7 @@ cap, cost reference, tests) still applies.
   (HMETL), `dm_put` / `dm_end`.
 - Every stage documents its fixed-point range (Plaits values span pulse heights of 10 down to 0.001 / f0
   scales); the extremes test enforces bounded output.
-- A voice ends after a guard time once its output stays below −84 dB re 1.0 for 46 ms (a low note spends
+- A voice ends after a guard time once its output stays below −72 dB re 1.0 for 46 ms (user decision after the final review: at −84 dB, 1 LSB, integer DC fixed points and small limit cycles kept some KBOOM / SSNAP hits alive, silent, until 6 s) (a low note spends
   whole blocks near its zero crossings), and in any case at 6 s: the new models fade out from 5.5 s (their
   longest DECAY rings 9–15 s; the M1 tests require every voice to end within 6.5 s). The fidelity window
   (1.5 s) is unaffected.

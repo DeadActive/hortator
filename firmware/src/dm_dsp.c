@@ -271,7 +271,8 @@ static inline int32_t qsine(int32_t ph) { return sine_i((uint32_t)ph << 8) * 512
 
 /* ---- output and lifetime of the M1-C models */
 #define DM_FLOAT1 24576                    /* Q15 level of a reference sample of 1.0 */
-#define DM_QEND 1057                       /* -84 dB re 1.0 (Q24): quiet */
+#define DM_QEND 4228                       /* -72 dB re 1.0 (Q24, -78 dBFS out): quiet; an integer tail (a DC fixed point,
+                                            * a small limit cycle) stays above 1 LSB for good (user, M1-C review) */
 #define DM_QQUIET 64                       /* quiet blocks in a row that end a voice (46 ms: > half a period of 11 Hz) */
 #define LIFE_A ((uint32_t)FS * 11u / 2u)   /* M1-C voices fade out from 5.5 s ... */
 #define LIFE_B ((uint32_t)FS * 6u)         /* ... and end at 6 s (their longest DECAY rings 9-15 s; the M1 limit is 6.5 s) */
