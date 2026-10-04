@@ -48,6 +48,9 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     kb_prev = 0;
     fm1_in.notes = 0;
     transport_req = panic_req = 0;
+    memset(metal_ph, 0, sizeof metal_ph);
+    metal_blk = 0xFFFFFFFFu;
+    dblock = 0;
 }
 
 static void host_init(void)

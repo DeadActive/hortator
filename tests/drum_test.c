@@ -426,6 +426,34 @@ static void test_snares_claps(void)
     check("909 clap: >= 3 bursts in the first 35 ms", clap_bursts(DM_C909) >= 3);
 }
 
+static void test_metal(void)
+{
+    uint32_t ec, eo;
+    int32_t last;
+    model_health(DM_HATC);
+    model_health(DM_HATO);
+    model_health(DM_CYMB);
+    model_health(DM_COWB);
+    ec = hit_model(DM_HATC, 127, SECS(3));
+    eo = hit_model(DM_HATO, 127, SECS(3));
+    check("hats: the open hat rings > 2x longer than the closed one", eo > 2 * ec);
+    host_init();                                     /* power-on kit: tracks 4 / 5 are HATC / HATO, group 1 */
+    check("hats: closed and open default to choke group 1", trk[3].p[P_CHOKE] == 1 && trk[4].p[P_CHOKE] == 1);
+    drum_hit(&trk[4], 127);
+    render_track(&trk[4], wl, SECS(0.05));
+    last = wl[SECS(0.05) - 1];
+    drum_hit(&trk[3], 127);
+    render_track(&trk[4], wl, SECS(0.01));
+    check("hats: a closed hat silences the open one within 100 samples",
+          !trk[4].v[0].active && abs(wl[100]) <= abs(last) / 100 + 1 && peak_of(wl, 300, SECS(0.01)) == 0);
+    host_init();
+    drum_set_model(&trk[0], DM_CYMB);
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], 0, SECS(0.2));
+    drum_hit(&trk[0], 127);
+    check("cymbal: 2 voices, the first keeps ringing over a retrigger", trk[0].v[0].active && trk[0].v[1].active);
+}
+
 int main(void)
 {
     test_tables();
@@ -446,6 +474,7 @@ int main(void)
     test_kicks();
     test_model_change();
     test_snares_claps();
+    test_metal();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

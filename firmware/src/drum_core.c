@@ -5,12 +5,11 @@
  * render fx.c mixes (track_render). A cut voice is not dropped: its last sample decays in dtail. */
 
 static uint32_t dvage;                                   /* hit counter: voice ages, noise seeds */
-static uint32_t dblock;                                  /* blocks rendered (dm_metal.c: once per block) */
 
 /* power-on kit: model and MIDI note of each track */
 static const uint8_t KIT_DEF[NTRK][2] = {
-    {DM_K909, 36}, {DM_S808, 38}, {DM_C808, 39}, {DM_SMPL, 42},
-    {DM_SMPL, 46}, {DM_SMPL, 45}, {DM_SMPL, 37}, {DM_SMPL, 49},
+    {DM_K909, 36}, {DM_S808, 38}, {DM_C808, 39}, {DM_HATC, 42},
+    {DM_HATO, 46}, {DM_SMPL, 45}, {DM_SMPL, 37}, {DM_CYMB, 49},
 };
 
 static const dmodel_t *trk_model(const track_t *t) { return &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS]; }
