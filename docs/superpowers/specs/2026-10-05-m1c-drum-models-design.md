@@ -65,11 +65,14 @@ cap, cost reference, tests) still applies.
 
 - Fidelity, per model: one hit, 1.5 s, TUNE / DECAY / TONE / CHAR ∈ {min, default, max} (81 renders),
   velocity 127 and 64; against the reference:
-  - level envelope (10 ms RMS windows) within ±1.5 dB wherever the reference is above −50 dB of its peak;
-  - decay time to −40 dB within ±10 %;
-  - brightness (spectral centroid, first 200 ms) within ±8 %;
-  - kicks: pitch track within ±3 %;
-  - peak level within ±1 dB.
+  - level envelope (10 ms RMS windows; 40 ms for the noise-based SSNAP, SCRAK, HMETL, HNOIS) within ±3 dB
+    wherever the reference is above −40 dB of its peak;
+  - decay time to −40 dB within ±20 %;
+  - brightness (spectral centroid, first 200 ms; averaged over 50 ms windows for the noise-based models)
+    within ±15 %;
+  - kicks: pitch track within ±5 % (about a semitone);
+  - peak level within ±2 dB.
+  (Loosened by the user's request; the listening review below is the final gate.)
 - Offline (reference not fetchable): the fidelity section prints `SKIPPED (offline)` and the suite's last
   line says so; it never passes silently.
 - The usual checks for the new models: golden hashes, extremes, stress, voice cap, choke (hats), project
@@ -78,7 +81,21 @@ cap, cost reference, tests) still applies.
   instructions/sample) holds; over it → stop and ask the user. Target budget: the six render functions.
 - Listening review: WAV pairs (ours / reference) in `build/drum_renders/`; the user approves.
 
-## 6. Done when
+## 6. When fidelity fails
+
+1. Find the cause first: the report names model, metric and knob corner; the reference driver can dump
+   each stage (exciter, resonator, envelope, shaper) so ours and the reference are compared stage by
+   stage to the first one that diverges (precision, an approximation at its extremes, a 48 → 44.1 kHz
+   conversion, a stage clipping in its fixed-point range).
+2. Fix that cause (more bits, a better approximation, a re-scaled range) — never widen a tolerance or
+   tune a constant just to pass.
+3. If a corner still fails at a sensible CPU cost: stop and bring the user the numbers and the WAV pair,
+   with the options: accept a documented exception for that corner, spend more CPU on that model, narrow
+   that knob's range, or leave the model out until after M4.
+4. A metric that measures randomness instead of sound (noise-based models) is changed only with the
+   user's approval, never loosened silently.
+
+## 7. Done when
 
 1. All six models pass fidelity, health, cost and the existing suites (`tests/run_drum_tests.sh`,
    `tests/run_tests.sh`), and the drum firmware builds and fits.
