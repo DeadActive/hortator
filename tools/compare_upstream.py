@@ -70,6 +70,7 @@ class Prog:
         self.funcs = dis_parse.functions(Path(build) / "felucca.dis")
         self.elf = Elf(Path(build) / "felucca.elf")
         self.starts = {n: i[0][0] for n, i in self.funcs.items() if i}
+        self.by_addr = {a: n for n, a in self.starts.items()}
 
     def value_name(self, fn, sym, v):
         base = sym.split("+")[0]
@@ -84,8 +85,11 @@ class Prog:
 
     def walk(self, fn):
         """(normalised text, effect tokens) per instruction of fn, tracking constant registers"""
-        regs, out = {}, []
-        for _, t in self.funcs[fn]:
+        regs, out, pending = {}, [], None
+
+        def track(t):
+            self._track(regs, t)
+        for addr, t in self.funcs[fn]:
             toks = []
             text = ANNOT.sub(lambda m: self.value_name(fn, m.group(2).strip(), int(m.group(3), 16) & 0xFFFFFFFF), t)
 
@@ -111,7 +115,14 @@ class Prog:
                     target = (self.elf.name_of(regs[rb]) or "ptr").split("+")[0] + "[i]"
                 if target == "ptr[i]":                       # an unresolved pointer, however it is indexed
                     target = "ptr"
+                if target == "ptr" and ra in regs and rb is None:   # a known address that is no object: hardware
+                    v = (regs[ra] + (int(off) if off else 0)) & 0xFFFFFFFF
+                    if not (RAM[0] <= v < RAM[1] or XIP[0] <= v < XIP[1]):
+                        target = "hw:%x" % v
                 store = t.strip().startswith(m.group(0)) and re.match(r"^\S+\s*[-+&|^]?=", t.strip())
+                imm = re.match(r"^\S+\s*=\s*(0x[0-9A-Fa-f]+|-?\d+)$", t.strip())
+                if store and imm:                            # a stored immediate: its value is an effect
+                    target += "=%x" % (_int(imm.group(1)) & 0xFFFFFFFF)
                 if store and re.match(r"^\S+\s*[-+&|^]=", t.strip()):
                     toks.append("ld" + (w or "w") + ":" + target)   # read-modify-write: a read and a write
                 toks.append(("st" if store else "ld") + (w or "w") + ":" + target)
@@ -122,8 +133,17 @@ class Prog:
                 toks.append("call:" + m.group(1))             # a goto into another function: a tail call
             elif re.match(r"^call r\d+$", t):
                 toks.append("icall")
-            if t.startswith(("if ", "ifs ")):
-                toks.append("br")
+            else:
+                mu = re.match(r"^call (-?\d+)$", t)      # a call the listing does not annotate: address + 4 + N
+                if mu:
+                    toks.append("call:" + self.by_addr.get(addr + 4 + int(mu.group(1)), "?%x" % (addr + 4 + int(mu.group(1)))))
+            mb = re.match(r"^(ifs?) \((.*)\) (?:goto|\{)", t)
+            if mb:                                       # a branch and its condition (registers abstracted)
+                cond = re.sub(r"\br\d+\b", "R", ANNOT.sub("", mb.group(2)))
+                toks.append(mb.group(1) + ":" + re.sub(r"\s+", " ", cond).strip())
+            ma = re.match(r"^r\d+ (?:= r\d+ )?(\||&|\^|<<|>>)=? ?(0x[0-9A-Fa-f]+|-?\d+)$", t)
+            if ma:                                       # a mask or a shift: its immediate is an effect
+                toks.append("alu:%s%x" % (ma.group(1), _int(ma.group(2)) & 0xFFFFFFFF))
             if t == "rts" or (POPR.match(t) and "pc" in t):
                 toks.append("ret")
             for k in re.findall(r"\b0x[0-9A-Fa-f]+\b|(?<![\w+-])-?\d{5,}\b", t):
@@ -134,6 +154,19 @@ class Prog:
                 v = int(am.group(3), 16) & 0xFFFFFFFF
                 if 0x10000 <= v < RAM[0]:
                     toks.append("k:%x" % v)
+            if pending is not None:                      # the second instruction of a "#" bundle has run: now the
+                track(pending)                           # first one's register write takes effect
+                pending = None
+            if t.rstrip().endswith("#"):                 # a bundle: its partner reads the registers before this write
+                pending = t
+            else:
+                track(t)
+            out.append((text, toks))
+        return out
+
+    def _track(self, regs, t):
+        """the register-tracking effect of one instruction"""
+        if True:
             m1, m2, m3, m4 = SETC.match(t), COPY.match(t), ADDI.match(t), INCI.match(t)
             if m1:
                 regs[m1.group(1)] = _int(m1.group(2)) & 0xFFFFFFFF
@@ -159,8 +192,6 @@ class Prog:
                         regs.pop(r, None)
                 elif POPR.match(t):
                     regs.clear()
-            out.append((text, toks))
-        return out
 
     def text(self, fn):
         return [x for x, _ in self.walk(fn)]
@@ -200,19 +231,21 @@ def judge(ours, up, name):
         if eo2 == want2:
             return None
         return f"effects differ from upstream's with {', '.join(mode[1])} inlined: ours-only {dict(eo2 - want2)}, upstream-only {dict(want2 - eo2)}"
-    if mode and mode[0] == "prefix":
-        mine = Counter(eo)
-        for callee in mode[1]:
-            mine.pop("call:" + callee, None)
-        mine.pop("ret", None)
-        extra = mine - eu
-        return None if not extra else f"effects not in upstream's (with {', '.join(mode[1])} inlined): {dict(extra)}"
+    if mode and mode[0] == "prefix":                # ours, in order, is how upstream's begins (it then goes on
+        drop = {"ret"} | {"call:" + c for c in mode[1]}   # with the inlined callee)
+        seq_o = [k for _, toks in ours.walk(name) for k in toks if k not in drop]
+        seq_u = [k for _, toks in up.walk(name) for k in toks]
+        if Counter(seq_o) == Counter(seq_u[:len(seq_o)]):   # the same effects, scheduling aside
+            return None
+        i = next((i for i in range(len(seq_o)) if i >= len(seq_u) or seq_o[i] != seq_u[i]), len(seq_o))
+        return f"not upstream's beginning (with {', '.join(mode[1])} inlined) at effect {i}: ours {seq_o[i:i+3]} upstream {seq_u[i:i+3]}"
     return f"effects differ: ours-only {dict(eo - eu)}, upstream-only {dict(eu - eo)}"
 
 
 def compare(ours, up):
     frozen = frozen_names()
     bad, exact, effects, reviewed, only_ours = [], 0, 0, 0, []
+    compare.source_only = sorted(n for n in frozen if n not in up.funcs and n not in ours.funcs)
     for name in sorted(frozen):
         if name not in up.funcs:
             if name in ours.funcs:
@@ -234,32 +267,72 @@ def compare(ours, up):
     return bad, exact, effects, reviewed, only_ours
 
 
-def selftest(ours, up):
-    """an effect change in a frozen function must FAIL: a hardware-register constant, then a call target"""
-    frozen = sorted(n for n in frozen_names() if n in ours.funcs and n in up.funcs and ours.text(n) == up.text(n))
-    ok = True
-    for kind, find, change in (("a hardware-register constant", re.compile(r"\b0x1[0-9A-Fa-f]{4}\b"),
-                                lambda s: s.replace(s[s.index("0x"):s.index("0x") + 7], "0x1FFF0", 1)),
-                               ("a call target", CALL, None)):
-        victim = next((n for n in frozen if any(find.search(t) for _, t in ours.funcs[n])), None)
-        if not victim:
-            print(f"compare_upstream selftest: no frozen function with {kind}")
-            ok = False
+MUTATIONS = (                                         # (what, a line it applies to, the change)
+    ("an inverted branch", re.compile(r"^ifs? \(.*(==|!=)"), lambda t: t.replace("==", "\0").replace("!=", "==").replace("\0", "!=")),
+    ("a stored constant + 1", re.compile(r"^[bhd]?\[[^]]+\] = (0x[0-9A-Fa-f]+|\d+)$"),
+     lambda t: re.sub(r"(0x[0-9A-Fa-f]+|\d+)$", lambda m: str(_int(m.group(1)) + 1), t)),
+    ("a hardware-register offset", re.compile(r"\[r\d+\+\d+\]"),
+     lambda t: re.sub(r"\[(r\d+)\+(\d+)\]", lambda m: "[%s+%d]" % (m.group(1), int(m.group(2)) + 4), t, count=1)),
+    ("a bit mask", re.compile(r"^r\d+ [|&^]= (0x[0-9A-Fa-f]+|\d+)$"),
+     lambda t: re.sub(r"(0x[0-9A-Fa-f]+|\d+)$", lambda m: hex(_int(m.group(1)) ^ 0x100), t)),
+)
+
+
+def _mutate(prog, name, find, change, only_hw=False):
+    """the first line of name that find matches (only_hw: an access through a register holding a hardware
+    address), changed; returns the saved body or None"""
+    saved = list(prog.funcs[name])
+    regs = {}
+    for i, (a, t) in enumerate(saved):
+        m1 = SETC.match(t)
+        if m1:
+            regs[m1.group(1)] = _int(m1.group(2)) & 0xFFFFFFFF
+        if not find.search(t):
             continue
-        saved = list(ours.funcs[victim])
-        i = next(i for i, (_, t) in enumerate(saved) if find.search(t))
-        a, t = saved[i]
-        if change:
-            t2 = change(t)
-        else:                                        # another function, its name and its address
-            other = next(n for n in sorted(ours.starts) if n != victim and n not in t)   # any other function
-            t2 = re.sub(r"<[^<>]+ : [0-9a-f]+ >", "<%s : %x >" % (other, ours.starts[other]), t, count=1)
-            t2 = re.sub(r"^call -?\d+ <", "call 0 <", t2)
-        ours.funcs[victim][i] = (a, t2)
-        why = judge(ours, up, victim)
-        ours.funcs[victim] = saved
-        print(f"compare_upstream selftest: {kind} changed in {victim} is {'caught' if why else 'NOT caught'}")
-        ok &= bool(why)
+        if only_hw:
+            m = re.search(r"\[(r\d+)\+\d+\]", t)
+            if not m or not (0x10000 <= regs.get(m.group(1), 0) < RAM[0]):
+                continue
+        prog.funcs[name][i] = (a, change(t))
+        return saved
+    return None
+
+
+def selftest(ours, up):
+    """effect changes in frozen functions must FAIL, in the functions that pass on identical text and in those
+    that pass only on identical effects (their text differs by data layout)"""
+    frozen = sorted(n for n in frozen_names() if n in ours.funcs and n in up.funcs)
+    exact = [n for n in frozen if ours.text(n) == up.text(n)]
+    by_effects = [n for n in frozen if n not in exact and n not in INLINED and judge(ours, up, n) is None]
+    ok = True
+    for what, find, change in MUTATIONS:
+        tried = caught = 0
+        for name in exact[:20] + by_effects:
+            saved = _mutate(ours, name, find, change, only_hw=what == "a hardware-register offset")
+            if saved is None:
+                continue
+            tried += 1
+            caught += judge(ours, up, name) is not None
+            ours.funcs[name] = saved
+        print(f"compare_upstream selftest: {what}: caught in {caught} of {tried} functions")
+        ok &= tried > 0 and caught == tried
+    victim = next(n for n in exact if any(CALL.match(t) for _, t in ours.funcs[n]))   # an unannotated call to another
+    saved = list(ours.funcs[victim])
+    i = next(i for i, (_, t) in enumerate(saved) if CALL.match(t))
+    a, t = saved[i]
+    other = next(n for n in sorted(ours.starts) if n != victim and n not in t and not n.startswith("."))
+    ours.funcs[victim][i] = (a, "call %d" % (ours.starts[other] - a - 4))
+    why = judge(ours, up, victim)
+    ours.funcs[victim] = saved
+    print(f"compare_upstream selftest: an unannotated call to another function in {victim} is {'caught' if why else 'NOT caught'}")
+    ok &= bool(why)
+    saved = list(ours.funcs["fm1_cstart"])                # prefix mode: a deleted store
+    k = next(i for i, (_, t) in enumerate(saved) if re.match(r"^\[r\d+\+\d+\] = ", t))
+    del ours.funcs["fm1_cstart"][k]
+    why = judge(ours, up, "fm1_cstart")
+    ours.funcs["fm1_cstart"] = saved
+    print(f"compare_upstream selftest: a store deleted from fm1_cstart is {'caught' if why else 'NOT caught'}")
+    ok &= bool(why)
     return 0 if ok else 1
 
 
@@ -275,6 +348,9 @@ def main(argv):
         print("FAIL  " + b)
     if only_ours:
         print("info  frozen helpers only in our binary (our code calls them now): " + ", ".join(only_ours))
+    print(f"info  {len(compare.source_only)} frozen functions exist in neither binary on their own (inlined into "
+          f"other code, e.g. {', '.join(compare.source_only[:6])}): their source is checked (check_untouched), "
+          f"not their machine code")
     print(f"compare_upstream: {exact} frozen functions identical, {effects} identical in effect (data layout), "
           f"{reviewed} on the reviewed inlining list, {len(bad)} different")
     return 1 if bad else 0

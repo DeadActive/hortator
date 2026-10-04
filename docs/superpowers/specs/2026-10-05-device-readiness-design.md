@@ -65,8 +65,13 @@ are identical — memory read and written (resolved, with width; a read-modify-w
 their reads and writes), hardware-register constants, calls (a tail jump counts), branches, returns; or (3) it is
 on the reviewed inlining list (`ota_send_msg` with `ota_wire_send` inlined; `fm1_cstart`, into which upstream
 inlines `fm1_main`) and its effects are upstream's with the callee inlined (resp. all found in upstream's). Any
-other difference, or a frozen function upstream has and ours lacks: FAIL. Self-tests: a changed hardware-register
-constant and a changed call target in a frozen function are caught.
+other difference, or a frozen function upstream has and ours lacks: FAIL. Effects include each branch's condition
+(registers abstracted), stored immediates, masks and shifts, hardware addresses reached through a register, and
+calls the listing leaves unannotated; a "#" bundle's partner reads the registers before the bundle's write.
+Self-tests (after the final review): an inverted branch, a stored constant + 1, a hardware-register offset, a bit
+mask, an unannotated call to another function, and a store deleted in prefix mode are each caught in every frozen
+function they apply to. Frozen functions inlined into other code in both binaries (81, e.g. the USB endpoint
+handlers) are not compared as machine code; the tool says so, and their source is byte-checked (check_untouched).
 
 **H3 — worst-case stack** (`tools/stack_depth.py`). From the target disassembly: each function's frame (its
 prologue's stack adjustment and pushes) and its direct calls → the deepest path of the main loop (user stack,
