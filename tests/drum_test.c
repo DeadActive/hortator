@@ -362,6 +362,70 @@ static void test_model_change(void)
           !trk[0].v[0].active && !trk[0].v[1].active && trk[0].model == DM_K909 && end_of(wl, SECS(0.05)) < SECS(0.02));
 }
 
+static double hf_of(const int32_t *x, uint32_t a, uint32_t b)   /* high-frequency energy proxy */
+{
+    double s = 0;
+    for (a++; a < b; a++)
+        s += abs(x[a] - x[a - 1]);
+    return s;
+}
+
+static double snappy_ratio(uint32_t mi)
+{
+    double lo, hi;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    trk[0].p[P_E3] = 0;
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(0.3));
+    lo = hf_of(wl, 0, SECS(0.3));
+    trk[0].p[P_E3] = 127;
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(0.3));
+    hi = hf_of(wl, 0, SECS(0.3));
+    return hi / (lo + 1);
+}
+
+static uint32_t clap_bursts(uint32_t mi)       /* 1 ms energy maxima > 30 % in the first 35 ms */
+{
+    double w[40] = {0}, mx = 0;
+    uint32_t i, n = 0;
+    hit_model(mi, 127, SECS(0.05));
+    for (i = 0; i < SECS(0.035); i++)
+        w[i / 44] += abs(wl[i]);
+    for (i = 0; i < 40; i++)
+        if (w[i] > mx)
+            mx = w[i];
+    for (i = 1; i + 1 < 40; i++)
+        if (w[i] > 0.3 * mx && w[i] >= w[i - 1] && w[i] > w[i + 1])
+            n++;
+    return n;
+}
+
+static void test_snares_claps(void)
+{
+    uint32_t e0, e1;
+    model_health(DM_S808);
+    model_health(DM_S909);
+    model_health(DM_C808);
+    model_health(DM_C909);
+    check("808 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S808) > 3);
+    check("909 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S909) > 3);
+    host_init();
+    drum_set_model(&trk[0], DM_S808);
+    trk[0].p[P_E1] = 0;
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(3));
+    e0 = end_of(wl, SECS(3));
+    trk[0].p[P_E1] = 127;
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(3));
+    e1 = end_of(wl, SECS(3));
+    check("808 snare: DECAY 127 rings > 1.5x longer than DECAY 0", e1 > e0 * 3 / 2);
+    check("808 clap: >= 3 bursts in the first 35 ms", clap_bursts(DM_C808) >= 3);
+    check("909 clap: >= 3 bursts in the first 35 ms", clap_bursts(DM_C909) >= 3);
+}
+
 int main(void)
 {
     test_tables();
@@ -381,6 +445,7 @@ int main(void)
     test_accent();
     test_kicks();
     test_model_change();
+    test_snares_claps();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
