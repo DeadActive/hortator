@@ -14,12 +14,13 @@ static const uint8_t KEY_TRK_KEY[NTRK] = {0, 2, 4, 6, 7, 9, 11, 12};
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
 static uint32_t drum_ch(void) { return (uint32_t)clamp(song.g[G_DRCH], 1, 16) - 1u; }
 
-/* the length of step idx in samples: SWING (the track's + the global) makes the even steps longer
- * and the odd ones shorter, so every odd step starts late */
-static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t idx)
+/* the length of the step played as number cnt since PLAY: SWING (the track's + the global) makes the
+ * even steps longer and the odd ones shorter, so every odd step starts late. Counted from PLAY, not from
+ * the step index, so a pattern of any length (1, 3, ...) keeps the long / short pairs on the bar. */
+static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
 {
     int32_t sw = (t->p[P_SSWING] + song.g[G_SWING]) * (int32_t)period / 250;
-    return period + (uint32_t)((idx & 1u) ? -sw : sw);
+    return period + (uint32_t)((cnt & 1u) ? -sw : sw);
 }
 
 /* live recording: into the nearest step, as swung (the playing one, or the next one past its middle) */
@@ -27,7 +28,7 @@ static void rec_hit(track_t *t, uint32_t vel)
 {
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, idx = t->seq_idx % len;
     uint32_t period = div_samples((uint32_t)t->p[P_SDIV]);
-    if (t->seq_pos > step_samples(t, period, t->seq_idx) / 2u) {
+    if (t->seq_pos > step_samples(t, period, t->seq_cnt) / 2u) {
         idx = (idx + 1u) % len;
         t->rskip = 1;                               /* it sounds now: that step must not hit again */
         t->rskip_idx = (uint8_t)idx;
@@ -82,6 +83,7 @@ static void seq_start(void)
         track_t *t = &trk[i];
         t->seq_idx = (uint16_t)(t->p[P_SLEN] - 1);
         t->seq_pos = 0x7FFFFFFF;                    /* step 0 fires on the first block */
+        t->seq_cnt = 0xFFFFFFFFu;                   /* step 0 is count 0 */
         t->rskip = 0;
     }
     song.tick = 0;
@@ -98,11 +100,12 @@ static void seq_tick(track_t *t, uint32_t n)
         return;
     t->seq_pos += n;
     for (;;) {
-        uint32_t cur_len = step_samples(t, period, t->seq_idx);
+        uint32_t cur_len = step_samples(t, period, t->seq_cnt);
         if (t->seq_pos < cur_len && t->seq_pos != 0x7FFFFFFFu + n)
             break;
         t->seq_pos = t->seq_pos >= 0x7FFFFFFFu ? 0 : t->seq_pos - cur_len;
         t->seq_idx = (uint16_t)((t->seq_idx + 1u) % (len ? len : 1u));
+        t->seq_cnt++;
         if (t->rskip && t->rskip_idx == t->seq_idx)
             t->rskip = 0;
         else if (t->step[t->seq_idx].on)

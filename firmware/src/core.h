@@ -98,6 +98,7 @@ typedef struct track {
     step_t step[NSTEP];
     uint32_t seq_pos;            /* samples into the current step */
     uint16_t seq_idx;
+    uint32_t seq_cnt;            /* steps played since PLAY: swing pairs follow it, so any length stays on the bar */
     uint8_t rskip, rskip_idx;    /* live recording put a hit into the step about to play: skip it once */
     /* mix runtime (fx.c) */
     int32_t peak;

@@ -668,6 +668,27 @@ static void test_voice_cap(void)
     check("voice cap: the oldest voice is stolen with the declick tail", trk[0].dtail != 0 || !DRUM_MAXV);
 }
 
+static void test_swing_grid(void)
+{
+    uint32_t at[80], n1, n3, p = FS * 60 / 120 / 4;
+    host_init();
+    song.g[G_SWING] = 50;
+    trk[0].p[P_SLEN] = 1;
+    trk[0].step[0].on = 1;
+    trk[1].p[P_SLEN] = 3;
+    trk[1].step[0].on = 1;
+    play();
+    n1 = hits_at(0, 48 * p - p / 2, at, 80);
+    host_init();
+    song.g[G_SWING] = 50;
+    trk[1].p[P_SLEN] = 3;
+    trk[1].step[0].on = 1;
+    play();
+    n3 = hits_at(1, 48 * p - p / 2, at, 80);
+    printf("     swing 50, 48 sixteenths: length 1 -> %u hits, length 3 -> %u hits\n", n1, n3);
+    check("swing: length-1 and length-3 tracks stay on the bar grid (48 / 16 hits)", n1 == 48 && n3 == 16);
+}
+
 int main(void)
 {
     test_tables();
@@ -696,6 +717,7 @@ int main(void)
     test_cost();
     test_golden();
     test_voice_cap();
+    test_swing_grid();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
