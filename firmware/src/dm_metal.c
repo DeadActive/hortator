@@ -245,7 +245,7 @@ static int32_t hh_tick(hh_t *k)
         k->nsmp = qrand(&k->rng) - QONE / 2;
     }
     x += qm(k->noisy, k->nsmp - x);
-    k->env = qm(k->env, k->env > Q24(0.5) || !k->ring ? k->edec : k->cdec);
+    k->env = qdecay(k->env, k->env > Q24(0.5) || !k->ring ? k->edec : k->cdec);
     if (!k->ring) {                                           /* SwingVCA */
         x = qm(x, x > 0 ? 4 * QONE : Q24(0.1));
         x = qm(qsat(x) + Q24(0.1), k->env);

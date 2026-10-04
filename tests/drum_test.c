@@ -1045,6 +1045,44 @@ static void test_m1c_ends(void)
     check("M1-C models: velocity 1 and 127, every knob at min and max: end by 6.0 s, faded", ok);
 }
 
+/* when a single hit's voice ends (s), rendered block by block up to 6.5 s */
+static double voice_end_s(uint32_t m, const int16_t knobs[4], uint32_t vel)
+{
+    uint32_t f, k;
+    host_init();
+    drum_set_model(&trk[0], m);
+    for (k = 0; k < 4; k++)
+        trk[0].p[P_E0 + k] = knobs[k];
+    drum_hit(&trk[0], vel);
+    for (f = 0; f < SECS(6.5); f += CTL) {
+        render_track(&trk[0], wl, CTL);
+        if (track_idle(&trk[0]))
+            return (f + CTL) / (double)FS;
+    }
+    return 6.5;
+}
+
+/* a hit that has decayed below hearing ends then, not at the 6 s lifetime (a voice kept alive by an integer
+ * tail holds a voice slot and its cost; heavy models count 2) */
+static void test_m1c_ends_early(void)
+{
+    static const struct { uint32_t m; int16_t k[4]; uint32_t vel; double by; } C[] = {
+        {DM_HMETL, {0, 96, 80, 40}, 127, 3.0},       /* hat envelope reaches 0 (DECAY 96: ~2.4 s) */
+        {DM_HMETL, {0, 72, 80, 40}, 1, 1.5},
+        {DM_HNOIS, {0, 127, 100, 40}, 127, 5.0},
+    };
+    uint32_t i, ok = 1;
+    for (i = 0; i < sizeof C / sizeof C[0]; i++) {
+        double e = voice_end_s(C[i].m, C[i].k, C[i].vel);
+        if (e > C[i].by) {
+            printf("     %s TUNE %d DECAY %d TONE %d CHAR %d vel %u: ends at %.2f s (want < %.1f)\n", N_MODEL[C[i].m],
+                   C[i].k[0], C[i].k[1], C[i].k[2], C[i].k[3], C[i].vel, e, C[i].by);
+            ok = 0;
+        }
+    }
+    check("M1-C: a hit decayed below hearing ends then, not at the 6 s lifetime", ok);
+}
+
 /* a ringing KBOOM, the model swapped to SSNAP (the voice state union is reused), a hit: clean */
 static void test_m1c_swap(void)
 {
@@ -1098,6 +1136,7 @@ int main(void)
     test_step_mode_keys();
     test_step_mode_note_off();
     test_m1c_ends();
+    test_m1c_ends_early();
     test_m1c_swap();
 #ifdef DM_QCHECK
     check("q24: no Q24 overflow in any drum test render", dm_qover == 0);
