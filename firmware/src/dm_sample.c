@@ -74,6 +74,12 @@ static int smp_render(dvoice_t *v, int32_t *out, uint32_t n, int32_t gain, int32
 }
 
 /* SAMPLE model: TUNE DECAY TONE DRIVE, SET KEY */
+static int smpl_playable(const track_t *t)          /* SET / KEY name a sample (else a hit takes no voice) */
+{
+    uint32_t zi = smp_find((uint32_t)t->p[P_E4], (uint32_t)t->p[P_E5]);
+    return zi != 0xFFFFu && smp_zone(zi)->n;
+}
+
 static void smpl_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];

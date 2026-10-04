@@ -102,9 +102,11 @@ static void drum_hit(track_t *t, uint32_t vel)
             if (&trk[i] != t && trk[i].p[P_CHOKE] == t->p[P_CHOKE])
                 drum_cut(&trk[i]);
     model_follow(t);
-    v = dv_alloc(t, t->v, nv);
-    dv_init(v, vel);
-    m->trigger(t, v);
+    if ((uint32_t)t->p[P_MODEL] % NMODELS != DM_SMPL || smpl_playable(t)) {   /* nothing to play: no voice */
+        v = dv_alloc(t, t->v, nv);
+        dv_init(v, vel);
+        m->trigger(t, v);
+    }
     if (t->p[P_LLEVEL]) {
         uint32_t zi = smp_find((uint32_t)t->p[P_LSET], (uint32_t)t->p[P_LKEY]);
         if (zi != 0xFFFFu && smp_zone(zi)->n) {

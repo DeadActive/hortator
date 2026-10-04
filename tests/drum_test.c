@@ -689,6 +689,26 @@ static void test_swing_grid(void)
     check("swing: length-1 and length-3 tracks stay on the bar grid (48 / 16 hits)", n1 == 48 && n3 == 16);
 }
 
+static void test_silent_sample_keeps_voices(void)
+{
+    uint32_t i, before;
+    host_init();
+    for (i = 0; i < NTRK - 1; i++)
+        drum_set_model(&trk[i], DM_CYMB);
+    for (i = 0; i < DRUM_MAXV; i++)                  /* the cap is full of sounding cymbals */
+        drum_hit(&trk[i % (NTRK - 1)], 127);
+    render_mix(0, 0, CTL);
+    before = voices_sounding();
+    drum_set_model(&trk[NTRK - 1], DM_SMPL);
+    trk[NTRK - 1].p[P_E4] = SMP_NSETS;               /* USR1, empty */
+    drum_hit(&trk[NTRK - 1], 127);
+    trk[NTRK - 1].p[P_E4] = 0;
+    trk[NTRK - 1].p[P_E5] = 0;                       /* PERC, a key with no sample */
+    drum_hit(&trk[NTRK - 1], 127);
+    check("SAMPLE with nothing to play does not take a voice from another track",
+          before == DRUM_MAXV && voices_sounding() == DRUM_MAXV && !trk[NTRK - 1].v[0].active && !trk[NTRK - 1].v[1].active);
+}
+
 int main(void)
 {
     test_tables();
@@ -718,6 +738,7 @@ int main(void)
     test_golden();
     test_voice_cap();
     test_swing_grid();
+    test_silent_sample_keeps_voices();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
