@@ -241,6 +241,46 @@ static void snap_page(const char *name)
     shot(path);
 }
 
+/* a drum session for the screens: four on the floor, snare and clap on 2 / 4, hats, a tom fill,
+ * a muted rim, a crash; track 3 armed */
+static void kit_session(void)
+{
+    static const char *const PAT[NTRK] = {
+        "X...x...x...x...",   /* K909: four on the floor, accent on 1 */
+        "....x.......X...",   /* S808 */
+        "............x...",   /* C808 */
+        "x.x.x...x.x.x...",   /* HATC */
+        "......x.......x.",   /* HATO */
+        ".............xxX",   /* TOM: fill */
+        "...x.......x....",   /* RIM (muted) */
+        "X...............",   /* CYMB */
+    };
+    uint32_t i, k;
+    for (i = 0; i < NTRK; i++)
+        for (k = 0; k < 16; k++) {
+            trk[i].step[k].on = PAT[i][k] != '.';
+            trk[i].step[k].acc = PAT[i][k] == 'X';
+        }
+    trk[6].p[P_MUTE] = 1;
+    song.rec = 1u << 2;
+}
+
+/* TRACKS: one row per track; a step's cell is lit exactly when the step is on */
+static void test_tracks_rows(void)
+{
+    uint32_t r, k, ok = 1;
+    ui_host_init();
+    kit_session();
+    press(B_REC);
+    ui_frame();
+    release_all();
+    ui_frame();
+    for (r = 0; r < NTRK; r++)
+        for (k = 0; k < 16; k++)
+            ok &= (fb[(MX_ROW_Y(r) + 7u) * 240u + MX_CELL_X(k) + 2u] != 0) == trk[r].step[k].on;
+    check("TRACKS: 8 rows, each shows its track's 16 steps", ok);
+}
+
 static void test_screens(void)
 {
     static const struct { uint32_t btn; uint32_t presses; const char *name; } P[] = {
@@ -250,10 +290,7 @@ static void test_screens(void)
     };
     uint32_t i, k, ok = 1;
     ui_host_init();
-    for (i = 0; i < NTRK; i++)                       /* a pattern to show */
-        for (k = 0; k < 16; k += 1 + i % 4)
-            trk[i].step[k].on = 1;
-    trk[0].step[4].acc = 1;
+    kit_session();                                   /* a pattern to show */
     transport_req = 1;
     snap_page("00_home");
     ok &= fb_lit(0, 20) > 50 && fb_lit(26, 70) > 200 && fb_lit(202, 240) > 100;
@@ -276,7 +313,7 @@ static void test_screens(void)
     release_all();
     ui_frame();
     snap_page("12_tracks");
-    ok &= fb_lit(74, 198) > 300;                     /* 8 strips */
+    ok &= fb_lit(74, 198) > 300;                     /* 8 rows */
     check("every page draws header, columns and footer (screens in build/ui_shots)", ok);
 }
 
@@ -330,6 +367,7 @@ int main(void)
     test_mixer_and_rec();
     test_clear_confirm();
     test_oct_both_reaches_main();
+    test_tracks_rows();
     test_screens();
     test_project_roundtrip();
     test_project_rejects();

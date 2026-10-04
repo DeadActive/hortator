@@ -292,16 +292,20 @@ static void graph_slots(void)
     }
 }
 
-/* TRACKS mixer: 8 strips of 30 px: number + REC/ARM/MUTE dot, level fader with the output meter,
- * the pattern over LEN with the play head. Each strip redraws only when its signature changes. */
-#define MX_Y (Y_GRAPH + 4)
-#define MX_H 112
+/* TRACKS mixer: one 15 px row per track: number (+ REC-armed dot), model, the 16 steps of the bank
+ * its playhead is in (stopped: the first bank; the selected track: the bank STEP shows), and the
+ * level fader over the output meter (MUTE when muted). A row redraws only when its signature changes. */
+#define MX_RH 15u
+#define MX_ROW_Y(r) (Y_GRAPH + 2u + (r) * MX_RH)
+#define MX_CELL_X(k) (62u + (k) * 8u + (k) / 4u * 3u)   /* 16 cells of 6 px, a gap per beat */
+#define MX_LX 203                                       /* level: fader + meter */
+#define MX_LW 34
 static struct {
     uint32_t sig[NTRK];
     uint8_t meter[NTRK];
 } mx;
 
-static int32_t meter_px(int32_t a)                   /* |sample| (Q15) -> px, 6 dB = MX_H / 10 */
+static int32_t meter_px(int32_t a)                   /* |sample| (Q15) -> px, 6 dB = MX_LW / 10 */
 {
     int32_t lg = 0, v;
     if (a < 64)
@@ -309,7 +313,7 @@ static int32_t meter_px(int32_t a)                   /* |sample| (Q15) -> px, 6 
     while ((a >> lg) > 1)
         lg++;
     v = lg * 8 + (((a << 3) >> lg) & 7);
-    return clamp((v - 48) * (MX_H - 20) / 80, 0, MX_H - 20);
+    return clamp((v - 48) * MX_LW / 80, 0, MX_LW);
 }
 
 static void draw_mix(void)
@@ -323,38 +327,48 @@ static void draw_mix(void)
     for (c = 0; c < NTRK; c++) {
         track_t *t = &trk[c];
         uint32_t sel = c == song.sel, lvl = (uint32_t)t->p[P_LEVEL] & 127u, mute = !lvl || t->p[P_MUTE];
-        uint32_t arm = (song.rec >> c) & 1u, len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, sig, i;
-        int32_t m = mute ? 0 : meter_px(t->peak), fy;
+        uint32_t arm = (song.rec >> c) & 1u, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), bank, sig, k;
+        int32_t m = mute ? 0 : meter_px(t->peak);
+        uint16_t ink = sel ? C_HI : C_GRAY;
         char b[2] = {(char)('1' + c), 0};
         t->peak = 0;
-        if (m < mx.meter[c] - 3)
-            m = mx.meter[c] - 3;
+        if (m < mx.meter[c] - 1)
+            m = mx.meter[c] - 1;
         mx.meter[c] = (uint8_t)(m < 0 ? 0 : m);
-        sig = 1u + sel + arm * 2u + mute * 4u + lvl * 8u + mx.meter[c] * 1024u + steps_hash(t) * 131u +
+        bank = song.playing ? (t->seq_idx % len) / 16u : sel ? ui.bank : 0u;
+        sig = 1u + sel + arm * 2u + mute * 4u + lvl * 8u + mx.meter[c] * 1024u + bank * 65536u +
+              (uint32_t)t->p[P_MODEL] * 7919u + steps_hash(t) * 131u +
               (song.playing ? t->seq_idx + 1u : 0u) * 2654435761u;
         if (!ui.force && sig == mx.sig[c])
             continue;
         mx.sig[c] = sig;
-        cv_begin(29, MX_H, C_BLACK);
-        cv_text(2, 0, &FONT_S, b, sel ? C_WHITE : C_GRAY);
+        cv_begin(240, MX_RH, C_BLACK);
+        cv_text(2, -1, &FONT_S, b, sel ? C_WHITE : C_GRAY);
         if (arm)
-            cv_rect(14, 5, 6, 6, song.playing ? C_WHITE : C_AMB);
-        else if (mute)
-            cv_rect(14, 7, 6, 2, C_DIM);
-        fy = (MX_H - 2) - (int32_t)lvl * (MX_H - 22) / 127;      /* fader + meter, rows 20.. */
-        cv_rect(4, 20, 1, MX_H - 20, C_LINE);
-        cv_rect(2, fy, 5, 2, sel ? C_HI : C_GRAY);
-        if (mx.meter[c])
-            cv_rect(8, MX_H - mx.meter[c], 2, mx.meter[c], C_AMB);
-        for (i = 0; i < len; i++) {                              /* pattern column x 13..26 */
-            int32_t r0 = 20 + (int32_t)(i * (MX_H - 20) / len), r1 = 20 + (int32_t)((i + 1u) * (MX_H - 20) / len);
-            if (t->step[i].on)
-                cv_rect(t->step[i].acc ? 13 : 15, r0, t->step[i].acc ? 12 : 8, r1 - r0 > 2 ? r1 - r0 - 1 : 1,
-                        sel ? (t->step[i].acc ? C_WHITE : C_HI) : C_GRAY);
-            if (song.playing && i == t->seq_idx % len)
-                cv_rect(26, r0, 2, r1 - r0 > 1 ? r1 - r0 : 1, C_WHITE);
+            cv_rect(12, 5, 4, 4, song.playing ? C_WHITE : C_AMB);
+        cv_text(18, -1, &FONT_S, N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS], ink);
+        for (k = 0; k < 16u; k++) {
+            uint32_t si = bank * 16u + k;
+            int32_t x = (int32_t)MX_CELL_X(k);
+            const step_t *st = &t->step[si];
+            int ph = song.playing && si == t->seq_idx;     /* the playhead: its step drawn white */
+            if (si >= len)
+                continue;
+            if (st->on)
+                cv_rect(x, st->acc ? 2 : 4, 6, st->acc ? 11 : 7,
+                        ph ? C_WHITE : mute ? C_DIM : st->acc ? (sel ? C_WHITE : C_HI) : ink);
+            else
+                cv_rect(x, ph ? 9 : 10, 6, ph ? 2 : 1, ph ? C_WHITE : C_DIM);
         }
-        cv_blit(c * 30u, MX_Y);
+        if (mute) {
+            cv_text(MX_LX, -1, &FONT_S, "MUTE", C_DIM);
+        } else {
+            cv_rect(MX_LX, 7, MX_LW, 1, C_LINE);
+            if (mx.meter[c])
+                cv_rect(MX_LX, 5, mx.meter[c], 5, C_AMB);
+            cv_rect(MX_LX + (int32_t)lvl * (MX_LW - 2) / 127, 2, 2, 11, sel ? C_WHITE : C_GRAY);
+        }
+        cv_blit(0, MX_ROW_Y(c));
     }
 }
 
