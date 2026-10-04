@@ -659,9 +659,56 @@ static void test_ui_frame_cost(void)
     check("ui frame cost: under 4,000,000 host instructions (8 s watchdog, 100x margin)", !i0 || worst < 4000000u);
 }
 
+/* a white key on a per-track page (SOUND, TRACK, MIDI, LAYER, FX, SLICER) selects its track and still plays it;
+ * HOME, the STEP grid, PATTERN and the global pages keep the selection */
+static int key_selects(const char *title, uint32_t fam_btn, uint32_t presses)
+{
+    uint32_t a, i;
+    ui_host_init();
+    for (i = 0; i < presses; i++) {
+        press(fam_btn);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+    if (!str_eq(cur_page()->title, title)) {
+        printf("     (could not open %s, on %s)\n", title, cur_page()->title);
+        return -1;
+    }
+    a = hit_age(&trk[2]);
+    keys(1u << KEY_TRK_KEY[2]);                      /* the third white key: track 3 */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    return song.sel == 2 && hit_age(&trk[2]) != a ? 1 : song.sel == 0 ? 0 : -1;
+}
+
+static void test_key_selects_track(void)
+{
+    static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
+        {"SOUND", B_EDIT, 1, 1}, {"TRACK", B_ENV, 1, 1}, {"MIDI", B_ENV, 2, 1}, {"LAYER", B_LFO, 1, 1},
+        {"FX", B_FX, 1, 1}, {"SLICER", B_FX, 2, 1}, {"DLY", B_FX, 3, 0}, {"PATTERN", B_SEQ, 2, 0},
+    };
+    uint32_t i, ok = 1;
+    for (i = 0; i < sizeof C / sizeof C[0]; i++) {
+        int got = key_selects(C[i].title, C[i].btn, C[i].presses);
+        if (got != C[i].want) {
+            printf("     %s: key 3 %s\n", C[i].title, got == 1 ? "selected T3" : got == 0 ? "kept T1" : "unexpected");
+            ok = 0;
+        }
+    }
+    check("a white key on a per-track page selects its track (and plays it); global / sequencer pages keep it", ok);
+    ui_host_init();                                  /* HOME: keys play, the selection stays */
+    keys(1u << KEY_TRK_KEY[2]);
+    ui_frame();
+    keys(0);
+    check("HOME: a white key plays its track, the selection stays", song.sel == 0);
+}
+
 int main(void)
 {
     test_safe_start();
+    test_key_selects_track();
     test_engine_screens();
     test_seq_screens();
     test_families();

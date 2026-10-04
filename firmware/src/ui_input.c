@@ -263,10 +263,15 @@ static void ui_input(void)
         }
         }
     }
-    if (grid_mode())
+    if (grid_mode()) {
         for (k = 0; k < 16u; k++)
             if ((notes >> k) & 1u)
                 step_tap(k);
+    } else if (!ui.home && !ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ) {
+        for (k = 0; k < NTRK; k++)                      /* a per-track page: a white key selects its track */
+            if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
+                track_select(k);
+    }
     if ((s = panel_enc(EN_PRESET)) != 0 && (ui.home || cur_fam() == FAM_TRK))
         model_step(s);
     if ((s = panel_enc(EN_ALGO)) != 0)
