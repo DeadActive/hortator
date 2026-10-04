@@ -306,14 +306,7 @@ class Builder:
             L.append('    {"NONE", 0, 1},')
         L.append("};")
         L.append(f"#define SMP_NSETS {max(1, len(sets))}")
-        L.append("static const preset_t SMP_PRESET_TABLE[] = {")
         named = sets or [("NONE", 0, 0)]
-        for i, (name, _, _) in enumerate(named):
-            k = self.kinds.get(name, "wave")
-            a, d, s_, r = ENV[k]
-            loop = 0 if k == "kit" else 1
-            L.append(f'    {{"{name}", {{{i}, 0, 0, {loop}, 127, 0, 0, 0}}, {{{a}, {d}, {s_}, {r}}}, 0, 0}},')
-        L.append("};")
         names = ", ".join(f'"{n}"' for n, _, _ in named)
         L.append("#define SMP_SET_NAMES_INIT " + names)
         L.append("static const char *const SMP_SET_NAMES[] = {" + names + "};")
@@ -372,10 +365,6 @@ def main(out):
     except (OSError, ValueError):
         pass
     b = Builder()
-    if have_cc0:
-        for name, kind in CC0_SETS:
-            if kind != "kit":                       # the CC0 KIT feeds the GM kit
-                b.cc0_set(name, kind)
     b.gm_kit(have_cc0)
     if os.environ.get("FELUCCA_SLICE") == "1":       # SLICE's BREAK: only when that engine is built
         b.slice_break()                             # last: the sets' offsets stay as they were

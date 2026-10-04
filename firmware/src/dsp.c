@@ -104,15 +104,3 @@ static inline int32_t tsvf_lp(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t
     *ic2 = clamp(2 * v2 - *ic2, -150000, 150000);
     return v2;
 }
-
-/* amplitude ramp over the block. Blocks are always CTL long, so x / CTL is a
- * shift rounded towards zero (-Os would keep a hardware divide per sample) */
-#define CTL_LOG2 5
-#if (1 << CTL_LOG2) != CTL
-#error "CTL_LOG2 does not match CTL"
-#endif
-static inline int32_t amp_at(const vmod_t *m, uint32_t i)
-{
-    int32_t x = (m->amp1 - m->amp0) * (int32_t)i;
-    return m->amp0 + ((x + ((x >> 31) & (CTL - 1))) >> CTL_LOG2);
-}

@@ -170,8 +170,8 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     }
 }
 
-/* one block of the whole mix (shared with tests/hostsim.c): events -> each part
- * -> dist -> SLICER -> level / pan / sends -> drums (-> SLICER) -> buses -> master; out: stereo Q15 */
+/* one block of the whole mix (shared with the host tests): events -> each drum track -> dist -> SLICER
+ * -> level / pan / sends -> buses -> master; out: stereo Q15 */
 static void events_block(uint32_t n);                    /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL];
 
@@ -219,9 +219,9 @@ static void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
-    for (i = 0; i < NPART; i++)
+    drum_block_begin();
+    for (i = 0; i < NTRK; i++)
         mix_part(&trk[i], n);
-    slicer_drums(mix_l, mix_r, send_r, n);              /* drums_render, through the SLICER when on */
     fx_buses(send_c, send_d, send_r, wet, n);
     for (i = 0; i < n; i++) {
         int32_t l = (((mix_l[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;

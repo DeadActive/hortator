@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SAMPLE: IMA ADPCM sample sets. */
-static const char *const N_ONOFF_E[] = {"OFF", "ON"};
 /* IMA ADPCM sample sets (tools/gen_samples.py), native rates, zones across
  * the keyboard, loops with the ADPCM state stored at the loop start.
  * SET is P_E0 (EDIT 1, KNOB 1). */
@@ -122,86 +121,3 @@ static inline int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
     v->ph[0] = pos;
     return v->s[0];
 }
-
-static void sample_note_on(track_t *t, voice_t *v)
-{
-    uint32_t si = (uint32_t)t->p[P_E0] % SMP_NALL, i, zi = 0xFFFFu;
-    if (si < SMP_NSETS) {
-        const smp_set_t *set = &SMP_SETS[si];
-        for (i = 0; i < set->nz; i++)
-            if (v->note >= SMP_ZONES[set->z0 + i].lo && v->note <= SMP_ZONES[set->z0 + i].hi)
-                zi = set->z0 + i;
-        v->s[4] = (int32_t)(zi == 0xFFFFu ? set->z0 : zi);
-    } else {                                        /* user slot: silent if empty */
-        uint32_t k = si - SMP_NSETS;
-        for (i = 0; i < usr_nz[k]; i++)
-            if (v->note >= usr_zone[k][i].lo && v->note <= usr_zone[k][i].hi)
-                zi = 0x8000u | k << 5 | i;
-        v->s[4] = (int32_t)(zi == 0xFFFFu ? 0 : zi);
-    }
-    v->ph[0] = 0;
-    v->ph[1] = 0;
-    v->s[0] = 0;
-    v->s[1] = 0;
-    v->s[2] = v->s[3] = 0;
-    v->s[6] = zi == 0xFFFFu;     /* 1 = sample ended (one-shot); a kit key with no sound stays silent */
-    v->s[7] = 0;                 /* lo-pass state */
-}
-
-static void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
-{
-    const int16_t *p = t->p;
-    const smp_zone_t *z = smp_zone((uint32_t)v->s[4]);
-    uint32_t i, frac = v->ph[1];
-    int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - z->root16, -1536, 576);   /* <= 3 octaves up: bounded decode load */
-    uint32_t r = pow2_q16(d16), stepq = (r >> 8) * (z->rate >> 8);   /* Q16 samples per output */
-    int32_t bits = p[P_E2], lp = 4000 + ((clamp((p[P_E4] << 8) + m->cutoff, 0, 127 << 8) * 28767) >> 15);
-    int32_t drv = p[P_E6], sh = bits / 10;
-    if (v->s[6] || !z->n) {
-        v->active = 0;
-        return;
-    }
-    if (v->ph[0] == 0 && v->ph[1] == 0 && v->s[3] == 0)
-        v->s[3] = sample_next(z, v, p[P_E3]);         /* prime the interpolator */
-    for (i = 0; i < n; i++) {
-        int32_t s;
-        frac += stepq;
-        while (frac >= 65536u) {
-            frac -= 65536u;
-            v->s[2] = v->s[3];
-            if (v->ph[0] >= z->n) {                   /* one-shot reached its end */
-                v->s[6] = 1;
-                v->s[3] = 0;
-                break;
-            }
-            v->s[3] = sample_next(z, v, p[P_E3]);
-        }
-        s = v->s[2] + (((v->s[3] - v->s[2]) * (int32_t)(frac >> 1)) >> 15);
-        if (sh)                                       /* BITS: 0 = clean, up to 12 bits removed */
-            s = (s >> sh) << sh;
-        if (drv)
-            s = softclip(s + (((s >> 2) * (drv * 150)) >> 11));   /* = s * drv * 600 / 32768, no overflow */
-        v->s[7] += mulq15(s - v->s[7], lp);           /* gentle tone control (CUT) */
-        out[i] += mulq15(mulq15(v->s[7], amp_at(m, i)), VOICE_FS) << 1;
-        if (v->s[6])
-            break;
-    }
-    v->ph[1] = frac;
-}
-
-
-static const engine_t ENG_SAMPLE = {
-    "SAMPLE", {"SET", "TONE"},
-    {
-        {"SET", F_ENUM, 0, SMP_NALL - 1, 0, SMP_ALL_NAMES, 0},
-        {"TUNE", F_SEMI, -24, 24, 0, 0, 0},
-        {"BITS", F_INT, 0, 127, 0, 0, 0},
-        {"LOOP", F_ENUM, 0, 1, 1, N_ONOFF_E, 0},
-        {"CUT", F_INT, 0, 127, 127, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
-        {"DRV", F_PCT, 0, 127, 0, 0, 0},
-        {"-", F_INT, 0, 0, 0, 0, 0},
-    },
-    SMP_PRESET_TABLE, sizeof(SMP_PRESET_TABLE) / sizeof(SMP_PRESET_TABLE[0]), -1, sample_note_on, sample_render,
-    0xFFFF, {P_E0, P_E4, P_ATK, P_REL},
-};
