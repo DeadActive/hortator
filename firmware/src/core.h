@@ -83,6 +83,7 @@ typedef struct {
     param_desc_t edit[8];        /* P_E0..P_E7: TUNE DECAY TONE CHAR + 4 extras */
     void (*trigger)(struct track *t, dvoice_t *v);
     void (*render)(struct track *t, dvoice_t *v, int32_t *out, uint32_t n);
+    uint8_t weight;              /* what a voice counts toward DRUM_MAXV: 0 / 1 = 1, 2 = a heavy model (M1-C) */
 } dmodel_t;
 
 /* ------------------------------------------------------------ track --- */

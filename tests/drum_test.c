@@ -326,6 +326,7 @@ static void test_kicks(void)
     double f0, f12, fs;
     model_health(DM_K909);
     model_health(DM_K808);
+    model_health(DM_KBOOM);
     host_init();
     drum_set_model(&trk[0], DM_K909);
     trk[0].p[P_E1] = 127;                            /* long, for a precise pitch */
@@ -974,6 +975,23 @@ static void test_q24(void)
     }
 }
 
+/* heavy models count 2 toward DRUM_MAXV (user decision, M1-C): 8 tracks of KBOOM held long ring as 4 */
+static void test_heavy_cap(void)
+{
+    track_t *ot;
+    dvoice_t *ov;
+    uint32_t i;
+    host_init();
+    for (i = 0; i < NTRK; i++) {
+        drum_set_model(&trk[i], DM_KBOOM);
+        trk[i].p[P_E1] = 127;
+        drum_hit(&trk[i], 127);
+        render_mix(0, 0, CTL);
+    }
+    check("voice cap: a heavy model counts 2 (8 long KBOOM hits: 4 sound, weight 8)",
+          voices_sounding() == DRUM_MAXV / 2 && dv_oldest(&ot, &ov) == DRUM_MAXV);
+}
+
 int main(void)
 {
     test_q24();
@@ -1003,6 +1021,7 @@ int main(void)
     test_cost();
     test_golden();
     test_voice_cap();
+    test_heavy_cap();
     test_swing_grid();
     test_silent_sample_keeps_voices();
     test_stress_seq();

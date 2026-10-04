@@ -41,10 +41,18 @@ static void model_follow(track_t *t)                     /* the model changed: t
 
 #ifndef DRUM_MAXV
 #define DRUM_MAXV 8       /* voices sounding at once over all tracks, model + layer (user decision: realistic use fits the
-                           * 1566 reference; the extreme case, ~2388, relies on the device's overload shedding, M1-B) */
+                           * 1566 reference; the extreme case, ~2388, relies on the device's overload shedding, M1-B;
+                           * a heavy model's voice counts 2 (M1-C, user decision) */
 #endif
 
-/* the oldest sounding voice of any track (model or layer): *ot its track; returns how many sound */
+/* what a sounding voice counts toward DRUM_MAXV: a layer voice 1, a model voice its model's weight */
+static uint32_t dv_weight(const track_t *t, const dvoice_t *v)
+{
+    uint32_t w = v >= t->lv && v < t->lv + NDV ? 1u : DMODELS[t->model % NMODELS].weight;
+    return w ? w : 1u;
+}
+
+/* the oldest sounding voice of any track (model or layer): *ot its track; returns the sounding weight */
 static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
 {
     uint32_t i, k, n = 0;
@@ -55,7 +63,7 @@ static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
             dvoice_t *v = k < NDV ? &trk[i].v[k] : &trk[i].lv[k - NDV];
             if (!v->active)
                 continue;
-            n++;
+            n += dv_weight(&trk[i], v);
             if (!*ov || v->age < (*ov)->age) {
                 *ov = v;
                 *ot = &trk[i];
@@ -64,12 +72,12 @@ static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
     return n;
 }
 
-/* over the cap: the oldest sounding voice of any track stops (declick tail) */
-static void dv_make_room(void)
+/* a voice of weight w is about to start: the oldest sounding voices stop (declick tail) until it fits the cap */
+static void dv_make_room(uint32_t w)
 {
     track_t *ot;
     dvoice_t *ov;
-    if (dv_oldest(&ot, &ov) >= DRUM_MAXV && ov)
+    while (dv_oldest(&ot, &ov) + w > DRUM_MAXV && ov)
         dv_cut(ot, ov);
 }
 
@@ -82,13 +90,13 @@ static void drum_shed(void)
         dv_cut(ot, ov);
 }
 
-static dvoice_t *dv_alloc(track_t *t, dvoice_t *pool, uint32_t nv)   /* free, else the oldest */
+static dvoice_t *dv_alloc(track_t *t, dvoice_t *pool, uint32_t nv, uint32_t w)   /* free, else the oldest */
 {
     uint32_t i;
     dvoice_t *v = &pool[0];
     for (i = 0; i < nv; i++) {
         if (!pool[i].active) {
-            dv_make_room();
+            dv_make_room(w);
             return &pool[i];
         }
         if (pool[i].age < v->age)
@@ -121,14 +129,14 @@ static void drum_hit(track_t *t, uint32_t vel)
                 drum_cut(&trk[i]);
     model_follow(t);
     if ((uint32_t)t->p[P_MODEL] % NMODELS != DM_SMPL || smpl_playable(t)) {   /* nothing to play: no voice */
-        v = dv_alloc(t, t->v, nv);
+        v = dv_alloc(t, t->v, nv, m->weight ? m->weight : 1u);
         dv_init(v, vel);
         m->trigger(t, v);
     }
     if (t->p[P_LLEVEL]) {
         uint32_t zi = smp_find((uint32_t)t->p[P_LSET], (uint32_t)t->p[P_LKEY]);
         if (zi != 0xFFFFu && smp_zone(zi)->n) {
-            v = dv_alloc(t, t->lv, nv);
+            v = dv_alloc(t, t->lv, nv, 1u);
             dv_init(v, vel);
             smp_start(v, zi, (uint32_t)t->p[P_LKEY], t->p[P_LTUNE]);
             v->env[0] = ENV1;
