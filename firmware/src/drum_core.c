@@ -9,7 +9,7 @@ static uint32_t dvage;                                   /* hit counter: voice a
 /* power-on kit: model and MIDI note of each track */
 static const uint8_t KIT_DEF[NTRK][2] = {
     {DM_K909, 36}, {DM_S808, 38}, {DM_C808, 39}, {DM_HATC, 42},
-    {DM_HATO, 46}, {DM_SMPL, 45}, {DM_SMPL, 37}, {DM_CYMB, 49},
+    {DM_HATO, 46}, {DM_TOM, 45}, {DM_RIM, 37}, {DM_CYMB, 49},
 };
 
 static const dmodel_t *trk_model(const track_t *t) { return &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS]; }

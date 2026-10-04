@@ -454,6 +454,31 @@ static void test_metal(void)
     check("cymbal: 2 voices, the first keeps ringing over a retrigger", trk[0].v[0].active && trk[0].v[1].active);
 }
 
+static double late_freq(uint32_t mi, double a, double b)   /* DECAY 127, pitch between a and b s */
+{
+    host_init();
+    drum_set_model(&trk[0], mi);
+    trk[0].p[P_E1] = 127;
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(b));
+    return freq_of(wl, SECS(a), SECS(b));
+}
+
+static void test_perc(void)
+{
+    double f;
+    model_health(DM_TOM);
+    model_health(DM_CONGA);
+    model_health(DM_RIM);
+    model_health(DM_CLAVE);
+    f = late_freq(DM_TOM, 0.1, 0.4);
+    check("tom: settles near 120 Hz", f > 112 && f < 128);
+    f = late_freq(DM_CONGA, 0.05, 0.2);
+    check("conga: settles near 310 Hz", f > 295 && f < 325);
+    f = late_freq(DM_CLAVE, 0.005, 0.045);
+    check("claves: near 2.5 kHz", f > 2400 && f < 2600);
+}
+
 int main(void)
 {
     test_tables();
@@ -475,6 +500,7 @@ int main(void)
     test_model_change();
     test_snares_claps();
     test_metal();
+    test_perc();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
