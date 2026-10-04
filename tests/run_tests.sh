@@ -23,7 +23,8 @@ $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
 $CC -o "$OUT/ota_test" tests/ota_test.c
 run "M-UPGRADE entry" "$OUT/ota_test" "$PKG"
-head -c 200000 build/felucca.bin > "$OUT/old_app.bin"
+# the "other app": the first half of this image (the rest erased), so the install must rewrite app sectors
+head -c $(( $(wc -c < build/felucca.bin) / 2 )) build/felucca.bin > "$OUT/old_app.bin"
 python3 tools/fm1pkg_make.py "$OUT/old_app.bin" build/loader/ota.bin "$OUT/old.fwsc" >/dev/null
 $CC -o "$OUT/ldr_test" tests/ldr_test.c
 run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" "$PKG"

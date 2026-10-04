@@ -835,6 +835,28 @@ static void test_step_mode_keys(void)
     check("STEP grid closed: keys hit drums again", dvage != a);
 }
 
+static void test_step_mode_note_off(void)
+{
+    uint32_t a, n;
+    host_init();
+    usb.config = 1;
+    mo_w = mo_r = 0;
+    fm1_in.notes = 1u << KEY_TRK_KEY[0];             /* key held on HOME: note-on out */
+    render_mix(0, 0, CTL);
+    song.seq_mode = 1;                               /* SEQ opens the STEP grid while it is held */
+    fm1_in.notes = 0;
+    render_mix(0, 0, CTL);
+    n = mo_w;
+    check("STEP grid opened while a key is held: its release still sends the note-off",
+          n == 2 && (midi_out_q[1] & 0xF0FFu) == 0x8008u);
+    a = dvage;
+    fm1_in.notes = 1u << KEY_TRK_KEY[0];
+    render_mix(0, 0, CTL);
+    check("STEP grid open: a press sends no note-on", mo_w == n && dvage == a);
+    usb.config = 0;
+    song.seq_mode = 0;
+}
+
 int main(void)
 {
     test_tables();
@@ -868,6 +890,7 @@ int main(void)
     test_stress_seq();
     test_shed();
     test_step_mode_keys();
+    test_step_mode_note_off();
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
