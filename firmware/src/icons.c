@@ -69,6 +69,7 @@ static const icon_map_t ICON_MAP[] = {
     {"DECAY", ICON_DECAY}, {"MODEL", ICON_DRUM}, {"CHOKE", ICON_GATE}, {"LSET", ICON_SAMPLE},
     {"LKEY", ICON_PITCH}, {"LLVL", ICON_LEVEL}, {"LTUNE", ICON_PITCH}, {"LDEC", ICON_DECAY},
     {"BANK", ICON_STEPS}, {"KEY", ICON_PITCH}, {"DRIVE", ICON_MOD}, {"SNAP", ICON_NOISE},
+    {"PUNCH", ICON_DRIVE}, {"FM", ICON_MOD}, {"NOISE", ICON_NOISE},
 };
 
 static uint32_t icon_for_label(const char *l)

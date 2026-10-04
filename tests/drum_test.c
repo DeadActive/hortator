@@ -1018,6 +1018,49 @@ static void test_heavy_cap(void)
           voices_sounding() == DRUM_MAXV / 2 && dv_oldest(&ot, &ov) == DRUM_MAXV);
 }
 
+/* every M1-C model at velocity 1 and 127, each knob at min and max: it ends by 6.0 s, faded (no click) */
+static void test_m1c_ends(void)
+{
+    static const uint32_t M[] = {DM_KBOOM, DM_KPUNC, DM_SSNAP, DM_SCRAK, DM_HMETL, DM_HNOIS};
+    uint32_t a, k, j, vv, ok = 1;
+    for (a = 0; a < 6; a++)
+        for (vv = 0; vv < 2; vv++)
+            for (k = 0; k < 4; k++)
+                for (j = 0; j < 2; j++) {
+                    const param_desc_t *d = &DMODELS[M[a]].edit[k];
+                    int32_t val = j ? d->max : d->min;
+                    uint32_t e;
+                    host_init();
+                    drum_set_model(&trk[0], M[a]);
+                    trk[0].p[P_E0 + k] = (int16_t)val;
+                    drum_hit(&trk[0], vv ? 127u : 1u);
+                    render_track(&trk[0], wl, SECS(6.5));
+                    e = end_of(wl, SECS(6.5));
+                    if (e > SECS(6.01) || !track_idle(&trk[0]) || peak_of(wl, SECS(5.98), SECS(6.0)) > VOICE_FS / 25) {
+                        printf("     %s %s=%d vel %u: end %.2f s, last 20 ms peak %d\n", N_MODEL[M[a]], d->label, val,
+                               vv ? 127u : 1u, e / (double)FS, peak_of(wl, SECS(5.98), SECS(6.0)));
+                        ok = 0;
+                    }
+                }
+    check("M1-C models: velocity 1 and 127, every knob at min and max: end by 6.0 s, faded", ok);
+}
+
+/* a ringing KBOOM, the model swapped to SSNAP (the voice state union is reused), a hit: clean */
+static void test_m1c_swap(void)
+{
+    uint32_t q0 = dm_qover;
+    host_init();
+    drum_set_model(&trk[0], DM_KBOOM);
+    trk[0].p[P_E1] = 127;
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(0.2));
+    drum_set_model(&trk[0], DM_SSNAP);               /* as model_step does (the IRQ off on the device) */
+    drum_hit(&trk[0], 127);
+    render_track(&trk[0], wl, SECS(1));
+    check("M1-C: model swap while a voice rings: the new model starts clean (bounded, no overflow)",
+          peak_of(wl, 0, SECS(1)) <= 3 * VOICE_FS && dm_qover == q0 && trk[0].model == DM_SSNAP);
+}
+
 int main(void)
 {
     test_q24();
@@ -1054,6 +1097,11 @@ int main(void)
     test_shed();
     test_step_mode_keys();
     test_step_mode_note_off();
+    test_m1c_ends();
+    test_m1c_swap();
+#ifdef DM_QCHECK
+    check("q24: no Q24 overflow in any drum test render", dm_qover == 0);
+#endif
     printf(fails ? "drum_test: %d FAILED\n" : "drum_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

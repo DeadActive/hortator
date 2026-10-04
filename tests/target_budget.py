@@ -15,7 +15,8 @@ import re
 import sys
 
 FUNCS = ["body_render", "snare_render", "clap_render", "hat_render", "cymb_render", "cowb_render",
-         "rim_render", "smp_render", "metal_make", "slicer_track", "fm1_alnk0_irq"]
+         "rim_render", "smp_render", "metal_make", "slicer_track", "fm1_alnk0_irq",
+         "kboom_render", "kpunc_render", "ssnap_render", "scrak_render", "hh_render"]
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...

@@ -119,6 +119,7 @@ int main(int argc, char **argv)
                  2 * REF_NGRID);
         check(what, nl == 2 * REF_NGRID && bounded);
     }
+    check("fidelity: all six M1-C models are built", built == REF_NMODELS);
     if (log)
         fclose(log);
 #ifdef DM_QCHECK

@@ -364,6 +364,22 @@ static void test_screens(void)
     ui_frame();
     release_all();
     check("OCT- cancels the clear dialog (screens in build/ui_shots)", !ui.confirm);
+    press(B_HOME);
+    ui_frame();
+    release_all();
+    ui_frame();
+    fm1_irq_off();
+    drum_set_model(TSEL, DM_KBOOM);
+    fm1_irq_on();
+    for (k = 0; k < NPAGES && (cur_page() != &PAGES[0] || ui.home); k++) {   /* SOUND 1/2: its knobs */
+        press(B_EDIT);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+    snap_page("93_sound_kboom");
+    check("an M1-C model's SOUND page draws (KBOOM: TUNE DECAY TONE PUNCH)", TSEL->model == DM_KBOOM &&
+          cur_page() == &PAGES[0] && str_eq(PAGES[0].title, "SOUND") && fb_lit(26, 70) > 100 && fb_lit(202, 240) > 100);
 }
 
 static void test_project_roundtrip(void)
