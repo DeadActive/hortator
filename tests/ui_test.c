@@ -272,6 +272,45 @@ static void test_screens(void)
     check("every page draws header, columns and footer (screens in build/ui_shots)", ok);
 }
 
+static void test_project_roundtrip(void)
+{
+    ui_host_init();
+    drum_set_model(&trk[2], DM_CONGA);
+    trk[2].p[P_E0] = -5;
+    trk[2].p[P_LLEVEL] = 77;
+    trk[2].step[7].on = trk[2].step[7].acc = 1;
+    trk[2].p[P_SLEN] = 23;
+    song.g[G_BPM] = 133;
+    song.sel = 2;
+    project_save(1);
+    ui_host_init();
+    check("project: a saved slot reads as used", project_used(1) && !project_used(0));
+    project_load(1);
+    check("project: load restores models, params, steps, globals, selection",
+          trk[2].p[P_MODEL] == DM_CONGA && trk[2].model == DM_CONGA && trk[2].p[P_E0] == -5 &&
+              trk[2].p[P_LLEVEL] == 77 && trk[2].step[7].on && trk[2].step[7].acc && trk[2].p[P_SLEN] == 23 &&
+              song.g[G_BPM] == 133 && song.sel == 2);
+}
+
+static void test_project_rejects(void)
+{
+    ui_host_init();
+    project_save(0);
+    proj_slot[0].t[3].p[P_MODEL] = 99;               /* corrupt the stored data, fix the checksum */
+    proj_slot[0].t[3].p[P_E1] = 30000;
+    proj_slot[0].t[3].step[0].on = 7;
+    proj_slot[0].sum = proj_sum(&proj_slot[0]);
+    project_load(0);
+    check("project: out-of-range values are clamped on load",
+          trk[3].p[P_MODEL] < NMODELS && trk[3].p[P_E1] <= DMODELS[trk[3].p[P_MODEL]].edit[1].max &&
+              trk[3].step[0].on == 1);
+    proj_slot[1].magic = 0x46554E33u;                /* an old Felucca project ("FUN3") */
+    check("project: Felucca projects are not used", !project_used(1));
+    project_save(2);
+    proj_slot[2].sum ^= 1;
+    check("project: a bad checksum is not used", !project_used(2));
+}
+
 int main(void)
 {
     test_families();
@@ -284,6 +323,8 @@ int main(void)
     test_clear_confirm();
     test_oct_both_reaches_main();
     test_screens();
+    test_project_roundtrip();
+    test_project_rejects();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
