@@ -281,40 +281,89 @@ static void test_tracks_rows(void)
     check("TRACKS: 8 rows, each shows its track's 16 steps", ok);
 }
 
+static void hold(uint32_t label)                    /* a button held 0.8 s (1 ms per tick), then let go */
+{
+    uint32_t k;
+    press(label);
+    for (k = 0; k < 800; k++)
+        ui_input();
+    release_all();
+    ui_frame();
+}
+
+/* a screenshot of HOME, every page of PAGES[] (reached with its own button), the menu, ABOUT and
+ * the clear dialog: build/ui_shots/NN_title[_n].png */
 static void test_screens(void)
 {
-    static const struct { uint32_t btn; uint32_t presses; const char *name; } P[] = {
-        {B_EDIT, 1, "01_sound"}, {B_EDIT, 2, "02_sound2"}, {B_ENV, 1, "03_track"}, {B_ENV, 2, "04_midi"},
-        {B_LFO, 1, "05_layer"}, {B_FX, 1, "06_fx"}, {B_FX, 2, "07_slicer"}, {B_SEQ, 1, "08_step"},
-        {B_SEQ, 2, "09_pattern"}, {B_GLO, 1, "10_global"}, {B_SAVE, 1, "11_project"},
-    };
-    uint32_t i, k, ok = 1;
+    uint32_t i, k, n = 0, ok = 1, reach = 1;
+    char name[40];
     ui_host_init();
     kit_session();                                   /* a pattern to show */
     transport_req = 1;
     snap_page("00_home");
     ok &= fb_lit(0, 20) > 50 && fb_lit(26, 70) > 200 && fb_lit(202, 240) > 100;
-    for (i = 0; i < sizeof P / sizeof P[0]; i++) {
-        press(FAM_BTN[FAM_HOME]);                    /* from HOME, n presses of the button */
-        ui_frame();
-        release_all();
-        for (k = 0; k < 800; k++)
-            ui_input();                              /* (HOME acts on release) */
-        for (k = 0; k < P[i].presses; k++) {
-            press(P[i].btn);
+    for (i = 0; i < NPAGES; i++) {
+        const page_t *pg = &PAGES[i];
+        uint32_t nth = i - page_first(pg->fam), j = 0;
+        char *d;
+        const char *c;
+        for (k = 0; k < NPAGES && (cur_page() != pg || ui.home); k++) {   /* its button until it shows */
+            if (pg->fam == FAM_MIX) {
+                press(B_REC);                        /* REC opens TRACKS on release */
+                ui_frame();
+                release_all();
+            } else {
+                press(FAM_BTN[pg->fam]);
+            }
             ui_frame();
             release_all();
         }
-        snap_page(P[i].name);
+        reach &= cur_page() == pg && !ui.home;
+        snprintf(name, sizeof name, "%02u_", (unsigned)++n);
+        for (d = name + 3, c = pg->title; *c && j < 20u; c++, j++)
+            *d++ = *c == '/' ? '-' : (char)(*c >= 'A' && *c <= 'Z' ? *c + 32 : *c);
+        *d = 0;
+        if (nth && str_eq(PAGES[i - 1u].title, pg->title))   /* SOUND 2/2, LAYER 2/2 */
+            snprintf(d, sizeof name - (size_t)(d - name), "_%u", (unsigned)nth + 1u);
+        snap_page(name);
         ok &= fb_lit(26, 70) > 100 && fb_lit(202, 240) > 100;
+        if (pg->graph == GR_MIX)
+            ok &= fb_lit(74, 198) > 300;             /* 8 rows */
     }
-    press(B_REC);
+    check("every page of PAGES[] is reached with its button", reach);
+    check("every page draws header, columns and footer", ok);
+    press(B_HOME);
     ui_frame();
     release_all();
     ui_frame();
-    snap_page("12_tracks");
-    ok &= fb_lit(74, 198) > 300;                     /* 8 rows */
-    check("every page draws header, columns and footer (screens in build/ui_shots)", ok);
+    hold(B_HOME);                                    /* HOME held: the menu */
+    snap_page("90_menu");
+    check("HOME held: the menu draws", ui.menu == 1 && fb_lit(20, 230) > 300);
+    for (k = 0; k < MI_ABOUT; k++) {                 /* PRESETS: one item per detent */
+        turn(EN_PRESET, 1);
+        ui_frame();
+    }
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    snap_page("91_about");
+    check("menu > ABOUT draws", ui.menu == 2 && fb_lit(20, 230) > 300);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    press(B_SEQ);
+    ui_frame();
+    release_all();
+    hold(B_REC);                                     /* REC held on SEQ: the clear dialog */
+    snap_page("92_clear_track");
+    check("REC held on SEQ: the clear dialog draws", ui.confirm && fb_lit(80, 150) > 100);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    check("OCT- cancels the clear dialog (screens in build/ui_shots)", !ui.confirm);
 }
 
 static void test_project_roundtrip(void)

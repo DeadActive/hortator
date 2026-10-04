@@ -10,6 +10,7 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 "$OUT/drum_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drumsim" tests/drumsim.c -lm
 "$OUT/drumsim" build/drum_renders >/dev/null && echo "renders: build/drum_renders"
+rm -rf build/ui_shots
 mkdir -p build/ui_shots
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
 "$OUT/ui_test"
