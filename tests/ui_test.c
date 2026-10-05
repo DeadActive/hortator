@@ -10,6 +10,10 @@ static int check(const char *what, int ok)
     return ok;
 }
 
+static void snap_page(const char *name);
+static void seq_play_to(uint32_t ti, uint32_t step);
+static void seq_open(const char *title);
+
 static void test_families(void)
 {
     static const struct { uint32_t btn; uint32_t fam; } MAP[] = {
@@ -44,6 +48,33 @@ static void test_families(void)
                 ok &= *c < '0' || *c > '9';
         check("page titles have no page number in them", ok);
     }
+}
+
+/* SOUND 2/2 only for the engines that have parameters there (K808 K909 S808 S909 SMPL); the others have one
+ * SOUND page: EDIT stays on it, the footer says "SOUND" (no 1/2) */
+static void test_sound_page2_only_when_used(void)
+{
+    uint32_t n, k;
+    ui_host_init();
+    drum_set_model(&trk[0], DM_C808);
+    press(B_EDIT);
+    ui_frame();
+    release_all();
+    press(B_EDIT);
+    ui_frame();
+    release_all();
+    n = fam_pages(FAM_SND, &k);
+    check("EDIT on an engine without SOUND 2/2 (C808): stays on SOUND, one page", ui.page == page_first(FAM_SND) && n == 1u && k == 1u);
+    snap_page("engines/zz_c808_one_sound_page");
+    drum_set_model(&trk[0], DM_K909);
+    press(B_EDIT);
+    ui_frame();
+    release_all();
+    n = fam_pages(FAM_SND, &k);
+    check("EDIT on K909: SOUND 2/2 (SWPT DRIVE)", ui.page == page_first(FAM_SND) + 1u && n == 2u && k == 2u);
+    drum_set_model(&trk[0], DM_KBOOM);               /* the engine changes while SOUND 2/2 shows */
+    ui_frame();
+    check("an engine without SOUND 2/2 chosen on that page: back to SOUND 1", ui.page == page_first(FAM_SND));
 }
 
 static void test_track_select(void)
@@ -162,9 +193,6 @@ static void test_grid_hold_accent(void)
     }
 }
 
-static void snap_page(const char *name);
-static void seq_play_to(uint32_t ti, uint32_t step);
-static void seq_open(const char *title);
 
 /* a step key held + KNOB n (n = 0 PROB, 1 RATCH) turned `steps` detents, slowly, then let go */
 static void grid_hold_turn(uint32_t key, uint32_t knob, int32_t steps)
@@ -1003,6 +1031,7 @@ int main(void)
     test_engine_screens();
     test_seq_screens();
     test_families();
+    test_sound_page2_only_when_used();
     test_track_select();
     test_model_swap();
     test_home_macros();

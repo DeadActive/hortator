@@ -266,6 +266,11 @@ static void ui_input(void)
     if (home == BT_TAP)
         go_home();
     bank_fix();                                         /* LEN may have changed (knob, load) */
+    if (!ui.home && page_hidden(ui.page)) {             /* the engine changed under SOUND 2/2: back to SOUND */
+        ui.page = (uint8_t)page_first(cur_page()->fam);
+        ui.fam_last[FAM_SND] = ui.page;
+        page_entered();
+    }
     for (id = 0; id < 14u; id++) {
         if (!((pressed >> id) & 1u))
             continue;

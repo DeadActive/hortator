@@ -591,13 +591,7 @@ static void draw_foot(void)
     if (ui.home) {
         str_cpy(ti, "HOME", sizeof ti);
     } else {
-        uint32_t n = 0, k = 0;
-        for (i = 0; i < NPAGES; i++)
-            if (PAGES[i].fam == pg->fam) {
-                n++;
-                if (i == ui.page)
-                    k = n;
-            }
+        uint32_t k, n = fam_pages(pg->fam, &k);
         str_cpy(ti, pg->title, 10);
         if (n > 1) {
             str_cpy(ti + str_len(ti), " ", 4);

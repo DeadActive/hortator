@@ -87,16 +87,47 @@ static void page_entered(void)
     ui.force = 1;
 }
 
+/* a page with nothing to edit for the selected track: SOUND 2/2 of an engine with no parameters there */
+static int page_hidden(uint32_t i)
+{
+    uint32_t k;
+    if (i >= NPAGES || PAGES[i].fam != FAM_SND || PAGES[i].id[0] != P_E4)
+        return 0;
+    for (k = 4; k < 8u; k++) {
+        const param_desc_t *d = &DMODELS[(uint32_t)TSEL->p[P_MODEL] % NMODELS].edit[k];
+        if (d->label && d->label[0] != '-')
+            return 0;
+    }
+    return 1;
+}
+
+/* the pages a family shows (hidden ones left out), and where the current page is among them (1-based, 0 = not) */
+static uint32_t fam_pages(uint32_t fam, uint32_t *pos)
+{
+    uint32_t i, n = 0;
+    *pos = 0;
+    for (i = 0; i < NPAGES; i++)
+        if (PAGES[i].fam == fam && !page_hidden(i)) {
+            n++;
+            if (i == ui.page)
+                *pos = n;
+        }
+    return n;
+}
+
 static void open_family(uint32_t fam)
 {
     if (!ui.home && cur_page()->fam == fam) {          /* same button again: next page */
         uint32_t i = ui.page + 1u;
+        while (i < NPAGES && PAGES[i].fam == fam && page_hidden(i))
+            i++;
         if (i >= NPAGES || PAGES[i].fam != fam)
             i = page_first(fam);
         ui.page = (uint8_t)i;
     } else {
-        ui.page = ui.fam_last[fam] && PAGES[ui.fam_last[fam]].fam == fam ? ui.fam_last[fam]
-                                                                          : (uint8_t)page_first(fam);
+        ui.page = ui.fam_last[fam] && PAGES[ui.fam_last[fam]].fam == fam && !page_hidden(ui.fam_last[fam])
+                      ? ui.fam_last[fam]
+                      : (uint8_t)page_first(fam);
     }
     ui.fam_last[fam] = ui.page;
     ui.home = 0;
