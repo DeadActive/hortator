@@ -78,10 +78,11 @@ static const param_desc_t GP[G_COUNT] = {
     [G_GLEN3] = PD("LEN H", F_STEPS, 1, 32, 8),
     [G_CSRC] = PE("SRC", N_CSRC, 0),
     [G_CTHR] = PD("THRSH", F_CTHR, 0, 127, 26),
-    [G_CAMT] = PD("AMNT", F_CAMT, 0, 127, 22),
+    [G_CRAT] = PD("RATIO", F_CRAT, 0, 127, 45),
     [G_CREL] = PD("REL", F_CREL, 0, 127, 26),
     [G_CATK] = PD("ATK", F_CATK, 0, 127, 2),
     [G_CKNEE] = PE("KNEE", N_KNEE, 1),
+    [G_CMKUP] = PD("MKUP", F_CMKUP, 0, 127, 0),
 };
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
@@ -140,8 +141,11 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         *unit = "dB";
         break;
     }
-    case F_CAMT:
-        comp_amount_text(v, song.g[G_CTHR], val, unit);
+    case F_CRAT:
+        comp_ratio_text(v, val, unit);
+        break;
+    case F_CMKUP:
+        comp_makeup_text(v, song.g[G_CTHR], val, unit);
         break;
     case F_CATK:
         fmt_ms10(val, unit, COMP_ATK_MS_X10[clamp(v, 0, 127)]);

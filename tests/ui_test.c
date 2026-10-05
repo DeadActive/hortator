@@ -383,7 +383,7 @@ static void test_comp_pages(void)
     press(B_SCL);
     ui_frame();
     release_all();
-    check("SCL opens COMP 1/2 (SRC THRSH AMNT REL)", str_eq(cur_page()->title, "COMP") && cur_page()->id[0] == G_CSRC);
+    check("SCL opens COMP 1/2 (SRC THRSH RATIO REL)", str_eq(cur_page()->title, "COMP") && cur_page()->id[0] == G_CSRC);
     snap_page("comp/01_off");
     turn(EN_K1, 1);
     ui_frame();
@@ -395,7 +395,8 @@ static void test_comp_pages(void)
     release_all();
     turn(EN_K1 + 1, -1);
     ui_frame();
-    check("SCL again: COMP 2/2 (ATK KNEE); KNOB 2 sets the knee HARD", cur_page()->id[0] == G_CATK && song.g[G_CKNEE] == 0);
+    check("SCL again: COMP 2/2 (ATK KNEE MKUP); KNOB 2 sets the knee HARD",
+          cur_page()->id[0] == G_CATK && cur_page()->id[2] == G_CMKUP && song.g[G_CKNEE] == 0);
     snap_page("comp/03_page2_curve_hard");
 }
 
@@ -432,8 +433,7 @@ static void test_comp_keys(void)
     transport_req = 1;
     seq_play_to(0, 1);
     snap_page("comp/02_pumping");
-    song.g[G_CAMT] = 127;
-    song.g[G_CTHR] = 127;                            /* Streams' limiter: AMNT at the end with a high THRSH */
+    song.g[G_CMKUP] = 127;                           /* MKUP at the end: Streams' limiter */
     seq_play_to(0, 5);
     snap_page("comp/04_limiter");
     press(B_HOME);
@@ -960,7 +960,8 @@ static void test_project_roundtrip(void)
     song.g[G_GLEN3] = 5;
     trk[3].p[P_DUCK] = 1;
     song.g[G_CSRC] = 1;
-    song.g[G_CAMT] = 99;
+    song.g[G_CRAT] = 99;
+    song.g[G_CMKUP] = 50;
     song.g[G_CKNEE] = 0;
     song.g[G_BPM] = 133;
     song.sel = 2;
@@ -976,7 +977,8 @@ static void test_project_roundtrip(void)
           trk[2].step[7].cond == 33 && trk[2].step[7].rat == 2 && trk[2].p[P_SRC] == 2 && song.g[G_GMODE] == 1 &&
               song.g[G_GX] == 99 && song.g[G_GLEN3] == 5);
     check("project: load restores DUCK and the COMP settings",
-          trk[3].p[P_DUCK] == 1 && song.g[G_CSRC] == 1 && song.g[G_CAMT] == 99 && song.g[G_CKNEE] == 0);
+          trk[3].p[P_DUCK] == 1 && song.g[G_CSRC] == 1 && song.g[G_CRAT] == 99 && song.g[G_CMKUP] == 50 &&
+              song.g[G_CKNEE] == 0);
 }
 
 static void test_project_rejects(void)

@@ -32,8 +32,8 @@ static const page_t PAGES[] = {
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, 0xFF}},
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GFILL1, G_GFILL2, G_GFILL3, 0xFF}},
-    {"COMP", FAM_COMP, SC_GLOBAL, GR_COMP, {G_CSRC, G_CTHR, G_CAMT, G_CREL}},   /* keys: DUCK per track */
-    {"COMP", FAM_COMP, SC_GLOBAL, GR_COMP, {G_CATK, G_CKNEE, 0xFF, 0xFF}},
+    {"COMP", FAM_COMP, SC_GLOBAL, GR_COMP, {G_CSRC, G_CTHR, G_CRAT, G_CREL}},   /* keys: DUCK per track */
+    {"COMP", FAM_COMP, SC_GLOBAL, GR_COMP, {G_CATK, G_CKNEE, G_CMKUP, 0xFF}},
     {"TRACKS", FAM_MIX, SC_MIX, GR_MIX, {0xFF, 0xFF, 0xFF, 0xFF}},   /* TRACK LEVEL LEN PAN */
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))

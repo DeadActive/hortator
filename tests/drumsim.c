@@ -188,8 +188,8 @@ static void prob_kit(void)
 }
 
 /* M3: the same kit dry and pumping: T1 K909 four on the floor keys the compressor; open hats, toms and the snare's
- * reverb are ducked (4 bars each); then a REL sweep (100 ms .. 1 s over 4 bars) and the AMNT limiter end */
-static void pump_kit(int src, int amt, int thr)
+ * reverb are ducked (4 bars each); then a REL sweep (100 ms .. 1 s over 4 bars) and MKUP at the limiter end */
+static void pump_kit(int src, int rat, int mkup, int thr)
 {
     uint32_t k;
     host_init();
@@ -206,7 +206,8 @@ static void pump_kit(int src, int amt, int thr)
     trk[3].step[7].on = trk[3].step[15].on = 1;
     trk[1].p[P_REV] = 70;
     song.g[G_CSRC] = (int16_t)src;
-    song.g[G_CAMT] = (int16_t)amt;
+    song.g[G_CRAT] = (int16_t)rat;
+    song.g[G_CMKUP] = (int16_t)mkup;
     song.g[G_CTHR] = (int16_t)thr;
     trk[1].p[P_DUCK] = trk[2].p[P_DUCK] = trk[3].p[P_DUCK] = 1;
 }
@@ -279,13 +280,13 @@ int main(int argc, char **argv)
     write_demo(dir, "grids_euclid.wav", 8, euclid_bar);
     prob_kit();
     write_demo(dir, "prob_ratch.wav", 8, prob_bar);
-    pump_kit(0, 22, 26);
+    pump_kit(0, 45, 0, 26);
     write_demo(dir, "pump_dry.wav", 4, prob_bar);
-    pump_kit(1, 22, 26);
+    pump_kit(1, 45, 0, 26);
     write_demo(dir, "pump_on.wav", 4, prob_bar);
-    pump_kit(1, 40, 20);
+    pump_kit(1, 80, 0, 20);
     write_demo(dir, "pump_rel_sweep.wav", 4, rel_bar);
-    pump_kit(1, 127, 110);
+    pump_kit(1, 45, 127, 26);
     write_demo(dir, "pump_limit.wav", 4, prob_bar);
     return 0;
 }

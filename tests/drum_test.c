@@ -1516,7 +1516,7 @@ static void test_grids_tempo_ramp(void)
  * The bit-exact check against Streams is tests/comp_fidelity.c. */
 static void test_comp_engine(void)
 {
-    comp_set_t s = {2, 26, 22, 26, 1};
+    comp_set_t s = {2, 26, 45, 26, 1, 0};
     comp_cfg_t c;
     int64_t det = 0;
     int32_t gr = 0, i, ok = 1;
@@ -1524,11 +1524,20 @@ static void test_comp_engine(void)
     double worst = 0;
     check("COMP VCA: unity is 1.0, +990 steps doubles, -1980 quarters (Q16, within 0.3 %)",
           comp_lin(32767) == 65536 && abs(comp_lin(32767 + 990) - 131072) < 400 && abs(comp_lin(32767 - 1980) - 16384) < 60);
-    check("COMP knobs: AMNT 0 = 1:1, 63 = the steepest ratio, 64.. = makeup, 127 = 65535",
-          comp_amount16(0) == 32767u && comp_amount16(63) == 0u && comp_amount16(64) == 32768u && comp_amount16(127) == 65535u &&
-              comp_k16(127) == 65535u && comp_k16(0) == 0u);
+    {
+        uint32_t v, mono = 1;
+        comp_cfg_t a, b;
+        for (v = 0; v < 127u; v++) {                 /* RATIO: no jump, only steeper (user: no cliff) */
+            comp_set_t s0 = {2, 26, (int32_t)v, 26, 1, 0}, s1 = {2, 26, (int32_t)v + 1, 26, 1, 0};
+            comp_configure(&s0, &a);
+            comp_configure(&s1, &b);
+            mono &= b.ratio <= a.ratio && a.ratio - b.ratio <= 8;
+        }
+        check("COMP knobs: RATIO 0 = 1:1 .. 127 = Streams' steepest, continuous (no cliff); 16-bit mapping",
+              mono && comp_ratio16(0) == 32767u && comp_ratio16(127) == 0u && comp_k16(127) == 65535u && comp_k16(0) == 0u);
+    }
     comp_configure(&s, &c);
-    check("COMP defaults: THRSH 26 = -24 dB (Streams log2 units), about 3.9:1, no makeup",
+    check("COMP defaults: THRSH 26 = -24 dB (Streams log2 units), RATIO 45 = 4.0:1, MKUP 0 no makeup",
           c.thr == (-1280 + 5 * 52) * 256 && c.ratio > 60 && c.ratio < 70 && c.makeup == 0);
     for (i = 0; i < 4410; i++)                       /* 0.1 s of silence: unity */
         g = comp_process(&c, &det, &gr, 0);
@@ -1537,14 +1546,23 @@ static void test_comp_engine(void)
         g = comp_process(&c, &det, &gr, (i & 32) ? 30000 : -30000);
     ok &= g < 32767u - 990u && gr < 0;
     check("COMP: silence passes at unity, a loud source cuts by more than 6 dB", ok);
-    s.amt = 127;
-    s.thr = 127;
+    s.mkup = 127;
     comp_configure(&s, &c);
-    check("COMP: AMNT 127 at THRSH 127 is Streams' limiter (instant attack, ratio 0)", c.atk == -1 && c.ratio == 0);
-    s.thr = 0;
-    comp_configure(&s, &c);
-    check("COMP: AMNT 127 at THRSH 0 is makeup with a ratio (no limiter: the makeup does not reach 0 dB)",
-          c.atk != -1 && c.ratio > 0 && c.makeup > 0);
+    check("COMP: MKUP 127 is Streams' limiter (instant attack, ratio 0, the threshold made up to 0 dB)",
+          c.atk == -1 && c.ratio == 0 && c.makeup == -c.thr);
+    {
+        comp_cfg_t r;
+        s.mkup = 0;
+        comp_configure(&s, &r);
+        s.mkup = 100;
+        s.thr = 0;
+        comp_configure(&s, &c);
+        check("COMP: MKUP adds gain and keeps the RATIO knob's ratio (THRSH 0, MKUP 100)",
+              c.atk != -1 && c.ratio == r.ratio && c.makeup > 0);
+        s.thr = 127;
+        comp_configure(&s, &c);
+        check("COMP: makeup never lifts the knee above 0 dB (THRSH 127: makeup = -threshold)", c.makeup == -c.thr);
+    }
     for (i = 4; i < 640; i++) {                      /* the 44.1 kHz table keeps Streams' times */
         double t = 0.001 * pow(10.0, i / 128.0);
         double tau = -1.0 / log(1.0 - COMP_LP_COEF[i] / 2147483648.0) / 44100.0;
@@ -1565,23 +1583,24 @@ static void test_comp_formats(void)
     host_init();
     param_format(&GP[G_CTHR], GP[G_CTHR].def, v, &u);
     ok = !strcmp(v, "-24") && !strcmp(u, "dB");                  /* whole dB from -10 down: the column fits */
-    param_format(&GP[G_CAMT], GP[G_CAMT].def, v, &u);
-    ok &= !strcmp(v, "3.9") && !strcmp(u, ":1");
-    param_format(&GP[G_CAMT], 0, v, &u);
+    param_format(&GP[G_CRAT], GP[G_CRAT].def, v, &u);
+    ok &= !strcmp(v, "4.0") && !strcmp(u, ":1");
+    param_format(&GP[G_CRAT], 0, v, &u);
     ok &= !strcmp(v, "1.0") && !strcmp(u, ":1");
-    song.g[G_CTHR] = 127;
-    param_format(&GP[G_CAMT], 127, v, &u);
+    param_format(&GP[G_CMKUP], 0, v, &u);
+    ok &= !strcmp(v, "0.0") && !strcmp(u, "dB");
+    param_format(&GP[G_CMKUP], 127, v, &u);
     ok &= !strcmp(v, "LIMIT");
     song.g[G_CTHR] = 0;
-    param_format(&GP[G_CAMT], 80, v, &u);
-    ok &= !strcmp(v, "+5.0") && !strcmp(u, "dB");
+    param_format(&GP[G_CMKUP], 64, v, &u);
+    ok &= !strcmp(v, "+10.1") && !strcmp(u, "dB");
     param_format(&GP[G_CATK], GP[G_CATK].def, v, &u);
     ok &= !strcmp(v, "1.1") && !strcmp(u, "ms");
     param_format(&GP[G_CREL], GP[G_CREL].def, v, &u);
     ok &= !strcmp(v, "151") && !strcmp(u, "ms");
     param_format(&GP[G_CSRC], 1, v, &u);
     ok &= !strcmp(v, "T1");
-    check("COMP columns: THRSH -24 dB, AMNT 3.9:1 / 1.0:1 / LIMIT (THRSH 127) / +5.0 dB (THRSH 0, AMNT 80), ATK 1.1 ms, REL 151 ms, SRC T1", ok);
+    check("COMP columns: THRSH -24 dB, RATIO 4.0:1 / 1.0:1, MKUP 0.0 dB / LIMIT / +10.1 dB (THRSH 0, MKUP 64), ATK 1.1 ms, REL 151 ms, SRC T1", ok);
 }
 
 /* a kick on T1 (the COMP source) under a long cymbal on T2: T2's peak (post LEVEL) right after the kick and later,
@@ -1686,14 +1705,14 @@ static void test_comp_src_change(void)
 
 static void test_comp_extremes(void)
 {
-    static const int16_t S[4][2] = {{0, 127}, {0, 100}, {127, 100}, {127, 127}};   /* THRSH, AMNT */
+    static const int16_t S[4][2] = {{0, 127}, {0, 100}, {127, 100}, {127, 127}};   /* THRSH, MKUP */
     uint32_t c, i, ok = 1;
     for (c = 0; c < 4u; c++) {
         int32_t pk;
         host_init();
         song.g[G_CSRC] = 1;
         song.g[G_CTHR] = S[c][0];
-        song.g[G_CAMT] = S[c][1];
+        song.g[G_CMKUP] = S[c][1];
         for (i = 0; i < NTRK; i++) {
             uint32_t k;
             trk[i].p[P_DUCK] = 1;
@@ -1706,7 +1725,7 @@ static void test_comp_extremes(void)
         pk = peak_of(wl, 0, SECS(2));
         ok &= pk <= 32767 && peak_of(wr, 0, SECS(2)) <= 32767;
     }
-    check("COMP extremes (THRSH 0 / 127 x AMNT 100 / 127, all tracks ducked and busy): output bounded", ok);
+    check("COMP extremes (THRSH 0 / 127 x MKUP 100 / 127, all tracks ducked and busy): output bounded", ok);
 }
 
 /* COMP values under 1 dB keep their leading zero ("-0.1", "0.0", "+0.5") */

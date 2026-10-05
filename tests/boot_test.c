@@ -201,7 +201,7 @@ static int fdr2_converts(void)
     project_load(2);
     return song.g[G_GLEN2] == 5 && song.sel == 3 && trk[2].p[P_SRC] == 3 && trk[2].step[9].on &&
            trk[2].step[9].cond == 33 && trk[2].step[9].rat == 2 && song.g[G_CSRC] == 0 && trk[2].p[P_DUCK] == 0 &&
-           song.g[G_CAMT] == GP[G_CAMT].def;
+           song.g[G_CRAT] == GP[G_CRAT].def && song.g[G_CMKUP] == 0;
 }
 
 int main(void)

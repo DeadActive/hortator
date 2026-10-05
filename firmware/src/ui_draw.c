@@ -486,7 +486,7 @@ static void draw_mix(void)
 }
 
 /* COMP pages: the routing, the gain reduction now and the source's level; page 2 adds the curve (input -> output
- * level, -48..0 dB in, -48..+12 dB out) for the knobs' THRSH / AMNT / KNEE */
+ * level, -48..0 dB in, -48..+12 dB out) for the knobs' THRSH / RATIO / MKUP / KNEE */
 static void graph_comp(uint16_t c, int curve)
 {
     char r[48], v[12];
@@ -571,7 +571,7 @@ static uint32_t graph_signature(void)
                  2654435761u;
     }
     if (pg->graph == GR_COMP) {
-        for (i = G_CSRC; i <= G_CKNEE; i++)
+        for (i = G_CSRC; i <= G_CMKUP; i++)
             h = (h ^ (uint32_t)song.g[i]) * 16777619u;
         for (i = 0; i < NTRK; i++)
             h = (h ^ (uint32_t)trk[i].p[P_DUCK]) * 16777619u;

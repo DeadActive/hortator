@@ -20,7 +20,7 @@
 #define COMP_GAIN_K 990                          /* Streams kGainConstant: 1 / (1.55 / 6 * 65536 / 256) * 65536 */
 #define COMP_MAX_EXP_GAIN 218453                 /* Streams kMaxExponentialGain */
 
-typedef struct { int32_t atk, thr, amt, rel, knee; } comp_set_t;   /* ATK THRSH AMNT REL 0..127, KNEE 0 / 1 */
+typedef struct { int32_t atk, thr, rat, rel, knee, mkup; } comp_set_t;   /* ATK THRSH RATIO REL MKUP 0..127, KNEE 0/1 */
 typedef struct {
     int64_t atk, dec;            /* attack / decay coefficients (Q31); atk -1 = instant (the limiter) */
     int32_t ratio, thr, makeup;  /* reciprocal ratio (8:8), threshold and makeup gain (log2, 65536 / octave) */
@@ -29,23 +29,17 @@ typedef struct {
 
 static uint32_t comp_k16(int32_t v) { return (uint32_t)clamp(v, 0, 127) * 65535u / 127u; }   /* knob -> 16 bit */
 
-/* AMNT: 0..63 the ratio from 1:1 to Streams' steepest, no makeup; 64..127 makeup gain up to the limiter */
-static uint32_t comp_amount16(int32_t v)
+/* Compressor::Configure, globals path, as Streams: attack, threshold, decay, amount (16 bit each). AMOUNT below
+ * 32768 is the ratio (32767 = 1:1 .. 0 = the steepest), above it the adaptive makeup up to the limiter. */
+static void comp_configure_streams(uint32_t atk16, uint32_t thr16, uint32_t rel16, uint32_t amount, int knee,
+                                   comp_cfg_t *c)
 {
-    v = clamp(v, 0, 127);
-    return v < 64 ? 32767u - (uint32_t)v * 32767u / 63u : 32768u + (uint32_t)(v - 64) * 32767u / 63u;
-}
-
-/* Compressor::Configure (globals path) */
-static void comp_configure(const comp_set_t *s, comp_cfg_t *c)
-{
-    uint32_t atk_t = comp_k16(s->atk) * (128u + 128u + 99u) >> 16;   /* 0.1 ms .. 0.6 s */
-    uint32_t dec_t = 128u + 99u + (comp_k16(s->rel) >> 8);           /* 59 ms .. 5.8 s */
-    uint32_t amount = comp_amount16(s->amt);
+    uint32_t atk_t = atk16 * (128u + 128u + 99u) >> 16;              /* 0.1 ms .. 0.6 s */
+    uint32_t dec_t = 128u + 99u + (rel16 >> 8);                       /* 59 ms .. 5.8 s */
     c->atk = COMP_LP_TABLE[atk_t];
     c->dec = COMP_LP_TABLE[dec_t];
-    c->soft = (uint8_t)(s->knee != 0);
-    c->thr = (-1280 + 5 * (int32_t)(comp_k16(s->thr) >> 8)) * 256;
+    c->soft = (uint8_t)(knee != 0);
+    c->thr = (-1280 + 5 * (int32_t)(thr16 >> 8)) * 256;
     if (amount < 32768u) {                                           /* compression, no makeup */
         c->ratio = COMP_RATIO[(32767u - amount) >> 7];
         c->makeup = 0;
@@ -64,6 +58,26 @@ static void comp_configure(const comp_set_t *s, comp_cfg_t *c)
         } else {
             c->ratio = knee_gain / (c->thr >> 8);
         }
+    }
+}
+
+/* RATIO knob -> Streams AMOUNT, lower half: 0 = 1:1 .. 127 = the steepest (continuous) */
+static uint32_t comp_ratio16(int32_t v) { return 32767u - (uint32_t)clamp(v, 0, 127) * 32767u / 127u; }
+
+/* our knobs: Streams' configuration with the RATIO knob's ratio, then MKUP's makeup on top (Streams' makeup
+ * scale, never lifting the knee above 0 dB); MKUP 127 = Streams' limiter */
+static void comp_configure(const comp_set_t *s, comp_cfg_t *c)
+{
+    int32_t mk = clamp(s->mkup, 0, 127);
+    comp_configure_streams(comp_k16(s->atk), comp_k16(s->thr), comp_k16(s->rel), comp_ratio16(s->rat), s->knee, c);
+    if (mk >= 127) {
+        c->makeup = -c->thr;
+        c->ratio = 0;
+        c->atk = -1;
+    } else if (mk > 0) {
+        c->makeup = (mk * 32767 / 126) * (COMP_MAX_EXP_GAIN >> 8) >> 7;
+        if (c->thr + c->makeup >= 0)
+            c->makeup = -c->thr;
     }
 }
 
@@ -142,8 +156,9 @@ static int32_t comp_lin(uint32_t g)
 
 /* --------------------------------------------------- the sidechain --- */
 static struct {
-    comp_cfg_t cfg;              /* configured for the knobs whose signature is sig */
-    uint32_t sig;                /* 0 = not configured */
+    comp_cfg_t cfg;              /* configured for the knobs in set */
+    comp_set_t set;
+    uint8_t have;                /* 0 = not configured */
     int64_t det;                 /* the detector (Streams detector_) */
     int32_t gr;                  /* gain reduction for the meter (Streams gain_reduction_) */
     int32_t peak;                /* the source's peak this block (meter) */
@@ -157,7 +172,8 @@ static comp_set_t comp_knobs(void)
     comp_set_t s;
     s.atk = clamp(song.g[G_CATK], 0, 127);
     s.thr = clamp(song.g[G_CTHR], 0, 127);
-    s.amt = clamp(song.g[G_CAMT], 0, 127);
+    s.rat = clamp(song.g[G_CRAT], 0, 127);
+    s.mkup = clamp(song.g[G_CMKUP], 0, 127);
     s.rel = clamp(song.g[G_CREL], 0, 127);
     s.knee = song.g[G_CKNEE] ? 1 : 0;
     return s;
@@ -169,7 +185,7 @@ static void comp_reset(void)                     /* a fresh detector (PLAY of th
     comp.det = 0;
     comp.gr = 0;
     comp.peak = 0;
-    comp.sig = 0;
+    comp.have = 0;
     for (i = 0; i < CTL; i++)
         comp.gain[i] = 65536;
 }
@@ -178,11 +194,11 @@ static void comp_reset(void)                     /* a fresh detector (PLAY of th
 static void comp_block(const int32_t *x, uint32_t n)
 {
     comp_set_t s = comp_knobs();
-    uint32_t i, sig = 1u + (uint32_t)s.atk + (uint32_t)s.thr * 128u + (uint32_t)s.amt * 16384u +
-                      (uint32_t)s.rel * 2097152u + (uint32_t)s.knee * 268435456u;
-    if (sig != comp.sig) {
+    uint32_t i;
+    if (!comp.have || memcmp(&s, &comp.set, sizeof s)) {
         comp_configure(&s, &comp.cfg);
-        comp.sig = sig;
+        comp.set = s;
+        comp.have = 1;
     }
     comp.peak = 0;
     for (i = 0; i < n && i < CTL; i++) {
@@ -213,23 +229,30 @@ static int32_t comp_thr_dbx10(int32_t v)          /* THRSH in 0.1 dB, rounded (S
     return (x * 60206 + (x < 0 ? -128000 : 128000)) / 256000;
 }
 
-/* AMNT as the column shows it: the ratio ("3.9" ":1"), the makeup ("+6.0" "dB") or "LIMIT" (at threshold thr) */
-static void comp_amount_text(int32_t amt, int32_t thr, char *val, const char **unit)
+/* RATIO as the column shows it: "3.9" ":1" */
+static void comp_ratio_text(int32_t v, char *val, const char **unit)
 {
-    comp_set_t s = {0, thr, amt, 0, 1};
+    int32_t r = COMP_RATIO[(32767u - comp_ratio16(v)) >> 7];
+    fmt_fix(val, 2560 / (r > 0 ? r : 1), 1);
+    *unit = ":1";
+}
+
+/* MKUP as the column shows it (at threshold knob thr): "0.0" / "+6.0" "dB", or "LIMIT" */
+static void comp_makeup_text(int32_t v, int32_t thr, char *val, const char **unit)
+{
+    comp_set_t s = {0, thr, 0, 0, 1, v};
     comp_cfg_t c;
     comp_configure(&s, &c);
-    *unit = "";
-    if (clamp(amt, 0, 127) < 64) {
-        fmt_fix(val, 2560 / (c.ratio > 0 ? c.ratio : 1), 1);
-        *unit = ":1";
-    } else if (c.atk < 0) {
+    *unit = "dB";
+    if (c.atk < 0) {
         str_cpy(val, "LIMIT", 6);
+        *unit = "";
+    } else if (!c.makeup) {
+        str_cpy(val, "0.0", 6);
     } else {
         char t[10];
         comp_fmt_db10(t, c.makeup / 1088);         /* log2 units -> 0.1 dB (6.02 dB / 65536) */
         val[0] = '+';
         str_cpy(val + 1, t, 6);
-        *unit = "dB";
     }
 }

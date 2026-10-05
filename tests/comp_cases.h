@@ -20,11 +20,7 @@ static int comp_case(int i, comp_case_t *c)
     c->knee = i / 108;
     return 1;
 }
-static unsigned comp_case_k16(int v) { return (unsigned)v * 65535u / 127u; }
-static unsigned comp_case_amount16(int v)
-{
-    return v < 64 ? 32767u - (unsigned)v * 32767u / 63u : 32768u + (unsigned)(v - 64) * 32767u / 63u;
-}
+static unsigned comp_case_k16(int v) { return (unsigned)v * 65535u / 127u; }   /* knob -> Streams 16 bit (AMOUNT too) */
 static int comp_signal(int sig, int n)
 {
     int p = n & 63, tri = p < 32 ? p * 64 - 1024 : (64 - p) * 64 - 1024;      /* -1024 .. 1024 */

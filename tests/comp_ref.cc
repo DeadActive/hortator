@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
       void *m = calloc(1, sizeof(streams::Compressor));        // zeroed state, as a fresh module
       streams::Compressor *cp = new (m) streams::Compressor();
       int32_t globals[4] = {(int32_t)comp_case_k16(c.atk), (int32_t)comp_case_k16(c.thr),
-                            (int32_t)comp_case_k16(c.rel), (int32_t)comp_case_amount16(c.amt)};
+                            (int32_t)comp_case_k16(c.rel), (int32_t)comp_case_k16(c.amt)};
       cp->Init();
       cp->Configure(c.knee != 0, globals, globals);
       for (int n = 0; n < COMP_N; n++) {

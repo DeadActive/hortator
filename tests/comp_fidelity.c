@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE */
-/* M3 compressor fidelity: comp.c (with Streams' own 31,089 Hz coefficients) against the original's gain for every
+/* M3 compressor fidelity: comp.c's Streams configuration (comp_configure_streams, Streams' own 31,089 Hz
+ * coefficients, AMOUNT over its whole native range) against the original's gain for every
  * sample of every case (tests/comp_ref.cc): identical.   comp_fidelity REF.bin */
 #include <stdint.h>
 #include "comp_lp31k.h"
@@ -21,16 +22,11 @@ int main(int argc, char **argv)
     fclose(f);
     for (i = 0; comp_case(i, &c); i++)
         for (sig = 0; sig < COMP_SIGNALS; sig++) {
-            comp_set_t s;
             comp_cfg_t cf;
             int64_t det = 0;
             int32_t gr = 0;
-            s.atk = c.atk;
-            s.thr = c.thr;
-            s.amt = c.amt;
-            s.rel = c.rel;
-            s.knee = c.knee;
-            comp_configure(&s, &cf);
+            comp_configure_streams(comp_case_k16(c.atk), comp_case_k16(c.thr), comp_case_k16(c.rel), comp_case_k16(c.amt),
+                                   c.knee, &cf);
             for (n = 0; n < COMP_N; n++) {
                 uint32_t g = comp_process(&cf, &det, &gr, comp_signal(sig, n));
                 int k = ((i * COMP_SIGNALS + sig) * COMP_N + n) * 2;
