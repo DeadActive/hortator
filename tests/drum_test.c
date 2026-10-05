@@ -2010,7 +2010,9 @@ static void test_lfo_trig(void)
 }
 
 /* random waves: S&H holds / glides, WANDER and RWALK move without jumps, all repeat after PLAY */
-static int32_t lfo_run(uint32_t wave, int32_t morph, int32_t *out, uint32_t n)
+static int32_t lfo_run_ph(uint32_t wave, int32_t morph, int32_t phase, int32_t *out, uint32_t n);
+static int32_t lfo_run(uint32_t wave, int32_t morph, int32_t *out, uint32_t n) { return lfo_run_ph(wave, morph, 0, out, n); }
+static int32_t lfo_run_ph(uint32_t wave, int32_t morph, int32_t phase, int32_t *out, uint32_t n)
 {
     int16_t *q;
     uint32_t k;
@@ -2023,6 +2025,7 @@ static int32_t lfo_run(uint32_t wave, int32_t morph, int32_t *out, uint32_t n)
     q[LF_RATE] = 80;
     q[LF_DEST] = 9;
     q[LF_DEPTH] = 64;
+    q[LF_PHASE] = (int16_t)phase;
     lfo_start();
     lfo_apply(0);
     lfo_restore();
@@ -2083,6 +2086,80 @@ static void test_lfo_sound(void)
     check("LFO on LVL: a ringing cymbal is gated on and off inside the sound", quiet > 4u && loud > 4u);
 }
 
+/* review: the PLAY block's hit sees the restarted LFO (phase 0), not the value before PLAY */
+static void test_lfo_play_first_hit(void)
+{
+    int16_t *q;
+    host_init();
+    q = lfo_q(0, 0);
+    q[LF_WAVE] = LW_SAW;
+    q[LF_RATE] = 23;                                 /* SYNC 1 bar */
+    q[LF_DEST] = 9;
+    q[LF_DEPTH] = 64;
+    q[LF_TRIG] = LT_PLAY;
+    trk[0].p[P_LEVEL] = 64;
+    render_mix(0, 0, SECS(0.7));                     /* running before PLAY: mid-cycle */
+    play();
+    render_mix(0, 0, CTL);                           /* the PLAY block (its step 0 hits) */
+    printf("     LFO SAW on LVL 64, the PLAY block: %d\n", trk[0].lval[0]);
+    check("LFO TRIG PLAY: the PLAY block already uses phase 0 (SAW at -1: LVL near 0)", trk[0].lval[0] <= 2);
+}
+
+/* review: the random waves stay continuous with PHASE set; a restart draws a new value */
+static void test_lfo_random_phase_restart(void)
+{
+    static int32_t a[3000];
+    int32_t js = lfo_run_ph(LW_SH, 127, 32, a, 3000), jr = lfo_run_ph(LW_RWALK, 127, 32, a, 3000);
+    int32_t jw = lfo_run_ph(LW_WANDER, 40, 32, a, 3000), k, changes = 0, prev;
+    int16_t *q;
+    printf("     LFO with PHASE 90: largest step S&H %d, RWALK %d, WANDER %d\n", js, jr, jw);
+    check("LFO PHASE: S&H (glide), RWALK and WANDER stay continuous with PHASE set", js < 2000 && jr < 4000 && jw < 2000);
+    host_init();                                     /* S&H 1 bar, TRIG HIT, hit every 1/16 */
+    q = lfo_q(0, 0);
+    q[LF_WAVE] = LW_SH;
+    q[LF_DEST] = 9;
+    q[LF_DEPTH] = 64;
+    q[LF_TRIG] = LT_HIT;
+    for (k = 0; k < 16; k++)
+        trk[0].step[k].on = 1;
+    play();
+    render_mix(0, 0, CTL);
+    prev = lfo_out(&trk[0], 0);
+    for (k = 0; k < 2 * 16 * 172; k++) {             /* 2 bars */
+        render_mix(0, 0, CTL);
+        changes += lfo_out(&trk[0], 0) != prev;
+        prev = lfo_out(&trk[0], 0);
+    }
+    check("LFO S&H with TRIG HIT: every hit draws a new value (faster than its cycle)", changes >= 16);
+    host_init();                                     /* S&H, TRIG PLAY: modulates from the first block */
+    q = lfo_q(0, 0);
+    q[LF_WAVE] = LW_SH;
+    q[LF_DEST] = 9;
+    q[LF_DEPTH] = 64;
+    play();
+    render_mix(0, 0, CTL * 4);
+    check("LFO S&H after PLAY: a value from the start (not 0 for the first cycle)", lfo_out(&trk[0], 0) != 0);
+}
+
+/* review: a SYNC LFO turned on while playing (DEPTH 0 -> 64) is on the bar */
+static void test_lfo_activate_on_bar(void)
+{
+    int16_t *q;
+    uint32_t ph;
+    host_init();
+    q = lfo_q(0, 0);
+    q[LF_RATE] = 23;                                 /* SYNC 1 bar = 88200 samples */
+    q[LF_DEST] = 9;
+    q[LF_TRIG] = LT_PLAY;
+    play();
+    render_mix(0, 0, 22050);                         /* a quarter bar with DEPTH 0 */
+    q[LF_DEPTH] = 64;
+    render_mix(0, 0, CTL);
+    ph = trk[0].lfo[0].ph;
+    printf("     LFO turned on after a quarter bar: phase %.3f of the cycle\n", ph / 4294967296.0);
+    check("LFO SYNC turned on while playing: on the bar (a quarter cycle in)", ph > 0x3C000000u && ph < 0x44000000u);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -2137,6 +2214,9 @@ int main(void)
     test_lfo_trig();
     test_lfo_random();
     test_lfo_sound();
+    test_lfo_play_first_hit();
+    test_lfo_random_phase_restart();
+    test_lfo_activate_on_bar();
     test_percent_display();
     test_q24();
     test_tables();

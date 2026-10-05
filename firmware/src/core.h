@@ -108,7 +108,8 @@ typedef struct {                 /* one sequencer step; all zero = a plain step,
     uint8_t rat;                 /* RATCH: hits - 1 (0..3) */
 } step_t;
 
-typedef struct { uint32_t ph, sub; int32_t out, from, to; } lfo_state_t;   /* lfo.c: phase, sub-phase, outputs */
+typedef struct { uint32_t ph, sub; int32_t out, from, to; uint8_t fresh; } lfo_state_t;   /* lfo.c: phase, sub-phase,
+                                                                           * outputs, restarted */
 
 typedef struct track {
     int16_t p[P_COUNT];
@@ -128,7 +129,7 @@ typedef struct track {
     uint16_t gfade;              /* M3 ghost key: how silenced the COMP source's sound is (0 heard .. 32767 muted) */
     lfo_state_t lfo[2];          /* LFO 1 / 2 runtime (lfo.c) */
     uint32_t lrng;               /* random generator of S&H / WANDER / RWALK, reseeded at PLAY */
-    uint8_t lnum, lpid[2];       /* knobs written this block, which */
+    uint8_t lon, lnum, lpid[2];       /* knobs written this block, which */
     int16_t lsave[2], lval[2];   /* their set values (restored at the end of the block), the modulated values */
     /* mix runtime (fx.c) */
     int32_t peak;

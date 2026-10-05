@@ -111,20 +111,41 @@ static int32_t lfo_value(track_t *t, uint32_t l, int wrapped)
     return lfo_shape(wave, m, ph);
 }
 
+/* the LFOs of t in mask (bit l) turned on (DEST and DEPTH set): a PLAY LFO joins the cycle it would be in since PLAY
+ * (rare: kept out of the per-block loop) */
+static __attribute__((noinline)) void lfo_join(track_t *t, uint32_t mask)
+{
+    uint32_t l;
+    for (l = 0; l < 2u; l++) {
+        const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
+        if ((mask >> l & 1u) && q[LF_TRIG] == LT_PLAY && song.playing) {
+            t->lfo[l].ph = song.tick * (uint32_t)CTL * lfo_inc(q);
+            t->lfo[l].fresh = 1;
+        }
+    }
+}
+
 /* track t: advance its LFOs by n samples (0: none) and write the modulated knobs, saving their set values */
 static void lfo_track(track_t *t, uint32_t n)
 {
-    uint32_t l, k;
+    uint32_t l, k, on = (t->p[P_LFO1 + LF_DEST] && t->p[P_LFO1 + LF_DEPTH]) |
+                        (uint32_t)(t->p[P_LFO2 + LF_DEST] && t->p[P_LFO2 + LF_DEPTH]) << 1;
     int32_t acc[2] = {0, 0};
+    if (on & ~(uint32_t)t->lon)
+        lfo_join(t, on & ~(uint32_t)t->lon);
+    t->lon = (uint8_t)on;
     for (l = 0; l < 2u; l++) {
         const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
         lfo_state_t *s = &t->lfo[l];
-        uint32_t old = s->ph, pid;
+        uint32_t old, pid, off = (uint32_t)clamp(q[LF_PHASE], 0, 127) << 25;
         const param_desc_t *d;
         if (!q[LF_DEST] || !q[LF_DEPTH])
             continue;                                 /* off: costs nothing (its phase waits) */
+        old = s->ph;
         s->ph += lfo_inc(q) * n;
-        s->out = lfo_value(t, l, n && s->ph < old);
+        s->out = lfo_value(t, l, (n && s->ph + off < old + off) | s->fresh);   /* a new cycle where PHASE puts it, or a
+                                                                                 * restart */
+        s->fresh = 0;
         pid = lfo_dest_param((uint32_t)clamp(q[LF_DEST], 0, 10));
         if (pid == 0xFFu)
             continue;
@@ -180,6 +201,7 @@ static void lfo_hit(track_t *t)
         if (t->p[(l ? P_LFO2 : P_LFO1) + LF_TRIG] == LT_HIT) {
             t->lfo[l].ph = 0;
             t->lfo[l].sub = 0;
+            t->lfo[l].fresh = 1;
             any = 1;
         }
     if (any && song.lfo_in) {
@@ -188,15 +210,24 @@ static void lfo_hit(track_t *t)
     }
 }
 
-static void lfo_start(void)                           /* PLAY: PLAY LFOs restart, the random sequences too */
+/* PLAY: PLAY LFOs restart, the random sequences too (HIT LFOs' as well); inside the block the knobs are modulated
+ * again from there (this block's hits read them next) */
+static void lfo_start(void)
 {
     uint32_t i, l;
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         t->lrng = 0x2545F491u * (i + 1u);
         for (l = 0; l < 2u; l++)
-            if (t->p[(l ? P_LFO2 : P_LFO1) + LF_TRIG] == LT_PLAY)
+            if (t->p[(l ? P_LFO2 : P_LFO1) + LF_TRIG] != LT_FREE) {
                 memset(&t->lfo[l], 0, sizeof t->lfo[l]);
+                t->lfo[l].fresh = 1;
+                t->lon |= (uint8_t)(1u << l);         /* restarted here: no joining */
+            }
+        if (song.lfo_in) {
+            lfo_restore_track(t);
+            lfo_track(t, 0);
+        }
     }
 }
 
