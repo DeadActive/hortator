@@ -37,10 +37,9 @@ static const page_t PAGES[] = {
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_CLRALL, G_INITALL}},   /* track; all */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GFILL1, G_GFILL2, G_GFILL3, 0xFF}},
+    /* LFO: LFO 1's knobs; OCT- shows LFO 2 (song.lsel, page_id) */
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_WAVE, P_LFO1 + LF_RATE, P_LFO1 + LF_MORPH, P_LFO1 + LF_DEPTH}},
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_DEST, P_LFO1 + LF_TRIG, P_LFO1 + LF_PHASE, 0xFF}},
-    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO2 + LF_WAVE, P_LFO2 + LF_RATE, P_LFO2 + LF_MORPH, P_LFO2 + LF_DEPTH}},
-    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO2 + LF_DEST, P_LFO2 + LF_TRIG, P_LFO2 + LF_PHASE, 0xFF}},
     {"TRACKS", FAM_MIX, SC_MIX, GR_MIX, {0xFF, 0xFF, 0xFF, 0xFF}},   /* TRACK LEVEL LEN PAN */
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
@@ -66,7 +65,7 @@ static uint32_t snd_list(const track_t *t, uint8_t *ids)
 }
 
 /* the parameter of a column: an EDIT slot is the selected track's sound list; GRIDS 1/2 in EUCLID mode turns
- * LEN K / S / H where MAP has X / Y / CHAOS; 0xFF = empty */
+ * LEN K / S / H where MAP has X / Y / CHAOS; an LFO page edits the LFO OCT- selected; 0xFF = empty */
 static uint32_t page_id(const page_t *pg, uint32_t slot)
 {
     uint32_t id = pg->id[slot & 3u];
@@ -77,6 +76,8 @@ static uint32_t page_id(const page_t *pg, uint32_t slot)
     }
     if (pg->graph == GR_GRIDS && id >= G_GX && id <= G_GCHAOS && song.g[G_GMODE])
         id = G_GLEN1 + (id - G_GX);
+    if (pg->graph == GR_LFO && id != 0xFFu && song.lsel)
+        id += LF_N;
     return id;
 }
 

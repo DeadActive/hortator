@@ -65,13 +65,17 @@ User decisions (brainstorming):
 
 ## 4. Pages and screen
 
-- LFO button: four pages, `LFO 1/4` … `4/4` (titles carry no digits); the picture names the LFO in large type.
-  - LFO 1: `WAVE` `RATE` `MORPH` `DEPTH`; then `DEST` `TRIG` `PHASE`.
-  - LFO 2: the same.
-- OCT+ on an LFO page: that LFO's RATE MODE SYNC → Hz → TIME; the RATE column shows `1/8T` / `2.5 Hz` / `450 ms`,
-  and the picture `RATE: SYNC` / `Hz` / `TIME`. OCT− does nothing there.
+- LFO button: two pages, `LFO 1/2` `WAVE` `RATE` `MORPH` `DEPTH` and `2/2` `DEST` `TRIG` `PHASE`, of the LFO shown
+  (revised 2026-10-06 by user decision; was four pages, two per LFO).
+- OCT− on an LFO page: shows LFO 1 ↔ LFO 2 on the same page. The picture names the LFO in large type; the LFO
+  button blinks while LFO 2 is shown. The choice is screen state (not saved) and stays when a white key selects
+  another track.
+- OCT+ on an LFO page: the shown LFO's RATE MODE SYNC → Hz → TIME; the RATE column shows `1/8T` / `2.5 Hz` /
+  `450 ms`, and the picture `RATE: SYNC` / `Hz` / `TIME`.
 - Picture: one cycle of the waveform as morphed and phase-shifted, a dot at the LFO's live position, and the
-  routing, e.g. `LFO 1 → TONE +40 %`, with TRIG.
+  routing, e.g. `LFO 1 → TONE +40 %`, with TRIG. S&H / WANDER / RANDOM WALK (user decision): a scope instead, the
+  live value as a dot at the right edge and its trail to the left, one point per 1/136 of a cycle (the width = one
+  cycle, at most a point a frame); the trail starts over on another track, LFO or wave.
 - White keys on the LFO pages select the track (the LFOs are per track), as on EDIT.
 - EDIT pages: a modulated knob shows its set value; its gauge gets a second small marker at the live modulated
   value.
@@ -109,7 +113,7 @@ User decisions (brainstorming):
   output bit-identical).
 - Sound: LVL / PAN modulation moves within a sound; a start-of-hit knob differs per hit; the stored knobs unchanged.
 - Projects: FDR4 round trip; FDR3 / FDR2 / FDR1 converted (LFOs off); garbage clamped (H1).
-- UI: the four pages, OCT+ cycling the mode, the RATE text per mode, the EDIT gauge marker, white keys select;
+- UI: the two pages, OCT− switching the LFO, OCT+ cycling the mode, the random waves' trail, the RATE text per mode, the EDIT gauge marker, white keys select;
   screenshots of every waveform's page for the user.
 - Listening: WAVs with LFOs on TONE, LVL and PAN, each waveform in SYNC.
 - H1–H4 as for M2 / M3.

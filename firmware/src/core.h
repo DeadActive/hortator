@@ -149,6 +149,7 @@ typedef struct {
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
     int16_t act[2];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */
+    uint8_t lsel;                /* the LFO pages show LFO 1 / 2 (OCT-): screen state, never stored */
 } song_t;
 
 static track_t trk[NTRK];

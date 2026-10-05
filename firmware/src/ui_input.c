@@ -43,8 +43,8 @@ static void ui_leds(void)
         led_pos_init();
         ready = 1;
     }
-    led_put(nl, panel.btn[FAM_BTN[fam]],                /* LAYER: EDIT blinks, 250 ms on / off */
-            fam != FAM_LAY || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
+    led_put(nl, panel.btn[FAM_BTN[fam]],                /* LAYER: EDIT blinks, LFO 2: LFO blinks, 250 ms on / off */
+            (fam != FAM_LAY && (fam != FAM_LFO || !song.lsel)) || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u);
     if (grid_mode()) {                                /* the bank's steps; the playhead inverted */
@@ -307,10 +307,13 @@ static void ui_input(void)
                 open_family(FAM_LAY);
             } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LAY) {
                 open_family(FAM_SND);                   /* the SOUND page it came from */
-            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_LFO) {   /* the page's LFO: SYNC -> Hz -> TIME */
-                int16_t *mp = &TSEL->p[(cur_page()->id[0] >= P_LFO2 ? P_LFO2 : P_LFO1) + LF_MODE];
+            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_LFO) {   /* the shown LFO: SYNC -> Hz -> TIME */
+                int16_t *mp = &TSEL->p[(song.lsel ? P_LFO2 : P_LFO1) + LF_MODE];
                 *mp = (int16_t)((clamp(*mp, 0, 2) + 1) % 3);
                 ui.force = 1;
+            } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LFO) {   /* LFO 1 <-> 2, the same page */
+                song.lsel ^= 1u;
+                page_entered();
             }
             break;
         default: {

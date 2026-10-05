@@ -53,6 +53,9 @@ static struct {
     char focus_l[8], focus_v[8], focus_u[8];
     uint32_t graph_sig, head_sig, foot_sig, frame;
     uint8_t graph_top;
+    int16_t tr[136];             /* LFO pages, random waves: the shown LFO's trail (a ring, newest at tr_h - 1) */
+    uint8_t tr_h, tr_n;
+    uint32_t tr_ph, tr_key, tr_frame;   /* the phase at the last point; what the trail is of; the frame it was fed */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }

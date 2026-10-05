@@ -60,7 +60,7 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 For each: what you should see / hear. Note anything different (page, knob, what happened).
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
   then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
-  REV/CHO, COMP 1/2 and 2/2, STEP, PATTERN, GLOBAL, SYSTEM, LFO 1/4 .. 4/4,
+  REV/CHO, COMP 1/2 and 2/2, STEP, PATTERN, GLOBAL, SYSTEM, LFO 1/2 and 2/2,
   PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
   `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
 - Every engine: PRESET on HOME steps through the 21 engines; each plays on its key.
@@ -124,9 +124,12 @@ Report what you saw first; we'll go through it together.
 
 ### LFOs (check on the FM-1)
 
-- LFO: LFO 1/4 (WAVE RATE MORPH DEPTH) and 2/4 (DEST TRIG PHASE) for LFO 1, 3/4 and 4/4 for LFO 2. OCT+ switches
-  the page's LFO between SYNC / Hz / TIME (the RATE value and "RATE: ..." change). Set DEST TONE and DEPTH: the
+- LFO: LFO 1/2 (WAVE RATE MORPH DEPTH) and 2/2 (DEST TRIG PHASE). OCT- switches LFO 1 / LFO 2 on the same page
+  (the picture says "LFO 2" in large type, the LFO button blinks; a white key keeps LFO 2 shown). OCT+ switches the
+  shown LFO between SYNC / Hz / TIME (the RATE value and "RATE: ..." change). Set DEST TONE and DEPTH: the
   picture's dot moves, the sound changes; on EDIT the TONE gauge shows a second moving mark.
+- S&H, WANDR, RWALK: the picture is a scope, the dot at the right edge, the trail behind it (one cycle wide); it
+  starts over on another track, LFO or wave.
 - Each WAVE with MORPH turned: SQUAR softer, SAW bent, SINE squarer, TRI from falling to rising, S&H from steps to
   glides; TRIG HIT restarts on each hit, PLAY at PLAY.
 - SAVE / power cycle / LOAD: the LFOs come back; an older project loads with the LFOs off.
