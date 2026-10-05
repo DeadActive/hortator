@@ -347,6 +347,36 @@ static void test_src_readonly(void)
     snap_page("grids/08_tracks_grids_rows");
 }
 
+/* review #2: a step key held while the track changes (ALGO, or a page change) writes nothing into the new track */
+static void test_grid_hold_track_change(void)
+{
+    step_t before;
+    ui_host_init();
+    trk[0].p[P_SLEN] = 64;
+    trk[1].p[P_SLEN] = 16;
+    open_step_page();
+    press(B_OCTUP);                                  /* bank 2 of T1: steps 17..32 */
+    ui_frame();
+    release_all();
+    trk[0].step[20].on = 1;
+    trk[0].step[20].cond = 33;
+    before = trk[1].step[20];
+    keys(1u << WHITE[4]);                            /* hold T1 step 21 */
+    ui_frame();
+    turn(EN_ALGO, 1);                                /* T2 while holding */
+    ui_frame();
+    turn(EN_K1, 2);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    host_ticks += 600u * 1000u * FM1_TICKS_PER_US;   /* and held past the accent time */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("a held step key, then another track (ALGO): the new track's steps are untouched (also outside its LEN)",
+          song.sel == 1 && !memcmp(&trk[1].step[20], &before, sizeof before) && trk[0].step[20].cond == 0 &&
+              !trk[0].step[20].on);
+}
+
 static void test_grid_keys(void)
 {
     uint32_t a;
@@ -1026,6 +1056,7 @@ int main(void)
     test_key_selects_track();
     test_grid_hold_accent();
     test_grid_step_edit();
+    test_grid_hold_track_change();
     test_grids_pages();
     test_src_readonly();
     test_engine_screens();

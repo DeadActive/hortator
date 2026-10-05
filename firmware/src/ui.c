@@ -80,8 +80,20 @@ static void ui_message(const char *s) { ui_say(s, ""); }
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
 static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
 
+/* a held grid key lets go of its step (another track or page): keys still held edit nothing, flip no accent */
+static void grid_drop_holds(void)
+{
+    uint32_t k;
+    for (k = 0; k < 16u; k++) {
+        ui.step_si[k] = 0xFFFFu;
+        if (ui.step_t0[k])
+            ui.step_t0[k] |= 6u;
+    }
+}
+
 static void page_entered(void)
 {
+    grid_drop_holds();
     song.seq_mode = (uint8_t)(grid_mode() || mix_mode());   /* seq.c: the keys belong to the grid / the mutes */
     ui.hot_t = 0;
     ui.force = 1;
@@ -197,7 +209,7 @@ static void step_press(uint32_t k)
 static void step_hold(uint32_t k)
 {
     step_t *s;
-    if (k >= 16u || ui.step_si[k] == 0xFFFFu)
+    if (k >= 16u || ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
         return;
     s = &TSEL->step[ui.step_si[k]];
     *s = ui.step_prev[k];
@@ -223,6 +235,7 @@ static void track_select(uint32_t i)
     if (i >= NTRK || i == song.sel)
         return;
     song.sel = (uint8_t)i;
+    grid_drop_holds();
     ui.bank = 0;
     ui.force = 1;
 }

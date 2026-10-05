@@ -86,7 +86,7 @@ static int step_edit(uint32_t knob, int32_t steps)
     step_t *s;
     if (knob > 1u || k >= 16u || !ui.step_t0[k])
         return 0;
-    if (ui.step_si[k] == 0xFFFFu)
+    if (ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))   /* outside LEN, or a Grids track */
         return 1;
     s = &TSEL->step[ui.step_si[k]];
     if (!(ui.step_t0[k] & 4u)) {
