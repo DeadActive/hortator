@@ -187,6 +187,32 @@ static void prob_kit(void)
     trk[1].p[P_REV] = 40;
 }
 
+/* M3: the same kit dry and pumping: T1 K909 four on the floor keys the compressor; open hats, toms and the snare's
+ * reverb are ducked (4 bars each); then a REL sweep (100 ms .. 1 s over 4 bars) and the AMNT limiter end */
+static void pump_kit(int src, int amt, int thr)
+{
+    uint32_t k;
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    drum_set_model(&trk[1], DM_S909);
+    drum_set_model(&trk[2], DM_HATO);
+    drum_set_model(&trk[3], DM_TOM);
+    for (k = 0; k < 16u; k += 4u)
+        trk[0].step[k].on = 1;
+    trk[1].step[4].on = trk[1].step[12].on = 1;
+    for (k = 2; k < 16u; k += 4u)
+        trk[2].step[k].on = 1;
+    trk[2].p[P_E1] = 110;                            /* long open hats: the pump is heard */
+    trk[3].step[7].on = trk[3].step[15].on = 1;
+    trk[1].p[P_REV] = 70;
+    song.g[G_CSRC] = (int16_t)src;
+    song.g[G_CAMT] = (int16_t)amt;
+    song.g[G_CTHR] = (int16_t)thr;
+    trk[1].p[P_DUCK] = trk[2].p[P_DUCK] = trk[3].p[P_DUCK] = 1;
+}
+
+static void rel_bar(uint32_t b) { song.g[G_CREL] = (int16_t)(5 + b * 12); }
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -253,5 +279,13 @@ int main(int argc, char **argv)
     write_demo(dir, "grids_euclid.wav", 8, euclid_bar);
     prob_kit();
     write_demo(dir, "prob_ratch.wav", 8, prob_bar);
+    pump_kit(0, 22, 26);
+    write_demo(dir, "pump_dry.wav", 4, prob_bar);
+    pump_kit(1, 22, 26);
+    write_demo(dir, "pump_on.wav", 4, prob_bar);
+    pump_kit(1, 40, 20);
+    write_demo(dir, "pump_rel_sweep.wav", 4, rel_bar);
+    pump_kit(1, 127, 110);
+    write_demo(dir, "pump_limit.wav", 4, prob_bar);
     return 0;
 }

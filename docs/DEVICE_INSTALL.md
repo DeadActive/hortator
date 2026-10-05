@@ -103,3 +103,13 @@ Report what you saw first; we'll go through it together.
   stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1
   firmware loads with plain steps.
+
+### M3: COMP sidechain (check on the FM-1)
+
+- SCL: COMP 1/2 (SRC THRSH AMNT REL) and 2/2 (ATK KNEE, the curve). SRC T1 with a kick pattern; on a COMP page the
+  white keys 2-8 light for the ducked tracks (key 1, the source, does not toggle). PLAY: the ducked tracks pump
+  with the kick, the GR meter moves; REL longer = slower recovery; AMNT past the middle = louder (makeup); AMNT
+  at the end with a high THRSH shows LIMIT.
+- Mute T1 (TRACKS quick mute): the kick is silent, the others still pump (ghost key).
+- SRC OFF: the mix sounds exactly as before M3.
+- SAVE / power cycle / LOAD: SRC, the COMP knobs and DUCK come back; an M2 project loads with COMP off.

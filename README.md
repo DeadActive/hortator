@@ -86,6 +86,7 @@ Pull requests are welcome, and so are ideas and requests: post them in
 - PHASE engine: oscillator ported from [CrispyZebra](https://github.com/hugelton/CrispyZebra) by Leo Kuroshita (GPL-3.0)
 - VOICE engine: after [klattsch](https://github.com/tgies/klattsch) by Tony Gies (MIT); formant data from Klatt (1980) and Hillenbrand et al. (1995)
 - GRIDS pattern engine: C port of [Grids](https://github.com/pichenettes/eurorack/tree/master/grids) by Emilie Gillet, Mutable Instruments (GPL-3.0-or-later)
+- COMP sidechain compressor: C port of [Streams](https://github.com/pichenettes/eurorack/tree/master/streams)' compressor by Emilie Gillet, Mutable Instruments (MIT)
 - Web editor icons: Fukiai by [Hügelton Instruments](https://hugelton.com), [MIT](web/FUKIAI-LICENSE.txt)
 - Package format and boot files: [JieLi AC79 SDK](https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK) (Apache-2.0, not included)
 
