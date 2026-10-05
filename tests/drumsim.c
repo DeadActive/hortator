@@ -214,6 +214,25 @@ static void pump_kit(int src, int rat, int mkup, int thr)
 
 static void rel_bar(uint32_t b) { song.g[G_CREL] = (int16_t)(5 + b * 12); }
 
+/* LFO demos (4 bars at 120 BPM each): a hat pattern with LFO 1 on TONE, a cymbal with LFO 1 on LVL, a kick with
+ * LFO 1 on PAN: every waveform in turn, one bar each, SYNC 1/4 .. */
+static void lfo_kit(uint32_t dest)
+{
+    uint32_t k;
+    host_init();
+    drum_set_model(&trk[0], dest == 9u ? DM_CYMB : dest == 10u ? DM_K909 : DM_HATC);
+    for (k = 0; k < 16u; k += dest == 3u ? 1u : 4u)
+        trk[0].step[k].on = 1;
+    if (dest == 9u)
+        trk[0].p[P_E1] = 120;
+    trk[0].p[P_LFO1 + LF_DEST] = (int16_t)dest;
+    trk[0].p[P_LFO1 + LF_DEPTH] = 56;
+    trk[0].p[P_LFO1 + LF_RATE] = 52;                 /* 1/4 */
+    trk[0].p[P_LFO1 + LF_MORPH] = 40;
+}
+
+static void lfo_wave_bar(uint32_t b) { trk[0].p[P_LFO1 + LF_WAVE] = (int16_t)(b % LW_COUNT); }
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -288,5 +307,11 @@ int main(int argc, char **argv)
     write_demo(dir, "pump_rel_sweep.wav", 4, rel_bar);
     pump_kit(1, 45, 127, 26);
     write_demo(dir, "pump_limit.wav", 4, prob_bar);
+    lfo_kit(3);
+    write_demo(dir, "lfo_tone.wav", LW_COUNT, lfo_wave_bar);
+    lfo_kit(9);
+    write_demo(dir, "lfo_level.wav", LW_COUNT, lfo_wave_bar);
+    lfo_kit(10);
+    write_demo(dir, "lfo_pan.wav", LW_COUNT, lfo_wave_bar);
     return 0;
 }

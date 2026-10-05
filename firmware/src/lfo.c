@@ -66,8 +66,8 @@ static int32_t lfo_shape(uint32_t wave, int32_t morph, uint32_t ph)
 }
 
 /* ------------------------------------------------------- runtime --- */
-/* inside mix_block only: lfo_apply ... lfo_restore; a hit in between (drum_hit) re-applies its track */
-static uint8_t lfo_in_block;
+/* inside mix_block only: lfo_apply ... lfo_restore (song.lfo_in), a hit in between (drum_hit) re-applies its
+ * track. The flag lives in song: a new small global would change the frozen code's global layout (H2). */
 
 static int32_t lfo_rnd(track_t *t)                    /* -32767 .. 32767 */
 {
@@ -152,7 +152,7 @@ static void lfo_apply(uint32_t n)
     uint32_t i;
     for (i = 0; i < NTRK; i++)
         lfo_track(&trk[i], n);
-    lfo_in_block = 1;
+    song.lfo_in = 1;
 }
 
 static void lfo_restore_track(track_t *t)
@@ -168,7 +168,7 @@ static void lfo_restore(void)
     uint32_t i;
     for (i = 0; i < NTRK; i++)
         lfo_restore_track(&trk[i]);
-    lfo_in_block = 0;
+    song.lfo_in = 0;
 }
 
 /* a hit of t: its HIT LFOs restart; inside the block the knobs are modulated again from there (the trigger reads
@@ -182,7 +182,7 @@ static void lfo_hit(track_t *t)
             t->lfo[l].sub = 0;
             any = 1;
         }
-    if (any && lfo_in_block) {
+    if (any && song.lfo_in) {
         lfo_restore_track(t);
         lfo_track(t, 0);
     }
