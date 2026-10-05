@@ -175,16 +175,20 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
 static void events_block(uint32_t n);                    /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL];
 
-/* one synth part into the dry mix and the sends; a part with no voice sounding costs
- * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
-static void mix_part(track_t *t, uint32_t n)
+/* one track into the dry mix and the sends; a track with no voice sounding costs the LFO tick and a cleared
+ * buffer only (after the DIST tail has run out). src: the COMP source (NTRK = off). The source's block (after
+ * DIST / SLICER, before LEVEL and MUTE) feeds the compressor; a muted source is heard by it only (ghost key). A
+ * DUCK track is multiplied by the compressor's gain before its level, pan and sends. */
+static void mix_part(track_t *t, uint32_t n, uint32_t src)
 {
     int32_t *b = part_buf;
-    uint32_t i;
+    uint32_t i, is_src = (uint32_t)(t - trk) == src;
     if (track_render(t, b, n))
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
+        if (is_src)
+            comp_block(0, n);                           /* silence: the detector decays */
         return;
     }
     {
@@ -195,6 +199,14 @@ static void mix_part(track_t *t, uint32_t n)
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
+        if (is_src) {
+            comp_block(b, n);
+            if (t->p[P_MUTE])
+                return;                                 /* ghost key: the compressor heard it, nobody else */
+        } else if (src < NTRK && t->p[P_DUCK]) {
+            for (i = 0; i < n; i++)
+                b[i] = clamp((int32_t)(((int64_t)b[i] * comp.gain[i]) >> 16), -(1 << 19), 1 << 19);
+        }
         for (i = 0; i < n; i++) {
             int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x;   /* pre-shift: 8 loud voices */
             int32_t xs = clamp(x, -xmax, xmax);         /* sends: mulq15 would overflow */
@@ -213,6 +225,7 @@ static void mix_part(track_t *t, uint32_t n)
     }
 }
 
+static uint32_t comp_was = NTRK;                 /* the COMP source of the last block (NTRK = off) */
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
@@ -225,8 +238,19 @@ static void mix_block(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
     drum_block_begin();
-    for (i = 0; i < NTRK; i++)
-        mix_part(&trk[i], n);
+    {
+        uint32_t src = comp_src();
+        if (src != comp_was) {                          /* another source, or OFF: a fresh detector (comp_was:
+                                                         * file scope, before mix_block, = NTRK at start) */
+            comp_reset();
+            comp_was = src;
+        }
+        if (src < NTRK)
+            mix_part(&trk[src], n, src);                /* the source first: its block keys the others */
+        for (i = 0; i < NTRK; i++)
+            if (i != src)
+                mix_part(&trk[i], n, src);
+    }
     fx_buses(send_c, send_d, send_r, wet, n);
     for (i = 0; i < n; i++) {
         int32_t l = (((mix_l[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;

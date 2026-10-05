@@ -140,6 +140,59 @@ static int32_t comp_lin(uint32_t g)
     return comp_exp2(clamp(x, -16 * 65536, 6 * 65536));
 }
 
+/* --------------------------------------------------- the sidechain --- */
+static struct {
+    comp_cfg_t cfg;              /* configured for the knobs whose signature is sig */
+    uint32_t sig;                /* 0 = not configured */
+    int64_t det;                 /* the detector (Streams detector_) */
+    int32_t gr;                  /* gain reduction for the meter (Streams gain_reduction_) */
+    int32_t peak;                /* the source's peak this block (meter) */
+    int32_t gain[CTL];           /* this block's gain per sample, Q16, for the DUCK tracks */
+} comp;
+
+static int comp_on(void) { return song.g[G_CSRC] >= 1 && song.g[G_CSRC] <= NTRK; }
+static uint32_t comp_src(void) { return comp_on() ? (uint32_t)song.g[G_CSRC] - 1u : NTRK; }   /* NTRK = off */
+static comp_set_t comp_knobs(void)
+{
+    comp_set_t s;
+    s.atk = clamp(song.g[G_CATK], 0, 127);
+    s.thr = clamp(song.g[G_CTHR], 0, 127);
+    s.amt = clamp(song.g[G_CAMT], 0, 127);
+    s.rel = clamp(song.g[G_CREL], 0, 127);
+    s.knee = song.g[G_CKNEE] ? 1 : 0;
+    return s;
+}
+
+static void comp_reset(void)                     /* a fresh detector (PLAY of the module), unity gain */
+{
+    uint32_t i;
+    comp.det = 0;
+    comp.gr = 0;
+    comp.peak = 0;
+    comp.sig = 0;
+    for (i = 0; i < CTL; i++)
+        comp.gain[i] = 65536;
+}
+
+/* the source's block x (0: silence): the gain per sample for the DUCK tracks */
+static void comp_block(const int32_t *x, uint32_t n)
+{
+    comp_set_t s = comp_knobs();
+    uint32_t i, sig = 1u + (uint32_t)s.atk + (uint32_t)s.thr * 128u + (uint32_t)s.amt * 16384u +
+                      (uint32_t)s.rel * 2097152u + (uint32_t)s.knee * 268435456u;
+    if (sig != comp.sig) {
+        comp_configure(&s, &comp.cfg);
+        comp.sig = sig;
+    }
+    comp.peak = 0;
+    for (i = 0; i < n && i < CTL; i++) {
+        int32_t v = x ? x[i] : 0, a = v < 0 ? -v : v;
+        if (a > comp.peak)
+            comp.peak = a;
+        comp.gain[i] = comp_lin(comp_process(&comp.cfg, &comp.det, &comp.gr, v));
+    }
+}
+
 /* ------------------------------------------------------- display --- */
 static int32_t comp_thr_dbx10(int32_t v)          /* THRSH in 0.1 dB, rounded (Streams: 256 = 6.02 dB / 256) */
 {

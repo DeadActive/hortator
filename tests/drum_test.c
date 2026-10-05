@@ -1584,6 +1584,131 @@ static void test_comp_formats(void)
     check("COMP columns: THRSH -24.0 dB, AMNT 3.9:1 / 1.0:1 / LIMIT (THRSH 127) / +5.0 dB (THRSH 0, AMNT 80), ATK 1.1 ms, REL 151 ms, SRC T1", ok);
 }
 
+/* a kick on T1 (the COMP source) under a long cymbal on T2: T2's peak (post LEVEL) right after the kick and later,
+ * after a fresh cymbal hit; options: T2 ducked, the source muted / at LEVEL 0, T2's reverb send measured */
+/* (src_before: the SRC during the first 0.25 s, then src; src_duck: DUCK on the source itself) */
+typedef struct { int32_t after, late, send, src_peak; } comp_meas_t;
+static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, int src_duck, int src_before)
+{
+    comp_meas_t m = {0, 0, 0, 0};
+    uint32_t f, i;
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    drum_set_model(&trk[1], DM_CYMB);
+    trk[1].p[P_REV] = 127;
+    song.g[G_CSRC] = (int16_t)src_before;
+    trk[1].p[P_DUCK] = (int16_t)duck;
+    trk[0].p[P_DUCK] = (int16_t)src_duck;
+    trk[0].p[P_MUTE] = (int16_t)src_muted;
+    if (src_level0)
+        trk[0].p[P_LEVEL] = 0;
+    drum_hit(&trk[1], 127);
+    render_mix(0, 0, SECS(0.25));
+    song.g[G_CSRC] = (int16_t)src;
+    drum_hit(&trk[0], 127);
+    for (f = 0; f < SECS(0.06); f += CTL) {
+        trk[1].peak = trk[0].peak = 0;
+        render_mix(0, 0, CTL);
+        if (trk[1].peak > m.after)
+            m.after = trk[1].peak;
+        if (trk[0].peak > m.src_peak)
+            m.src_peak = trk[0].peak;
+        for (i = 0; i < CTL; i++)
+            if (abs(send_r[i]) > m.send)
+                m.send = abs(send_r[i]);
+    }
+    render_mix(0, 0, SECS(1.6));
+    drum_hit(&trk[1], 127);
+    for (f = 0; f < SECS(0.05); f += CTL) {
+        trk[1].peak = 0;
+        render_mix(0, 0, CTL);
+        if (trk[1].peak > m.late)
+            m.late = trk[1].peak;
+    }
+    return m;
+}
+
+static void test_comp_ducks(void)
+{
+    comp_meas_t dry = comp_scene(1, 0, 0, 0, 0, 1), duck = comp_scene(1, 1, 0, 0, 0, 1);
+    printf("     COMP: T2 peak after the kick %d -> %d, its reverb send %d -> %d, later %d -> %d\n", dry.after,
+           duck.after, dry.send, duck.send, dry.late, duck.late);
+    check("COMP: a DUCK track drops by more than 6 dB under the source's hit", duck.after * 2 < dry.after);
+    check("COMP: its FX send is ducked too", duck.send * 2 < dry.send);
+    check("COMP: it comes back after the release (within 1 dB)", duck.late * 10 > dry.late * 9);
+}
+
+static void test_comp_off_identical(void)
+{
+    static int32_t a[SECS(1)], b[SECS(1)];
+    uint32_t k;
+    for (k = 0; k < 2; k++) {
+        uint32_t i;
+        host_init();
+        for (i = 0; i < NTRK; i++)
+            trk[i].p[P_DUCK] = (int16_t)k;           /* every track ducked, but SRC OFF */
+        trk[0].step[0].on = trk[1].step[4].on = trk[3].step[2].on = 1;
+        play();
+        render_mix(k ? b : a, 0, SECS(1));
+    }
+    check("COMP: SRC OFF leaves the mix bit-identical, DUCK or not", !memcmp(a, b, sizeof a));
+}
+
+static void test_comp_source_not_ducked(void)
+{
+    comp_meas_t a = comp_scene(1, 1, 0, 0, 0, 1), b = comp_scene(1, 1, 0, 0, 1, 1);
+    check("COMP: the source is never ducked by itself (DUCK on the source changes nothing)",
+          a.src_peak == b.src_peak && a.after == b.after);
+}
+
+static void test_comp_ghost(void)
+{
+    comp_meas_t heard = comp_scene(1, 1, 0, 0, 0, 1), ghost = comp_scene(1, 1, 1, 0, 0, 1);
+    comp_meas_t quiet = comp_scene(1, 1, 0, 1, 0, 1);
+    check("COMP ghost key: a muted source is silent and still ducks exactly as heard",
+          ghost.src_peak == 0 && ghost.after == heard.after && ghost.late == heard.late);
+    check("COMP: a source at LEVEL 0 still ducks exactly as heard", quiet.after == heard.after);
+}
+
+/* SRC changed while playing: T2 (the cymbal) as the source for 0.25 s charges the detector, then T1: the same
+ * as T1 from the start (a fresh detector); and OFF is unity at once */
+static void test_comp_src_change(void)
+{
+    comp_meas_t a = comp_scene(1, 1, 0, 0, 0, 1), b = comp_scene(1, 1, 0, 0, 0, 2);
+    uint32_t i, unity = 1;
+    song.g[G_CSRC] = 0;
+    render_mix(0, 0, CTL);
+    for (i = 0; i < CTL; i++)
+        unity &= comp.gain[i] == 65536;
+    check("COMP: SRC changed while playing restarts the detector; SRC OFF is unity at once",
+          a.after == b.after && a.late == b.late && unity);
+}
+
+static void test_comp_extremes(void)
+{
+    static const int16_t S[4][2] = {{0, 127}, {0, 100}, {127, 100}, {127, 127}};   /* THRSH, AMNT */
+    uint32_t c, i, ok = 1;
+    for (c = 0; c < 4u; c++) {
+        int32_t pk;
+        host_init();
+        song.g[G_CSRC] = 1;
+        song.g[G_CTHR] = S[c][0];
+        song.g[G_CAMT] = S[c][1];
+        for (i = 0; i < NTRK; i++) {
+            uint32_t k;
+            trk[i].p[P_DUCK] = 1;
+            trk[i].p[P_LEVEL] = 127;
+            for (k = 0; k < 16u; k++)
+                trk[i].step[k].on = 1;
+        }
+        play();
+        render_mix(wl, wr, SECS(2));
+        pk = peak_of(wl, 0, SECS(2));
+        ok &= pk <= 32767 && peak_of(wr, 0, SECS(2)) <= 32767;
+    }
+    check("COMP extremes (THRSH 0 / 127 x AMNT 100 / 127, all tracks ducked and busy): output bounded", ok);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1620,6 +1745,12 @@ int main(void)
     test_cond_codes();
     test_comp_engine();
     test_comp_formats();
+    test_comp_ducks();
+    test_comp_off_identical();
+    test_comp_source_not_ducked();
+    test_comp_ghost();
+    test_comp_src_change();
+    test_comp_extremes();
     test_percent_display();
     test_q24();
     test_tables();
