@@ -15,7 +15,17 @@ static const char *const N_SRC[] = {"STEP", "G-KCK", "G-SNR", "G-HAT"};   /* P_S
 static const char *const N_GMODE[] = {"MAP", "EUCL"};
 static const char *const N_CSRC[] = {"OFF", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
 static const char *const N_KNEE[] = {"HARD", "SOFT"};
+static const char *const N_LWAVE[] = {"SQUAR", "SAW", "RSAW", "SINE", "TRI", "S&H", "WANDR", "EXP+", "EXP-", "RWALK"};
+static const char *const N_LMODE[] = {"SYNC", "HZ", "TIME"};
+static const char *const N_LTRIG[] = {"FREE", "HIT", "PLAY"};
+static const char *const N_LSYNC[17] = {"8BAR", "4BAR", "2BAR", "1BAR", "1/2", "1/4.", "1/4", "1/4T", "1/8.", "1/8",
+                                        "1/8T", "1/16.", "1/16", "1/16T", "1/32", "1/32T", "1/64"};
 
+#define LFO_TP(b, rf)                                                                                     \
+    [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
+    [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
+    [b + LF_DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0), [b + LF_DEST] = PD("DEST", F_LDEST, 0, 10, 0),        \
+    [b + LF_TRIG] = PE("TRIG", N_LTRIG, 2), [b + LF_PHASE] = PD("PHASE", F_LPHASE, 0, 127, 0)
 static const param_desc_t TP[P_COUNT] = {
     [P_MODEL] = PE("MODEL", N_MODEL, 0),
     [P_LEVEL] = PD("LVL", F_DB, 0, 127, 104),
@@ -41,6 +51,8 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LDEC] = PD("LDEC", F_INT, 0, 127, 127),
     [P_SRC] = PE("SRC", N_SRC, 0),
     [P_DUCK] = PE("DUCK", N_ONOFF, 0),
+    LFO_TP(P_LFO1, F_LRATE1),
+    LFO_TP(P_LFO2, F_LRATE2),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -111,6 +123,9 @@ static void fmt_ms10(char *val, const char **unit, uint32_t ms10)   /* a time in
     }
 }
 
+#include "lfo_tables.h"
+static uint32_t lfo_dest_param(uint32_t dest);    /* lfo.c */
+
 /* value string (<= 5 chars) and unit for a parameter value */
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
@@ -134,6 +149,38 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         break;
     case F_TIME:
         fmt_ms10(val, unit, TIME_MS_X10[v & 127]);
+        break;
+    case F_LRATE1:
+    case F_LRATE2: {                                  /* by the LFO's RATE MODE (OCT+ on its page) */
+        uint32_t mode = (uint32_t)clamp(TSEL->p[(d->fmt == F_LRATE1 ? P_LFO1 : P_LFO2) + LF_MODE], 0, 2), k = (uint32_t)clamp(v, 0, 127);
+        if (mode == LM_SYNC) {
+            str_cpy(val, N_LSYNC[k * 17u / 128u], 6);
+        } else if (mode == LM_HZ) {                    /* "0.02" .. "9.99", "10.0" .. "40.0" (with the leading 0) */
+            uint32_t h = LR_HZ_X100[k], n;
+            fmt_int(val, (int32_t)(h / 100u));
+            n = str_len(val);
+            val[n++] = '.';
+            val[n++] = (char)('0' + h / 10u % 10u);
+            if (h < 1000u)
+                val[n++] = (char)('0' + h % 10u);
+            val[n] = 0;
+            *unit = "Hz";
+        } else {
+            fmt_ms10(val, unit, LR_TIME_MS[k] * 10u);
+        }
+        break;
+    }
+    case F_LDEST:                                     /* the selected track's knob, by its label */
+        if (v <= 0) {
+            str_cpy(val, "OFF", 6);
+        } else {
+            const param_desc_t *t = track_desc(TSEL, lfo_dest_param((uint32_t)clamp(v, 1, 10)));
+            str_cpy(val, t->label && t->label[0] != '-' ? t->label : "--", 6);
+        }
+        break;
+    case F_LPHASE:
+        fmt_int(val, (int32_t)clamp(v, 0, 127) * 360 / 128);
+        *unit = "\xB0";                              /* the degree sign (Latin-1, in FONT_S) */
         break;
     case F_CTHR: {                                    /* whole dB from -10 down (the column fits "-24 dB") */
         int32_t d = comp_thr_dbx10(v);

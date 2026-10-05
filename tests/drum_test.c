@@ -1784,6 +1784,70 @@ static void test_comp_mute_click(void)
           off <= plain + 100 && on <= base + 200);
 }
 
+/* LFO waveforms (lfo.c): range, shape at fixed phases, MORPH */
+static void test_lfo_shapes(void)
+{
+    uint32_t w, k, ok = 1, m;
+    static const int32_t M[3] = {0, 64, 127};
+    for (w = 0; w < LW_COUNT; w++)                   /* every deterministic wave in range, every morph */
+        for (m = 0; m < 3u; m++)
+            for (k = 0; k < 256u; k++) {
+                int32_t y = lfo_shape(w, M[m], k << 24);
+                ok &= y >= -32767 && y <= 32767;
+            }
+    check("LFO waves: every wave at MORPH 0 / 64 / 127 stays in -1 .. +1", ok);
+    check("LFO SINE: +1 at a quarter cycle, -1 at three quarters, 0 at the start",
+          lfo_shape(LW_SINE, 0, 1u << 30) > 32000 && lfo_shape(LW_SINE, 0, 3u << 30) < -32000 &&
+              abs(lfo_shape(LW_SINE, 0, 0)) < 200);
+    check("LFO SQUARE: hard at MORPH 0 (+1 at 1/8 of the cycle, -1 at 5/8)",
+          lfo_shape(LW_SQUARE, 0, 1u << 29) > 32000 && lfo_shape(LW_SQUARE, 0, 5u << 29) < -32000);
+    ok = 1;
+    for (k = 0; k < 256u; k++)                       /* SQUARE MORPH max = SINE MORPH 0; SINE max = SQUARE 0 */
+        ok &= abs(lfo_shape(LW_SQUARE, 127, k << 24) - lfo_shape(LW_SINE, 0, k << 24)) < 400 &&
+              abs(lfo_shape(LW_SINE, 127, k << 24) - lfo_shape(LW_SQUARE, 0, k << 24)) < 400;
+    check("LFO: SQUARE's MORPH softens to a sine, SINE's MORPH sharpens to a square", ok);
+    ok = 1;
+    for (k = 1; k < 256u; k++)                       /* SAW rises, RSAW = -SAW */
+        ok &= lfo_shape(LW_SAW, 0, k << 24) >= lfo_shape(LW_SAW, 0, (k - 1u) << 24) &&
+              lfo_shape(LW_RSAW, 64, k << 24) == -lfo_shape(LW_SAW, 64, k << 24);
+    check("LFO SAW rises -1 .. +1 (0 at half), REV SAW is its mirror",
+          ok && lfo_shape(LW_SAW, 0, 0) < -32000 && abs(lfo_shape(LW_SAW, 0, 1u << 31)) < 300 &&
+              lfo_shape(LW_SAW, 0, 0xFF000000u) > 32000);
+    check("LFO SAW tension: MORPH 127 bends the ramp (below 0 at half: x^2)",
+          lfo_shape(LW_SAW, 127, 1u << 31) < -15000);
+    check("LFO TRI tides: MORPH 64 = triangle (peak at half), 0 = falling ramp, 127 = rising ramp",
+          lfo_shape(LW_TRI, 64, 1u << 31) > 32000 && lfo_shape(LW_TRI, 64, 0) < -32000 &&
+              lfo_shape(LW_TRI, 0, 0) > 32000 && lfo_shape(LW_TRI, 127, 0xFF000000u) > 32000);
+    check("LFO EXP+: MORPH 0 = straight rise, 127 = strongly curved (far below 0 at half); EXP- falls",
+          abs(lfo_shape(LW_EXPUP, 0, 1u << 31)) < 300 && lfo_shape(LW_EXPUP, 127, 1u << 31) < -25000 &&
+              lfo_shape(LW_EXPDN, 0, 0) > 32000 && lfo_shape(LW_EXPDN, 0, 0xFF000000u) < -32000);
+}
+
+/* LFO rates: SYNC follows the tempo (1 bar at 120 BPM = 88200 samples), Hz and TIME ends */
+static void test_lfo_rates(void)
+{
+    int16_t q[LF_N] = {LW_SINE, LM_SYNC, 23, 0, 0, 0, LT_PLAY, 0};
+    uint32_t inc;
+    host_init();
+    song.g[G_BPM] = 120;
+    inc = lfo_inc(q);
+    check("LFO SYNC: RATE 23 = 1 bar = 88200 samples at 120 BPM", inc == 0xFFFFFFFFu / 88200u);
+    song.g[G_BPM] = 240;
+    check("LFO SYNC: the tempo doubled, the rate doubles at once", lfo_inc(q) == 0xFFFFFFFFu / 44100u);
+    q[LF_RATE] = 127;
+    check("LFO SYNC: RATE 127 = 1/64 (6 of 96 ticks a quarter)", lfo_inc(q) == 0xFFFFFFFFu / (11025u * 6u / 96u));
+    q[LF_MODE] = LM_HZ;
+    check("LFO Hz: RATE 127 = 40 Hz, RATE 0 = 0.02 Hz",
+          lfo_inc(q) == LR_HZ_INC[127] && LR_HZ_X100[127] == 4000u && LR_HZ_X100[0] == 2u);
+    q[LF_MODE] = LM_TIME;
+    q[LF_RATE] = 0;
+    check("LFO TIME: RATE 0 = 25 ms a cycle, 127 = 60 s", lfo_inc(q) == LR_TIME_INC[0] && LR_TIME_MS[0] == 25u &&
+                                                             LR_TIME_MS[127] == 60000u);
+    check("LFO DEST: 1..8 the engine's knobs, 9 LVL, 10 PAN, 0 none",
+          lfo_dest_param(1) == P_E0 && lfo_dest_param(8) == P_E7 && lfo_dest_param(9) == P_LEVEL &&
+              lfo_dest_param(10) == P_PAN && lfo_dest_param(0) == 0xFFu);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1828,6 +1892,8 @@ int main(void)
     test_comp_src_change();
     test_comp_extremes();
     test_comp_mute_click();
+    test_lfo_shapes();
+    test_lfo_rates();
     test_percent_display();
     test_q24();
     test_tables();

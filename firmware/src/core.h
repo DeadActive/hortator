@@ -15,7 +15,7 @@
 /* ------------------------------------------------------- parameters --- */
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
-    F_ONOFF, F_OCT, F_STEPS, F_CTHR, F_CRAT, F_CATK, F_CREL, F_CMKUP
+    F_ONOFF, F_OCT, F_STEPS, F_CTHR, F_CRAT, F_CATK, F_CREL, F_CMKUP, F_LRATE1, F_LRATE2, F_LDEST, F_LPHASE
 };
 
 typedef struct {
@@ -28,6 +28,11 @@ typedef struct {
 #define PD(l, f, mn, mx, df) {l, f, mn, mx, df, 0, 0}
 #define PE(l, n, df) {l, F_ENUM, 0, (int16_t)(sizeof(n) / sizeof(n[0]) - 1), df, n, 0}
 
+enum { LF_WAVE, LF_MODE, LF_RATE, LF_MORPH, LF_DEPTH, LF_DEST, LF_TRIG, LF_PHASE, LF_N };   /* an LFO's knobs */
+enum { LW_SQUARE, LW_SAW, LW_RSAW, LW_SINE, LW_TRI, LW_SH, LW_WANDER, LW_EXPUP, LW_EXPDN, LW_RWALK, LW_COUNT };   /* LFO waves (lfo.c) */
+enum { LM_SYNC, LM_HZ, LM_TIME };
+enum { LT_FREE, LT_HIT, LT_PLAY };
+
 enum {                          /* per-track parameters */
     P_MODEL,
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,   /* the model's: TUNE DECAY TONE CHAR + 4 extras */
@@ -38,7 +43,9 @@ enum {                          /* per-track parameters */
     P_LSET, P_LKEY, P_LLEVEL, P_LTUNE, P_LDEC,       /* sample layer */
     P_SRC,                       /* what the track plays: 0 its steps, 1..3 a Grids channel (kick, snare, hats) */
     P_DUCK,                      /* M3: the COMP source ducks this track */
-    P_COUNT
+    P_LFO1,                      /* LFO 1: LF_N knobs (lfo.c) */
+    P_LFO2 = P_LFO1 + LF_N,      /* LFO 2 */
+    P_COUNT = P_LFO2 + LF_N
 };
 
 enum {                          /* global parameters */
