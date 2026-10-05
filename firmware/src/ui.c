@@ -79,7 +79,7 @@ static void ui_message(const char *s) { ui_say(s, ""); }
 
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
 static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
-static int comp_mode(void) { return !ui.home && !ui.menu && cur_page()->fam == FAM_COMP; }   /* COMP: keys DUCK */
+static int comp_mode(void) { return !ui.home && !ui.menu && cur_page()->graph == GR_COMP; }   /* COMP: keys DUCK */
 
 /* a held grid key lets go of its step (another track or page): keys still held edit nothing, flip no accent */
 static void grid_drop_holds(void)
@@ -100,18 +100,13 @@ static void page_entered(void)
     ui.force = 1;
 }
 
-/* a page with nothing to edit for the selected track: SOUND 2/2 of an engine with no parameters there */
+/* a page with nothing to edit for the selected track: an EDIT page past the end of its engine's sound list */
 static int page_hidden(uint32_t i)
 {
-    uint32_t k;
-    if (i >= NPAGES || PAGES[i].fam != FAM_SND || PAGES[i].id[0] != P_E4)
+    uint8_t ids[16];
+    if (i >= NPAGES || PAGES[i].fam != FAM_SND || PAGES[i].id[0] < SND_SLOT)
         return 0;
-    for (k = 4; k < 8u; k++) {
-        const param_desc_t *d = &DMODELS[(uint32_t)TSEL->p[P_MODEL] % NMODELS].edit[k];
-        if (d->label && d->label[0] != '-')
-            return 0;
-    }
-    return 1;
+    return PAGES[i].id[0] - SND_SLOT >= snd_list(TSEL, ids);
 }
 
 /* the pages a family shows (hidden ones left out), and where the current page is among them (1-based, 0 = not) */

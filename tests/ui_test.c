@@ -17,8 +17,8 @@ static void seq_open(const char *title);
 static void test_families(void)
 {
     static const struct { uint32_t btn; uint32_t fam; } MAP[] = {
-        {B_EDIT, FAM_SND}, {B_ENV, FAM_TRK}, {B_LFO, FAM_LAY}, {B_FX, FAM_FX},
-        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS}, {B_SCL, FAM_COMP},
+        {B_EDIT, FAM_SND}, {B_LFO, FAM_LAY}, {B_FX, FAM_FX},
+        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS},
     };
     uint32_t i, ok = 1;
     ui_host_init();
@@ -28,11 +28,14 @@ static void test_families(void)
         release_all();
         ok &= !ui.home && cur_page()->fam == MAP[i].fam;
     }
-    check("buttons open their page families (EDIT SOUND, ENV TRACK, LFO LAYER, FX, SEQ, GLO, SAVE, ARP GRIDS, SCL COMP)", ok);
+    check("buttons open their page families (EDIT SOUND, LFO LAYER, FX, SEQ, GLO, SAVE, ARP GRIDS)", ok);
+    press(B_ENV);
+    ui_frame();
+    release_all();
     press(B_SCL);
     ui_frame();
     release_all();
-    check("SCL opens COMP", !ui.home && cur_page()->fam == FAM_COMP);
+    check("ENV and SCL do nothing (free)", !ui.home && cur_page()->fam == FAM_GRIDS);
     press(B_EDIT);
     ui_frame();
     release_all();
@@ -50,31 +53,50 @@ static void test_families(void)
     }
 }
 
-/* SOUND 2/2 only for the engines that have parameters there (K808 K909 S808 S909 SMPL); the others have one
- * SOUND page: EDIT stays on it, the footer says "SOUND" (no 1/2) */
-static void test_sound_page2_only_when_used(void)
+/* EDIT: one list per engine, 4 knobs a page: MODEL, its TUNE DECAY TONE and 4th knob, its extras, then
+ * LVL PAN NOTE CHOKE (no MUTE: the TRACKS quick mutes) */
+static void edit_next(void)
+{
+    press(B_EDIT);
+    ui_frame();
+    release_all();
+}
+
+static void test_sound_pages(void)
 {
     uint32_t n, k;
+    const page_t *pg;
     ui_host_init();
     drum_set_model(&trk[0], DM_C808);
-    press(B_EDIT);
-    ui_frame();
-    release_all();
-    press(B_EDIT);
-    ui_frame();
-    release_all();
+    edit_next();
+    pg = cur_page();
     n = fam_pages(FAM_SND, &k);
-    check("EDIT on an engine without SOUND 2/2 (C808): stays on SOUND, one page", ui.page == page_first(FAM_SND) && n == 1u && k == 1u);
-    snap_page("engines/zz_c808_one_sound_page");
+    check("EDIT page 1 (C808): MODEL TUNE DECAY TONE; 3 pages",
+          n == 3u && k == 1u && page_id(pg, 0) == P_MODEL && page_id(pg, 1) == P_E0 && page_id(pg, 3) == P_E2);
+    snap_page("engines/zz_c808_edit_1");
+    edit_next();
+    pg = cur_page();
+    check("EDIT page 2 (C808): TAIL LVL PAN NOTE",
+          page_id(pg, 0) == P_E3 && page_id(pg, 1) == P_LEVEL && page_id(pg, 2) == P_PAN && page_id(pg, 3) == P_NOTE);
+    snap_page("engines/zz_c808_edit_2");
+    edit_next();
+    pg = cur_page();
+    n = fam_pages(FAM_SND, &k);
+    check("EDIT page 3: CHOKE, nothing else (no MUTE)", page_id(pg, 0) == P_CHOKE && page_id(pg, 1) == 0xFFu && k == 3u && n == 3u);
+    snap_page("engines/zz_c808_edit_3");
+    edit_next();
+    n = fam_pages(FAM_SND, &k);
+    check("EDIT again: back to page 1", k == 1u);
     drum_set_model(&trk[0], DM_K909);
-    press(B_EDIT);
+    edit_next();
+    pg = cur_page();
+    check("K909 page 2: CLICK SWPT DRIVE LVL (its extras before LVL)",
+          page_id(pg, 0) == P_E3 && page_id(pg, 1) == P_E4 && page_id(pg, 2) == P_E5 && page_id(pg, 3) == P_LEVEL);
+    edit_next();
+    edit_next();
+    turn(EN_K1, 1);
     ui_frame();
-    release_all();
-    n = fam_pages(FAM_SND, &k);
-    check("EDIT on K909: SOUND 2/2 (SWPT DRIVE)", ui.page == page_first(FAM_SND) + 1u && n == 2u && k == 2u);
-    drum_set_model(&trk[0], DM_KBOOM);               /* the engine changes while SOUND 2/2 shows */
-    ui_frame();
-    check("an engine without SOUND 2/2 chosen on that page: back to SOUND 1", ui.page == page_first(FAM_SND));
+    check("EDIT page 1: KNOB 1 is MODEL (next engine, its default sound)", (uint32_t)trk[0].p[P_MODEL] == DM_K909 + 1u);
 }
 
 static void test_track_select(void)
@@ -102,12 +124,12 @@ static void test_model_swap(void)
     check("PRESET on HOME: next model with its default sound, voices stopped",
           (uint32_t)trk[0].p[P_MODEL] == (m0 + 1u) % NMODELS && trk[0].model == trk[0].p[P_MODEL] &&
               trk[0].p[P_E1] == DMODELS[(m0 + 1u) % NMODELS].edit[1].def && !trk[0].v[0].active);
-    press(B_ENV);
+    press(B_EDIT);
     ui_frame();
     release_all();
     turn(EN_K1, -1);
     ui_frame();
-    check("MODEL knob on TRACK: back to the first model, defaults loaded",
+    check("MODEL knob on EDIT (page 1): back to the first model, defaults loaded",
           (uint32_t)trk[0].p[P_MODEL] == m0 && trk[0].p[P_E1] == DMODELS[m0].edit[1].def);
     press(B_FX);
     ui_frame();
@@ -377,25 +399,33 @@ static void test_grid_hold_track_change(void)
               !trk[0].step[20].on);
 }
 
+static void open_comp(int page2)                    /* FX until COMP 1/2 (or 2/2) shows */
+{
+    uint32_t k;
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->graph != GR_COMP || (cur_page()->id[0] == G_CATK) != page2); k++) {
+        press(B_FX);
+        ui_frame();
+        release_all();
+    }
+}
+
 static void test_comp_pages(void)
 {
     ui_host_init();
-    press(B_SCL);
-    ui_frame();
-    release_all();
-    check("SCL opens COMP 1/2 (SRC THRSH RATIO REL)", str_eq(cur_page()->title, "COMP") && cur_page()->id[0] == G_CSRC);
+    open_comp(0);
+    check("FX reaches COMP 1/2 (SRC THRSH RATIO REL), after REV/CHO",
+          str_eq(cur_page()->title, "COMP") && cur_page()->fam == FAM_FX && cur_page()->id[0] == G_CSRC &&
+              str_eq(PAGES[ui.page - 1u].title, "REV/CHO"));
     snap_page("comp/01_off");
     turn(EN_K1, 1);
     ui_frame();
     turn(EN_K1 + 1, -2);
     ui_frame();
     check("COMP: KNOB 1 picks the source (T1), KNOB 2 the threshold", song.g[G_CSRC] == 1 && song.g[G_CTHR] == 24);
-    press(B_SCL);
-    ui_frame();
-    release_all();
+    open_comp(1);
     turn(EN_K1 + 1, -1);
     ui_frame();
-    check("SCL again: COMP 2/2 (ATK KNEE MKUP); KNOB 2 sets the knee HARD",
+    check("FX again: COMP 2/2 (ATK KNEE MKUP); KNOB 2 sets the knee HARD",
           cur_page()->id[0] == G_CATK && cur_page()->id[2] == G_CMKUP && song.g[G_CKNEE] == 0);
     snap_page("comp/03_page2_curve_hard");
 }
@@ -405,9 +435,7 @@ static void test_comp_keys(void)
 {
     uint32_t a;
     ui_host_init();
-    press(B_SCL);
-    ui_frame();
-    release_all();
+    open_comp(0);
     a = hit_age(&trk[1]);
     keys(1u << KEY_TRK_KEY[1]);
     ui_frame();
@@ -706,6 +734,8 @@ static void test_screens(void)
     for (i = 0; i < NPAGES; i++) {
         const page_t *pg = &PAGES[i];
         uint32_t nth = i - page_first(pg->fam), j = 0;
+        if (page_hidden(i))                          /* EDIT page 4: no engine has that many knobs yet */
+            continue;
         char *d;
         const char *c;
         for (k = 0; k < NPAGES && (cur_page() != pg || ui.home); k++) {   /* its button until it shows */
@@ -724,8 +754,12 @@ static void test_screens(void)
         for (d = name + 3, c = pg->title; *c && j < 20u; c++, j++)
             *d++ = *c == '/' ? '-' : (char)(*c >= 'A' && *c <= 'Z' ? *c + 32 : *c);
         *d = 0;
-        if (nth && str_eq(PAGES[i - 1u].title, pg->title))   /* SOUND 2/2, LAYER 2/2 */
-            snprintf(d, sizeof name - (size_t)(d - name), "_%u", (unsigned)nth + 1u);
+        if (nth && str_eq(PAGES[i - 1u].title, pg->title)) {   /* SOUND 2/3, LAYER 2/2, COMP 2/2: the n-th of its title */
+            uint32_t same = 1, q;
+            for (q = page_first(pg->fam); q < i; q++)
+                same += str_eq(PAGES[q].title, pg->title);
+            snprintf(d, sizeof name - (size_t)(d - name), "_%u", (unsigned)same);
+        }
         snap_page(name);
         ok &= fb_lit(26, 70) > 100 && fb_lit(202, 240) > 100;
         if (pg->graph == GR_MIX)
@@ -800,13 +834,15 @@ static void engine_page_shots(uint32_t mi, uint32_t pg)
     }
     snprintf(name, sizeof name, "engines/%02u_%s_%u_default", (unsigned)mi, low, (unsigned)pg + 1u);
     snap_page(name);
-    for (k = 0; k < 4; k++)
-        turn(EN_K1 + k, -999);
+    for (k = 0; k < 4; k++)                          /* (not MODEL: it would change the engine) */
+        if (page_id(cur_page(), k) != P_MODEL)
+            turn(EN_K1 + k, -999);
     ui_frame();
     snprintf(name, sizeof name, "engines/%02u_%s_%u_min", (unsigned)mi, low, (unsigned)pg + 1u);
     snap_page(name);
     for (k = 0; k < 4; k++)
-        turn(EN_K1 + k, 999);
+        if (page_id(cur_page(), k) != P_MODEL)
+            turn(EN_K1 + k, 999);
     ui_frame();
     snprintf(name, sizeof name, "engines/%02u_%s_%u_max", (unsigned)mi, low, (unsigned)pg + 1u);
     snap_page(name);
@@ -821,13 +857,10 @@ static void test_engine_screens(void)
             turn(EN_PRESET, 1);
             ui_frame();
         }
-        engine_page_shots(mi, 0);
+        for (k = 0; k < 4u; k++)                     /* every EDIT page this engine shows */
+            if (!page_hidden(page_first(FAM_SND) + k))
+                engine_page_shots(mi, page_first(FAM_SND) + k);
         n++;
-        for (k = 4; k < 8; k++)
-            if (DMODELS[mi].edit[k].max != DMODELS[mi].edit[k].min) {   /* SOUND 2/2 has knobs */
-                engine_page_shots(mi, 1);
-                break;
-            }
     }
     printf("     engines: %u engines, SOUND pages at default / min / max in build/ui_shots/engines\n", (unsigned)n);
 }
@@ -1112,7 +1145,7 @@ static int key_selects(const char *title, uint32_t fam_btn, uint32_t presses)
 static void test_key_selects_track(void)
 {
     static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
-        {"SOUND", B_EDIT, 1, 1}, {"TRACK", B_ENV, 1, 1}, {"MIDI", B_ENV, 2, 1}, {"LAYER", B_LFO, 1, 1},
+        {"SOUND", B_EDIT, 1, 1}, {"LAYER", B_LFO, 1, 1},
         {"FX", B_FX, 1, 1}, {"SLICER", B_FX, 2, 1}, {"DLY", B_FX, 3, 0}, {"PATTERN", B_SEQ, 2, 0},
     };
     uint32_t i, ok = 1;
@@ -1143,7 +1176,7 @@ int main(void)
     test_engine_screens();
     test_seq_screens();
     test_families();
-    test_sound_page2_only_when_used();
+    test_sound_pages();
     test_track_select();
     test_model_swap();
     test_home_macros();

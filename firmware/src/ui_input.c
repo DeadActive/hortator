@@ -135,7 +135,7 @@ static void edit_param(uint32_t slot, int32_t steps)
     int16_t *vp;
     const page_t *pg = cur_page();
     const param_desc_t *d;
-    uint32_t id = pg->id[slot];
+    uint32_t id = page_id(pg, slot);
     int32_t v;
     if (pg->scope == SC_GRID) {
         if (slot == 0u)
@@ -269,8 +269,9 @@ static void ui_input(void)
     if (home == BT_TAP)
         go_home();
     bank_fix();                                         /* LEN may have changed (knob, load) */
-    if (!ui.home && page_hidden(ui.page)) {             /* the engine changed under SOUND 2/2: back to SOUND */
-        ui.page = (uint8_t)page_first(cur_page()->fam);
+    if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
+        while (ui.page > page_first(FAM_SND) && page_hidden(ui.page))
+            ui.page--;
         ui.fam_last[FAM_SND] = ui.page;
         page_entered();
     }
@@ -326,7 +327,7 @@ static void ui_input(void)
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);
     }
-    if ((s = panel_enc(EN_PRESET)) != 0 && (ui.home || cur_fam() == FAM_TRK))
+    if ((s = panel_enc(EN_PRESET)) != 0 && (ui.home || cur_fam() == FAM_SND))
         model_step(s);
     if ((s = panel_enc(EN_ALGO)) != 0)
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
