@@ -59,7 +59,8 @@ static int32_t panel_enc(uint32_t role)
 
 /* user settings that survive a reset */
 #define SETTINGS_MAGIC 0x53455433u              /* "SET3" */
-struct { uint32_t magic, palette, lowcut, zoom; } settings __attribute__((section(".noinit")));
+struct { uint32_t magic, palette, lowcut, zoom, mutebar; } settings __attribute__((section(".noinit")));   /* mutebar:
+                                                                                   * TRACKS mutes wait for the next bar */
 
 static void settings_save(void);              /* project.c: flash copy (FELUCCA_FLASH) */
 
@@ -71,6 +72,7 @@ static void settings_init(void)
         settings.lowcut = 0;
         settings.zoom = 0;                     /* large readout of the touched value: off */
     }
+    settings.mutebar &= 1u;                    /* .noinit: a field added after "SET3" */
     palette_set(settings.palette);
     fx_lowcut = (uint8_t)(settings.lowcut != 0);
 }

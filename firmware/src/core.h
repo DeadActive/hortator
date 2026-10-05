@@ -63,7 +63,8 @@ enum {                          /* global parameters */
     G_CATK, G_CKNEE, G_CMKUP,                        /* attack, soft knee, makeup (127 = limiter) */
     G_COUNT
 };
-enum { G_CLRALL = G_COUNT, G_INITALL };          /* TOOLS actions: shown like globals, not stored (no project change) */
+enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR };   /* TOOLS actions, the MUTE setting: shown like globals, not stored
+                                                     * in projects */
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {                 /* sample playback state (eng_sample.c sample_next, dm_sample.c) */
@@ -147,7 +148,9 @@ typedef struct {
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
-    int16_t act[2];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored */
+    int16_t act[3];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
+                                  * copy of settings.mutebar */
+    uint8_t mute_q;              /* TRACKS: mutes to flip on the next bar (bit per track; seq.c) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */
     uint8_t lsel;                /* the LFO pages show LFO 1 / 2 (OCT-): screen state, never stored */
 } song_t;

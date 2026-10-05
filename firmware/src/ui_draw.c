@@ -746,9 +746,11 @@ static void draw_foot(void)
     const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];
     uint32_t sig, i;
     if (ui.home) {
-        str_cpy(ti, "HOME", sizeof ti);
+        str_cpy(ti, "HOME 1/3", sizeof ti);
     } else {
         uint32_t k, n = fam_pages(pg->fam, &k);
+        if (pg->fam == FAM_HOME)                     /* COMP: HOME 2/3, 3/3 */
+            k++, n++;
         str_cpy(ti, pg->title, 10);
         if (n > 1) {
             str_cpy(ti + str_len(ti), " ", 4);
@@ -801,7 +803,12 @@ static void draw_columns(void)
                 continue;
             }
             param_format(d, *vp, val, &unit);
-            draw_column(c, d->label, val, unit, VAL(c), RATIO(d, *vp), param_icon(d, *vp));
+            {
+                int32_t mv, mod = -1;                /* an LFO on the knob: its live value, as on EDIT */
+                if (lfo_live(TSEL, P_E0 + c, &mv))
+                    mod = RATIO(d, mv);
+                draw_column_m(c, d->label, val, unit, VAL(c), RATIO(d, *vp), param_icon(d, *vp), mod);
+            }
         }
         return;
     }

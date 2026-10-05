@@ -153,6 +153,20 @@ static void go_home(void)
     ui.force = 1;
 }
 
+static void home_step(void)                           /* HOME: the HOME screen -> COMP 2/3 -> COMP 3/3 -> HOME */
+{
+    if (ui.home) {
+        ui.page = (uint8_t)page_first(FAM_HOME);
+        ui.home = 0;
+        page_entered();
+    } else if (cur_page()->fam == FAM_HOME && ui.page + 1u < NPAGES && PAGES[ui.page + 1u].fam == FAM_HOME) {
+        ui.page++;
+        page_entered();
+    } else {
+        go_home();
+    }
+}
+
 /* --------------------------------------------- what a track shows --- */
 /* the STEP grid, PATTERN, the footer, TRACKS and the keys show a track's steps, or, when its SRC is a Grids
  * channel, that channel's pattern (read-only: Grids makes it) */
@@ -256,6 +270,12 @@ static void track_mute_toggle(uint32_t k)
 {
     if (k >= NTRK)
         return;
+    if (settings.mutebar) {                            /* on the next bar (seq.c; at once when stopped) */
+        fm1_irq_off();
+        song.mute_q ^= (uint8_t)(1u << k);
+        fm1_irq_on();
+        return;
+    }
     trk[k].p[P_MUTE] = (int16_t)!trk[k].p[P_MUTE];
     if (trk[k].p[P_MUTE])
         panic_req |= (uint8_t)(1u << k);

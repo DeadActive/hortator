@@ -60,16 +60,19 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 For each: what you should see / hear. Note anything different (page, knob, what happened).
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
   then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
-  REV/CHO, COMP 1/2 and 2/2, STEP, PATTERN, GLOBAL, SYSTEM, LFO 1/2 and 2/2,
+  REV/CHO, COMP (HOME 2/3 and 3/3: HOME pressed on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
+  GLOBAL 3/3 (MUTE NOW / BAR), LFO 1/2 and 2/2,
   PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
   `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
 - Every engine: PRESET on HOME steps through the 21 engines; each plays on its key.
+- HOME: a white key plays its track and selects it (the knobs and T<n> follow). An LFO on one of the HOME knobs
+  shows its live value as a small mark under that gauge, as on EDIT.
 - The demo kits: the kits in `tests/drumsim.c` (`KITS`) use other engines than the power-on kit. First set each
   track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with PRESET on HOME or MODEL
   on EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
-- Live recording: arm a track (REC on TRACKS), then go to another page (HOME, or the track's pages) and play its
-  key while running: the steps appear. (On TRACKS the keys are quick mutes.)
+- Live recording: arm a track (REC tap on TRACKS; on SEQ a REC tap only opens TRACKS), then go to another page
+  (HOME, or the track's pages) and play its key while running: the steps appear.
 - PROJECT: save to slot 1, change things, load slot 1: everything comes back.
 - The master knob changes the volume; the battery icon shows a level.
 
@@ -99,8 +102,12 @@ Report what you saw first; we'll go through it together.
   step rolls three hits.
 - ARP: GRIDS 1/2 (MODE X Y CHAOS; MODE EUCL: LEN K S H) and 2/2 (FIL K S H, routing line). PATTERN KNOB 4 SRC
   `G-KCK` / `G-SNR` / `G-HAT` makes a track follow Grids; its STEP grid shows the pattern, keys do nothing.
-- TRACKS (REC tap from HOME): white keys 1-8 mute / unmute their tracks (a muted track stops at once); the keys
-  of muted tracks are lit, and the row shows MUTE. On TRACKS the keys do not play; leave the page to play them.
+- TRACKS (REC tap from HOME or SEQ): a white key selects its track (no sound). Hold OCT-: the keys light for the
+  playing tracks, dark for the muted; a white key mutes / unmutes its track (a muted track stops at once), the
+  row shows MUTE. Release OCT-: the mute lights go.
+- Mute on the next bar: hold OCT- on TRACKS + the top D# (POLY): "MUTE: NEXT BAR"; while playing, a mute waits
+  for the next bar (its key blinks) and lands on the downbeat. OCT- + the top C# (MONO): "MUTE: NOW". The same
+  setting is GLOBAL 3/3 MUTE NOW / BAR; it survives a power cycle.
 - CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
   stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1
@@ -108,11 +115,12 @@ Report what you saw first; we'll go through it together.
 
 ### M3: COMP sidechain (check on the FM-1)
 
-- FX (after REV/CHO): COMP 1/2 (SRC THRSH RATIO REL) and 2/2 (ATK KNEE MKUP, the curve). SRC T1 with a kick pattern; on a COMP page the
+- HOME on the HOME screen: COMP (HOME 2/3: SRC THRSH RATIO REL), HOME again: 3/3 (ATK KNEE MKUP, the curve),
+  HOME again: back to HOME 1/3. FX no longer has the COMP pages. SRC T1 with a kick pattern; on a COMP page the
   white keys 2-8 light for the ducked tracks (key 1, the source, does not toggle). PLAY: the ducked tracks pump
   with the kick, the GR meter moves; REL longer = slower recovery; RATIO higher = deeper duck; MKUP raises the
   ducked tracks (at the end LIMIT).
-- Mute T1 (TRACKS quick mute): the kick is silent, the others still pump (ghost key).
+- Mute T1 (TRACKS, OCT- held + key 1): the kick is silent, the others still pump (ghost key).
 - SRC OFF: the mix sounds exactly as before M3.
 - SAVE / power cycle / LOAD: SRC, the COMP knobs and DUCK come back; an M2 project loads with COMP off.
 

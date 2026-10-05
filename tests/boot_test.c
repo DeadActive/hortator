@@ -145,7 +145,31 @@ static int boot(int kind, uint32_t seed, int seq)
         render_mix(0, 0, CTL * 64);
         ui_frame();
     }
-    return bounded && (seq ? safe_start && peak == 0 : !safe_start);
+    return bounded && settings.zoom <= 1u && settings.mutebar <= 1u && (seq ? safe_start && peak == 0 : !safe_start);
+}
+
+/* MUTE NEXT BAR (TRACKS) survives a power cycle beside ZOOM, in Felucca's settings format (zoom's bit 1) */
+static int mutebar_persists(void)
+{
+    int ok = 1;
+    uint32_t z, m;
+    for (z = 0; z < 2u; z++)
+        for (m = 0; m < 2u; m++) {
+            memset(hflash, 0xFF, sizeof hflash);
+            host_init();
+            persist_boot();                          /* finds the flash */
+            settings.magic = SETTINGS_MAGIC;
+            settings.palette = 4;
+            settings.lowcut = 0;
+            settings.zoom = z;
+            settings.mutebar = m;
+            settings_save();
+            rfill(&settings, sizeof settings);       /* power off: .noinit is anything */
+            persist_boot();
+            settings_init();
+            ok &= settings.zoom == z && settings.mutebar == m;
+        }
+    return ok;
 }
 
 /* an M1 project in flash ("FDR1") loads: its steps and settings; PROB 100 %, 1 hit, SRC STEP, Grids defaults */
@@ -248,6 +272,7 @@ int main(void)
     check("project: an M1 record (FDR1) loads with PROB 100 %, 1 hit, SRC STEP, Grids defaults", fdr1_converts());
     check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
+    check("settings: MUTE NEXT BAR and ZOOM survive a power cycle (Felucca's settings format)", mutebar_persists());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {

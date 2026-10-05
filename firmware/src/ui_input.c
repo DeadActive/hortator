@@ -28,6 +28,8 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
 
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 
+static int octdn_held(void) { return (int)((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u); }
+
 static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0};
@@ -58,9 +60,11 @@ static void ui_leds(void)
                 on = !on;
             led_put(nl, 14u + STEP_KEY[k], on);
         }
-    } else if (mix_mode()) {                          /* TRACKS: the muted tracks' keys */
+    } else if (mix_mode() && octdn_held()) {          /* TRACKS, OCT- held: the playing tracks' keys; a mute waiting
+                                                         * for the bar blinks */
+        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
         for (k = 0; k < NTRK; k++)
-            led_put(nl, 14u + KEY_TRK_KEY[k], trk[k].p[P_MUTE] != 0);
+            led_put(nl, 14u + KEY_TRK_KEY[k], ((song.mute_q >> k) & 1u) ? blink : trk[k].p[P_MUTE] == 0);
     } else if (comp_mode()) {                         /* COMP: the ducked tracks' keys */
         for (k = 0; k < NTRK; k++)
             led_put(nl, 14u + KEY_TRK_KEY[k], trk[k].p[P_DUCK] && k != comp_src());
@@ -123,6 +127,14 @@ static void tracks_edit(uint32_t slot, int32_t steps)
     t->p[id] = (int16_t)clamp(t->p[id] + accel(EN_K1 + slot, steps, TP[id].max - TP[id].min), TP[id].min, TP[id].max);
 }
 
+static void mute_bar_set(uint32_t on)                  /* TRACKS' mutes: at once / on the next bar (device setting) */
+{
+    settings.mutebar = on & 1u;
+    song.act[2] = (int16_t)settings.mutebar;
+    settings_save();
+    ui_message(settings.mutebar ? "MUTE: NEXT BAR" : "MUTE: NOW");
+}
+
 static void tracks_rec_tap(void)                       /* arm / disarm; arming while stopped starts play */
 {
     uint8_t bit = (uint8_t)(1u << song.sel);
@@ -156,6 +168,10 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     v = clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
     *vp = (int16_t)v;
+    if (pg->scope == SC_GLOBAL && id == G_MUTEBAR) {
+        mute_bar_set((uint32_t)v);
+        return;
+    }
     if (!v || pg->scope != SC_GLOBAL)
         return;
     if ((id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_CLRALL || id == G_INITALL) &&
@@ -258,10 +274,8 @@ static void ui_input(void)
     } else if (rec == BT_TAP && !ui.confirm) {
         if (fam == FAM_MIX)
             tracks_rec_tap();
-        else if (fam == FAM_SEQ)
-            song.rec ^= (uint8_t)(1u << song.sel);
         else
-            open_family(FAM_MIX);
+            open_family(FAM_MIX);                       /* arming is TRACKS' (a REC tap there) */
     }
     if (ui.confirm) {                                   /* OCT- cancels, OCT+ clears; nothing else reacts */
         if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
@@ -279,7 +293,8 @@ static void ui_input(void)
         return;
     }
     if (home == BT_TAP)
-        go_home();
+        home_step();
+    song.act[2] = (int16_t)settings.mutebar;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
         while (ui.page > page_first(FAM_SND) && page_hidden(ui.page))
@@ -339,16 +354,25 @@ static void ui_input(void)
                 step_hold(k);
             }
         }
-    } else if (mix_mode()) {
-        for (k = 0; k < NTRK; k++)                      /* TRACKS: a white key mutes / unmutes its track */
-            if ((notes >> KEY_TRK_KEY[k]) & 1u)
-                track_mute_toggle(k);
+    } else if (mix_mode()) {                            /* TRACKS: a white key selects its track; OCT- held: mutes
+                                                         * it, top C# / D# (MONO / POLY): mutes at once / next bar */
+        if (octdn_held() && ((notes >> 20) & 1u))
+            mute_bar_set(0);
+        if (octdn_held() && ((notes >> 22) & 1u))
+            mute_bar_set(1);
+        for (k = 0; k < NTRK; k++)
+            if ((notes >> KEY_TRK_KEY[k]) & 1u) {
+                if (octdn_held())
+                    track_mute_toggle(k);
+                else
+                    track_select(k);
+            }
     } else if (comp_mode()) {
         for (k = 0; k < NTRK; k++)                      /* COMP: a white key ducks / unducks its track */
             if ((notes >> KEY_TRK_KEY[k]) & 1u)
                 track_duck_toggle(k);
-    } else if (!ui.home && !ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ) {
-        for (k = 0; k < NTRK; k++)                      /* a per-track page: a white key selects its track */
+    } else if (ui.home || (!ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ)) {
+        for (k = 0; k < NTRK; k++)                      /* HOME, a per-track page: a white key selects its track */
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);
     }

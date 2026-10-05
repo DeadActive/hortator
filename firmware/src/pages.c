@@ -27,12 +27,13 @@ static const page_t PAGES[] = {
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},
     {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
-    {"COMP", FAM_FX, SC_GLOBAL, GR_COMP, {G_CSRC, G_CTHR, G_CRAT, G_CREL}},   /* keys: DUCK per track */
-    {"COMP", FAM_FX, SC_GLOBAL, GR_COMP, {G_CATK, G_CKNEE, G_CMKUP, 0xFF}},
+    {"COMP", FAM_HOME, SC_GLOBAL, GR_COMP, {G_CSRC, G_CTHR, G_CRAT, G_CREL}},   /* HOME 2/3; keys: DUCK per track */
+    {"COMP", FAM_HOME, SC_GLOBAL, GR_COMP, {G_CATK, G_CKNEE, G_CMKUP, 0xFF}},   /* HOME 3/3 */
     {"STEP", FAM_SEQ, SC_GRID, GR_GRID, {0xFF, 0xFF, 0xFF, 0xFF}},   /* KNOB 1: bank */
     {"PATTERN", FAM_SEQ, SC_TRACK, GR_STEPS, {P_SLEN, P_SDIV, P_SSWING, P_SRC}},
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_DRCH}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
+    {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MUTEBAR, 0xFF, 0xFF, 0xFF}},   /* device setting (settings.mutebar) */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_CLRALL, G_INITALL}},   /* track; all */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
@@ -44,7 +45,8 @@ static const page_t PAGES[] = {
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
-/* the button (and LED) of each family; the LAYER pages are EDIT's (OCT+ from SOUND); ENV and SCL are free */
+/* the button (and LED) of each family; the LAYER pages are EDIT's (OCT+ from SOUND), the COMP pages HOME's (HOME 2/3,
+ * 3/3); ENV and SCL are free */
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_REC};
 
 /* the EDIT list of track t: MODEL, its model's TUNE DECAY TONE and 4th knob, its extra knobs, then LVL PAN NOTE
@@ -87,9 +89,10 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     *valp = 0;
     if (id == 0xFFu || pg->scope == SC_GRID || pg->scope == SC_MIX)
         return 0;
-    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions */
-        *valp = &song.act[(id - G_COUNT) & 1u];
-        return &GP_ACT[(id - G_COUNT) & 1u];
+    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE */
+        id = id - G_COUNT < 3u ? id - G_COUNT : 0u;
+        *valp = &song.act[id];
+        return &GP_ACT[id];
     }
     if (pg->scope == SC_GLOBAL) {
         *valp = &song.g[id];

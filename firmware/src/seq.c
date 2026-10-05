@@ -234,6 +234,15 @@ static void events_block(uint32_t n)
     }
     pr = panic_req;
     panic_req = 0;
+    if (song.mute_q && (!song.playing || (gclk.pos + n >= grids_l16(gclk.cnt) && ((gclk.cnt + 1u) & 15u) == 0u))) {
+        for (i = 0; i < NTRK; i++)                  /* TRACKS' waiting mutes: before the bar's first steps */
+            if ((song.mute_q >> i) & 1u) {
+                trk[i].p[P_MUTE] = (int16_t)!trk[i].p[P_MUTE];
+                if (trk[i].p[P_MUTE])
+                    pr |= 1u << i;
+            }
+        song.mute_q = 0;
+    }
     for (i = 0; i < NTRK; i++)
         if ((pr >> i) & 1u)
             drum_cut(&trk[i]);

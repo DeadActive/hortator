@@ -97,8 +97,10 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CMKUP] = PD("MKUP", F_CMKUP, 0, 127, 0),
 };
 
-/* the TOOLS actions after G_COUNT (G_CLRALL, G_INITALL): their knob values are song.act, not song.g / projects */
-static const param_desc_t GP_ACT[2] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0)};
+/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE (G_MUTEBAR, the device setting
+ * settings.mutebar); their knob values are song.act, not song.g / projects */
+static const char *const N_MUTEBAR[] = {"NOW", "BAR"};
+static const param_desc_t GP_ACT[3] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0)};
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 {

@@ -400,23 +400,51 @@ static void test_grid_hold_track_change(void)
               !trk[0].step[20].on);
 }
 
-static void open_comp(int page2)                    /* FX until COMP 1/2 (or 2/2) shows */
+static void open_comp(int page2)                    /* HOME until COMP (HOME 2/3, or 3/3) shows */
 {
     uint32_t k;
-    for (k = 0; k < NPAGES && (ui.home || cur_page()->graph != GR_COMP || (cur_page()->id[0] == G_CATK) != page2); k++) {
-        press(B_FX);
+    for (k = 0; k < 8u && (ui.home || cur_page()->graph != GR_COMP || (cur_page()->id[0] == G_CATK) != page2); k++) {
+        press(B_HOME);
         ui_frame();
         release_all();
+        ui_frame();
     }
 }
 
 static void test_comp_pages(void)
 {
+    uint32_t k, pos, fx_comp = 0;
     ui_host_init();
+    for (k = 0; k < 12u; k++) {                      /* FX steps through its pages: COMP is not among them */
+        press(B_FX);
+        ui_frame();
+        release_all();
+        fx_comp |= !ui.home && cur_page()->graph == GR_COMP;
+    }
+    check("FX no longer reaches COMP", !fx_comp);
+    press(B_HOME);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("HOME from FX: the HOME screen (1/3)", ui.home);
+    press(B_HOME);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("HOME again: COMP (HOME 2/3: SRC THRSH RATIO REL)",
+          !ui.home && str_eq(cur_page()->title, "COMP") && cur_page()->fam == FAM_HOME && cur_page()->id[0] == G_CSRC &&
+              fam_pages(FAM_HOME, &pos) == 2u && pos == 1u && led_lit(panel.btn[B_HOME]));
+    press(B_HOME);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("HOME again: COMP (HOME 3/3: ATK KNEE MKUP)", !ui.home && cur_page()->id[0] == G_CATK);
+    press(B_HOME);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("HOME again: back to the HOME screen", ui.home);
     open_comp(0);
-    check("FX reaches COMP 1/2 (SRC THRSH RATIO REL), after REV/CHO",
-          str_eq(cur_page()->title, "COMP") && cur_page()->fam == FAM_FX && cur_page()->id[0] == G_CSRC &&
-              str_eq(PAGES[ui.page - 1u].title, "REV/CHO"));
     snap_page("comp/01_off");
     turn(EN_K1, 1);
     ui_frame();
@@ -465,10 +493,12 @@ static void test_comp_keys(void)
     song.g[G_CMKUP] = 127;                           /* MKUP at the end: Streams' limiter */
     seq_play_to(0, 5);
     snap_page("comp/04_limiter");
-    press(B_HOME);
-    ui_frame();
-    release_all();
-    ui_frame();
+    for (a = 0; a < 3u && !ui.home; a++) {           /* HOME steps on through COMP 3/3 to the HOME screen */
+        press(B_HOME);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
     a = hit_age(&trk[2]);
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
@@ -825,40 +855,104 @@ static void test_mixer_and_rec(void)
     release_all();
     ui_frame();
     check("TRACKS: REC tap arms the selected track and starts play", ((song.rec >> 1) & 1u) && song.playing);
+    ui_host_init();
+    seq_open("PATTERN");
+    press(B_REC);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("SEQ: REC tap opens TRACKS and arms nothing", !ui.home && cur_page()->fam == FAM_MIX && song.rec == 0u);
 }
 
-/* TRACKS: white keys 1..8 mute / unmute their tracks (a mute also cuts what is ringing); the key LEDs show the
- * muted tracks; elsewhere the keys play again and the mutes stay */
+/* TRACKS: a white key selects its track; with OCT- held the keys show the playing tracks (lit) and mute / unmute
+ * them (a mute also cuts what is ringing); OCT- + top C# / D# (MONO / POLY): mutes at once / on the next bar;
+ * elsewhere the keys play again and the mutes stay */
 static void test_quick_mute(void)
 {
-    uint32_t a, k, ok = 1;
+    uint32_t a, k, ok = 1, on = 0, off = 0;
     ui_host_init();
+    settings.mutebar = 0;
     press(B_REC);                                    /* HOME: a REC tap opens TRACKS */
     ui_frame();
     release_all();
     ui_frame();
-    drum_hit(&trk[2], 127);                          /* track 3 ringing */
+    trk[5].p[P_MUTE] = 1;
     a = hit_age(&trk[2]);
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
     keys(0);
     ui_frame();
-    for (k = 0; k < 4u; k++)
-        ui_frame();
-    check("TRACKS: white key 3 mutes track 3, does not play it, and cuts its ringing voice",
-          trk[2].p[P_MUTE] == 1 && hit_age(&trk[2]) == a && !trk[2].v[0].active && !trk[2].v[1].active);
+    check("TRACKS: white key 3 (no OCT-) selects track 3, does not mute or play it",
+          song.sel == 2 && trk[2].p[P_MUTE] == 0 && hit_age(&trk[2]) == a);
     for (k = 0; k < NTRK; k++)
-        ok &= led_lit(14u + KEY_TRK_KEY[k]) == (k == 2u);
-    check("TRACKS: the key LEDs light for the muted tracks only", ok);
-    snap_page("seq/23_tracks_mute_t3");
+        ok &= !led_lit(14u + KEY_TRK_KEY[k]);
+    check("TRACKS without OCT-: the keys show no mutes", ok);
+    press(B_OCTDN);                                  /* OCT- held from here */
+    ui_frame();
+    for (k = 0, ok = 1; k < NTRK; k++)
+        ok &= led_lit(14u + KEY_TRK_KEY[k]) == (k != 5u);
+    check("TRACKS, OCT- held: the keys light for the playing tracks, dark for the muted one", ok);
+    snap_page("seq/23_tracks_mute_hold");
+    drum_hit(&trk[2], 127);                          /* track 3 ringing */
+    a = hit_age(&trk[2]);
+    keys(1u << KEY_TRK_KEY[2]);
+    ui_frame();
+    keys(0);
+    for (k = 0; k < 5u; k++)
+        ui_frame();
+    check("OCT- + key 3 mutes track 3 (LED dark), does not play it, cuts its ringing voice",
+          trk[2].p[P_MUTE] == 1 && hit_age(&trk[2]) == a && !trk[2].v[0].active && !trk[2].v[1].active &&
+              !led_lit(14u + KEY_TRK_KEY[2]));
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("TRACKS: key 3 again unmutes track 3 (LED off)", trk[2].p[P_MUTE] == 0 && !led_lit(14u + KEY_TRK_KEY[2]));
-    keys(1u << KEY_TRK_KEY[5]);
+    check("OCT- + key 3 again unmutes it (LED lit)", trk[2].p[P_MUTE] == 0 && led_lit(14u + KEY_TRK_KEY[2]));
+    keys(1u << 22);                                  /* top D# (POLY) */
     ui_frame();
     keys(0);
+    ui_frame();
+    check("OCT- + top D#: mutes on the next bar", settings.mutebar == 1u && str_eq(ui.msg, "MUTE: NEXT BAR"));
+    transport_req = 1;
+    seq_play_to(0, 2);
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("next bar: OCT- + key 1 while playing waits (track 1 not muted yet)", trk[0].p[P_MUTE] == 0);
+    for (k = 0; k < 40u; k++) {                      /* 2 s, 50 ms frames */
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+        if (led_lit(14u + KEY_TRK_KEY[0]))
+            on++;
+        else
+            off++;
+    }
+    check("the waiting mute's key blinks", on > 5u && off > 5u && trk[0].p[P_MUTE] == 0);
+    seq_play_to(0, 15);
+    check("still waiting on the bar's last step", trk[0].p[P_MUTE] == 0);
+    seq_play_to(0, 0);
+    check("at the bar (track 1's step 1): track 1 muted", trk[0].p[P_MUTE] == 1);
+    keys(1u << 20);                                  /* top C# (MONO) */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("OCT- + top C#: mutes at once", settings.mutebar == 0u && str_eq(ui.msg, "MUTE: NOW"));
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("NOW: OCT- + key 1 while playing unmutes at once", trk[0].p[P_MUTE] == 0);
+    transport_req = 2;
+    ui_frame();
+    settings.mutebar = 1;
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("NEXT BAR but stopped: a mute is at once", trk[3].p[P_MUTE] == 1);
+    settings.mutebar = 0;
+    release_all();
     ui_frame();
     press(B_HOME);                                   /* HOME: keys play again; track 6 stays muted */
     ui_frame();
@@ -871,6 +965,54 @@ static void test_quick_mute(void)
     ui_frame();
     check("leaving TRACKS: the keys play again, the mutes stay", hit_age(&trk[0]) != a && trk[5].p[P_MUTE] == 1 &&
                                                                  trk[0].p[P_MUTE] == 0);
+}
+
+/* HOME: a white key selects its track and plays it; an LFO on a HOME knob shows its live value on the gauge */
+static void test_home_keys_and_lfo(void)
+{
+    uint32_t a, x, y, amb;
+    ui_host_init();
+    a = hit_age(&trk[3]);
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("HOME: white key 4 selects track 4 and plays it", ui.home && song.sel == 3 && hit_age(&trk[3]) != a);
+    for (y = Y_GAUGE - 6u, amb = 0; y < Y_SEP_END; y++)
+        for (x = 64; x < 120u; x++)   /* column 2 */
+            amb += fb[y * 240u + x] == C_AMB;
+    check("HOME: no LFO, no marker on the gauges", amb == 0u);
+    TSEL->p[P_LFO1 + LF_WAVE] = LW_SQUARE;
+    TSEL->p[P_LFO1 + LF_MODE] = LM_HZ;
+    TSEL->p[P_LFO1 + LF_RATE] = 60;
+    TSEL->p[P_LFO1 + LF_DEST] = 2;                   /* the engine's 2nd knob: HOME's second column */
+    TSEL->p[P_LFO1 + LF_DEPTH] = 40;
+    for (a = 0; a < 50u; a++)
+        ui_frame();
+    for (y = Y_GAUGE - 6u, amb = 0; y < Y_SEP_END; y++)
+        for (x = 64; x < 120u; x++)   /* column 2 */
+            amb += fb[y * 240u + x] == C_AMB;
+    check("HOME: an LFO on the second knob marks its live value on that gauge", amb > 0u);
+    snap_page("lfo/91_home_marker");
+}
+
+/* GLOBAL 3/3: MUTE NOW / BAR, the same device setting as OCT- + C# / D# on TRACKS */
+static void test_global_mute_setting(void)
+{
+    uint32_t k;
+    ui_host_init();
+    settings.mutebar = 0;
+    for (k = 0; k < 6u && (ui.home || cur_page()->id[0] != G_MUTEBAR); k++)
+        tap(B_GLO);
+    check("GLO reaches GLOBAL 3/3 with MUTE", !ui.home && str_eq(cur_page()->title, "GLOBAL") &&
+                                                  cur_page()->id[0] == G_MUTEBAR && ui.page == page_first(FAM_GLO) + 2u);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("GLOBAL 3/3: KNOB 1 -> BAR (the setting)", settings.mutebar == 1u);
+    snap_page("global_3_mute");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("GLOBAL 3/3: KNOB 1 back -> NOW", settings.mutebar == 0u);
 }
 
 static void test_clear_confirm(void)
@@ -989,8 +1131,8 @@ static void test_screens(void)
         char *d;
         const char *c;
         for (k = 0; k < NPAGES && (cur_page() != pg || ui.home); k++) {   /* its button until it shows */
-            if (pg->fam == FAM_MIX) {
-                press(B_REC);                        /* REC opens TRACKS on release */
+            if (pg->fam == FAM_MIX || pg->fam == FAM_HOME) {
+                press(pg->fam == FAM_MIX ? B_REC : B_HOME);   /* REC opens TRACKS, HOME steps to COMP, on release */
                 ui_frame();
                 release_all();
             } else if (pg->fam == FAM_LAY) {         /* the layer: OCT+ from EDIT, then EDIT steps */
@@ -1420,11 +1562,11 @@ static void test_key_selects_track(void)
         }
     }
     check("a white key on a per-track page selects its track (and plays it); global / sequencer pages keep it", ok);
-    ui_host_init();                                  /* HOME: keys play, the selection stays */
+    ui_host_init();                                  /* HOME: keys select (and play), as SOUND / FX */
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
     keys(0);
-    check("HOME: a white key plays its track, the selection stays", song.sel == 0);
+    check("HOME: a white key selects its track", song.sel == 2);
 }
 
 int main(void)
@@ -1447,6 +1589,8 @@ int main(void)
     test_bank_follows_len();
     test_mixer_and_rec();
     test_quick_mute();
+    test_home_keys_and_lfo();
+    test_global_mute_setting();
     test_comp_pages();
     test_comp_keys();
     test_tools_all();
