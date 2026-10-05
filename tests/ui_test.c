@@ -17,7 +17,7 @@ static void seq_open(const char *title);
 static void test_families(void)
 {
     static const struct { uint32_t btn; uint32_t fam; } MAP[] = {
-        {B_EDIT, FAM_SND}, {B_LFO, FAM_LAY}, {B_FX, FAM_FX},
+        {B_EDIT, FAM_SND}, {B_FX, FAM_FX},
         {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS},
     };
     uint32_t i, ok = 1;
@@ -28,14 +28,17 @@ static void test_families(void)
         release_all();
         ok &= !ui.home && cur_page()->fam == MAP[i].fam;
     }
-    check("buttons open their page families (EDIT SOUND, LFO LAYER, FX, SEQ, GLO, SAVE, ARP GRIDS)", ok);
+    check("buttons open their page families (EDIT SOUND, FX, SEQ, GLO, SAVE, ARP GRIDS)", ok);
     press(B_ENV);
     ui_frame();
     release_all();
     press(B_SCL);
     ui_frame();
     release_all();
-    check("ENV and SCL do nothing (free)", !ui.home && cur_page()->fam == FAM_GRIDS);
+    press(B_LFO);
+    ui_frame();
+    release_all();
+    check("ENV, SCL and LFO do nothing (free)", !ui.home && cur_page()->fam == FAM_GRIDS);
     press(B_EDIT);
     ui_frame();
     release_all();
@@ -529,6 +532,55 @@ static void test_tools_all(void)
     check("TOOLS INIT*: the volume knob's level is kept", song.master_q12 == 900u);
 }
 
+/* the sample layer lives in EDIT: OCT+ on a SOUND page opens LAYER 1/2, EDIT steps LAYER 1/2 <-> 2/2 (the EDIT
+ * LED blinks), OCT- goes back to the SOUND page it came from; EDIT from elsewhere opens SOUND */
+static void tap(uint32_t b)
+{
+    press(b);
+    ui_frame();
+    release_all();
+    ui_frame();
+}
+
+static void test_layer_in_edit(void)
+{
+    uint32_t k, on = 0, off = 0;
+    ui_host_init();
+    tap(B_EDIT);
+    tap(B_EDIT);                                     /* SOUND 2/3 */
+    k = ui.page;
+    tap(B_OCTUP);
+    check("EDIT: OCT+ opens LAYER 1/2", str_eq(cur_page()->title, "LAYER") && cur_page()->id[0] == P_LSET);
+    for (k = 0; k < 40u; k++) {                      /* the EDIT LED blinks while in the layer (2 s, 50 ms frames) */
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+        if (led_lit(panel.btn[B_EDIT]))
+            on++;
+        else
+            off++;
+    }
+    check("LAYER: the EDIT LED blinks", on > 5u && off > 5u);
+    snap_page("layer_in_edit");
+    tap(B_EDIT);
+    check("LAYER: EDIT steps to LAYER 2/2", str_eq(cur_page()->title, "LAYER") && cur_page()->id[0] == P_LDEC);
+    tap(B_EDIT);
+    check("LAYER: EDIT again back to LAYER 1/2", cur_page()->id[0] == P_LSET);
+    tap(B_OCTDN);
+    check("LAYER: OCT- back to the SOUND page it came from (2/3)", str_eq(cur_page()->title, "SOUND") &&
+                                                                      ui.page == page_first(FAM_SND) + 1u);
+    ui_frame();
+    check("SOUND: the EDIT LED is steady again", led_lit(panel.btn[B_EDIT]));
+    tap(B_OCTUP);
+    keys(1u << KEY_TRK_KEY[2]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("LAYER: a white key selects its track (as on SOUND)", song.sel == 2 && str_eq(cur_page()->title, "LAYER"));
+    tap(B_FX);
+    tap(B_EDIT);
+    check("EDIT from another section opens SOUND, not the layer", str_eq(cur_page()->title, "SOUND"));
+}
+
 static void test_grid_keys(void)
 {
     uint32_t a;
@@ -797,6 +849,9 @@ static void test_screens(void)
                 press(B_REC);                        /* REC opens TRACKS on release */
                 ui_frame();
                 release_all();
+            } else if (pg->fam == FAM_LAY) {         /* the layer: OCT+ from EDIT, then EDIT steps */
+                press(ui.home || (cur_page()->fam != FAM_SND && cur_page()->fam != FAM_LAY) ? B_EDIT
+                      : cur_page()->fam == FAM_SND ? B_OCTUP : B_EDIT);
             } else {
                 press(FAM_BTN[pg->fam]);
             }
@@ -1199,7 +1254,7 @@ static int key_selects(const char *title, uint32_t fam_btn, uint32_t presses)
 static void test_key_selects_track(void)
 {
     static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
-        {"SOUND", B_EDIT, 1, 1}, {"LAYER", B_LFO, 1, 1},
+        {"SOUND", B_EDIT, 1, 1},
         {"FX", B_FX, 1, 1}, {"SLICER", B_FX, 2, 1}, {"DLY", B_FX, 3, 0}, {"PATTERN", B_SEQ, 2, 0},
     };
     uint32_t i, ok = 1;
@@ -1241,6 +1296,7 @@ int main(void)
     test_comp_pages();
     test_comp_keys();
     test_tools_all();
+    test_layer_in_edit();
     test_clear_confirm();
     test_oct_both_reaches_main();
     test_tracks_rows();

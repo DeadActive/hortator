@@ -41,8 +41,8 @@ static const page_t PAGES[] = {
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
-/* the button of each family (ENV and SCL have none: free) */
-static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_LFO, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_REC};
+/* the button (and LED) of each family; the LAYER pages are EDIT's (OCT+ from SOUND); ENV, SCL and LFO are free */
+static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_REC};
 
 /* the EDIT list of track t: MODEL, its model's TUNE DECAY TONE and 4th knob, its extra knobs, then LVL PAN NOTE
  * CHOKE (at most 16); returns how many */

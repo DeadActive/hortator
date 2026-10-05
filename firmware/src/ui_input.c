@@ -43,7 +43,8 @@ static void ui_leds(void)
         led_pos_init();
         ready = 1;
     }
-    led_put(nl, panel.btn[FAM_BTN[fam]], 1);
+    led_put(nl, panel.btn[FAM_BTN[fam]],                /* LAYER: EDIT blinks, 250 ms on / off */
+            fam != FAM_LAY || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u);
     if (grid_mode()) {                                /* the bank's steps; the playhead inverted */
@@ -298,15 +299,21 @@ static void ui_input(void)
         case B_HOME:                                    /* tap / hold: above */
             break;
         case B_OCTDN:
-        case B_OCTUP:                                   /* the STEP grid's bank; elsewhere nothing */
-            if (grid_mode())
+        case B_OCTUP:                                   /* the STEP grid's bank; EDIT: into / out of the layer */
+            if (grid_mode()) {
                 bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
+            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_SND) {
+                ui.fam_last[FAM_LAY] = 0;               /* LAYER 1/2 */
+                open_family(FAM_LAY);
+            } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LAY) {
+                open_family(FAM_SND);                   /* the SOUND page it came from */
+            }
             break;
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_MIX)
-                    open_family(f);
+                if (FAM_BTN[f] == b && f != FAM_MIX && f != FAM_LAY)
+                    open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }
         }

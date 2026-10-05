@@ -58,7 +58,8 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 
 ## 5. Hands-on
 For each: what you should see / hear. Note anything different (page, knob, what happened).
-- Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER, FX, SLICER, DLY,
+- Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
+  then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
   REV/CHO, COMP 1/2 and 2/2, STEP, PATTERN, GLOBAL, SYSTEM,
   PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
   `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
