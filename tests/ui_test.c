@@ -18,7 +18,7 @@ static void test_families(void)
 {
     static const struct { uint32_t btn; uint32_t fam; } MAP[] = {
         {B_EDIT, FAM_SND}, {B_FX, FAM_FX},
-        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS},
+        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS}, {B_LFO, FAM_LFO},
     };
     uint32_t i, ok = 1;
     ui_host_init();
@@ -28,17 +28,14 @@ static void test_families(void)
         release_all();
         ok &= !ui.home && cur_page()->fam == MAP[i].fam;
     }
-    check("buttons open their page families (EDIT SOUND, FX, SEQ, GLO, SAVE, ARP GRIDS)", ok);
+    check("buttons open their page families (EDIT SOUND, FX, SEQ, GLO, SAVE, ARP GRIDS, LFO LFO)", ok);
     press(B_ENV);
     ui_frame();
     release_all();
     press(B_SCL);
     ui_frame();
     release_all();
-    press(B_LFO);
-    ui_frame();
-    release_all();
-    check("ENV, SCL and LFO do nothing (free)", !ui.home && cur_page()->fam == FAM_GRIDS);
+    check("ENV and SCL do nothing (free)", !ui.home && cur_page()->fam == FAM_LFO);
     press(B_EDIT);
     ui_frame();
     release_all();
@@ -579,6 +576,78 @@ static void test_layer_in_edit(void)
     tap(B_FX);
     tap(B_EDIT);
     check("EDIT from another section opens SOUND, not the layer", str_eq(cur_page()->title, "SOUND"));
+}
+
+static void test_lfo_pages(void)
+{
+    uint32_t w;
+    char v[12];
+    const char *u;
+    ui_host_init();
+    tap(B_LFO);
+    check("LFO opens LFO 1/4 (WAVE RATE MORPH DEPTH of LFO 1)",
+          str_eq(cur_page()->title, "LFO") && cur_page()->id[0] == P_LFO1 + LF_WAVE && cur_page()->id[3] == P_LFO1 + LF_DEPTH);
+    param_format(&TP[P_LFO1 + LF_RATE], 23, v, &u);
+    check("LFO RATE in SYNC: 23 = 1BAR", str_eq(v, "1BAR"));
+    tap(B_OCTUP);
+    param_format(&TP[P_LFO1 + LF_RATE], 127, v, &u);
+    check("OCT+ on an LFO page: LFO 1 -> Hz (RATE 127 = 40.0 Hz)",
+          TSEL->p[P_LFO1 + LF_MODE] == LM_HZ && str_eq(v, "40.0") && str_eq(u, "Hz"));
+    tap(B_OCTUP);
+    param_format(&TP[P_LFO1 + LF_RATE], 0, v, &u);
+    check("OCT+ again: TIME (RATE 0 = 25 ms)", TSEL->p[P_LFO1 + LF_MODE] == LM_TIME && str_eq(v, "25") && str_eq(u, "ms"));
+    tap(B_OCTUP);
+    check("OCT+ again: back to SYNC", TSEL->p[P_LFO1 + LF_MODE] == LM_SYNC);
+    tap(B_LFO);
+    check("LFO again: LFO 2/4 (DEST TRIG PHASE)", cur_page()->id[0] == P_LFO1 + LF_DEST);
+    turn(EN_K1, 3);
+    ui_frame();
+    param_format(&TP[P_LFO1 + LF_DEST], TSEL->p[P_LFO1 + LF_DEST], v, &u);
+    check("LFO DEST shows the track's knob by its label (K909: DEST 3 = SWEEP)", str_eq(v, "SWEEP"));
+    tap(B_LFO);
+    tap(B_OCTUP);
+    check("LFO 3/4 is LFO 2: OCT+ switches LFO 2's mode only",
+          cur_page()->id[0] == P_LFO2 + LF_WAVE && TSEL->p[P_LFO2 + LF_MODE] == LM_HZ && TSEL->p[P_LFO1 + LF_MODE] == LM_SYNC);
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("LFO pages: a white key selects its track", song.sel == 3);
+    for (w = 0; w < LW_COUNT; w++) {                 /* every waveform's page, LFO 1 on TONE, playing */
+        char name[40];
+        ui_host_init();
+        TSEL->p[P_LFO1 + LF_WAVE] = (int16_t)w;
+        TSEL->p[P_LFO1 + LF_MORPH] = 64;
+        TSEL->p[P_LFO1 + LF_DEST] = 3;
+        TSEL->p[P_LFO1 + LF_DEPTH] = 40;
+        tap(B_LFO);
+        transport_req = 1;
+        seq_play_to(0, 3);
+        {
+            uint32_t j;
+            snprintf(name, sizeof name, "lfo/%02u_%s", (unsigned)w, N_LWAVE[w]);
+            for (j = 4; name[j]; j++)                /* file names: S&H -> SnH, EXP+ -> EXPu, EXP- -> EXPd */
+                name[j] = name[j] == '&' ? 'n' : name[j] == '+' ? 'u' : name[j] == '-' ? 'd' : name[j];
+        }
+        snap_page(name);
+    }
+}
+
+/* the EDIT gauge marker: a modulated knob shows its live value */
+static void test_lfo_edit_marker(void)
+{
+    int32_t mv = -1;
+    ui_host_init();
+    TSEL->p[P_LFO1 + LF_WAVE] = LW_SQUARE;
+    TSEL->p[P_LFO1 + LF_MODE] = LM_HZ;
+    TSEL->p[P_LFO1 + LF_RATE] = 60;
+    TSEL->p[P_LFO1 + LF_DEST] = 2;                   /* DECAY */
+    TSEL->p[P_LFO1 + LF_DEPTH] = 40;
+    tap(B_EDIT);
+    render_mix(0, 0, CTL * 50);
+    check("EDIT: a modulated knob reports its live value (for the gauge marker)",
+          lfo_live(TSEL, P_E1, &mv) && mv != TSEL->p[P_E1]);
+    snap_page("lfo/90_edit_marker");
 }
 
 static void test_grid_keys(void)
@@ -1307,6 +1376,8 @@ int main(void)
     test_comp_keys();
     test_tools_all();
     test_layer_in_edit();
+    test_lfo_pages();
+    test_lfo_edit_marker();
     test_clear_confirm();
     test_oct_both_reaches_main();
     test_tracks_rows();

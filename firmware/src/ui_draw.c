@@ -99,8 +99,8 @@ static void draw_frame(void)
 }
 
 #define LABEL_X (FELUCCA_ICONS ? ICON_CELL + ICON_GAP : 0)
-static void draw_column(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
-                        int32_t ratio, uint32_t icon)
+static void draw_column_m(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
+                          int32_t ratio, uint32_t icon, int32_t mod)
 {
     char l[8], v[8], u[8], key[32];
     int32_t x, gw = 52, fx;
@@ -119,7 +119,8 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2);
         key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
         key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);
-        key[n + 3] = 0;
+        key[n + 3] = (char)(' ' + (mod < 0 ? 0 : 1 + mod / 20));
+        key[n + 4] = 0;
     }
     if (c == ui.hot_col) {
         str_cpy(ui.focus_l, l, 8);
@@ -141,8 +142,16 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         cv_rect(0, gy + 1, gw, 1, C_LINE);
         cv_rect(0, gy, fx, 3, C_DIM);
         cv_rect(fx, gy - 1, 1, 5, vc == C_WHITE ? C_WHITE : C_HI);
+        if (mod >= 0)                                 /* an LFO on this knob: its live value */
+            cv_rect(mod * gw / 1000, gy + 4, 2, 2, C_AMB);
     }
     cv_blit(c * 60u + 4u, Y_LABEL);
+}
+
+static void draw_column(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
+                        int32_t ratio, uint32_t icon)
+{
+    draw_column_m(c, label, val, unit, vc, ratio, icon, -1);
 }
 
 static uint32_t steps_hash(const track_t *t)
@@ -539,6 +548,53 @@ static void graph_comp(uint16_t c, int curve)
     }
 }
 
+/* LFO pages: one cycle of the wave (as morphed, phase-shifted) with the live position; the rate mode; on the second
+ * page of an LFO the routing and TRIG */
+static void graph_lfo(uint16_t c, uint32_t l, int routing)
+{
+    static const int32_t PREV[8] = {9000, -20000, 26000, -4000, 15000, -27000, 3000, 21000};   /* random waves' sketch */
+    const track_t *t = TSEL;
+    const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
+    uint32_t wave = (uint32_t)clamp(q[LF_WAVE], 0, LW_COUNT - 1), k, off = (uint32_t)clamp(q[LF_PHASE], 0, 127) << 25;
+    int32_t m = clamp(q[LF_MORPH], 0, 127), px;
+    char b[24];
+    str_cpy(b, l ? "LFO 2" : "LFO 1", sizeof b);
+    cv_text(4, 2, &FONT_S, b, C_WHITE);
+    str_cpy(b, "RATE: ", sizeof b);
+    str_cpy(b + str_len(b), N_LMODE[clamp(q[LF_MODE], 0, 2)], sizeof b - str_len(b));
+    cv_text(4, 22, &FONT_S, b, C_GRAY);
+    cv_rect(100, 40, 136, 1, C_LINE);
+    for (k = 0, px = 0; k < 136u; k++) {             /* px: the previous point's y (joined: no gaps at edges) */
+        uint32_t ph = k * (0xFFFFFFFFu / 136u) + off;
+        int32_t y = lfo_shape(wave, m, ph), py;
+        if (wave == LW_SH || wave == LW_WANDER || wave == LW_RWALK) {   /* a sketch: 8 points, joined as the wave */
+            int32_t a0 = PREV[((ph >> 29) + 7u) & 7u], a1 = PREV[(ph >> 29) & 7u], f = (int32_t)((ph >> 14) & 0x7FFFu), sf;
+            if (wave == LW_SH)
+                f = m ? clamp(f * 127 / m, 0, 32767) : 32767;
+            else if (wave == LW_WANDER)
+                sf = sine_i((uint32_t)f << 15), f = sf * sf >> 15;
+            y = a0 + (int32_t)((int64_t)(a1 - a0) * f >> 15);
+        }
+        py = 40 - y * 34 / 32767;
+        if (!k)
+            px = py;
+        cv_rect(100 + (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, c);
+        px = py;
+    }
+    px = (int32_t)(t->lfo[l].ph / (0xFFFFFFFFu / 136u));
+    cv_rect(100 + px - 2, 40 - lfo_out(t, l) * 34 / 32767 - 2, 5, 5, C_WHITE);
+    if (routing) {
+        const param_desc_t *d = q[LF_DEST] ? track_desc(t, lfo_dest_param((uint32_t)clamp(q[LF_DEST], 1, 10))) : 0;
+        str_cpy(b, "-> ", sizeof b);
+        str_cpy(b + 3, d && d->label && d->label[0] != '-' ? d->label : "OFF", sizeof b - 3);
+        str_cpy(b + str_len(b), " ", sizeof b - str_len(b));
+        fmt_int(b + str_len(b), clamp(q[LF_DEPTH], -64, 64) * 100 / 64);
+        str_cpy(b + str_len(b), "%", sizeof b - str_len(b));
+        cv_text(4, 84, &FONT_S, b, C_AMB);
+        cv_text(170, 84, &FONT_S, N_LTRIG[clamp(q[LF_TRIG], 0, 2)], C_GRAY);
+    }
+}
+
 static uint32_t graph_signature(void)
 {
     const page_t *pg = cur_page();
@@ -578,6 +634,10 @@ static uint32_t graph_signature(void)
         h ^= ui.page * 389u;
         if (comp_on())
             h ^= ((uint32_t)(-comp.gr) >> 7) * 2654435761u + (uint32_t)meter_px(comp.peak) * 40503u;
+    }
+    if (pg->graph == GR_LFO) {
+        uint32_t l = pg->id[0] >= P_LFO2;
+        h ^= ui.page * 389u + (t->lfo[l].ph >> 26) * 2654435761u + (uint32_t)(lfo_out(t, l) >> 10) * 40503u;
     }
     return h;
 }
@@ -623,6 +683,9 @@ static void draw_graph(void)
             break;
         case GR_COMP:
             graph_comp(c, pg->id[0] == G_CATK);
+            break;
+        case GR_LFO:
+            graph_lfo(c, pg->id[0] >= P_LFO2, (pg->id[0] - P_LFO1) % LF_N == LF_DEST);
             break;
         case GR_SLOTS:
             cv_oy = 0;
@@ -760,8 +823,13 @@ static void draw_columns(void)
         } else {
             param_format(d, *vp, val, &unit);
         }
-        draw_column(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
-                    param_icon(d, *vp));
+        {
+            int32_t mv, mod = -1;
+            if (pg->scope == SC_TRACK && lfo_live(TSEL, page_id(pg, c), &mv))
+                mod = RATIO(d, mv);
+            draw_column_m(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+                          param_icon(d, *vp), mod);
+        }
     }
 }
 

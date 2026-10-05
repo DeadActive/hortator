@@ -307,6 +307,10 @@ static void ui_input(void)
                 open_family(FAM_LAY);
             } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LAY) {
                 open_family(FAM_SND);                   /* the SOUND page it came from */
+            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_LFO) {   /* the page's LFO: SYNC -> Hz -> TIME */
+                int16_t *mp = &TSEL->p[(cur_page()->id[0] >= P_LFO2 ? P_LFO2 : P_LFO1) + LF_MODE];
+                *mp = (int16_t)((clamp(*mp, 0, 2) + 1) % 3);
+                ui.force = 1;
             }
             break;
         default: {
