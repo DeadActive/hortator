@@ -150,7 +150,7 @@ static uint32_t steps_hash(const track_t *t)
 {
     uint32_t h = 2166136261u, i;
     for (i = 0; i < NSTEP; i++)
-        h = (h ^ (t->step[i].on + t->step[i].acc * 2u)) * 16777619u;
+        h = (h ^ (t->step[i].on + t->step[i].acc * 2u + t->step[i].cond * 4u + t->step[i].rat * 256u)) * 16777619u;
     return h ^ (uint32_t)t->p[P_SLEN] * 7919u;
 }
 
@@ -171,6 +171,20 @@ static void graph_model(const track_t *t, uint16_t c)
         cv_text(6, 70, &FONT_S, "+ SAMPLE LAYER", C_AMB);
 }
 
+/* a step's bar: hatched (every third row dark) when its PROB is not 100 %; RATCH > 1: that many ticks above */
+static void step_bar(int32_t x, int32_t y, int32_t w, int32_t h, const step_t *st, uint16_t col, int32_t tick)
+{
+    int32_t r;
+    if (st->cond) {
+        for (r = 0; r < h; r += 3)
+            cv_rect(x, y + r, w, r + 2 <= h ? 2 : 1, col);
+    } else {
+        cv_rect(x, y, w, h, col);
+    }
+    for (r = 0; st->rat && r <= st->rat; r++)
+        cv_rect(x + r * tick, y - 4, tick > 2 ? tick - 1 : 1, 2, col);
+}
+
 /* PATTERN page: 4 rows of 16 steps over LEN; accent tall, playhead white */
 static void graph_steps(const track_t *t, uint16_t c)
 {
@@ -179,7 +193,7 @@ static void graph_steps(const track_t *t, uint16_t c)
         int32_t x = 6 + (int32_t)(i % 16u) * 14 + (int32_t)(i % 16u) / 4 * 4, y = 6 + (int32_t)(i / 16u) * 24;
         const step_t *st = &t->step[i];
         if (st->on)
-            cv_rect(x, st->acc ? y : y + 4, 2, st->acc ? 14 : 10, st->acc ? C_WHITE : c);
+            step_bar(x, st->acc ? y : y + 4, 2, st->acc ? 14 : 10, st, st->acc ? C_WHITE : c, 3);
         else
             cv_rect(x, y + 13, 2, 1, C_DIM);
         if (song.playing && i == t->seq_idx)
@@ -201,7 +215,7 @@ static void graph_grid(const track_t *t, uint16_t c)
             continue;
         }
         if (st->on)
-            cv_rect(x, st->acc ? y : y + 10, 11, st->acc ? 40 : 30, st->acc ? C_WHITE : c);
+            step_bar(x, st->acc ? y : y + 10, 11, st->acc ? 40 : 30, st, st->acc ? C_WHITE : c, 3);
         else
             cv_rect(x, y + 36, 11, 4, C_DIM);
         if (song.playing && si == t->seq_idx)
@@ -212,7 +226,20 @@ static void graph_grid(const track_t *t, uint16_t c)
     fmt_int(b + str_len(b), (int32_t)bank_count());
     cv_text(4, 4, &FONT_S, "BANK", C_GRAY);
     cv_text(48, 4, &FONT_S, b, C_HI);
-    cv_text(4, 84, &FONT_S, "TAP: ON/OFF  HOLD: ACCENT", C_DIM);
+    if (ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] != 0xFFFFu) {   /* a step held: its settings */
+        const step_t *hs = &t->step[ui.step_si[ui.held]];
+        char h[32], cs[8];
+        str_cpy(h, "STEP ", sizeof h);
+        fmt_int(h + str_len(h), (int32_t)ui.step_si[ui.held] + 1);
+        str_cpy(h + str_len(h), "  ", sizeof h - str_len(h));
+        cond_format(hs->cond, cs);
+        str_cpy(h + str_len(h), cs, sizeof h - str_len(h));
+        str_cpy(h + str_len(h), "  RATCH ", sizeof h - str_len(h));
+        fmt_int(h + str_len(h), (int32_t)hs->rat + 1);
+        cv_text(4, 84, &FONT_S, h, C_WHITE);
+    } else {
+        cv_text(4, 84, &FONT_S, "TAP: ON/OFF  HOLD: ACCENT", C_DIM);
+    }
 }
 
 static void graph_fx(const track_t *t, uint16_t c)
@@ -392,6 +419,7 @@ static uint32_t graph_signature(void)
             h ^= (uint32_t)project_used(i) << (20u + i);
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
         h ^= steps_hash(t) + (song.playing ? t->seq_idx + 1u : 0u) * 31u;
+        h ^= (ui.held < 16u && ui.step_t0[ui.held] ? ui.held + 1u : 0u) * 977u;
     return h;
 }
 

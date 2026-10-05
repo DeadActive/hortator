@@ -43,7 +43,8 @@ static struct {
     uint32_t rec_t0;             /* REC press time (btn_hold) */
     uint32_t step_t0[16];        /* STEP grid: a white key's press time (as btn_hold: bit1 = the hold acted) */
     uint16_t step_si[16];        /* the step it pressed, 0xFFFF none */
-    uint8_t step_was[16];        /* that step before the press: bit0 on, bit1 accent */
+    step_t step_prev[16];        /* that step before the press (a hold or a knob turn restores it) */
+    uint8_t held;                /* the grid key pressed last (valid while step_t0[held] is set) */
     uint8_t confirm;             /* 1 = "clear track n?" */
     uint8_t confirm_trk;
     char msg[24];
@@ -118,8 +119,8 @@ static void bank_fix(void)                             /* LEN shortened (knob, p
         bank_set((int32_t)bank_count() - 1);
 }
 
-/* key k of the grid pressed: step bank * 16 + k turns on / off (an accented step off), inside LEN only; its
- * state before is kept for a hold (step_hold) */
+/* key k of the grid pressed: step bank * 16 + k turns on, or off (then plain again: no accent, PROB 100 %,
+ * 1 hit), inside LEN only; the step before the press is kept for a hold / a knob turn */
 static void step_press(uint32_t k)
 {
     uint32_t si = ui.bank * 16u + k;
@@ -129,20 +130,25 @@ static void step_press(uint32_t k)
         return;
     s = &TSEL->step[si];
     ui.step_si[k] = (uint16_t)si;
-    ui.step_was[k] = (uint8_t)(s->on | s->acc << 1);
-    s->on = !s->on;
-    s->acc = 0;
+    ui.step_prev[k] = *s;
+    if (s->on) {
+        memset(s, 0, sizeof *s);
+    } else {
+        s->on = 1;
+        s->acc = 0;
+    }
 }
 
-/* key k held STEP_HOLD: the step's accent flips from before the press, and the step is on */
+/* key k held STEP_HOLD: the step as before the press, on, its accent flipped */
 static void step_hold(uint32_t k)
 {
     step_t *s;
     if (k >= 16u || ui.step_si[k] == 0xFFFFu)
         return;
     s = &TSEL->step[ui.step_si[k]];
+    *s = ui.step_prev[k];
     s->on = 1;
-    s->acc = (uint8_t)!((ui.step_was[k] >> 1) & 1u);
+    s->acc = (uint8_t)!ui.step_prev[k].acc;
 }
 
 static void track_clear(track_t *t) { memset(t->step, 0, sizeof t->step); }

@@ -75,6 +75,30 @@ static int32_t accel(uint32_t role, int32_t s, int32_t range)
     return s;
 }
 
+/* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH. The first turn of a hold cancels the hold's accent
+ * flip: the step is as before the press, and on. A held key outside LEN takes the turn and does nothing. */
+static int step_edit(uint32_t knob, int32_t steps)
+{
+    uint32_t k = ui.held;
+    step_t *s;
+    if (knob > 1u || k >= 16u || !ui.step_t0[k])
+        return 0;
+    if (ui.step_si[k] == 0xFFFFu)
+        return 1;
+    s = &TSEL->step[ui.step_si[k]];
+    if (!(ui.step_t0[k] & 4u)) {
+        *s = ui.step_prev[k];
+        s->on = 1;
+        ui.step_t0[k] |= 6u;                          /* edited: no hold accent from now on */
+    }
+    if (knob == 0u)
+        s->cond = (uint8_t)cond_store((uint32_t)clamp((int32_t)cond_pos(s->cond) + accel(EN_K1, steps, COND_MAX), 0,
+                                                      (int32_t)COND_MAX));
+    else
+        s->rat = (uint8_t)clamp((int32_t)s->rat + (steps > 0 ? 1 : -1), 0, 3);
+    return 1;
+}
+
 /* TRACKS mixer: KNOB 1 TRACK, 2 LEVEL (a muted track: the first turn unmutes), 3 LEN, 4 PAN */
 static void tracks_edit(uint32_t slot, int32_t steps)
 {
@@ -269,10 +293,11 @@ static void ui_input(void)
             uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off, a hold flips its accent */
             if ((notes >> STEP_KEY[k]) & 1u) {
                 step_press(k);
-                *t0 = (now | 1u) & ~2u;
+                *t0 = (now | 1u) & ~6u;
+                ui.held = (uint8_t)k;
             } else if (!((fm1_in.notes >> STEP_KEY[k]) & 1u)) {
                 *t0 = 0;
-            } else if (*t0 && !(*t0 & 2u) && now - (*t0 & ~3u) > STEP_HOLD_MS * 1000u * FM1_TICKS_PER_US) {
+            } else if (*t0 && !(*t0 & 2u) && now - (*t0 & ~7u) > STEP_HOLD_MS * 1000u * FM1_TICKS_PER_US) {
                 *t0 |= 2u;
                 step_hold(k);
             }
@@ -294,6 +319,8 @@ static void ui_input(void)
         const page_t *pg = cur_page();
         int16_t *hv;
         if ((s = panel_enc(EN_K1 + k)) == 0)
+            continue;
+        if (grid_mode() && step_edit(k, s))
             continue;
         if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || page_desc(pg, k, &hv)) {
             ui.hot_col = (uint8_t)k;

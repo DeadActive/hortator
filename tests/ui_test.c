@@ -162,6 +162,73 @@ static void test_grid_hold_accent(void)
     }
 }
 
+static void snap_page(const char *name);
+
+/* a step key held + KNOB n (n = 0 PROB, 1 RATCH) turned `steps` detents, slowly, then let go */
+static void grid_hold_turn(uint32_t key, uint32_t knob, int32_t steps)
+{
+    int32_t i;
+    keys(1u << key);
+    ui_frame();
+    for (i = 0; i < (steps < 0 ? -steps : steps); i++) {
+        turn(EN_K1 + knob, steps < 0 ? -1 : 1);
+        host_ticks += 100u * 1000u * FM1_TICKS_PER_US;   /* 0.1 s apart: no acceleration */
+        ui_frame();
+    }
+}
+
+static void test_grid_step_edit(void)
+{
+    step_t *s = &trk[0].step[4];
+    ui_host_init();
+    open_step_page();
+    grid_hold(WHITE[4], 600);                        /* on, accented */
+    grid_hold_turn(WHITE[4], 0, -5);                 /* 100 % -> 75 % */
+    check("hold + KNOB 1: PROB of the held step (100 % -> 75 %); its accent stays, no accent flip from the hold",
+          s->on && s->acc && s->cond == cond_store(15) && ui.bank == 0);
+    snap_page("seq/20_step_held_prob");
+    keys(0);
+    ui_frame();
+    grid_hold_turn(WHITE[4], 1, 2);
+    keys(0);
+    ui_frame();
+    check("hold + KNOB 2: RATCH of the held step (1 -> 3 hits)", s->rat == 2 && s->on && s->acc);
+    grid_hold_turn(WHITE[6], 0, 3);                  /* an off step: on, 100 % -> 1-SHOT -> 1/2 -> 2/2 */
+    keys(0);
+    ui_frame();
+    check("hold + KNOB 1 on an off step turns it on (no accent): PROB past 100 % gives 1-SHOT, 1/2, 2/2",
+          trk[0].step[6].on && !trk[0].step[6].acc && trk[0].step[6].cond == 23);
+    grid_hold(WHITE[6], 0);
+    check("a tap turning a step off resets its PROB / RATCH", !trk[0].step[6].on && trk[0].step[6].cond == 0);
+    grid_hold(WHITE[4], 600);                        /* accent off by hold: PROB / RATCH kept */
+    check("a hold flips the accent and keeps PROB / RATCH", s->on && !s->acc && s->cond == cond_store(15) && s->rat == 2);
+    trk[0].p[P_SLEN] = 24;                           /* two banks; on bank 2 keys 9..16 are outside LEN */
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    grid_hold_turn(WHITE[12], 0, -2);                /* step 29: outside LEN */
+    keys(0);
+    ui_frame();
+    check("hold + KNOB 1 on a key outside LEN edits nothing and does not turn the bank",
+          ui.bank == 1 && trk[0].step[28].cond == 0 && !trk[0].step[28].on);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    trk[0].p[P_SLEN] = 16;
+    trk[0].step[0].on = 1;
+    trk[0].step[0].cond = 33;                        /* 3/5 */
+    trk[0].step[8].on = trk[0].step[8].acc = 1;
+    trk[0].step[8].rat = 3;
+    trk[0].step[12].on = 1;
+    trk[0].step[12].cond = (uint8_t)cond_store(10);
+    trk[0].step[12].rat = 1;
+    ui.force = 1;
+    snap_page("seq/21_step_prob_ratch");
+    open_step_page();                                /* PATTERN */
+    snap_page("seq/22_pattern_prob_ratch");
+}
+
 static void test_grid_keys(void)
 {
     uint32_t a;
@@ -794,6 +861,7 @@ int main(void)
     test_safe_start();
     test_key_selects_track();
     test_grid_hold_accent();
+    test_grid_step_edit();
     test_engine_screens();
     test_seq_screens();
     test_families();
