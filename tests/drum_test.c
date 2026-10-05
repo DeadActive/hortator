@@ -1406,7 +1406,7 @@ static void test_grids_clock(void)
     host_init();
     play();
     render_mix(0, 0, 16 * p - p / 4);
-    check("Grids: MAP steps are 1/32s: 32 steps in 16 sixteenths", gclk.cnt == 31u && grids.step == 0u);
+    check("Grids: MAP steps are 1/32s: 32 steps in 16 sixteenths", gclk.cnt == 15u && gclk.half && grids.step == 0u);
 }
 
 /* two tracks on G-SNR play the same hits; their own steps are silent meanwhile; SRC back: the steps play in sync */
@@ -1478,6 +1478,40 @@ static void test_grids_rec_skip(void)
           hit_age(&trk[0]) != a && !trk[0].step[1].on && !trk[0].step[2].on);
 }
 
+/* review #1: BPM turned while playing (120 -> 240 -> 90, with swing): Grids stays on the 1/16 grid of the step
+ * tracks (it used to drift: each 1/32 half took its own tempo) */
+static void test_grids_tempo_ramp(void)
+{
+    uint32_t f, a0, a1, n = 0, same = 1, bpm = 120;
+    host_init();
+    song.g[G_SWING] = 30;
+    song.g[G_GMODE] = 1;
+    song.g[G_GLEN1] = 1;
+    song.g[G_GFILL1] = 127;                          /* G-KCK: a hit every 1/16 */
+    trk[0].p[P_SRC] = 1;
+    trk[1].p[P_SLEN] = 1;
+    trk[1].step[0].on = 1;                           /* a 1/16 step track */
+    play();
+    a0 = hit_age(&trk[0]);
+    a1 = hit_age(&trk[1]);
+    for (f = 0; f < 20u * FS; f += CTL) {
+        uint32_t h0, h1;
+        if ((f / CTL) % 97u == 0u) {                 /* a knob sweep: one BPM step every 97 blocks */
+            bpm = bpm >= 240u ? 90u : bpm + 3u;
+            song.g[G_BPM] = (int16_t)bpm;
+        }
+        render_mix(0, 0, CTL);
+        h0 = hit_age(&trk[0]) != a0;
+        h1 = hit_age(&trk[1]) != a1;
+        same &= h0 == h1;
+        n += h1;
+        a0 = hit_age(&trk[0]);
+        a1 = hit_age(&trk[1]);
+    }
+    printf("     BPM sweep 120..240..90, swing 30: %u sixteenths\n", n);
+    check("Grids: BPM turned while playing, Grids hits stay on the 1/16 step track's blocks", same && n > 100u);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1541,6 +1575,7 @@ int main(void)
     test_grids_follow();
     test_grids_repeat();
     test_grids_rec_skip();
+    test_grids_tempo_ramp();
     test_accent();
     test_kicks();
     test_model_change();

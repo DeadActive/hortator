@@ -27,15 +27,26 @@ static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
     return period + (uint32_t)((cnt & 1u) ? -sw : sw);
 }
 
-/* Grids' clock: a 1/32 per Grids step, counted since PLAY; the global swing makes every other 1/16 long (as on a
- * 1/16 step track) and each 1/16 is two equal 1/32s */
-static struct { uint32_t pos, cnt; } gclk;
-static uint32_t grids_samples(uint32_t cnt)
+/* Grids' clock: one Grids step per 1/32, counted on the 1/16 grid exactly as a 1/16 step track (no track swing)
+ * counts its steps: the global swing makes every other 1/16 long; the even 1/32 plays at the 1/16, the odd one at
+ * its half. So a tempo change keeps Grids on the step tracks' 1/16s, and no Grids step is ever skipped (the chaos
+ * sequence stays the original's). */
+static struct { uint32_t pos, cnt; uint8_t half; } gclk;   /* samples into the 1/16, 1/16s since PLAY, odd 1/32 done */
+static uint32_t grids_l16(uint32_t cnt)
 {
     uint32_t p16 = div_samples(2u);
     int32_t sw = song.g[G_SWING] * (int32_t)p16 / 250;
-    uint32_t l16 = p16 + (uint32_t)(((cnt >> 1) & 1u) ? -sw : sw);
-    return (cnt & 1u) ? l16 - l16 / 2u : l16 / 2u;
+    return p16 + (uint32_t)((cnt & 1u) ? -sw : sw);
+}
+
+static void grids_fire(void)                        /* one Grids step: the tracks on a channel that fired play */
+{
+    uint32_t bits = grids_step(), i;
+    for (i = 0; bits & 7u && i < NTRK; i++) {       /* accent 127, else 96 */
+        uint32_t ch = (uint32_t)trk[i].p[P_SRC];
+        if (ch >= 1u && ch <= 3u && ((bits >> (ch - 1u)) & 1u))
+            drum_hit(&trk[i], ((bits >> (ch + 2u)) & 1u) ? 127u : 96u);
+    }
 }
 
 static void grids_tick(uint32_t n)
@@ -44,17 +55,19 @@ static void grids_tick(uint32_t n)
         return;
     gclk.pos += n;
     for (;;) {
-        uint32_t cur = grids_samples(gclk.cnt), bits, i;
-        if (gclk.pos < cur && gclk.pos != 0x7FFFFFFFu + n)
-            break;
-        gclk.pos = gclk.pos >= 0x7FFFFFFFu ? 0 : gclk.pos - cur;
-        gclk.cnt++;
-        bits = grids_step();
-        for (i = 0; bits & 7u && i < NTRK; i++) {    /* the tracks on a channel that fired: accent 127, else 96 */
-            uint32_t ch = (uint32_t)trk[i].p[P_SRC];
-            if (ch >= 1u && ch <= 3u && ((bits >> (ch - 1u)) & 1u))
-                drum_hit(&trk[i], ((bits >> (ch + 2u)) & 1u) ? 127u : 96u);
+        uint32_t l16 = grids_l16(gclk.cnt);
+        int start = gclk.pos == 0x7FFFFFFFu + n;    /* PLAY: the first 1/16 starts in this block */
+        if (!start && !gclk.half && gclk.pos >= l16 / 2u) {
+            gclk.half = 1;                          /* the odd 1/32 */
+            grids_fire();
+            continue;
         }
+        if (gclk.pos < l16 && !start)
+            break;
+        gclk.pos = start ? 0 : gclk.pos - l16;
+        gclk.cnt++;
+        gclk.half = 0;
+        grids_fire();                               /* the even 1/32, on the 1/16 */
     }
 }
 
