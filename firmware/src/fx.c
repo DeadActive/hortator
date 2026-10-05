@@ -208,7 +208,8 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
                 b[i] = clamp((int32_t)(((int64_t)b[i] * comp.gain[i]) >> 16), -(1 << 19), 1 << 19);
         }
         for (i = 0; i < n; i++) {
-            int32_t x = ((b[i] >> 2) * lvl) >> 10, a = x < 0 ? -x : x;   /* pre-shift: 8 loud voices */
+            int32_t x = clamp(((b[i] >> 2) * lvl) >> 10, -524287, 524287), a = x < 0 ? -x : x;   /* pre-shift: 8 loud
+                                                         * voices; the clamp: x * gl (Q12) fits (COMP makeup) */
             int32_t xs = clamp(x, -xmax, xmax);         /* sends: mulq15 would overflow */
             if (a > pk)
                 pk = a;
@@ -253,8 +254,8 @@ static void mix_block(int32_t *out, uint32_t n)
     }
     fx_buses(send_c, send_d, send_r, wet, n);
     for (i = 0; i < n; i++) {
-        int32_t l = (((mix_l[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;
-        int32_t r = (((mix_r[i] + wet[i]) >> 2) * (int32_t)song.master_q12) >> 10;
+        int32_t l = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * (int32_t)song.master_q12) >> 10;
+        int32_t r = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * (int32_t)song.master_q12) >> 10;   /* fits Q12 */
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
