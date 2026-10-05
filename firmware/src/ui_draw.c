@@ -572,9 +572,9 @@ static void lfo_trail(void)
 }
 
 /* LFO pages: the LFO's name; one cycle of the wave (as morphed, phase-shifted) with the live position, or for the
- * random waves a scope (the live value at the right edge, its trail to the left); the rate mode; on the second page
- * the routing and TRIG */
-static void graph_lfo(uint16_t c, uint32_t l, int routing)
+ * random waves a scope (the live value at the right edge, its trail to the left); the rate mode; the routing and
+ * TRIG */
+static void graph_lfo(uint16_t c, uint32_t l)
 {
     const track_t *t = TSEL;
     const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
@@ -607,7 +607,7 @@ static void graph_lfo(uint16_t c, uint32_t l, int routing)
         px = (int32_t)(t->lfo[l].ph / (0xFFFFFFFFu / 136u));
         cv_rect(100 + px - 2, 40 - lfo_out(t, l) * 34 / 32767 - 2, 5, 5, C_WHITE);
     }
-    if (routing) {
+    {
         const param_desc_t *d = q[LF_DEST] ? track_desc(t, lfo_dest_param((uint32_t)clamp(q[LF_DEST], 1, 10))) : 0;
         str_cpy(b, "-> ", sizeof b);
         str_cpy(b + 3, d && d->label && d->label[0] != '-' ? d->label : "OFF", sizeof b - 3);
@@ -713,7 +713,7 @@ static void draw_graph(void)
             graph_comp(c, pg->id[0] == G_CATK);
             break;
         case GR_LFO:
-            graph_lfo(c, song.lsel & 1u, pg->id[0] == P_LFO1 + LF_DEST);
+            graph_lfo(c, song.lsel & 1u);
             break;
         case GR_SLOTS:
             cv_oy = 0;

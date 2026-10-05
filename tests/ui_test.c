@@ -13,6 +13,7 @@ static int check(const char *what, int ok)
 static void snap_page(const char *name);
 static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
+static uint32_t fb_lit(uint32_t y0, uint32_t y1);
 
 static void test_families(void)
 {
@@ -694,6 +695,8 @@ static void test_lfo_trail(void)
     check("LFO S&H trail: full width, made of the LFO's values, several steps", ui.tr_n == 136u && ok && distinct >= 3u);
     y = (uint32_t)(Y_GRAPH + G_OY + 40 - lfo_out(TSEL, 0) * 34 / 32767);
     check("LFO S&H: the dot at the right edge at the live value", fb[y * 240u + 235u] == C_WHITE);
+    check("LFO 1/2 shows the routing and TRIG too (the line under the picture)",
+          ui.page == page_first(FAM_LFO) && fb_lit(Y_GRAPH + G_OY + 84u, Y_GRAPH + G_OY + 96u) > 20u);
     snap_page("lfo/trail_SnH");
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
