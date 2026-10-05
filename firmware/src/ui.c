@@ -215,6 +215,39 @@ static void step_hold(uint32_t k)
 
 static void track_clear(track_t *t) { memset(t->step, 0, sizeof t->step); }
 
+/* TOOLS CLR*: every track's pattern cleared and its pattern settings (LEN DIV SWG SRC) at default; sounds, FX,
+ * Grids, COMP and the globals untouched */
+static void seq_clear_all(void)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++) {
+        track_t *t = &trk[k];
+        track_clear(t);
+        t->p[P_SLEN] = TP[P_SLEN].def;
+        t->p[P_SDIV] = TP[P_SDIV].def;
+        t->p[P_SSWING] = TP[P_SSWING].def;
+        t->p[P_SRC] = TP[P_SRC].def;
+    }
+    ui.bank = 0;
+    ui.force = 1;
+}
+
+/* TOOLS INIT*: everything at power-on (the default kit, sounds, patterns, FX, Grids, COMP, BPM): stopped, nothing
+ * armed; saved projects and the device settings untouched */
+static void init_all(void)
+{
+    uint32_t master = song.master_q12;                  /* the volume knob's level (main.c reads it), kept */
+    transport_req = 2;
+    fm1_irq_off();                                      /* the audio ISR must not see half a kit */
+    drum_tracks_init();
+    song.master_q12 = master;
+    song.playing = 0;
+    song.rec = 0;
+    fm1_irq_on();
+    ui.bank = 0;
+    ui.force = 1;
+}
+
 /* TRACKS: white key k mutes / unmutes track k; a mute also cuts what it is playing (declicked, in the ISR) */
 static void track_mute_toggle(uint32_t k)
 {

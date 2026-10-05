@@ -114,3 +114,9 @@ Report what you saw first; we'll go through it together.
 - Mute T1 (TRACKS quick mute): the kick is silent, the others still pump (ghost key).
 - SRC OFF: the mix sounds exactly as before M3.
 - SAVE / power cycle / LOAD: SRC, the COMP knobs and DUCK come back; an M2 project loads with COMP off.
+
+### TOOLS (check on the FM-1)
+
+- SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second
+  detent within ~1.5 s ("AGAIN: ..." first). `CLR*`: every pattern empty, LEN 16 / DIV 1/16, sounds unchanged.
+  `INIT*`: the power-on kit and settings, playback stopped; saved projects still load.

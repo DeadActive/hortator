@@ -157,7 +157,8 @@ static void edit_param(uint32_t slot, int32_t steps)
     *vp = (int16_t)v;
     if (!v || pg->scope != SC_GLOBAL)
         return;
-    if ((id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND) && ui.arm != id) {
+    if ((id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_CLRALL || id == G_INITALL) &&
+        ui.arm != id) {
         *vp = 0;                                      /* one detent arms, a second one within ~1.5 s acts */
         ui.arm = (uint8_t)id;
         ui.arm_t = 90;
@@ -178,6 +179,16 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
         track_clear(TSEL);
         ui_message("PATTERN CLEARED");
+        break;
+    case G_CLRALL:
+        *vp = 0;
+        seq_clear_all();
+        ui_message("ALL PATTERNS CLEARED");
+        break;
+    case G_INITALL:
+        *vp = 0;
+        init_all();
+        ui_message("ALL INIT");
         break;
     case G_INITSND:
         *vp = 0;

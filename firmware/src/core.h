@@ -56,6 +56,7 @@ enum {                          /* global parameters */
     G_CATK, G_CKNEE, G_CMKUP,                        /* attack, soft knee, makeup (127 = limiter) */
     G_COUNT
 };
+enum { G_CLRALL = G_COUNT, G_INITALL };          /* TOOLS actions: shown like globals, not stored (no project change) */
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {                 /* sample playback state (eng_sample.c sample_next, dm_sample.c) */

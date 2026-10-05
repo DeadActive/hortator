@@ -475,6 +475,60 @@ static void test_comp_keys(void)
     check("leaving COMP: the keys play again", hit_age(&trk[2]) != a);
 }
 
+/* TOOLS: CLR* clears every pattern and its settings (sounds untouched); INIT* puts everything at power-on;
+ * both arm on the first detent and act on the second */
+static void test_tools_all(void)
+{
+    uint32_t k;
+    ui_host_init();
+    drum_set_model(&trk[2], DM_CONGA);
+    trk[2].p[P_E0] = 7;
+    trk[2].p[P_LEVEL] = 90;
+    trk[2].p[P_DIST] = 50;
+    trk[2].step[3].on = 1;
+    trk[2].step[3].cond = 33;
+    trk[2].p[P_SLEN] = 12;
+    trk[2].p[P_SDIV] = 1;
+    trk[2].p[P_SSWING] = 40;
+    trk[2].p[P_SRC] = 2;
+    trk[5].step[0].on = 1;
+    song.g[G_BPM] = 140;
+    song.g[G_GX] = 99;
+    song.g[G_CSRC] = 3;
+    for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "TOOLS")); k++) {
+        press(B_SAVE);
+        ui_frame();
+        release_all();
+    }
+    turn(EN_K1 + 2, 1);
+    ui_frame();
+    check("TOOLS CLR*: the first detent only arms", trk[2].step[3].on && trk[5].step[0].on);
+    turn(EN_K1 + 2, 1);
+    ui_frame();
+    check("TOOLS CLR*: every pattern cleared, LEN 16 / DIV 1/16 / SWG 0 / SRC STEP",
+          !trk[2].step[3].on && trk[2].step[3].cond == 0 && !trk[5].step[0].on && trk[2].p[P_SLEN] == 16 &&
+              trk[2].p[P_SDIV] == TP[P_SDIV].def && trk[2].p[P_SSWING] == 0 && trk[2].p[P_SRC] == 0);
+    check("TOOLS CLR*: sounds, FX, Grids, COMP and BPM untouched",
+          trk[2].p[P_MODEL] == DM_CONGA && trk[2].p[P_E0] == 7 && trk[2].p[P_LEVEL] == 90 && trk[2].p[P_DIST] == 50 &&
+              song.g[G_BPM] == 140 && song.g[G_GX] == 99 && song.g[G_CSRC] == 3);
+    snap_page("tools_all");
+    transport_req = 1;
+    ui_frame();
+    song.rec = 4u;
+    song.master_q12 = 900;
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    check("TOOLS INIT*: the first detent only arms", trk[2].p[P_MODEL] == DM_CONGA);
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    ui_frame();
+    check("TOOLS INIT*: everything at power-on (kit, sounds, BPM, Grids, COMP), stopped, nothing armed",
+          (uint32_t)trk[2].p[P_MODEL] == KIT_DEF[2][0] && trk[2].p[P_LEVEL] == TP[P_LEVEL].def && trk[2].p[P_DIST] == 0 &&
+              song.g[G_BPM] == GP[G_BPM].def && song.g[G_GX] == GP[G_GX].def && song.g[G_CSRC] == 0 &&
+              !song.playing && song.rec == 0 && song.sel == 0);
+    check("TOOLS INIT*: the volume knob's level is kept", song.master_q12 == 900u);
+}
+
 static void test_grid_keys(void)
 {
     uint32_t a;
@@ -1186,6 +1240,7 @@ int main(void)
     test_quick_mute();
     test_comp_pages();
     test_comp_keys();
+    test_tools_all();
     test_clear_confirm();
     test_oct_both_reaches_main();
     test_tracks_rows();
