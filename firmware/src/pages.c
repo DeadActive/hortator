@@ -3,9 +3,9 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Drum UI pages: a family per page button (pressing it again steps through its pages), and what
  * the four knobs edit on each page. */
-enum { FAM_HOME, FAM_SND, FAM_TRK, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS, FAM_MIX, FAM_COUNT };
+enum { FAM_HOME, FAM_SND, FAM_TRK, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS, FAM_COMP, FAM_MIX, FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX };   /* knobs edit: the selected track, song.g, the STEP grid, the mixer */
-enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS };
+enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS, GR_COMP };
 
 typedef struct {
     const char *title;
@@ -32,12 +32,14 @@ static const page_t PAGES[] = {
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, 0xFF}},
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GFILL1, G_GFILL2, G_GFILL3, 0xFF}},
+    {"COMP", FAM_COMP, SC_GLOBAL, GR_COMP, {G_CSRC, G_CTHR, G_CAMT, G_CREL}},   /* keys: DUCK per track */
+    {"COMP", FAM_COMP, SC_GLOBAL, GR_COMP, {G_CATK, G_CKNEE, 0xFF, 0xFF}},
     {"TRACKS", FAM_MIX, SC_MIX, GR_MIX, {0xFF, 0xFF, 0xFF, 0xFF}},   /* TRACK LEVEL LEN PAN */
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
-/* the button of each family (SCL has none) */
-static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_ENV, B_LFO, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_REC};
+/* the button of each family */
+static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_ENV, B_LFO, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_SCL, B_REC};
 
 /* the parameter of a column: GRIDS 1/2 in EUCLID mode turns LEN K / S / H where MAP has X / Y / CHAOS */
 static uint32_t page_id(const page_t *pg, uint32_t slot)

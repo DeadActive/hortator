@@ -1564,7 +1564,7 @@ static void test_comp_formats(void)
     int ok;
     host_init();
     param_format(&GP[G_CTHR], GP[G_CTHR].def, v, &u);
-    ok = !strcmp(v, "-24.0") && !strcmp(u, "dB");
+    ok = !strcmp(v, "-24") && !strcmp(u, "dB");                  /* whole dB from -10 down: the column fits */
     param_format(&GP[G_CAMT], GP[G_CAMT].def, v, &u);
     ok &= !strcmp(v, "3.9") && !strcmp(u, ":1");
     param_format(&GP[G_CAMT], 0, v, &u);
@@ -1581,7 +1581,7 @@ static void test_comp_formats(void)
     ok &= !strcmp(v, "151") && !strcmp(u, "ms");
     param_format(&GP[G_CSRC], 1, v, &u);
     ok &= !strcmp(v, "T1");
-    check("COMP columns: THRSH -24.0 dB, AMNT 3.9:1 / 1.0:1 / LIMIT (THRSH 127) / +5.0 dB (THRSH 0, AMNT 80), ATK 1.1 ms, REL 151 ms, SRC T1", ok);
+    check("COMP columns: THRSH -24 dB, AMNT 3.9:1 / 1.0:1 / LIMIT (THRSH 127) / +5.0 dB (THRSH 0, AMNT 80), ATK 1.1 ms, REL 151 ms, SRC T1", ok);
 }
 
 /* a kick on T1 (the COMP source) under a long cymbal on T2: T2's peak (post LEVEL) right after the kick and later,
@@ -1709,6 +1709,24 @@ static void test_comp_extremes(void)
     check("COMP extremes (THRSH 0 / 127 x AMNT 100 / 127, all tracks ducked and busy): output bounded", ok);
 }
 
+/* COMP values under 1 dB keep their leading zero ("-0.1", "0.0", "+0.5") */
+static void test_comp_db_text(void)
+{
+    char v[12];
+    const char *u;
+    int ok;
+    comp_fmt_db10(v, 0);
+    ok = !strcmp(v, "0.0");
+    comp_fmt_db10(v, -1);
+    ok &= !strcmp(v, "-0.1");
+    comp_fmt_db10(v, -103);
+    ok &= !strcmp(v, "-10.3");
+    host_init();
+    param_format(&GP[G_CTHR], 127, v, &u);
+    ok &= !strcmp(v, "-0.1");
+    check("COMP dB values keep the leading zero (0.0, -0.1, -10.3; THRSH 127 = -0.1)", ok);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1745,6 +1763,7 @@ int main(void)
     test_cond_codes();
     test_comp_engine();
     test_comp_formats();
+    test_comp_db_text();
     test_comp_ducks();
     test_comp_off_identical();
     test_comp_source_not_ducked();

@@ -131,10 +131,15 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     case F_TIME:
         fmt_ms10(val, unit, TIME_MS_X10[v & 127]);
         break;
-    case F_CTHR:
-        fmt_fix(val, comp_thr_dbx10(v), 1);
+    case F_CTHR: {                                    /* whole dB from -10 down (the column fits "-24 dB") */
+        int32_t d = comp_thr_dbx10(v);
+        if (d <= -100)
+            fmt_int(val, (d - 5) / 10);
+        else
+            comp_fmt_db10(val, d);
         *unit = "dB";
         break;
+    }
     case F_CAMT:
         comp_amount_text(v, song.g[G_CTHR], val, unit);
         break;

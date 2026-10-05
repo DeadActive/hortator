@@ -145,7 +145,7 @@ static void keyboard_block(void)
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, i;
     kb_prev = cur;
     if (song.seq_mode)
-        ch &= ~cur;                                 /* the STEP grid / TRACKS mutes (ui_input.c) own presses; releases
+        ch &= ~cur;                                 /* the STEP grid / TRACKS mutes / COMP ducks (ui_input.c) own presses; releases
                                                      * still send their note-off (no hung notes) */
     for (i = 0; ch && i < NTRK; i++) {
         uint32_t k = KEY_TRK_KEY[i], note = (uint32_t)trk[i].p[P_NOTE] & 127u;

@@ -79,6 +79,7 @@ static void ui_message(const char *s) { ui_say(s, ""); }
 
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
 static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
+static int comp_mode(void) { return !ui.home && !ui.menu && cur_page()->fam == FAM_COMP; }   /* COMP: keys DUCK */
 
 /* a held grid key lets go of its step (another track or page): keys still held edit nothing, flip no accent */
 static void grid_drop_holds(void)
@@ -94,7 +95,7 @@ static void grid_drop_holds(void)
 static void page_entered(void)
 {
     grid_drop_holds();
-    song.seq_mode = (uint8_t)(grid_mode() || mix_mode());   /* seq.c: the keys belong to the grid / the mutes */
+    song.seq_mode = (uint8_t)(grid_mode() || mix_mode() || comp_mode());   /* seq.c: the keys belong to the grid / the mutes */
     ui.hot_t = 0;
     ui.force = 1;
 }
@@ -227,6 +228,13 @@ static void track_mute_toggle(uint32_t k)
     trk[k].p[P_MUTE] = (int16_t)!trk[k].p[P_MUTE];
     if (trk[k].p[P_MUTE])
         panic_req |= (uint8_t)(1u << k);
+}
+
+/* COMP: white key k turns DUCK of track k on / off (not the source's: it is never ducked) */
+static void track_duck_toggle(uint32_t k)
+{
+    if (k < NTRK && k != comp_src())
+        trk[k].p[P_DUCK] = (int16_t)!trk[k].p[P_DUCK];
 }
 
 /* --------------------------------------------------- track, model --- */

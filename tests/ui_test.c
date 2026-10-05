@@ -18,7 +18,7 @@ static void test_families(void)
 {
     static const struct { uint32_t btn; uint32_t fam; } MAP[] = {
         {B_EDIT, FAM_SND}, {B_ENV, FAM_TRK}, {B_LFO, FAM_LAY}, {B_FX, FAM_FX},
-        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS},
+        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS}, {B_SCL, FAM_COMP},
     };
     uint32_t i, ok = 1;
     ui_host_init();
@@ -28,11 +28,11 @@ static void test_families(void)
         release_all();
         ok &= !ui.home && cur_page()->fam == MAP[i].fam;
     }
-    check("buttons open their page families (EDIT SOUND, ENV TRACK, LFO LAYER, FX, SEQ, GLO, SAVE, ARP GRIDS)", ok);
+    check("buttons open their page families (EDIT SOUND, ENV TRACK, LFO LAYER, FX, SEQ, GLO, SAVE, ARP GRIDS, SCL COMP)", ok);
     press(B_SCL);
     ui_frame();
     release_all();
-    check("SCL does nothing", !ui.home && cur_page()->fam == FAM_GRIDS);
+    check("SCL opens COMP", !ui.home && cur_page()->fam == FAM_COMP);
     press(B_EDIT);
     ui_frame();
     release_all();
@@ -375,6 +375,76 @@ static void test_grid_hold_track_change(void)
     check("a held step key, then another track (ALGO): the new track's steps are untouched (also outside its LEN)",
           song.sel == 1 && !memcmp(&trk[1].step[20], &before, sizeof before) && trk[0].step[20].cond == 0 &&
               !trk[0].step[20].on);
+}
+
+static void test_comp_pages(void)
+{
+    ui_host_init();
+    press(B_SCL);
+    ui_frame();
+    release_all();
+    check("SCL opens COMP 1/2 (SRC THRSH AMNT REL)", str_eq(cur_page()->title, "COMP") && cur_page()->id[0] == G_CSRC);
+    snap_page("comp/01_off");
+    turn(EN_K1, 1);
+    ui_frame();
+    turn(EN_K1 + 1, -2);
+    ui_frame();
+    check("COMP: KNOB 1 picks the source (T1), KNOB 2 the threshold", song.g[G_CSRC] == 1 && song.g[G_CTHR] == 24);
+    press(B_SCL);
+    ui_frame();
+    release_all();
+    turn(EN_K1 + 1, -1);
+    ui_frame();
+    check("SCL again: COMP 2/2 (ATK KNEE); KNOB 2 sets the knee HARD", cur_page()->id[0] == G_CATK && song.g[G_CKNEE] == 0);
+    snap_page("comp/03_page2_curve_hard");
+}
+
+/* COMP pages: white keys toggle DUCK (lit = ducked), not on the source; with SRC OFF too; elsewhere they play */
+static void test_comp_keys(void)
+{
+    uint32_t a;
+    ui_host_init();
+    press(B_SCL);
+    ui_frame();
+    release_all();
+    a = hit_age(&trk[1]);
+    keys(1u << KEY_TRK_KEY[1]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("COMP (SRC OFF): key 2 sets DUCK on T2, no hit, its LED lit",
+          trk[1].p[P_DUCK] == 1 && hit_age(&trk[1]) == a && led_lit(14u + KEY_TRK_KEY[1]));
+    song.g[G_CSRC] = 1;
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("COMP: the source's key (T1) does not toggle DUCK", trk[0].p[P_DUCK] == 0 && !led_lit(14u + KEY_TRK_KEY[0]));
+    keys(1u << KEY_TRK_KEY[1]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("COMP: key 2 again: DUCK off", trk[1].p[P_DUCK] == 0 && !led_lit(14u + KEY_TRK_KEY[1]));
+    trk[1].p[P_DUCK] = trk[3].p[P_DUCK] = trk[4].p[P_DUCK] = 1;
+    drum_set_model(&trk[1], DM_HATO);
+    trk[0].step[0].on = trk[0].step[4].on = trk[0].step[8].on = trk[0].step[12].on = 1;
+    trk[1].step[2].on = trk[1].step[6].on = trk[1].step[10].on = trk[1].step[14].on = 1;
+    transport_req = 1;
+    seq_play_to(0, 1);
+    snap_page("comp/02_pumping");
+    song.g[G_CAMT] = 127;
+    song.g[G_CTHR] = 127;                            /* Streams' limiter: AMNT at the end with a high THRSH */
+    seq_play_to(0, 5);
+    snap_page("comp/04_limiter");
+    press(B_HOME);
+    ui_frame();
+    release_all();
+    ui_frame();
+    a = hit_age(&trk[2]);
+    keys(1u << KEY_TRK_KEY[2]);
+    ui_frame();
+    keys(0);
+    check("leaving COMP: the keys play again", hit_age(&trk[2]) != a);
 }
 
 static void test_grid_keys(void)
@@ -1079,6 +1149,8 @@ int main(void)
     test_bank_follows_len();
     test_mixer_and_rec();
     test_quick_mute();
+    test_comp_pages();
+    test_comp_keys();
     test_clear_confirm();
     test_oct_both_reaches_main();
     test_tracks_rows();

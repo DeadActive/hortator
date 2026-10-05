@@ -485,6 +485,60 @@ static void draw_mix(void)
     }
 }
 
+/* COMP pages: the routing, the gain reduction now and the source's level; page 2 adds the curve (input -> output
+ * level, -48..0 dB in, -48..+12 dB out) for the knobs' THRSH / AMNT / KNEE */
+static void graph_comp(uint16_t c, int curve)
+{
+    char r[48], v[12];
+    uint32_t k, src = comp_src(), n, any = 0;
+    int32_t dbx10 = comp_on() ? (-comp.gr) * 241 / 32768 : 0;
+    str_cpy(r, "SRC: ", sizeof r);
+    n = str_len(r);
+    if (src < NTRK) {
+        r[n++] = 'T';
+        r[n++] = (char)('1' + src);
+        r[n] = 0;
+    } else {
+        str_cpy(r + n, "OFF", sizeof r - n);
+    }
+    str_cpy(r + str_len(r), "  DUCK:", sizeof r - str_len(r));
+    n = str_len(r);
+    for (k = 0; k < NTRK && n + 4u < sizeof r; k++)
+        if (trk[k].p[P_DUCK] && k != src) {
+            r[n++] = ' ';
+            r[n++] = 'T';
+            r[n++] = (char)('1' + k);
+            r[n] = 0;
+            any = 1;
+        }
+    if (!any)
+        str_cpy(r + n, " -", sizeof r - n);
+    cv_text(4, 2, &FONT_S, r, C_AMB);
+    cv_text(4, 24, &FONT_S, "GR", C_GRAY);
+    cv_rect(36, 31, curve ? 70 : 120, 1, C_LINE);
+    cv_rect(36, 27, clamp(dbx10, 0, 240) * (curve ? 70 : 120) / 240, 9, c);
+    comp_fmt_db10(v, -dbx10);
+    str_cpy(v + str_len(v), "dB", sizeof v - str_len(v));
+    cv_text(curve ? 36 : 162, curve ? 40 : 24, &FONT_S, v, C_WHITE);
+    cv_text(4, curve ? 62 : 46, &FONT_S, "IN", C_GRAY);
+    cv_rect(36, curve ? 69 : 53, curve ? 70 : 120, 1, C_LINE);
+    cv_rect(36, curve ? 65 : 49, (comp_on() ? meter_px(comp.peak) : 0) * (curve ? 70 : 120) / MX_LW, 9, C_AMB);
+    if (curve) {
+        comp_set_t s = comp_knobs();
+        comp_cfg_t cf;
+        comp_configure(&s, &cf);
+        cv_rect(118, 22, 1, 77, C_LINE);
+        cv_rect(118, 98, 118, 1, C_LINE);
+        for (k = 0; k < 116u; k++) {
+            int32_t in10 = -480 + (int32_t)k * 480 / 116, lvl = in10 * 65536 / 60;
+            int32_t out10 = (lvl + comp_atten(&cf, lvl) + cf.makeup) * 60 / 65536;
+            int32_t y = 98 - (out10 + 480) * 76 / 600;
+            if (y >= 22 && y <= 97)
+                cv_rect(120 + (int32_t)k, y, 1, 2, c);
+        }
+    }
+}
+
 static uint32_t graph_signature(void)
 {
     const page_t *pg = cur_page();
@@ -515,6 +569,15 @@ static uint32_t graph_signature(void)
         if (song.playing)
             h ^= (grids.last + 1u + (grids.elast[0] | grids.elast[1] << 8 | (uint32_t)grids.elast[2] << 16) * 64u) *
                  2654435761u;
+    }
+    if (pg->graph == GR_COMP) {
+        for (i = G_CSRC; i <= G_CKNEE; i++)
+            h = (h ^ (uint32_t)song.g[i]) * 16777619u;
+        for (i = 0; i < NTRK; i++)
+            h = (h ^ (uint32_t)trk[i].p[P_DUCK]) * 16777619u;
+        h ^= ui.page * 389u;
+        if (comp_on())
+            h ^= ((uint32_t)(-comp.gr) >> 7) * 2654435761u + (uint32_t)meter_px(comp.peak) * 40503u;
     }
     return h;
 }
@@ -557,6 +620,9 @@ static void draw_graph(void)
             break;
         case GR_GRIDS:
             graph_grids(c, pg->id[0] == G_GFILL1);
+            break;
+        case GR_COMP:
+            graph_comp(c, pg->id[0] == G_CATK);
             break;
         case GR_SLOTS:
             cv_oy = 0;

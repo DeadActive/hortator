@@ -194,6 +194,19 @@ static void comp_block(const int32_t *x, uint32_t n)
 }
 
 /* ------------------------------------------------------- display --- */
+static void comp_fmt_db10(char *b, int32_t dbx10)  /* 0.1 dB -> "-10.3", "-0.1", "0.0" (fmt_fix drops the 0) */
+{
+    int32_t a = dbx10 < 0 ? -dbx10 : dbx10;
+    char t[12];
+    fmt_fix(t, a, 1);
+    b[0] = 0;
+    if (dbx10 < 0)
+        str_cpy(b, "-", 2);
+    if (a < 10)
+        str_cpy(b + str_len(b), "0", 2);
+    str_cpy(b + str_len(b), t, 10);
+}
+
 static int32_t comp_thr_dbx10(int32_t v)          /* THRSH in 0.1 dB, rounded (Streams: 256 = 6.02 dB / 256) */
 {
     int32_t x = -1280 + 5 * (int32_t)(comp_k16(v) >> 8);
@@ -213,8 +226,8 @@ static void comp_amount_text(int32_t amt, int32_t thr, char *val, const char **u
     } else if (c.atk < 0) {
         str_cpy(val, "LIMIT", 6);
     } else {
-        char t[8];
-        fmt_fix(t, c.makeup / 1088, 1);            /* log2 units -> 0.1 dB (6.02 dB / 65536) */
+        char t[10];
+        comp_fmt_db10(t, c.makeup / 1088);         /* log2 units -> 0.1 dB (6.02 dB / 65536) */
         val[0] = '+';
         str_cpy(val + 1, t, 6);
         *unit = "dB";
