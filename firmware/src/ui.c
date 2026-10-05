@@ -145,12 +145,7 @@ static void step_hold(uint32_t k)
     s->acc = (uint8_t)!((ui.step_was[k] >> 1) & 1u);
 }
 
-static void track_clear(track_t *t)
-{
-    uint32_t i;
-    for (i = 0; i < NSTEP; i++)
-        t->step[i].on = t->step[i].acc = 0;
-}
+static void track_clear(track_t *t) { memset(t->step, 0, sizeof t->step); }
 
 /* --------------------------------------------------- track, model --- */
 static void track_select(uint32_t i)

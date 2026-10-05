@@ -74,6 +74,15 @@ static void flash_image(int kind, uint32_t seed)
             p.panel.magic = PANEL_MAGIC;              /* a valid panel magic over random ids */
         st_save(OBJ_SETTINGS, &p, sizeof p);
         for (k = 0; k < 4; k++) {
+            if (kind == F_HEADERS && (k & 1u)) {     /* an M1 project ("FDR1"): valid sum over random fields */
+                project_v1_t v;
+                rfill(&v, sizeof v);
+                v.magic = PROJ_MAGIC_V1;
+                v.size = sizeof v;
+                v.sum = proj_hash(&v, sizeof v - 4u);
+                st_save(OBJ_PROJECT0 + k, &v, sizeof v);
+                continue;
+            }
             rfill(&pr, sizeof pr);
             pr.magic = kind == F_FELUCCA ? 0x334E5546u : PROJ_MAGIC;   /* Felucca's "FUN3", or ours */
             pr.size = sizeof pr;
@@ -121,10 +130,43 @@ static int boot(int kind, uint32_t seed, int seq)
     return bounded && (seq ? safe_start && peak == 0 : !safe_start);
 }
 
+/* an M1 project in flash ("FDR1") loads: its steps and settings; PROB 100 %, 1 hit, SRC STEP, Grids defaults */
+static int fdr1_converts(void)
+{
+    project_v1_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V1;
+    v.size = sizeof v;
+    for (i = 0; i < G_GMODE; i++)
+        v.g[i] = song.g[i];
+    v.g[G_BPM] = 133;
+    v.sel = 2;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_SRC; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[3].p[P_SLEN] = 23;
+    v.t[3].step[5].on = v.t[3].step[5].acc = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    song.g[G_GLEN2] = 3;                             /* the live state differs: the load replaces it */
+    trk[3].p[P_SRC] = 2;
+    trk[3].step[5].cond = 9;
+    project_load(1);
+    return trk[3].p[P_SLEN] == 23 && trk[3].step[5].on && trk[3].step[5].acc && trk[3].step[5].cond == 0 &&
+           trk[3].step[5].rat == 0 && !trk[3].step[6].on && trk[3].p[P_SRC] == 0 && song.g[G_BPM] == 133 &&
+           song.g[G_GLEN2] == 12 && song.g[G_GMODE] == 0 && song.sel == 2;
+}
+
 int main(void)
 {
     char what[96];
     int k, s, seq;
+    check("project: an M1 record (FDR1) loads with PROB 100 %, 1 hit, SRC STEP, Grids defaults", fdr1_converts());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {

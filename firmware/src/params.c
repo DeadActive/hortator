@@ -11,6 +11,8 @@ static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
 static const char *const N_CHOKE[] = {"OFF", "1", "2", "3", "4"};
+static const char *const N_SRC[] = {"STEP", "G-KCK", "G-SNR", "G-HAT"};   /* P_SRC: its steps or a Grids channel */
+static const char *const N_GMODE[] = {"MAP", "EUCL"};
 
 static const param_desc_t TP[P_COUNT] = {
     [P_MODEL] = PE("MODEL", N_MODEL, 0),
@@ -35,6 +37,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LLEVEL] = PD("LLVL", F_PCT, 0, 127, 0),
     [P_LTUNE] = PD("LTUNE", F_SEMI, -24, 24, 0),
     [P_LDEC] = PD("LDEC", F_INT, 0, 127, 127),
+    [P_SRC] = PE("SRC", N_SRC, 0),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -60,6 +63,16 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CLRSEQ] = PE("CLRSQ", N_GO, 0),
     [G_INITSND] = PE("INIT", N_GO, 0),
     [G_DRCH] = PD("CH", F_INT, 1, 16, 10),
+    [G_GMODE] = PE("MODE", N_GMODE, 0),
+    [G_GX] = PD("X", F_INT, 0, 127, 64),
+    [G_GY] = PD("Y", F_INT, 0, 127, 64),
+    [G_GCHAOS] = PD("CHAOS", F_PCT, 0, 127, 0),
+    [G_GFILL1] = PD("FIL K", F_PCT, 0, 127, 64),
+    [G_GFILL2] = PD("FIL S", F_PCT, 0, 127, 64),
+    [G_GFILL3] = PD("FIL H", F_PCT, 0, 127, 64),
+    [G_GLEN1] = PD("LEN K", F_STEPS, 1, 32, 16),
+    [G_GLEN2] = PD("LEN S", F_STEPS, 1, 32, 12),
+    [G_GLEN3] = PD("LEN H", F_STEPS, 1, 32, 8),
 };
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
@@ -175,5 +188,45 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         if (d->unit)
             *unit = d->unit;
         break;
+    }
+}
+
+/* PROB of a step (step_t.cond). The knob runs 0 %, 5 % .. 100 % (positions 0..20), 1-SHOT (21), then A/B
+ * (22..56: 1/2, 2/2, 1/3 .. 8/8, "plays on loop A of every B"). Stored so that 0 is 100 % (a zeroed step is
+ * plain): 0 = 100 %, 1..20 = 0 .. 95 %, 21.. as the knob. */
+#define COND_POS_100 20u
+#define COND_1SHOT 21u
+#define COND_MAX 56u
+static uint32_t cond_pos(uint32_t c) { return !c ? COND_POS_100 : c <= COND_POS_100 ? c - 1u : c < COND_MAX ? c : COND_MAX; }
+static uint32_t cond_store(uint32_t pos)
+{
+    return pos == COND_POS_100 ? 0u : pos < COND_POS_100 ? pos + 1u : pos < COND_MAX ? pos : COND_MAX;
+}
+
+static void cond_ab(uint32_t c, uint32_t *a, uint32_t *b)   /* an A/B code (22..56): A of every B */
+{
+    uint32_t i = c > 22u ? (c < COND_MAX ? c : COND_MAX) - 22u : 0u, n = 2u;
+    while (i >= n) {
+        i -= n;
+        n++;
+    }
+    *a = i + 1u;
+    *b = n;
+}
+
+static void cond_format(uint32_t c, char *s)      /* "100%", "35%", "1-SHOT", "3/5"; s holds 8 bytes */
+{
+    uint32_t a, b;
+    if (c < COND_1SHOT) {
+        fmt_int(s, !c ? 100 : (int32_t)(c - 1u) * 5);
+        str_cpy(s + str_len(s), "%", 2);
+    } else if (c == COND_1SHOT) {
+        str_cpy(s, "1-SHOT", 8);
+    } else {
+        cond_ab(c, &a, &b);
+        s[0] = (char)('0' + a);
+        s[1] = '/';
+        s[2] = (char)('0' + b);
+        s[3] = 0;
     }
 }

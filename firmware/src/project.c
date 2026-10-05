@@ -3,9 +3,11 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDR1": the globals, the selected track, and per track every parameter and its 64 steps.
+ * Format "FDR2": the globals, the selected track, and per track every parameter and its 64 steps (with
+ * PROB / RATCH). M1's "FDR1" records (in flash) are converted on load.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x31524446u                 /* "FDR1": 8 drum tracks */
+#define PROJ_MAGIC 0x32524446u                 /* "FDR2": 8 drum tracks, steps with PROB / RATCH (M2) */
+#define PROJ_MAGIC_V1 0x31524446u              /* "FDR1": M1 projects, converted on load */
 typedef struct {
     int16_t p[P_COUNT];
     step_t step[NSTEP];
@@ -31,10 +33,50 @@ static uint32_t proj_sum(const project_t *p) { return proj_hash(p, sizeof *p - 4
 static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->size == sizeof *q && q->sum == proj_sum(q); }
 
 #if FELUCCA_FLASH
+/* M1's format: the globals before G_GMODE, the parameters before P_SRC, steps of {on, acc} */
+typedef struct { uint8_t on, acc; } step_v1_t;
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_GMODE];
+    uint8_t sel, rsv[3];
+    struct { int16_t p[P_SRC]; step_v1_t step[NSTEP]; } t[NTRK];
+    uint32_t sum;
+} project_v1_t;
+static project_v1_t proj_v1;
+
+static void proj_from_v1(project_t *q)            /* proj_v1 -> q: PROB 100 %, 1 hit, SRC STEP, Grids defaults */
+{
+    uint32_t i, k;
+    memset(q, 0, sizeof *q);
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    for (i = 0; i < G_COUNT; i++)
+        q->g[i] = i < G_GMODE ? proj_v1.g[i] : GP[i].def;
+    q->sel = proj_v1.sel;
+    for (k = 0; k < NTRK; k++) {
+        for (i = 0; i < P_COUNT; i++)
+            q->t[k].p[i] = i < P_SRC ? proj_v1.t[k].p[i] : TP[i].def;
+        for (i = 0; i < NSTEP; i++) {
+            q->t[k].step[i].on = proj_v1.t[k].step[i].on;
+            q->t[k].step[i].acc = proj_v1.t[k].step[i].acc;
+        }
+    }
+    q->sum = proj_sum(q);
+}
+
 static void proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
-    if (st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q) != (int)sizeof *q || !proj_ok(q))
+    int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
+    if (n == (int)sizeof proj_v1) {
+        memcpy(&proj_v1, q, sizeof proj_v1);
+        if (proj_v1.magic == PROJ_MAGIC_V1 && proj_v1.size == sizeof proj_v1 &&
+            proj_v1.sum == proj_hash(&proj_v1, sizeof proj_v1 - 4u)) {
+            proj_from_v1(q);
+            return;
+        }
+    }
+    if (n != (int)sizeof *q || !proj_ok(q))
         q->magic = 0;
 }
 #endif
@@ -91,9 +133,12 @@ static void project_load(uint32_t slot)
         }
         t->p[P_MODEL] = (int16_t)m;
         t->model = (uint8_t)m;
-        for (i = 0; i < NSTEP; i++) {
-            t->step[i].on = s->step[i].on ? 1u : 0u;
-            t->step[i].acc = s->step[i].acc ? 1u : 0u;
+        for (i = 0; i < NSTEP; i++) {                   /* garbage cannot index a table or divide by zero */
+            const step_t *q = &s->step[i];
+            t->step[i].on = q->on ? 1u : 0u;
+            t->step[i].acc = q->acc ? 1u : 0u;
+            t->step[i].cond = (uint8_t)(q->cond < COND_MAX ? q->cond : COND_MAX);
+            t->step[i].rat = (uint8_t)(q->rat < 3u ? q->rat : 3u);
         }
     }
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);

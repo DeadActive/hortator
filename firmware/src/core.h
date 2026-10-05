@@ -36,6 +36,7 @@ enum {                          /* per-track parameters */
     P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH,
     P_SLEN, P_SDIV, P_SSWING,
     P_LSET, P_LKEY, P_LLEVEL, P_LTUNE, P_LDEC,       /* sample layer */
+    P_SRC,                       /* what the track plays: 0 its steps, 1..3 a Grids channel (kick, snare, hats) */
     P_COUNT
 };
 
@@ -47,6 +48,9 @@ enum {                          /* global parameters */
     G_SLOT, G_NAME, G_LOAD, G_SAVE,
     G_CLRSEQ, G_INITSND,
     G_DRCH,                      /* MIDI channel of the drum tracks, 1..16 */
+    G_GMODE, G_GX, G_GY, G_GCHAOS,                   /* Grids (grids.c): MAP / EUCLID, the map point, chaos */
+    G_GFILL1, G_GFILL2, G_GFILL3,                    /* fill per channel (kick, snare, hats) */
+    G_GLEN1, G_GLEN2, G_GLEN3,                       /* Euclidean length per channel, 1..32 sixteenths */
     G_COUNT
 };
 
@@ -87,8 +91,10 @@ typedef struct {
 } dmodel_t;
 
 /* ------------------------------------------------------------ track --- */
-typedef struct {                 /* one sequencer step */
+typedef struct {                 /* one sequencer step; all zero = a plain step, off */
     uint8_t on, acc;             /* hit; accent (velocity 127, else 96) */
+    uint8_t cond;                /* PROB: 0 = 100 %, 1..20 = 0..95 %, 21 = 1-SHOT, 22..56 = A/B (params.c cond_*) */
+    uint8_t rat;                 /* RATCH: hits - 1 (0..3) */
 } step_t;
 
 typedef struct track {

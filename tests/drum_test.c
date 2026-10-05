@@ -1156,8 +1156,40 @@ static void test_len_change_sync(void)
     check("seq: LEN changed while playing (16 -> 12 -> 16): the track stays in sync with the others", ok);
 }
 
+/* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
+static void test_cond_codes(void)
+{
+    uint32_t pos, a, b, n = 0, ok = 1;
+    char s[8];
+    for (pos = 0; pos <= COND_MAX; pos++)
+        ok &= cond_pos(cond_store(pos)) == pos;
+    ok &= cond_store(COND_POS_100) == 0u && cond_pos(0) == COND_POS_100 && cond_pos(200) == COND_MAX;
+    check("PROB: knob position <-> stored value round trip; stored 0 = 100 %", ok);
+    ok = 1;
+    for (b = 2; b <= 8u; b++)                        /* 1/2 2/2 1/3 2/3 3/3 1/4 .. 8/8 */
+        for (a = 1; a <= b; a++) {
+            uint32_t ga, gb;
+            cond_ab(22u + n, &ga, &gb);
+            ok &= ga == a && gb == b;
+            n++;
+        }
+    check("PROB: codes 22..56 are 1/2, 2/2, 1/3 .. 8/8 in order", ok && n == 35u && 21u + n == COND_MAX);
+    cond_format(0, s);
+    ok = !strcmp(s, "100%");
+    cond_format(cond_store(15), s);
+    ok &= !strcmp(s, "75%");
+    cond_format(cond_store(0), s);
+    ok &= !strcmp(s, "0%");
+    cond_format(COND_1SHOT, s);
+    ok &= !strcmp(s, "1-SHOT");
+    cond_format(33, s);                              /* 22 + 2 + 3 + 4 + 2: the third of B = 5 */
+    ok &= !strcmp(s, "3/5");
+    check("PROB: shown as 100% / 75% / 0% / 1-SHOT / 3/5", ok);
+}
+
 int main(void)
 {
+    test_cond_codes();
     test_percent_display();
     test_q24();
     test_tables();
