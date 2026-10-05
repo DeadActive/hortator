@@ -2241,6 +2241,286 @@ static void test_reson_params(void)
     check("RESON CHORD 127 = CLUST", str_eq(v, "CLUST"));
 }
 
+/* RESON (reson.c) helpers: a rim click through track 0's resonator, ring only, bright, no stiffness */
+static void rs_setup(uint32_t model, int32_t tune)
+{
+    host_init();
+    drum_set_model(&trk[0], DM_RIM);
+    trk[0].p[P_RMODEL] = (int16_t)model;
+    trk[0].p[P_RTUNE] = (int16_t)tune;
+    trk[0].p[P_RDECAY] = 110;
+    trk[0].p[P_RMIX] = 127;
+    trk[0].p[P_RTONE] = 127;
+    trk[0].p[P_RSTRCT] = 0;
+    trk[0].p[P_RPOS] = 0;
+}
+
+static double rs_goertzel(const int32_t *x, uint32_t n, double f)   /* magnitude of f in x[0..n) */
+{
+    double w = 2 * M_PI * f / FS, c = 2 * cos(w), s0, s1 = 0, s2 = 0;
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        s0 = x[i] + c * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+    }
+    return sqrt(s1 * s1 + s2 * s2 - c * s1 * s2) / n;
+}
+
+static double rs_freq(const int32_t *x, uint32_t n, double f0)       /* the autocorrelation peak near FS / f0 */
+{
+    uint32_t lo = (uint32_t)(FS / f0 * 0.8), hi = (uint32_t)(FS / f0 * 1.25) + 2, lag, best = lo, i, j;
+    double bv = -1e300, c[3], d;
+    for (lag = lo; lag <= hi; lag++) {
+        double s = 0;
+        for (i = 0; i < n; i++)
+            s += (double)x[i] * x[i + lag];
+        if (s > bv) {
+            bv = s;
+            best = lag;
+        }
+    }
+    for (j = 0; j < 3; j++) {
+        c[j] = 0;
+        for (i = 0; i < n; i++)
+            c[j] += (double)x[i] * x[i + best - 1 + j];
+    }
+    d = c[0] - 2 * c[1] + c[2];
+    return FS / (best + (d != 0 ? 0.5 * (c[0] - c[2]) / d : 0));
+}
+
+static double rs_note_hz(double note) { return 440.0 * pow(2.0, (note - 69) / 12); }
+
+static void test_reson_pitch(void)
+{
+    static const int32_t NOTES[] = {24, 36, 48, 60, 72, 84};
+    uint32_t i, ok = 1;
+    double worst = 0;
+    for (i = 0; i < sizeof NOTES / sizeof NOTES[0]; i++) {
+        double f, want = rs_note_hz(NOTES[i]), cents;
+        rs_setup(RS_STRNG, NOTES[i]);
+        drum_hit(&trk[0], 127);
+        render_mix(wl, wr, SECS(0.6));
+        f = rs_freq(wl + SECS(0.2), 8192, want);
+        cents = fabs(1200 * log2(f / want));
+        worst = cents > worst ? cents : worst;
+        ok &= cents < 10;
+    }
+    printf("     RESON STRNG pitch C1..C6: worst %.1f cents\n", worst);
+    check("RESON STRNG: the ring is at TUNE (C1..C6, within 10 cents)", ok);
+    rs_setup(RS_PIPE, 48);
+    drum_hit(&trk[0], 127);
+    render_mix(wl, wr, SECS(0.6));
+    {
+        double f0 = rs_note_hz(48), h1 = rs_goertzel(wl + SECS(0.2), 16384, f0), h2 = rs_goertzel(wl + SECS(0.2), 16384, 2 * f0);
+        double h3 = rs_goertzel(wl + SECS(0.2), 16384, 3 * f0), f = rs_freq(wl + SECS(0.2), 8192, f0);
+        printf("     RESON PIPE C3: %.1f Hz, harmonics 1 / 2 / 3: %.0f / %.0f / %.0f\n", f, h1, h2, h3);
+        check("RESON PIPE: at TUNE, odd harmonics only", fabs(1200 * log2(f / f0)) < 10 && h2 * 10 < h1 && h2 * 5 < h3);
+    }
+}
+
+static void test_reson_decay(void)
+{
+    static const int16_t DK[2] = {40, 80};
+    uint32_t j;
+    for (j = 0; j < 2u; j++) {
+        uint32_t w, pkw = 0, t40 = 0;
+        double pk = 0, want = RS_T60_MS10[DK[j]] / 10000.0, got;
+        rs_setup(RS_STRNG, 48);
+        trk[0].p[P_RDECAY] = DK[j];
+        drum_hit(&trk[0], 127);
+        render_mix(wl, wr, SECS(3));
+        for (w = 0; w + 441 <= SECS(3); w += 441) {   /* 10 ms windows: RMS */
+            double s = 0;
+            uint32_t i;
+            for (i = 0; i < 441; i++)
+                s += (double)wl[w + i] * wl[w + i];
+            s = sqrt(s / 441);
+            if (s > pk) {
+                pk = s;
+                pkw = w;
+            }
+            if (!t40 && pk > 0 && w > pkw && s < pk / 100)
+                t40 = w - pkw;
+        }
+        got = t40 * 1.5 / FS;                        /* -40 dB x 1.5 = -60 dB */
+        printf("     RESON DECAY %d: 60 dB in %.3f s (knob %.3f s)\n", DK[j], got, want);
+        check(j ? "RESON DECAY 80: the ring's 60 dB time as the knob (25 %)" : "RESON DECAY 40: the ring's 60 dB time as the knob (25 %)",
+              t40 && fabs(got - want) <= 0.25 * want);
+    }
+}
+
+static void test_reson_chord(void)
+{
+    static const int8_t MAJ[4] = {0, 4, 7, 12}, OFF[3] = {2, 6, 10};
+    uint32_t i, ok = 1;
+    double lo = 1e300, hi = 0;
+    rs_setup(RS_CHORD, 48);
+    trk[0].p[P_RSTRCT] = 3 * 128 / RS_NCHORD + 1;   /* MAJ */
+    drum_hit(&trk[0], 127);
+    render_mix(wl, wr, SECS(0.8));
+    for (i = 0; i < 4u; i++) {                       /* 2nd harmonics: a click hardly excites the fundamentals here */
+        double m = rs_goertzel(wl + SECS(0.1), 16384, 2 * rs_note_hz(48 + MAJ[i]));
+        lo = m < lo ? m : lo;
+    }
+    for (i = 0; i < 3u; i++) {                       /* (D4 F#4 A#4: no partial of C3 E3 G3 C4) */
+        double m = rs_goertzel(wl + SECS(0.1), 16384, 2 * rs_note_hz(48 + OFF[i]));
+        hi = m > hi ? m : hi;
+    }
+    ok = lo > 4 * hi;
+    printf("     RESON CHORD MAJ C3: weakest chord note %.0f, strongest other note %.0f\n", lo, hi);
+    check("RESON CHORD MAJ on C3: C3 E3 G3 C4 ring, D3 F#3 A#3 do not", ok);
+    rs_setup(RS_CHORD, 30);                           /* TUNE below C3: plays as C3 */
+    drum_hit(&trk[0], 127);
+    render_mix(wl, wr, SECS(0.6));
+    check("RESON CHORD below C3 plays at C3", fabs(1200 * log2(rs_freq(wl + SECS(0.2), 8192, rs_note_hz(48)) / rs_note_hz(48))) < 15);
+}
+
+static void test_reson_mix_off_tail(void)
+{
+    static int32_t dry[SECS(1)];
+    uint32_t i, same = 1;
+    int32_t late;
+    rs_setup(RS_OFF, 48);                             /* MIX 0 == OFF, bit for bit */
+    drum_hit(&trk[0], 127);
+    render_mix(dry, 0, SECS(1));
+    rs_setup(RS_STRNG, 48);
+    trk[0].p[P_RMIX] = 0;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(1));
+    for (i = 0; i < SECS(1); i++)
+        same &= wl[i] == dry[i];
+    check("RESON MIX 0: the dry sound, bit for bit", same);
+    rs_setup(RS_STRNG, 48);                           /* the ring outlives the voice */
+    trk[0].p[P_RDECAY] = 100;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(1));
+    late = peak_of(wl, SECS(0.8), SECS(1));
+    check("RESON: the ring sounds on after the hit's voice (0.8 s on)", late > 200 && trk[0].rs.ring);
+    rs_setup(RS_STRNG, 48);
+    trk[0].p[P_RDECAY] = 20;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(1.5));
+    check("RESON: a short ring ends (the track stops computing it)", !trk[0].rs.ring);
+}
+
+static void test_reson_switch_and_cut(void)
+{
+    int32_t before = 0, after = 0, i, pk;
+    rs_setup(RS_STRNG, 48);                           /* MODEL changed while ringing: the old ring fades out */
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(0.3));
+    for (i = SECS(0.3) - 2000; i < (int32_t)SECS(0.3); i++)
+        before = abs(wl[i] - wl[i - 1]) > before ? abs(wl[i] - wl[i - 1]) : before;
+    trk[0].p[P_RMODEL] = RS_CHORD;
+    render_mix(wl, 0, CTL * 4);
+    for (i = 1; i < CTL * 4; i++)
+        after = abs(wl[i] - wl[i - 1]) > after ? abs(wl[i] - wl[i - 1]) : after;
+    printf("     RESON model switch while ringing: largest step %d (ring before %d)\n", after, before);
+    check("RESON: switching MODEL while ringing does not click", after <= before + 64);
+    trk[0].p[P_RMODEL] = RS_OFF;                      /* OFF while ringing, then on again without a hit */
+    render_mix(wl, 0, CTL * 4);
+    trk[0].p[P_RMODEL] = RS_STRNG;
+    render_mix(wl, 0, SECS(0.2));
+    pk = peak_of(wl, 0, SECS(0.2));
+    check("RESON: no stale ring after OFF and on again", pk < 64);
+    rs_setup(RS_STRNG, 48);                           /* a cut (mute) fades the ring out within a block */
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(0.3));
+    drum_cut(&trk[0]);
+    render_mix(wl, 0, CTL * 3);
+    check("RESON: a cut (mute) ends the ring within a block", peak_of(wl, CTL * 2, CTL * 3) < 64 && !trk[0].rs.ring);
+}
+
+/* spec §7: TONE darkens the ring, STRCT stretches its overtones, POS thins harmonics (POS 64: a tap at a quarter
+ * of the line, every 4th harmonic notched) */
+static double rs_peak_near(const int32_t *x, uint32_t n, double f, double span)   /* the strongest frequency near f */
+{
+    double best = f, bv = -1, g;
+    for (g = f * (1 - span); g <= f * (1 + span); g += 0.5) {
+        double m = rs_goertzel(x, n, g);
+        if (m > bv) {
+            bv = m;
+            best = g;
+        }
+    }
+    return best;
+}
+
+static void test_reson_knobs(void)
+{
+    double f0 = rs_note_hz(48), h1, h6, dark, bright, h4, h4pos, f4, stretch;
+    rs_setup(RS_STRNG, 48);                           /* TONE: the 6th harmonic against the 1st */
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(0.5));
+    h1 = rs_goertzel(wl + SECS(0.1), 16384, f0);
+    h6 = rs_goertzel(wl + SECS(0.1), 16384, 6 * f0);
+    h4 = rs_goertzel(wl + SECS(0.1), 16384, 4 * f0);
+    bright = h6 / h1;
+    rs_setup(RS_STRNG, 48);
+    trk[0].p[P_RTONE] = 30;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(0.5));
+    dark = rs_goertzel(wl + SECS(0.1), 16384, 6 * f0) / rs_goertzel(wl + SECS(0.1), 16384, f0);
+    printf("     RESON TONE: 6th / 1st harmonic bright %.3f, dark %.3f\n", bright, dark);
+    check("RESON TONE: darker damps the upper harmonics", dark * 3 < bright);
+    rs_setup(RS_STRNG, 48);                           /* STRCT: the 4th partial moves off 4 x f0 */
+    trk[0].p[P_RSTRCT] = 127;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(0.5));
+    f4 = rs_peak_near(wl + SECS(0.1), 16384, 4 * rs_freq(wl + SECS(0.1), 8192, f0), 0.08);
+    stretch = 1200 * log2(f4 / (4 * rs_freq(wl + SECS(0.1), 8192, f0)));
+    printf("     RESON STRCT 127: the 4th partial %.0f cents off 4 x f0\n", stretch);
+    check("RESON STRCT: stretches the overtones (4th partial > 20 cents off)", fabs(stretch) > 20);
+    rs_setup(RS_STRNG, 48);                           /* POS 64: the 4th harmonic notched */
+    trk[0].p[P_RPOS] = 64;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(0.5));
+    h4pos = rs_goertzel(wl + SECS(0.1), 16384, 4 * f0) / rs_goertzel(wl + SECS(0.1), 16384, f0);
+    printf("     RESON POS: 4th / 1st harmonic at POS 0 %.3f, POS 64 %.3f\n", h4 / h1, h4pos);
+    check("RESON POS 64: thins the 4th harmonic", h4pos * 4 < h4 / h1);
+}
+
+/* review focus 3: sustained loud input at DECAY max with DIST after: bounded, and the ring dies after */
+static void test_reson_sustain_bounded(void)
+{
+    uint32_t k;
+    int32_t pk, after;
+    rs_setup(RS_STRNG, 48);
+    drum_set_model(&trk[0], DM_HNOIS);
+    trk[0].p[P_RMODEL] = RS_STRNG;
+    trk[0].p[P_RDECAY] = 127;
+    trk[0].p[P_DIST] = 127;
+    for (k = 0; k < 16u; k++)
+        trk[0].step[k].on = 1;
+    trk[0].p[P_SDIV] = 3;                             /* 1/32 */
+    song.g[G_BPM] = 240;
+    play();
+    render_mix(wl, 0, SECS(8));
+    pk = peak_of(wl, 0, SECS(8));
+    transport_req = 2;
+    render_mix(wl, 0, SECS(8));
+    for (k = 0; k < 4u; k++)
+        render_mix(wl, 0, SECS(8));                   /* 40 s after the input stopped */
+    after = peak_of(wl, SECS(6), SECS(8));
+    printf("     RESON DECAY max, noisy hits every 1/32, DIST: peak %d, 40 s later %d\n", pk, after);
+    check("RESON at DECAY max: bounded, and the ring dies after the input stops", pk <= 32767 && after * 100 < pk);
+}
+
+/* review focus 4: a muted COMP source with RESON: the ring keys the compressor, the mix does not hear it */
+static void test_reson_ghost_source(void)
+{
+    uint32_t k;
+    rs_setup(RS_STRNG, 48);
+    song.g[G_CSRC] = 1;
+    trk[0].p[P_MUTE] = 1;
+    for (k = 0; k < 16u; k += 4u)
+        trk[0].step[k].on = 1;
+    play();
+    render_mix(wl, 0, SECS(2));
+    check("RESON on a muted COMP source: not heard in the mix", peak_of(wl, SECS(0.1), SECS(2)) < 64);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -2300,6 +2580,14 @@ int main(void)
     test_lfo_activate_on_bar();
     test_mute_next_bar();
     test_reson_params();
+    test_reson_pitch();
+    test_reson_decay();
+    test_reson_chord();
+    test_reson_mix_off_tail();
+    test_reson_switch_and_cut();
+    test_reson_knobs();
+    test_reson_sustain_bounded();
+    test_reson_ghost_source();
     test_percent_display();
     test_q24();
     test_tables();

@@ -2,8 +2,10 @@
 # Drum machine fork: 2026 DEADACTIVE
 """firmware/src/reson_tables.h: RESON (reson.c) at 44.1 kHz. The loop period of a MIDI note in 1/16 semitone
 (Q8 samples), the DECAY knob's 60 dB time (10 ms .. 10 s) and its log2 decay per sample (Q24), the TONE knob's
-one-pole damping coefficient (Q15, 400 Hz .. 20 kHz, 127 = transparent), 2^(-i/256) (Q15) for the loop gain.
+one-pole damping coefficient (Q15, 400 Hz .. 20 kHz, 127 = transparent), 2^(-i/256) (Q15) for the loop gain, and
+per MIDI note the stiffness all-pass coefficient at STRCT 127 (-Q15) that stretches the 4th partial ~50 cents.
    tools/gen_reson_tables.py OUT_H"""
+import cmath
 import math
 import sys
 
@@ -16,6 +18,40 @@ def table(ctype, name, values, per=8):
         out.append("    " + ", ".join(f"{v}u" for v in values[r:r + per]) + ",")
     out.append("};")
     return out
+
+
+def ap_lag(w, a):
+    """phase lag of the stiffness all-pass (a + z^-1) / (1 + a z^-1) at w (rad / sample), 0 .. pi"""
+    z = cmath.exp(-1j * w)
+    return -cmath.phase((a + z) / (1 + a * z))
+
+
+def stretch(f0, a, k=4):
+    """cents the k-th partial of a loop tuned to f0 (all-pass delay taken off) moves with all-pass a"""
+    L = FS / f0 - (1 - a) / (1 + a)
+    w = 2 * math.pi * k * f0 / FS
+    if L < 2 or w >= 0.9 * math.pi:
+        return math.inf                               # too short a loop, or the partial near Nyquist: too much
+    for _ in range(30):
+        f = w * L + ap_lag(w, a) - 2 * math.pi * k
+        d = L + (ap_lag(w + 1e-6, a) - ap_lag(w, a)) / 1e-6
+        w -= f / d
+    return 1200 * math.log2(w * FS / (2 * math.pi) / (k * f0))
+
+
+def ap_max(note, target=50.0):
+    """the all-pass coefficient (<= 0, at most 0.97 deep) that moves the 4th partial by target cents"""
+    f0 = 440 * 2 ** ((note - 69) / 12)
+    lo, hi = 0.0, -0.97
+    if stretch(f0, hi) < target:
+        return hi
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        if stretch(f0, mid) > target:
+            hi = mid
+        else:
+            lo = mid
+    return lo
 
 
 def main():
@@ -31,6 +67,7 @@ def main():
     lines += table("uint32_t", "RS_T60_MS10", [round(t * 10000) for t in t60])
     lines += table("uint16_t", "RS_TONE_K", tone)
     lines += table("uint16_t", "RS_EXP2N", [round(32767 * 2 ** (-i / 256)) for i in range(256)])
+    lines += table("uint16_t", "RS_AP_MAX", [round(-32768 * ap_max(n)) for n in range(128)])
     open(sys.argv[1], "w").write("\n".join(lines) + "\n")
 
 

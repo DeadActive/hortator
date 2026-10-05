@@ -26,6 +26,8 @@ static void dv_cut(track_t *t, dvoice_t *v)
 static void drum_cut(track_t *t)                         /* every voice of t, with the declick tail */
 {
     uint32_t i;
+    if (t->rs.ring)
+        t->rs.kill = 1;                                  /* RESON: the ring fades out with the voices */
     for (i = 0; i < NDV; i++) {
         dv_cut(t, &t->v[i]);
         dv_cut(t, &t->lv[i]);

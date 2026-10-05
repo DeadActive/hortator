@@ -117,6 +117,16 @@ typedef struct {                 /* one sequencer step; all zero = a plain step,
 typedef struct { uint32_t ph, sub; int32_t out, from, to; uint8_t fresh; } lfo_state_t;   /* lfo.c: phase, sub-phase,
                                                                            * outputs, restarted */
 
+typedef struct {                 /* RESON runtime (reson.c): per line (STRNG / PIPE 1, CHORD 4) */
+    uint32_t len[4];             /* the line's delay, Q8 samples (the loop filters' delay taken off) */
+    int32_t g[4];                /* loop gain, Q15 (PIPE: negative) */
+    int32_t lp[4], apx[4], apy[4];   /* damping low-pass; the stiffness all-pass' x[n-1], y[n-1] */
+    int32_t k, a;                /* damping coefficient (Q15), all-pass coefficient (Q15, <= 0) */
+    uint16_t tap[4];             /* POS: the second pickup tap (0 = none) */
+    uint16_t w, seg, quiet, peak;   /* write position, segment length, quiet blocks, last block's line peak */
+    uint8_t ns, model, ring, kill;  /* lines, the model running, ringing, fade out this block */
+} reson_t;
+
 typedef struct track {
     int16_t p[P_COUNT];
     uint8_t model;               /* model the voices were started with (a change cuts them) */
@@ -134,6 +144,8 @@ typedef struct track {
     uint8_t rat_n, rat_k, rat_vel;   /* its hits, the next hit, their velocity; rat_n 0 = no roll */
     uint16_t gfade;              /* M3 ghost key: how silenced the COMP source's sound is (0 heard .. 32767 muted) */
     lfo_state_t lfo[2];          /* LFO 1 / 2 runtime (lfo.c) */
+    reson_t rs;                  /* RESON runtime (reson.c) */
+    int32_t rfine;               /* RESON fine pitch from the LFOs (R.TUN), 1/256 semitone (lfo.c) */
     uint32_t lrng;               /* random generator of S&H / WANDER / RWALK, reseeded at PLAY */
     uint8_t lon, lnum, lpid[2];       /* knobs written this block, which */
     int16_t lsave[2], lval[2];   /* their set values (restored at the end of the block), the modulated values */

@@ -24,6 +24,7 @@ static struct { volatile uint32_t notes, buttons; } fm1_in;
 #include "../firmware/src/eng_sample.c"
 #include "../firmware/src/dmodels.c"
 #include "../firmware/src/params.c"
+#include "../firmware/src/reson.c"
 #include "../firmware/src/lfo.c"
 #include "../firmware/src/drum_core.c"
 #include "../firmware/src/slicer.c"

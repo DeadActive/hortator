@@ -22,6 +22,7 @@
 #include "eng_sample.c"      /* ADPCM decoder + user sample slots */
 #include "dmodels.c"         /* drum models */
 #include "params.c"
+#include "reson.c"          /* RESON: the per-track resonator insert */
 #include "lfo.c"            /* LFOs (two per track) */
 #include "drum_core.c"       /* 8 drum tracks */
 #include "slicer.c"          /* per-track SLICER insert, used by fx.c */

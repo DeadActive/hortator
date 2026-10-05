@@ -182,8 +182,10 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_
 static void mix_part(track_t *t, uint32_t n, uint32_t src)
 {
     int32_t *b = part_buf;
-    uint32_t i, is_src = (uint32_t)(t - trk) == src;
-    if (track_render(t, b, n))
+    uint32_t i, is_src = (uint32_t)(t - trk) == src, snd = track_render(t, b, n);
+    if (t->rs.ring || (snd && t->p[P_RMODEL]))
+        snd |= reson_block(t, b, n);                    /* RESON (reson.c), before DIST: its ring keeps the track on */
+    if (snd)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */

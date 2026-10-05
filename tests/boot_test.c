@@ -291,6 +291,37 @@ static int fdr4_converts(void)
     return trk[2].p[P_LFO1 + LF_DEST] == 9 && trk[2].step[5].on && trk[2].p[P_RMODEL] == RS_OFF &&
            trk[2].p[P_RTUNE] == TP[P_RTUNE].def && trk[2].p[P_RDECAY] == TP[P_RDECAY].def;
 }
+/* review focus 1: RESON at every extreme (pitch with a chord's top note and the fine offset, STRCT, TONE, POS):
+ * the lines stay inside rs_buf (ASan) and the output bounded */
+static int reson_extremes(void)
+{
+    static const int16_t TUNE[2] = {24, 96}, END[2] = {0, 127};
+    static const int32_t FINE[3] = {-RS_FINE, 0, RS_FINE};
+    uint32_t m, a, b, c, d, f, i;
+    int ok = 1;
+    for (m = RS_STRNG; m < RS_NMODEL; m++)
+        for (a = 0; a < 2u; a++)
+            for (b = 0; b < 2u; b++)
+                for (c = 0; c < 2u; c++)
+                    for (d = 0; d < 2u; d++)
+                        for (f = 0; f < 3u; f++) {
+                            host_init();
+                            trk[0].p[P_RMODEL] = (int16_t)m;
+                            trk[0].p[P_RTUNE] = TUNE[a];
+                            trk[0].p[P_RSTRCT] = END[b];
+                            trk[0].p[P_RTONE] = END[c];
+                            trk[0].p[P_RPOS] = END[d];
+                            trk[0].p[P_RDECAY] = 127;
+                            trk[0].rfine = FINE[f];
+                            drum_hit(&trk[0], 127);
+                            for (i = 0; i < 64u; i++) {
+                                render_mix(L, R, CTL);
+                                trk[0].rfine = FINE[f];   /* (the LFOs rewrite it every block) */
+                                ok &= L[0] <= 32767 && L[0] >= -32768;
+                            }
+                        }
+    return ok;
+}
 int main(void)
 {
     char what[96];
@@ -299,6 +330,7 @@ int main(void)
     check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
+    check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR and ZOOM survive a power cycle (Felucca's settings format)", mutebar_persists());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
