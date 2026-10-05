@@ -2160,6 +2160,60 @@ static void test_lfo_activate_on_bar(void)
     check("LFO SYNC turned on while playing: on the bar (a quarter cycle in)", ph > 0x3C000000u && ph < 0x44000000u);
 }
 
+/* TRACKS "mute on the next bar" with a kick on step 1 (and step 16, still ringing at the bar): the muted bar has no
+ * part of the kick and no click, the unmuted bar's kick has its full attack. A normal track, and the COMP source
+ * (a muted source still plays for the compressor, its mute fades) */
+#define MBAR (FS * 60 / 120 * 4)
+static int32_t mb_ref[5 * MBAR], mb_out[5 * MBAR];
+static void mute_bar_run(int32_t *o, int mute, int src)
+{
+    uint32_t f;
+    host_init();
+    trk[0].step[0].on = trk[0].step[15].on = 1;
+    if (src) {
+        song.g[G_CSRC] = 1;
+        trk[1].p[P_DUCK] = 1;
+    }
+    play();
+    for (f = 0; f < 5u * MBAR; f += CTL) {
+        if (mute && (f / CTL == (MBAR + MBAR / 2) / CTL || f / CTL == (2 * MBAR + MBAR / 2) / CTL))
+            song.mute_q |= 1;                        /* as TRACKS: mute for bar 2, unmute for bar 3 */
+        render_mix(o + f, 0, CTL);
+    }
+}
+
+static void test_mute_next_bar(void)
+{
+    int src;
+    for (src = 0; src < 2; src++) {
+        int32_t on2 = 2 * MBAR - 64, on3 = 3 * MBAR - 64, i, leak = 0, pr = 0, pb = 0, dref = 0, dout = 0;
+        mute_bar_run(mb_ref, 0, src);
+        mute_bar_run(mb_out, 1, src);
+        while (abs(mb_ref[on2]) <= 64 || abs(mb_ref[on2] - mb_ref[on2 - 1]) < 200)   /* the downbeat kick's onset */
+            on2++;
+        while (abs(mb_ref[on3]) <= 64 || abs(mb_ref[on3] - mb_ref[on3 - 1]) < 200)
+            on3++;
+        for (i = on2 + 64; i < on2 + 2000; i++)      /* after the old tail's declick (~30 samples); a kick that
+                                                         * leaks lasts the 5 ms mute fade */
+            leak += abs(mb_out[i]) > 64;
+        for (i = on2 - 300; i < on2 - 4; i++)        /* the step-16 kick's tail just before the bar */
+            dref = abs(mb_ref[i] - mb_ref[i - 1]) > dref ? abs(mb_ref[i] - mb_ref[i - 1]) : dref;
+        for (i = on2 - 300; i < on2 + 2000; i++)
+            dout = abs(mb_out[i] - mb_out[i - 1]) > dout ? abs(mb_out[i] - mb_out[i - 1]) : dout;
+        for (i = on3; i < on3 + 64; i++) {
+            pr = abs(mb_ref[i]) > pr ? abs(mb_ref[i]) : pr;
+            pb = abs(mb_out[i]) > pb ? abs(mb_out[i]) : pb;
+        }
+        printf("     mute on the bar (%s): muted bar %d loud samples, largest step %d (tail %d); unmuted attack %d / %d\n",
+               src ? "COMP source" : "track", (int)leak, (int)dout, (int)dref, (int)pb, (int)pr);
+        check(src ? "mute on the bar, COMP source: the muted bar has no part of the kick, no click"
+                  : "mute on the bar: the muted bar has no part of the kick, no click",
+              leak == 0 && dout <= 2 * dref + 64);
+        check(src ? "unmute on the bar, COMP source: the kick's full attack" : "unmute on the bar: the kick's full attack",
+              pb * 10 >= pr * 9);
+    }
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -2217,6 +2271,7 @@ int main(void)
     test_lfo_play_first_hit();
     test_lfo_random_phase_restart();
     test_lfo_activate_on_bar();
+    test_mute_next_bar();
     test_percent_display();
     test_q24();
     test_tables();

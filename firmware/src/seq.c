@@ -31,6 +31,7 @@ static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
  * counts its steps: the global swing makes every other 1/16 long; the even 1/32 plays at the 1/16, the odd one at
  * its half. So a tempo change keeps Grids on the step tracks' 1/16s, and no Grids step is ever skipped (the chaos
  * sequence stays the original's). */
+#define MUTE_LEAD 256u   /* samples ahead of the bar: the COMP source mute fade (5 ms) and a declick end there */
 static struct { uint32_t pos, cnt; uint8_t half; } gclk;   /* samples into the 1/16, 1/16s since PLAY, odd 1/32 done */
 static uint32_t grids_l16(uint32_t cnt)
 {
@@ -234,14 +235,29 @@ static void events_block(uint32_t n)
     }
     pr = panic_req;
     panic_req = 0;
-    if (song.mute_q && (!song.playing || (gclk.pos + n >= grids_l16(gclk.cnt) && ((gclk.cnt + 1u) & 15u) == 0u))) {
-        for (i = 0; i < NTRK; i++)                  /* TRACKS' waiting mutes: before the bar's first steps */
-            if ((song.mute_q >> i) & 1u) {
-                trk[i].p[P_MUTE] = (int16_t)!trk[i].p[P_MUTE];
-                if (trk[i].p[P_MUTE])
-                    pr |= 1u << i;
+    if (song.mute_q) {                              /* TRACKS' waiting mutes: before the bar's first steps */
+        uint32_t src = comp_src(), sb = src < NTRK ? 1u << src : 0u, l16 = grids_l16(gclk.cnt);
+        int bar = song.playing && ((gclk.cnt + 1u) & 15u) == 0u;
+        if (bar && (song.mute_q & sb) && gclk.pos + n + MUTE_LEAD >= l16) {   /* the COMP source plays on muted (ghost
+                                                         * key): it changes ahead of the bar */
+            if (!trk[src].p[P_MUTE]) {
+                trk[src].p[P_MUTE] = 1;             /* mute: its 5 ms fade (fx.c) ends before the bar's first hit */
+                song.mute_q &= (uint8_t)~sb;
+            } else {
+                pr |= sb;                           /* unmute: its silent voices end (declick) before the bar */
             }
-        song.mute_q = 0;
+        }
+        if (!song.playing || (bar && gclk.pos + n >= l16)) {
+            for (i = 0; i < NTRK; i++)
+                if ((song.mute_q >> i) & 1u) {
+                    trk[i].p[P_MUTE] = (int16_t)!trk[i].p[P_MUTE];
+                    if (trk[i].p[P_MUTE])
+                        pr |= 1u << i;
+                    else if (i == src && song.playing)
+                        trk[i].gfade = 0;           /* heard at once: the bar's first hit with its attack */
+                }
+            song.mute_q = 0;
+        }
     }
     for (i = 0; i < NTRK; i++)
         if ((pr >> i) & 1u)
