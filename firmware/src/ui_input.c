@@ -294,6 +294,9 @@ static void ui_input(void)
     }
     if (home == BT_TAP)
         home_step();
+    song.octdn = panel.btn[B_OCTDN];
+    if (mix_mode())                                     /* REC on TRACKS arms / disarms: the keys play / select */
+        song.seq_mode = song.rec ? 2u : 1u;
     song.act[2] = (int16_t)settings.mutebar;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
@@ -364,7 +367,7 @@ static void ui_input(void)
             if ((notes >> KEY_TRK_KEY[k]) & 1u) {
                 if (octdn_held())
                     track_mute_toggle(k);
-                else
+                else if (!song.rec)                     /* armed: the key plays and records (seq.c) */
                     track_select(k);
             }
     } else if (comp_mode()) {

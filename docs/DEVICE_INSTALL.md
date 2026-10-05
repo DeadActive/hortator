@@ -71,8 +71,8 @@ For each: what you should see / hear. Note anything different (page, knob, what 
   track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with PRESET on HOME or MODEL
   on EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
-- Live recording: arm a track (REC tap on TRACKS; on SEQ a REC tap only opens TRACKS), then go to another page
-  (HOME, or the track's pages) and play its key while running: the steps appear.
+- Live recording: arm a track (REC tap on TRACKS; on SEQ a REC tap only opens TRACKS) and play its key while
+  running, on TRACKS or any page where the keys play: the steps appear.
 - PROJECT: save to slot 1, change things, load slot 1: everything comes back.
 - The master knob changes the volume; the battery icon shows a level.
 
@@ -102,7 +102,8 @@ Report what you saw first; we'll go through it together.
   step rolls three hits.
 - ARP: GRIDS 1/2 (MODE X Y CHAOS; MODE EUCL: LEN K S H) and 2/2 (FIL K S H, routing line). PATTERN KNOB 4 SRC
   `G-KCK` / `G-SNR` / `G-HAT` makes a track follow Grids; its STEP grid shows the pattern, keys do nothing.
-- TRACKS (REC tap from HOME or SEQ): a white key selects its track (no sound). Hold OCT-: the keys light for the
+- TRACKS (REC tap from HOME or SEQ): a white key selects its track (no sound). With a track armed (REC tap on
+  TRACKS) the white keys play their tracks instead and record into the armed one, the selection stays. Hold OCT-: the keys light for the
   playing tracks, dark for the muted; a white key mutes / unmutes its track (a muted track stops at once), the
   row shows MUTE. Release OCT-: the mute lights go.
 - Mute on the next bar: hold OCT- on TRACKS + the top D# (POLY): "MUTE: NEXT BAR"; while playing, a mute waits

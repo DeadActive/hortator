@@ -967,6 +967,62 @@ static void test_quick_mute(void)
                                                                  trk[0].p[P_MUTE] == 0);
 }
 
+/* TRACKS while a track is armed: the white keys play (and record) their tracks instead of selecting; OCT- held:
+ * they still mute; disarmed: they select again */
+static void test_tracks_rec_keys(void)
+{
+    uint32_t a, k, n = 0;
+    ui_host_init();
+    settings.mutebar = 0;
+    for (k = 0; k < 16u; k++)
+        trk[1].step[k].on = 0;
+    press(B_REC);                                    /* HOME: REC tap opens TRACKS */
+    ui_frame();
+    release_all();
+    ui_frame();
+    turn(EN_K1, 1);                                  /* track 2 */
+    ui_frame();
+    press(B_REC);                                    /* arms track 2, starts play */
+    ui_frame();
+    release_all();
+    ui_frame();
+    seq_play_to(1, 3);
+    a = hit_age(&trk[1]);
+    keys(1u << KEY_TRK_KEY[1]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    for (k = 0; k < 16u; k++)
+        n += trk[1].step[k].on;
+    check("TRACKS, armed: key 2 plays track 2 and records it", (song.rec & 2u) && hit_age(&trk[1]) != a && n == 1u);
+    a = hit_age(&trk[3]);
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("TRACKS, armed: key 4 plays track 4, the selection stays", song.sel == 1 && hit_age(&trk[3]) != a);
+    press(B_OCTDN);                                  /* OCT- held */
+    ui_frame();
+    a = hit_age(&trk[3]);
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("TRACKS, armed, OCT- held: key 4 mutes track 4, no sound", trk[3].p[P_MUTE] == 1 && hit_age(&trk[3]) == a);
+    release_all();
+    ui_frame();
+    press(B_REC);                                    /* disarm */
+    ui_frame();
+    release_all();
+    ui_frame();
+    a = hit_age(&trk[5]);
+    keys(1u << KEY_TRK_KEY[5]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("TRACKS, disarmed: key 6 selects track 6, no sound", song.rec == 0 && song.sel == 5 && hit_age(&trk[5]) == a);
+}
+
 /* HOME: a white key selects its track and plays it; an LFO on a HOME knob shows its live value on the gauge */
 static void test_home_keys_and_lfo(void)
 {
@@ -1590,6 +1646,7 @@ int main(void)
     test_mixer_and_rec();
     test_quick_mute();
     test_home_keys_and_lfo();
+    test_tracks_rec_keys();
     test_global_mute_setting();
     test_comp_pages();
     test_comp_keys();

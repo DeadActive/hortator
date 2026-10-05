@@ -98,7 +98,8 @@ static void grid_drop_holds(void)
 static void page_entered(void)
 {
     grid_drop_holds();
-    song.seq_mode = (uint8_t)(grid_mode() || mix_mode() || comp_mode());   /* seq.c: the keys belong to the grid / the mutes */
+    song.seq_mode = (uint8_t)(grid_mode() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);   /* seq.c: the keys
+                                                     * belong to the grid / the ducks / TRACKS (armed: play, OCT-: mute) */
     ui.hot_t = 0;
     ui.force = 1;
 }
