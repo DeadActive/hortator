@@ -265,6 +265,32 @@ static int fdr3_converts(void)
            trk[1].p[P_LFO1 + LF_WAVE] == TP[P_LFO1 + LF_WAVE].def && trk[1].p[P_LFO2 + LF_RATE] == 23;
 }
 
+/* an FDR4 record (LFOs, no RESON) loads: its parameters; RESON OFF at the defaults */
+static int fdr4_converts(void)
+{
+    project_v4_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V4;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_RMODEL; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].p[P_LFO1 + LF_DEST] = 9;
+    v.t[2].step[5].on = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 3u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    trk[2].p[P_RMODEL] = RS_PIPE;                    /* the live state differs: the load replaces it */
+    project_load(3);
+    return trk[2].p[P_LFO1 + LF_DEST] == 9 && trk[2].step[5].on && trk[2].p[P_RMODEL] == RS_OFF &&
+           trk[2].p[P_RTUNE] == TP[P_RTUNE].def && trk[2].p[P_RDECAY] == TP[P_RDECAY].def;
+}
 int main(void)
 {
     char what[96];
@@ -272,6 +298,7 @@ int main(void)
     check("project: an M1 record (FDR1) loads with PROB 100 %, 1 hit, SRC STEP, Grids defaults", fdr1_converts());
     check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
+    check("project: an FDR4 record loads with RESON off", fdr4_converts());
     check("settings: MUTE NEXT BAR and ZOOM survive a power cycle (Felucca's settings format)", mutebar_persists());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)

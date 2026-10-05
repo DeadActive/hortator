@@ -21,6 +21,10 @@ static const char *const N_LTRIG[] = {"FREE", "HIT", "PLAY"};
 static const char *const N_LSYNC[17] = {"8BAR", "4BAR", "2BAR", "1BAR", "1/2", "1/4.", "1/4", "1/4T", "1/8.", "1/8",
                                         "1/8T", "1/16.", "1/16", "1/16T", "1/32", "1/32T", "1/64"};
 
+static const char *const N_RMODEL[] = {"OFF", "STRNG", "PIPE", "CHORD"};
+static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", "MIN", "SUS2", "SUS4", "DIM", "AUG",
+                                                   "MAJ6", "MIN6", "MAJ7", "MIN7", "DOM7", "M7b5", "DIM7", "7SUS4",
+                                                   "ADD9", "QUART", "CLUST", 0};
 #define LFO_TP(b, rf)                                                                                     \
     [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
     [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
@@ -53,6 +57,13 @@ static const param_desc_t TP[P_COUNT] = {
     [P_DUCK] = PE("DUCK", N_ONOFF, 0),
     LFO_TP(P_LFO1, F_LRATE1),
     LFO_TP(P_LFO2, F_LRATE2),
+    [P_RMODEL] = PE("MODEL", N_RMODEL, 0),
+    [P_RTUNE] = PD("TUNE", F_NOTEO, 24, 96, 48),
+    [P_RDECAY] = PD("DECAY", F_RDECAY, 0, 127, 72),
+    [P_RMIX] = PD("MIX", F_PCT, 0, 127, 64),
+    [P_RTONE] = PD("TONE", F_PCT, 0, 127, 100),
+    [P_RSTRCT] = PD("STRCT", F_INT, 0, 127, 0),
+    [P_RPOS] = PD("POS", F_PCT, 0, 127, 64),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -102,10 +113,15 @@ static const param_desc_t GP[G_COUNT] = {
 static const char *const N_MUTEBAR[] = {"NOW", "BAR"};
 static const param_desc_t GP_ACT[3] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0)};
 
+/* RESON STRCT on CHORD: the chord type, 0..127 split evenly over N_RCHORD (reson.c rs_chord) */
+static const param_desc_t RS_CHORD_DESC = {"CHORD", F_INT, 0, 127, 0, N_RCHORD, 0};
+
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 {
     if (id >= P_E0 && id <= P_E7)
         return &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS].edit[id - P_E0];
+    if (id == P_RSTRCT && t->p[P_RMODEL] == RS_CHORD)
+        return &RS_CHORD_DESC;
     return &TP[id];
 }
 
@@ -126,6 +142,7 @@ static void fmt_ms10(char *val, const char **unit, uint32_t ms10)   /* a time in
 }
 
 #include "lfo_tables.h"
+#include "reson_tables.h"
 static uint32_t lfo_dest_param(uint32_t dest);    /* lfo.c */
 
 /* value string (<= 5 chars) and unit for a parameter value */
@@ -183,6 +200,13 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
     case F_LPHASE:
         fmt_int(val, (int32_t)clamp(v, 0, 127) * 360 / 128);
         *unit = "\xB0";                              /* the degree sign (Latin-1, in FONT_S) */
+        break;
+    case F_NOTEO:                                     /* a MIDI note as name + octave (60 = C4): "C3", "F#5" */
+        str_cpy(val, N_NOTE[(uint32_t)clamp(v, 0, 127) % 12u], 6);
+        fmt_int(val + str_len(val), clamp(v, 0, 127) / 12 - 1);
+        break;
+    case F_RDECAY:
+        fmt_ms10(val, unit, RS_T60_MS10[clamp(v, 0, 127)]);
         break;
     case F_CTHR: {                                    /* whole dB from -10 down (the column fits "-24 dB") */
         int32_t d = comp_thr_dbx10(v);

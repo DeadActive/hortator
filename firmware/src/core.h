@@ -15,7 +15,8 @@
 /* ------------------------------------------------------- parameters --- */
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
-    F_ONOFF, F_OCT, F_STEPS, F_CTHR, F_CRAT, F_CATK, F_CREL, F_CMKUP, F_LRATE1, F_LRATE2, F_LDEST, F_LPHASE
+    F_ONOFF, F_OCT, F_STEPS, F_CTHR, F_CRAT, F_CATK, F_CREL, F_CMKUP, F_LRATE1, F_LRATE2, F_LDEST, F_LPHASE,
+    F_NOTEO, F_RDECAY
 };
 
 typedef struct {
@@ -32,6 +33,8 @@ enum { LF_WAVE, LF_MODE, LF_RATE, LF_MORPH, LF_DEPTH, LF_DEST, LF_TRIG, LF_PHASE
 enum { LW_SQUARE, LW_SAW, LW_RSAW, LW_SINE, LW_TRI, LW_SH, LW_WANDER, LW_EXPUP, LW_EXPDN, LW_RWALK, LW_COUNT };   /* LFO waves (lfo.c) */
 enum { LM_SYNC, LM_HZ, LM_TIME };
 enum { LT_FREE, LT_HIT, LT_PLAY };
+enum { RS_OFF, RS_STRNG, RS_PIPE, RS_CHORD, RS_NMODEL };   /* RESON models (reson.c); modal models come after CHORD */
+#define RS_NCHORD 20                                 /* CHORD types (reson.c RS_CHORD_IV, params.c N_RCHORD) */
 
 enum {                          /* per-track parameters */
     P_MODEL,
@@ -45,7 +48,9 @@ enum {                          /* per-track parameters */
     P_DUCK,                      /* M3: the COMP source ducks this track */
     P_LFO1,                      /* LFO 1: LF_N knobs (lfo.c) */
     P_LFO2 = P_LFO1 + LF_N,      /* LFO 2 */
-    P_COUNT = P_LFO2 + LF_N
+    P_RMODEL = P_LFO2 + LF_N,    /* RESON (reson.c): MODEL TUNE DECAY MIX, TONE STRCT POS */
+    P_RTUNE, P_RDECAY, P_RMIX, P_RTONE, P_RSTRCT, P_RPOS,
+    P_COUNT
 };
 
 enum {                          /* global parameters */

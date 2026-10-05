@@ -2214,6 +2214,33 @@ static void test_mute_next_bar(void)
     }
 }
 
+/* RESON parameters (params.c): TUNE as a note, DECAY as a time, STRCT named CHORD (with chord names) on CHORD */
+static void test_reson_params(void)
+{
+    char v[12];
+    const char *u;
+    host_init();
+    param_format(&TP[P_RTUNE], 48, v, &u);
+    check("RESON TUNE 48 = C3", str_eq(v, "C3"));
+    param_format(&TP[P_RTUNE], 96, v, &u);
+    check("RESON TUNE 96 = C7", str_eq(v, "C7"));
+    param_format(&TP[P_RTUNE], 25, v, &u);
+    check("RESON TUNE 25 = C#1", str_eq(v, "C#1"));
+    param_format(&TP[P_RDECAY], 0, v, &u);
+    check("RESON DECAY 0 = 10 ms", str_eq(v, "10") && str_eq(u, "ms"));
+    param_format(&TP[P_RDECAY], 127, v, &u);
+    check("RESON DECAY 127 = 10.0 s", str_eq(v, "10.0") && str_eq(u, "s"));
+    check("RESON defaults: OFF, C3, MIX 50 %, STRCT 0",
+          trk[0].p[P_RMODEL] == RS_OFF && trk[0].p[P_RTUNE] == 48 && trk[0].p[P_RMIX] == 64 && trk[0].p[P_RSTRCT] == 0);
+    check("RESON STRCT on STRNG is STRCT", str_eq(track_desc(&trk[0], P_RSTRCT)->label, "STRCT"));
+    trk[0].p[P_RMODEL] = RS_CHORD;
+    param_format(track_desc(&trk[0], P_RSTRCT), 3 * 128 / RS_NCHORD + 1, v, &u);
+    check("RESON STRCT on CHORD is CHORD, with chord names (MAJ)",
+          str_eq(track_desc(&trk[0], P_RSTRCT)->label, "CHORD") && str_eq(v, "MAJ"));
+    param_format(track_desc(&trk[0], P_RSTRCT), 127, v, &u);
+    check("RESON CHORD 127 = CLUST", str_eq(v, "CLUST"));
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -2272,6 +2299,7 @@ int main(void)
     test_lfo_random_phase_restart();
     test_lfo_activate_on_bar();
     test_mute_next_bar();
+    test_reson_params();
     test_percent_display();
     test_q24();
     test_tables();
