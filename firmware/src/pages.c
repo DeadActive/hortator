@@ -83,7 +83,7 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (id == 0xFFu || pg->scope == SC_GRID || pg->scope == SC_MIX)
         return 0;
     if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions */
-        *valp = &g_act[(id - G_COUNT) & 1u];
+        *valp = &song.act[(id - G_COUNT) & 1u];
         return &GP_ACT[(id - G_COUNT) & 1u];
     }
     if (pg->scope == SC_GLOBAL) {
