@@ -4,7 +4,8 @@
 /* Drum sequencer and input. 8 tracks x 64 steps (hit / accent / PROB / RATCH), per-track length, division and swing.
  * The 8 white keys F3..F4 hit tracks 1..8; MIDI notes on the drum channel hit every track whose NOTE
  * matches; an armed track records hits into the nearest step while playing. Runs in the audio ISR
- * before each block (events_block). */
+ * before each block (events_block). Grids (grids.c) runs on its own 1/32 clock and plays the tracks whose SRC
+ * is one of its channels. */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 static volatile uint8_t panic_req;       /* bit per track: cut its voices */
 static uint32_t kb_prev;
@@ -24,6 +25,37 @@ static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
 {
     int32_t sw = (t->p[P_SSWING] + song.g[G_SWING]) * (int32_t)period / 250;
     return period + (uint32_t)((cnt & 1u) ? -sw : sw);
+}
+
+/* Grids' clock: a 1/32 per Grids step, counted since PLAY; the global swing makes every other 1/16 long (as on a
+ * 1/16 step track) and each 1/16 is two equal 1/32s */
+static struct { uint32_t pos, cnt; } gclk;
+static uint32_t grids_samples(uint32_t cnt)
+{
+    uint32_t p16 = div_samples(2u);
+    int32_t sw = song.g[G_SWING] * (int32_t)p16 / 250;
+    uint32_t l16 = p16 + (uint32_t)(((cnt >> 1) & 1u) ? -sw : sw);
+    return (cnt & 1u) ? l16 - l16 / 2u : l16 / 2u;
+}
+
+static void grids_tick(uint32_t n)
+{
+    if (!song.playing)
+        return;
+    gclk.pos += n;
+    for (;;) {
+        uint32_t cur = grids_samples(gclk.cnt), bits, i;
+        if (gclk.pos < cur && gclk.pos != 0x7FFFFFFFu + n)
+            break;
+        gclk.pos = gclk.pos >= 0x7FFFFFFFu ? 0 : gclk.pos - cur;
+        gclk.cnt++;
+        bits = grids_step();
+        for (i = 0; bits & 7u && i < NTRK; i++) {    /* the tracks on a channel that fired: accent 127, else 96 */
+            uint32_t ch = (uint32_t)trk[i].p[P_SRC];
+            if (ch >= 1u && ch <= 3u && ((bits >> (ch - 1u)) & 1u))
+                drum_hit(&trk[i], ((bits >> (ch + 2u)) & 1u) ? 127u : 96u);
+        }
+    }
 }
 
 /* PROB of step s coming up on track t (LEN len): 100 % plays; a percentage plays when the track's next random
@@ -90,7 +122,7 @@ static void rec_hit(track_t *t, uint32_t vel)
 
 static void input_hit(track_t *t, uint32_t vel)
 {
-    if (((song.rec >> trk_index(t)) & 1u) && song.playing)
+    if (((song.rec >> trk_index(t)) & 1u) && song.playing && !t->p[P_SRC])
         rec_hit(t, vel);
     drum_hit(t, vel);
 }
@@ -141,6 +173,9 @@ static void seq_start(void)
         t->rat_n = 0;
         t->rng = 0x9E3779B9u * (i + 1u);           /* PROB: the same variations after every PLAY */
     }
+    gclk.pos = 0x7FFFFFFF;                          /* Grids step 0 on the first block too */
+    gclk.cnt = 0xFFFFFFFFu;
+    grids_start();
     song.tick = 0;
     song.playing = 1;
     slicer_start();
@@ -192,6 +227,7 @@ static void events_block(uint32_t n)
     midi_block();
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], n);
+    grids_tick(n);
     if (song.playing)
         song.tick++;
 }

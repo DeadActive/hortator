@@ -1380,6 +1380,104 @@ static void test_grids_mode_switch(void)
     check("Grids: MAP -> EUCLID and a LEN change while running keep every position inside its length", ok);
 }
 
+/* EUCLID 1/1 full on G-KCK: a hit every 1/16 on the same samples as a 1/16 step track (global swing 50);
+ * MAP: 32 Grids steps = one bar */
+static void test_grids_clock(void)
+{
+    uint32_t a1[40], a2[40], n1, n2, i, ok, p = FS * 60 / 120 / 4;
+    host_init();
+    song.g[G_SWING] = 50;
+    song.g[G_GMODE] = 1;
+    song.g[G_GLEN1] = 1;
+    song.g[G_GFILL1] = 127;
+    trk[0].p[P_SRC] = 1;
+    play();
+    n1 = hits_at(0, 32 * p - p / 2, a1, 40);
+    host_init();
+    song.g[G_SWING] = 50;
+    trk[0].p[P_SLEN] = 1;
+    trk[0].step[0].on = 1;
+    play();
+    n2 = hits_at(0, 32 * p - p / 2, a2, 40);
+    ok = n1 == 32u && n2 == 32u;
+    for (i = 0; ok && i < n1; i++)
+        ok &= a1[i] == a2[i];
+    check("Grids: EUCLID LEN 1 full plays every 1/16 on the same samples as a 1/16 step track (swing 50)", ok);
+    host_init();
+    play();
+    render_mix(0, 0, 16 * p - p / 4);
+    check("Grids: MAP steps are 1/32s: 32 steps in 16 sixteenths", gclk.cnt == 31u && grids.step == 0u);
+}
+
+/* two tracks on G-SNR play the same hits; their own steps are silent meanwhile; SRC back: the steps play in sync */
+static void test_grids_follow(void)
+{
+    uint32_t f, a1, a4, n = 0, same = 1, p = FS * 60 / 120 / 4, k;
+    host_init();
+    song.g[G_GFILL2] = 110;
+    song.g[G_GCHAOS] = 127;
+    trk[1].p[P_SRC] = trk[4].p[P_SRC] = 2;
+    for (k = 0; k < 16u; k++)
+        trk[1].step[k].on = 1;                       /* its own steps: every step, silent while it follows */
+    play();
+    a1 = hit_age(&trk[1]);
+    a4 = hit_age(&trk[4]);
+    for (f = 0; f < 32u * p; f += CTL) {
+        uint32_t h1, h4;
+        render_mix(0, 0, CTL);
+        h1 = hit_age(&trk[1]) != a1;
+        h4 = hit_age(&trk[4]) != a4;
+        same &= h1 == h4;
+        n += h1;
+        a1 = hit_age(&trk[1]);
+        a4 = hit_age(&trk[4]);
+    }
+    printf("     Grids snare (fill 110, chaos 127): %u hits in 2 bars\n", n);
+    check("Grids: two tracks on one channel play the same hits, not their own steps", same && n > 4u);
+    trk[1].p[P_SRC] = 0;
+    check("Grids: back to STEP, the track's step is the others' (in sync)", trk[1].seq_idx == trk[0].seq_idx);
+    a1 = hit_age(&trk[1]);
+    render_mix(0, 0, p);
+    check("Grids: back to STEP, its own steps play again", hit_age(&trk[1]) != a1);
+}
+
+/* chaos: the same session after every PLAY */
+static void test_grids_repeat(void)
+{
+    uint32_t r1[64], r2[64], n1, n2, i, same, p = FS * 60 / 120 / 4;
+    host_init();
+    song.g[G_GCHAOS] = 127;
+    song.g[G_GFILL3] = 90;
+    trk[3].p[P_SRC] = 3;
+    play();
+    n1 = hits_at(3, 32 * p, r1, 64);
+    transport_req = 2;
+    render_mix(0, 0, CTL);
+    play();
+    n2 = hits_at(3, 32 * p, r2, 64);
+    same = n1 == n2 && n1 > 0u;
+    for (i = 0; same && i < n1 && i < 64u; i++)
+        same &= r1[i] == r2[i];
+    check("Grids: with chaos, every PLAY repeats the same hats", same);
+}
+
+/* live recording on a Grids track: its key plays, no step is written */
+static void test_grids_rec_skip(void)
+{
+    uint32_t p = FS * 60 / 120 / 4, a;
+    host_init();
+    trk[0].p[P_SRC] = 1;
+    song.rec = 1u;
+    play();
+    render_mix(0, 0, p + p * 3 / 4 / CTL * CTL);
+    a = hit_age(&trk[0]);
+    fm1_in.notes = 1u << KEY_TRK_KEY[0];
+    render_mix(0, 0, CTL);
+    fm1_in.notes = 0;
+    check("live record: a Grids track's key plays it but writes no step",
+          hit_age(&trk[0]) != a && !trk[0].step[1].on && !trk[0].step[2].on);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1439,6 +1537,10 @@ int main(void)
     test_ratchet_tempo_change();
     test_grids_engine();
     test_grids_mode_switch();
+    test_grids_clock();
+    test_grids_follow();
+    test_grids_repeat();
+    test_grids_rec_skip();
     test_accent();
     test_kicks();
     test_model_change();

@@ -53,6 +53,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     metal_blk = 0xFFFFFFFFu;
     dblock = 0;
     memset(&grids, 0, sizeof grids);
+    memset(&gclk, 0, sizeof gclk);
 }
 
 static void host_init(void)
