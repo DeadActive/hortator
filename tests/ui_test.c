@@ -14,7 +14,7 @@ static void test_families(void)
 {
     static const struct { uint32_t btn; uint32_t fam; } MAP[] = {
         {B_EDIT, FAM_SND}, {B_ENV, FAM_TRK}, {B_LFO, FAM_LAY}, {B_FX, FAM_FX},
-        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE},
+        {B_SEQ, FAM_SEQ}, {B_GLO, FAM_GLO}, {B_SAVE, FAM_SAVE}, {B_ARP, FAM_GRIDS},
     };
     uint32_t i, ok = 1;
     ui_host_init();
@@ -24,11 +24,11 @@ static void test_families(void)
         release_all();
         ok &= !ui.home && cur_page()->fam == MAP[i].fam;
     }
-    check("buttons open their page families (EDIT SOUND, ENV TRACK, LFO LAYER, FX, SEQ, GLO, SAVE)", ok);
+    check("buttons open their page families (EDIT SOUND, ENV TRACK, LFO LAYER, FX, SEQ, GLO, SAVE, ARP GRIDS)", ok);
     press(B_SCL);
     ui_frame();
     release_all();
-    check("SCL does nothing", !ui.home && cur_page()->fam == FAM_SAVE);
+    check("SCL does nothing", !ui.home && cur_page()->fam == FAM_GRIDS);
     press(B_EDIT);
     ui_frame();
     release_all();
@@ -163,6 +163,8 @@ static void test_grid_hold_accent(void)
 }
 
 static void snap_page(const char *name);
+static void seq_play_to(uint32_t ti, uint32_t step);
+static void seq_open(const char *title);
 
 /* a step key held + KNOB n (n = 0 PROB, 1 RATCH) turned `steps` detents, slowly, then let go */
 static void grid_hold_turn(uint32_t key, uint32_t knob, int32_t steps)
@@ -227,6 +229,94 @@ static void test_grid_step_edit(void)
     snap_page("seq/21_step_prob_ratch");
     open_step_page();                                /* PATTERN */
     snap_page("seq/22_pattern_prob_ratch");
+}
+
+static void test_grids_pages(void)
+{
+    ui_host_init();
+    press(B_ARP);
+    ui_frame();
+    release_all();
+    check("ARP opens GRIDS 1/2 (MODE X Y CHAOS)", !ui.home && str_eq(cur_page()->title, "GRIDS") && cur_page()->id[0] == G_GMODE);
+    snap_page("grids/01_map_page1");
+    turn(EN_K1 + 1, 3);
+    ui_frame();
+    check("GRIDS MAP: KNOB 2 turns X", song.g[G_GX] == 67);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("GRIDS: KNOB 1 switches MODE to EUCL", song.g[G_GMODE] == 1);
+    turn(EN_K1 + 1, -2);
+    ui_frame();
+    check("GRIDS EUCLID: KNOB 2 turns LEN K (X kept)", song.g[G_GLEN1] == 14 && song.g[G_GX] == 67);
+    snap_page("grids/03_euclid_page1");
+    press(B_ARP);
+    ui_frame();
+    release_all();
+    check("ARP again: GRIDS 2/2 (FIL K FIL S FIL H)", cur_page()->id[0] == G_GFILL1);
+    turn(EN_K1 + 2, 5);
+    ui_frame();
+    check("GRIDS 2/2: KNOB 3 turns FIL H", song.g[G_GFILL3] == 69);
+    trk[0].p[P_SRC] = 1;
+    trk[5].p[P_SRC] = 1;
+    trk[1].p[P_SRC] = 2;
+    trk[3].p[P_SRC] = 3;
+    ui.force = 1;
+    snap_page("grids/04_euclid_page2_routing");
+    song.g[G_GMODE] = 0;
+    transport_req = 1;
+    seq_play_to(1, 6);
+    snap_page("grids/02_map_page2_playing");
+    press(B_ARP);
+    ui_frame();
+    release_all();
+    snap_page("grids/05_map_page1_playing");
+}
+
+/* a track on a Grids channel: STEP / PATTERN / the footer / the LEDs show the channel, read-only */
+static void test_src_readonly(void)
+{
+    uint32_t k, ok = 1;
+    ui_host_init();
+    trk[0].step[0].on = 1;
+    seq_open("PATTERN");
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    check("PATTERN: KNOB 4 is SRC (STEP -> G-KCK)", trk[0].p[P_SRC] == 1);
+    snap_page("grids/07_pattern_src_kick");
+    song.g[G_GFILL1] = 127;
+    seq_open("STEP");
+    check("a Grids track's STEP grid shows the channel: MAP, 32 steps on 2 banks", bank_count() == 2u);
+    for (k = 0; k < 16u; k++)
+        ok &= led_lit(14u + WHITE[k]) == (int)(grids_preview(0, k) & 1u);
+    check("the keys' LEDs show the channel's steps", ok);
+    snap_page("grids/06_step_grids_track");
+    grid_hold(WHITE[3], 0);
+    grid_hold_turn(WHITE[3], 0, 2);
+    keys(0);
+    ui_frame();
+    check("keys and hold + knob do nothing on a Grids track", !trk[0].step[3].on && trk[0].step[3].cond == 0 && trk[0].step[0].on);
+    song.g[G_GMODE] = 1;
+    song.g[G_GLEN1] = 20;
+    ui_frame();
+    check("EUCLID: the grid shows LEN K steps (20: 2 banks)", bank_count() == 2u && view_len(&trk[0]) == 20u);
+    trk[0].p[P_SRC] = 0;
+    ui_frame();
+    check("SRC back to STEP: its own steps again", bank_count() == 1u && led_lit(14u + WHITE[0]));
+    song.g[G_GMODE] = 0;
+    trk[0].p[P_SRC] = 1;
+    trk[2].p[P_SRC] = 3;
+    press(B_HOME);                                   /* HOME, then a REC tap: TRACKS (on SEQ REC arms) */
+    ui_frame();
+    release_all();
+    ui_frame();
+    press(B_REC);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("TRACKS open for the Grids rows screen", !ui.home && cur_page()->scope == SC_MIX && !song.rec);
+    transport_req = 1;
+    seq_play_to(1, 5);
+    snap_page("grids/08_tracks_grids_rows");
 }
 
 static void test_grid_keys(void)
@@ -862,6 +952,8 @@ int main(void)
     test_key_selects_track();
     test_grid_hold_accent();
     test_grid_step_edit();
+    test_grids_pages();
+    test_src_readonly();
     test_engine_screens();
     test_seq_screens();
     test_families();

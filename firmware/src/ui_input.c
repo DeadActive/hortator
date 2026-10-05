@@ -52,8 +52,8 @@ static void ui_leds(void)
         led_put(nl, panel.btn[B_OCTUP], ui.bank + 1u < bank_count());
         for (k = 0; k < 16u; k++) {
             uint32_t si = ui.bank * 16u + k;
-            int on = si < (uint32_t)t->p[P_SLEN] && t->step[si].on;
-            if (song.playing && si == t->seq_idx)
+            int on = si < view_len(t) && view_step(t, si).on;
+            if (song.playing && si == view_idx(t))
                 on = !on;
             led_put(nl, 14u + STEP_KEY[k], on);
         }

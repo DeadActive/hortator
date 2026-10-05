@@ -145,13 +145,14 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     cv_blit(c * 60u + 4u, Y_LABEL);
 }
 
-/* ---------------------------------------------------------- graphs --- */
 static uint32_t steps_hash(const track_t *t)
 {
-    uint32_t h = 2166136261u, i;
-    for (i = 0; i < NSTEP; i++)
-        h = (h ^ (t->step[i].on + t->step[i].acc * 2u + t->step[i].cond * 4u + t->step[i].rat * 256u)) * 16777619u;
-    return h ^ (uint32_t)t->p[P_SLEN] * 7919u;
+    uint32_t h = 2166136261u, i, n = view_len(t);
+    for (i = 0; i < n; i++) {
+        step_t s = view_step(t, i);
+        h = (h ^ (s.on + s.acc * 2u + s.cond * 4u + s.rat * 256u)) * 16777619u;
+    }
+    return h ^ n * 7919u;
 }
 
 /* the selected track's model: name large, voices and choke group */
@@ -188,28 +189,31 @@ static void step_bar(int32_t x, int32_t y, int32_t w, int32_t h, const step_t *s
 /* PATTERN page: 4 rows of 16 steps over LEN; accent tall, playhead white */
 static void graph_steps(const track_t *t, uint16_t c)
 {
-    uint32_t i, len = (uint32_t)t->p[P_SLEN];
+    uint32_t i, len = view_len(t);
     for (i = 0; i < NSTEP && i < len; i++) {
         int32_t x = 6 + (int32_t)(i % 16u) * 14 + (int32_t)(i % 16u) / 4 * 4, y = 6 + (int32_t)(i / 16u) * 24;
-        const step_t *st = &t->step[i];
+        step_t sv = view_step(t, i);
+        const step_t *st = &sv;
         if (st->on)
             step_bar(x, st->acc ? y : y + 4, 2, st->acc ? 14 : 10, st, st->acc ? C_WHITE : c, 3);
         else
             cv_rect(x, y + 13, 2, 1, C_DIM);
-        if (song.playing && i == t->seq_idx)
+        if (song.playing && i == view_idx(t))
             cv_rect(x - 1, y + 16, 4, 3, C_WHITE);
     }
 }
 
-/* STEP page: the bank's 16 steps as the keys show them; bank n/m on the left */
+/* STEP page: the bank's 16 steps as the keys show them; bank n/m on the left. Hint line: a held step's PROB /
+ * RATCH, or a Grids track's channel (its grid is read-only) */
 static void graph_grid(const track_t *t, uint16_t c)
 {
-    uint32_t i, len = (uint32_t)t->p[P_SLEN];
+    uint32_t i, len = view_len(t);
     char b[8];
     for (i = 0; i < 16u; i++) {
         uint32_t si = ui.bank * 16u + i;
         int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2, y = 30;
-        const step_t *st = &t->step[si];
+        step_t sv = view_step(t, si);
+        const step_t *st = &sv;
         if (si >= len) {
             cv_rect(x, y + 20, 11, 1, C_LINE);
             continue;
@@ -218,7 +222,7 @@ static void graph_grid(const track_t *t, uint16_t c)
             step_bar(x, st->acc ? y : y + 10, 11, st->acc ? 40 : 30, st, st->acc ? C_WHITE : c, 3);
         else
             cv_rect(x, y + 36, 11, 4, C_DIM);
-        if (song.playing && si == t->seq_idx)
+        if (song.playing && si == view_idx(t))
             cv_rect(x, y + 46, 11, 3, C_WHITE);
     }
     fmt_int(b, (int32_t)ui.bank + 1);
@@ -226,7 +230,10 @@ static void graph_grid(const track_t *t, uint16_t c)
     fmt_int(b + str_len(b), (int32_t)bank_count());
     cv_text(4, 4, &FONT_S, "BANK", C_GRAY);
     cv_text(48, 4, &FONT_S, b, C_HI);
-    if (ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] != 0xFFFFu) {   /* a step held: its settings */
+    if (view_src(t)) {
+        static const char *const GN[3] = {"GRIDS KICK", "GRIDS SNARE", "GRIDS HATS"};
+        cv_text(4, 84, &FONT_S, GN[view_src(t) - 1u], C_AMB);
+    } else if (ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] != 0xFFFFu) {
         const step_t *hs = &t->step[ui.step_si[ui.held]];
         char h[32], cs[8];
         str_cpy(h, "STEP ", sizeof h);
@@ -239,6 +246,84 @@ static void graph_grid(const track_t *t, uint16_t c)
         cv_text(4, 84, &FONT_S, h, C_WHITE);
     } else {
         cv_text(4, 84, &FONT_S, "TAP: ON/OFF  HOLD: ACCENT", C_DIM);
+    }
+}
+
+/* GRIDS pages. MAP: the 5 x 5 node map (faint) with the X / Y point, and the three channels' 32 steps without
+ * chaos (accent tall, playhead underlined). EUCLID: three rings of LEN positions (accent large, playhead marked).
+ * Page 2 adds the routing: which tracks play each channel. */
+static void graph_grids(uint16_t c, int routing)
+{
+    static const char *const CH[3] = {"K", "S", "H"};
+    uint32_t ch, i;
+    if (!song.g[G_GMODE]) {
+        int32_t px = 6 + song.g[G_GX] * 72 / 127, py = 6 + song.g[G_GY] * 72 / 127;
+        for (i = 0; i < 25u; i++)
+            cv_rect(5 + (int32_t)(i % 5u) * 18, 5 + (int32_t)(i / 5u) * 18, 2, 2, C_DIM);
+        cv_rect(px - 3, py - 3, 7, 7, C_WHITE);
+        for (ch = 0; ch < 3u; ch++) {
+            int32_t y = 4 + (int32_t)ch * 24;
+            cv_text(92, y + 2, &FONT_S, CH[ch], C_GRAY);
+            for (i = 0; i < 32u; i++) {
+                uint32_t b = grids_preview(ch, i);
+                int32_t x = 106 + (int32_t)i * 4 + (int32_t)(i / 8u) * 2;
+                int ph = song.playing && i == grids.last;
+                if (b & 1u)
+                    cv_rect(x, (b & 2u) ? y : y + 8, 3, (b & 2u) ? 18 : 10, ph ? C_WHITE : (b & 2u) ? C_WHITE : c);
+                else
+                    cv_rect(x, y + 17, 3, 1, C_DIM);
+                if (ph)
+                    cv_rect(x, y + 20, 3, 2, C_WHITE);
+            }
+        }
+    } else {
+        for (ch = 0; ch < 3u; ch++) {
+            uint32_t len = grids_len(ch);
+            int32_t cx = 40 + (int32_t)ch * 80, cy = 36;
+            char b[8];
+            for (i = 0; i < len; i++) {
+                uint32_t ph = i * (0xFFFFFFFFu / len), bb = grids_preview(ch, i);
+                int32_t x = cx + sine_i(ph) * 28 / 32768, y = cy - sine_i(ph + 0x40000000u) * 28 / 32768;
+                if (bb & 2u)
+                    cv_rect(x - 3, y - 3, 7, 7, C_WHITE);
+                else if (bb & 1u)
+                    cv_rect(x - 2, y - 2, 5, 5, c);
+                else
+                    cv_rect(x - 1, y - 1, 2, 2, C_DIM);
+                if (song.playing && i == grids.elast[ch])
+                    cv_rect(x - 4, y + 5, 9, 2, C_WHITE);
+            }
+            str_cpy(b, CH[ch], sizeof b);
+            str_cpy(b + 1, " ", sizeof b - 1);
+            fmt_int(b + 2, (int32_t)len);
+            cv_text(cx - text_w(&FONT_S, b) / 2, 68, &FONT_S, b, C_GRAY);
+        }
+    }
+    if (routing) {                                   /* "K: T1 T6  S: T2  H: -" */
+        char r[48];
+        uint32_t n = 0, k;
+        r[0] = 0;
+        for (ch = 0; ch < 3u; ch++) {
+            uint32_t any = 0;
+            str_cpy(r + n, ch ? "  " : "", sizeof r - n);
+            n = str_len(r);
+            str_cpy(r + n, CH[ch], sizeof r - n);
+            str_cpy(r + str_len(r), ":", sizeof r - str_len(r));
+            n = str_len(r);
+            for (k = 0; k < NTRK && n + 4u < sizeof r; k++)
+                if (trk[k].p[P_SRC] == (int16_t)(ch + 1u)) {
+                    r[n++] = ' ';
+                    r[n++] = 'T';
+                    r[n++] = (char)('1' + k);
+                    r[n] = 0;
+                    any = 1;
+                }
+            if (!any && n + 3u < sizeof r) {
+                str_cpy(r + n, " -", sizeof r - n);
+                n = str_len(r);
+            }
+        }
+        cv_text(4, 84, &FONT_S, r, C_AMB);
     }
 }
 
@@ -354,7 +439,7 @@ static void draw_mix(void)
     for (c = 0; c < NTRK; c++) {
         track_t *t = &trk[c];
         uint32_t sel = c == song.sel, lvl = (uint32_t)t->p[P_LEVEL] & 127u, mute = !lvl || t->p[P_MUTE];
-        uint32_t arm = (song.rec >> c) & 1u, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), bank, sig, k;
+        uint32_t arm = (song.rec >> c) & 1u, len = view_len(t), bank, sig, k;
         int32_t m = mute ? 0 : meter_px(t->peak);
         uint16_t ink = sel ? C_HI : C_GRAY;
         char b[2] = {(char)('1' + c), 0};
@@ -362,10 +447,10 @@ static void draw_mix(void)
         if (m < mx.meter[c] - 1)
             m = mx.meter[c] - 1;
         mx.meter[c] = (uint8_t)(m < 0 ? 0 : m);
-        bank = song.playing ? (t->seq_idx % len) / 16u : sel ? ui.bank : 0u;
+        bank = song.playing ? (view_idx(t) % len) / 16u : sel ? ui.bank : 0u;
         sig = 1u + sel + arm * 2u + mute * 4u + lvl * 8u + mx.meter[c] * 1024u + bank * 65536u +
               (uint32_t)t->p[P_MODEL] * 7919u + steps_hash(t) * 131u +
-              (song.playing ? t->seq_idx + 1u : 0u) * 2654435761u;
+              (song.playing ? view_idx(t) + 1u : 0u) * 2654435761u;
         if (!ui.force && sig == mx.sig[c])
             continue;
         mx.sig[c] = sig;
@@ -377,8 +462,9 @@ static void draw_mix(void)
         for (k = 0; k < 16u; k++) {
             uint32_t si = bank * 16u + k;
             int32_t x = (int32_t)MX_CELL_X(k);
-            const step_t *st = &t->step[si];
-            int ph = song.playing && si == t->seq_idx;     /* the playhead: its step drawn white */
+            step_t sv = view_step(t, si);
+            const step_t *st = &sv;
+            int ph = song.playing && si == view_idx(t);     /* the playhead: its step drawn white */
             if (si >= len)
                 continue;
             if (st->on)
@@ -418,8 +504,18 @@ static uint32_t graph_signature(void)
         for (i = 0; i < 4u; i++)
             h ^= (uint32_t)project_used(i) << (20u + i);
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
-        h ^= steps_hash(t) + (song.playing ? t->seq_idx + 1u : 0u) * 31u;
+        h ^= steps_hash(t) + (song.playing ? view_idx(t) + 1u : 0u) * 31u;
         h ^= (ui.held < 16u && ui.step_t0[ui.held] ? ui.held + 1u : 0u) * 977u;
+    if (pg->graph == GR_GRIDS) {
+        for (i = G_GMODE; i <= G_GLEN3; i++)
+            h = (h ^ (uint32_t)song.g[i]) * 16777619u;
+        for (i = 0; i < NTRK; i++)
+            h = (h ^ (uint32_t)trk[i].p[P_SRC]) * 16777619u;
+        h ^= ui.page * 389u;
+        if (song.playing)
+            h ^= (grids.last + 1u + (grids.elast[0] | grids.elast[1] << 8 | (uint32_t)grids.elast[2] << 16) * 64u) *
+                 2654435761u;
+    }
     return h;
 }
 
@@ -458,6 +554,9 @@ static void draw_graph(void)
             break;
         case GR_SLCR:
             graph_slicer(t, c);
+            break;
+        case GR_GRIDS:
+            graph_grids(c, pg->id[0] == G_GFILL1);
             break;
         case GR_SLOTS:
             cv_oy = 0;
@@ -511,7 +610,7 @@ static void draw_foot(void)
     tn[1] = (char)('1' + song.sel);
     tn[2] = 0;
     sig = str_hash(str_hash(0x9E3779B9u, ti), mn) + song.sel * 7u + steps_hash(t) + ui.bank * 3001u +
-          (song.playing && t->seq_idx / 16u == ui.bank ? t->seq_idx + 1u : 0u) * 97u;
+          (song.playing && view_idx(t) / 16u == ui.bank ? view_idx(t) + 1u : 0u) * 97u;
     if (!ui.force && sig == ui.foot_sig)
         return;
     ui.foot_sig = sig;
@@ -519,14 +618,15 @@ static void draw_foot(void)
     for (i = 0; i < 16u; i++) {
         uint32_t si = ui.bank * 16u + i;
         int32_t sx = 6 + (int32_t)i * 14 + (int32_t)(i / 4u) * 4;
-        const step_t *st = &t->step[si];
-        if (si >= (uint32_t)t->p[P_SLEN])
+        step_t sv = view_step(t, si);
+        const step_t *st = &sv;
+        if (si >= view_len(t))
             continue;
         if (st->on)
             cv_rect(sx, st->acc ? 1 : 3, 2, st->acc ? 10 : 8, st->acc ? C_WHITE : C_HI);
         else
             cv_rect(sx, 10, 2, 1, C_DIM);
-        if (song.playing && si == t->seq_idx)
+        if (song.playing && si == view_idx(t))
             cv_rect(sx - 1, 13, 4, 3, C_WHITE);
     }
     cv_text(4, 20, &FONT_S, mn, C_HI);

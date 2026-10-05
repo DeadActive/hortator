@@ -3,9 +3,9 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Drum UI pages: a family per page button (pressing it again steps through its pages), and what
  * the four knobs edit on each page. */
-enum { FAM_HOME, FAM_SND, FAM_TRK, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_MIX, FAM_COUNT };
+enum { FAM_HOME, FAM_SND, FAM_TRK, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS, FAM_MIX, FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX };   /* knobs edit: the selected track, song.g, the STEP grid, the mixer */
-enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX };
+enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS };
 
 typedef struct {
     const char *title;
@@ -25,21 +25,32 @@ static const page_t PAGES[] = {
     {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
     {"STEP", FAM_SEQ, SC_GRID, GR_GRID, {0xFF, 0xFF, 0xFF, 0xFF}},   /* KNOB 1: bank */
-    {"PATTERN", FAM_SEQ, SC_TRACK, GR_STEPS, {P_SLEN, P_SDIV, P_SSWING, 0xFF}},
+    {"PATTERN", FAM_SEQ, SC_TRACK, GR_STEPS, {P_SLEN, P_SDIV, P_SSWING, P_SRC}},
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_DRCH}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, 0xFF}},
+    {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
+    {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GFILL1, G_GFILL2, G_GFILL3, 0xFF}},
     {"TRACKS", FAM_MIX, SC_MIX, GR_MIX, {0xFF, 0xFF, 0xFF, 0xFF}},   /* TRACK LEVEL LEN PAN */
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
-/* the button of each family (SCL and ARP have none) */
-static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_ENV, B_LFO, B_FX, B_SEQ, B_GLO, B_SAVE, B_REC};
+/* the button of each family (SCL has none) */
+static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_ENV, B_LFO, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_REC};
+
+/* the parameter of a column: GRIDS 1/2 in EUCLID mode turns LEN K / S / H where MAP has X / Y / CHAOS */
+static uint32_t page_id(const page_t *pg, uint32_t slot)
+{
+    uint32_t id = pg->id[slot & 3u];
+    if (pg->graph == GR_GRIDS && id >= G_GX && id <= G_GCHAOS && song.g[G_GMODE])
+        id = G_GLEN1 + (id - G_GX);
+    return id;
+}
 
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
-    uint32_t id = pg->id[slot & 3u];
+    uint32_t id = page_id(pg, slot);
     *valp = 0;
     if (id == 0xFFu || pg->scope == SC_GRID || pg->scope == SC_MIX)
         return 0;

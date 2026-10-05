@@ -110,8 +110,30 @@ static void go_home(void)
     ui.force = 1;
 }
 
+/* --------------------------------------------- what a track shows --- */
+/* the STEP grid, PATTERN, the footer, TRACKS and the keys show a track's steps, or, when its SRC is a Grids
+ * channel, that channel's pattern (read-only: Grids makes it) */
+static uint32_t view_src(const track_t *t) { return t->p[P_SRC] >= 1 && t->p[P_SRC] <= 3 ? (uint32_t)t->p[P_SRC] : 0u; }
+static uint32_t view_len(const track_t *t)
+{
+    uint32_t s = view_src(t);
+    return s ? grids_len(s - 1u) : (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP);
+}
+static step_t view_step(const track_t *t, uint32_t si)
+{
+    uint32_t s = view_src(t), b;
+    step_t r = {0, 0, 0, 0};
+    if (!s)
+        return t->step[si % NSTEP];
+    b = grids_preview(s - 1u, si);
+    r.on = (uint8_t)(b & 1u);
+    r.acc = (uint8_t)((b >> 1) & 1u);
+    return r;
+}
+static uint32_t view_idx(const track_t *t) { uint32_t s = view_src(t); return s ? grids_pos(s - 1u) : t->seq_idx; }
+
 /* ------------------------------------------------------ STEP grid --- */
-static uint32_t bank_count(void) { return ((uint32_t)clamp(TSEL->p[P_SLEN], 1, NSTEP) + 15u) / 16u; }
+static uint32_t bank_count(void) { return (view_len(TSEL) + 15u) / 16u; }
 static void bank_set(int32_t b) { ui.bank = (uint8_t)clamp(b, 0, (int32_t)bank_count() - 1); }
 static void bank_fix(void)                             /* LEN shortened (knob, project): onto the last bank */
 {
@@ -126,7 +148,7 @@ static void step_press(uint32_t k)
     uint32_t si = ui.bank * 16u + k;
     step_t *s;
     ui.step_si[k] = 0xFFFFu;
-    if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN])
+    if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
         return;
     s = &TSEL->step[si];
     ui.step_si[k] = (uint16_t)si;
