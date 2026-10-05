@@ -8,9 +8,11 @@ _Static_assert(FS == 44100, "lfo_tables.h is made for 44.1 kHz");
 /* SYNC: one cycle in ticks of a quarter note / 96: 8 bars .. 1/64 */
 static const uint16_t LFO_SYNC_TICKS[17] = {3072, 1536, 768, 384, 192, 144, 96, 64, 72, 48, 32, 36, 24, 16, 12, 8, 6};
 
+/* DEST -> the knob an LFO writes; R.TUN (11) writes no knob: the resonator's fine pitch (lfo_track) */
 static uint32_t lfo_dest_param(uint32_t dest)
 {
-    return dest >= 1u && dest <= 8u ? P_E0 + dest - 1u : dest == 9u ? (uint32_t)P_LEVEL : dest == 10u ? (uint32_t)P_PAN : 0xFFu;
+    return dest >= 1u && dest <= 8u ? P_E0 + dest - 1u : dest == 9u ? (uint32_t)P_LEVEL : dest == 10u ? (uint32_t)P_PAN
+         : dest >= 12u && dest <= 16u ? P_RDECAY + dest - 12u : 0xFFu;
 }
 
 static uint32_t lfo_inc(const int16_t *q)
@@ -131,6 +133,7 @@ static void lfo_track(track_t *t, uint32_t n)
     uint32_t l, k, on = (t->p[P_LFO1 + LF_DEST] && t->p[P_LFO1 + LF_DEPTH]) |
                         (uint32_t)(t->p[P_LFO2 + LF_DEST] && t->p[P_LFO2 + LF_DEPTH]) << 1;
     int32_t acc[2] = {0, 0};
+    t->rfine = 0;
     if (on & ~(uint32_t)t->lon)
         lfo_join(t, on & ~(uint32_t)t->lon);
     t->lon = (uint8_t)on;
@@ -146,7 +149,7 @@ static void lfo_track(track_t *t, uint32_t n)
         s->out = lfo_value(t, l, (n && s->ph + off < old + off) | s->fresh);   /* a new cycle where PHASE puts it, or a
                                                                                  * restart */
         s->fresh = 0;
-        pid = lfo_dest_param((uint32_t)clamp(q[LF_DEST], 0, 10));
+        pid = lfo_dest_param((uint32_t)clamp(q[LF_DEST], 0, 16));
         if (pid == 0xFFu)
             continue;
         d = track_desc(t, pid);
@@ -165,6 +168,11 @@ static void lfo_track(track_t *t, uint32_t n)
         const param_desc_t *d = track_desc(t, t->lpid[k]);
         t->lval[k] = (int16_t)clamp(t->lsave[k] + acc[k], d->min, d->max);
         t->p[t->lpid[k]] = t->lval[k];
+    }
+    for (l = 0; l < 2u; l++) {                        /* R.TUN: the resonator's fine pitch, smooth (TUNE untouched) */
+        const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
+        if (q[LF_DEST] == 11 && q[LF_DEPTH])
+            t->rfine += t->lfo[l].out * clamp(q[LF_DEPTH], -64, 64) / 64 * RS_FINE / 32767;
     }
 }
 
@@ -235,6 +243,13 @@ static void lfo_start(void)
 static int lfo_live(const track_t *t, uint32_t pid, int32_t *val)
 {
     uint32_t l;
+    if (pid == P_RTUNE) {                             /* R.TUN: TUNE + the fine offset of the last block */
+        if ((t->p[P_LFO1 + LF_DEST] == 11 && t->p[P_LFO1 + LF_DEPTH]) || (t->p[P_LFO2 + LF_DEST] == 11 && t->p[P_LFO2 + LF_DEPTH])) {
+            *val = clamp(t->p[P_RTUNE] + t->rfine / 256, 24, 96);
+            return 1;
+        }
+        return 0;
+    }
     for (l = 0; l < 2u; l++) {
         const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
         if (q[LF_DEST] && q[LF_DEPTH] && lfo_dest_param((uint32_t)q[LF_DEST]) == pid) {

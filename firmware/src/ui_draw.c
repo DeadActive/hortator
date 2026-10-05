@@ -608,9 +608,8 @@ static void graph_lfo(uint16_t c, uint32_t l)
         cv_rect(100 + px - 2, 40 - lfo_out(t, l) * 34 / 32767 - 2, 5, 5, C_WHITE);
     }
     {
-        const param_desc_t *d = q[LF_DEST] ? track_desc(t, lfo_dest_param((uint32_t)clamp(q[LF_DEST], 1, 10))) : 0;
         str_cpy(b, "-> ", sizeof b);
-        str_cpy(b + 3, d && d->label && d->label[0] != '-' ? d->label : "OFF", sizeof b - 3);
+        str_cpy(b + 3, lfo_dest_label(t, q[LF_DEST]), sizeof b - 3);
         str_cpy(b + str_len(b), " ", sizeof b - str_len(b));
         fmt_int(b + str_len(b), clamp(q[LF_DEPTH], -64, 64) * 100 / 64);
         str_cpy(b + str_len(b), "%", sizeof b - str_len(b));

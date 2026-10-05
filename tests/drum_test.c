@@ -2521,6 +2521,71 @@ static void test_reson_ghost_source(void)
     check("RESON on a muted COMP source: not heard in the mix", peak_of(wl, SECS(0.1), SECS(2)) < 64);
 }
 
+static void test_reson_lfo(void)
+{
+    static const char *const NAME[6] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS"};
+    char v[12];
+    const char *u;
+    uint32_t i, ok = 1, k;
+    int32_t mv = 0, before = 0, during = 0;
+    uint32_t len0, lmin = 0xFFFFFFFFu, lmax = 0, jump = 0, prev;
+    host_init();
+    for (i = 0; i < 6u; i++) {
+        param_format(&TP[P_LFO1 + LF_DEST], 11 + (int32_t)i, v, &u);
+        ok &= str_eq(v, NAME[i]);
+    }
+    param_format(&TP[P_LFO1 + LF_DEST], 0, v, &u);
+    ok &= str_eq(v, "OFF");
+    check("LFO DEST 11..16: R.TUN R.DCY R.MIX R.TON R.STR R.POS; 0 OFF", ok && TP[P_LFO1 + LF_DEST].max == 16);
+    rs_setup(RS_STRNG, 48);                           /* R.TUN: a slow sweep moves the line length smoothly */
+    trk[0].p[P_RDECAY] = 127;
+    trk[0].p[P_LFO1 + LF_WAVE] = LW_TRI;
+    trk[0].p[P_LFO1 + LF_MODE] = LM_TIME;
+    trk[0].p[P_LFO1 + LF_RATE] = 100;
+    trk[0].p[P_LFO1 + LF_DEST] = 11;
+    trk[0].p[P_LFO1 + LF_DEPTH] = 64;
+    trk[0].p[P_LFO1 + LF_TRIG] = LT_FREE;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, CTL);
+    len0 = prev = trk[0].rs.len[0];
+    for (k = 0; k < 4000u; k++) {                     /* ~2.9 s */
+        uint32_t l;
+        render_mix(wl, 0, CTL);
+        l = trk[0].rs.len[0];
+        lmin = l < lmin ? l : lmin;
+        lmax = l > lmax ? l : lmax;
+        jump = (l > prev ? l - prev : prev - l) > jump ? (l > prev ? l - prev : prev - l) : jump;
+        prev = l;
+        if (k % 400u == 0u)
+            drum_hit(&trk[0], 127);
+    }
+    printf("     RESON R.TUN sweep: line %u .. %u (Q8), largest block step %u (start %u)\n", lmin, lmax, jump, len0);
+    check("LFO R.TUN: the resonator pitch sweeps smoothly (no semitone steps, over a semitone in total)",
+          lmax - lmin > len0 / 17u && jump * 300u < len0);
+    check("LFO R.TUN: the TUNE knob is untouched", trk[0].p[P_RTUNE] == 48);
+    check("LFO R.TUN: the EDIT marker reports the live pitch", lfo_live(&trk[0], P_RTUNE, &mv) && mv != 48);
+    rs_setup(RS_STRNG, 48);                           /* R.MIX: the modulated copy */
+    trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
+    trk[0].p[P_LFO1 + LF_DEST] = 13;
+    trk[0].p[P_LFO1 + LF_DEPTH] = -64;
+    render_mix(wl, 0, CTL * 4);
+    check("LFO R.MIX: modulates RESON MIX", lfo_live(&trk[0], P_RMIX, &mv) && mv != trk[0].p[P_RMIX]);
+    rs_setup(RS_CHORD, 48);                           /* review focus 5: R.STR sweeping the chord types */
+    trk[0].p[P_RDECAY] = 127;
+    trk[0].p[P_LFO1 + LF_WAVE] = LW_SAW;
+    trk[0].p[P_LFO1 + LF_MODE] = LM_HZ;
+    trk[0].p[P_LFO1 + LF_RATE] = 90;
+    trk[0].p[P_LFO1 + LF_DEST] = 15;
+    trk[0].p[P_LFO1 + LF_DEPTH] = 64;
+    trk[0].p[P_RSTRCT] = 64;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, 0, SECS(0.2));
+    before = peak_of(wl, 0, SECS(0.2));
+    render_mix(wl, 0, SECS(3));
+    during = peak_of(wl, 0, SECS(3));
+    check("LFO R.STR on CHORD: sweeping the chords under a ring stays bounded", during <= 32767 && during < before * 4 + 1000);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -2588,6 +2653,7 @@ int main(void)
     test_reson_knobs();
     test_reson_sustain_bounded();
     test_reson_ghost_source();
+    test_reson_lfo();
     test_percent_display();
     test_q24();
     test_tables();

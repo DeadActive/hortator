@@ -1487,6 +1487,9 @@ static void test_project_rejects(void)
     proj_slot[0].t[3].p[P_DUCK] = 5;
     proj_slot[0].t[3].p[P_LFO1 + LF_DEST] = 99;
     proj_slot[0].t[3].p[P_LFO1 + LF_WAVE] = -4;
+    proj_slot[0].t[3].p[P_RMODEL] = 99;
+    proj_slot[0].t[3].p[P_RTUNE] = 500;
+    proj_slot[0].t[3].p[P_RDECAY] = -9;
     proj_slot[0].sum = proj_sum(&proj_slot[0]);
     project_load(0);
     check("project: out-of-range values are clamped on load",
@@ -1494,7 +1497,8 @@ static void test_project_rejects(void)
               trk[3].step[0].on == 1 && trk[3].step[1].cond == COND_MAX && trk[3].step[1].rat == 3 &&
               trk[3].p[P_SRC] == 3 && song.g[G_GLEN1] == 1 &&
               song.g[G_CSRC] == 8 && trk[3].p[P_DUCK] == 1 &&
-              trk[3].p[P_LFO1 + LF_DEST] == 10 && trk[3].p[P_LFO1 + LF_WAVE] == 0);
+              trk[3].p[P_LFO1 + LF_DEST] == TP[P_LFO1 + LF_DEST].max && trk[3].p[P_LFO1 + LF_WAVE] == 0 &&
+              trk[3].p[P_RMODEL] == RS_CHORD && trk[3].p[P_RTUNE] == 96 && trk[3].p[P_RDECAY] == 0);
     proj_slot[1].magic = 0x46554E33u;                /* an old Felucca project ("FUN3") */
     check("project: Felucca projects are not used", !project_used(1));
     project_save(2);
