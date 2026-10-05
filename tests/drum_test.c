@@ -1136,6 +1136,26 @@ static void test_boot_cost(void)
           !i0 || (up > 0 && idle <= 1.25 * up));
 }
 
+/* a LEN change while playing: the track stays on the shared clock (its step = steps since PLAY mod LEN), so
+ * setting LEN back puts it where an untouched track is (user report: it stayed out of sync) */
+static void test_len_change_sync(void)
+{
+    uint32_t p = FS * 60 / 120 / 4, k, ok = 1;     /* a 1/16 at 120 BPM */
+    host_init();
+    trk[0].p[P_SLEN] = trk[1].p[P_SLEN] = 16;
+    play();
+    render_mix(0, 0, p * 29 + p / 2);                /* bar 2, step 13 (count 29) */
+    trk[1].p[P_SLEN] = 12;                           /* mid-loop: shorter */
+    render_mix(0, 0, p * 3);
+    ok &= trk[1].seq_idx == trk[1].seq_cnt % 12u;
+    trk[1].p[P_SLEN] = 16;                           /* and back */
+    for (k = 0; k < 5; k++) {
+        render_mix(0, 0, p);
+        ok &= trk[1].seq_idx == trk[0].seq_idx;
+    }
+    check("seq: LEN changed while playing (16 -> 12 -> 16): the track stays in sync with the others", ok);
+}
+
 int main(void)
 {
     test_percent_display();
@@ -1154,6 +1174,7 @@ int main(void)
     test_keys();
     test_midi();
     test_live_record();
+    test_len_change_sync();
     test_accent();
     test_kicks();
     test_model_change();

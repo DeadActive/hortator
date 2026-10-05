@@ -110,8 +110,9 @@ static void seq_tick(track_t *t, uint32_t n)
         if (t->seq_pos < cur_len && t->seq_pos != 0x7FFFFFFFu + n)
             break;
         t->seq_pos = t->seq_pos >= 0x7FFFFFFFu ? 0 : t->seq_pos - cur_len;
-        t->seq_idx = (uint16_t)((t->seq_idx + 1u) % (len ? len : 1u));
-        t->seq_cnt++;
+        t->seq_cnt++;                               /* the step: steps since PLAY mod LEN, so a LEN change keeps
+                                                     * the track on the shared clock (and LEN back = in sync) */
+        t->seq_idx = (uint16_t)(t->seq_cnt % (len ? len : 1u));
         if (t->rskip && t->rskip_idx == t->seq_idx)
             t->rskip = 0;
         else if (t->step[t->seq_idx].on)
