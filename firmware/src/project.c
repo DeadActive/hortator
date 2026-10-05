@@ -3,10 +3,12 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDR3": the globals, the selected track, and per track every parameter and its 64 steps (with
- * PROB / RATCH, DUCK, the COMP settings). M1's "FDR1" and M2's "FDR2" records (in flash) are converted on load.
+ * Format "FDR4": the globals, the selected track, and per track every parameter and its 64 steps (with
+ * PROB / RATCH, DUCK, the COMP settings, the LFOs). M1's "FDR1", M2's "FDR2" and M3's "FDR3" records (in flash)
+ * are converted on load.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x33524446u                 /* "FDR3": + DUCK per track and the COMP settings (M3) */
+#define PROJ_MAGIC 0x34524446u                 /* "FDR4": + the two LFOs per track */
+#define PROJ_MAGIC_V3 0x33524446u              /* "FDR3": M3 projects, converted on load */
 #define PROJ_MAGIC_V2 0x32524446u              /* "FDR2": M2 projects, converted on load */
 #define PROJ_MAGIC_V1 0x31524446u              /* "FDR1": M1 projects, converted on load */
 typedef struct {
@@ -51,28 +53,39 @@ typedef struct {
     struct { int16_t p[P_DUCK]; step_t step[NSTEP]; } t[NTRK];
     uint32_t sum;
 } project_v2_t;
-static union { project_v1_t v1; project_v2_t v2; } proj_old;
+/* M3's format: the parameters before P_LFO1 (the globals as now) */
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    struct { int16_t p[P_LFO1]; step_t step[NSTEP]; } t[NTRK];
+    uint32_t sum;
+} project_v3_t;
+static union { project_v1_t v1; project_v2_t v2; project_v3_t v3; } proj_old;
 
 /* an old record (proj_old, version ver) -> q: what it has; the rest at the defaults (v1: PROB 100 %, 1 hit,
- * SRC STEP, Grids; both: COMP off, DUCK off) */
+ * SRC STEP, Grids; v1 / v2: COMP off, DUCK off; all: the LFOs off) */
 static void proj_from_old(project_t *q, uint32_t ver)
 {
-    uint32_t i, k, ng = ver == 1u ? (uint32_t)G_GMODE : (uint32_t)G_CSRC, np = ver == 1u ? (uint32_t)P_SRC : (uint32_t)P_DUCK;
+    uint32_t i, k;
+    uint32_t ng = ver == 1u ? (uint32_t)G_GMODE : ver == 2u ? (uint32_t)G_CSRC : (uint32_t)G_COUNT;
+    uint32_t np = ver == 1u ? (uint32_t)P_SRC : ver == 2u ? (uint32_t)P_DUCK : (uint32_t)P_LFO1;
     memset(q, 0, sizeof *q);
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
     for (i = 0; i < G_COUNT; i++)
-        q->g[i] = i >= ng ? GP[i].def : ver == 1u ? proj_old.v1.g[i] : proj_old.v2.g[i];
-    q->sel = ver == 1u ? proj_old.v1.sel : proj_old.v2.sel;
+        q->g[i] = i >= ng ? GP[i].def : ver == 1u ? proj_old.v1.g[i] : ver == 2u ? proj_old.v2.g[i] : proj_old.v3.g[i];
+    q->sel = ver == 1u ? proj_old.v1.sel : ver == 2u ? proj_old.v2.sel : proj_old.v3.sel;
     for (k = 0; k < NTRK; k++) {
         for (i = 0; i < P_COUNT; i++)
-            q->t[k].p[i] = i >= np ? TP[i].def : ver == 1u ? proj_old.v1.t[k].p[i] : proj_old.v2.t[k].p[i];
+            q->t[k].p[i] = i >= np ? TP[i].def
+                         : ver == 1u ? proj_old.v1.t[k].p[i] : ver == 2u ? proj_old.v2.t[k].p[i] : proj_old.v3.t[k].p[i];
         for (i = 0; i < NSTEP; i++) {
             if (ver == 1u) {
                 q->t[k].step[i].on = proj_old.v1.t[k].step[i].on;
                 q->t[k].step[i].acc = proj_old.v1.t[k].step[i].acc;
             } else {
-                q->t[k].step[i] = proj_old.v2.t[k].step[i];
+                q->t[k].step[i] = ver == 2u ? proj_old.v2.t[k].step[i] : proj_old.v3.t[k].step[i];
             }
         }
     }
@@ -83,12 +96,12 @@ static void proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
-    if (n == (int)sizeof proj_old.v1 || n == (int)sizeof proj_old.v2) {
-        uint32_t ver = n == (int)sizeof proj_old.v1 ? 1u : 2u, hdr[2], sum;
+    if (n == (int)sizeof proj_old.v1 || n == (int)sizeof proj_old.v2 || n == (int)sizeof proj_old.v3) {
+        uint32_t ver = n == (int)sizeof proj_old.v1 ? 1u : n == (int)sizeof proj_old.v2 ? 2u : 3u, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        if (hdr[0] == (ver == 1u ? PROJ_MAGIC_V1 : PROJ_MAGIC_V2) && hdr[1] == (uint32_t)n &&
+        if (hdr[0] == (ver == 1u ? PROJ_MAGIC_V1 : ver == 2u ? PROJ_MAGIC_V2 : PROJ_MAGIC_V3) && hdr[1] == (uint32_t)n &&
             sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
             proj_from_old(q, ver);
             return;

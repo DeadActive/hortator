@@ -1105,6 +1105,10 @@ static void test_project_roundtrip(void)
     song.g[G_CRAT] = 99;
     song.g[G_CMKUP] = 50;
     song.g[G_CKNEE] = 0;
+    trk[4].p[P_LFO2 + LF_WAVE] = LW_RWALK;
+    trk[4].p[P_LFO2 + LF_DEST] = 9;
+    trk[4].p[P_LFO2 + LF_DEPTH] = -20;
+    trk[4].p[P_LFO2 + LF_MODE] = LM_TIME;
     song.g[G_BPM] = 133;
     song.sel = 2;
     project_save(1);
@@ -1121,6 +1125,9 @@ static void test_project_roundtrip(void)
     check("project: load restores DUCK and the COMP settings",
           trk[3].p[P_DUCK] == 1 && song.g[G_CSRC] == 1 && song.g[G_CRAT] == 99 && song.g[G_CMKUP] == 50 &&
               song.g[G_CKNEE] == 0);
+    check("project: load restores the LFOs",
+          trk[4].p[P_LFO2 + LF_WAVE] == LW_RWALK && trk[4].p[P_LFO2 + LF_DEST] == 9 &&
+              trk[4].p[P_LFO2 + LF_DEPTH] == -20 && trk[4].p[P_LFO2 + LF_MODE] == LM_TIME);
 }
 
 static void test_project_rejects(void)
@@ -1136,13 +1143,16 @@ static void test_project_rejects(void)
     proj_slot[0].g[G_GLEN1] = -5;
     proj_slot[0].g[G_CSRC] = 77;
     proj_slot[0].t[3].p[P_DUCK] = 5;
+    proj_slot[0].t[3].p[P_LFO1 + LF_DEST] = 99;
+    proj_slot[0].t[3].p[P_LFO1 + LF_WAVE] = -4;
     proj_slot[0].sum = proj_sum(&proj_slot[0]);
     project_load(0);
     check("project: out-of-range values are clamped on load",
           trk[3].p[P_MODEL] < NMODELS && trk[3].p[P_E1] <= DMODELS[trk[3].p[P_MODEL]].edit[1].max &&
               trk[3].step[0].on == 1 && trk[3].step[1].cond == COND_MAX && trk[3].step[1].rat == 3 &&
               trk[3].p[P_SRC] == 3 && song.g[G_GLEN1] == 1 &&
-              song.g[G_CSRC] == 8 && trk[3].p[P_DUCK] == 1);
+              song.g[G_CSRC] == 8 && trk[3].p[P_DUCK] == 1 &&
+              trk[3].p[P_LFO1 + LF_DEST] == 10 && trk[3].p[P_LFO1 + LF_WAVE] == 0);
     proj_slot[1].magic = 0x46554E33u;                /* an old Felucca project ("FUN3") */
     check("project: Felucca projects are not used", !project_used(1));
     project_save(2);

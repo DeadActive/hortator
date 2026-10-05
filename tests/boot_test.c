@@ -83,6 +83,15 @@ static void flash_image(int kind, uint32_t seed)
                 st_save(OBJ_PROJECT0 + k, &v, sizeof v);
                 continue;
             }
+            if (kind == F_HEADERS && k == 2u) {      /* an M3 project ("FDR3") */
+                project_v3_t v;
+                rfill(&v, sizeof v);
+                v.magic = PROJ_MAGIC_V3;
+                v.size = sizeof v;
+                v.sum = proj_hash(&v, sizeof v - 4u);
+                st_save(OBJ_PROJECT0 + k, &v, sizeof v);
+                continue;
+            }
             if (kind == F_HEADERS && k == 3u) {      /* an M2 project ("FDR2"): valid sum over random fields */
                 project_v2_t v;
                 rfill(&v, sizeof v);
@@ -204,12 +213,41 @@ static int fdr2_converts(void)
            song.g[G_CRAT] == GP[G_CRAT].def && song.g[G_CMKUP] == 0;
 }
 
+/* an M3 project ("FDR3") loads: everything it has, the LFOs off */
+static int fdr3_converts(void)
+{
+    project_v3_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V3;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    v.g[G_CSRC] = 2;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_LFO1; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[1].p[P_DUCK] = 1;
+    v.t[1].step[3].on = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 3u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    trk[1].p[P_LFO1 + LF_DEST] = 4;                  /* the live state differs: the load replaces it */
+    project_load(3);
+    return song.g[G_CSRC] == 2 && trk[1].p[P_DUCK] == 1 && trk[1].step[3].on && trk[1].p[P_LFO1 + LF_DEST] == 0 &&
+           trk[1].p[P_LFO1 + LF_WAVE] == TP[P_LFO1 + LF_WAVE].def && trk[1].p[P_LFO2 + LF_RATE] == 23;
+}
+
 int main(void)
 {
     char what[96];
     int k, s, seq;
     check("project: an M1 record (FDR1) loads with PROB 100 %, 1 hit, SRC STEP, Grids defaults", fdr1_converts());
     check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
+    check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {
