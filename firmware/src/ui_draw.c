@@ -705,7 +705,9 @@ static void draw_columns(void)
     }
 }
 
-static void ui_draw(void)
+/* inlined into fm1_main (main.c), as before M2: fm1_main then stays a function of its own, the shape H2 compares
+ * with upstream (the boot sequence up to the fm1_main call) */
+__attribute__((always_inline)) static inline void ui_draw(void)
 {
     if (safe_start) {                                 /* safe start: one static screen, drawn again after */
         static uint8_t drawn;                         /* an update session cleared it (main.c sets ui.force) */

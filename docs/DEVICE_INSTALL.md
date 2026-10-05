@@ -87,3 +87,14 @@ try again.
   (3 wires to the FM-1's USB D+ / D− / GND, no opening); it writes the stock firmware back;
 - a Linux PC with jl-uboot-tool over the FM-1's own USB cable.
 Report what you saw first; we'll go through it together.
+
+### M2: PROB, RATCH, Grids (check on the FM-1)
+
+- STEP grid: hold a step's key and turn KNOB 1: the hint line shows `STEP n  75%` (left of 100 %) or `1-SHOT`,
+  `1/2` .. `8/8` (right); KNOB 2: `RATCH 2..4`. A step with PROB is drawn striped, RATCH as ticks above it.
+- PLAY: a 50 % hat varies, a 1/2 step plays every other loop, a 1-SHOT crash only once after PLAY, a RATCH 3
+  step rolls three hits.
+- ARP: GRIDS 1/2 (MODE X Y CHAOS; MODE EUCL: LEN K S H) and 2/2 (FIL K S H, routing line). PATTERN KNOB 4 SRC
+  `G-KCK` / `G-SNR` / `G-HAT` makes a track follow Grids; its STEP grid shows the pattern, keys do nothing.
+- SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1
+  firmware loads with plain steps.

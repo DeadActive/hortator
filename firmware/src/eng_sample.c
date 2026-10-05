@@ -68,7 +68,8 @@ static uint32_t smp_user_gen;                       /* + 1 per slot scan (GRAIN:
 
 /* (re)read slot k from flash: valid header -> zones usable; call after boot and after an upload
  * (main loop: SLICE scans the slot's audio here) */
-static void smp_user_scan(uint32_t k)
+/* not inlined: the boot path then calls it as upstream Felucca does (H2 compares that path with upstream) */
+__attribute__((noinline)) static void smp_user_scan(uint32_t k)
 {
     const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
     uint32_t i, base;

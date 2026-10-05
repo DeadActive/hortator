@@ -35,7 +35,7 @@ def main():
         out.append("    },")
     out += ["};", "static const uint32_t GRIDS_EUCLID[1024] = {"]
     for r in range(0, 1024, 8):
-        out.append("    " + ", ".join(f"0x{v:08X}u" for v in eu[r:r + 8]) + ",")
+        out.append("    " + ", ".join(f"{v:10d}u" for v in eu[r:r + 8]) + ",")   # decimal: build.py's MMIO lint reads hex
     out.append("};")
     open(dst, "w").write("\n".join(out) + "\n")
 

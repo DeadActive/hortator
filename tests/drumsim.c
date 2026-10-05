@@ -1,4 +1,5 @@
-/* WAV renders for listening: one file per model, the kit demo and the demo kits (808, 909, Plaits, mixed).
+/* WAV renders for listening: one file per model, the kit demo, the demo kits (808, 909, Plaits, mixed) and the
+ * M2 demos (Grids map / Euclidean, PROB / RATCH).
  * drumsim OUTDIR */
 #include "drum_host.h"
 #include <sys/stat.h>
@@ -96,6 +97,96 @@ static void write_kit(const char *dir, const demo_kit_t *kit)
     printf("drumsim: %s\n", path);
 }
 
+/* M2 demos, 120 BPM through the whole mix. grids_map.wav: kick / snare / hats on Grids MAP at four map points
+ * (2 bars each, chaos off) then the same with chaos 100; grids_euclid.wav: EUCLID 16/12/8 then 5/7/3 (4 bars each);
+ * prob_ratch.wav: a kit with 50 % hats, 3-hit rolls, a 1/2 and 2/2 snare fill and a 1-SHOT crash (8 bars) */
+static void write_demo(const char *dir, const char *name, uint32_t bars, void (*bar)(uint32_t b))
+{
+    char path[256];
+    uint32_t bar_len = 16 * (FS * 60 / 120 / 4), total = bars * bar_len / CTL * CTL, frames, i, b;
+    FILE *f;
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    f = fopen(path, "wb");
+    wav_hdr(f, total);
+    transport_req = 1;
+    for (b = 0, frames = 0; frames < total; b++) {
+        uint32_t end = (b + 1) * bar_len / CTL * CTL < total ? (b + 1) * bar_len / CTL * CTL : total;
+        bar(b);
+        while (frames < end) {
+            uint32_t n = GAP < end - frames ? GAP : end - frames;
+            render_mix(L, R, n);
+            for (i = 0; i < n; i++)
+                wav_put(f, L[i], R[i]);
+            frames += n;
+        }
+    }
+    fclose(f);
+    printf("drumsim: %s\n", path);
+}
+
+static void grids_kit(void)                          /* 808 kick / snare / closed hat on the three channels */
+{
+    host_init();
+    drum_set_model(&trk[0], DM_K808);
+    drum_set_model(&trk[1], DM_S808);
+    drum_set_model(&trk[2], DM_HATC);
+    trk[0].p[P_SRC] = 1;
+    trk[1].p[P_SRC] = 2;
+    trk[2].p[P_SRC] = 3;
+    trk[1].p[P_REV] = 40;
+    song.g[G_GFILL1] = 80;
+    song.g[G_GFILL2] = 70;
+    song.g[G_GFILL3] = 100;
+}
+
+static void map_bar(uint32_t b)
+{
+    static const int16_t XY[4][2] = {{64, 64}, {0, 0}, {127, 30}, {30, 127}};
+    song.g[G_GX] = XY[(b / 2u) % 4u][0];
+    song.g[G_GY] = XY[(b / 2u) % 4u][1];
+    song.g[G_GCHAOS] = b < 8u ? 0 : 100;
+}
+
+static void euclid_bar(uint32_t b)
+{
+    static const int16_t LN[2][3] = {{16, 12, 8}, {5, 7, 3}};
+    uint32_t k;
+    song.g[G_GMODE] = 1;
+    for (k = 0; k < 3u; k++) {
+        song.g[G_GLEN1 + k] = LN[b / 4u % 2u][k];
+        song.g[G_GFILL1 + k] = (int16_t)(b / 4u ? 60 : 40);
+    }
+}
+
+static void prob_bar(uint32_t b) { (void)b; }
+
+static void prob_kit(void)
+{
+    uint32_t k;
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    drum_set_model(&trk[1], DM_S909);
+    drum_set_model(&trk[2], DM_HATC);
+    drum_set_model(&trk[3], DM_CYMB);
+    for (k = 0; k < 16u; k += 4u)
+        trk[0].step[k].on = 1;
+    trk[1].step[4].on = trk[1].step[12].on = 1;
+    trk[1].step[14].on = 1;
+    trk[1].step[14].cond = 22;                       /* 1/2: a fill every other bar */
+    trk[1].step[15].on = 1;
+    trk[1].step[15].cond = 23;                       /* 2/2 */
+    trk[1].step[15].rat = 2;
+    for (k = 0; k < 16u; k++) {
+        trk[2].step[k].on = 1;
+        trk[2].step[k].cond = (uint8_t)((k & 1u) ? cond_store(10) : 0u);   /* off-beats 50 % */
+    }
+    trk[2].step[7].rat = 2;
+    trk[2].step[15].rat = 3;
+    trk[3].step[0].on = trk[3].step[0].acc = 1;
+    trk[3].step[0].cond = COND_1SHOT;
+    trk[1].p[P_REV] = 40;
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -156,5 +247,11 @@ int main(int argc, char **argv)
     }
     for (i = 0; i < sizeof KITS / sizeof KITS[0]; i++)
         write_kit(dir, &KITS[i]);
+    grids_kit();
+    write_demo(dir, "grids_map.wav", 16, map_bar);
+    grids_kit();
+    write_demo(dir, "grids_euclid.wav", 8, euclid_bar);
+    prob_kit();
+    write_demo(dir, "prob_ratch.wav", 8, prob_bar);
     return 0;
 }
