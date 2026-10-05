@@ -18,6 +18,7 @@
 #include "gfx.c"
 #include "core.h"
 #include "dsp.c"
+#include "comp.c"           /* Streams compressor (M3) */
 #include "eng_sample.c"      /* ADPCM decoder + user sample slots */
 #include "dmodels.c"         /* drum models */
 #include "params.c"

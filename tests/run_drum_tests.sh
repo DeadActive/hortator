@@ -48,6 +48,14 @@ if sh tests/fetch_ref.sh >/dev/null 2>&1; then
     cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -Itests \
         -o "$OUT/grids_fidelity" tests/grids_fidelity.c -lm
     "$OUT/grids_fidelity" "$REF/grids_ref.bin"
+    python3 tools/gen_comp_tables.py "$REF/eurorack/streams/resources.cc" "$OUT/comp_tables.h"
+    cmp -s "$OUT/comp_tables.h" firmware/src/comp_tables.h || { echo "FAIL  comp_tables.h differs from the reference (tools/gen_comp_tables.py)"; exit 1; }
+    python3 tools/gen_comp_tables.py "$REF/eurorack/streams/resources.cc" "$REF/comp_lp31k.h" --lp31k
+    c++ -std=c++11 -O1 -w -DTEST -I"$E" -I. -o "$REF/comp_ref" tests/comp_ref.cc "$E/streams/compressor.cc" "$E/streams/resources.cc"
+    "$REF/comp_ref" "$REF/comp_ref.bin"
+    cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -Itests -I"$REF" \
+        -o "$OUT/comp_fidelity" tests/comp_fidelity.c -lm
+    "$OUT/comp_fidelity" "$REF/comp_ref.bin"
 else
     echo "fidelity: SKIPPED (offline: tests/fetch_ref.sh could not fetch the reference)"
     FID=" (fidelity SKIPPED: offline)"

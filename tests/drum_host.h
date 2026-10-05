@@ -20,6 +20,7 @@
 static struct { volatile uint32_t notes, buttons; } fm1_in;
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"
+#include "../firmware/src/comp.c"
 #include "../firmware/src/eng_sample.c"
 #include "../firmware/src/dmodels.c"
 #include "../firmware/src/params.c"

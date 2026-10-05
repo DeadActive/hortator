@@ -1512,6 +1512,50 @@ static void test_grids_tempo_ramp(void)
     check("Grids: BPM turned while playing, Grids hits stay on the 1/16 step track's blocks", same && n > 100u);
 }
 
+/* M3 compressor engine (comp.c): the VCA model, the knob mapping, the gain computer's shape, the 44.1 kHz times.
+ * The bit-exact check against Streams is tests/comp_fidelity.c. */
+static void test_comp_engine(void)
+{
+    comp_set_t s = {2, 26, 22, 26, 1};
+    comp_cfg_t c;
+    int64_t det = 0;
+    int32_t gr = 0, i, ok = 1;
+    uint32_t g;
+    double worst = 0;
+    check("COMP VCA: unity is 1.0, +990 steps doubles, -1980 quarters (Q16, within 0.3 %)",
+          comp_lin(32767) == 65536 && abs(comp_lin(32767 + 990) - 131072) < 400 && abs(comp_lin(32767 - 1980) - 16384) < 60);
+    check("COMP knobs: AMNT 0 = 1:1, 63 = the steepest ratio, 64.. = makeup, 127 = 65535",
+          comp_amount16(0) == 32767u && comp_amount16(63) == 0u && comp_amount16(64) == 32768u && comp_amount16(127) == 65535u &&
+              comp_k16(127) == 65535u && comp_k16(0) == 0u);
+    comp_configure(&s, &c);
+    check("COMP defaults: THRSH 26 = -24 dB (Streams log2 units), about 3.9:1, no makeup",
+          c.thr == (-1280 + 5 * 52) * 256 && c.ratio > 60 && c.ratio < 70 && c.makeup == 0);
+    for (i = 0; i < 4410; i++)                       /* 0.1 s of silence: unity */
+        g = comp_process(&c, &det, &gr, 0);
+    ok &= g == 32767u;
+    for (i = 0; i < 4410; i++)                       /* a loud tone: cut */
+        g = comp_process(&c, &det, &gr, (i & 32) ? 30000 : -30000);
+    ok &= g < 32767u - 990u && gr < 0;
+    check("COMP: silence passes at unity, a loud source cuts by more than 6 dB", ok);
+    s.amt = 127;
+    s.thr = 127;
+    comp_configure(&s, &c);
+    check("COMP: AMNT 127 at THRSH 127 is Streams' limiter (instant attack, ratio 0)", c.atk == -1 && c.ratio == 0);
+    s.thr = 0;
+    comp_configure(&s, &c);
+    check("COMP: AMNT 127 at THRSH 0 is makeup with a ratio (no limiter: the makeup does not reach 0 dB)",
+          c.atk != -1 && c.ratio > 0 && c.makeup > 0);
+    for (i = 4; i < 640; i++) {                      /* the 44.1 kHz table keeps Streams' times */
+        double t = 0.001 * pow(10.0, i / 128.0);
+        double tau = -1.0 / log(1.0 - COMP_LP_COEF[i] / 2147483648.0) / 44100.0;
+        double e = fabs(tau / t - 1.0);
+        if (e > worst)
+            worst = e;
+    }
+    printf("     COMP attack / release times at 44.1 kHz: worst %.3f %% off Streams' vactrol_time\n", worst * 100.0);
+    check("COMP: every attack / release time within 2 % of Streams' at 44.1 kHz", worst < 0.02);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1546,6 +1590,7 @@ static void test_cond_codes(void)
 int main(void)
 {
     test_cond_codes();
+    test_comp_engine();
     test_percent_display();
     test_q24();
     test_tables();
