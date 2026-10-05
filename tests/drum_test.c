@@ -1848,6 +1848,241 @@ static void test_lfo_rates(void)
               lfo_dest_param(10) == P_PAN && lfo_dest_param(0) == 0xFFu);
 }
 
+static int16_t *lfo_q(uint32_t ti, uint32_t l) { return &trk[ti].p[l ? P_LFO2 : P_LFO1]; }
+
+/* one block's modulation on track ti, as the ISR does it: apply, read the knob, restore */
+static int32_t lfo_probe(uint32_t ti, uint32_t pid)
+{
+    int32_t v;
+    lfo_apply(CTL);
+    v = trk[ti].p[pid];
+    lfo_restore();
+    return v;
+}
+
+static void test_lfo_apply(void)
+{
+    int16_t *q;
+    int32_t lo = 999, hi = -999, v;
+    uint32_t k;
+    host_init();
+    q = lfo_q(0, 0);
+    q[LF_WAVE] = LW_SQUARE;
+    q[LF_MODE] = LM_HZ;
+    q[LF_RATE] = 100;
+    q[LF_DEST] = 3;                                  /* E2 (TONE / SWEEP ...) */
+    q[LF_DEPTH] = 32;                                /* +50 % */
+    trk[0].p[P_E2] = 64;
+    for (k = 0; k < 2000u; k++) {
+        v = lfo_probe(0, P_E2);
+        lo = v < lo ? v : lo;
+        hi = v > hi ? v : hi;
+    }
+    printf("     LFO square +50 %% on a knob at 64: %d .. %d\n", lo, hi);
+    check("LFO: the knob moves around its set value by DEPTH (square +50 %: about 0 .. 127)", lo <= 2 && hi >= 125);
+    check("LFO: outside the audio block the knob is its set value again", trk[0].p[P_E2] == 64);
+    q[LF_DEPTH] = -32;
+    v = lfo_probe(0, P_E2);
+    check("LFO: a negative DEPTH moves the other way", v != 64);
+}
+
+static void test_lfo_off_identical(void)
+{
+    static int32_t a[SECS(1)], b[SECS(1)];
+    uint32_t k;
+    for (k = 0; k < 3u; k++) {
+        int16_t *q;
+        host_init();
+        q = lfo_q(1, 0);
+        if (k == 1u) {
+            q[LF_DEST] = 9;                          /* LVL, DEPTH 0 */
+            q[LF_WAVE] = LW_SQUARE;
+        } else if (k == 2u) {
+            q[LF_DEPTH] = 64;                        /* DEST OFF */
+        }
+        trk[0].step[0].on = trk[1].step[4].on = 1;
+        play();
+        render_mix(k ? b : a, 0, SECS(1));
+        if (k)
+            check(k == 1u ? "LFO: DEPTH 0 leaves the mix bit-identical" : "LFO: DEST OFF leaves the mix bit-identical",
+                  !memcmp(a, b, sizeof a));
+    }
+}
+
+/* review focus 4: both LFOs on one knob add and clamp */
+static void test_lfo_two_on_one(void)
+{
+    uint32_t l, k;
+    int32_t hi = -999;
+    host_init();
+    for (l = 0; l < 2u; l++) {
+        int16_t *q = lfo_q(0, l);
+        q[LF_WAVE] = LW_SQUARE;
+        q[LF_MODE] = LM_HZ;
+        q[LF_RATE] = 90;
+        q[LF_DEST] = 9;                              /* LVL */
+        q[LF_DEPTH] = 64;
+        q[LF_TRIG] = LT_PLAY;
+    }
+    trk[0].p[P_LEVEL] = 100;
+    lfo_start();
+    for (k = 0; k < 500u; k++) {
+        int32_t v = lfo_probe(0, P_LEVEL);
+        hi = v > hi ? v : hi;
+    }
+    check("LFO: both LFOs on LVL add and stay in its range (max 127)", hi == 127 && trk[0].p[P_LEVEL] == 100);
+}
+
+/* review focus 2: an engine without the targeted extra knob */
+static void test_lfo_absent_dest(void)
+{
+    int16_t *q;
+    host_init();
+    drum_set_model(&trk[0], DM_C808);                /* no E4 */
+    q = lfo_q(0, 0);
+    q[LF_DEST] = 5;                                  /* E4 */
+    q[LF_DEPTH] = 64;
+    q[LF_WAVE] = LW_SQUARE;
+    trk[0].p[P_E4] = 0;
+    {
+        uint32_t k, wrote = 0, diff = 0;
+        for (k = 0; k < 200u; k++) {
+            lfo_apply(CTL);
+            wrote |= trk[0].lnum != 0u || trk[0].p[P_E4] != 0;
+            lfo_restore();
+        }
+        check("LFO: a DEST the engine lacks writes nothing", !wrote);
+        drum_set_model(&trk[0], DM_K909);            /* has E4 (SWPT) */
+        for (k = 0; k < 200u; k++)
+            diff |= lfo_probe(0, P_E4) != trk[0].p[P_E4];
+        check("LFO: the same setting acts again with an engine that has the knob", diff);
+    }
+}
+
+/* review focus 1: a knob set while an LFO targets it keeps the new value (the restore puts back the set value
+ * of that block, and the UI only runs between blocks) */
+static void test_lfo_edit_while_modulated(void)
+{
+    int16_t *q;
+    host_init();
+    q = lfo_q(0, 0);
+    q[LF_DEST] = 3;
+    q[LF_DEPTH] = 64;
+    q[LF_WAVE] = LW_SQUARE;
+    render_mix(0, 0, CTL * 10);
+    trk[0].p[P_E2] = 11;                             /* the user turns the knob between blocks */
+    render_mix(0, 0, CTL * 10);
+    check("LFO: a knob turned while modulated keeps the new value", trk[0].p[P_E2] == 11);
+}
+
+/* TRIG: HIT restarts on each hit, PLAY at PLAY, FREE never; PHASE offsets */
+static void test_lfo_trig(void)
+{
+    int16_t *q;
+    host_init();
+    q = lfo_q(0, 0);
+    q[LF_DEST] = 9;
+    q[LF_DEPTH] = 64;
+    q[LF_WAVE] = LW_SAW;
+    q[LF_MODE] = LM_HZ;
+    q[LF_RATE] = 60;
+    q[LF_TRIG] = LT_HIT;
+    render_mix(0, 0, SECS(0.3));
+    drum_hit(&trk[0], 100);
+    check("LFO TRIG HIT: a hit restarts the cycle", trk[0].lfo[0].ph == 0u);
+    q[LF_TRIG] = LT_FREE;
+    render_mix(0, 0, SECS(0.1));
+    {
+        uint32_t ph = trk[0].lfo[0].ph;
+        play();
+        render_mix(0, 0, CTL);
+        check("LFO TRIG FREE: PLAY does not restart it", trk[0].lfo[0].ph != 0u && trk[0].lfo[0].ph != ph);
+    }
+    q[LF_TRIG] = LT_PLAY;
+    lfo_start();
+    check("LFO TRIG PLAY: PLAY restarts it", trk[0].lfo[0].ph == 0u);
+    q[LF_PHASE] = 32;                                /* a quarter cycle */
+    lfo_start();
+    lfo_apply(0);
+    lfo_restore();
+    check("LFO PHASE: the restart starts a quarter into the cycle (SAW at -0.5)",
+          abs(lfo_out(&trk[0], 0) + 16384) < 300);
+}
+
+/* random waves: S&H holds / glides, WANDER and RWALK move without jumps, all repeat after PLAY */
+static int32_t lfo_run(uint32_t wave, int32_t morph, int32_t *out, uint32_t n)
+{
+    int16_t *q;
+    uint32_t k;
+    int32_t jump = 0, prev;
+    host_init();
+    q = lfo_q(0, 0);
+    q[LF_WAVE] = (int16_t)wave;
+    q[LF_MORPH] = (int16_t)morph;
+    q[LF_MODE] = LM_HZ;
+    q[LF_RATE] = 80;
+    q[LF_DEST] = 9;
+    q[LF_DEPTH] = 64;
+    lfo_start();
+    lfo_apply(0);
+    lfo_restore();
+    prev = lfo_out(&trk[0], 0);
+    for (k = 0; k < n; k++) {
+        lfo_apply(CTL);
+        lfo_restore();
+        out[k] = lfo_out(&trk[0], 0);
+        if (abs(out[k] - prev) > jump)
+            jump = abs(out[k] - prev);
+        prev = out[k];
+    }
+    return jump;
+}
+
+static void test_lfo_random(void)
+{
+    static int32_t a[3000], b[3000];
+    int32_t j0 = lfo_run(LW_SH, 0, a, 3000), j1 = lfo_run(LW_SH, 127, b, 3000), jw, jr, jr0, k, varied = 0;
+    printf("     LFO S&H largest step per block: %d (MORPH 0), %d (MORPH 127)\n", j0, j1);
+    check("LFO S&H: MORPH 0 jumps, MORPH 127 glides", j0 > 8000 && j1 < 2000);
+    for (k = 1; k < 3000; k++)
+        varied += a[k] != a[k - 1];
+    check("LFO S&H: new values keep coming", varied > 3);
+    jw = lfo_run(LW_WANDER, 64, a, 3000);
+    lfo_run(LW_WANDER, 64, b, 3000);
+    check("LFO WANDER: smooth (small steps), the same after every PLAY", jw < 2000 && !memcmp(a, b, sizeof a));
+    jr0 = lfo_run(LW_RWALK, 0, a, 3000);
+    jr = lfo_run(LW_RWALK, 127, b, 3000);
+    printf("     LFO RWALK largest step per block: %d (MORPH 0), %d (MORPH 127)\n", jr0, jr);
+    check("LFO RWALK: MORPH sets the step size (small drift .. larger moves), no jumps", jr0 < jr && jr < 4000);
+}
+
+/* LVL modulation moves inside a sound; a start-of-hit knob differs per hit */
+static void test_lfo_sound(void)
+{
+    uint32_t f, w, quiet = 0, loud = 0;
+    int16_t *q;
+    host_init();
+    drum_set_model(&trk[0], DM_CYMB);
+    trk[0].p[P_E1] = 127;                            /* long */
+    q = lfo_q(0, 0);
+    q[LF_WAVE] = LW_SQUARE;
+    q[LF_MODE] = LM_SYNC;
+    q[LF_RATE] = 100;                                /* 1/16 .. */
+    q[LF_DEST] = 9;
+    q[LF_DEPTH] = -64;                               /* LVL down to 0 half the cycle */
+    play();
+    drum_hit(&trk[0], 127);
+    for (f = 0; f < 40u; f++) {                      /* 40 windows of 512 samples */
+        int32_t pk = 0;
+        render_mix(wl, wr, 512);
+        for (w = 0; w < 512u; w++)
+            pk = abs(wl[w]) > pk ? abs(wl[w]) : pk;
+        quiet += pk < 20;
+        loud += pk > 300;
+    }
+    check("LFO on LVL: a ringing cymbal is gated on and off inside the sound", quiet > 4u && loud > 4u);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1894,6 +2129,14 @@ int main(void)
     test_comp_mute_click();
     test_lfo_shapes();
     test_lfo_rates();
+    test_lfo_apply();
+    test_lfo_off_identical();
+    test_lfo_two_on_one();
+    test_lfo_absent_dest();
+    test_lfo_edit_while_modulated();
+    test_lfo_trig();
+    test_lfo_random();
+    test_lfo_sound();
     test_percent_display();
     test_q24();
     test_tables();

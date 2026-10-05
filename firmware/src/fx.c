@@ -248,6 +248,7 @@ static void mix_block(int32_t *out, uint32_t n)
     }
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
+    lfo_apply(n);                                       /* LFOs: the modulated knobs for this block (lfo.c) */
     events_block(n);
     drum_block_begin();
     {
@@ -263,6 +264,7 @@ static void mix_block(int32_t *out, uint32_t n)
             if (i != src)
                 mix_part(&trk[i], n, src);
     }
+    lfo_restore();                                      /* the knobs as set again */
     fx_buses(send_c, send_d, send_r, wet, n);
     for (i = 0; i < n; i++) {
         int32_t l = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * (int32_t)song.master_q12) >> 10;

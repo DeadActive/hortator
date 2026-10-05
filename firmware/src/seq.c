@@ -189,6 +189,7 @@ static void seq_start(void)
     gclk.pos = 0x7FFFFFFF;                          /* Grids step 0 on the first block too */
     gclk.cnt = 0xFFFFFFFFu;
     grids_start();
+    lfo_start();
     song.tick = 0;
     song.playing = 1;
     slicer_start();

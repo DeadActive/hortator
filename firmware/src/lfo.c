@@ -64,3 +64,156 @@ static int32_t lfo_shape(uint32_t wave, int32_t morph, uint32_t ph)
         return 0;                                    /* S&H, WANDER, RWALK: lfo_value (state) */
     }
 }
+
+/* ------------------------------------------------------- runtime --- */
+/* inside mix_block only: lfo_apply ... lfo_restore; a hit in between (drum_hit) re-applies its track */
+static uint8_t lfo_in_block;
+
+static int32_t lfo_rnd(track_t *t)                    /* -32767 .. 32767 */
+{
+    t->lrng = t->lrng * 1664525u + 1013904223u;
+    return clamp((int32_t)(t->lrng >> 16) - 32768, -32767, 32767);
+}
+
+/* LFO l's value at its phase (+ PHASE); a new cycle (wrapped) draws the random waves' next point */
+static int32_t lfo_value(track_t *t, uint32_t l, int wrapped)
+{
+    const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
+    lfo_state_t *s = &t->lfo[l];
+    uint32_t wave = (uint32_t)clamp(q[LF_WAVE], 0, LW_COUNT - 1), ph = s->ph + (uint32_t)clamp(q[LF_PHASE], 0, 127) * (1u << 25);
+    int32_t m = clamp(q[LF_MORPH], 0, 127), f = (int32_t)(ph >> 17);
+    if (wave == LW_SH) {
+        if (wrapped) {
+            s->from = s->out;
+            s->to = lfo_rnd(t);
+        }
+        return m ? s->from + (int32_t)((int64_t)(s->to - s->from) * clamp(f * 127 / m, 0, 32767) >> 15) : s->to;
+    }
+    if (wave == LW_WANDER) {                          /* 1 .. 8 smooth segments a cycle (MORPH: speed of change) */
+        uint32_t seg = 1u + (uint32_t)m / 16u, sp = ph * seg;
+        int32_t sf;
+        if (sp < s->sub || wrapped) {
+            s->from = s->to;
+            s->to = lfo_rnd(t);
+        }
+        s->sub = sp;
+        sf = sine_i((sp >> 17) << 15);                /* sin(pi/2 * frac) */
+        return s->from + (int32_t)((int64_t)(s->to - s->from) * (sf * sf >> 15) >> 15);
+    }
+    if (wave == LW_RWALK) {                           /* a step a cycle, glided; MORPH: step size */
+        if (wrapped) {
+            int32_t step = 512 + m * 16000 / 127, to = s->to + (int32_t)((int64_t)lfo_rnd(t) * step >> 15);
+            s->from = s->to;
+            s->to = to > 32767 ? 65534 - to : to < -32767 ? -65534 - to : to;
+        }
+        return s->from + (int32_t)((int64_t)(s->to - s->from) * f >> 15);
+    }
+    return lfo_shape(wave, m, ph);
+}
+
+/* track t: advance its LFOs by n samples (0: none) and write the modulated knobs, saving their set values */
+static void lfo_track(track_t *t, uint32_t n)
+{
+    uint32_t l, k;
+    int32_t acc[2] = {0, 0};
+    for (l = 0; l < 2u; l++) {
+        const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
+        lfo_state_t *s = &t->lfo[l];
+        uint32_t old = s->ph, pid;
+        const param_desc_t *d;
+        if (!q[LF_DEST] || !q[LF_DEPTH])
+            continue;                                 /* off: costs nothing (its phase waits) */
+        s->ph += lfo_inc(q) * n;
+        s->out = lfo_value(t, l, n && s->ph < old);
+        pid = lfo_dest_param((uint32_t)clamp(q[LF_DEST], 0, 10));
+        if (pid == 0xFFu)
+            continue;
+        d = track_desc(t, pid);
+        if (!d->label || d->label[0] == '-' || d->max <= d->min)
+            continue;                                 /* the engine has no such knob */
+        for (k = 0; k < t->lnum && t->lpid[k] != pid; k++)
+            ;
+        if (k == t->lnum) {
+            t->lpid[k] = (uint8_t)pid;
+            t->lsave[k] = t->p[pid];
+            t->lnum++;
+        }
+        acc[k] += s->out * clamp(q[LF_DEPTH], -64, 64) / 64 * (d->max - d->min) / 32767;
+    }
+    for (k = 0; k < t->lnum; k++) {
+        const param_desc_t *d = track_desc(t, t->lpid[k]);
+        t->lval[k] = (int16_t)clamp(t->lsave[k] + acc[k], d->min, d->max);
+        t->p[t->lpid[k]] = t->lval[k];
+    }
+}
+
+static void lfo_apply(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < NTRK; i++)
+        lfo_track(&trk[i], n);
+    lfo_in_block = 1;
+}
+
+static void lfo_restore_track(track_t *t)
+{
+    uint32_t k;
+    for (k = 0; k < t->lnum; k++)
+        t->p[t->lpid[k]] = t->lsave[k];
+    t->lnum = 0;
+}
+
+static void lfo_restore(void)
+{
+    uint32_t i;
+    for (i = 0; i < NTRK; i++)
+        lfo_restore_track(&trk[i]);
+    lfo_in_block = 0;
+}
+
+/* a hit of t: its HIT LFOs restart; inside the block the knobs are modulated again from there (the trigger reads
+ * them next) */
+static void lfo_hit(track_t *t)
+{
+    uint32_t l, any = 0;
+    for (l = 0; l < 2u; l++)
+        if (t->p[(l ? P_LFO2 : P_LFO1) + LF_TRIG] == LT_HIT) {
+            t->lfo[l].ph = 0;
+            t->lfo[l].sub = 0;
+            any = 1;
+        }
+    if (any && lfo_in_block) {
+        lfo_restore_track(t);
+        lfo_track(t, 0);
+    }
+}
+
+static void lfo_start(void)                           /* PLAY: PLAY LFOs restart, the random sequences too */
+{
+    uint32_t i, l;
+    for (i = 0; i < NTRK; i++) {
+        track_t *t = &trk[i];
+        t->lrng = 0x2545F491u * (i + 1u);
+        for (l = 0; l < 2u; l++)
+            if (t->p[(l ? P_LFO2 : P_LFO1) + LF_TRIG] == LT_PLAY)
+                memset(&t->lfo[l], 0, sizeof t->lfo[l]);
+    }
+}
+
+/* the UI: the knob pid of t is modulated now, at *val (the last block's value) */
+static int lfo_live(const track_t *t, uint32_t pid, int32_t *val)
+{
+    uint32_t l;
+    for (l = 0; l < 2u; l++) {
+        const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
+        if (q[LF_DEST] && q[LF_DEPTH] && lfo_dest_param((uint32_t)q[LF_DEST]) == pid) {
+            const param_desc_t *d = track_desc(t, pid);
+            *val = clamp(t->p[pid] + t->lfo[l].out * clamp(q[LF_DEPTH], -64, 64) / 64 * (d->max - d->min) / 32767,
+                         d->min, d->max);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int32_t lfo_out(const track_t *t, uint32_t l) { return t->lfo[l & 1u].out; }
