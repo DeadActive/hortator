@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Drum machine fork: 2026 DEADACTIVE */
-/* Drum sequencer and input. 8 tracks x 64 steps (hit / accent), per-track length, division and swing.
+/* Drum sequencer and input. 8 tracks x 64 steps (hit / accent / PROB / RATCH), per-track length, division and swing.
  * The 8 white keys F3..F4 hit tracks 1..8; MIDI notes on the drum channel hit every track whose NOTE
  * matches; an armed track records hits into the nearest step while playing. Runs in the audio ISR
  * before each block (events_block). */
@@ -26,6 +26,51 @@ static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
     return period + (uint32_t)((cnt & 1u) ? -sw : sw);
 }
 
+/* PROB of step s coming up on track t (LEN len): 100 % plays; a percentage plays when the track's next random
+ * number is below it; A/B when loop mod B = A - 1 and 1-SHOT on loop 0, loop = steps since PLAY / LEN */
+static int step_plays(track_t *t, const step_t *s, uint32_t len)
+{
+    uint32_t c = s->cond, loop = t->seq_cnt / (len ? len : 1u), a, b;
+    if (!c)
+        return 1;
+    if (c < COND_1SHOT) {
+        t->rng = t->rng * 1664525u + 1013904223u;
+        return ((t->rng >> 16) * 100u >> 16) < (c - 1u) * 5u;
+    }
+    if (c == COND_1SHOT)
+        return loop == 0u;
+    cond_ab(c, &a, &b);
+    return loop % b == a - 1u;
+}
+
+/* the step that came up: decided once (step_plays), then RATCH hits spread over its length len_s, the first
+ * now (rat_due plays the others). A track following Grids plays nothing from its steps. */
+static void step_fire(track_t *t, uint32_t len_s)
+{
+    const step_t *s = &t->step[t->seq_idx];
+    uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
+    t->rat_n = 0;
+    if (t->p[P_SRC] || !s->on || !step_plays(t, s, len))
+        return;
+    t->rat_vel = (uint8_t)(s->acc ? 127u : 96u);
+    drum_hit(t, t->rat_vel);
+    t->rat_n = (uint8_t)(s->rat < 3u ? s->rat + 1u : 4u);
+    t->rat_k = 1;
+    t->rat_len = len_s;
+}
+
+/* the roll's hits whose time has come; one not played before the step ends (the tempo changed) is dropped */
+static void rat_due(track_t *t, uint32_t cur_len)
+{
+    while (t->rat_k < t->rat_n) {
+        uint32_t at = t->rat_k * t->rat_len / t->rat_n;
+        if (at > t->seq_pos || at >= cur_len)
+            break;
+        drum_hit(t, t->rat_vel);
+        t->rat_k++;
+    }
+}
+
 /* live recording: into the nearest step, as swung (the playing one, or the next one past its middle) */
 static void rec_hit(track_t *t, uint32_t vel)
 {
@@ -37,6 +82,8 @@ static void rec_hit(track_t *t, uint32_t vel)
         t->rskip_idx = (uint8_t)idx;
     }
     t->step[idx].on = 1;
+    t->step[idx].cond = 0;                          /* a recorded step always plays, once */
+    t->step[idx].rat = 0;
     if (vel > 110u)
         t->step[idx].acc = 1;
 }
@@ -91,6 +138,8 @@ static void seq_start(void)
         t->seq_pos = 0x7FFFFFFF;                    /* step 0 fires on the first block */
         t->seq_cnt = 0xFFFFFFFFu;                   /* step 0 is count 0 */
         t->rskip = 0;
+        t->rat_n = 0;
+        t->rng = 0x9E3779B9u * (i + 1u);           /* PROB: the same variations after every PLAY */
     }
     song.tick = 0;
     song.playing = 1;
@@ -107,16 +156,19 @@ static void seq_tick(track_t *t, uint32_t n)
     t->seq_pos += n;
     for (;;) {
         uint32_t cur_len = step_samples(t, period, t->seq_cnt);
+        rat_due(t, cur_len);
         if (t->seq_pos < cur_len && t->seq_pos != 0x7FFFFFFFu + n)
             break;
         t->seq_pos = t->seq_pos >= 0x7FFFFFFFu ? 0 : t->seq_pos - cur_len;
         t->seq_cnt++;                               /* the step: steps since PLAY mod LEN, so a LEN change keeps
                                                      * the track on the shared clock (and LEN back = in sync) */
         t->seq_idx = (uint16_t)(t->seq_cnt % (len ? len : 1u));
-        if (t->rskip && t->rskip_idx == t->seq_idx)
+        if (t->rskip && t->rskip_idx == t->seq_idx) {
             t->rskip = 0;
-        else if (t->step[t->seq_idx].on)
-            drum_hit(t, t->step[t->seq_idx].acc ? 127u : 96u);
+            t->rat_n = 0;
+        } else {
+            step_fire(t, step_samples(t, period, t->seq_cnt));
+        }
     }
 }
 

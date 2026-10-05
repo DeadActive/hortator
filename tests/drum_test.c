@@ -280,6 +280,8 @@ static void test_live_record(void)
     uint32_t p = FS * 60 / 120 / 4, a, at[4], n;
     host_init();
     song.rec = 1u;                                   /* track 1 armed */
+    trk[0].step[2].cond = 7;
+    trk[0].step[2].rat = 2;
     play();
     render_mix(0, 0, p + p * 3 / 4 / CTL * CTL);     /* 3/4 into step 1: records into step 2 */
     a = hit_age(&trk[0]);
@@ -287,6 +289,8 @@ static void test_live_record(void)
     render_mix(0, 0, CTL);
     fm1_in.notes = 0;
     check("live record: a late hit goes into the next step", trk[0].step[2].on && !trk[0].step[1].on);
+    check("live record: the recorded step plays always, one hit (PROB 100 %, RATCH 1)",
+          trk[0].step[2].cond == 0 && trk[0].step[2].rat == 0);
     n = hits_at(0, p, at, 4);
     check("live record: that step does not hit again this time round", hit_age(&trk[0]) != a && n == 0);
 }
@@ -1156,6 +1160,162 @@ static void test_len_change_sync(void)
     check("seq: LEN changed while playing (16 -> 12 -> 16): the track stays in sync with the others", ok);
 }
 
+/* PROB as a chance: n loops of a 1-step track through step_plays (the decision the sequencer makes) */
+static uint32_t chance_hits(uint32_t ti, uint32_t pct, uint32_t n, uint64_t *bits)
+{
+    track_t *t = &trk[ti];
+    step_t s = {1, 0, 0, 0};
+    uint32_t k, hits = 0;
+    s.cond = (uint8_t)cond_store(pct / 5u);
+    seq_start();                                     /* seeds the tracks' random sequences */
+    *bits = 0;
+    for (k = 0; k < n; k++) {
+        int p;
+        t->seq_cnt = k;
+        p = step_plays(t, &s, 1u);
+        hits += (uint32_t)p;
+        if (k < 64u && p)
+            *bits |= 1ull << k;
+    }
+    return hits;
+}
+
+static void test_prob_chance(void)
+{
+    uint64_t b0, b1, b2;
+    uint32_t h50, h25;
+    host_init();
+    h50 = chance_hits(0, 50, 4000, &b0);
+    h25 = chance_hits(0, 25, 4000, &b2);
+    printf("     PROB 50 %%: %u / 4000, 25 %%: %u / 4000\n", h50, h25);
+    check("PROB: 50 % and 25 % play about that often (4000 loops, +-5 %)",
+          h50 >= 1800u && h50 <= 2200u && h25 >= 800u && h25 <= 1200u);
+    check("PROB: 0 % never plays, 100 % always", chance_hits(0, 0, 500, &b2) == 0u && chance_hits(0, 100, 500, &b2) == 500u);
+    chance_hits(0, 50, 64, &b1);
+    chance_hits(1, 50, 64, &b2);
+    check("PROB: the same after every PLAY (per track), different tracks differ", b0 == b1 && b0 != b2);
+}
+
+/* conditions: A/B plays on loop A of every B (loop = steps since PLAY / LEN), 1-SHOT on loop 0; no random draw */
+static void test_cond_loops(void)
+{
+    track_t *t = &trk[0];
+    uint32_t a, b, n = 0, loop, len = 3, ok = 1, r0;
+    host_init();
+    seq_start();
+    r0 = t->rng;
+    for (b = 2; b <= 8u; b++)
+        for (a = 1; a <= b; a++, n++) {
+            step_t s = {1, 0, 0, 0};
+            s.cond = (uint8_t)(22u + n);
+            for (loop = 0; loop < 2u * 8u * 8u; loop++) {
+                t->seq_cnt = loop * len + 1u;        /* step 1 of each loop */
+                ok &= step_plays(t, &s, len) == (loop % b == a - 1u);
+            }
+        }
+    check("PROB: every A/B condition plays exactly on loop A of every B (128 loops)", ok && t->rng == r0);
+    {
+        step_t s = {1, 0, COND_1SHOT, 0};
+        ok = 1;
+        for (loop = 0; loop < 16u; loop++) {
+            t->seq_cnt = loop * len;
+            ok &= step_plays(t, &s, len) == (loop == 0u);
+        }
+        check("PROB: 1-SHOT plays only on the first loop after PLAY", ok);
+    }
+    {
+        step_t s = {1, 0, 22, 0};                    /* 1/2 */
+        t->seq_cnt = 9;                              /* LEN 4: loop 2 (plays); LEN 3: loop 3 (does not) */
+        check("PROB: conditions count loops with the LEN of the moment", step_plays(t, &s, 4) && !step_plays(t, &s, 3));
+    }
+}
+
+/* a 2/2 step on a 1-step track: hits on every other step, on time */
+static void test_cond_render(void)
+{
+    uint32_t at[8], n, p = FS * 60 / 120 / 4;
+    host_init();
+    trk[0].p[P_SLEN] = 1;
+    trk[0].step[0].on = 1;
+    trk[0].step[0].cond = 23;                        /* 2/2 */
+    play();
+    n = hits_at(0, 8 * p - p / 2, at, 8);
+    check("PROB 2/2 on a 1-step track: steps 1, 3, 5, 7", n == 4 && at[0] / CTL == CEILB(p) && at[3] / CTL == CEILB(7 * p));
+}
+
+/* RATCH R: R hits at k * length / R of the step, the swung (long / short) steps too */
+static void test_ratchet_times(void)
+{
+    uint32_t r, sw, ok = 1, p = FS * 60 / 120 / 4;
+    for (sw = 0; sw <= 50u; sw += 50u)
+        for (r = 2; r <= 4u; r++) {
+            uint32_t at[16], want[16], n, k, m = 0, l0, l1;
+            int32_t s = (int32_t)sw * (int32_t)p / 250;
+            host_init();
+            song.g[G_SWING] = (int16_t)sw;
+            l0 = p + (uint32_t)s;
+            l1 = p - (uint32_t)s;
+            trk[0].p[P_SLEN] = 2;
+            trk[0].step[0].on = trk[0].step[1].on = 1;
+            trk[0].step[0].rat = trk[0].step[1].rat = (uint8_t)(r - 1u);
+            play();
+            n = hits_at(0, l0 + l1 - CTL, at, 16);
+            for (k = 0; k < r; k++)
+                want[m++] = k * l0 / r;
+            for (k = 0; k < r; k++)
+                want[m++] = l0 + k * l1 / r;
+            ok &= n == 2u * r;
+            for (k = 0; k < m && k < n; k++)
+                ok &= at[k] / CTL == CEILB(want[k]);
+            if (n != 2u * r)
+                printf("     RATCH %u swing %u: %u hits\n", r, sw, n);
+        }
+    check("RATCH: 2, 3, 4 hits evenly over each step, swung steps too", ok);
+}
+
+/* one decision per roll: a 50 % step with 4 hits plays all 4 or none; every hit at the step's velocity */
+static void test_ratchet_one_decision(void)
+{
+    uint32_t at[300], cnt[64] = {0}, n, i, p = FS * 60 / 120 / 4, ok = 1, none = 0, all = 0, vel = 1;
+    host_init();
+    trk[0].p[P_SLEN] = 1;
+    trk[0].step[0].on = trk[0].step[0].acc = 1;
+    trk[0].step[0].rat = 3;
+    trk[0].step[0].cond = (uint8_t)cond_store(10);   /* 50 % */
+    play();
+    n = hits_at(0, 64 * p - CTL, at, 300);
+    for (i = 0; i < n && i < 300u; i++) {
+        cnt[at[i] / p]++;
+    }
+    for (i = 0; i < 64u; i++) {
+        ok &= cnt[i] == 0u || cnt[i] == 4u;
+        none += cnt[i] == 0u;
+        all += cnt[i] == 4u;
+    }
+    for (i = 0; i < NDV; i++)
+        if (trk[0].v[i].active)
+            vel &= trk[0].v[i].vel == 127u;
+    check("RATCH + PROB: one decision per roll (0 or 4 hits a step, both occur), accented hits all at 127",
+          ok && none > 10u && all > 10u && vel);
+}
+
+/* a tempo change in a roll: hits past the step's new end are dropped, the next steps play their rolls */
+static void test_ratchet_tempo_change(void)
+{
+    uint32_t p = FS * 60 / 120 / 4, a;
+    host_init();
+    trk[0].p[P_SLEN] = 1;
+    trk[0].step[0].on = 1;
+    trk[0].step[0].rat = 3;                          /* 4 hits a step */
+    play();
+    a = dvage;
+    render_mix(0, 0, p / 2);                         /* hits at 0 and p/4 */
+    song.g[G_BPM] = 240;                             /* the step is now p/2 long: its p/2 hit is dropped */
+    render_mix(0, 0, p - 2 * CTL);                   /* two new steps of 4 hits */
+    printf("     RATCH 4, BPM 120 -> 240 mid-step: %u hits\n", dvage - a);
+    check("RATCH: a tempo change mid-roll drops the late hit, then 4 hits per step (2 + 8)", dvage - a == 10u);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1207,6 +1367,12 @@ int main(void)
     test_midi();
     test_live_record();
     test_len_change_sync();
+    test_prob_chance();
+    test_cond_loops();
+    test_cond_render();
+    test_ratchet_times();
+    test_ratchet_one_decision();
+    test_ratchet_tempo_change();
     test_accent();
     test_kicks();
     test_model_change();
