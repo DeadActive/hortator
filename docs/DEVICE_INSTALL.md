@@ -66,7 +66,8 @@ For each: what you should see / hear. Note anything different (page, knob, what 
   track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with PRESET on HOME or MODEL
   on TRACK), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
-- Live recording: arm a track (REC on TRACKS), play keys while running: the steps appear.
+- Live recording: arm a track (REC on TRACKS), then go to another page (HOME, or the track's pages) and play its
+  key while running: the steps appear. (On TRACKS the keys are quick mutes.)
 - PROJECT: save to slot 1, change things, load slot 1: everything comes back.
 - The master knob changes the volume; the battery icon shows a level.
 
