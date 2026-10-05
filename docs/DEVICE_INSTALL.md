@@ -58,13 +58,14 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 
 ## 5. Hands-on
 For each: what you should see / hear. Note anything different (page, knob, what happened).
-- Every page: SOUND 1/2 and 2/2, TRACK, MIDI, LAYER, FX, SLICER, DLY, REV/CHO, STEP, PATTERN, GLOBAL, SYSTEM,
+- Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER, FX, SLICER, DLY,
+  REV/CHO, COMP 1/2 and 2/2, STEP, PATTERN, GLOBAL, SYSTEM,
   PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
   `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
 - Every engine: PRESET on HOME steps through the 21 engines; each plays on its key.
 - The demo kits: the kits in `tests/drumsim.c` (`KITS`) use other engines than the power-on kit. First set each
   track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with PRESET on HOME or MODEL
-  on TRACK), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
+  on EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
 - Live recording: arm a track (REC on TRACKS), then go to another page (HOME, or the track's pages) and play its
   key while running: the steps appear. (On TRACKS the keys are quick mutes.)
@@ -106,7 +107,7 @@ Report what you saw first; we'll go through it together.
 
 ### M3: COMP sidechain (check on the FM-1)
 
-- SCL: COMP 1/2 (SRC THRSH RATIO REL) and 2/2 (ATK KNEE MKUP, the curve). SRC T1 with a kick pattern; on a COMP page the
+- FX (after REV/CHO): COMP 1/2 (SRC THRSH RATIO REL) and 2/2 (ATK KNEE MKUP, the curve). SRC T1 with a kick pattern; on a COMP page the
   white keys 2-8 light for the ducked tracks (key 1, the source, does not toggle). PLAY: the ducked tracks pump
   with the kick, the GR meter moves; REL longer = slower recovery; RATIO higher = deeper duck; MKUP raises the
   ducked tracks (at the end LIMIT).
