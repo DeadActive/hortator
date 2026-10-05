@@ -13,6 +13,8 @@ static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"}
 static const char *const N_CHOKE[] = {"OFF", "1", "2", "3", "4"};
 static const char *const N_SRC[] = {"STEP", "G-KCK", "G-SNR", "G-HAT"};   /* P_SRC: its steps or a Grids channel */
 static const char *const N_GMODE[] = {"MAP", "EUCL"};
+static const char *const N_CSRC[] = {"OFF", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
+static const char *const N_KNEE[] = {"HARD", "SOFT"};
 
 static const param_desc_t TP[P_COUNT] = {
     [P_MODEL] = PE("MODEL", N_MODEL, 0),
@@ -38,6 +40,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LTUNE] = PD("LTUNE", F_SEMI, -24, 24, 0),
     [P_LDEC] = PD("LDEC", F_INT, 0, 127, 127),
     [P_SRC] = PE("SRC", N_SRC, 0),
+    [P_DUCK] = PE("DUCK", N_ONOFF, 0),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -73,6 +76,12 @@ static const param_desc_t GP[G_COUNT] = {
     [G_GLEN1] = PD("LEN K", F_STEPS, 1, 32, 16),
     [G_GLEN2] = PD("LEN S", F_STEPS, 1, 32, 12),
     [G_GLEN3] = PD("LEN H", F_STEPS, 1, 32, 8),
+    [G_CSRC] = PE("SRC", N_CSRC, 0),
+    [G_CTHR] = PD("THRSH", F_CTHR, 0, 127, 26),
+    [G_CAMT] = PD("AMNT", F_CAMT, 0, 127, 22),
+    [G_CREL] = PD("REL", F_CREL, 0, 127, 26),
+    [G_CATK] = PD("ATK", F_CATK, 0, 127, 2),
+    [G_CKNEE] = PE("KNEE", N_KNEE, 1),
 };
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
@@ -80,6 +89,22 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
     if (id >= P_E0 && id <= P_E7)
         return &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS].edit[id - P_E0];
     return &TP[id];
+}
+
+static void fmt_ms10(char *val, const char **unit, uint32_t ms10)   /* a time in 0.1 ms: "4.5ms", "120ms", "1.20s" */
+{
+    if (ms10 < 100u) {
+        fmt_fix(val, (int32_t)ms10, 1);
+        *unit = "ms";
+    } else if (ms10 < 10000u) {
+        fmt_int(val, (int32_t)((ms10 + 5u) / 10u));
+        *unit = "ms";
+    } else {
+        fmt_fix(val, (int32_t)(ms10 / 100u), 2);
+        if (ms10 >= 100000u)
+            fmt_fix(val, (int32_t)(ms10 / 1000u), 1);
+        *unit = "s";
+    }
 }
 
 /* value string (<= 5 chars) and unit for a parameter value */
@@ -103,22 +128,22 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         }
         *unit = "%";
         break;
-    case F_TIME: {
-        uint32_t ms10 = TIME_MS_X10[v & 127];
-        if (ms10 < 100u) {
-            fmt_fix(val, (int32_t)ms10, 1);
-            *unit = "ms";
-        } else if (ms10 < 10000u) {
-            fmt_int(val, (int32_t)((ms10 + 5u) / 10u));
-            *unit = "ms";
-        } else {
-            fmt_fix(val, (int32_t)(ms10 / 100u), 2);
-            if (ms10 >= 100000u)
-                fmt_fix(val, (int32_t)(ms10 / 1000u), 1);
-            *unit = "s";
-        }
+    case F_TIME:
+        fmt_ms10(val, unit, TIME_MS_X10[v & 127]);
         break;
-    }
+    case F_CTHR:
+        fmt_fix(val, comp_thr_dbx10(v), 1);
+        *unit = "dB";
+        break;
+    case F_CAMT:
+        comp_amount_text(v, song.g[G_CTHR], val, unit);
+        break;
+    case F_CATK:
+        fmt_ms10(val, unit, COMP_ATK_MS_X10[clamp(v, 0, 127)]);
+        break;
+    case F_CREL:
+        fmt_ms10(val, unit, COMP_REL_MS_X10[clamp(v, 0, 127)]);
+        break;
     case F_LFOHZ: {
         uint32_t h = LFO_HZ_X100[v & 127];
         if (h < 1000u)

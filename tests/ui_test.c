@@ -888,6 +888,10 @@ static void test_project_roundtrip(void)
     song.g[G_GMODE] = 1;
     song.g[G_GX] = 99;
     song.g[G_GLEN3] = 5;
+    trk[3].p[P_DUCK] = 1;
+    song.g[G_CSRC] = 1;
+    song.g[G_CAMT] = 99;
+    song.g[G_CKNEE] = 0;
     song.g[G_BPM] = 133;
     song.sel = 2;
     project_save(1);
@@ -901,6 +905,8 @@ static void test_project_roundtrip(void)
     check("project: load restores PROB / RATCH, SRC and the Grids settings",
           trk[2].step[7].cond == 33 && trk[2].step[7].rat == 2 && trk[2].p[P_SRC] == 2 && song.g[G_GMODE] == 1 &&
               song.g[G_GX] == 99 && song.g[G_GLEN3] == 5);
+    check("project: load restores DUCK and the COMP settings",
+          trk[3].p[P_DUCK] == 1 && song.g[G_CSRC] == 1 && song.g[G_CAMT] == 99 && song.g[G_CKNEE] == 0);
 }
 
 static void test_project_rejects(void)
@@ -914,12 +920,15 @@ static void test_project_rejects(void)
     proj_slot[0].t[3].step[1].rat = 9;
     proj_slot[0].t[3].p[P_SRC] = 40;
     proj_slot[0].g[G_GLEN1] = -5;
+    proj_slot[0].g[G_CSRC] = 77;
+    proj_slot[0].t[3].p[P_DUCK] = 5;
     proj_slot[0].sum = proj_sum(&proj_slot[0]);
     project_load(0);
     check("project: out-of-range values are clamped on load",
           trk[3].p[P_MODEL] < NMODELS && trk[3].p[P_E1] <= DMODELS[trk[3].p[P_MODEL]].edit[1].max &&
               trk[3].step[0].on == 1 && trk[3].step[1].cond == COND_MAX && trk[3].step[1].rat == 3 &&
-              trk[3].p[P_SRC] == 3 && song.g[G_GLEN1] == 1);
+              trk[3].p[P_SRC] == 3 && song.g[G_GLEN1] == 1 &&
+              song.g[G_CSRC] == 8 && trk[3].p[P_DUCK] == 1);
     proj_slot[1].magic = 0x46554E33u;                /* an old Felucca project ("FUN3") */
     check("project: Felucca projects are not used", !project_used(1));
     project_save(2);

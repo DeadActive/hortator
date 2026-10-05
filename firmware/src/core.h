@@ -15,7 +15,7 @@
 /* ------------------------------------------------------- parameters --- */
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
-    F_ONOFF, F_OCT, F_STEPS
+    F_ONOFF, F_OCT, F_STEPS, F_CTHR, F_CAMT, F_CATK, F_CREL
 };
 
 typedef struct {
@@ -37,6 +37,7 @@ enum {                          /* per-track parameters */
     P_SLEN, P_SDIV, P_SSWING,
     P_LSET, P_LKEY, P_LLEVEL, P_LTUNE, P_LDEC,       /* sample layer */
     P_SRC,                       /* what the track plays: 0 its steps, 1..3 a Grids channel (kick, snare, hats) */
+    P_DUCK,                      /* M3: the COMP source ducks this track */
     P_COUNT
 };
 
@@ -51,6 +52,8 @@ enum {                          /* global parameters */
     G_GMODE, G_GX, G_GY, G_GCHAOS,                   /* Grids (grids.c): MAP / EUCLID, the map point, chaos */
     G_GFILL1, G_GFILL2, G_GFILL3,                    /* fill per channel (kick, snare, hats) */
     G_GLEN1, G_GLEN2, G_GLEN3,                       /* Euclidean length per channel, 1..32 sixteenths */
+    G_CSRC, G_CTHR, G_CAMT, G_CREL,                  /* COMP (comp.c): source track (0 off), threshold, amount, release */
+    G_CATK, G_CKNEE,                                 /* attack, soft knee */
     G_COUNT
 };
 

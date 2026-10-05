@@ -139,3 +139,31 @@ static int32_t comp_lin(uint32_t g)
     int32_t x = ((int32_t)g - COMP_UNITY) * 8465 >> 7;              /* x 65536 / 990.97: log2 units */
     return comp_exp2(clamp(x, -16 * 65536, 6 * 65536));
 }
+
+/* ------------------------------------------------------- display --- */
+static int32_t comp_thr_dbx10(int32_t v)          /* THRSH in 0.1 dB, rounded (Streams: 256 = 6.02 dB / 256) */
+{
+    int32_t x = -1280 + 5 * (int32_t)(comp_k16(v) >> 8);
+    return (x * 60206 + (x < 0 ? -128000 : 128000)) / 256000;
+}
+
+/* AMNT as the column shows it: the ratio ("3.9" ":1"), the makeup ("+6.0" "dB") or "LIMIT" (at threshold thr) */
+static void comp_amount_text(int32_t amt, int32_t thr, char *val, const char **unit)
+{
+    comp_set_t s = {0, thr, amt, 0, 1};
+    comp_cfg_t c;
+    comp_configure(&s, &c);
+    *unit = "";
+    if (clamp(amt, 0, 127) < 64) {
+        fmt_fix(val, 2560 / (c.ratio > 0 ? c.ratio : 1), 1);
+        *unit = ":1";
+    } else if (c.atk < 0) {
+        str_cpy(val, "LIMIT", 6);
+    } else {
+        char t[8];
+        fmt_fix(t, c.makeup / 1088, 1);            /* log2 units -> 0.1 dB (6.02 dB / 65536) */
+        val[0] = '+';
+        str_cpy(val + 1, t, 6);
+        *unit = "dB";
+    }
+}

@@ -1556,6 +1556,34 @@ static void test_comp_engine(void)
     check("COMP: every attack / release time within 2 % of Streams' at 44.1 kHz", worst < 0.02);
 }
 
+/* the COMP knobs as the columns show them */
+static void test_comp_formats(void)
+{
+    char v[12];
+    const char *u;
+    int ok;
+    host_init();
+    param_format(&GP[G_CTHR], GP[G_CTHR].def, v, &u);
+    ok = !strcmp(v, "-24.0") && !strcmp(u, "dB");
+    param_format(&GP[G_CAMT], GP[G_CAMT].def, v, &u);
+    ok &= !strcmp(v, "3.9") && !strcmp(u, ":1");
+    param_format(&GP[G_CAMT], 0, v, &u);
+    ok &= !strcmp(v, "1.0") && !strcmp(u, ":1");
+    song.g[G_CTHR] = 127;
+    param_format(&GP[G_CAMT], 127, v, &u);
+    ok &= !strcmp(v, "LIMIT");
+    song.g[G_CTHR] = 0;
+    param_format(&GP[G_CAMT], 80, v, &u);
+    ok &= !strcmp(v, "+5.0") && !strcmp(u, "dB");
+    param_format(&GP[G_CATK], GP[G_CATK].def, v, &u);
+    ok &= !strcmp(v, "1.1") && !strcmp(u, "ms");
+    param_format(&GP[G_CREL], GP[G_CREL].def, v, &u);
+    ok &= !strcmp(v, "151") && !strcmp(u, "ms");
+    param_format(&GP[G_CSRC], 1, v, &u);
+    ok &= !strcmp(v, "T1");
+    check("COMP columns: THRSH -24.0 dB, AMNT 3.9:1 / 1.0:1 / LIMIT (THRSH 127) / +5.0 dB (THRSH 0, AMNT 80), ATK 1.1 ms, REL 151 ms, SRC T1", ok);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1591,6 +1619,7 @@ int main(void)
 {
     test_cond_codes();
     test_comp_engine();
+    test_comp_formats();
     test_percent_display();
     test_q24();
     test_tables();

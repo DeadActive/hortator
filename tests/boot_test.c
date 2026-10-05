@@ -74,10 +74,19 @@ static void flash_image(int kind, uint32_t seed)
             p.panel.magic = PANEL_MAGIC;              /* a valid panel magic over random ids */
         st_save(OBJ_SETTINGS, &p, sizeof p);
         for (k = 0; k < 4; k++) {
-            if (kind == F_HEADERS && (k & 1u)) {     /* an M1 project ("FDR1"): valid sum over random fields */
+            if (kind == F_HEADERS && k == 1u) {      /* an M1 project ("FDR1"): valid sum over random fields */
                 project_v1_t v;
                 rfill(&v, sizeof v);
                 v.magic = PROJ_MAGIC_V1;
+                v.size = sizeof v;
+                v.sum = proj_hash(&v, sizeof v - 4u);
+                st_save(OBJ_PROJECT0 + k, &v, sizeof v);
+                continue;
+            }
+            if (kind == F_HEADERS && k == 3u) {      /* an M2 project ("FDR2"): valid sum over random fields */
+                project_v2_t v;
+                rfill(&v, sizeof v);
+                v.magic = PROJ_MAGIC_V2;
                 v.size = sizeof v;
                 v.sum = proj_hash(&v, sizeof v - 4u);
                 st_save(OBJ_PROJECT0 + k, &v, sizeof v);
@@ -162,11 +171,45 @@ static int fdr1_converts(void)
            song.g[G_GLEN2] == 12 && song.g[G_GMODE] == 0 && song.sel == 2;
 }
 
+/* an M2 project in flash ("FDR2") loads: everything it has, COMP off, DUCK off */
+static int fdr2_converts(void)
+{
+    project_v2_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V2;
+    v.size = sizeof v;
+    for (i = 0; i < G_CSRC; i++)
+        v.g[i] = song.g[i];
+    v.g[G_GLEN2] = 5;
+    v.sel = 3;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_DUCK; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].p[P_SRC] = 3;
+    v.t[2].step[9].on = 1;
+    v.t[2].step[9].cond = 33;
+    v.t[2].step[9].rat = 2;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 2u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    song.g[G_CSRC] = 4;                              /* the live state differs: the load replaces it */
+    trk[2].p[P_DUCK] = 1;
+    project_load(2);
+    return song.g[G_GLEN2] == 5 && song.sel == 3 && trk[2].p[P_SRC] == 3 && trk[2].step[9].on &&
+           trk[2].step[9].cond == 33 && trk[2].step[9].rat == 2 && song.g[G_CSRC] == 0 && trk[2].p[P_DUCK] == 0 &&
+           song.g[G_CAMT] == GP[G_CAMT].def;
+}
+
 int main(void)
 {
     char what[96];
     int k, s, seq;
     check("project: an M1 record (FDR1) loads with PROB 100 %, 1 hit, SRC STEP, Grids defaults", fdr1_converts());
+    check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {
