@@ -1316,6 +1316,70 @@ static void test_ratchet_tempo_change(void)
     check("RATCH: a tempo change mid-roll drops the late hit, then 4 hits per step (2 + 8)", dvage - a == 10u);
 }
 
+/* Grids engine (grids.c), structure only: the bit-exact check against the original is tests/grids_fidelity.c */
+static void test_grids_engine(void)
+{
+    uint32_t k, a, bits, ok = 1, hits = 0, acc = 0, seq1[64], same = 1;
+    host_init();
+    song.g[G_GFILL1] = song.g[G_GFILL2] = song.g[G_GFILL3] = 0;
+    song.g[G_GCHAOS] = 127;
+    grids_start();
+    for (k = 0; k < 64u; k++)
+        ok &= (grids_step() & 7u) == 0u;
+    check("Grids MAP: fill 0 is silent, chaos or not", ok);
+    song.g[G_GMODE] = 1;                             /* EUCLID, kick LEN 4, full fill: 1/16s, accent every 4th */
+    song.g[G_GLEN1] = 4;
+    song.g[G_GFILL1] = 127;
+    grids_start();
+    for (k = 0; k < 32u; k++) {
+        bits = grids_step();
+        hits += bits & 1u;
+        acc += (bits >> 3) & 1u;
+        ok &= (k & 1u) ? !(bits & 1u) : 1;           /* nothing on the odd 1/32s */
+    }
+    check("Grids EUCLID: plays on 1/16s only; LEN 4 full: 16 hits, 4 accents a bar", ok && hits == 16u && acc == 4u);
+    song.g[G_GMODE] = 0;                             /* MAP, chaos: the same after every start */
+    song.g[G_GFILL1] = song.g[G_GFILL2] = song.g[G_GFILL3] = 90;
+    grids_start();
+    for (k = 0; k < 64u; k++)
+        seq1[k] = grids_step();
+    grids_start();
+    for (k = 0; k < 64u; k++)
+        same &= grids_step() == seq1[k];
+    check("Grids: a start reseeds the chaos (a session repeats) and the step wraps at 32", same && grids.step == 0u);
+    ok = 1;
+    song.g[G_GCHAOS] = 0;                            /* without chaos the preview is what plays */
+    grids_start();
+    for (k = 0; k < 32u; k++) {
+        bits = grids_step();
+        for (a = 0; a < 3u; a++)
+            ok &= grids_preview(a, k) == (((bits >> a) & 1u) | ((bits >> (a + 3u)) & 1u) << 1);
+    }
+    check("Grids MAP: the preview (no chaos) is exactly what the engine plays; 32 steps", ok && grids_len(0) == 32u);
+}
+
+/* MAP <-> EUCLID and LEN changes while running: positions stay inside the length */
+static void test_grids_mode_switch(void)
+{
+    uint32_t k, ch, ok = 1;
+    host_init();
+    grids_start();
+    for (k = 0; k < 300u; k++)
+        grids_step();                                /* MAP: the Euclidean counters run on (uint8, as the original) */
+    song.g[G_GMODE] = 1;
+    song.g[G_GLEN1] = 32;
+    song.g[G_GLEN2] = 1;
+    song.g[G_GLEN3] = 7;
+    for (k = 0; k < 70u; k++) {
+        grids_step();
+        if (k == 30u)
+            song.g[G_GLEN1] = 3;
+        for (ch = 0; ch < 3u; ch++)
+            ok &= grids_pos(ch) < grids_len(ch) && grids_preview(ch, grids_pos(ch)) < 4u;
+    }
+    check("Grids: MAP -> EUCLID and a LEN change while running keep every position inside its length", ok);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1373,6 +1437,8 @@ int main(void)
     test_ratchet_times();
     test_ratchet_one_decision();
     test_ratchet_tempo_change();
+    test_grids_engine();
+    test_grids_mode_switch();
     test_accent();
     test_kicks();
     test_model_change();

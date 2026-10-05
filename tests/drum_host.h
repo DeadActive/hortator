@@ -29,6 +29,7 @@ static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/usb.c"
 #include "../firmware/src/midi_uart.c"
+#include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
 
 static void host_reset_fx(void)                     /* FX buses, master, slicer, metal: as at power-on */
@@ -51,6 +52,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     memset(metal_ph, 0, sizeof metal_ph);
     metal_blk = 0xFFFFFFFFu;
     dblock = 0;
+    memset(&grids, 0, sizeof grids);
 }
 
 static void host_init(void)

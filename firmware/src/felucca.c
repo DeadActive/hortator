@@ -43,6 +43,7 @@
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif
+#include "grids.c"           /* Grids pattern engine (M2) */
 #include "seq.c"
 #include "audio.c"
 #include "panel.c"

@@ -39,6 +39,15 @@ if sh tests/fetch_ref.sh >/dev/null 2>&1; then
     cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -Itests \
         -o "$OUT/drum_fidelity" tests/drum_fidelity.c -lm
     "$OUT/drum_fidelity" "$REF/metrics.bin"
+    python3 tools/gen_grids_tables.py "$REF/eurorack/grids/resources.cc" "$OUT/grids_tables.h"
+    cmp -s "$OUT/grids_tables.h" firmware/src/grids_tables.h || { echo "FAIL  grids_tables.h differs from the reference (tools/gen_grids_tables.py)"; exit 1; }
+    E="$REF/eurorack"
+    c++ -std=c++11 -O1 -w -Itests/grids_stub -I"$E" -I. -o "$REF/grids_ref" tests/grids_ref.cc "$E/grids/pattern_generator.cc" \
+        "$E/grids/resources.cc" "$E/avrlib/random.cc"
+    "$REF/grids_ref" "$REF/grids_ref.bin"
+    cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -Itests \
+        -o "$OUT/grids_fidelity" tests/grids_fidelity.c -lm
+    "$OUT/grids_fidelity" "$REF/grids_ref.bin"
 else
     echo "fidelity: SKIPPED (offline: tests/fetch_ref.sh could not fetch the reference)"
     FID=" (fidelity SKIPPED: offline)"
