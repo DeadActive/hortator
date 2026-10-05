@@ -618,6 +618,44 @@ static void graph_lfo(uint16_t c, uint32_t l)
     }
 }
 
+/* RESON pages: the model in large type, the pitch (CHORD: its four notes), the ring's partials on a 4-octave
+ * axis (STRNG all, PIPE odd, CHORD its notes), a meter of the ring */
+static void graph_reson(uint16_t c)
+{
+    static const uint8_t HX[16] = {0, 34, 54, 68, 79, 88, 95, 102, 108, 113, 118, 122, 126, 129, 133, 136};
+    const track_t *t = TSEL;
+    uint32_t m = (uint32_t)clamp(t->p[P_RMODEL], 0, RS_NMODEL - 1), h, n;
+    int32_t note = clamp(t->p[P_RTUNE], 24, 96);
+    char b[24];
+    cv_text(4, 2, &FONT_L, N_RMODEL[m], m ? C_WHITE : C_GRAY);   /* the knob's names: 5 letters fit left of x 100 */
+    if (!m)
+        return;
+    b[0] = 0;
+    if (m == RS_CHORD) {
+        note = note < 48 ? 48 : note;
+        for (h = 0; h < 4u; h++) {                    /* "C3 E3 G3 C4" */
+            int32_t nn = note + RS_CHORD_IV[rs_chord(t)][h];
+            str_cpy(b + str_len(b), N_NOTE[(uint32_t)nn % 12u], sizeof b - str_len(b));
+            fmt_int(b + str_len(b), nn / 12 - 1);
+            str_cpy(b + str_len(b), " ", sizeof b - str_len(b));
+        }
+    } else {
+        str_cpy(b, N_NOTE[(uint32_t)note % 12u], sizeof b);
+        fmt_int(b + str_len(b), note / 12 - 1);
+    }
+    cv_text(4, 44, &FONT_S, b, C_GRAY);
+    cv_rect(100, 74, 136, 1, C_LINE);
+    for (h = 0; h < (m == RS_CHORD ? 4u : 16u); h++) {
+        uint32_t x = m == RS_CHORD ? (uint32_t)RS_CHORD_IV[rs_chord(t)][h] * 136u / 48u : HX[h];
+        if (m == RS_PIPE && (h & 1u))
+            continue;                                 /* PIPE: odd partials only (h = 0 is the 1st) */
+        n = m == RS_CHORD ? 50u : 56u - h * 3u;
+        cv_rect(100 + (int32_t)x, 74 - (int32_t)n, 2, (int32_t)n, c);
+    }
+    cv_rect(4, 84, 92, 1, C_LINE);
+    cv_rect(4, 82, (int32_t)((uint32_t)t->rs.peak * 92u / 32767u), 5, C_AMB);
+}
+
 static uint32_t graph_signature(void)
 {
     const page_t *pg = cur_page();
@@ -664,6 +702,8 @@ static uint32_t graph_signature(void)
         if (lfo_random((uint32_t)t->p[(l ? P_LFO2 : P_LFO1) + LF_WAVE]))
             h ^= (ui.tr_h + 1u) * 97u + ui.tr_n * 65537u;
     }
+    if (pg->graph == GR_RESON)
+        h ^= ((uint32_t)t->rs.peak >> 9) * 2654435761u + (uint32_t)rs_chord(t) * 7919u;
     return h;
 }
 
@@ -713,6 +753,9 @@ static void draw_graph(void)
             break;
         case GR_LFO:
             graph_lfo(c, song.lsel & 1u);
+            break;
+        case GR_RESON:
+            graph_reson(c);
             break;
         case GR_SLOTS:
             cv_oy = 0;

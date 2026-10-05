@@ -167,6 +167,10 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (!d || !vp || d->max == d->min)
         return;
     v = clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
+    if (pg->scope == SC_TRACK && id == P_RMODEL && v == RS_CHORD && *vp != RS_CHORD && reson_chords(TSEL) >= 2u) {
+        ui_message("CHORD: 2 TRACKS MAX");            /* RESON CHORD on 2 tracks at most */
+        return;
+    }
     *vp = (int16_t)v;
     if (pg->scope == SC_GLOBAL && id == G_MUTEBAR) {
         mute_bar_set((uint32_t)v);

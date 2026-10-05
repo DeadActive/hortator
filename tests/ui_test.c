@@ -1023,6 +1023,63 @@ static void test_tracks_rec_keys(void)
     check("TRACKS, disarmed: key 6 selects track 6, no sound", song.rec == 0 && song.sel == 5 && hit_age(&trk[5]) == a);
 }
 
+/* FX: RESON 1/2 and 2/2 after SLICER; STRCT is CHORD on CHORD; CHORD on 2 tracks at most (knob and load) */
+static void test_reson_pages(void)
+{
+    uint32_t k, n;
+    ui_host_init();
+    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
+        tap(B_FX);
+    check("FX: RESON 1/2 after SLICER (MODEL TUNE DECAY MIX)",
+          str_eq(cur_page()->title, "RESON") && page_id(cur_page(), 0) == P_RMODEL && page_id(cur_page(), 3) == P_RMIX &&
+              str_eq(PAGES[ui.page - 1u].title, "SLICER"));
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON: KNOB 1 picks STRNG", TSEL->p[P_RMODEL] == RS_STRNG);
+    keys(1u << KEY_TRK_KEY[0]);                      /* play it: the ring for the picture */
+    ui_frame();
+    keys(0);
+    for (k = 0; k < 10u; k++)
+        ui_frame();
+    snap_page("reson/01_strng");
+    tap(B_FX);
+    check("FX again: RESON 2/2 (TONE STRCT POS)", page_id(cur_page(), 0) == P_RTONE && page_id(cur_page(), 1) == P_RSTRCT);
+    TSEL->p[P_RMODEL] = RS_CHORD;
+    ui_frame();
+    {
+        int16_t *vp;
+        const param_desc_t *d = page_desc(cur_page(), 1, &vp);
+        check("RESON 2/2 on CHORD: the second knob is CHORD", d && str_eq(d->label, "CHORD"));
+    }
+    snap_page("reson/02_chord_page2");
+    trk[1].p[P_RMODEL] = RS_CHORD;                   /* tracks 1 and 2 CHORD: track 3 cannot */
+    trk[2].p[P_RMODEL] = RS_PIPE;
+    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
+        tap(B_FX);                                   /* round the FX pages back to RESON 1/2 */
+    keys(1u << KEY_TRK_KEY[2]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON CHORD cap: a 3rd track's MODEL knob stays on PIPE, with the message",
+          song.sel == 2 && trk[2].p[P_RMODEL] == RS_PIPE && str_eq(ui.msg, "CHORD: 2 TRACKS MAX"));
+    snap_page("reson/03_chord_cap");
+    trk[1].p[P_RMODEL] = RS_STRNG;                   /* a place frees */
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON CHORD cap: once a place frees, the 3rd track gets CHORD", trk[2].p[P_RMODEL] == RS_CHORD);
+    for (k = 0; k < NTRK; k++)                       /* a project with 8 CHORD tracks loads with 2 */
+        trk[k].p[P_RMODEL] = RS_CHORD;
+    project_save(0);
+    project_load(0);
+    for (k = 0, n = 0; k < NTRK; k++)
+        n += trk[k].p[P_RMODEL] == RS_CHORD;
+    check("RESON CHORD cap on load: the first two keep CHORD, the others play STRNG",
+          n == 2u && trk[0].p[P_RMODEL] == RS_CHORD && trk[1].p[P_RMODEL] == RS_CHORD && trk[7].p[P_RMODEL] == RS_STRNG);
+    memset(&proj_slot[0], 0, sizeof proj_slot[0]);  /* the slot empty again for the project tests */
+}
+
 /* HOME: a white key selects its track and plays it; an LFO on a HOME knob shows its live value on the gauge */
 static void test_home_keys_and_lfo(void)
 {
@@ -1611,7 +1668,7 @@ static void test_key_selects_track(void)
 {
     static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
         {"SOUND", B_EDIT, 1, 1},
-        {"FX", B_FX, 1, 1}, {"SLICER", B_FX, 2, 1}, {"DLY", B_FX, 3, 0}, {"PATTERN", B_SEQ, 2, 0},
+        {"FX", B_FX, 1, 1}, {"SLICER", B_FX, 2, 1}, {"RESON", B_FX, 3, 1}, {"DLY", B_FX, 5, 0}, {"PATTERN", B_SEQ, 2, 0},
     };
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof C / sizeof C[0]; i++) {
@@ -1651,6 +1708,7 @@ int main(void)
     test_quick_mute();
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
+    test_reson_pages();
     test_global_mute_setting();
     test_comp_pages();
     test_comp_keys();
