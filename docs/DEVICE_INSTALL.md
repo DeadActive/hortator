@@ -96,5 +96,9 @@ Report what you saw first; we'll go through it together.
   step rolls three hits.
 - ARP: GRIDS 1/2 (MODE X Y CHAOS; MODE EUCL: LEN K S H) and 2/2 (FIL K S H, routing line). PATTERN KNOB 4 SRC
   `G-KCK` / `G-SNR` / `G-HAT` makes a track follow Grids; its STEP grid shows the pattern, keys do nothing.
+- TRACKS (REC tap from HOME): white keys 1-8 mute / unmute their tracks (a muted track stops at once); the keys
+  of muted tracks are lit, and the row shows MUTE. On TRACKS the keys do not play; leave the page to play them.
+- CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
+  stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1
   firmware loads with plain steps.

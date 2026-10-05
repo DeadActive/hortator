@@ -421,6 +421,52 @@ static void test_mixer_and_rec(void)
     check("TRACKS: REC tap arms the selected track and starts play", ((song.rec >> 1) & 1u) && song.playing);
 }
 
+/* TRACKS: white keys 1..8 mute / unmute their tracks (a mute also cuts what is ringing); the key LEDs show the
+ * muted tracks; elsewhere the keys play again and the mutes stay */
+static void test_quick_mute(void)
+{
+    uint32_t a, k, ok = 1;
+    ui_host_init();
+    press(B_REC);                                    /* HOME: a REC tap opens TRACKS */
+    ui_frame();
+    release_all();
+    ui_frame();
+    drum_hit(&trk[2], 127);                          /* track 3 ringing */
+    a = hit_age(&trk[2]);
+    keys(1u << KEY_TRK_KEY[2]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    for (k = 0; k < 4u; k++)
+        ui_frame();
+    check("TRACKS: white key 3 mutes track 3, does not play it, and cuts its ringing voice",
+          trk[2].p[P_MUTE] == 1 && hit_age(&trk[2]) == a && !trk[2].v[0].active && !trk[2].v[1].active);
+    for (k = 0; k < NTRK; k++)
+        ok &= led_lit(14u + KEY_TRK_KEY[k]) == (k == 2u);
+    check("TRACKS: the key LEDs light for the muted tracks only", ok);
+    snap_page("seq/23_tracks_mute_t3");
+    keys(1u << KEY_TRK_KEY[2]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("TRACKS: key 3 again unmutes track 3 (LED off)", trk[2].p[P_MUTE] == 0 && !led_lit(14u + KEY_TRK_KEY[2]));
+    keys(1u << KEY_TRK_KEY[5]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    press(B_HOME);                                   /* HOME: keys play again; track 6 stays muted */
+    ui_frame();
+    release_all();
+    ui_frame();
+    a = hit_age(&trk[0]);
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("leaving TRACKS: the keys play again, the mutes stay", hit_age(&trk[0]) != a && trk[5].p[P_MUTE] == 1 &&
+                                                                 trk[0].p[P_MUTE] == 0);
+}
+
 static void test_clear_confirm(void)
 {
     uint32_t i;
@@ -963,6 +1009,7 @@ int main(void)
     test_grid_keys();
     test_bank_follows_len();
     test_mixer_and_rec();
+    test_quick_mute();
     test_clear_confirm();
     test_oct_both_reaches_main();
     test_tracks_rows();

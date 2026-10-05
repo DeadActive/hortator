@@ -78,10 +78,11 @@ static void ui_say(const char *a, const char *b)     /* transient message in the
 static void ui_message(const char *s) { ui_say(s, ""); }
 
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
+static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
 
 static void page_entered(void)
 {
-    song.seq_mode = (uint8_t)grid_mode();            /* seq.c: the keys belong to the grid */
+    song.seq_mode = (uint8_t)(grid_mode() || mix_mode());   /* seq.c: the keys belong to the grid / the mutes */
     ui.hot_t = 0;
     ui.force = 1;
 }
@@ -174,6 +175,16 @@ static void step_hold(uint32_t k)
 }
 
 static void track_clear(track_t *t) { memset(t->step, 0, sizeof t->step); }
+
+/* TRACKS: white key k mutes / unmutes track k; a mute also cuts what it is playing (declicked, in the ISR) */
+static void track_mute_toggle(uint32_t k)
+{
+    if (k >= NTRK)
+        return;
+    trk[k].p[P_MUTE] = (int16_t)!trk[k].p[P_MUTE];
+    if (trk[k].p[P_MUTE])
+        panic_req |= (uint8_t)(1u << k);
+}
 
 /* --------------------------------------------------- track, model --- */
 static void track_select(uint32_t i)

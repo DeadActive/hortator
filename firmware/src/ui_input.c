@@ -57,6 +57,9 @@ static void ui_leds(void)
                 on = !on;
             led_put(nl, 14u + STEP_KEY[k], on);
         }
+    } else if (mix_mode()) {                          /* TRACKS: the muted tracks' keys */
+        for (k = 0; k < NTRK; k++)
+            led_put(nl, 14u + KEY_TRK_KEY[k], trk[k].p[P_MUTE] != 0);
     } else {
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
@@ -302,6 +305,10 @@ static void ui_input(void)
                 step_hold(k);
             }
         }
+    } else if (mix_mode()) {
+        for (k = 0; k < NTRK; k++)                      /* TRACKS: a white key mutes / unmutes its track */
+            if ((notes >> KEY_TRK_KEY[k]) & 1u)
+                track_mute_toggle(k);
     } else if (!ui.home && !ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ) {
         for (k = 0; k < NTRK; k++)                      /* a per-track page: a white key selects its track */
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
