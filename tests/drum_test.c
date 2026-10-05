@@ -1727,6 +1727,44 @@ static void test_comp_db_text(void)
     check("COMP dB values keep the leading zero (0.0, -0.1, -10.3; THRSH 127 = -0.1)", ok);
 }
 
+/* review: muting / unmuting a sounding COMP source must not click (the heard part fades; the detector keeps it) */
+static int32_t comp_mute_step(int src, int change, int mute_first)
+{
+    int32_t worst = 0, prev;
+    uint32_t i, n = SECS(0.03), m = SECS(0.02);
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_LEVEL] = 127;
+    song.g[G_CSRC] = (int16_t)src;
+    trk[0].p[P_MUTE] = (int16_t)mute_first;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, wr, n);
+    prev = wl[n - 1];
+    if (change) {
+        trk[0].p[P_MUTE] = (int16_t)!mute_first;
+        if (!mute_first)
+            panic_req |= 1u;                         /* as the TRACKS quick mute does */
+    }
+    render_mix(wl, wr, m);
+    for (i = 0; i < m; i++) {
+        int32_t d = abs(wl[i] - prev);
+        if (d > worst)
+            worst = d;
+        prev = wl[i];
+    }
+    return worst;
+}
+
+static void test_comp_mute_click(void)
+{
+    int32_t base = comp_mute_step(1, 0, 0), plain = comp_mute_step(0, 1, 0), off = comp_mute_step(1, 1, 0);
+    int32_t on = comp_mute_step(1, 1, 1);
+    printf("     COMP source mute: largest step %d playing on, %d quick mute (SRC OFF), %d muting the source, %d unmuting\n",
+           base, plain, off, on);
+    check("COMP: muting a sounding source steps no more than any quick mute; unmuting fades in",
+          off <= plain + 100 && on <= base + 200);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -1770,6 +1808,7 @@ int main(void)
     test_comp_ghost();
     test_comp_src_change();
     test_comp_extremes();
+    test_comp_mute_click();
     test_percent_display();
     test_q24();
     test_tables();

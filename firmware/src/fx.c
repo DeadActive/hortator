@@ -187,8 +187,10 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
-        if (is_src)
+        if (is_src) {
             comp_block(0, n);                           /* silence: the detector decays */
+            t->gfade = t->p[P_MUTE] ? 32767u : 0u;      /* nothing sounds: mute / unmute at once */
+        }
         return;
     }
     {
@@ -201,8 +203,17 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         if (is_src) {
             comp_block(b, n);
-            if (t->p[P_MUTE])
-                return;                                 /* ghost key: the compressor heard it, nobody else */
+            if (t->p[P_MUTE] || t->gfade) {             /* ghost key: the compressor hears it, the mix does not;
+                                                         * a mute / unmute fades the heard part over 5 ms */
+                int32_t g = t->gfade, to = t->p[P_MUTE] ? 32767 : 0;
+                for (i = 0; i < n; i++) {
+                    g = g < to ? (g + 150 < to ? g + 150 : to) : (g - 150 > to ? g - 150 : to);
+                    b[i] = (int32_t)(((int64_t)b[i] * (32767 - g)) >> 15);
+                }
+                t->gfade = (uint16_t)g;
+                if (g == 32767)
+                    return;
+            }
         } else if (src < NTRK && t->p[P_DUCK]) {
             for (i = 0; i < n; i++)
                 b[i] = clamp((int32_t)(((int64_t)b[i] * comp.gain[i]) >> 16), -(1 << 19), 1 << 19);

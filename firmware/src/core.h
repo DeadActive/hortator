@@ -115,6 +115,7 @@ typedef struct track {
     uint32_t rng;                /* PROB: the track's random sequence (LCG), seeded at PLAY */
     uint32_t rat_len;            /* RATCH: the playing roll's step length (samples) */
     uint8_t rat_n, rat_k, rat_vel;   /* its hits, the next hit, their velocity; rat_n 0 = no roll */
+    uint16_t gfade;              /* M3 ghost key: how silenced the COMP source's sound is (0 heard .. 32767 muted) */
     /* mix runtime (fx.c) */
     int32_t peak;
     int32_t dist_hp, dist_lp1, dist_lp2;   /* DIST insert state */
