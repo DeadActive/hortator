@@ -197,8 +197,10 @@ Report what you saw first; we'll go through it together.
 
 - Audio MIDI Setup (Mac) lists an FM-1 audio input: 2 channels, 44.1 kHz. MIDI ports as before.
 - Record 5 minutes of a heavy kit (8 tracks, RESON, SPRNG, the compressor) into a DAW: no clicks or dropouts in the
-  recording; the speaker does not stutter; the CPU meter close to before. Optional: console `status` shows
-  `uac_underruns 0`, `uac_overruns 0` after it.
+  recording; the speaker does not stutter; the CPU meter close to before. Optional: console `status` after it:
+  `uac_underruns 0` and `uac_missed 0`; note `uac_fill_lo` (the buffer's lowest fill: near 50 or below would mean
+  the band upstream tuned for shorter renders is tight here). `uac_overruns` may count when the DAW stops reading
+  without closing the input: harmless; what matters is no clicks while it records.
 - MIDI from the DAW plays while it records. The next firmware install finds the FM-1 as usual.
 - MENU > USB LEVEL: MASTER: turning MASTER down lowers the recording; FIXED: the recording stays at full level, only
   the speaker / headphones follow the knob.

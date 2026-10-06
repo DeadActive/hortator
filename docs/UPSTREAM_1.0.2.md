@@ -47,12 +47,9 @@ pack: user decision 2026-10-06.)
    reverb's buffers), slower divisions 1/2, 1/1, 2BAR, 4BAR (appended IDs).
 2. **USB audio input** (user decision 2026-10-06, after the sound pack): the master output to the computer as a
    class-compliant UAC1 input, 16-bit stereo 44.1 kHz (record the FM-1 over the cable; no playback into it). Done in
-   0.8.0 (frozen-base-6). The
-   code is in the frozen `usb_app.c` already, compiled out (`FELUCCA_UAC`); it needs a baseline tag with
-   `hal/fm1_usb.h`'s EP4 additions (header only, the loader must stay byte-identical), upstream's `uac_render_start`
-   / `uac_tap` hooks in `audio.c`, the console's UAC lines. Open questions for its design: the CPU cost of the
-   nested 1 ms `uac_service` on heavy kits, a clean recording under load, the installer / DAWs finding the MIDI of
-   the composite device.
+   0.8.0 (frozen-base-6): upstream's code in the frozen `usb_app.c` switched on (`FELUCCA_UAC`), `hal/fm1_usb.h`'s
+   EP4 lines (the loader byte-identical), upstream's `audio.c` hooks, the console's UAC lines, MENU USB LEVEL
+   (MASTER / FIXED, 1.0.2 #42). Checked on the FM-1 (recording works).
 3. **MIDI clock in** (`midi_clock.c`): INT / USB / TRS; Grids clock and the LFOs follow it.
 4. **PERFORM layer** (`perform.c`): hold-to-play master FX (REPEAT, REVERSE, TAPE STOP, FREEZE, filters, OCT,
    THROW, CRUSH), using our SLICER buffers; 8 mute bits.
