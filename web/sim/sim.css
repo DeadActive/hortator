@@ -51,6 +51,7 @@ button { font: inherit; }
 .note { min-height: 1.5em; margin: 6px 0 0; color: var(--ink-soft); width: min(100%, 1000px); }
 .foot { width: min(100%, 1000px); color: var(--ink-soft); font-size: 13px; margin-top: auto; }
 .foot p { max-width: 80ch; }
+.foot a { color: inherit; }
 
 /* ---- the device: drawn at its design size, scaled to fit (app.js sets --scale and the layout) */
 .stage { position: relative; width: 100%; display: flex; justify-content: center; margin-top: 14px; }

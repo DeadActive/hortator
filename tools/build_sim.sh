@@ -38,7 +38,11 @@ docker run --rm -v "$PWD":/src -w /src -u "$(id -u):$(id -g)" -e EM_CACHE=/src/$
     -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined \
     -I"$GEN" -Ifirmware/src -Itests -o "$OUT/fm1sim.wasm" tests/sim_core.c
 
-# 4. the page next to it, then the glue test on the built wasm
+# 4. the page next to it, with the source it was built from (GPL-3.0: the page links source.tar.gz), then the glue
+#    test on the built wasm
 cp web/sim/* "$OUT/"
+git archive --format=tar.gz --prefix="fm1-drum-sim-$(git rev-parse --short HEAD)/" -o "$OUT/source.tar.gz" HEAD
+[ -z "$(git status --porcelain -- firmware tests web tools)" ] ||
+    echo "build_sim: uncommitted changes: source.tar.gz is HEAD, not this build (commit before publishing)" >&2
 node --test-reporter=dot tests/sim_glue.mjs "$OUT"
 echo "build_sim: $OUT ready (cd $OUT && python3 -m http.server 8001)"

@@ -148,3 +148,14 @@ test('keyEvent: mapped codes, autorepeat and shortcuts with modifiers ignored', 
   assert.equal(keyEvent({ code: 'KeyR', type: 'keydown', ctrlKey: true }), null);
   assert.equal(keyEvent({ code: 'F5', type: 'keydown' }), null);
 });
+
+// ---- the page offers the source of what it runs (GPL-3.0 §6): build/sim/source.tar.gz, linked from the footer
+import { execFileSync } from 'node:child_process';
+
+test('the page links to the source archive it ships, and the archive holds the firmware and the sim', () => {
+  const html = readFileSync(join(DIR, 'index.html'), 'utf8');
+  assert.match(html, /<a [^>]*href="source\.tar\.gz"/);
+  const list = execFileSync('tar', ['-tzf', join(DIR, 'source.tar.gz')], { encoding: 'utf8' }).split('\n');
+  for (const f of ['firmware/src/felucca.c', 'tests/sim_core.c', 'web/sim/app.js', 'tools/build_sim.sh', 'LICENSE'])
+    assert.ok(list.some(l => l.endsWith(f)), f);
+});
