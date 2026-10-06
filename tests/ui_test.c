@@ -923,6 +923,37 @@ static void test_mixer_and_rec(void)
 /* TRACKS: a white key selects its track; with OCT- held the keys show the playing tracks (lit) and mute / unmute
  * them (a mute also cuts what is ringing); OCT- + top C# / D# (MONO / POLY): mutes at once / on the next bar;
  * elsewhere the keys play again and the mutes stay */
+/* upstream 1.0 (project.c "STOP TO SAVE"): a flash erase silences the audio and stalls the sequencer, so no project
+ * is saved while playing, and a settings save waits until the transport stops */
+static void test_no_save_while_playing(void)
+{
+    uint32_t k;
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    transport_req = 1;
+    ui_frame();
+    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != G_SLOT); k++)
+        tap(B_SAVE);
+    turn(EN_K1 + 3, 1);                              /* SAVE: GO, and GO again */
+    ui_frame();
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    check("SAVE while playing: refused (STOP TO SAVE), the slot stays empty",
+          song.playing && str_eq(ui.msg, "STOP TO SAVE") && !project_used(0));
+    settings_save();
+    check("a settings save while playing waits", ui.persist_pending == 1u);
+    transport_req = 2;
+    ui_frame();
+    ui_frame();
+    check("... and is written once stopped", !song.playing && ui.persist_pending == 0u);
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    check("SAVE stopped: saved", project_used(0));
+    memset(proj_slot, 0, sizeof proj_slot);
+}
+
 static void test_quick_mute(void)
 {
     uint32_t a, k, ok = 1, on = 0, off = 0;
@@ -1775,6 +1806,7 @@ int main(void)
     test_bank_follows_len();
     test_mixer_and_rec();
     test_quick_mute();
+    test_no_save_while_playing();
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
     test_reson_pages();

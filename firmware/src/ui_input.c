@@ -302,6 +302,7 @@ static void ui_input(void)
     }
     if (home == BT_TAP)
         home_step();
+    settings_poll();
     song.octdn = panel.btn[B_OCTDN];
     if (mix_mode())                                     /* REC on TRACKS arms / disarms: the keys play / select */
         song.seq_mode = song.rec ? 2u : 1u;

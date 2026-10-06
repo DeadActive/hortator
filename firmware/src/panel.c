@@ -62,7 +62,8 @@ static int32_t panel_enc(uint32_t role)
 struct { uint32_t magic, palette, lowcut, zoom, mutebar; } settings __attribute__((section(".noinit")));   /* mutebar:
                                                                                    * TRACKS mutes wait for the next bar */
 
-static void settings_save(void);              /* project.c: flash copy (FELUCCA_FLASH) */
+static void settings_save(void);
+static void settings_poll(void);              /* project.c */              /* project.c: flash copy (FELUCCA_FLASH) */
 
 static void settings_init(void)
 {

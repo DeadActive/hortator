@@ -56,6 +56,7 @@ static struct {
     int16_t tr[136];             /* LFO pages, random waves: the shown LFO's trail (a ring, newest at tr_h - 1) */
     uint8_t tr_h, tr_n;
     uint32_t tr_ph, tr_key, tr_frame;   /* the phase at the last point; what the trail is of; the frame it was fed */
+    uint8_t persist_pending;     /* a settings save asked for while playing: written once stopped (project.c) */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }

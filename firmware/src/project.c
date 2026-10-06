@@ -126,8 +126,15 @@ static void proj_fetch(uint32_t slot)
 }
 #endif
 
+/* the sequencer runs (or starts this block): a flash erase silences the audio and stalls it, so no saving now */
+static int transport_busy(void) { return song.playing || transport_req == 1u; }
+
 static void project_save(uint32_t slot)
 {
+    if (transport_busy()) {                            /* (upstream 1.0) only while stopped */
+        ui_message("STOP TO SAVE");
+        return;
+    }
     project_t *p = &proj_slot[slot & 3u];
     uint32_t i;
     memset(p, 0, sizeof *p);
@@ -245,8 +252,13 @@ static void persist_boot(void)                    /* before settings_init / pane
 
 static int project_used(uint32_t slot) { return proj_ok(&proj_slot[slot & 3u]); }
 
-static void settings_save(void)
+static void settings_save(void)                    /* asked for while playing: written once stopped (settings_poll) */
 {
+    if (transport_busy()) {
+        ui.persist_pending = 1;
+        return;
+    }
+    ui.persist_pending = 0;
 #if FELUCCA_FLASH
     persist_t p;
     if (!flash_ok)
@@ -262,6 +274,12 @@ static void settings_save(void)
     if (st_save(OBJ_SETTINGS, &p, sizeof p) == 0)
         persist_saved = p;
 #endif
+}
+
+static void settings_poll(void)                    /* every UI frame: a settings save left for the stop */
+{
+    if (ui.persist_pending && !transport_busy())
+        settings_save();
 }
 
 #if FELUCCA_FLASH
