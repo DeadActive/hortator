@@ -179,6 +179,20 @@ Report what you saw first; we'll go through it together.
 - A MIDI clock on TRS: nothing follows it yet (the MIDI clock feature comes later); notes still play while it runs,
   the panel and audio behave as before.
 
+### Sound pack (check on the FM-1)
+
+- MENU (HOME held) > SPEAKER EQ: FLAT, LOWCUT, BASS+ (KNOB 1; OCT+ steps round). On the speaker, BASS+ makes the
+  kick's bass audible without the mids getting thinner; the choice survives a power cycle.
+- FX > REVERB: TYPE SPRNG (the spring) on a snare (send on the FX page, REV): the spring's chirp and drip; SIZE and
+  DAMP change it; switching TYPE while it rings: no click. FX > CHORUS: RATE and DEPTH as before.
+- PATTERN DIV on a hi-hat track: the knob runs 4BAR 2BAR 1/1 1/2 1/4 … 1/32; at 2BAR / 4BAR the hat plays once per
+  2 / 4 bars, in time with a 1/16 kick. DLY TIME at 1/2 and slower: long echoes (the longest cut to 1.49 s).
+- A project saved before this build loads with ROOM and sounds as before. With the heaviest kit and SPRNG, the
+  CPU meter stays close to where it was.
+- Listen first on the computer: build/drum_renders/sp_speaker_eq.wav (FLAT, LOWCUT, BASS+, 2 bars each),
+  sp_reverb.wav (ROOM, then SPRNG at SIZE 0 / 64 / 127, DAMP 0 / 127), sp_slow_div.wav (a hat on 2BAR then 4BAR,
+  the snare's delay at 1/2).
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second

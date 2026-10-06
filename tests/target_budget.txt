@@ -21,3 +21,5 @@ mix_part 687
 comp_block 133
 lfo_track 424
 reson_block 588
+rev_room 210
+rev_spring 126
