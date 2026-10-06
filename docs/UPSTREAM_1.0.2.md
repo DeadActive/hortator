@@ -46,7 +46,8 @@ pack: user decision 2026-10-06.)
 1. **Sound pack:** BASS+ speaker EQ (`fx.c spk_bass`, with 1.0.2's #42 fix), SPRING reverb (`rev_spring`, the room
    reverb's buffers), slower divisions 1/2, 1/1, 2BAR, 4BAR (appended IDs).
 2. **USB audio input** (user decision 2026-10-06, after the sound pack): the master output to the computer as a
-   class-compliant UAC1 input, 16-bit stereo 44.1 kHz (record the FM-1 over the cable; no playback into it). The
+   class-compliant UAC1 input, 16-bit stereo 44.1 kHz (record the FM-1 over the cable; no playback into it). Done in
+   0.8.0 (frozen-base-6). The
    code is in the frozen `usb_app.c` already, compiled out (`FELUCCA_UAC`); it needs a baseline tag with
    `hal/fm1_usb.h`'s EP4 additions (header only, the loader must stay byte-identical), upstream's `uac_render_start`
    / `uac_tap` hooks in `audio.c`, the console's UAC lines. Open questions for its design: the CPU cost of the
@@ -84,3 +85,5 @@ The frozen-code baseline is named in `tools/frozen_base.txt` (with the pinned up
 | frozen-base-4 | 727f272 (1.0) | `firmware/src/felucca.c` (not frozen) | `st_erase` = 727f272's `storage_hw.c` (IRQs off, `audio_silence`, the RAM erase, IRQs on) | no stale audio chunk looped during a save; inlined into the frozen `st_save`, so the reference build carries it |
 | frozen-base-5 | 727f272 (1.0) | `firmware/hal/fm1_uart.h` | the comment (RX verified on hardware) | the header says what upstream tested |
 | frozen-base-5 | 727f272 (1.0) | `firmware/src/felucca.c`, `firmware/src/midi_uart.c` (not frozen) | `FELUCCA_UART` 1; 727f272's `midi_uart.c` (through `midi_enqueue`: source TRS, timestamp, Clock / Start / Continue / Stop queued; a full ring or lost bytes mark the stream broken) | TRS MIDI IN on in every build; the frozen `main.c`'s UART poll compiles in both builds, so the reference build carries it |
+| frozen-base-6 | 727f272 (1.0) | `firmware/hal/fm1_usb.h` | the EP4 lines (its DMA address / count registers, `fm1_usb_ep4_txbuf`, `fm1_usb_ep4_send`) | the USB audio input's isochronous endpoint; the update loader includes the header but uses none of it (byte-identical) |
+| frozen-base-6 | 727f272 (1.0) | `firmware/src/felucca.c`, `firmware/src/audio.c` (not frozen) | `FELUCCA_UAC` 1; `uac_render_start` / `uac_tap` | `usb_app.c`'s audio code and the frozen `main.c`'s nested `uac_service` compile in both builds |

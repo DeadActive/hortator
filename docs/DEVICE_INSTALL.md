@@ -193,6 +193,17 @@ Report what you saw first; we'll go through it together.
   sp_reverb.wav (ROOM, then SPRNG at SIZE 0 / 64 / 127, DAMP 0 / 127), sp_slow_div.wav (a hat on 2BAR then 4BAR,
   the snare's delay at 1/2).
 
+### USB audio (check on the FM-1)
+
+- Audio MIDI Setup (Mac) lists an FM-1 audio input: 2 channels, 44.1 kHz. MIDI ports as before.
+- Record 5 minutes of a heavy kit (8 tracks, RESON, SPRNG, the compressor) into a DAW: no clicks or dropouts in the
+  recording; the speaker does not stutter; the CPU meter close to before. Optional: console `status` shows
+  `uac_underruns 0`, `uac_overruns 0` after it.
+- MIDI from the DAW plays while it records. The next firmware install finds the FM-1 as usual.
+- MENU > USB LEVEL: MASTER: turning MASTER down lowers the recording; FIXED: the recording stays at full level, only
+  the speaker / headphones follow the knob.
+- With nothing recording (DAW closed or another input chosen), the CPU meter is as without USB audio.
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second

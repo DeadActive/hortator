@@ -5,6 +5,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- USB audio input (upstream Felucca 1.0, UAC1): the FM-1 records into a DAW over its USB cable (16-bit stereo,
+  44.1 kHz; the headphone signal, SPEAKER EQ included). MENU USB LEVEL: MASTER (the recording follows the volume
+  knob) or FIXED (always full level; the knob sets only the speaker / headphones, upstream 1.0.2 #42). Frozen
+  baseline `frozen-base-6`.
+
 ## 0.7.0 - 2026-10-07
 
 - Sound pack (upstream Felucca 1.0.2): MENU SPEAKER EQ FLAT / LOWCUT / BASS+ (the bass heard through its harmonics
