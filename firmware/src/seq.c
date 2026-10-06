@@ -177,8 +177,25 @@ static void input_hit(track_t *t, uint32_t vel)
 
 static void keyboard_block(void)
 {
-    uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, i;
+    uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, i, key;
     kb_prev = cur;
+    for (key = 0; key < 27u; key++) {                     /* PERFORM (perform.c): a key pressed with FX held is the layer's
+                                                     * until let go: its effect, no note, no MIDI, nothing recorded */
+        uint32_t bit = 1u << key;
+        if (!(ch & bit))
+            continue;
+        if (cur & bit) {
+            if (fm1_in.buttons & perf_mask) {
+                kb_layer |= bit;
+                perf_press(perf_key(key), 1);
+                ch &= ~bit;
+            }
+        } else if (kb_layer & bit) {
+            kb_layer &= ~bit;
+            perf_press(perf_key(key), 0);
+            ch &= ~bit;
+        }
+    }
     if (song.seq_mode == 1u || (song.seq_mode == 2u && ((fm1_in.buttons >> song.octdn) & 1u)))
         ch &= ~cur;                                 /* the STEP grid / TRACKS / COMP ducks (ui_input.c) own presses; releases
                                                      * still send their note-off (no hung notes). TRACKS while armed

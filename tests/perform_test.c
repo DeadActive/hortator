@@ -438,6 +438,99 @@ static void test_sixteenth_clock(void)
     render_mix(0, 0, CTL);
 }
 
+static void test_key_map(void)
+{
+    static const uint8_t BLACK[10] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22};
+    static const uint8_t WANT[10] = {PF_R8, PF_R16, PF_R32, PF_REV, PF_TAPE, PF_LPF, PF_HPF, PF_FRZ, PF_OUP, PF_ODN};
+    static const uint8_t WHITE[8] = {0, 2, 4, 6, 7, 9, 11, 12};
+    uint32_t i, ok = 1;
+    for (i = 0; i < 10u; i++)
+        ok &= perf_key(BLACK[i]) == WANT[i];
+    check("keys: the black keys F#3 .. D#5 play REPEAT 1/8 1/16 1/32 REVERSE TAPE LPF HPF FREEZE OCT UP OCT DN", ok);
+    for (ok = 1, i = 0; i < 8u; i++)
+        ok &= perf_key(WHITE[i]) == PF_M1 + i && WHITE[i] == KEY_TRK_KEY[i];
+    check("keys: the white track keys F3 .. F4 mute tracks 1..8", ok);
+    check("keys: F#5 and the white keys G4 .. G5 do nothing",
+          perf_key(25) == PF_N && perf_key(14) == PF_N && perf_key(26) == PF_N && perf_key(24) == PF_N);
+}
+
+static uint32_t mo_count(void) { return mo_w; }
+static void fx_down(int on) { perf_mask = 1u; fm1_in.buttons = on ? 1u : 0u; }
+
+static void test_layer_keys(void)
+{
+    uint32_t age, mo;
+    step_t before[NSTEP];
+    pf_fresh(120);
+    usb.config = 1;
+    song.rec = 1u;                                    /* live recording armed on track 1 */
+    transport_req = 1;
+    render_mix(0, 0, CTL);
+    memcpy(before, trk[0].step, sizeof before);
+    age = hit_age(&trk[0]);
+    mo = mo_count();
+    fx_down(1);
+    fm1_in.notes = 1u << 0;                           /* F3: track 1's key, with FX */
+    render_mix(0, 0, CTL);
+    check("FX + a track key: no hit, no MIDI out, nothing recorded",
+          hit_age(&trk[0]) == age && mo_count() == mo && !memcmp(before, trk[0].step, sizeof before));
+    check("FX + a track key: the key is the layer's, its track muted", (kb_layer & 1u) && ((perf_held >> PF_M1) & 1u));
+    fm1_in.notes = 0;
+    render_mix(0, 0, CTL);
+    check("the layer key let go: no note-off sent, the mute off", mo_count() == mo && !kb_layer && !perf_held);
+    fm1_in.notes = 1u << 3;                           /* G#3: REPEAT 1/16 */
+    render_mix(0, 0, CTL);
+    check("FX + G#3: REPEAT 1/16 held", (perf_held >> PF_R16) & 1u);
+    fm1_in.notes = 0;
+    fx_down(0);
+    render_mix(0, 0, CTL);
+    usb.config = 0;
+    song.rec = 0;
+}
+
+/* Review Focus 2 */
+static void test_fx_released_first(void)
+{
+    uint32_t mo, age;
+    pf_fresh(120);
+    usb.config = 1;
+    fx_down(1);
+    fm1_in.notes = 1u << 5;                           /* A#3: REPEAT 1/32 */
+    render_mix(0, 0, CTL);
+    fx_down(0);
+    perf_mask = 0;                                    /* (the UI clears it when FX is let go) */
+    mo = mo_count();
+    age = hit_age(&trk[0]);
+    render_mix(0, 0, 4u * CTL);
+    check("FX let go first: the effect lasts while its key is held", (perf_held >> PF_R32) & 1u);
+    fm1_in.notes = 0;
+    render_mix(0, 0, CTL);
+    check("then the key let go: the effect ends, no note, no MIDI", !perf_held && mo_count() == mo &&
+          hit_age(&trk[0]) == age);
+    usb.config = 0;
+}
+
+/* Review Focus 4 */
+static void test_key_before_fx(void)
+{
+    uint32_t mo, age;
+    pf_fresh(120);
+    usb.config = 1;
+    age = hit_age(&trk[0]);
+    fm1_in.notes = 1u << 0;                           /* F3 played first */
+    render_mix(0, 0, CTL);
+    check("a key before FX: its note plays", hit_age(&trk[0]) != age);
+    fx_down(1);
+    render_mix(0, 0, CTL);
+    mo = mo_count();
+    fm1_in.notes = 0;
+    render_mix(0, 0, CTL);
+    check("FX pressed meanwhile: the key stays a note, its release sends the note-off",
+          mo_count() == mo + 1u && !kb_layer && !perf_held);
+    fx_down(0);
+    usb.config = 0;
+}
+
 int main(void)
 {
     test_idle_identical();
@@ -458,6 +551,10 @@ int main(void)
     test_kill();
     test_sixteenth();
     test_sixteenth_clock();
+    test_key_map();
+    test_layer_keys();
+    test_fx_released_first();
+    test_key_before_fx();
     printf(fails ? "perform_test: %d FAILED\n" : "perform_test: all passed\n", fails);
     return fails != 0;
 }
