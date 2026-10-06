@@ -57,8 +57,8 @@ pack: user decision 2026-10-06.)
    THROW, CRUSH), using our SLICER buffers; 8 mute bits. Done in 0.10.0 (keys: white = track mutes, black =
    effects; REPEAT / REVERSE on the Grids clock's 1/16; MENU PERFORM HOLD / PAGE).
 5. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
-   the LFOs' modulated copy.
-6. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR8, after the sound pack's FDR7) for both.
+   the LFOs' modulated copy. Done in 0.11.0 (128 events, FDR8; parameter locks parked in IDEAS.md).
+6. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR9, after motion's FDR8) for both.
 7. **PHYS percussion** (`eng_phys.c`, `phys_dsp.c`, MIT DaisySP / Rings): MEMB and MODAL, e.g. as RESON's modal
    models; its 64/32 divisions replaced (integer target rule).
 8. **Anti-aliased UI** (`gfx.c`, Inter Tight OFL, themes, Fukiai icons, keycaps, render lint): last, after the

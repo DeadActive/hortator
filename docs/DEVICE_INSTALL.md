@@ -232,6 +232,14 @@ Report what you saw first; we'll go through it together.
 - At 40 BPM REPEAT 1/8 and REVERSE are dimmed and do nothing.
 - With CLK USB from a DAW: REPEAT starts on the DAW's 1/16 grid.
 
+### MOTION (check on the FM-1)
+- TRACKS: select a track and arm it (REC); play; open SOUND and sweep DECAY over a bar: the sweep comes back every
+  bar. STOP: the knob back where it was before.
+- SEQ > MOTION: KNOB 1 PLAY OFF (the sweep stops, the events kept) / ON; EVENT shows how many; KNOB 4 CLEAR asks
+  (OCT- keeps, OCT+ clears).
+- Turn DECAY without REC while it plays: that is the new value the loop comes back to.
+- Save the project (stopped), power off and on, load it: the motion plays again.
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second
