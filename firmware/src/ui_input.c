@@ -150,6 +150,7 @@ static void tracks_edit(uint32_t slot, int32_t steps)
     }
     id = slot == 1u ? P_LEVEL : slot == 2u ? P_SLEN : P_PAN;
     t->p[id] = (int16_t)clamp(t->p[id] + accel(EN_K1 + slot, steps, TP[id].max - TP[id].min), TP[id].min, TP[id].max);
+    motion_capture(t, id);                          /* motion.c: LEVEL / PAN recorded (LEN never) */
 }
 
 static void mute_bar_set(uint32_t on)                  /* TRACKS' mutes: at once / on the next bar (device setting) */
@@ -205,6 +206,8 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
     *vp = (int16_t)v;
+    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+        motion_capture(TSEL, (uint32_t)(vp - TSEL->p));   /* motion.c: recorded when armed and playing */
     if (pg->scope == SC_GLOBAL && id == G_MUTEBAR) {
         mute_bar_set((uint32_t)v);
         return;
@@ -248,6 +251,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
         fm1_irq_off();
         drum_set_model(TSEL, (uint32_t)TSEL->p[P_MODEL]);
+        motion_rebase(song.sel);
         fm1_irq_on();
         ui_message("SOUND INIT");
         ui.force = 1;
@@ -513,11 +517,18 @@ static void ui_input(void)
         if (ui.home) {
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
-            if (d->max > d->min)
+            if (d->max > d->min) {
                 *vp = (int16_t)param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
+                if (vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+                    motion_capture(TSEL, (uint32_t)(vp - TSEL->p));
+            }
         } else {
             edit_param(k, s);
         }
+    }
+    if (mo.full) {                                      /* motion.c: a turn found no free place */
+        mo.full = 0;
+        ui_message("MOTION FULL");
     }
 }
 
