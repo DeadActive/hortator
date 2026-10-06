@@ -93,7 +93,7 @@ static void sl_enter(const track_t *t, sl_t *s)
     s->rp = 0;
     s->loop = 0;
     s->rec_on = 0;
-    if (mode != SL_STUT || sl_lent) {
+    if (mode != SL_STUT + sl_lent) {               /* (lent: never STUT) */
         s->rec = 0;                                 /* nothing old to repeat when STUT comes on (or the buffer is lent) */
     } else if (s->bit) {
         s->rec = 0;                                 /* a live step: record it */

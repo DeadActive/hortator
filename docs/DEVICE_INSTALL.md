@@ -216,6 +216,22 @@ Report what you saw first; we'll go through it together.
 - CLK INT: as before; a 1/16 track and a 1/4 track never drift apart.
 - PLAY on the FM-1 while CLK USB: it waits for the DAW's clock (stops again after 0.5 s if none comes).
 
+### PERFORM (check on the FM-1)
+- MENU > PERFORM PAGE: hold FX, let go: the PERFORM screen stays; the keys and knobs work without FX; PLAY / OCT±
+  keep it; an FX tap, another page button or HOME leaves it (the knobs back to off). Set it back to HOLD after.
+- Hold FX alone: after a moment the map shows (two rows of effects, eight tracks); let go: back to the page.
+- Tap FX: the FX pages, as before.
+- Playing, FX held: each black key's effect while held — F#3 G#3 A#3 REPEAT 1/8 1/16 1/32 (starting on the next
+  1/16), C#4 REVERSE, D#4 TAPE STOP, F#4 LPF, G#4 HPF (sweeping over a bar), A#4 FREEZE, C#5 OCT UP, D#5 OCT DN;
+  let go: back to the dry sound without a click. Two buffer effects held: the last pressed plays, letting it go
+  returns to the other.
+- FX + a white track key (F3 .. F4): that track silent while held; no note plays, nothing is recorded.
+- FX + KNOB 1..4: FILTER (left LPF, right HPF), CRUSH, THROW (into the delay / reverb), DEPTH (SHIMMER while OCT
+  plays); let go of FX: all back to off.
+- A STUT slicer track keeps playing while a buffer effect plays and stutters again afterwards.
+- At 40 BPM REPEAT 1/8 and REVERSE are dimmed and do nothing.
+- With CLK USB from a DAW: REPEAT starts on the DAW's 1/16 grid.
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second

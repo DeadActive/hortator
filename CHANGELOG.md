@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- PERFORM (upstream Felucca 1.0's FX hold layer): hold FX, then the black keys play master effects while held
+  (REPEAT 1/8 1/16 1/32, REVERSE, TAPE STOP, LPF, HPF, FREEZE, OCT UP, OCT DN), the white track keys mute their
+  track while held, KNOB 1..4 are FILTER / CRUSH / THROW / DEPTH (SHIMMER with OCT); a tap on FX still opens the FX
+  pages (now on the release). MENU > PERFORM PAGE: holding FX opens a PERFORM screen that stays (keys and knobs
+  work without FX) until another screen is chosen. REPEAT / REVERSE start on the 1/16 (the MIDI clock's when
+  following); the buffer is the slicer's (743 ms). Nothing changes when the layer is idle.
+
 ## 0.9.0 - 2026-10-07
 
 - MIDI clock in (upstream Felucca 1.0, adapted from contributions by ChanceTheMaker and keremimo): GLOBAL CLK INT /
