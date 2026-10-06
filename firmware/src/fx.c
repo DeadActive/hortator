@@ -179,6 +179,8 @@ static uint32_t div_samples(uint32_t div)
     return div < 6u ? quarter / DIV_DEN[div] : div < 10u ? quarter << (div - 5u) : quarter / DIV_DEN[div % 6u];
 }
 
+#include "perform.c"                                 /* the FX hold layer's effects (the master) */
+
 static uint32_t delay_samples(void)
 {
     uint32_t s = div_samples((uint32_t)song.g[G_DTIME]);
@@ -348,6 +350,8 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
+        if ((pf.mute >> (t - trk)) & 1u)
+            perf_mute_idle((uint32_t)(t - trk));        /* perform.c: a white key in the FX layer */
         if (is_src) {
             comp_block(0, n);                           /* silence: the detector decays */
             t->gfade = t->p[P_MUTE] || song.g[G_CGHOST] == CG_HIDE ? 32767u : 0u;   /* nothing sounds: at once */
@@ -362,6 +366,8 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
+        if ((pf.mute >> (t - trk)) & 1u)
+            perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a white key in the FX layer */
         if (is_src) {
             int hide = t->p[P_MUTE] || song.g[G_CGHOST] == CG_HIDE;
             comp_block(t->p[P_MUTE] && song.g[G_CGHOST] == CG_MUTE ? 0 : b, n);   /* GHOST MUTE: muted keys nothing */
@@ -404,6 +410,7 @@ static uint32_t comp_was = NTRK;                 /* the COMP source of the last 
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    int perf;
     int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB LEVEL FIXED: MASTER after) */
     if (safe_start) {                                 /* safe start: silence, no track / model / FX code */
         for (i = 0; i < n; i++)
@@ -416,6 +423,7 @@ static void mix_block(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     lfo_apply(n);                                       /* LFOs: the modulated knobs for this block (lfo.c) */
     events_block(n);
+    perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
     drum_block_begin();
     {
         uint32_t src = comp_src();
@@ -431,10 +439,17 @@ static void mix_block(int32_t *out, uint32_t n)
                 mix_part(&trk[i], n, src);
     }
     lfo_restore();                                      /* the knobs as set again */
+    if (perf)
+        perf_pre(mix_l, mix_r, send_d, send_r, n);  /* THROW */
     fx_buses(send_c, send_d, send_r, wet, n);
+    for (i = 0; i < n; i++) {                           /* the master level */
+        mix_l[i] = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
+        mix_r[i] = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */
+    }
+    if (perf)
+        perf_block(mix_l, mix_r, n);                    /* the FX layer's effects (perform.c) */
     for (i = 0; i < n; i++) {
-        int32_t l = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
-        int32_t r = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */
+        int32_t l = mix_l[i], r = mix_r[i];
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
