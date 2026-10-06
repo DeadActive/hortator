@@ -1874,6 +1874,45 @@ static void test_key_selects_track(void)
     check("HOME: a white key selects its track", song.sel == 2);
 }
 
+/* MENU > SPEAKER EQ (sound pack): KNOB 1 steps FLAT LOWCUT BASS+ and stops at the ends, OCT+ steps and wraps;
+ * the master follows (fx_lowcut); a stored value past BASS+ loads as FLAT */
+static void test_speaker_eq(void)
+{
+    static const int8_t TURN[6] = {1, 1, 1, -1, -1, -1};
+    static const uint8_t WANT[6] = {1, 2, 2, 1, 0, 0};
+    uint32_t ok = 1, i;
+    ui_host_init();
+    settings.lowcut = 0;
+    fx_lowcut = 0;
+    ui.menu = 1;
+    ui.menu_sel = MI_SPKEQ;
+    ui.force = 1;
+    for (i = 0; i < 6u; i++) {
+        turn(EN_K1, TURN[i]);
+        ui_frame();
+        ok &= settings.lowcut == WANT[i] && fx_lowcut == WANT[i];
+    }
+    check("SPEAKER EQ: KNOB 1 steps FLAT LOWCUT BASS+, stops at the ends; the master follows", ok);
+    ok = 1;
+    for (i = 0; i < 4u; i++) {
+        press(B_OCTUP);
+        ui_frame();
+        release_all();
+        ui_frame();
+        ok &= settings.lowcut == (i + 1u) % 3u && fx_lowcut == (i + 1u) % 3u;
+    }
+    check("SPEAKER EQ: OCT+ steps and wraps", ok);
+    settings.lowcut = 2;
+    fx_lowcut = 2;
+    ui.force = 1;
+    snap_page("menu_speaker_eq");
+    settings.lowcut = 3;
+    settings_init();
+    check("SPEAKER EQ: a stored value past BASS+ loads as FLAT", settings.lowcut == 0 && fx_lowcut == 0);
+    ui.menu = 0;
+    ui.force = 1;
+}
+
 int main(void)
 {
     test_safe_start();
@@ -1916,6 +1955,7 @@ int main(void)
     test_project_roundtrip();
     test_project_rejects();
     test_ui_frame_cost();
+    test_speaker_eq();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

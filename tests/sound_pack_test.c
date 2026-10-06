@@ -5,6 +5,8 @@
  * kit below rendered by the build before the sound pack (trs-midi 08866e0 .. bf98902). */
 #include "drum_host.h"
 #include <stdlib.h>
+#include <math.h>
+#include "sound_pack_ref.h"
 
 static int fails;
 static int check(const char *what, int ok)
@@ -43,6 +45,95 @@ static uint32_t kit_hash(uint32_t lowcut)
     return fnv(KL, KIT_N) ^ fnv(KR, KIT_N) * 31u;
 }
 
+static double sine(double f, uint32_t i, double amp) { return amp * sin(2.0 * M_PI * f * i / FS); }
+
+/* spk_bass = upstream's, sample for sample: a 55 Hz tone switching on and off every 1/4 s, plus noise, 4 s */
+static void test_bass_port(void)
+{
+    uint32_t i, rng = 1, ok = 1;
+    host_init();
+    ref_bass_reset();
+    for (i = 0; i < 4u * FS; i++) {
+        int32_t x;
+        rng = rng * 1664525u + 1013904223u;
+        x = (int32_t)(sine(55.0, i, 12000.0) * (double)((i / (FS / 4u)) & 1u)) + (int32_t)(rng >> 20) - 2048;
+        ok &= spk_bass(x) == ref_spk_bass(x);
+    }
+    check("BASS+: spk_bass gives upstream 1.0.2's samples (tone bursts + noise, 4 s)", ok);
+}
+
+/* #42: BASS+ (its 220 Hz high-pass + spk_bass) against the same high-pass alone, 300..600 Hz: within 0.5 dB */
+static void test_bass_mids(void)
+{
+    uint32_t ok = 1;
+    double f;
+    for (f = 300.0; f <= 600.0; f += 50.0) {
+        int32_t l1 = 0, l2 = 0, e1 = 0, e2 = 0, m1 = 0, m2 = 0, f1 = 0, f2 = 0;
+        double s0 = 0, s1 = 0, db;
+        uint32_t i;
+        host_init();
+        for (i = 0; i < 2u * FS; i++) {
+            int32_t x = (int32_t)sine(f, i, 8000.0), b = spk_bass(x);
+            int32_t y1 = lowcut1(lowcut1(x, &l1, &e1, 5), &l2, &e2, 5) + b;
+            int32_t y0 = lowcut1(lowcut1(x, &m1, &f1, 5), &m2, &f2, 5);
+            if (i >= FS) {
+                s0 += (double)y0 * y0;
+                s1 += (double)y1 * y1;
+            }
+        }
+        db = 10.0 * log10(s1 / s0);
+        if (db < -0.5) {
+            printf("     %.0f Hz: %+.2f dB\n", f, db);
+            ok = 0;
+        }
+    }
+    check("BASS+ (#42): 300..600 Hz lose less than 0.5 dB", ok);
+}
+
+/* a 60 Hz bass comes out as its harmonics: over 30 % of the input level, the 60 Hz itself under 20 % of the power */
+static void test_bass_harmonics(void)
+{
+    double re = 0, im = 0, so = 0, si = 0, fund;
+    uint32_t i;
+    host_init();
+    for (i = 0; i < 2u * FS; i++) {
+        int32_t x = (int32_t)sine(60.0, i, 16000.0), y = spk_bass(x);
+        if (i >= FS) {
+            si += (double)x * x;
+            so += (double)y * y;
+            re += y * cos(2.0 * M_PI * 60.0 * i / FS);
+            im += y * sin(2.0 * M_PI * 60.0 * i / FS);
+        }
+    }
+    fund = 2.0 * (re * re + im * im) / FS / FS / (so / FS);
+    check("BASS+: a 60 Hz bass becomes harmonics (level > 30 % of the input, fundamental < 20 % of the power)",
+          sqrt(so / si) > 0.3 && fund < 0.2);
+}
+
+/* the master: BASS+ adds harmonics LOWCUT does not have; FLAT and LOWCUT unchanged (main: the kit hashes) */
+static void test_bass_master(void)
+{
+    double h[3];
+    uint32_t mode, i;
+    for (mode = 1; mode <= 2u; mode++) {
+        double re = 0, im = 0, so = 0;
+        host_init();
+        fx_lowcut = (uint8_t)mode;
+        for (i = 0; i < 2u * FS; i++) {
+            int32_t l = (int32_t)sine(60.0, i, 12000.0), r = l;
+            master_out(&l, &r);
+            if (i >= FS) {
+                so += (double)l * l;
+                re += l * cos(2.0 * M_PI * 60.0 * i / FS);
+                im += l * sin(2.0 * M_PI * 60.0 * i / FS);
+            }
+        }
+        h[mode] = so / FS - 2.0 * (re * re + im * im) / FS / FS;   /* the power that is not 60 Hz */
+    }
+    fx_lowcut = 0;
+    check("BASS+ on the master: a 60 Hz bass gets 10x the harmonic power LOWCUT gives it", h[2] > 10.0 * h[1]);
+}
+
 #define HASH_FLAT 0xb35154deu
 #define HASH_LOWCUT 0xd5959edeu
 
@@ -54,6 +145,10 @@ int main(void)
     }
     check("today's sound: the kit (ROOM reverb, delay, chorus) with FLAT, bit for bit", kit_hash(0) == HASH_FLAT);
     check("today's sound: the kit with LOWCUT, bit for bit", kit_hash(1) == HASH_LOWCUT);
+    test_bass_port();
+    test_bass_mids();
+    test_bass_harmonics();
+    test_bass_master();
     printf(fails ? "sound_pack_test: %d FAILED\n" : "sound_pack_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
