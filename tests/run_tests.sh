@@ -41,6 +41,7 @@ run "storage erase: IRQs off before the audio is silenced (st_save)" python3 too
 run "erase-order self-test (the old order is caught)" python3 tools/check_erase_order.py --selftest
 run "version: the app and the installer carry VERSION.txt (docs/VERSIONING.md)" python3 tools/version.py check build
 run "version tool self-test (bump, the build check)" python3 tools/version.py --selftest
+run "TRS MIDI input on in the built app (FELUCCA_UART, console lines)" python3 tools/check_trs.py build
 if [ -f build/upstream/build/felucca.dis ]; then
     run "frozen code in the binary = upstream's (H2)" python3 tools/compare_upstream.py build build/upstream/build
     run "H2 self-test (changed effects are caught)" python3 tools/compare_upstream.py --selftest build build/upstream/build
