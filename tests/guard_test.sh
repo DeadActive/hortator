@@ -8,6 +8,9 @@ cp -R firmware "$TMP/firmware"
 echo '/* x */' >> "$TMP/firmware/src/ota.c"
 if python3 tools/check_untouched.py --tree "$TMP" >/dev/null; then echo "guard: ota.c change not caught"; exit 1; fi
 cp firmware/src/ota.c "$TMP/firmware/src/ota.c"
+echo '/* x */' >> "$TMP/firmware/src/usb_app.c"
+if python3 tools/check_untouched.py --tree "$TMP" >/dev/null; then echo "guard: usb_app.c change not caught"; exit 1; fi
+cp firmware/src/usb_app.c "$TMP/firmware/src/usb_app.c"
 sed -i.bak 's/fm1_enter_uboot();/fm1_reboot();/' "$TMP/firmware/src/main.c"
 if python3 tools/check_untouched.py --tree "$TMP" >/dev/null; then echo "guard: main.c recovery change not caught"; exit 1; fi
 cp firmware/src/main.c "$TMP/firmware/src/main.c"

@@ -31,7 +31,7 @@ import dis_parse  # noqa: E402
 from elf_syms import Elf  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-C_FILES = sorted((ROOT / "firmware/hal").glob("*.h")) + [ROOT / "firmware/src" / f for f in ("usb.c", "ota.c", "storage.c")]
+C_FILES = sorted((ROOT / "firmware/hal").glob("*.h")) + [ROOT / "firmware/src" / f for f in ("usb.c", "usb_app.c", "ota.c", "storage.c")]
 S_FILES = [ROOT / "firmware/crt0.S"] + sorted((ROOT / "firmware/hal").glob("*.S"))
 CDEF = re.compile(r"^(?:static\s+|inline\s+|RAMFN\s+|FM1_INLINE\s+|RAMINL\s+|__attribute__\(\([^)]*\)\)\s+)*"
                   r"[A-Za-z_][\w\s\*]*?\b([A-Za-z_]\w*)\s*\([^;]*$")

@@ -39,7 +39,7 @@
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC 1            /* USB CDC-ACM serial console */
 #endif
-#include "usb.c"
+#include "usb_app.c"         /* upstream 1.0's USB driver (the update loader keeps usb.c) */
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 0           /* 1 = TRS MIDI IN on UART1 (untested) */
 #endif

@@ -30,7 +30,7 @@ static struct { volatile uint32_t notes, buttons; } fm1_in;
 #include "../firmware/src/slicer.c"
 #include "../firmware/src/fx.c"
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
-#include "../firmware/src/usb.c"
+#include "../firmware/src/usb_app.c"
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"

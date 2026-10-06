@@ -22,6 +22,8 @@ $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
+$CC -o "$OUT/usb_midi_test" tests/usb_midi_test.c
+run "USB-MIDI driver (usb_app.c): back-pressure, packet checks, SysEx, realtime, overflow" "$OUT/usb_midi_test"
 $CC -o "$OUT/input_test" tests/input_test.c
 run "keys and buttons: fast press, long release, bouncy contacts, glitches; encoders (#23)" "$OUT/input_test"
 $CC -o "$OUT/ota_test" tests/ota_test.c
