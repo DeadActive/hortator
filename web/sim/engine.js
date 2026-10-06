@@ -61,7 +61,8 @@ export class Fm1Sim {
   }
 
   fb() { return this.view(Uint16Array, this.x.sim_fb(), W * W).slice(); }   // RGB565, row-major
-  leds() { return this.x.sim_leds() >>> 0; }      // bit b = button label b, bit 14 + n = note key n
+  leds() { return this.x.sim_leds() >>> 0; }      // bit b = button label b
+  keyLeds() { return this.x.sim_key_leds() >>> 0; }   // bit n = note key n
   playing() { return this.x.sim_playing() !== 0; }
 
   takeDirty() {                                    // -> [{ off, bytes }] written since the last call

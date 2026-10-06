@@ -30,7 +30,7 @@ if ! docker info >/dev/null 2>&1; then
     [ "$(uname)" = Darwin ] && open -a Docker
     for _ in $(seq 60); do docker info >/dev/null 2>&1 && break; sleep 1; done
 fi
-EXPORTS=_sim_init,_sim_render,_sim_frame,_sim_btn,_sim_key,_sim_enc,_sim_master,_sim_leds,_sim_fb,_sim_audio,_sim_flash
+EXPORTS=_sim_init,_sim_render,_sim_frame,_sim_btn,_sim_key,_sim_enc,_sim_master,_sim_leds,_sim_key_leds,_sim_fb,_sim_audio,_sim_flash
 EXPORTS=$EXPORTS,_sim_flash_reset,_sim_flash_dirty,_sim_flash_clean,_sim_playing
 docker run --rm -v "$PWD":/src -w /src -u "$(id -u):$(id -g)" -e EM_CACHE=/src/$OUT/emcache "$IMG" \
     emcc -O2 -sSTANDALONE_WASM --no-entry -sINITIAL_MEMORY=8MB -sSTACK_SIZE=256KB -sEXPORTED_FUNCTIONS="$EXPORTS" \

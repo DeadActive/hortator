@@ -131,12 +131,17 @@ static void test_leds(void)
 {
     sim_init(1);
     run(4096);
+    check("HOME: its button LED lit, no key LED lit", ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == 0u);
     sim_key(5, 1);
     run(2048);
-    check("a held note key lights its LED", (sim_leds() >> (14u + 5u)) & 1u);
+    check("a held note key lights its LED", (sim_key_leds() >> 5) & 1u);
     sim_key(5, 0);
+    sim_key(24, 1);
     run(2048);
-    check("released: its LED goes off", !((sim_leds() >> (14u + 5u)) & 1u));
+    check("a held high key (F5) lights its own LED only", sim_key_leds() == 1u << 24);
+    sim_key(24, 0);
+    run(2048);
+    check("released: the key LEDs go off", sim_key_leds() == 0u);
 }
 
 static uint32_t dirty_count(void)

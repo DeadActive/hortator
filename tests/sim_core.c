@@ -133,13 +133,19 @@ static int sim_led_lit(uint32_t id)
     return 0;
 }
 
-uint32_t sim_leds(void)                                   /* bit b = button label b, bit 14 + n = note key n */
+uint32_t sim_leds(void)                                   /* bit b = button label b (B_FX .. B_OCTUP) */
 {
-    uint32_t b, n, m = 0;
+    uint32_t b, m = 0;
     for (b = 0; b < NB; b++)
         m |= (uint32_t)sim_led_lit(panel.btn[b]) << b;
+    return m;
+}
+
+uint32_t sim_key_leds(void)                               /* bit n = note key n (0 = F3 .. 26 = G5) */
+{
+    uint32_t n, m = 0;
     for (n = 0; n < 27u; n++)
-        m |= (uint32_t)sim_led_lit(14u + n) << (14u + n);
+        m |= (uint32_t)sim_led_lit(14u + n) << n;
     return m;
 }
 

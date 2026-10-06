@@ -86,8 +86,65 @@ test('releaseAll lets go of held keys and buttons', async () => {
   run(sim, 4096);
   sim.key(5, true);
   run(sim, 2048);
-  assert.ok((sim.leds() >>> 19) & 1, 'held key lit');
+  assert.ok((sim.keyLeds() >>> 5) & 1, 'held key lit');
   sim.releaseAll();
   run(sim, 2048);
-  assert.equal((sim.leds() >>> 19) & 1, 0, 'released');
+  assert.equal(sim.keyLeds(), 0, 'released');
+});
+
+// ---- controls.js: the panel's data, checked against the firmware
+import { BTN, ENC, KEYS, KEYBOARD, HeldSet, keyEvent } from '../web/sim/controls.js';
+
+function cEnum(first) {                             // panel.c: enum { B_FX, ..., NB } -> ['B_FX', ...]
+  const src = readFileSync('firmware/src/panel.c', 'utf8');
+  const m = src.match(new RegExp(`enum\\s*\\{\\s*(${first}[^}]*)\\}`));
+  return m[1].split(',').map(s => s.trim()).filter(s => s && !/^N[BE]$/.test(s));
+}
+
+test('BTN and ENC follow panel.c (label ids are array indexes)', () => {
+  assert.deepEqual(BTN.map(b => b.c), cEnum('B_FX'));
+  assert.deepEqual(ENC.map(e => e.c), cEnum('EN_SELECT'));
+  assert.equal(BTN[B_EDIT].label, 'EDIT');
+  assert.equal(BTN[B_PLAY].label, 'PLAY');
+});
+
+test('27 keys F3..G5, the white ones are the step keys (seq.c STEP_KEY)', () => {
+  assert.equal(KEYS.length, 27);
+  assert.equal(KEYS[0].name, 'F3');
+  assert.equal(KEYS[26].name, 'G5');
+  assert.deepEqual(KEYS.filter(k => !k.black).map(k => k.n), [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26]);
+});
+
+test('the computer keyboard plays every key and PLAY / REC / HOME / OCT- / OCT+, no code twice', () => {
+  const codes = Object.keys(KEYBOARD);
+  assert.equal(new Set(codes).size, codes.length);
+  const keys = new Set(codes.filter(c => KEYBOARD[c].kind === 'key').map(c => KEYBOARD[c].id));
+  assert.equal(keys.size, 27);
+  const btns = new Set(codes.filter(c => KEYBOARD[c].kind === 'btn').map(c => BTN[KEYBOARD[c].id].label));
+  for (const l of ['PLAY', 'REC', 'HOME', 'OCT-', 'OCT+']) assert.ok(btns.has(l), l);
+  const ctl = codes.map(c => `${KEYBOARD[c].kind}:${KEYBOARD[c].id}`);
+  assert.equal(new Set(ctl).size, ctl.length, 'one code per control');
+});
+
+test('HeldSet: a control stays held until every source lets go', () => {
+  const h = new HeldSet();
+  assert.equal(h.press('btn:10', 'kbd'), true, 'first source: down');
+  assert.equal(h.press('btn:10', 'ptr1'), false, 'second source: already down');
+  assert.equal(h.release('btn:10', 'kbd'), false, 'one left: still held');
+  assert.equal(h.release('btn:10', 'ptr1'), true, 'last one: up');
+  assert.equal(h.release('btn:10', 'ptr1'), false, 'an extra release is ignored');
+  h.press('key:3', 'ptr2');
+  h.press('btn:6', 'kbd');
+  assert.deepEqual(h.releaseAll().sort(), ['btn:6', 'key:3']);
+  assert.deepEqual(h.releaseAll(), []);
+});
+
+test('keyEvent: mapped codes, autorepeat and shortcuts with modifiers ignored', () => {
+  assert.deepEqual(keyEvent({ code: 'KeyZ', type: 'keydown' }), { ctl: 'key:0', down: true });
+  assert.deepEqual(keyEvent({ code: 'KeyZ', type: 'keyup' }), { ctl: 'key:0', down: false });
+  assert.deepEqual(keyEvent({ code: 'Space', type: 'keydown' }), { ctl: `btn:${B_PLAY}`, down: true });
+  assert.equal(keyEvent({ code: 'KeyZ', type: 'keydown', repeat: true }), null);
+  assert.equal(keyEvent({ code: 'KeyR', type: 'keydown', metaKey: true }), null);
+  assert.equal(keyEvent({ code: 'KeyR', type: 'keydown', ctrlKey: true }), null);
+  assert.equal(keyEvent({ code: 'F5', type: 'keydown' }), null);
 });
