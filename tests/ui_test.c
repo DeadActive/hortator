@@ -2135,6 +2135,73 @@ static void test_perform_menu_kills(void)
     check("menu closed, no key held: effects allowed again", !perf_kill);
 }
 
+/* MENU > PERFORM: HOLD / PAGE; PAGE: the PERFORM screen stays after FX is let go, until the screen changes */
+static void test_perform_page(void)
+{
+    ui_host_init();
+    ui.menu = 1;
+    ui.menu_sel = MI_PERF;
+    ui.force = 1;
+    turn(EN_K1, 1);
+    ui_frame();
+    check("MENU PERFORM: KNOB 1 right = PAGE", settings.perfpage == 1u);
+    snap_page("perform/menu_page");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("MENU PERFORM: KNOB 1 left = HOLD", settings.perfpage == 0u);
+    menu_close();
+    ui_frame();
+    settings.perfpage = 1;
+    tap(B_SEQ);                                       /* a page under it */
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    check("PAGE: FX held then let go, the PERFORM screen stays", ui.layer && ui.pg_open);
+    keys(1u << 3);                                    /* G#3 without FX */
+    ui_frame();
+    check("PAGE: a black key plays its effect with no button held", ((perf_held >> PF_R16) & 1u) && (kb_layer >> 3) & 1u);
+    keys(0);
+    ui_frame();
+    turn(EN_K2, 10);
+    ui_frame();
+    check("PAGE: the knobs are the macros without FX, and keep their values", perf_k[1] > 0);
+    press(B_PLAY);
+    ui_frame();
+    release_all();
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("PAGE: PLAY and OCT+ leave it open", ui.pg_open && perf_k[1] > 0);
+    tap(B_GLO);
+    check("PAGE: another page button closes it, the macros off", !ui.pg_open && !ui.layer && !perf_k[1] &&
+          cur_fam() == FAM_GLO);
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    tap(B_FX);
+    ui_frame();
+    check("PAGE: an FX tap closes it and opens the FX pages", !ui.pg_open && cur_fam() == FAM_FX);
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    tap(B_HOME);
+    ui_frame();
+    check("PAGE: HOME closes it", !ui.pg_open && !ui.layer);
+    settings.perfpage = 0;
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    check("HOLD: the map goes with FX", !ui.layer && !ui.pg_open);
+    transport_req = 2;                                /* (PLAY above started the transport: stopped for the next test) */
+    render_mix(0, 0, CTL);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2185,6 +2252,7 @@ int main(void)
     test_perform_gesture();
     test_perform_keys();
     test_perform_menu_kills();
+    test_perform_page();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

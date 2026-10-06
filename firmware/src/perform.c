@@ -45,6 +45,8 @@ enum { PF_R8, PF_R16, PF_R32, PF_REV, PF_LPF, PF_HPF, PF_TAPE, PF_FRZ, PF_OUP, P
 enum { BM_NONE, BM_LOOP, BM_TAPE, BM_FRZ, BM_HARM };
 
 static volatile uint32_t perf_mask;   /* main: the FX button's bit while its layer may own keys, 0 = none */
+#define PERF_PAGE 0x80000000u                 /* perf_mask: the PERFORM page is open (MENU PERFORM PAGE): keys are
+                                               * the layer's with no button held (no button has this bit) */
 static volatile uint8_t perf_kill;    /* main: every effect off (the menu, a dialog, UBOOT) */
 static volatile int8_t perf_k[4];     /* main: the knob macros, 0 = untouched: FILTER -100..100 (- LPF, + HPF),
                                        * CRUSH 0..100, THROW 0..100, DEPTH cut 0..100 (the buffer effects' level) */

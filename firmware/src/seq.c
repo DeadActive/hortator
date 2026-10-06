@@ -185,7 +185,7 @@ static void keyboard_block(void)
         if (!(ch & bit))
             continue;
         if (cur & bit) {
-            if (fm1_in.buttons & perf_mask) {
+            if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE)) {
                 kb_layer |= bit;
                 perf_press(perf_key(key), 1);
                 ch &= ~bit;

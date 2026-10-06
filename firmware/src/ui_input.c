@@ -288,37 +288,52 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 #define FX_OPEN 2u
 #define FX_DEAD 4u
 static int fx_allowed(void) { return !ui.menu && !ui.confirm; }
-static void fx_layer(uint32_t now)
+/* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros off; keys
+ * still held stay the layer's until let go */
+static void perf_page_close(void)
 {
-    uint32_t bit = 1u << panel.btn[B_FX], *t0 = &ui.fx_t0, k, show;
+    ui.pg_open = 0;
+    perf_mask &= ~PERF_PAGE;
+    perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
+}
+static void fx_layer(uint32_t now, int home_tap)
+{
+    uint32_t bit = 1u << panel.btn[B_FX], *t0 = &ui.fx_t0, k, show, down = (fm1_in.buttons & bit) != 0u;
     int32_t s;
     if (!fx_allowed())
         perf_kill = 1;
     else if (!kb_layer)
         perf_kill = 0;
-    if (fm1_in.buttons & bit) {
+    if (ui.pg_open && (!fx_allowed() || home_tap || ui.page != ui.pg_page || ui.home != ui.pg_home))
+        perf_page_close();
+    if (down) {
         if (!*t0)
             *t0 = (now & ~7u) | FX_DOWN;
         if (!fx_allowed())
             *t0 |= FX_DEAD;
-        perf_mask = *t0 & FX_DEAD ? 0u : bit;
-        if (!(*t0 & FX_DEAD)) {
-            for (k = 0; k < 4u; k++)
-                if ((s = panel_enc(EN_K1 + k)) != 0) {
-                    perf_k[k] = (int8_t)clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
-                    *t0 |= FX_OPEN;
-                }
-            if (kb_layer || now - (*t0 & ~7u) >= FX_HOLD_MS * 1000u * FM1_TICKS_PER_US)
-                *t0 |= FX_OPEN;
-        }
+        if (!(*t0 & FX_DEAD) && (kb_layer || now - (*t0 & ~7u) >= FX_HOLD_MS * 1000u * FM1_TICKS_PER_US))
+            *t0 |= FX_OPEN;
     } else if (*t0) {
         if (!(*t0 & (FX_OPEN | FX_DEAD)))
             open_family(FAM_FX);                        /* a tap: the FX pages, as the button always did */
         *t0 = 0;
-        perf_mask = 0;
-        perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
+        if (!ui.pg_open)
+            perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* HOLD: the macros snap back */
     }
-    show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer);
+    if ((down && !(*t0 & FX_DEAD)) || ui.pg_open)
+        for (k = 0; k < 4u; k++)                        /* the macros: FILTER CRUSH THROW DEPTH */
+            if ((s = panel_enc(EN_K1 + k)) != 0) {
+                perf_k[k] = (int8_t)clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
+                if (down)
+                    *t0 |= FX_OPEN;
+            }
+    if (settings.perfpage && (*t0 & FX_OPEN) && !ui.pg_open && fx_allowed()) {   /* PAGE: the screen stays */
+        ui.pg_open = 1;
+        ui.pg_page = ui.page;
+        ui.pg_home = ui.home;
+    }
+    perf_mask = (down && !(*t0 & FX_DEAD) ? bit : 0u) | (ui.pg_open ? PERF_PAGE : 0u);
+    show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer || ui.pg_open);
     if (show != ui.layer) {
         ui.layer = (uint8_t)show;
         ui.force = 1;
@@ -333,8 +348,8 @@ static void ui_input(void)
     int32_t s;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
-    fx_layer(now);                                      /* PERFORM: FX tap / hold */
-    if (fm1_in.buttons & perf_mask)                   /* PERFORM: keys pressed with FX are the layer's */
+    fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
+    if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE))   /* PERFORM: keys are the layer's */
         notes = 0;
     notes &= ~kb_layer;
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */

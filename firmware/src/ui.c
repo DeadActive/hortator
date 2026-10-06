@@ -59,6 +59,7 @@ static struct {
     uint8_t persist_pending;     /* a settings save asked for while playing: written once stopped (project.c) */
     uint32_t fx_t0;              /* PERFORM: FX's press time | FX_DOWN / FX_OPEN / FX_DEAD (ui_input.c fx_layer) */
     uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
+    uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
