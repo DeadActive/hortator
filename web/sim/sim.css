@@ -35,20 +35,13 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+  padding: 0 0 max(16px, env(safe-area-inset-bottom));
 }
 
-/* ---- page: header, sections, footer (one column, the device's width) */
-.top, .play, .features, .install, .foot { width: min(100%, 1000px); }
+/* ---- page: the hero, then sections and footer in one column (the device's width) */
+.features, .install, .foot, .help { width: min(100% - 32px, 1000px); }
 button { font: inherit; }
-.top { padding: 28px 0 8px; }
-.brand { display: flex; align-items: baseline; gap: 12px; margin: 0 0 14px; }
 .silk { font: 15px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.05em; }
-.by { font-size: 13px; color: var(--ink-soft); }
-.top h1 { font-size: clamp(26px, 4.4vw, 40px); font-weight: 600; line-height: 1.12; margin: 0; max-width: 20ch;
-  letter-spacing: -0.01em; }
-.lede { margin: 12px 0 0; color: var(--ink-soft); font-size: 17px; max-width: 56ch; }
-.actions { display: flex; gap: 10px; margin: 20px 0 0; flex-wrap: wrap; }
 .cta {
   display: inline-block; text-decoration: none; font-weight: 500; padding: 10px 22px; border-radius: 999px;
   background: var(--ink); color: var(--backdrop); border: 1px solid var(--ink);
@@ -56,18 +49,90 @@ button { font: inherit; }
 .cta.ghost { background: transparent; color: var(--ink); }
 .cta:hover { opacity: 0.88; }
 
-.play { padding-top: 26px; }
-.play-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* the hero: a scroll track with a sticky stage; app.js maps the scroll to --p (0 far back and blurred .. 1 the
+   simulator, flat and sharp). The stage is a dark photographic set in both themes. */
+.hero { position: relative; width: 100%; height: 330vh; }
+.hero-end { position: absolute; left: 0; bottom: 0; height: 100vh; width: 1px; pointer-events: none; }
+.hero-stage {
+  position: sticky; top: 0; height: 100vh; overflow: hidden; perspective: 1500px; perspective-origin: 50% 40%;
+  color: #e9ebee;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 42%, #3a3f46 0%, #24282d 48%, #15171a 100%);
+  --hero-ink: #e9ebee;
+}
+.hero-nav {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 5; display: flex; justify-content: space-between;
+  align-items: center; padding: 20px max(20px, 4vw); color: var(--hero-ink);
+}
+.hero-nav a { color: var(--hero-ink); text-decoration: none; font-size: 14px; border-bottom: 1px solid rgba(233,235,238,.4); }
+.scene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 56px 0 118px;                         /* the device lands between the nav and Switch on + its bar */
+  filter: blur(calc(var(--blur, 0) * 1px)) brightness(var(--dim, 1)); will-change: filter; }
+.tilt { position: relative; transform-style: preserve-3d; will-change: transform; }
+.tilt .fit { transform-style: preserve-3d; }
+.desk-shadow {
+  position: absolute; left: 50%; top: 50%; width: 70vw; height: 40vw; max-width: 1000px; max-height: 560px;
+  transform: translate(-50%, -38%); border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0,0,0,.55), rgba(0,0,0,0)); opacity: var(--shadow, 0.6);
+}
+.hero-copy {
+  position: absolute; left: max(20px, 6vw); bottom: max(72px, 12vh); z-index: 4; max-width: 46rem;
+  opacity: var(--copy, 1); transform: translateY(calc((1 - var(--copy, 1)) * -40px));
+  pointer-events: var(--copy-events, auto);
+}
+.hero-copy h1 {
+  font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; font-stretch: 112%; font-weight: 600;
+  font-size: clamp(38px, 6.4vw, 92px); line-height: 0.98; letter-spacing: -0.02em; margin: 0; max-width: 14ch;
+  text-wrap: balance; text-shadow: 0 2px 30px rgba(0,0,0,.45);
+}
+.hero-copy p { margin: 18px 0 0; font-size: 17px; max-width: 46ch; color: #c5c9cf; }
+.hero-copy .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+.hero-copy .cta { background: #e9ebee; color: #15171a; border-color: #e9ebee; }
+.hero-copy .cta.ghost { background: transparent; color: #e9ebee; border-color: rgba(233,235,238,.6); }
+.scroll-cue {
+  position: absolute; right: max(20px, 4vw); bottom: 28px; margin: 0; font-size: 13px; color: #9aa0a8;
+  opacity: var(--copy, 1); letter-spacing: 0.08em; z-index: 4;
+}
+.scroll-cue::after { content: ""; display: block; width: 1px; height: 36px; margin: 8px auto 0; background: currentColor;
+  transform-origin: top; animation: cue 1.8s ease-in-out infinite; }
+@keyframes cue { 0% { transform: scaleY(0); } 50% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+.play-bar {
+  position: absolute; left: 0; right: 0; bottom: 14px; z-index: 6; display: flex; gap: 8px; flex-wrap: wrap;
+  justify-content: center; align-items: center; padding: 0 16px; opacity: var(--arrived, 0);
+  pointer-events: var(--arrived-events, none); color: var(--hero-ink);
+}
 .play-bar > button, .confirm button {
-  background: transparent; color: var(--ink); border: 1px solid var(--ink-soft); border-radius: 999px;
+  background: rgba(21,23,26,.5); color: var(--hero-ink); border: 1px solid rgba(233,235,238,.45); border-radius: 999px;
   padding: 3px 14px; cursor: pointer;
 }
-.play-bar > button:hover, .confirm button:hover { border-color: var(--ink); }
-.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-basis: 100%; }
-.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; margin-top: 8px; }
+.play-bar > button:hover, .confirm button:hover { border-color: var(--hero-ink); }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; flex-basis: 100%; }
+.play-bar .note { flex-basis: 100%; text-align: center; margin: 0; min-height: 0; color: #c5c9cf; }
+.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; margin-top: 16px; }
 .help h2 { font-size: 15px; font-weight: 500; margin: 8px 0 2px; }
 .help ul { margin: 0; padding-left: 18px; color: var(--ink-soft); }
 .note { min-height: 1.5em; margin: 6px 0 0; color: var(--ink-soft); }
+
+/* depth: the panel's parts stand off its face; the body is extruded behind it (app.js adds the .slab layers) */
+.device { transform-style: preserve-3d; }
+.device > .tray { translate: 0 0 1px; }
+.device > .bezel { translate: 0 0 1px; }
+.device > canvas.lcd { translate: 0 0 2px; }   /* in front of its bezel, behind the caps */
+.device > .lbl { translate: 0 0 1px; }
+.device > .btn { translate: 0 0 7px; }
+.device > .key { translate: 0 0 5px; }
+.device > .enc { translate: 0 0 9px; transform-style: preserve-3d; }
+.device > .enc .cap { translate: 0 0 8px; }
+.device > .slab { border-radius: 44px; pointer-events: none; }
+.device > .glare {
+  inset: 0; border-radius: 44px; pointer-events: none; translate: 0 0 12px; opacity: var(--glare, 0);
+  background: linear-gradient(112deg, transparent calc(var(--sweep, 0) * 140% - 40%),
+    rgba(255,255,255,.16) calc(var(--sweep, 0) * 140% - 26%), transparent calc(var(--sweep, 0) * 140% - 12%));
+}
+.device.waiting { pointer-events: none; }
+.power, .play-bar { transition: opacity 0.45s ease; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
 .features, .install { padding: 56px 0 0; }
 .features > h2, .install > h2 { font-size: 26px; font-weight: 600; margin: 0 0 20px; letter-spacing: -0.01em; }
@@ -96,7 +161,6 @@ button { font: inherit; }
 .foot a { color: inherit; }
 
 /* ---- the device: drawn at its design size, scaled to fit (app.js sets --scale and the layout) */
-.stage { position: relative; width: 100%; display: flex; justify-content: center; margin-top: 14px; }
 .fit { position: relative; }
 .device {
   position: absolute; left: 0; top: 0; transform-origin: 0 0; transform: scale(var(--scale, 1));
@@ -168,25 +232,26 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 .device :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
 /* ---- power on */
-.power {
-  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: rgba(195, 200, 206, 0.55); backdrop-filter: blur(2px); border-radius: 12px;
+.power {                                          /* under the device, above its bar: the screen stays visible */
+  position: absolute; left: 0; right: 0; bottom: 52px; z-index: 7; display: flex; align-items: center;
+  justify-content: center; gap: 14px; opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none);
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .power { background: rgba(31, 34, 38, 0.6); } }
 .power[hidden] { display: none; }
 .power button {
   font-size: 18px; font-weight: 500; padding: 12px 32px; border-radius: 999px; border: 0; cursor: pointer;
-  background: #23272c; color: #f3f4f6; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  background: #e9ebee; color: #15171a; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
 }
 .power button:disabled { opacity: 0.6; cursor: progress; }
-.power p { margin: 10px 0 0; color: var(--ink); font-size: 14px; }
+.power p { margin: 0; color: #e9ebee; font-size: 14px; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
 
-@media (max-height: 520px) {                          /* phones held sideways: the device first */
-  .top { padding-top: 8px; }
-  .top h1 { font-size: 20px; }
-  .lede { display: none; }
-  .actions { margin-top: 8px; }
-  .stage { margin-top: 6px; }
+@media (max-height: 520px) {                          /* phones held sideways: smaller copy */
+  .hero-copy h1 { font-size: 30px; }
+  .hero-copy p:not(.hero-actions) { display: none; }
+  .hero-copy { bottom: 20px; }
 }
-@media (max-width: 480px) { .lede { font-size: 15px; } }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 480px) { .hero-copy p { font-size: 15px; } .hero-copy { bottom: 64px; } }
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+  .hero { height: auto; }
+  .hero-stage { position: relative; height: auto; min-height: 100vh; }
+}

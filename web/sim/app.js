@@ -6,6 +6,7 @@
 import { BTN, B, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js';
 import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
+import { parseReel } from './reel.js';
 
 // ---- layouts: design-size boxes [x, y, w, h] (the device is scaled to fit the window)
 const WHITE = KEYS.filter(k => !k.black), BLACK = KEYS.filter(k => k.black);
@@ -65,7 +66,16 @@ function place(el, [x, y, w, h]) {
   el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.width = `${w}px`; el.style.height = `${h}px`;
 }
 
+const SLABS = 14;                                 // the body extruded behind the face, 1.6 px a layer
 function build() {
+  for (let i = SLABS; i >= 1; i--) {
+    const s = document.createElement('div'), t = i / SLABS;
+    s.className = 'slab';
+    s.style.inset = '0';
+    s.style.translate = `0 0 ${-i * 1.6}px`;
+    s.style.background = `rgb(${Math.round(78 - 40 * t)}, ${Math.round(82 - 41 * t)}, ${Math.round(88 - 43 * t)})`;
+    device.append(s);
+  }
   for (let i = 0; i < 4; i++) { const d = document.createElement('div'); device.append(d); els.deco.push(d); }
   device.append(lcd);
   BTN.forEach((b, id) => {
@@ -105,6 +115,9 @@ function build() {
     device.append(l);
     els.lbl[id] = l;
   });
+  const glare = document.createElement('div');
+  glare.className = 'glare';
+  device.append(glare);
 }
 function addHint(el, ctl) {
   if (!keyHint[ctl]) return;
@@ -132,8 +145,7 @@ function relayout() {
     device.style.height = `${L.H}px`;
   }
   const availW = Math.min(document.documentElement.clientWidth - 32, 1000);
-  const play = document.getElementById('play') ?? document.body;     // the device fits the window seen from #play
-  const availH = window.innerHeight - (fit.getBoundingClientRect().top - play.getBoundingClientRect().top) - 40;
+  const availH = window.innerHeight - 56 - 118 - 8;   // the hero scene's padding: nav above, Switch on and its bar below
   const scale = Math.max(0.3, Math.min(availW / L.W, availH / L.H, 1.2));
   device.style.setProperty('--scale', scale);
   fit.style.width = `${L.W * scale}px`;
@@ -200,7 +212,7 @@ function bindControls() {
   for (const [id, el] of Object.entries(els.enc)) bindEncoder(id, el);
 
   window.addEventListener('keydown', e => {
-    if (e.target.closest?.('.top, .help')) return;
+    if (!arrived || e.target.closest?.('.help, .confirm')) return;
     if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && hovered) {
       e.preventDefault();
       turn(hovered, e.code === 'ArrowUp' ? 1 : -1);
@@ -229,9 +241,12 @@ function turn(id, steps) {
     send({ t: 'master', value: masterValue });
     return;
   }
+  spin(id, steps);
+  send({ t: 'enc', id: Number(id), steps });
+}
+function spin(id, steps) {                         // the cap only (the reel turns knobs too)
   angle[id] = (angle[id] ?? 0) + steps * 15;
   els.enc[id].style.setProperty('--turn', `${angle[id]}deg`);
-  send({ t: 'enc', id: Number(id), steps });
 }
 function showMaster() { els.enc.master.style.setProperty('--turn', `${-135 + masterValue / 1023 * 270}deg`); }
 function bindEncoder(id, el) {
@@ -266,7 +281,8 @@ function bindEncoder(id, el) {
 let frame = null;
 const img = lcdCtx.createImageData(240, 240);
 const px = new Uint32Array(img.data.buffer);
-function paint() {
+function paint(now) {
+  reelTick(now);
   if (frame) {
     const { fb, leds, keyLeds } = frame;
     frame = null;
@@ -351,8 +367,70 @@ function bindPage() {
   document.getElementById('power-note').textContent = 'Sound starts with this tap.';
 }
 
+// ---- the reel: recorded pages (tests/sim_record.c) on the screen, LEDs and knobs until the firmware is switched on
+let reel = null, reelPos = -1, reelT0 = 0;
+const reelFb = new Uint16Array(240 * 240);
+if (window.DecompressionStream)
+  fetch('reel.bin.gz')
+    .then(r => r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : Promise.reject())
+    .then(b => { reel = parseReel(b); reelT0 = performance.now(); })
+    .catch(() => { /* no reel: the screen stays dark until Switch on */ });
+function reelTick(now) {
+  if (!reel || node) return;
+  const target = Math.floor((now - reelT0) / 1000 * reel.fps) % reel.frames;
+  if (target === reelPos) return;
+  if (target < reelPos) reelPos = -1;               // looped: frame 0 is a whole screen
+  let f;
+  while (reelPos < target) {
+    f = reel.apply(++reelPos, reelFb);
+    for (let k = 0; k < 7; k++) if (f.enc[k]) spin(String(k), f.enc[k]);
+  }
+  frame = { fb: reelFb, leds: f.leds, keyLeds: f.keyLeds };
+}
+
+// ---- the hero: the scroll through #hero moves p 0 .. 1: the device far back, tilted and blurred .. the simulator
+const hero = document.getElementById('hero'), stage = document.getElementById('stage');
+const tilt = document.getElementById('tilt');
+const still = window.matchMedia('(prefers-reduced-motion: reduce)');
+let arrived = false, heroQueued = false;
+const clamp01 = x => Math.min(1, Math.max(0, x));
+const ease = x => { x = clamp01(x); return x * x * (3 - 2 * x); };
+const mix = (a, b, t) => a + (b - a) * t;
+function heroFrame() {
+  heroQueued = false;
+  const r = hero.getBoundingClientRect(), track = r.height - window.innerHeight;
+  const p = still.matches || track <= 0 ? 1 : clamp01(-r.top / track);
+  const m = ease(p / 0.9);                          // lands a little before the track ends
+  const tall = layout === LAYOUTS.portrait;          // phones: a gentler start, so it stays in the frame
+  tilt.style.transform = m >= 1 ? 'none'
+    : `translate3d(0, ${mix(tall ? 4 : 10, 0, m)}vh, ${mix(tall ? -700 : -1150, 0, m)}px) rotateX(${mix(tall ? 50 : 57, 0, m)}deg) `
+      + `rotateY(${mix(tall ? 0 : 7, 0, m)}deg) rotateZ(${mix(tall ? -9 : -17, 0, m)}deg)`;
+  const set = (k, v) => stage.style.setProperty(k, v);
+  set('--blur', mix(9, 0, ease(p / 0.75)).toFixed(2));
+  set('--dim', mix(0.6, 1, m).toFixed(3));
+  const copy = 1 - ease(p / 0.28);
+  set('--copy', copy.toFixed(3));
+  set('--copy-events', copy > 0.5 ? 'auto' : 'none');
+  set('--sweep', ease((p - 0.3) / 0.6).toFixed(3));
+  set('--glare', Math.sin(Math.PI * clamp01((p - 0.3) / 0.6)).toFixed(3));
+  set('--shadow', mix(0.8, 0.3, m).toFixed(3));
+  if ((m >= 1) !== arrived) {
+    arrived = m >= 1;
+    set('--arrived', arrived ? 1 : 0);
+    set('--arrived-events', arrived ? 'auto' : 'none');
+    device.classList.toggle('waiting', !arrived);
+    if (!arrived) releaseAll();                     // nothing stays held while it flies away
+  }
+}
+function queueHero() { if (!heroQueued) { heroQueued = true; requestAnimationFrame(heroFrame); } }
+
 build();
 relayout();
+device.classList.add('waiting');
+heroFrame();
+window.addEventListener('scroll', queueHero, { passive: true });
+window.addEventListener('resize', queueHero);
+still.addEventListener?.('change', queueHero);
 showMaster();
 bindControls();
 bindPage();

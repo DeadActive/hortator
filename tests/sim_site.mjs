@@ -55,8 +55,12 @@ test('installer: named FM-1 Drums, no language switch, /*LIB*/ and /*META*/ kept
 // ---- the landing page: the simulator as the hero, what it does, install
 const LANDING = readFileSync('web/sim/index.html', 'utf8');
 
-test('landing: sections play, features, install; install goes to the installer; the source is linked', () => {
-  for (const id of ['play', 'features', 'install']) assert.match(LANDING, new RegExp(`<section[^>]*id="${id}"`), id);
+test('landing: hero (with the device and the #play end), features, install; install goes to the installer; the source is linked', () => {
+  for (const id of ['hero', 'features', 'install']) assert.match(LANDING, new RegExp(`<section[^>]*id="${id}"`), id);
+  const hero = LANDING.slice(LANDING.indexOf('id="hero"'), LANDING.indexOf('id="features"'));
+  assert.match(hero, /id="device"/, 'the device lives in the hero');
+  assert.match(hero, /id="play"/, 'the end of the hero track is #play');
+  assert.match(hero, /id="tilt"/, 'the 3D transform wrapper');
   assert.match(LANDING, /href="webapp\/installer\/"/);
   assert.match(LANDING, /href="#play"/);
   assert.match(LANDING, /href="source\.tar\.gz"/);
