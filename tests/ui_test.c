@@ -2202,6 +2202,34 @@ static void test_perform_page(void)
     render_mix(0, 0, CTL);
 }
 
+/* PERFORM screens: the map held alone, with keys held (REPEAT 1/16 running, track 2 muted), an unavailable REPEAT
+ * (40 BPM), OCT UP with the SHIMMER knob */
+static void test_perform_screens(void)
+{
+    ui_host_init();
+    press(B_FX);
+    fx_hold_frames(500);
+    snap_page("perform/map");
+    check("the map: the footer says [FX] HOLD", fb_lit(Y_FOOT, 240) > 0u && ui.layer);
+    keys(1u << 3 | 1u << 2);                          /* G#3 REPEAT 1/16, G3 track 2 */
+    fx_hold_frames(2);
+    snap_page("perform/keys");
+    keys(0);
+    fx_hold_frames(2);
+    song.g[G_BPM] = 40;
+    ui.force = 1;
+    snap_page("perform/bpm40");
+    song.g[G_BPM] = 120;
+    keys(1u << 20);                                   /* C#5 OCT UP */
+    turn(EN_K4, 40);
+    fx_hold_frames(2);
+    snap_page("perform/oct_shimmer");
+    check("OCT UP playing: KNOB 4 is SHIMMER", perf_harm_on() && perf_k[3] > 0);
+    keys(0);
+    release_all();
+    ui_frame();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2253,6 +2281,7 @@ int main(void)
     test_perform_keys();
     test_perform_menu_kills();
     test_perform_page();
+    test_perform_screens();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
