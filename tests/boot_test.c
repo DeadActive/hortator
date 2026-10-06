@@ -341,6 +341,45 @@ static int fdr5_converts(void)
     return song.g[G_CSRC] == 1 && song.g[G_CMKUP] == 77 && song.g[G_CGHOST] == CG_KEEP &&
            trk[2].p[P_RMODEL] == RS_PIPE && trk[2].step[5].on;
 }
+/* an FDR6 record (GHOST, no reverb TYPE; 3024 B like an FDR5 one) loads: its values; TYPE ROOM */
+static int fdr6_converts(void)
+{
+    project_v6_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V6;
+    v.size = sizeof v;
+    for (i = 0; i < G_RTYPE; i++)
+        v.g[i] = song.g[i];
+    v.g[G_CGHOST] = CG_HIDE;
+    v.g[G_RSIZE] = 33;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[4].step[7].on = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 3u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    song.g[G_RTYPE] = 1;                             /* SPRING running: the load sets ROOM */
+    project_load(3);
+    return song.g[G_CGHOST] == CG_HIDE && song.g[G_RSIZE] == 33 && song.g[G_RTYPE] == 0 && trk[4].step[7].on;
+}
+/* FDR7 keeps TYPE through a save and a load */
+static int fdr7_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    song.g[G_RTYPE] = 1;
+    project_save(2);
+    song.g[G_RTYPE] = 0;
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_load(2);
+    return song.g[G_RTYPE] == 1;
+}
 /* review focus 1: RESON at every extreme (pitch with a chord's top note and the fine offset, STRCT, TONE, POS):
  * the lines stay inside rs_buf (ASan) and the output bounded */
 static int reson_extremes(void)
@@ -381,6 +420,8 @@ int main(void)
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
     check("project: an FDR5 record loads with GHOST KEEP", fdr5_converts());
+    check("project: an FDR6 record (same size as FDR5) loads with reverb TYPE ROOM", fdr6_converts());
+    check("project: FDR7 keeps the reverb TYPE", fdr7_round_trip());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());

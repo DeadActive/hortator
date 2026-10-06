@@ -10,6 +10,7 @@ static const char *const N_DASH[] = {"--"};
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
+static const char *const N_RTYPE[] = {"ROOM", "SPRING"};             /* G_RTYPE: the reverb bus's model (fx.c) */
 static const char *const N_CHOKE[] = {"OFF", "1", "2", "3", "4"};
 static const char *const N_SRC[] = {"STEP", "G-KCK", "G-SNR", "G-HAT"};   /* P_SRC: its steps or a Grids channel */
 static const char *const N_GMODE[] = {"MAP", "EUCL"};
@@ -109,6 +110,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CKNEE] = PE("KNEE", N_KNEE, 1),
     [G_CMKUP] = PD("MKUP", F_CMKUP, 0, 127, 0),
     [G_CGHOST] = PE("GHOST", N_GHOST, CG_KEEP),
+    [G_RTYPE] = PE("TYPE", N_RTYPE, 0),
 };
 
 /* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE (G_MUTEBAR, the device setting

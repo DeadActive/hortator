@@ -134,6 +134,102 @@ static void test_bass_master(void)
     check("BASS+ on the master: a 60 Hz bass gets 10x the harmonic power LOWCUT gives it", h[2] > 10.0 * h[1]);
 }
 
+/* rev_spring = upstream's, sample for sample: a burst send, 6 s, SIZE and DAMP turned twice while it rings */
+static void test_spring_matches_upstream(void)
+{
+    static int32_t in[CTL], a[CTL], b[CTL];
+    uint32_t blk, i, ok = 1;
+    int32_t peak = 0;
+    host_init();
+    ref_spring_reset();
+    song.g[G_RSIZE] = 90;
+    song.g[G_RDAMP] = 60;
+    for (blk = 0; blk < 6u * FS / CTL; blk++) {
+        if (blk == 2u * FS / CTL)
+            song.g[G_RSIZE] = 10, song.g[G_RDAMP] = 120;
+        if (blk == 4u * FS / CTL)
+            song.g[G_RSIZE] = 127, song.g[G_RDAMP] = 0;
+        for (i = 0; i < CTL; i++) {
+            in[i] = blk < 40u ? (int32_t)((i * 2654435761u) >> 16) - 32768 : 0;
+            a[i] = b[i] = 0;
+        }
+        rev_spring(in, a, CTL);
+        ref_rev_spring(in, b, CTL, song.g[G_RSIZE], song.g[G_RDAMP]);
+        for (i = 0; i < CTL; i++) {
+            ok &= a[i] == b[i];
+            peak = a[i] > peak ? a[i] : -a[i] > peak ? -a[i] : peak;
+        }
+    }
+    check("SPRING: rev_spring gives upstream 1.0.2's samples (SIZE / DAMP turned while it rings)", ok);
+    check("SPRING: bounded (|out| < 2^20) while SIZE glides", peak < (1 << 20));
+}
+
+/* after the send stops, SPRING's output reaches exactly 0 (no offset held in its loop): SIZE 0, 64, 127, 10 s */
+static void test_spring_silence(void)
+{
+    static int32_t in[CTL], out[CTL];
+    static const int16_t SIZES[3] = {0, 64, 127};
+    uint32_t z, blk, i, ok = 1;
+    for (z = 0; z < 3u; z++) {
+        int32_t last = 0;
+        host_init();
+        song.g[G_RSIZE] = SIZES[z];
+        song.g[G_RDAMP] = 60;
+        for (blk = 0; blk < 10u * FS / CTL; blk++) {
+            for (i = 0; i < CTL; i++) {
+                in[i] = blk < 4u && i == 0u ? 600000 : 0;
+                out[i] = 0;
+            }
+            rev_spring(in, out, CTL);
+            for (i = 0; i < CTL; i++)
+                last |= blk >= 9u * FS / CTL ? out[i] : 0;
+        }
+        ok &= last == 0;
+    }
+    check("SPRING: silent (exactly 0) once its tail has died (SIZE 0 / 64 / 127)", ok);
+}
+
+/* review focus 1 / 2: TYPE switched while a steady 200 Hz send keeps coming, straight into the buses (no drums: a
+ * hit's attack would hide a click). A 200 Hz tone moves ~3 % of its level a sample; a model cut off hard would jump
+ * by the whole level. In the switch block the old model fades out over the block, and the new one is silent for its
+ * first ~1100 samples (its delay lines), so the 3 blocks after the switch may not step more than the steady tone. */
+static void test_switch_while_sending(void)
+{
+    static int32_t z[CTL], in[CTL], w[CTL];
+    uint32_t blk, i, ok = 1, sw, t = 0, clear = 1;
+    host_init();
+    for (sw = 0; sw < 2u; sw++) {                    /* ROOM -> SPRING, then SPRING -> ROOM */
+        int32_t before = 0, at = 0, prev = 0, d;
+        for (blk = 0; blk < 203u; blk++) {
+            if (blk == 200u)
+                song.g[G_RTYPE] = sw ? 0 : 1;
+            for (i = 0; i < CTL; i++, t++) {
+                in[i] = (int32_t)sine(200.0, t, 20000.0);
+                z[i] = 0;
+            }
+            fx_buses(z, z, in, w, CTL);
+            for (i = 0; i < CTL; i++) {
+                d = w[i] - prev;
+                d = d < 0 ? -d : d;
+                prev = w[i];
+                if (blk >= 100u && blk < 200u)
+                    before = d > before ? d : before;
+                if (blk >= 200u)
+                    at = d > at ? d : at;
+            }
+            if (blk == 200u)
+                for (i = 0; i < sizeof rev_comb / 2u; i++)
+                    clear &= rev_comb[i] == 0;
+        }
+        if (at > 2 * before + 64)
+            printf("     switch %u: step %d after, %d before\n", sw, at, before);
+        ok &= at <= 2 * before + 64 && before > 0 && fx.rtype == (uint8_t)song.g[G_RTYPE];
+    }
+    check("TYPE switched while sending (ROOM -> SPRING -> ROOM): no click, the new model runs", ok);
+    check("TYPE switch: the shared reverb buffer is cleared in the switch block", clear);
+}
+
+
 #define HASH_FLAT 0xb35154deu
 #define HASH_LOWCUT 0xd5959edeu
 
@@ -149,6 +245,9 @@ int main(void)
     test_bass_mids();
     test_bass_harmonics();
     test_bass_master();
+    test_spring_matches_upstream();
+    test_spring_silence();
+    test_switch_while_sending();
     printf(fails ? "sound_pack_test: %d FAILED\n" : "sound_pack_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

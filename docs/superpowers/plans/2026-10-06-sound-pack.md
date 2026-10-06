@@ -695,6 +695,7 @@ static void test_switch_while_sending(void)
     check("TYPE switched while sending (ROOM -> SPRING -> ROOM): no click, the new model runs", ok);
     check("TYPE switch: the shared reverb buffer is cleared in the switch block", clear);
 }
+```
 
 and in `main`, after `test_bass_master();`:
 
