@@ -90,7 +90,8 @@ Plus ours:
 - a valid header (correct CRC) naming the other copy is ignored: the other copy loads;
 - a flash that changes one header field other than `seq` on its way back (`rsv`) makes the save fail (−7), and the
   previous data still loads;
-- settings: a stored settings record one `persist_t` too long loads the defaults (project.c path).
+- settings: a stored settings record longer than `persist_t` (valid header, our `PERSIST_MAGIC`) loads the defaults
+  through `project.c`'s settings load.
 
 ## 7. On the device (the user)
 
