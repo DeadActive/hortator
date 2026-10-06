@@ -120,11 +120,12 @@ typedef struct { uint32_t ph, sub; int32_t out, from, to; uint8_t fresh; } lfo_s
 typedef struct {                 /* RESON runtime (reson.c): per line (STRNG / PIPE 1, CHORD 4) */
     uint32_t len[4];             /* the line's delay, Q8 samples (the loop filters' delay taken off) */
     int32_t g[4];                /* loop gain, Q15 (PIPE: negative) */
-    int32_t lp[4], apx[4], apy[4];   /* damping low-pass; the stiffness all-pass' x[n-1], y[n-1] */
+    int32_t lp[4], lr[4], apx[4], apy[4];   /* damping low-pass and its step's remainder; the all-pass' x, y[n-1] */
     int32_t k, a;                /* damping coefficient (Q15), all-pass coefficient (Q15, <= 0) */
     uint16_t tap[4];             /* POS: the second pickup tap (0 = none) */
     uint16_t w, seg, quiet, peak;   /* write position, segment length, quiet blocks, last block's line peak */
     uint8_t ns, model, ring, kill;  /* lines, the model running, ringing, fade out this block */
+    uint8_t hold;                /* after a cut: no input until the track's next hit (its declick tail excites nothing) */
 } reson_t;
 
 typedef struct track {

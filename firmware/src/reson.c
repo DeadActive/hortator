@@ -8,7 +8,9 @@
 #define RS_LEN 1352u                                  /* STRNG down to C1 (1348.6 samples) */
 #define RS_SEG 338u                                   /* CHORD: 4 lines, the lowest string C3 (337.2) */
 #define RS_GMAX 32700                                 /* the loop gain's cap (0.998): never self-oscillating */
-#define RS_FLOOR 2u                                   /* the line's level (int16) under which the ring is over */
+#define RS_FLOOR 32u                                  /* the line's level (int16, -60 dB of its full scale) under which,
+                                                         * for a whole loop, the ring is over: it fades out (a power of 2:
+                                                         * the block's OR of |v| is under it exactly when every |v| is) */
 #define RS_FINE 6144                                  /* R.TUN at full DEPTH: 2 octaves, in 1/256 semitone */
 #define RS_MAXTRK 4u                                  /* RESON on 4 tracks at most (CPU; 2 of them CHORD), by user decision */
 static int16_t rs_buf[NTRK][RS_LEN] __attribute__((section(".pool")));
@@ -18,6 +20,10 @@ static const int8_t RS_CHORD_IV[RS_NCHORD][4] = {   /* semitones above TUNE, one
     {0, 3, 6, 12}, {0, 4, 8, 12}, {0, 4, 7, 9}, {0, 3, 7, 9}, {0, 4, 7, 11}, {0, 3, 7, 10}, {0, 4, 7, 10},
     {0, 3, 6, 10}, {0, 3, 6, 9}, {0, 5, 7, 10}, {0, 4, 7, 14}, {0, 5, 10, 15}, {0, 1, 2, 3},
 };
+
+/* p >> sh rounded toward zero: the loop's errors never feed energy one way (a floor's bias, held by a gain just
+ * under 1, kept a DC offset or a small cycle alive for ever), so a ring always decays to an all-zero line */
+static inline int32_t rs_mz(int32_t p, int32_t sh) { return (p + ((p >> 31) & ((1 << sh) - 1))) >> sh; }
 
 static uint32_t rs_chord(const track_t *t) { return (uint32_t)clamp(t->p[P_RSTRCT], 0, 127) * RS_NCHORD / 128u; }
 
@@ -51,6 +57,7 @@ static void reson_clear(track_t *t)                   /* silence: the line and t
     reson_t *r = &t->rs;
     memset(rs_buf[t - trk], 0, sizeof rs_buf[0]);
     memset(r->lp, 0, sizeof r->lp);
+    memset(r->lr, 0, sizeof r->lr);
     memset(r->apx, 0, sizeof r->apx);
     memset(r->apy, 0, sizeof r->apy);
     r->quiet = r->peak = r->w = 0;                    /* w: a CHORD line is shorter than STRNG's */
@@ -102,6 +109,8 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
             r->model = (uint8_t)m;
         }
     }
+    if (r->hold && !r->ring)
+        return 0;                                     /* after a cut, until the next hit: nothing to excite it */
     if (!r->model) {                                  /* OFF and quiet */
         r->model = (uint8_t)m;
         return 0;
@@ -114,20 +123,28 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
         int16_t *ln = buf + s * r->seg;
         uint32_t li = r->len[s] >> 8, w = r->w, seg = r->seg, tap = r->tap[s];
         uint32_t rp = w >= li ? w - li : w + seg - li, tp = w >= tap ? w - tap : w + seg - tap;   /* read, pickup tap */
-        int32_t lp = r->lp[s], apx = r->apx[s], apy = r->apy[s], g = r->g[s], k = r->k, a = r->a, ink = r->kill ? 0 : 1;
+        int32_t lp = r->lp[s], lr = r->lr[s], apx = r->apx[s], apy = r->apy[s], g = r->g[s], k = r->k, a = r->a, ink = r->kill || r->hold ? 0 : 1;
         int32_t fr = (int32_t)(r->len[s] & 255u), x1 = ln[rp ? rp - 1u : seg - 1u];   /* the older neighbour */
-        for (i = 0; i < n; i++) {                     /* 32-bit: |d - lp| < 2^16, |lp - apy| >> 2 and y >> 1 < 2^15 */
-            int32_t x0 = ln[rp], d = x0 + (((x1 - x0) * fr) >> 8), y, v;
+        for (i = 0; i < n; i++) {                     /* |d - lp| <= 65534; the all-pass output reaches ~2.94 x full scale
+                                                         * (|y| < 2^17: (y >> 1) * g fits 32 bits) */
+            int32_t x0 = ln[rp], d = x0 + rs_mz((x1 - x0) * fr, 8), y, v;
             x1 = x0;                                  /* (the write position is li >= 2 samples ahead: never read) */
-            lp += ((d - lp) * k) >> 15;
-            if (a) {                                  /* STRCT: the all-pass; at 0 a plain sample of delay */
-                y = ((((lp - apy) >> 2) * a) >> 13) + apx;
+            {                                         /* damping: the step's remainder carried (error feedback):
+                                                         * lp follows d exactly, no dead band to hold a value */
+                int32_t e = (d - lp) * k + lr, st = e >> 15;   /* |d - lp| <= 65534: e fits 32 bits */
+                lr = e - (st << 15);
+                lp += st;
+            }
+            if (a) {                                  /* STRCT: the all-pass (exact product: dropping bits before
+                                                         * it fed a small endless cycle); at 0 a plain sample of delay */
+                int64_t q = (int64_t)(lp - apy) * a;
+                y = (int32_t)((q + ((q >> 63) & 32767)) >> 15) + apx;
                 apy = y;
             } else {
                 y = apx;
             }
             apx = lp;
-            v = clamp(((b[i] >> 2) & -ink) + (((y >> 1) * g) >> 14), -32767, 32767);
+            v = clamp(((b[i] >> 2) & -ink) + rs_mz(rs_mz(y, 1) * g, 14), -32767, 32767);
             ring[i] += tap ? v - ln[tp] : v;
             ln[w] = (int16_t)v;
             peak |= (uint32_t)(v ^ (v >> 31));          /* >= the largest |v| (the floor test only) */
@@ -139,6 +156,7 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
                 tp = 0;
         }
         r->lp[s] = lp;
+        r->lr[s] = lr;
         r->apx[s] = apx;
         r->apy[s] = apy;
     }
@@ -154,7 +172,12 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
     r->peak = (uint16_t)peak;
     r->quiet = (uint16_t)(peak < RS_FLOOR ? r->quiet + 1u : 0u);
     r->ring = (uint8_t)(r->quiet <= r->seg / n + 2u);
-    if (r->kill || !r->ring) {
+    if (!r->ring && !r->kill) {                       /* quiet for a whole loop: fade the rest out next block (a residue
+                                                         * of the loop's rounding must not end as a step) */
+        r->ring = r->kill = 1;
+        return 1;
+    }
+    if (r->kill) {
         reson_clear(t);
         r->model = (uint8_t)m;
     }

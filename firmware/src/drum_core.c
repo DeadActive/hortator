@@ -28,6 +28,7 @@ static void drum_cut(track_t *t)                         /* every voice of t, wi
     uint32_t i;
     if (t->rs.ring)
         t->rs.kill = 1;                                  /* RESON: the ring fades out with the voices */
+    t->rs.hold = 1;                                      /* ... and the cut voices' declick tail starts no new one */
     for (i = 0; i < NDV; i++) {
         dv_cut(t, &t->v[i]);
         dv_cut(t, &t->lv[i]);
@@ -134,6 +135,7 @@ static void drum_hit(track_t *t, uint32_t vel)
             if (&trk[i] != t && trk[i].p[P_CHOKE] == t->p[P_CHOKE])
                 drum_cut(&trk[i]);
     model_follow(t);
+    t->rs.hold = 0;                                     /* RESON hears this hit (a model change's cut came first) */
     if ((uint32_t)t->p[P_MODEL] % NMODELS != DM_SMPL || smpl_playable(t)) {   /* nothing to play: no voice */
         v = dv_alloc(t, t->v, nv, m->weight ? m->weight : 1u);
         dv_init(v, vel);

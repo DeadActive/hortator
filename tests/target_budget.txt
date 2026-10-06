@@ -20,4 +20,4 @@ hh_render 288
 mix_part 687
 comp_block 133
 lfo_track 424
-reson_block 416
+reson_block 588

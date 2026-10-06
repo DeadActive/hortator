@@ -2593,6 +2593,81 @@ static void test_reson_lfo(void)
     check("LFO R.STR on CHORD: sweeping the chords under a ring stays bounded", during <= 32767 && during < before * 4 + 1000);
 }
 
+/* final review 1: every ring ends (the line all zero) after the input stops, at DECAY max and any pitch / TONE /
+ * STRCT / POS; a mute after a long silence does not thump (no stuck DC in the line) */
+static void test_reson_ring_ends(void)
+{
+    static const int16_t NOTE[3] = {24, 48, 96}, END[2] = {0, 127}, POS[2] = {0, 64};
+    uint32_t m, a, b, c, d, i, stuck = 0, runs = 0, nz;
+    int32_t pk;
+    for (m = RS_STRNG; m < RS_NMODEL; m++)
+        for (a = 0; a < 3u; a++)
+            for (b = 0; b < 2u; b++)
+                for (c = 0; c < 2u; c++)
+                    for (d = 0; d < 2u; d++) {
+                        host_init();
+                        drum_set_model(&trk[0], DM_K909);
+                        trk[0].p[P_RMODEL] = (int16_t)m;
+                        trk[0].p[P_RTUNE] = NOTE[a];
+                        trk[0].p[P_RTONE] = END[b];
+                        trk[0].p[P_RSTRCT] = END[c];
+                        trk[0].p[P_RPOS] = POS[d];
+                        trk[0].p[P_RDECAY] = 127;
+                        drum_hit(&trk[0], 127);
+                        render_mix(0, 0, SECS(20));
+                        for (i = 0, nz = 0; i < RS_LEN; i++)
+                            nz += rs_buf[0][i] != 0;
+                        runs++;
+                        if (trk[0].rs.ring || nz) {
+                            if (stuck < 4u)
+                                printf("     ring stuck: %s note %d TONE %d STRCT %d POS %d: ring %u, %u non-zero\n",
+                                       N_RMODEL[m], NOTE[a], END[b], END[c], POS[d], trk[0].rs.ring, nz);
+                            stuck++;
+                        }
+                    }
+    printf("     RESON ring end at DECAY max: %u of %u settings stuck after 20 s\n", stuck, runs);
+    check("RESON: every ring ends after the input stops (DECAY max, any pitch / TONE / STRCT / POS)", stuck == 0);
+    rs_setup(RS_STRNG, 48);                           /* a mute 20 s after the hit: nothing left to thump */
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_RSTRCT] = 127;
+    trk[0].p[P_RDECAY] = 127;
+    drum_hit(&trk[0], 127);
+    render_mix(0, 0, SECS(20));
+    drum_cut(&trk[0]);
+    render_mix(wl, 0, SECS(0.2));
+    pk = peak_of(wl, 0, SECS(0.2));
+    printf("     RESON mute 20 s after a hit (STRNG C3 STRCT 127): output peak %d\n", pk);
+    check("RESON: a mute long after a hit does not thump", pk < 16);
+}
+
+/* final review 2: a cut (mute / choke) ends the ring, and the cut voice's declick tail starts no new one */
+static void test_reson_cut_no_reexcite(void)
+{
+    static const uint32_t MODEL[2] = {DM_K909, DM_TOM};
+    uint32_t j;
+    for (j = 0; j < 2u; j++) {
+        int32_t pk;
+        uint32_t i, zc = 0;
+        host_init();
+        drum_set_model(&trk[0], MODEL[j]);
+        trk[0].p[P_RMODEL] = RS_STRNG;
+        trk[0].p[P_RTUNE] = 36;
+        trk[0].p[P_RDECAY] = 127;
+        drum_hit(&trk[0], 127);
+        render_mix(0, 0, SECS(0.03));
+        drum_cut(&trk[0]);
+        render_mix(wl, 0, SECS(2));
+        pk = peak_of(wl, SECS(0.5), SECS(2));        /* (before 0.5 s the master DC blocker settles from the cut, as
+                                                         * without RESON: no zero crossing) */
+        for (i = SECS(0.1); i < SECS(2); i++)
+            zc += (wl[i] > 0) != (wl[i - 1] > 0);
+        printf("     RESON cut 30 ms after a %s hit: peak 0.5..2 s %d, zero crossings after 0.1 s %u, ring %u\n",
+               N_MODEL[MODEL[j]], pk, zc, trk[0].rs.ring);
+        check(j ? "RESON: a cut while a TOM sounds: no new ring from its declick" : "RESON: a cut while a K909 sounds: no new ring from its declick",
+              pk < 16 && zc <= 2u && !trk[0].rs.ring);   /* (a ring at C2 would cross zero hundreds of times) */
+    }
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -2661,6 +2736,8 @@ int main(void)
     test_reson_sustain_bounded();
     test_reson_ghost_source();
     test_reson_lfo();
+    test_reson_ring_ends();
+    test_reson_cut_no_reexcite();
     test_percent_display();
     test_q24();
     test_tables();
