@@ -20,16 +20,19 @@ static uint64_t now;                                 /* samples since the test b
 static double next_pulse, next_arrival = -1.0;      /* the source's next Clock (samples), when it arrives */
 static uint32_t pulses, clk_rng = 7;
 static uint32_t pulse_at[40000];                     /* the block each pulse was sent in */
+static uint32_t pring[4096], hits_early, hits_late;   /* the last 4096 pulses' blocks; 1/16 hits off their pulse */
+static int32_t grid_err;                             /* the largest |step position - the clock's since its pulse| */
 
 static void clk_send(uint32_t status, uint32_t src, double at)   /* arrives at `at` (samples): stamped then */
 {
     fm1_ms = (uint32_t)(at * 1000.0 / FS);
     midi_enqueue(0x0Fu | status << 8, src);
 }
+static int clk_jitter = 1;                           /* 0: every pulse on time */
 static double late(void)                             /* a pulse arrives 0 .. 4 ms late (USB / TRS jitter) */
 {
     clk_rng = clk_rng * 1664525u + 1013904223u;
-    return (double)((clk_rng >> 29) % 5u) * FS / 1000.0;
+    return clk_jitter ? (double)((clk_rng >> 29) % 5u) * FS / 1000.0 : 0.0;
 }
 
 /* render frames, the source sending Clock at bpm from src while running; hits of tracks 0 / 1 into h0 / h1 */
@@ -46,6 +49,7 @@ static void run(uint64_t frames, double bpm, uint32_t src, int clock_on)
             clk_send(0xF8u, src, next_arrival);
             if (pulses < 40000u)
                 pulse_at[pulses] = (uint32_t)(now / CTL);
+            pring[pulses & 4095u] = (uint32_t)(now / CTL);
             pulses++;
             next_pulse += FS * 60.0 / bpm / 24.0;
             next_arrival = -1.0;
@@ -53,9 +57,19 @@ static void run(uint64_t frames, double bpm, uint32_t src, int clock_on)
         fm1_ms = (uint32_t)((now + CTL) * 1000u / FS);   /* the block is computed after what arrived in it */
         render_mix(0, 0, CTL);
         if (hit_age(&trk[0]) != A0) {
+            uint32_t b = (uint32_t)(now / CTL), j = 6u * N0;   /* a 1/16 on track 0: its pulse is the 6 N0-th */
             A0 = hit_age(&trk[0]);
             if (N0 < CAP)
-                H0[N0] = (uint32_t)(now / CTL);
+                H0[N0] = b;
+            if (j < pulses && pulses - j < 4096u) {
+                hits_early += b < pring[j & 4095u];
+                hits_late += b > pring[j & 4095u] + 2u;
+            }
+            if (song.g[G_CLOCK] && midi_clock.have_pulse) {  /* on the clock's grid: the step starts where its pulse is */
+                int32_t e = (int32_t)trk[0].seq_pos - (int32_t)(midi_clock.rendered - midi_clock.pos);
+                e = e < 0 ? -e : e;
+                grid_err = e > grid_err ? e : grid_err;
+            }
             N0++;
         }
         if (hit_age(&trk[1]) != A1) {
@@ -105,6 +119,46 @@ static int locked(double bpm, uint32_t src)
     if (bad)
         printf("     %.0f BPM src %u: %u hits off their pulse (1/16 %u, 4BAR %u)\n", bpm, src, bad, N0, N1);
     return bad == 0u && N0 >= 4999u && N1 >= 13u;
+}
+
+/* final review: a steady clock (140 BPM: 428 / 429 ms a beat in ms timestamps) must not flip the tempo every beat
+ * (each flip moved the delay's read point: a tick) */
+static int steady_tempo(int jitter)
+{
+    uint32_t changes = 0, last, i;
+    H0 = h0;
+    H1 = h1;
+    CAP = 6000u;
+    setup(1);
+    clk_jitter = jitter;
+    clk_send(0xFAu, 1, (double)now);
+    run(3u * FS, 140.0, 1, 1);                       /* the first readings settle */
+    last = beat_samples();
+    for (i = 0; i < 20u * FS / (CTL * 64u); i++) {
+        run(CTL * 64u, 140.0, 1, 1);
+        changes += beat_samples() != last;
+        last = beat_samples();
+    }
+    clk_jitter = 1;
+    if (changes > 1u)
+        printf("     140 BPM, jitter %d: the tempo changed %u times in 20 s\n", jitter, changes);
+    return changes <= 1u;
+}
+
+/* final review: an hour of a jittered clock: every 1/16 on its pulse (none early, none late), at bpm */
+static int long_run(double bpm)
+{
+    H0 = h0;
+    H1 = h1;
+    CAP = 0u;                                        /* checked as they come (run): an hour is too many to keep */
+    setup(1);
+    hits_early = hits_late = 0;
+    grid_err = 0;
+    clk_send(0xFAu, 1, (double)now);
+    run(3600u * (uint64_t)FS, bpm, 1, 1);
+    printf("     %.0f BPM: %u early, %u late of %u 1/16s; the step off the clock's grid by %d samples at most\n", bpm,
+           hits_early, hits_late, N0, grid_err);
+    return hits_early == 0u && hits_late == 0u && N0 > 10000u && grid_err <= (int32_t)CTL;
 }
 
 int main(void)
@@ -194,6 +248,11 @@ int main(void)
     run(FS / 10, 120.0, 1, 0);
     check("CLK USB, PLAY on the FM-1, no Clock yet: armed, no step", N0 == 0u);
 
+    check("a steady clock (140 BPM, on time): the tempo holds (no per-beat flip)", steady_tempo(0));
+    check("a steady clock (140 BPM, 0 .. 4 ms late): the tempo holds", steady_tempo(1));
+    check("an hour at 128 BPM, 0 .. 4 ms late: every 1/16 on its pulse, on the clock's grid within a block", long_run(128.0));
+    check("an hour at 174 BPM, 0 .. 4 ms late: the same", long_run(174.0));
+    check("an hour at 240 BPM, 0 .. 4 ms late: the same", long_run(240.0));
     printf(fails ? "midi_clock_test: %d FAILED\n" : "midi_clock_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

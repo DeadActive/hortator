@@ -89,7 +89,7 @@ static void grids_tick(uint32_t n)
             break;
         if (!start)
             gclk.rem = (uint8_t)div_rem_next(2u, gclk.rem);
-        gclk.pos = start ? 0 : gclk.pos - l16;
+        gclk.pos = start ? (song.g[G_CLOCK] ? gclk.pos - 0x7FFFFFFFu : 0) : gclk.pos - l16;   /* (as seq_tick) */
         gclk.cnt++;
         gclk.half = 0;
         grids_fire();                               /* the even 1/32, on the 1/16 */
@@ -261,8 +261,10 @@ static void seq_tick(track_t *t, uint32_t n)
         rat_due(t, cur_len);
         if (t->seq_pos < cur_len && t->seq_pos != 0x7FFFFFFFu + n)
             break;
-        if (t->seq_pos >= 0x7FFFFFFFu) {
-            t->seq_pos = 0;                         /* PLAY: step 0 (its remainder 0) */
+        if (t->seq_pos >= 0x7FFFFFFFu) {            /* PLAY: step 0 (its remainder 0); following a clock, the advance
+                                                     * into it counts (it began on the pulse), else the steps sit that
+                                                     * far behind the clock's grid for good */
+            t->seq_pos = song.g[G_CLOCK] ? t->seq_pos - 0x7FFFFFFFu : 0;
         } else {
             t->seq_pos -= cur_len;
             t->seq_rem = (uint8_t)div_rem_next(div, t->seq_rem);
@@ -301,24 +303,12 @@ static void events_block(uint32_t n)
         seq_stop();
         transport_req = 0;
     }
-    if (clock_mode) {                                /* following: the steps move with the clock */
-        seq_n = 0;
-        if (song.playing) {
-            uint32_t last = midi_clock.have_pulse ? midi_clock.last_ms : midi_clock.start_ms;
-            if (fm1_ms - last > 500u) {
-                seq_stop();                          /* the clock lost (a cable out): stop, nothing left running */
-                midi_clock.tempo_valid = 0;
-            } else {
-                seq_n = midi_clock_advance(fm1_ms);
-            }
-        }
-    }
     pr = panic_req;
     panic_req = 0;
     if (song.mute_q) {                              /* TRACKS' waiting mutes: before the bar's first steps */
         uint32_t src = comp_src(), gs = comp_ghost_src(), sb = gs < NTRK ? 1u << gs : 0u, l16 = grids_l16(gclk.cnt);
         int bar = song.playing && ((gclk.cnt + 1u) & 15u) == 0u;
-        if (bar && (song.mute_q & sb) && gclk.pos + seq_n + MUTE_LEAD >= l16) {   /* the COMP source plays on muted (ghost
+        if (bar && (song.mute_q & sb) && gclk.pos + n + MUTE_LEAD >= l16) {   /* the COMP source plays on muted (ghost
                                                          * key): it changes ahead of the bar */
             if (!trk[src].p[P_MUTE]) {
                 trk[src].p[P_MUTE] = 1;             /* mute: its 5 ms fade (fx.c) ends before the bar's first hit */
@@ -327,7 +317,7 @@ static void events_block(uint32_t n)
                 pr |= sb;                           /* unmute: its silent voices end (declick) before the bar */
             }
         }
-        if (!song.playing || (bar && gclk.pos + seq_n >= l16)) {
+        if (!song.playing || (bar && gclk.pos + n >= l16)) {
             for (i = 0; i < NTRK; i++)
                 if ((song.mute_q >> i) & 1u) {
                     trk[i].p[P_MUTE] = (int16_t)!trk[i].p[P_MUTE];
@@ -344,6 +334,18 @@ static void events_block(uint32_t n)
             drum_cut(&trk[i]);
     keyboard_block();
     midi_block();
+    if (clock_mode) {                                /* following: the steps move with the clock (after its packets */
+        seq_n = 0;                                   /* of this block are read, as upstream: a tempo change rescales */
+        if (song.playing) {                          /* first, then this block's advance is in the new units) */
+            uint32_t last = midi_clock.have_pulse ? midi_clock.last_ms : midi_clock.start_ms;
+            if (fm1_ms - last > 500u) {
+                seq_stop();                          /* the clock lost (a cable out): stop, nothing left running */
+                midi_clock.tempo_valid = 0;
+            } else {
+                seq_n = midi_clock_advance(fm1_ms);
+            }
+        }
+    }
     run = !clock_mode || midi_clock.have_pulse;     /* following: step 0 / the resumed step on the first pulse */
     if (run) {
         for (i = 0; i < NTRK; i++)

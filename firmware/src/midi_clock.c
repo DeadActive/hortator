@@ -4,12 +4,15 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* MIDI clock in (upstream 1.0's midi_clock.c, without its arpeggiator / motion / song chain parts): the chosen
  * source's Clock moves the sequencer, a beat / 24 a pulse (the remainder kept: 24 pulses = one beat), interpolated
- * between pulses but never past the next one; the tempo is measured over 6 pulses from the input ring's timestamps
+ * between pulses, stopping 1/8 pulse short of the next one; the tempo is measured over 24 pulses (a beat) and
+ * averaged over 4 beats, from the input ring's timestamps
  * (USB / TRS jitter stays outside the render). Audio ISR state. */
 static struct {
     uint32_t pos, rendered, last_ms, start_ms, rem, interval_ms;
     uint32_t pulse_samples, interp_q8, tempo_ms;
     uint8_t mode, have_pulse, tempo_valid, tempo_n;
+    uint16_t dts[4];                                 /* the last beats' lengths (ms, 24 pulses each) */
+    uint8_t dt_n, dt_i;                              /* .. how many, the next slot */
 } midi_clock;
 
 static __attribute__((noinline)) void midi_clock_transport(uint32_t status, uint32_t ms)
@@ -46,7 +49,22 @@ static __attribute__((noinline)) void midi_clock_pulse(uint32_t ms)
         /* 24 clocks are a beat (upstream measured 6, a quarter of one: a few ms of USB / TRS arrival jitter then
          * moved the tempo +-3 % at every reading). Reject gaps and corrupt bursts (40 .. 240 BPM). */
         if (dt >= 250u && dt <= 1500u) {
-            uint32_t old_beat = beat_samples(), new_beat = (uint32_t)FS * dt / 1000u;
+            /* the tempo: the last 4 beats averaged, changed only when that moves more than 0.5 % (a clock timed
+             * in whole ms reads e.g. 428 / 429 ms a beat at 140 BPM: taken raw, the tempo flipped every beat,
+             * moving the delay's read point (a tick) and rescaling every track). A beat more than 2 % off is a
+             * real change: the average starts again from it, so it is followed within the beat. */
+            uint32_t n, sum = 0, old_beat = beat_samples(), one = (uint32_t)FS * dt / 1000u, new_beat;
+            if (midi_clock.dt_n && (one * 50u > old_beat * 51u || one * 51u < old_beat * 50u))
+                midi_clock.dt_n = 0;
+            midi_clock.dts[midi_clock.dt_i] = (uint16_t)dt;
+            midi_clock.dt_i = (uint8_t)((midi_clock.dt_i + 1u) & 3u);
+            if (midi_clock.dt_n < 4u)
+                midi_clock.dt_n++;
+            for (n = 0; n < midi_clock.dt_n; n++)
+                sum += midi_clock.dts[(midi_clock.dt_i + 3u - n) & 3u];
+            new_beat = (uint32_t)FS * sum / (1000u * midi_clock.dt_n);
+            if (midi_beat_samples && new_beat * 200u <= old_beat * 201u && new_beat * 201u >= old_beat * 200u)
+                new_beat = old_beat;                 /* within 0.5 %: kept */
             if (song.playing && new_beat != old_beat) {
                 /* each track keeps its place in its step when the tempo changes (and Grids its 1/16), the
                  * in-progress advance too. The ratio is Q15 and rounded to nearest: upstream's Q12, rounded down,
@@ -65,7 +83,7 @@ static __attribute__((noinline)) void midi_clock_pulse(uint32_t ms)
                 midi_clock.rendered = midi_clock.pos + (uint32_t)(int32_t)((d * (int64_t)r + 16384) >> 15);
             }
             midi_beat_samples = new_beat;
-            song.g[G_BPM] = (int16_t)clamp((int32_t)((60000u + dt / 2u) / dt), 40, 240);
+            song.g[G_BPM] = (int16_t)clamp((int32_t)(((uint32_t)FS * 60u + new_beat / 2u) / new_beat), 40, 240);
         }
     }
     if (song.playing) {
