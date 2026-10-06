@@ -171,8 +171,11 @@ Report what you saw first; we'll go through it together.
 - A keyboard or sequencer on the TRS MIDI input sending on the drum channel (GLOBAL page, CH; 10 by default):
   every note plays the tracks whose NOTE matches, as over USB; a keyboard's note-off plays nothing.
 - USB MIDI from a DAW at the same time: both play.
-- Nothing plugged into TRS (also plugging / unplugging the cable while idle): no stray hits. Optional: console
-  `status` shows `uart_enabled 1` and `uart_rx_bytes 0` with nothing plugged in.
+- Nothing plugged into TRS (also plugging / unplugging the cable while idle): no stray hits. Optional: right after
+  power-on with nothing ever plugged in, console `status` shows `uart_enabled 1` and `uart_rx_bytes 0`; with the
+  cable out it does not grow.
+- If a TRS keyboard plays nothing: check console `status` while you play. If `uart_rx_bytes` stays 0, try the other
+  TRS adapter type (A / B); if it grows but nothing plays, check the channel (GLOBAL page, CH).
 - A MIDI clock on TRS: nothing follows it yet (the MIDI clock feature comes later); notes still play while it runs,
   the panel and audio behave as before.
 

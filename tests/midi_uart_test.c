@@ -2,7 +2,8 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Host test of the MIDI input parsers: the running-status parser in
  * firmware/src/midi_uart.c (um_byte) and the USB-MIDI SysEx path of firmware/src/usb_app.c, the app's driver
- * (sysex_byte frame assembly, ota_wire_send packetising). The loader's usb.c is tested end to end by ldr_test.
+ * (sysex_byte frame assembly, ota_wire_send packetising). The loader's usb.c is frozen and its binary pinned
+ * (check_untouched, check_loader); no host test compiles it.
  * Drum machine fork: 2026 DEADACTIVE */
 #include <stdint.h>
 #include <stdio.h>

@@ -76,7 +76,7 @@ Its `#if FELUCCA_UART` code now compiles: TIMER5 owes the UART poll on every 5th
 `tests/midi_uart_test.c` (parser):
 - switches its driver include from `usb.c` to `usb_app.c` (where `midi_enqueue` lives, as upstream's test does
   with its `usb.c`); its SysEx / OTA cases keep testing the same functions, which `usb_app.c` also has. The
-  loader's own `usb.c` stays covered end to end by `ldr_test`.
+  loader's own `usb.c` is frozen and its binary pinned (`check_untouched`, `check_loader`); no host test compiles it.
 - the mixed-stream case expects the `F8` inside a running-status note stream as packet `0x0000F80F`, with the notes
   around it intact (upstream's expectation);
 - a TRS `FA` is queued with `midi_in_ms` = `fm1_ms` and `midi_in_source` = 2; a USB realtime packet with source 1;
