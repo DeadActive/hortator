@@ -109,3 +109,20 @@ test('hero pose: the shine never plays while the scene is blurred (a blur filter
       if (phone && q.morph > 0) assert.equal(q.transform, 'none', `p=${i / 1000}: the phone morphs only once flat`);
     }
 });
+
+// ---- the features: a sticky screen plays each feature's clip; the panel locator lights the controls to press
+import { BTN, ENC } from '../web/sim/controls.js';
+
+test('features: each names a recorded clip and real panel controls', () => {
+  const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
+  const feats = [...sec.matchAll(/<li class="feat"[^>]*data-clip="(\w+)"[^>]*data-press="([^"]+)"/g)];
+  assert.ok(feats.length >= 6, `${feats.length} features`);
+  const clips = new Set(['home', 'seq', 'sound', 'fx', 'grids', 'comp', 'tracks', 'lfo', 'end']);   // tests/sim_record.c
+  const labels = new Set([...BTN.map(b => b.label), ...ENC.map(e => e.label)]);
+  for (const [, clip, press] of feats) {
+    assert.ok(clips.has(clip), `clip ${clip}`);
+    for (const l of press.split(' ')) assert.ok(labels.has(l), `${clip}: ${l} is not on the panel`);
+  }
+  assert.match(sec, /id="manual-screen"/, 'the sticky screen');
+  assert.match(sec, /id="locator"/, 'the panel locator');
+});

@@ -78,45 +78,64 @@
   </div>
 </div>
 
-<section id="features" class="features">
-  <h2>What it does</h2>
-  <div class="grid">
-    <article>
-      <h3>Eight drum tracks</h3>
-      <p>Each track plays a drum model: 808 and 909 kicks, snares and claps, hats, toms, cowbell, cymbal, rim, clave,
-        conga, and Plaits-style kicks, snares and hats. Every model has TUNE, DECAY, TONE and a fourth knob.</p>
-      <p class="where">On the panel: <b>EDIT</b>. ALGORITHM or a white key on HOME picks the track.</p>
-    </article>
-    <article>
-      <h3>Step sequencer</h3>
-      <p>Up to 64 steps per track, each track with its own length. Accents, swing, PROB and RATCH per step, fills that
-        play every other bar, live recording, and mutes that wait for the next bar.</p>
-      <p class="where">On the panel: <b>SEQ</b>, the 16 white keys are the steps. <b>REC</b> for TRACKS and recording.</p>
-    </article>
-    <article>
-      <h3>Grids</h3>
-      <p>Mutable Instruments' pattern generator: move through its drum map, add chaos, or switch to Euclidean rhythms.
-        Any track can follow one of its three channels.</p>
-      <p class="where">On the panel: <b>ARP</b>.</p>
-    </article>
-    <article>
-      <h3>Compressor</h3>
-      <p>The Streams compressor, keyed by any track: duck the hats and the reverb under the kick for a pumping mix.
-        GHOST keeps the pump going with the key track muted.</p>
-      <p class="where">On the panel: <b>HOME</b>, then PRESETS to the COMP pages.</p>
-    </article>
-    <article>
-      <h3>LFOs and RESON</h3>
-      <p>Two LFOs per track, ten waves with morph, synced to the tempo. RESON adds a string, pipe or chord resonator
-        to a track.</p>
-      <p class="where">On the panel: <b>LFO</b>; RESON on the <b>FX</b> pages.</p>
-    </article>
-    <article>
-      <h3>Effects</h3>
-      <p>Distortion and the SLICER on every track; delay, ROOM or SPRING reverb and chorus sends; a master limiter, and
-        BASS+ to make the small speaker sound bigger.</p>
-      <p class="where">On the panel: <b>FX</b>, PRESETS turns the pages. BASS+ is in the menu (hold HOME).</p>
-    </article>
+<section id="features" class="features" aria-labelledby="features-title">
+  <header class="features-head">
+    <h2 id="features-title">Everything is on the panel.</h2>
+    <p>No menus to dig through: every feature has its button, and the screen shows it at work. These are the
+      firmware's own screens, recorded from the same build you can play above.</p>
+  </header>
+  <div class="manual">
+    <aside class="manual-aside" aria-hidden="true">
+      <div class="manual-plate">
+        <canvas id="manual-screen" width="240" height="240"></canvas>
+      </div>
+      <div class="locator" id="locator"></div>
+      <p class="press" id="press"></p>
+    </aside>
+    <ol class="feats">
+      <li class="feat" data-clip="tracks" data-press="REC ALGORITHM">
+        <h3>Eight drum tracks</h3>
+        <p>Each track plays its own drum model and pattern. TRACKS shows all eight at once: level, length and pan,
+          with mutes that can wait for the next bar so a drop lands on the one.</p>
+        <p class="where"><b>REC</b> opens TRACKS; <b>ALGORITHM</b> picks a track anywhere.</p>
+      </li>
+      <li class="feat" data-clip="sound" data-press="EDIT KNOB1 KNOB2 KNOB3 KNOB4">
+        <h3>Shape every hit</h3>
+        <p>808 and 909 kicks, snares and claps, hats, toms, cowbell, cymbal, rim, clave, conga and Plaits-style
+          voices. Every model has TUNE, DECAY, TONE and a fourth knob of its own.</p>
+        <p class="where"><b>EDIT</b>, then the four knobs.</p>
+      </li>
+      <li class="feat" data-clip="seq" data-press="SEQ">
+        <h3>Step sequencer</h3>
+        <p>Up to 64 steps per track on the 16 white keys, each track with its own length. Accents, swing, PROB and
+          RATCH per step, fills that play every other bar, and live recording.</p>
+        <p class="where"><b>SEQ</b>; the white keys are the steps.</p>
+      </li>
+      <li class="feat" data-clip="grids" data-press="ARP">
+        <h3>Grids</h3>
+        <p>Mutable Instruments' pattern generator. Move through its map of drum patterns, add chaos, or switch to
+          Euclidean rhythms; any track can follow one of its three channels.</p>
+        <p class="where"><b>ARP</b>.</p>
+      </li>
+      <li class="feat" data-clip="comp" data-press="HOME PRESETS">
+        <h3>A compressor that pumps</h3>
+        <p>The Streams compressor, keyed by any track: duck the hats and the reverb under the kick. GHOST keeps the
+          pump going even with the key track muted.</p>
+        <p class="where"><b>HOME</b>, then <b>PRESETS</b> to the COMP pages.</p>
+      </li>
+      <li class="feat" data-clip="lfo" data-press="LFO">
+        <h3>Movement</h3>
+        <p>Two LFOs per track, ten waves with a morph between them, synced to the tempo, each on its own
+          destination: pitch, decay, tone, level, pan and more.</p>
+        <p class="where"><b>LFO</b>; press it again for the second one.</p>
+      </li>
+      <li class="feat" data-clip="fx" data-press="FX PRESETS">
+        <h3>Effects</h3>
+        <p>Distortion, the SLICER and RESON (string, pipe or chord) on every track; delay, ROOM or SPRING reverb
+          and chorus sends; a master limiter, and BASS+ for the small speaker.</p>
+        <p class="where"><b>FX</b>, <b>PRESETS</b> turns the pages.</p>
+      </li>
+    </ol>
   </div>
 </section>
 

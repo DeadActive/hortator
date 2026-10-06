@@ -39,7 +39,7 @@ body {
 }
 
 /* ---- page: the hero, then sections and footer in one column (the device's width) */
-.features, .install, .foot, .help { width: min(100% - 32px, 1000px); }
+.install, .foot, .help { width: min(100% - 32px, 1000px); }
 button { font: inherit; }
 .silk { font: 15px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.05em; }
 .cta {
@@ -138,13 +138,60 @@ button { font: inherit; }
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
-.features, .install { padding: 56px 0 0; }
-.features > h2, .install > h2 { font-size: 26px; font-weight: 600; margin: 0 0 20px; letter-spacing: -0.01em; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 28px 36px; }
-.grid article { border-top: 2px solid var(--ink); padding-top: 12px; }
-.grid h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
-.grid p { margin: 0; color: var(--ink-soft); }
-.grid p.where { margin-top: 10px; font-size: 14px; color: var(--ink); }
+.install { padding: 72px 0 0; }
+.install > h2 { font-size: 26px; font-weight: 600; margin: 0 0 20px; letter-spacing: -0.01em; }
+/* the features: the hero's dark stage goes on; a sticky screen plays the clip of the feature in the middle of the
+   window, a small FM-1 under it lights the controls to press */
+.features {
+  width: 100%; color: #e9ebee; padding: 96px max(16px, 5vw) 120px;
+  background: linear-gradient(#15171a, #1b1e22 30%, #1b1e22 80%, var(--backdrop));
+}
+.features-head { max-width: 1120px; margin: 0 auto 56px; }
+.features-head h2 {
+  font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; font-stretch: 112%; font-weight: 600;
+  font-size: clamp(32px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.02em; margin: 0; max-width: 16ch;
+}
+.features-head p { color: #b8bdc4; font-size: 17px; max-width: 54ch; margin: 18px 0 0; }
+.manual { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(280px, 460px) 1fr; gap: 72px; }
+.manual-aside { position: sticky; top: 8vh; align-self: start; width: min(100%, 47vh); }   /* screen, panel and caption fit the window */
+.manual-plate {
+  background: #0d0f11; border-radius: 28px; padding: 22px;
+  box-shadow: 0 0 0 3px #3a3d42, 0 0 0 9px #4c5057, 0 30px 70px rgba(0,0,0,.55), 0 0 90px rgba(190,210,255,.06);
+}
+#manual-screen { display: block; width: 100%; aspect-ratio: 1; image-rendering: pixelated; image-rendering: crisp-edges;
+  border-radius: 6px; background: #000; }
+.locator { position: relative; width: 100%; aspect-ratio: 1000 / 620; margin-top: 28px; }
+.mini { position: absolute; left: 0; top: 0; width: 1000px; height: 620px; transform-origin: 0 0; border-radius: 44px;
+  background: linear-gradient(170deg, #4d5157, #3e4147); }
+.mini > div { position: absolute; }
+.mini .m-bezel { background: #0d0f11; border-radius: 22px; }
+.mini .m-lcd { background: #1a1d21; border-radius: 4px; }
+.mini .m-oct, .mini .m-buttons, .mini .m-keys { background: #2a2d32; border-radius: 18px; }
+.mini .m-btn { background: #565a61; border-radius: 9px; transition: background .25s, box-shadow .25s; }
+.mini .m-key { background: #4a4e55; border-radius: 999px; }
+.mini .m-enc { background: #26282c; border-radius: 50%; box-shadow: 0 0 0 5px #34373c; transition: background .25s, box-shadow .25s; }
+.mini .lit { background: #f2f7ff; box-shadow: 0 0 18px 6px rgba(215,232,255,.55); }
+.mini .m-enc.lit { box-shadow: 0 0 0 5px #f2f7ff, 0 0 22px 8px rgba(215,232,255,.5); }
+.press { font: 15px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: .06em; color: #f2f7ff; margin: 18px 0 0;
+  text-shadow: 0 0 10px rgba(215,232,255,.6); }
+.feats { list-style: none; margin: 0; padding: 0; }
+.feat { min-height: 64vh; display: flex; flex-direction: column; justify-content: center; opacity: .3;
+  transition: opacity .35s ease; }
+.feat.active { opacity: 1; }
+.feat h3 { font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; font-stretch: 112%; font-weight: 600;
+  font-size: clamp(24px, 2.6vw, 36px); letter-spacing: -0.01em; margin: 0 0 12px; line-height: 1.05; }
+.feat p { margin: 0; color: #b8bdc4; font-size: 17px; max-width: 46ch; }
+.feat p.where { margin-top: 14px; font-size: 15px; color: #e9ebee; }
+@media (max-width: 860px) {                       /* phones: the screen pinned on top, the text scrolls under it */
+  .features { padding-top: 72px; }
+  .manual { grid-template-columns: 1fr; gap: 0; }
+  .manual-aside { top: 0; width: 100%; z-index: 3; display: grid; grid-template-columns: 42% 1fr; gap: 14px; align-items: center;
+    padding: 12px 0; background: #1b1e22; box-shadow: 0 16px 24px -12px #1b1e22; }
+  .manual-plate { padding: 10px; border-radius: 16px; }
+  .locator { margin-top: 0; }
+  .press { grid-column: 2; margin: -6px 0 0; font-size: 12px; }
+  .feat { min-height: 58vh; }
+}
 .where b { font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.04em; padding: 3px 6px 2px;
   border-radius: 5px; background: var(--body); color: var(--silk); vertical-align: 1px; }
 
