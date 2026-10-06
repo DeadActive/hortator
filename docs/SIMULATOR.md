@@ -25,6 +25,13 @@ cd build/sim && python3 -m http.server 8001
 
 `tools/build_sim.sh --host-only` stops after the headless C test: no Docker, no node.
 
+**Another firmware version:** `tools/build_sim.sh --ref main` (any branch or commit) builds the simulator from that
+commit's firmware without touching a branch. It exports the commit into `build/sim/src`, lays this checkout's
+simulator files (`tests/sim_*`, `web/sim`) over it, builds from there, and packs that tree as `source.tar.gz`. The
+firmware session's uncommitted changes are not in it: commit them first. The page's ABOUT shows the firmware's
+`VERSION.txt` (`DRUM-x.y.z`). If the firmware gained a source file or a HAL call the simulator lacks, the build
+stops and names it (the drift guard); `tests/sim_host.h` then needs a line.
+
 Everything the script writes goes under `build/sim/`:
 - `gen/`: the generated headers, from `tools/build.py`'s generators;
 - `host/sim_test`;
