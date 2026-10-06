@@ -191,6 +191,50 @@ static void test_demos_and_flash(void)
     check("hostile flash: boots and runs", fb_lit() > 500u);
 }
 
+/* the firmware's source list (felucca.c's #include "X.c") against the simulator's (sim_host.h): a source the
+ * firmware gains and the simulator lacks fails here, by name. Run from the repo root (tools/build_sim.sh). */
+static uint32_t c_includes(const char *path, char names[][32], uint32_t max)
+{
+    FILE *f = fopen(path, "r");
+    char line[256];
+    uint32_t n = 0;
+    if (!f)
+        return 0;
+    while (fgets(line, sizeof line, f) && n < max) {
+        char *q = strstr(line, "#include \""), *e, *b;
+        if (!q || q != line)
+            continue;
+        q += 10;
+        if (!(e = strchr(q, '"')) || e - q < 3 || strncmp(e - 2, ".c", 2))
+            continue;
+        *e = 0;
+        b = strrchr(q, '/') ? strrchr(q, '/') + 1 : q;
+        snprintf(names[n++], 32, "%s", b);
+    }
+    fclose(f);
+    return n;
+}
+
+static void test_drift(void)
+{
+    static const char *const LEFT_OUT[] = {"lcd.c", "main.c", "ota.c", "console.c"};   /* see sim_host.h */
+    static char fw[64][32], sim[64][32];
+    uint32_t nf = c_includes("firmware/src/felucca.c", fw, 64), ns = c_includes("tests/sim_host.h", sim, 64), i, j, ok = 1;
+    check("drift: felucca.c and sim_host.h read", nf > 10u && ns > 10u);
+    for (i = 0; i < nf; i++) {
+        int found = 0;
+        for (j = 0; j < ns; j++)
+            found |= !strcmp(fw[i], sim[j]);
+        for (j = 0; j < sizeof LEFT_OUT / sizeof LEFT_OUT[0]; j++)
+            found |= !strcmp(fw[i], LEFT_OUT[j]);
+        if (!found) {
+            printf("FAIL  drift: felucca.c includes %s, the simulator does not (tests/sim_host.h)\n", fw[i]);
+            ok = 0;
+        }
+    }
+    check("drift: every firmware source is in the simulator or left out on purpose", ok);
+}
+
 static void test_frame_cost(void)                    /* informational: a UI frame runs in the audio thread */
 {
     clock_t t0;
@@ -211,6 +255,7 @@ int main(void)
     test_audio();
     test_leds();
     test_demos_and_flash();
+    test_drift();
     test_frame_cost();
     printf(fails ? "sim_test: %d FAILED\n" : "sim_test: all ok\n", fails);
     return fails != 0;
