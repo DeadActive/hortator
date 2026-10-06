@@ -106,6 +106,7 @@ test('BTN and ENC follow panel.c (label ids are array indexes)', () => {
   assert.deepEqual(ENC.map(e => e.c), cEnum('EN_SELECT'));
   assert.equal(BTN[B_EDIT].label, 'EDIT');
   assert.equal(BTN[B_PLAY].label, 'PLAY');
+  assert.equal(BTN[1].label, 'SEL', 'B_SCL is printed SEL on the device');
 });
 
 test('27 keys F3..G5, the white ones are the step keys (seq.c STEP_KEY)', () => {

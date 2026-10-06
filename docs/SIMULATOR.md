@@ -135,6 +135,15 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
 
    Why: one site, one URL family. Nothing breaks without it, because `build/sim/` can be hosted alone.
 
-2. Nothing in `firmware/**` is needed. The simulator includes the sources as they are.
+2. **The button printed SEL is named SCL in the firmware** (`panel.c`: `B_SCL`, `B_NAME[1] = "SCL"`, shown by HARDWARE
+   CALIBRATION's "PRESS SCL"; `docs/panel.jpg`'s caption says "SCL: Scale"). The simulator's panel prints SEL, as the
+   device does. If the firmware should match, change `B_NAME[1]` to `"SEL"` (the enum name can stay):
+
+   ```diff
+   -static const char *const B_NAME[NB] = {"FX", "SCL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE",
+   +static const char *const B_NAME[NB] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE",
+   ```
+
+3. Nothing else in `firmware/**` is needed. The simulator includes the sources as they are.
 
    Tidy-up suggestion, also optional: `tests/drum_host.h` includes `<libproc.h>` / `<sys/resource.h>` (macOS only) for `instr_now`. Guarding those with `#ifdef __APPLE__` would let other hosts and emscripten reuse it, but `tests/sim_host.h` works without it.

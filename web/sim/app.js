@@ -18,7 +18,7 @@ function keybed(x0, y0, width, wW, wH, bW, bH, gapY) {    // whites in a row, th
   });
   return out;
 }
-const ROWS = [['FX', 'SCL', 'ENV', 'LFO', 'EDIT', 'GLO'], ['HOME', 'SAVE', 'ARP', 'SEQ', 'PLAY', 'REC']];
+const ROWS = [['FX', 'SEL', 'ENV', 'LFO', 'EDIT', 'GLO'], ['HOME', 'SAVE', 'ARP', 'SEQ', 'PLAY', 'REC']];
 function buttonRows(rows, x0, y0, size, step, rowStep) {
   const out = {};
   rows.forEach((r, j) => r.forEach((l, i) => { out[`btn:${B[l]}`] = [x0 + i * step, y0 + j * rowStep, size, size]; }));

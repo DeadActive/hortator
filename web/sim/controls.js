@@ -3,7 +3,7 @@
 // The FM-1 panel's controls as data (no DOM): label ids are panel.c's enum order (tests/sim_glue.mjs checks it),
 // the 27 keys, the computer keyboard map, and the held-state bookkeeping the page uses.
 export const BTN = [
-  { c: 'B_FX', label: 'FX' }, { c: 'B_SCL', label: 'SCL' }, { c: 'B_ENV', label: 'ENV' }, { c: 'B_LFO', label: 'LFO' },
+  { c: 'B_FX', label: 'FX' }, { c: 'B_SCL', label: 'SEL' }, { c: 'B_ENV', label: 'ENV' }, { c: 'B_LFO', label: 'LFO' },
   { c: 'B_EDIT', label: 'EDIT' }, { c: 'B_GLO', label: 'GLO' }, { c: 'B_HOME', label: 'HOME' },
   { c: 'B_SAVE', label: 'SAVE' }, { c: 'B_ARP', label: 'ARP' }, { c: 'B_SEQ', label: 'SEQ' },
   { c: 'B_PLAY', label: 'PLAY' }, { c: 'B_REC', label: 'REC' }, { c: 'B_OCTDN', label: 'OCT-' }, { c: 'B_OCTUP', label: 'OCT+' },
