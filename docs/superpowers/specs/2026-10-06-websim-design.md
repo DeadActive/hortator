@@ -44,7 +44,8 @@ void      sim_btn(uint32_t label, int down);   /* label = B_FX .. B_OCTUP (panel
 void      sim_key(uint32_t n, int down);       /* note key 0 (F3) .. 26 (G5) */
 void      sim_enc(uint32_t role, int32_t steps); /* role = EN_SELECT .. EN_K4, + = clockwise */
 void      sim_master(uint32_t v);       /* 0..1023, the MASTER pot (song.master_q12 as main.c computes it) */
-uint32_t  sim_leds(void);               /* bit i = button label i lit, bit 14 + n = note key n lit */
+uint32_t  sim_leds(void);               /* bit b = button label b lit */
+uint32_t  sim_key_leds(void);           /* bit n = note key n lit (two words: 14 + 27 bits do not fit one) */
 pointers: sim_fb() (RGB565 240×240), sim_audio(), sim_flash() (1 MiB image), sim_flash_dirty() (bit per 4 KB sector,
           cleared by sim_flash_clean())
 ```
@@ -66,8 +67,9 @@ pointers: sim_fb() (RGB565 240×240), sim_audio(), sim_flash() (1 MiB image), si
 ## Panel and interaction
 
 - Drawn in HTML/CSS (no photo): the FM-1's dark grey body, layout from `docs/panel.jpg`. Landscape: as the device.
-  Portrait phones: screen with SELECT / ALGORITHM / PRESETS / MASTER beside it, KNOB 1–4 row, the 12-button block,
-  OCT− / OCT+, the keyboard full width at the bottom. The screen is a `<canvas>` 240×240, scaled with
+  Portrait phones: the screen on top, MASTER / SELECT / ALGORITHM / PRESETS and KNOB 1–4 rows, the buttons in two
+  rows of seven (OCT− / OCT+ at their ends), the keyboard full width at the bottom; the device scales to fit width and
+  height, so the keys stay above the fold. The screen is a `<canvas>` 240×240, scaled with
   `image-rendering: pixelated`.
 - **Keys** (pills, the centre stripe is the LED): pointer down / up per pointer, so chords and multi-touch work;
   sliding across keys is not glissando (keeps step entry exact).
@@ -87,7 +89,8 @@ pointers: sim_fb() (RGB565 240×240), sim_audio(), sim_flash() (1 MiB image), si
 
 The 1 MiB flash image lives in the wasm memory. After each UI frame the worklet posts the dirty 4 KB sectors; the
 page writes them to IndexedDB (`fm1-sim` / `flash`, key = sector offset). On load the page reads all stored sectors
-and passes them in before `sim_init(0)`; none stored → `sim_init(1)`. IndexedDB missing or failing (private
+and passes them in before `sim_init(0)`; none stored → `sim_init(1)`. A boot from stored flash makes slot 1 the current project (a returning visitor's
+PLAY plays what they left there; the device itself powers on empty). IndexedDB missing or failing (private
 mode): the sim still runs, saves last for the session, a small note says so.
 
 ## Demos (first visit)
