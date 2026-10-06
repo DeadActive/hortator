@@ -56,6 +56,10 @@ CFLAGS=(-O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redef
 cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_test" "$ROOT/tests/sim_test.c" -lm
 TEST_BIN=$PWD/$OUT/host/sim_test
 (cd "$ROOT" && "$TEST_BIN")
+# the landing page's reel: the same core, a scripted performance recorded (tests/sim_record.c)
+cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_record" "$ROOT/tests/sim_record.c" -lm
+"$OUT/host/sim_record" "$OUT/reel.bin" "$OUT/reel.hash"
+gzip -9 -n -f -k "$OUT/reel.bin"
 
 [ "$HOST_ONLY" = 1 ] && exit 0
 
@@ -90,7 +94,7 @@ if [ "$PREVIEW" = 1 ]; then
     P=$OUT/preview
     rm -rf "$P"
     mkdir -p "$P/webapp/installer"
-    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$P/"
+    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$P/"
     "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
 import json, sys
 from pathlib import Path

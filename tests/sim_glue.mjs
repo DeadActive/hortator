@@ -277,3 +277,27 @@ test('playbackSession: asks for a playback session where the browser has one (iO
   assert.equal(playbackSession({}), false, 'no audioSession: nothing to do');
   assert.equal(playbackSession({ get audioSession() { throw new Error('denied'); } }), false, 'never throws');
 });
+
+// ---- the hero's reel: recorded screen, LEDs and knobs (tests/sim_record.c), replayed by reel.js
+import { parseReel } from '../web/sim/reel.js';
+
+test('reel: 30 s at 15 fps, replaying every frame rebuilds the recorder\'s last screen, small enough to ship', async () => {
+  const gz = readFileSync(join(DIR, 'reel.bin.gz'));
+  assert.ok(gz.length < 1.5e6, `reel.bin.gz is ${gz.length} B`);
+  const buf = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  const reel = parseReel(buf);
+  assert.equal(reel.fps, 15);
+  assert.equal(reel.frames, 450);
+  const fb = new Uint16Array(240 * 240);
+  let leds = 0, keys = 0, turns = 0;
+  for (let i = 0; i < reel.frames; i++) {
+    const f = reel.apply(i, fb);
+    leds |= f.leds; keys |= f.keyLeds;
+    turns += f.enc.reduce((a, s) => a + Math.abs(s), 0);
+  }
+  let h = 2166136261;
+  for (const v of new Uint8Array(fb.buffer)) h = Math.imul(h ^ v, 16777619) >>> 0;
+  assert.equal(h, Number(readFileSync(join(DIR, 'reel.hash'), 'utf8')), 'the replayed last frame is the recorded one');
+  assert.ok(leds && keys, 'button and key LEDs light during the reel');
+  assert.ok(turns > 0, 'knobs turn during the reel');
+});
