@@ -6,38 +6,61 @@ extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
 
 
+/* TIMER5 outranks ALNK0, so the scan keeps its 100 us pace while a half buffer renders: before,
+ * the ticks stopped for the whole render (0.7 ms idle, several ms loaded), the column lit when it
+ * began stayed lit that long (a ~16 Hz flicker over all LEDs, beating with the scan) and the
+ * encoders lost frames. Nested in ALNK0 it only scans (GPIO + fm1_in, nothing the audio ISR touches)
+ * and counts ms; USB and UART polls wait for the first tick after the render, as they always did,
+ * and the time spent nested is handed to the audio ISR so its load figures stay render-only.
+ * The USB audio stream cannot wait for the render (one packet per 1 ms frame, a render takes up to
+ * ~5 ms): uac_service also runs nested. It touches only EP4 (INDEX is set on every access) and the
+ * consumer side of the audio ring, and usb_poll never runs nested, so the two never interleave. */
 void fm1_timer5_irq(void)
 {
-    static uint32_t sub;
+    static uint32_t sub, owed;
+    uint32_t t0 = fm1_ticks(), usb_due = sub % 5u == 0u;
     fm1_timer5_ack();
     felucca_dbg.timer_irqs++;
-    if (felucca_dbg.in_audio)
-        felucca_dbg.nested++;                      /* only possible if this IRQ outranks ALNK0 */
     fm1_input_tick();
-    if (sub % 5u == 0u)
-        usb_poll();                             /* 2 kHz: all USB SIE traffic lives here */
-#if FELUCCA_UART
-    if (sub % 5u == 2u)
-        uart_midi_poll();                       /* 2 kHz: <= ~7 bytes per call at 31250 baud */
-#endif
-    if (++sub == 10u)
-        sub = 0;
-    {   /* milliseconds from the 24 MHz TIMER4: TIMER5 ticks coalesce while ALNK0 renders */
+    {   /* milliseconds from the 24 MHz TIMER4 (robust to a late tick) */
         static uint32_t last, acc;
-        uint32_t now = fm1_ticks();
-        acc += now - last;
-        last = now;
+        acc += t0 - last;
+        last = t0;
         while (acc >= 1000u * FM1_TICKS_PER_US) {
             acc -= 1000u * FM1_TICKS_PER_US;
             fm1_ms++;
         }
     }
+    if (usb_due)
+        owed |= 1u;                             /* 2 kHz: all USB SIE traffic lives here */
+#if FELUCCA_UART
+    if (sub % 5u == 2u)
+        owed |= 2u;                             /* 2 kHz: <= ~7 bytes per call at 31250 baud */
+#endif
+    if (++sub == 10u)
+        sub = 0;
+    if (felucca_dbg.in_audio) {
+        felucca_dbg.nested++;
+#if FELUCCA_UAC
+        if (usb_due)
+            uac_service();
+#endif
+        t5_nested_ticks += fm1_ticks() - t0;
+        return;
+    }
+    if (owed & 1u)
+        usb_poll();
+#if FELUCCA_UART
+    if (owed & 2u)
+        uart_midi_poll();
+#endif
+    owed = 0;
 }
 extern void isr_timer5(void);
 
 static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 kHz */
 {
-    fm1_timer5_start(isr_timer5, 1);   /* below ALNK0 (3): no nesting into audio */
+    fm1_timer5_start(isr_timer5, 4);   /* above ALNK0 (3): the scan nests into the render (see fm1_timer5_irq) */
 }
 
 static void hexs(char *b, uint32_t v)
@@ -111,6 +134,8 @@ static void fm1_main(void)
     }
     felucca_dbg.boots++;
     felucca_dbg.max_us = 0;
+    felucca_dbg.in_audio = 0;                       /* .noinit: a reset inside the audio ISR left it set, and
+                                                       TIMER5 would treat every tick as nested (no USB poll) */
     felucca_dbg.prev_stage = felucca_dbg.stage;     /* a WDT reset leaves the last breadcrumb here */
     felucca_dbg.prev_page = felucca_dbg.page;
     felucca_dbg.prev_home = felucca_dbg.home;
