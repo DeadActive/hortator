@@ -51,7 +51,7 @@ SDK_SHA256 = {
 }
 
 PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
-VERSION = None                      # FELUCCA_VERSION for release builds (default: the drum version, VERSION)
+VERSION = None                      # FELUCCA_VERSION for release builds (default: the drum version, VERSION.txt)
 
 
 def toolchain():

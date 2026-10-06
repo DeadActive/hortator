@@ -1,7 +1,7 @@
 # Versions of the drum firmware
 
 The drum firmware is numbered `MAJOR.MINOR.PATCH`, starting at **0.5.0** (2026-10-06). The number lives in one
-place, the file `VERSION` at the top of the repository; `CHANGELOG.md` says what each version changed.
+place, the file `VERSION.txt` at the top of the repository; `CHANGELOG.md` says what each version changed.
 
 ## What changes which number
 
@@ -25,7 +25,7 @@ X.Y` builds) are separate and unchanged.
 ## Releasing a version (when work is merged to `main`)
 
 1. Add a line per user-visible change under `## Unreleased` in `CHANGELOG.md`.
-2. `python3 tools/version.py bump patch` (or `minor` / `major`): writes `VERSION`, dates the notes.
-3. Commit `VERSION` and `CHANGELOG.md`, then `git tag drum-v<version>`.
+2. `python3 tools/version.py bump patch` (or `minor` / `major`): writes `VERSION.txt`, dates the notes.
+3. Commit `VERSION.txt` and `CHANGELOG.md`, then `git tag drum-v<version>`.
 4. `DRUM_PACKAGE=1 ./build.sh`: the package and `build/site` carry the new number; the host suite checks it
    (`tools/version.py check build`).

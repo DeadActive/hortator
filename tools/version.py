@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Drum machine fork: 2026 DEADACTIVE
-"""The drum firmware's version: MAJOR.MINOR.PATCH in the file VERSION (docs/VERSIONING.md).
+"""The drum firmware's version: MAJOR.MINOR.PATCH in the file VERSION.txt (docs/VERSIONING.md).
 
   python3 tools/version.py                      print the version
   python3 tools/version.py bump patch|minor|major
@@ -22,9 +22,9 @@ UNRELEASED = "## Unreleased"
 
 
 def read(root=ROOT):
-    v = (root / "VERSION").read_text().strip()
+    v = (root / "VERSION.txt").read_text().strip()
     if not FORM.fullmatch(v):
-        raise SystemExit(f"VERSION: {v!r} is not MAJOR.MINOR.PATCH")
+        raise SystemExit(f"VERSION.txt: {v!r} is not MAJOR.MINOR.PATCH")
     return v
 
 
@@ -56,7 +56,7 @@ def bump(part, root=ROOT, today=None):
         raise SystemExit(f"CHANGELOG.md: '{UNRELEASED}' is empty; say what changed first")
     day = (today or datetime.date.today()).isoformat()
     log.write_text(f"{head}{UNRELEASED}\n\n## {new} - {day}{body}")
-    (root / "VERSION").write_text(new + "\n")
+    (root / "VERSION.txt").write_text(new + "\n")
     return old, new
 
 
@@ -89,10 +89,10 @@ def selftest():
     expect("minor 0.9.0 -> 0.10.0 (no carry)", bumped("0.9.0", "minor") == "0.10.0")
     with tempfile.TemporaryDirectory() as d:
         r = Path(d)
-        (r / "VERSION").write_text("0.5.0\n")
+        (r / "VERSION.txt").write_text("0.5.0\n")
         (r / "CHANGELOG.md").write_text("# Changelog\n\n## Unreleased\n\n- TRS MIDI\n\n## 0.5.0 - 2026-10-06\n\n- first\n")
         old, new = bump("minor", r, datetime.date(2026, 10, 7))
-        expect("bump writes VERSION", (old, new, read(r)) == ("0.5.0", "0.6.0", "0.6.0"))
+        expect("bump writes VERSION.txt", (old, new, read(r)) == ("0.5.0", "0.6.0", "0.6.0"))
         expect("bump dates the Unreleased notes, opens a new empty section",
                (r / "CHANGELOG.md").read_text() == "# Changelog\n\n## Unreleased\n\n## 0.6.0 - 2026-10-07\n\n"
                "- TRS MIDI\n\n## 0.5.0 - 2026-10-06\n\n- first\n")
@@ -101,13 +101,13 @@ def selftest():
             expect("an empty Unreleased section is refused", False)
         except SystemExit:
             expect("an empty Unreleased section is refused", read(r) == "0.6.0")
-        (r / "VERSION").write_text("0.6\n")
+        (r / "VERSION.txt").write_text("0.6\n")
         try:
             read(r)
-            expect("VERSION 0.6 is refused", False)
+            expect("VERSION.txt 0.6 is refused", False)
         except SystemExit:
-            expect("VERSION 0.6 is refused", True)
-        (r / "VERSION").write_text("0.5.0\n")
+            expect("VERSION.txt 0.6 is refused", True)
+        (r / "VERSION.txt").write_text("0.5.0\n")
         b = r / "build"
         page = b / "site" / "webapp" / "installer" / "index.html"
         page.parent.mkdir(parents=True)
@@ -131,7 +131,7 @@ def main(argv):
         return selftest()
     if argv[:1] == ["bump"] and len(argv) == 2:
         old, new = bump(argv[1])
-        print(f"{old} -> {new}: commit VERSION + CHANGELOG.md, then tag it: git tag drum-v{new}")
+        print(f"{old} -> {new}: commit VERSION.txt + CHANGELOG.md, then tag it: git tag drum-v{new}")
         return 0
     if argv[:1] == ["check"] and len(argv) == 2:
         errors = check(Path(argv[1]))

@@ -39,7 +39,7 @@ run "update loader = the pinned one (tools/frozen_base.txt)" python3 tools/check
 run "loader pin self-test (a changed loader is caught)" python3 tools/check_loader.py --selftest build
 run "storage erase: IRQs off before the audio is silenced (st_save)" python3 tools/check_erase_order.py build/felucca.dis
 run "erase-order self-test (the old order is caught)" python3 tools/check_erase_order.py --selftest
-run "version: the app and the installer carry VERSION (docs/VERSIONING.md)" python3 tools/version.py check build
+run "version: the app and the installer carry VERSION.txt (docs/VERSIONING.md)" python3 tools/version.py check build
 run "version tool self-test (bump, the build check)" python3 tools/version.py --selftest
 if [ -f build/upstream/build/felucca.dis ]; then
     run "frozen code in the binary = upstream's (H2)" python3 tools/compare_upstream.py build build/upstream/build
