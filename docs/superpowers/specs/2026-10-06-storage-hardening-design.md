@@ -88,8 +88,8 @@ programmed byte, erase error, write protection, an I/O call counter):
 
 Plus ours:
 - a valid header (correct CRC) naming the other copy is ignored: the other copy loads;
-- a flash that changes one header field other than `seq` on its way back (`rsv`) makes the save fail (−7), and the
-  previous data still loads;
+- a part that stores a different but self-consistent header (`rsv[0]` changed, header CRC valid) makes the save
+  report an error (−7) instead of SAVED;
 - settings: a stored settings record longer than `persist_t` (valid header, our `PERSIST_MAGIC`) loads the defaults
   through `project.c`'s settings load.
 
