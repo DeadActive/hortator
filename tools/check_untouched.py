@@ -10,6 +10,7 @@ upstream Felucca 1e838e1, or a fork baseline tag = 1e838e1 + cited upstream hunk
 Frozen: hal/, loader/, ota.c, usb.c, crt0.S, app.ld byte for byte; storage.c except the ST_MAGIC
 line; main.c except felucca_init() and the two boot-title lines; the boot-guard tail of core.h."""
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -19,10 +20,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def frozen_base():
-    for ln in (ROOT / "tools/frozen_base.txt").read_text().splitlines():
-        if ln.startswith("FROZEN_BASE "):
-            return ln.split()[1]
-    raise SystemExit("tools/frozen_base.txt: no FROZEN_BASE")
+    """The baseline tag, checked against the commit tools/frozen_base.txt pins (FROZEN_BASE_FILE: tests only)."""
+    src = Path(os.environ.get("FROZEN_BASE_FILE", ROOT / "tools/frozen_base.txt"))
+    for ln in src.read_text().splitlines():
+        f = ln.split()
+        if f[:1] == ["FROZEN_BASE"]:
+            if len(f) != 3:
+                raise SystemExit(f"{src}: FROZEN_BASE <tag> <commit>")
+            r = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "-q", f"{f[1]}^{{commit}}"],
+                               capture_output=True, text=True)
+            if r.returncode or r.stdout.strip() != f[2]:
+                raise SystemExit(f"check_untouched: tag {f[1]} is {r.stdout.strip() or 'missing'}, "
+                                 f"pinned {f[2]} (moving the baseline is the user's decision)")
+            return f[1]
+    raise SystemExit(f"{src}: no FROZEN_BASE")
 
 
 BASE = frozen_base()

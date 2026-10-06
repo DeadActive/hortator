@@ -1,6 +1,7 @@
 # The frozen-code baseline (docs/superpowers/specs/2026-10-06-frozen-baseline-stage2-design.md): the git rev / tag
 # whose frozen files ours equal (tools/check_untouched.py) and whose build is H2's and the stack check's
-# reference (tools/upstream_build.sh). Moving it, or the loader pin, is the user's decision.
-FROZEN_BASE frozen-base-2
+# reference (tools/upstream_build.sh), and the commit it must resolve to (a moved or missing tag fails the checks).
+# Moving it, or the loader pin, is the user's decision.
+FROZEN_BASE frozen-base-2 5988fe4622496f9e597974448e8c21054b425f5c
 # the update loader the FM-1 runs (build/loader/ota.bin, 6493 B): it must not change
 LOADER_SHA256 cc98eed224299fa42ca22a546073e0f8b98d8362e26b5f325a9aaeab287bdf5d

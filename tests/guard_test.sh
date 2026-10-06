@@ -13,4 +13,8 @@ if python3 tools/check_untouched.py --tree "$TMP" >/dev/null; then echo "guard: 
 cp firmware/src/main.c "$TMP/firmware/src/main.c"
 sed -i.bak 's/^#define ST_MAGIC 0x554C4546u/#define ST_MAGIC 0x4D524446u/' "$TMP/firmware/src/storage.c"
 python3 tools/check_untouched.py --tree "$TMP" >/dev/null || { echo "guard: allowed ST_MAGIC change rejected"; exit 1; }
+sed 's/^FROZEN_BASE \([^ ]*\) [0-9a-f]*/FROZEN_BASE \1 1e838e1bad0000000000000000000000000000000/' tools/frozen_base.txt > "$TMP/frozen_base.txt"
+if FROZEN_BASE_FILE="$TMP/frozen_base.txt" python3 tools/check_untouched.py >/dev/null 2>&1; then
+    echo "guard: a baseline tag that moved from its pinned commit not caught"; exit 1
+fi
 echo "guard: ok"

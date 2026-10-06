@@ -48,11 +48,13 @@ static void shed_voice(void)
 
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
 {
-    uint8_t p = fm1_audio_pending();
-    uint32_t t0 = fm1_ticks();
+    uint8_t p;
+    uint32_t t0;
+    felucca_dbg.in_audio = 1;                   /* (upstream 1.0) first: TIMER5 nests from here on (main.c) */
+    p = fm1_audio_pending();
+    t0 = fm1_ticks();
     t5_nested_ticks = 0;
     fm1_audio_ack_aux(p);
-    felucca_dbg.in_audio = 1;
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us;
         int32_t *o = &abuf[half * HALF_WORDS];

@@ -9,7 +9,12 @@ set -e
 cd "$(dirname "$0")/.."
 UP=build/upstream
 BASE=$(awk '$1 == "FROZEN_BASE" { print $2 }' tools/frozen_base.txt)
-REV=$(git rev-parse "$BASE^{commit}")
+PIN=$(awk '$1 == "FROZEN_BASE" { print $3 }' tools/frozen_base.txt)
+REV=$(git rev-parse -q --verify "$BASE^{commit}" || true)
+if [ -z "$PIN" ] || [ "$REV" != "$PIN" ]; then
+    echo "baseline build: tag $BASE is ${REV:-missing}, pinned ${PIN:-nothing} (tools/frozen_base.txt)" >&2
+    exit 1
+fi
 if [ -f "$UP/build/felucca.dis" ] && [ "$(git -C "$UP" rev-parse HEAD 2>/dev/null)" = "$REV" ]; then
     echo "baseline build ($BASE): up to date ($UP)"
     exit 0
