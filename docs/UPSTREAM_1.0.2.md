@@ -13,10 +13,13 @@ it is large) before any code.
 ## 1. Fixes in our own code (no frozen file)
 
 - **Saving & flash:** no project / settings save while playing (upstream "STOP TO SAVE"; settings saved once
-  stopped, retried); the flash-erase silence taken with IRQs off first (upstream `st_erase` order).
+  stopped). Done.
 - **Timing & MIDI:** track + global swing capped at 100 (upstream issue #31, `track_swing`, shared with the
-  slicer); TRS MIDI ring overflow resets the running status (`midi_uart.c`), realtime bytes queued, TRS MIDI on by
-  default (upstream: "RX verified on hardware"); `audio.c` output shift without UB, CPU meter remainder kept.
+  slicer); TRS MIDI ring overflow resets the running status (`midi_uart.c`); `audio.c` output shift without UB,
+  CPU meter remainder kept. Done.
+- Moved to §2 (they change the compiled frozen code, so they need the new baseline): the flash-erase silence
+  with IRQs off first (`st_erase` is inlined into frozen `st_save`), TRS MIDI on by default (`FELUCCA_UART`
+  compiles extra code into frozen `main.c`), queuing realtime bytes (needs upstream's `midi_enqueue` in `usb.c`).
 - **Controls:** `panel_init` refuses a button / knob learned twice; knob acceleration only on large ranges, same
   direction, slower of two detents, capped (upstream #23 / #52), with a MENU switch.
 - **Installer:** `fm1ota.js` (no "only output" pairing, resume waits for `ota-FM-1` and checks the identity),
@@ -33,7 +36,8 @@ Needs a short spec first: the frozen-code check (H2, `tools/check_untouched.py`)
 - USB-MIDI: hold the host off when the ring is full (no dropped / stuck notes), validate packets, realtime bytes
   queued (USB clock in), a status byte ends an unfinished SysEx — `usb.c` (the app's copy).
 - Storage hardening: sequence wrap, header slot check, oversize loads refused, full read-back compare —
-  `storage.c` (not upstream's FM6 objects).
+  `storage.c` (not upstream's FM6 objects); with it the `st_erase` order (IRQs off before the silence).
+- TRS MIDI on by default, realtime bytes (clock) queued from TRS and USB.
 Skipped: the LED glow (1.0.1), USB audio, the minsize build marks on frozen functions.
 
 ## 3. Features (each its own design / spec / plan)

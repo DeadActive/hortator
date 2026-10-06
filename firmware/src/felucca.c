@@ -86,18 +86,13 @@ static void audio_silence(void)                 /* IRQs off: the DMA would loop 
     for (i = 0; i < sizeof abuf / sizeof abuf[0]; i++)
         abuf[i] = 0;
 }
-static int st_erase(uint32_t off)                /* (upstream 1.0) IRQs off first, then the silence: the audio IRQ
-                                                  * cannot refill a half before the erase stalls the DMA */
+static int st_erase(uint32_t off)
 {
-    uint32_t took, f;
-    int rc;
+    uint32_t took;
     if (!FL_STORE_OK(off, 0x1000u))
         return -8;
-    f = irq_save();
     audio_silence();
-    rc = FL_FAR(fl_erase4k_ram)(off, &took);
-    irq_restore(f);
-    return rc;
+    return fl_erase4k(off, &took);
 }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 {

@@ -166,6 +166,7 @@ typedef struct {
     int8_t octave;
     uint32_t tick;               /* blocks since play */
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
+    uint32_t cpu_rem;            /* its average's remainder (audio.c) */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
     int16_t act[3];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a

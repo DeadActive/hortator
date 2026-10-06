@@ -138,6 +138,16 @@ int main(void)
         }
         bad += (uint32_t)check("uart: channels 1, 2, 3, 10, 16 -> USB-MIDI packets", ok);
     }
+    {   /* upstream 1.0: bytes lost to a ring overflow end the running status (no spurious notes from data bytes) */
+        uint32_t w0;
+        um_byte(0x90);
+        um_byte(36);
+        um_byte(100);                                 /* a note on: running status 0x90 */
+        memset((void *)um_ring, 0x40, UM_RING);      /* the ring holds data bytes only */
+        w0 = mi_w;
+        uart_midi_take(UM_RING + 10u);               /* more than the ring: bytes were lost */
+        bad += (uint32_t)check("uart: a ring overflow ends the running status", mi_w == w0);
+    }
     bad += (uint32_t)test_usb_sysex();
     printf("%s\n", bad ? "MIDI PARSER TEST FAILED" : "midi parser test passed");
     return (int)bad;

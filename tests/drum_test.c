@@ -2668,6 +2668,30 @@ static void test_reson_cut_no_reexcite(void)
     }
 }
 
+/* upstream issue #31: track swing + global swing (each up to 100) is capped at 100 (1.4 / 0.6 steps), not 200
+ * (1.8 / 0.2) */
+static void test_swing_cap(void)
+{
+    uint32_t at[4], n = 0, f, a;
+    double r;
+    host_init();
+    trk[0].step[0].on = trk[0].step[1].on = trk[0].step[2].on = 1;
+    trk[0].p[P_SSWING] = 100;
+    song.g[G_SWING] = 100;
+    play();
+    a = hit_age(&trk[0]);
+    for (f = 0; f < SECS(2) && n < 3u; f += CTL) {
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a) {
+            a = hit_age(&trk[0]);
+            at[n++] = f;
+        }
+    }
+    r = n == 3u ? (double)(at[1] - at[0]) / (double)(at[2] - at[1]) : 0;
+    printf("     swing 100 + 100: long / short step %.2f (capped 1.4 / 0.6 = 2.33)\n", r);
+    check("swing: track + global swing capped at 100 (#31)", n == 3u && r > 2.1 && r < 2.6);
+}
+
 /* PROB codes (params.c): knob position 0..56 <-> stored value; a zeroed step is 100 % */
 static void test_cond_codes(void)
 {
@@ -2727,6 +2751,7 @@ int main(void)
     test_lfo_activate_on_bar();
     test_mute_next_bar();
     test_reson_params();
+    test_swing_cap();
     test_reson_pitch();
     test_reson_decay();
     test_reson_chord();

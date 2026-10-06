@@ -29,8 +29,8 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
     for (i = 0; i < n; i++) {
         if (i & 1u)
             scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int16_t)out[2u * i];
-        out[2u * i] <<= OUT_SHIFT;
-        out[2u * i + 1u] <<= OUT_SHIFT;
+        out[2u * i] *= 1 << OUT_SHIFT;               /* (upstream 1.0) a negative left shift is undefined */
+        out[2u * i + 1u] *= 1 << OUT_SHIFT;
     }
 }
 
@@ -67,7 +67,11 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             audio_max_us = us;
         if (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u)
             shed_req = 1;
-        song.cpu_q8 = (song.cpu_q8 * 15u + (us * 256u) / (HALF_FRAMES * 1000000u / FS)) / 16u;
+        {                                             /* (upstream 1.0) the IIR keeps its remainder: no low bias */
+            uint32_t load = song.cpu_q8 * 15u + (us * 256u) / (HALF_FRAMES * 1000000u / FS) + song.cpu_rem;
+            song.cpu_q8 = load / 16u;
+            song.cpu_rem = load % 16u;
+        }
         if (fm1_audio_free_half() != half)
             felucca_dbg.late++;                         /* the DMA moved on while we rendered */
         felucca_dbg.halves++;

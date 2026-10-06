@@ -15,6 +15,14 @@ static const uint8_t KIT_DEF[NTRK][2] = {
 
 static const dmodel_t *trk_model(const track_t *t) { return &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS]; }
 
+/* a track's swing: its own + the global one, capped at 100 (upstream #31: 200 made 1.8 / 0.2 steps); seq.c, slicer.c */
+#define SWING_MAX 100
+static inline int32_t track_swing(const track_t *t)
+{
+    int32_t sw = t->p[P_SSWING] + song.g[G_SWING];
+    return sw < 0 ? 0 : sw > SWING_MAX ? SWING_MAX : sw;
+}
+
 static void dv_cut(track_t *t, dvoice_t *v)
 {
     if (v->active)

@@ -23,7 +23,7 @@ static uint32_t drum_ch(void) { return (uint32_t)clamp(song.g[G_DRCH], 1, 16) - 
  * the step index, so a pattern of any length (1, 3, ...) keeps the long / short pairs on the bar. */
 static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
 {
-    int32_t sw = (t->p[P_SSWING] + song.g[G_SWING]) * (int32_t)period / 250;
+    int32_t sw = track_swing(t) * (int32_t)period / 250;
     return period + (uint32_t)((cnt & 1u) ? -sw : sw);
 }
 

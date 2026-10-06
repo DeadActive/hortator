@@ -2,7 +2,8 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* MIDI IN on the TRS jack: PH8 -> input channel 1 -> UART1 RX, 31250 baud,
  * RX DMA into a 128-byte ring, polled from the TIMER5 ISR (no UART IRQ).
- * Built only with FELUCCA_UART=1. Channel messages go into midi_in_q next to
+ * FELUCCA_UART=0 disables this input (on by default: upstream 1.0 verified RX on hardware). Channel messages go
+ * into midi_in_q next to
  * USB, as USB-MIDI packets (cable 0, CIN = status >> 4), so seq.c routes them by
  * channel as it does USB; realtime, system common and SysEx are dropped. */
 #include "../hal/fm1_uart.h"   /* registers; relative, so the host tests find it too */
@@ -10,7 +11,8 @@
 #define UM_RING 128u
 static volatile uint8_t um_ring[UM_RING] __attribute__((aligned(16)));
 static struct {
-    uint32_t rd, pend, bytes, drops, msgs;
+    uint32_t rd, pend;
+    volatile uint32_t bytes, drops, msgs;          /* TIMER5 writes; read-only diagnostics (upstream 1.0) */
     uint8_t st, need, got, d0, sysex;
 } um;
 
@@ -57,13 +59,14 @@ static void um_byte(uint32_t b)
     }
 }
 
-static void uart_midi_poll(void)                   /* TIMER5 ISR, same context as usb_poll */
+static void uart_midi_take(uint32_t n)             /* n more bytes in the ring (the DMA's count) */
 {
-    um.pend += fm1_uart1_rx_take();
+    um.pend += n;
     if (um.pend > UM_RING) {
         um.drops += um.pend - UM_RING;
         um.rd = (um.rd + um.pend - UM_RING) & (UM_RING - 1u);
         um.pend = UM_RING;
+        um.st = um.got = um.sysex = 0;              /* (upstream 1.0) lost bytes: wait for a complete new status */
     }
     while (um.pend) {
         um_byte(um_ring[um.rd]);
@@ -71,4 +74,9 @@ static void uart_midi_poll(void)                   /* TIMER5 ISR, same context a
         um.pend--;
         um.bytes++;
     }
+}
+
+static void uart_midi_poll(void)                   /* TIMER5 ISR, same context as usb_poll */
+{
+    uart_midi_take(fm1_uart1_rx_take());
 }
