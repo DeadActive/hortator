@@ -51,8 +51,11 @@ button { font: inherit; }
 
 /* the hero: a scroll track with a sticky stage; app.js maps the scroll to --p (0 far back and blurred .. 1 the
    simulator, flat and sharp). The stage is a dark photographic set in both themes. */
-.hero { position: relative; width: 100%; height: 330vh; }
-.hero-end { position: absolute; left: 0; bottom: 0; height: 100vh; width: 1px; pointer-events: none; }
+.hero { position: relative; width: 100%; height: 420vh; }
+.hero-end {                                     /* "Play it" lands in the middle of the steady stretch */
+  position: absolute; left: 0; top: calc((100% - 100vh) * 0.8); height: 1px; width: 1px; pointer-events: none;
+  scroll-snap-align: start; }
+html { scroll-snap-type: y proximity; }
 .hero-stage {
   position: sticky; top: 0; height: 100vh; overflow: hidden; perspective: 1500px; perspective-origin: 50% 40%;
   color: #e9ebee;
@@ -98,23 +101,40 @@ button { font: inherit; }
 .scroll-cue::after { content: ""; display: block; width: 1px; height: 36px; margin: 8px auto 0; background: currentColor;
   transform-origin: top; animation: cue 1.8s ease-in-out infinite; }
 @keyframes cue { 0% { transform: scaleY(0); } 50% { transform: scaleY(1); } 100% { transform: scaleY(1); opacity: 0; } }
+/* the simulator's bar under the device: Switch on, Controls, Reset in one row; the reset confirm a pop-over above
+   it and status notes float above it, so nothing in the row ever moves */
 .play-bar {
-  position: absolute; left: 0; right: 0; bottom: 14px; z-index: 6; display: flex; gap: 8px; flex-wrap: wrap;
-  justify-content: center; align-items: center; padding: 0 16px; opacity: var(--arrived, 0);
-  pointer-events: var(--arrived-events, none); color: var(--hero-ink);
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 7; display: flex; gap: 10px;
+  align-items: center; white-space: nowrap; color: var(--hero-ink);
+  opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none); transition: opacity 0.45s ease;
 }
-.play-bar > button, .confirm button {
-  background: rgba(21,23,26,.5); color: var(--hero-ink); border: 1px solid rgba(233,235,238,.45); border-radius: 999px;
-  padding: 3px 14px; cursor: pointer;
+.power { display: flex; align-items: center; gap: 12px; margin-right: 6px; }
+.power span { font-size: 13px; color: #c5c9cf; }
+@media (max-width: 560px) {                       /* phones: the row stays one line */
+  .power span { display: none; }
+  .play-bar { gap: 8px; }
+  .bar-btn { padding: 6px 12px; font-size: 13px; }
 }
-.play-bar > button:hover, .confirm button:hover { border-color: var(--hero-ink); }
-.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; flex-basis: 100%; }
-.play-bar .note { flex-basis: 100%; text-align: center; margin: 0; min-height: 0; color: #c5c9cf; }
+.bar-btn, .confirm button {
+  font-size: 14px; background: rgba(21,23,26,.55); color: var(--hero-ink); border: 1px solid rgba(233,235,238,.45);
+  border-radius: 999px; padding: 6px 16px; cursor: pointer;
+}
+.bar-btn:hover, .confirm button:hover { border-color: var(--hero-ink); }
+.bar-btn[aria-expanded="true"] { background: #e9ebee; color: #15171a; border-color: #e9ebee; }
+.confirm {
+  position: absolute; bottom: calc(100% + 12px); right: 0; width: min(360px, calc(100vw - 32px)); white-space: normal;
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px; border-radius: 14px;
+  background: rgba(16,18,21,.96); box-shadow: 0 16px 40px rgba(0,0,0,.5);
+}
+.confirm p { flex-basis: 100%; margin: 0 0 4px; font-size: 14px; color: #e9ebee; }
+.play-bar .note { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); width: max-content;
+  max-width: calc(100vw - 32px); white-space: normal; text-align: center; margin: 0; font-size: 13px; color: #c5c9cf;
+  pointer-events: none; }
 .help {                                         /* a sheet over the stage, above the Controls bar that opens it */
-  position: absolute; z-index: 8; left: 50%; bottom: 110px; transform: translateX(-50%); width: min(780px, 100% - 32px);
+  position: absolute; z-index: 8; left: 50%; bottom: 84px; transform: translateX(-50%); width: min(780px, 100% - 32px);
   display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; padding: 14px 22px 18px;
   border-radius: 16px; background: rgba(16, 18, 21, .94); color: #e9ebee; box-shadow: 0 20px 50px rgba(0,0,0,.5);
-  max-height: calc(100vh - 180px); overflow: auto;   /* above Switch on and the bar */
+  max-height: calc(100vh - 150px); overflow: auto;   /* above the bar */
 }
 .help h2 { font-size: 15px; font-weight: 500; margin: 8px 0 2px; }
 .help ul { margin: 0; padding-left: 18px; color: #b8bdc4; }
@@ -139,7 +159,6 @@ button { font: inherit; }
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.24) 50%, transparent);
 }
 .device.waiting { pointer-events: none; }
-.power, .play-bar { transition: opacity 0.45s ease; }
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
@@ -363,17 +382,11 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 .device :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
 /* ---- power on */
-.power {                                          /* under the device, above its bar: the screen stays visible */
-  position: absolute; left: 0; right: 0; bottom: 52px; z-index: 7; display: flex; align-items: center;
-  justify-content: center; gap: 14px; opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none);
-}
-.power[hidden] { display: none; }
 .power button {
-  font-size: 18px; font-weight: 500; padding: 12px 32px; border-radius: 999px; border: 0; cursor: pointer;
-  background: #e9ebee; color: #15171a; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  font-size: 15px; font-weight: 600; padding: 8px 22px; border-radius: 999px; border: 0; cursor: pointer;
+  background: #e9ebee; color: #15171a; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
 }
 .power button:disabled { opacity: 0.6; cursor: progress; }
-.power p { margin: 0; color: #e9ebee; font-size: 14px; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
 
 @media (max-height: 520px) {                          /* phones held sideways: smaller copy */
   .hero-copy h1 { font-size: 30px; }

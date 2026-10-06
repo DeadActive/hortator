@@ -152,3 +152,17 @@ test('footer: the name and its origin, the ways around the page, the credits and
   for (const credit of ['Felucca', 'Leo Kuroshita', 'DEADACTIVE', 'Terminus', 'CC0', 'GPL-3.0', 'not affiliated'])
     assert.ok(foot.includes(credit), credit);
 });
+
+test('hero pose: the device lands early and holds: the last 40 % of the scroll track is the simulator, flat and usable', () => {
+  for (const phone of [false, true])
+    for (let i = 600; i <= 1000; i++) {
+      const q = heroPose(i / 1000, phone);
+      assert.ok(q.arrived && q.transform === 'none' && q.blur === 0 && q.glare === 0, `p=${i / 1000} phone=${phone}`);
+    }
+});
+
+test('the simulator bar: Switch on, Controls and Reset in one row; the reset confirm is a pop-over in it', () => {
+  const bar = LANDING.slice(LANDING.indexOf('id="play-bar"'), LANDING.indexOf('id="help"'));
+  for (const id of ['power-on', 'help-toggle', 'reset', 'reset-confirm']) assert.match(bar, new RegExp(`id="${id}"`), id);
+  assert.match(LANDING, /class="hero-end"[^>]*id="play"|id="play"[^>]*class="hero-end"/);
+});

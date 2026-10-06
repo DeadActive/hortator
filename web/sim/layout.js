@@ -77,7 +77,9 @@ const POSE = {
   desk: { fly: 0.9, blurEnd: 0.42, shine: [0.48, 0.88], y: 10, z: -1150, rx: 57, ry: 7, rz: -17 },
   phone: { fly: 0.58, blurEnd: 0.36, shine: [0.4, 0.58], morph: [0.62, 0.9], y: 4, z: -650, rx: 50, ry: 0, rz: -9 },
 };
-export function heroPose(p, phone) {
+const LAND = 0.6;                                  // the flight and the morph use the first 60 % of the track; the rest
+export function heroPose(p, phone) {               // holds the simulator flat, a long steady place to play
+  p = clamp01(p / LAND);
   const c = POSE[phone ? 'phone' : 'desk'];
   const m = ease(p / c.fly);
   const morph = phone ? ease((p - c.morph[0]) / (c.morph[1] - c.morph[0])) : 0;

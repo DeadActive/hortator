@@ -332,8 +332,14 @@ function bindPage() {
     device.classList.toggle('show-hints', open);
   });
   const confirm = document.getElementById('reset-confirm');
-  document.getElementById('reset').addEventListener('click', () => { confirm.hidden = false; });
+  document.getElementById('reset').addEventListener('click', () => { confirm.hidden = !confirm.hidden; });
   document.getElementById('reset-no').addEventListener('click', () => { confirm.hidden = true; });
+  document.addEventListener('pointerdown', e => {   // the pop-over closes on a click elsewhere, or Esc
+    if (!confirm.hidden && !e.target.closest('#reset-confirm, #reset')) confirm.hidden = true;
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') confirm.hidden = true; });
+  for (const b of document.querySelectorAll('.bar-btn, #power-on'))   // a mouse click leaves no focus behind,
+    b.addEventListener('mousedown', e => e.preventDefault());         // so the next Space plays, not this button
   document.getElementById('reset-yes').addEventListener('click', async () => {
     await store.clear();
     location.reload();
