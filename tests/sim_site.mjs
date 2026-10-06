@@ -67,3 +67,45 @@ test('landing: hero (with the device and the #play end), features, install; inst
   assert.match(LANDING.match(/<title>(.*)<\/title>/)[1], /FM-1 Drums/);
   assert.match(LANDING, /id="device"/, 'the simulator is on the page');
 });
+
+// ---- layout.js: the panel's two layouts, the morph between them, the hero's choreography (pure, no DOM)
+import { LAYOUTS, blend, heroPose } from '../web/sim/layout.js';
+
+test('layouts: both have every control, a 240 px LCD, the same knobs', () => {
+  const { landscape: L, portrait: P } = LAYOUTS;
+  assert.deepEqual(Object.keys(L.ctl).sort(), Object.keys(P.ctl).sort());
+  assert.equal(Object.keys(L.ctl).length, 14 + 27);
+  assert.deepEqual(Object.keys(L.enc).sort(), Object.keys(P.enc).sort());
+  assert.equal(L.lcd[2], 240);
+  assert.equal(P.lcd[2], 240);
+});
+
+test('blend: exactly the landscape at 0 and the portrait at 1; the OCT tray, which the phone has not, fades out', () => {
+  const { landscape: L, portrait: P } = LAYOUTS;
+  const a = blend(L, P, 0), b = blend(L, P, 1), h = blend(L, P, 0.5);
+  assert.deepEqual([a.W, a.H, a.lcd, a.ctl, a.enc], [L.W, L.H, L.lcd, L.ctl, L.enc]);
+  assert.deepEqual([b.W, b.H, b.lcd, b.ctl, b.enc], [P.W, P.H, P.lcd, P.ctl, P.enc]);
+  for (const name of Object.keys(P.deco)) assert.deepEqual(b.deco[name].box, P.deco[name], name);
+  assert.equal(a.deco.oct.opacity, 1);
+  assert.equal(b.deco.oct.opacity, 0);
+  assert.ok(h.W < L.W && h.W > P.W, 'halfway is between the two');
+  assert.deepEqual(blend(L, L, 0.7).ctl, L.ctl, 'desktop: nothing moves');
+});
+
+test('hero pose: far, tilted and blurred at the top; flat, sharp and arrived at the end, desktop and phone', () => {
+  for (const phone of [false, true]) {
+    const s = heroPose(0, phone), e = heroPose(1, phone);
+    assert.ok(s.blur >= 8 && s.transform !== 'none' && !s.arrived && s.copy === 1, `start (${phone})`);
+    assert.ok(e.blur === 0 && e.transform === 'none' && e.arrived && e.copy === 0, `end (${phone})`);
+    assert.equal(e.morph, phone ? 1 : 0);
+  }
+});
+
+test('hero pose: the shine never plays while the scene is blurred (a blur filter re-renders the whole scene)', () => {
+  for (const phone of [false, true])
+    for (let i = 0; i <= 1000; i++) {
+      const q = heroPose(i / 1000, phone);
+      assert.ok(!(q.blur > 0 && q.glare > 0), `p=${i / 1000} phone=${phone}: blur ${q.blur}, glare ${q.glare}`);
+      if (phone && q.morph > 0) assert.equal(q.transform, 'none', `p=${i / 1000}: the phone morphs only once flat`);
+    }
+});

@@ -67,7 +67,9 @@ button { font: inherit; }
 .hero-nav a { color: var(--hero-ink); text-decoration: none; font-size: 14px; border-bottom: 1px solid rgba(233,235,238,.4); }
 .scene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   padding: 56px 0 118px;                         /* the device lands between the nav and Switch on + its bar */
-  filter: blur(calc(var(--blur, 0) * 1px)) brightness(var(--dim, 1)); will-change: filter; }
+}
+.scene::after {                                  /* the dimming: an overlay's opacity, not a filter */
+  content: ""; position: absolute; inset: 0; background: #101214; opacity: var(--dim, 0); pointer-events: none; }
 .tilt { position: relative; transform-style: preserve-3d; will-change: transform; }
 .tilt .fit { transform-style: preserve-3d; }
 .desk-shadow {
@@ -125,9 +127,11 @@ button { font: inherit; }
 .device > .enc .cap { translate: 0 0 8px; }
 .device > .slab { border-radius: 44px; pointer-events: none; }
 .device > .glare {
-  inset: 0; border-radius: 44px; pointer-events: none; translate: 0 0 12px; opacity: var(--glare, 0);
-  background: linear-gradient(112deg, transparent calc(var(--sweep, 0) * 140% - 40%),
-    rgba(255,255,255,.16) calc(var(--sweep, 0) * 140% - 26%), transparent calc(var(--sweep, 0) * 140% - 12%));
+  inset: 0; border-radius: 44px; pointer-events: none; translate: 0 0 12px; opacity: 0; overflow: hidden;
+}
+.glare-band {                                    /* a fixed gradient moved by transform: composited, never repainted */
+  position: absolute; top: -40%; left: 0; width: 55%; height: 180%; will-change: transform;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.24) 50%, transparent);
 }
 .device.waiting { pointer-events: none; }
 .power, .play-bar { transition: opacity 0.45s ease; }

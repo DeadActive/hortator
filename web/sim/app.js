@@ -3,57 +3,17 @@
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
 // frames it sends back, and keeps the flash it writes in IndexedDB (store.js).
-import { BTN, B, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js';
+import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js';
 import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
 import { parseReel } from './reel.js';
-
-// ---- layouts: design-size boxes [x, y, w, h] (the device is scaled to fit the window)
-const WHITE = KEYS.filter(k => !k.black), BLACK = KEYS.filter(k => k.black);
-function keybed(x0, y0, width, wW, wH, bW, bH, gapY) {    // whites in a row, the raised keys over their gaps
-  const step = width / WHITE.length, out = {};
-  WHITE.forEach((k, i) => { out[`key:${k.n}`] = [x0 + i * step + (step - wW) / 2, y0 + bH + gapY, wW, wH]; });
-  BLACK.forEach(k => {
-    const left = WHITE.findIndex(w => w.n === k.n - 1);                  // the white key below it
-    out[`key:${k.n}`] = [x0 + (left + 1) * step - bW / 2, y0, bW, bH];
-  });
-  return out;
-}
-const ROWS = [['FX', 'SEL', 'ENV', 'LFO', 'EDIT', 'GLO'], ['HOME', 'SAVE', 'ARP', 'SEQ', 'PLAY', 'REC']];
-function buttonRows(rows, x0, y0, size, step, rowStep) {
-  const out = {};
-  rows.forEach((r, j) => r.forEach((l, i) => { out[`btn:${B[l]}`] = [x0 + i * step, y0 + j * rowStep, size, size]; }));
-  return out;
-}
-const knob = (cx, cy, d = 46) => [cx - d / 2, cy - d / 2, d, d];
-const LAYOUTS = {
-  landscape: {
-    W: 1000, H: 620,
-    deco: [['bezel', 270, 36, 268, 268], ['tray', 52, 262, 196, 64], ['tray', 572, 158, 394, 156],
-           ['tray keybed', 40, 336, 920, 262]],
-    lcd: [284, 50, 240, 240],
-    enc: { master: knob(95, 108), 0: knob(195, 108), 2: knob(95, 214), 1: knob(195, 214),
-           3: knob(632, 108), 4: knob(731, 108), 5: knob(830, 108), 6: knob(929, 108) },
-    ctl: { ...buttonRows(ROWS, 588, 174, 52, 62, 68),
-           [`btn:${B['OCT-']}`]: [66, 275, 76, 38], [`btn:${B['OCT+']}`]: [158, 275, 76, 38],
-           ...keybed(60, 350, 880, 47, 122, 44, 100, 14) },
-  },
-  portrait: {                                       // phones: the screen on top, OCT- / OCT+ end the button rows
-    W: 420, H: 772,
-    deco: [['bezel', 76, 20, 268, 268], ['tray', 14, 450, 392, 128], ['tray keybed', 10, 590, 400, 172]],
-    lcd: [90, 34, 240, 240],
-    enc: { master: knob(60, 340), 0: knob(160, 340), 1: knob(260, 340), 2: knob(360, 340),
-           3: knob(60, 416), 4: knob(160, 416), 5: knob(260, 416), 6: knob(360, 416) },
-    ctl: { ...buttonRows([[...ROWS[0], 'OCT-'], [...ROWS[1], 'OCT+']], 25, 462, 46, 54, 58),
-           ...keybed(16, 598, 388, 20, 76, 20, 72, 6) },
-  },
-};
+import { LAYOUTS, DECO_CLASS, blend, heroPose } from './layout.js';
 
 // ---- the panel's elements (built once, placed per layout)
 const device = document.getElementById('device');
 const fit = document.getElementById('fit');
 const note = document.getElementById('note');
-const els = { deco: [], ctl: {}, enc: {}, lbl: {} };
+const els = { deco: {}, ctl: {}, enc: {}, lbl: {} };
 const lcd = document.createElement('canvas');
 lcd.width = lcd.height = 240;
 lcd.className = 'lcd';
@@ -76,7 +36,12 @@ function build() {
     s.style.background = `rgb(${Math.round(78 - 40 * t)}, ${Math.round(82 - 41 * t)}, ${Math.round(88 - 43 * t)})`;
     device.append(s);
   }
-  for (let i = 0; i < 4; i++) { const d = document.createElement('div'); device.append(d); els.deco.push(d); }
+  for (const name of Object.keys(DECO_CLASS)) {
+    const d = document.createElement('div');
+    d.className = DECO_CLASS[name];
+    device.append(d);
+    els.deco[name] = d;
+  }
   device.append(lcd);
   BTN.forEach((b, id) => {
     const el = document.createElement('div');
@@ -115,9 +80,11 @@ function build() {
     device.append(l);
     els.lbl[id] = l;
   });
-  const glare = document.createElement('div');
+  const glare = document.createElement('div');           // the shine: a fixed stripe moved by transform (no repaint)
   glare.className = 'glare';
+  glare.innerHTML = '<span class="glare-band"></span>';
   device.append(glare);
+  els.glare = glare.firstChild;
 }
 function addHint(el, ctl) {
   if (!keyHint[ctl]) return;
@@ -127,29 +94,35 @@ function addHint(el, ctl) {
   el.append(h);
 }
 
-let layout = null;
+// geometry: phones show the FM-1's own landscape form while it flies in, then morph into the portrait simulator
+let phone = false, availW = 1000, availH = 600, morphNow = -1;
+function fitScale(L) { return Math.max(0.2, Math.min(availW / L.W, availH / L.H, 1.2)); }
 function relayout() {
-  const name = window.innerWidth < 700 && window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
-  const L = LAYOUTS[name];
-  if (layout !== L) {
-    layout = L;
-    els.deco.forEach((d, i) => { d.hidden = !L.deco[i]; });
-    L.deco.forEach(([cls, x, y, w, h], i) => { els.deco[i].className = cls; place(els.deco[i], [x, y, w, h]); });
-    place(lcd, L.lcd);
-    for (const [ctl, box] of Object.entries(L.ctl)) place(els.ctl[ctl], box);
-    for (const [id, box] of Object.entries(L.enc)) {
-      place(els.enc[id], box);
-      place(els.lbl[id], [box[0] - 30, box[1] - 20, box[2] + 60, 14]);
-    }
-    device.style.width = `${L.W}px`;
-    device.style.height = `${L.H}px`;
+  phone = window.innerWidth < 700 && window.innerHeight > window.innerWidth;
+  availW = Math.min(document.documentElement.clientWidth - 32, 1000);
+  availH = window.innerHeight - 56 - 118 - 8;       // the hero scene's padding: nav above, Switch on and its bar below
+  geometry(phone ? Math.max(0, morphNow) : 0, true);
+}
+function geometry(morph, force) {                  // place every part for this morph (0 landscape .. 1 portrait)
+  if (!force && morph === morphNow) return;
+  morphNow = morph;
+  const G = blend(LAYOUTS.landscape, phone ? LAYOUTS.portrait : LAYOUTS.landscape, morph);
+  for (const [name, d] of Object.entries(G.deco)) {
+    place(els.deco[name], d.box);
+    els.deco[name].style.opacity = d.opacity;
   }
-  const availW = Math.min(document.documentElement.clientWidth - 32, 1000);
-  const availH = window.innerHeight - 56 - 118 - 8;   // the hero scene's padding: nav above, Switch on and its bar below
-  const scale = Math.max(0.3, Math.min(availW / L.W, availH / L.H, 1.2));
+  place(lcd, G.lcd);
+  for (const [ctl, b] of Object.entries(G.ctl)) place(els.ctl[ctl], b);
+  for (const [id, b] of Object.entries(G.enc)) {
+    place(els.enc[id], b);
+    place(els.lbl[id], [b[0] - 30, b[1] - 20, b[2] + 60, 14]);
+  }
+  const scale = fitScale(G);                        // fits at every step of the morph
+  device.style.width = `${G.W}px`;
+  device.style.height = `${G.H}px`;
   device.style.setProperty('--scale', scale);
-  fit.style.width = `${L.W * scale}px`;
-  fit.style.height = `${L.H * scale}px`;
+  fit.style.width = `${G.W * scale}px`;
+  fit.style.height = `${G.H * scale}px`;
 }
 
 // ---- input -> worklet
@@ -388,36 +361,31 @@ function reelTick(now) {
   frame = { fb: reelFb, leds: f.leds, keyLeds: f.keyLeds };
 }
 
-// ---- the hero: the scroll through #hero moves p 0 .. 1: the device far back, tilted and blurred .. the simulator
+// ---- the hero: the scroll through #hero moves p 0 .. 1 (layout.js heroPose: far back, tilted and blurred ..
+// the simulator)
 const hero = document.getElementById('hero'), stage = document.getElementById('stage');
-const tilt = document.getElementById('tilt');
+const tilt = document.getElementById('tilt'), scene = document.getElementById('scene');
 const still = window.matchMedia('(prefers-reduced-motion: reduce)');
-let arrived = false, heroQueued = false;
-const clamp01 = x => Math.min(1, Math.max(0, x));
-const ease = x => { x = clamp01(x); return x * x * (3 - 2 * x); };
-const mix = (a, b, t) => a + (b - a) * t;
+let arrived = false, heroQueued = false, lastFilter = '';
 function heroFrame() {
   heroQueued = false;
   const r = hero.getBoundingClientRect(), track = r.height - window.innerHeight;
-  const p = still.matches || track <= 0 ? 1 : clamp01(-r.top / track);
-  const m = ease(p / 0.9);                          // lands a little before the track ends
-  const tall = layout === LAYOUTS.portrait;          // phones: a gentler start, so it stays in the frame
-  tilt.style.transform = m >= 1 ? 'none'
-    : `translate3d(0, ${mix(tall ? 4 : 10, 0, m)}vh, ${mix(tall ? -700 : -1150, 0, m)}px) rotateX(${mix(tall ? 50 : 57, 0, m)}deg) `
-      + `rotateY(${mix(tall ? 0 : 7, 0, m)}deg) rotateZ(${mix(tall ? -9 : -17, 0, m)}deg)`;
-  const set = (k, v) => stage.style.setProperty(k, v);
-  set('--blur', mix(9, 0, ease(p / 0.75)).toFixed(2));
-  set('--dim', mix(0.6, 1, m).toFixed(3));
-  const copy = 1 - ease(p / 0.28);
-  set('--copy', copy.toFixed(3));
-  set('--copy-events', copy > 0.5 ? 'auto' : 'none');
-  set('--sweep', ease((p - 0.3) / 0.6).toFixed(3));
-  set('--glare', Math.sin(Math.PI * clamp01((p - 0.3) / 0.6)).toFixed(3));
-  set('--shadow', mix(0.8, 0.3, m).toFixed(3));
-  if ((m >= 1) !== arrived) {
-    arrived = m >= 1;
-    set('--arrived', arrived ? 1 : 0);
-    set('--arrived-events', arrived ? 'auto' : 'none');
+  const p = still.matches || track <= 0 ? 1 : Math.min(1, Math.max(0, -r.top / track));
+  const q = heroPose(p, phone);
+  tilt.style.transform = q.transform;
+  const filter = q.blur > 0 ? `blur(${q.blur}px)` : 'none';   // no filter at all once sharp
+  if (filter !== lastFilter) { scene.style.filter = filter; lastFilter = filter; }
+  geometry(phone ? q.morph : 0, false);
+  stage.style.setProperty('--dim', q.dim);
+  stage.style.setProperty('--copy', q.copy.toFixed(3));
+  stage.style.setProperty('--copy-events', q.copy > 0.5 ? 'auto' : 'none');
+  stage.style.setProperty('--shadow', q.shadow);
+  els.glare.parentNode.style.opacity = q.glare;
+  if (q.glare > 0) els.glare.style.transform = `translate3d(${-60 + q.sweep * 220}%, 0, 0) rotate(18deg)`;
+  if (q.arrived !== arrived) {
+    arrived = q.arrived;
+    stage.style.setProperty('--arrived', arrived ? 1 : 0);
+    stage.style.setProperty('--arrived-events', arrived ? 'auto' : 'none');
     device.classList.toggle('waiting', !arrived);
     if (!arrived) releaseAll();                     // nothing stays held while it flies away
   }
