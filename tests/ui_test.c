@@ -2324,7 +2324,9 @@ static void test_motion_model_change(void)
     uint32_t i;
     ui_host_init();
     trk[0].p[P_E1] = 7;                               /* the old sound's DECAY, not a default */
+    trk[0].p[P_LEVEL] = 104;                          /* a knob the model change leaves alone */
     motion_add(0, 0, P_E1, 120);                      /* plays at step 0: E1 moved off the base 7 */
+    motion_add(0, 0, P_LEVEL, 20);                    /* .. and LEVEL off 104 */
     transport_req = 1;
     for (i = 0; i < 4u; i++)
         ui_frame();
@@ -2336,6 +2338,8 @@ static void test_motion_model_change(void)
     transport_req = 2;
     ui_frame();
     check("MOTION: STOP after a model change keeps the new model's values (not the old 7)", trk[0].p[P_E1] == def);
+    check("MOTION: STOP after a model change puts the other knobs' patch values back (LEVEL 104, not 20)",
+          trk[0].p[P_LEVEL] == 104);
     init_all();
     check("INIT ALL: no motion left", mo.s.count == 0u);
 }

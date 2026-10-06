@@ -30,6 +30,7 @@ static __attribute__((noinline)) void midi_clock_transport(uint32_t status, uint
         midi_clock.interval_ms = 0;
         midi_clock.start_ms = ms;
         song.playing = 1;
+        motion_begin();                             /* motion.c: the base, as PLAY takes it */
     } else if (status == 0xFCu) {
         seq_stop();
     }

@@ -280,6 +280,48 @@ static void test_clear(void)
     stop();
 }
 
+/* review: an LFO (FREE) on a recorded knob: the event's own hit reads motion's value, not the step before's */
+static void test_lfo_hit_value(void)
+{
+    uint32_t b, fired = 0;
+    int32_t v = 0;
+    fresh();
+    trk[0].p[P_E1] = 40;
+    trk[0].p[P_LFO1 + LF_DEST] = 2;                   /* E1 */
+    trk[0].p[P_LFO1 + LF_DEPTH] = 1;
+    trk[0].p[P_LFO1 + LF_TRIG] = LT_FREE;
+    trk[0].step[2].on = 1;
+    motion_add(0, 2, P_E1, 120);
+    play();
+    to_step(1, 100);
+    for (b = 0; b < 1000u && !fired; b++) {          /* mix_block's order: the LFOs, the events, (the hits), back */
+        lfo_apply(CTL);
+        events_block(CTL);
+        fired = trk[0].seq_idx == 2u;
+        v = trk[0].p[P_E1];
+        lfo_restore();
+    }
+    check("LFO (FREE) + motion: step 2's hit reads motion's value (within the LFO's depth of 120)",
+          fired && v >= 110 && v <= 127);
+    stop();
+}
+
+/* review: MIDI Continue takes the base, so a turn recorded after it comes back on STOP */
+static void test_continue_base(void)
+{
+    fresh();
+    trk[0].p[P_E1] = 40;
+    song.g[G_CLOCK] = 1;
+    render_mix(0, 0, CTL);                            /* the mode change settles */
+    midi_clock_transport(0xFBu, fm1_ms);              /* Continue: playing, the steps wait for pulses */
+    song.rec = 1u;
+    turn_to(P_E1, 100);
+    midi_clock_transport(0xFCu, fm1_ms);              /* Stop */
+    check("MIDI Continue then a recorded turn: STOP puts the patch's value back", !song.playing && trk[0].p[P_E1] == 40);
+    song.g[G_CLOCK] = 0;
+    render_mix(0, 0, CTL);
+}
+
 int main(void)
 {
     test_record_nearest();
@@ -294,6 +336,8 @@ int main(void)
     test_grids_track();
     test_midi_clock();
     test_clear();
+    test_lfo_hit_value();
+    test_continue_base();
     printf(fails ? "motion_test: %d FAILED\n" : "motion_test: all passed\n", fails);
     return fails != 0;
 }

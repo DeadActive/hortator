@@ -92,20 +92,27 @@ static void motion_end(void)                      /* seq_stop: the patch back */
 /* t enters step s: at step 0 the base back, then the knobs its events at s name */
 static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
 {
-    uint32_t k = (uint32_t)(t - trk), i;
+    uint32_t k = (uint32_t)(t - trk), i, moved = 0;
     if (!motion_on(k))
         return;
     if (!((mo.base_ok >> k) & 1u))
         motion_take_base(k);
-    if (!s)
+    if (!s) {
+        moved = mo.act[k][0] | mo.act[k][1];
         motion_restore(k);
+    }
     for (i = 0; i < mo.s.count; i++) {
         const motion_event_t *e = &mo.s.ev[i];
         if (e->trk == k && e->step == s) {
             const param_desc_t *d = track_desc(t, e->param);
             *motion_slot(t, e->param) = (int16_t)clamp(e->value, d->min, d->max);
             motion_mark(k, e->param);
+            moved = 1;
         }
+    }
+    if (moved && t->lnum && song.lfo_in) {         /* an LFO holds a knob this block: its copy from the new value, */
+        lfo_restore_track(t);                       /* so this step's hit reads it (as lfo_hit does) */
+        lfo_track(t, 0);
     }
 }
 
@@ -136,8 +143,13 @@ static void motion_forget(void)                   /* new knobs (a project load, 
 }
 static void motion_rebase(uint32_t k)             /* track k's sound replaced (a model, INIT SND): the new base */
 {
-    if ((mo.base_ok >> k) & 1u)
-        motion_take_base(k);
+    uint32_t id;
+    if (!((mo.base_ok >> k) & 1u))
+        return;
+    for (id = 0; id < P_COUNT; id++)               /* the knobs the model left alone: back to the patch first, or */
+        if (motion_moved(k, id) && (id < P_E0 || id > P_E7))   /* their recorded value would become the patch */
+            *motion_slot(&trk[k], id) = mo.base[k][id];
+    motion_take_base(k);
 }
 static int motion_valid(const motion_store_t *m)  /* a saved store: places in range, recordable, no place twice */
 {
