@@ -3,6 +3,8 @@
 /* The web simulator's core, headless (tools/build_sim.sh): the same C the browser runs as wasm, through its API. */
 #include "sim_core.c"
 #include <stdio.h>
+#include <math.h>
+#include <time.h>
 
 static int fails;
 static int check(const char *what, int ok)
@@ -64,9 +66,99 @@ static void test_boot_and_input(void)
     check("a note key (track 2's white key) selects track 2 and changes the screen", song.sel == 1u && fb_hash() != h);
 }
 
+static float peak(uint32_t frames)                  /* the loudest sample over the next frames */
+{
+    float m = 0;
+    while (frames) {
+        uint32_t n = frames < SIM_MAX_FRAMES ? frames : SIM_MAX_FRAMES, i;
+        const float *a;
+        sim_render(n);
+        a = sim_audio();
+        for (i = 0; i < 2u * n; i++)
+            m = fabsf(a[i]) > m ? fabsf(a[i]) : m;
+        frames -= n;
+    }
+    return m;
+}
+
+static void tap(uint32_t label)
+{
+    sim_btn(label, 1);
+    run(1024);
+    sim_btn(label, 0);
+    run(1024);
+}
+
+static void four_on_the_floor(void)                  /* the current project's track 1 (until the demos) */
+{
+    uint32_t k;
+    for (k = 0; k < 16u; k += 4u)
+        trk[0].step[k].on = 1;
+}
+
+static void test_audio(void)
+{
+    float loud, quiet;
+    uint32_t on = 0, off = 0, i;
+    sim_init(1);
+    four_on_the_floor();
+    run(4096);
+    check("before PLAY: silent", peak(FS / 2u) < 4.0f / 32768.0f);
+    tap(B_PLAY);
+    check("PLAY: the transport runs", sim_playing());
+    loud = peak(FS);
+    check("PLAY: audio within 1 s", loud > 0.01f);
+    for (i = 0; i < 40u; i++) {                      /* PLAY's LED blinks while playing */
+        run(FS / 40u / CTL * CTL);
+        if ((sim_leds() >> B_PLAY) & 1u)
+            on++;
+        else
+            off++;
+    }
+    check("PLAY's LED blinks while playing", on && off);
+    sim_master(0);
+    run(FS / 2u);
+    quiet = peak(FS);
+    check("MASTER at 0: much quieter", quiet < loud * 0.1f);
+    sim_master(800);
+    tap(B_PLAY);
+    check("PLAY again: stopped", !sim_playing());
+    run(FS * 3u);
+    check("stopped: silent once the tails decay", peak(FS / 2u) < 4.0f / 32768.0f);
+}
+
+static void test_leds(void)
+{
+    sim_init(1);
+    run(4096);
+    sim_key(5, 1);
+    run(2048);
+    check("a held note key lights its LED", (sim_leds() >> (14u + 5u)) & 1u);
+    sim_key(5, 0);
+    run(2048);
+    check("released: its LED goes off", !((sim_leds() >> (14u + 5u)) & 1u));
+}
+
+static void test_frame_cost(void)                    /* informational: a UI frame runs in the audio thread */
+{
+    clock_t t0;
+    uint32_t i;
+    sim_init(1);
+    tap(B_EDIT);
+    t0 = clock();
+    for (i = 0; i < 200u; i++) {
+        ui.force = 1;
+        sim_frame();
+    }
+    printf("info  UI frame (full redraw): %.0f us\n", (double)(clock() - t0) * 1e6 / CLOCKS_PER_SEC / 200.0);
+}
+
 int main(void)
 {
     test_boot_and_input();
+    test_audio();
+    test_leds();
+    test_frame_cost();
     printf(fails ? "sim_test: %d FAILED\n" : "sim_test: all ok\n", fails);
     return fails != 0;
 }
