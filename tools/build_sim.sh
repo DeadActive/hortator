@@ -7,16 +7,20 @@
 #   tools/build_sim.sh --ref main       the firmware of a commit / branch (exported into build/sim/src, with this
 #                                       checkout's simulator files laid over it; no branch is touched)
 #   tools/build_sim.sh --host-only      generated headers + host test only (no Docker, no node); combines with --ref
+#   tools/build_sim.sh --preview        also build/sim/preview/: the site's layout (the landing page at /, the installer
+#                                       at webapp/installer/, assembled as web/make_site.py does, with no firmware
+#                                       package: it shows "could not load" and cannot install)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PYTHON:-python3}
 export PYTHONDONTWRITEBYTECODE=1                      # no __pycache__ next to tools/build.py: output stays in build/sim
 OUT=build/sim
 GEN=$OUT/gen
-HOST_ONLY=0 REF=
+HOST_ONLY=0 REF= PREVIEW=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --host-only) HOST_ONLY=1 ;;
+        --preview) PREVIEW=1 ;;
         --ref) REF=${2:?--ref needs a commit or branch}; shift ;;
         *) echo "build_sim: unknown option $1" >&2; exit 2 ;;
     esac
@@ -32,6 +36,7 @@ if [ -n "$REF" ]; then
     mkdir -p "$ROOT"
     git archive "$REF" | tar -x -C "$ROOT"
     cp tests/sim_* "$ROOT/tests/"
+    cp web/index_pkg.html "$ROOT/web/"                  # the restyled installer (docs/SIMULATOR.md)
     mkdir -p "$ROOT/web/sim" "$ROOT/tools" "$ROOT/docs"
     cp web/sim/* "$ROOT/web/sim/"
     cp tools/build_sim.sh "$ROOT/tools/"
@@ -78,5 +83,25 @@ fi
 [ -n "$REF" ] || [ -z "$(git status --porcelain -- firmware tests web tools)" ] ||
     echo "build_sim: uncommitted changes: source.tar.gz is HEAD, not this build (commit before publishing)" >&2
 OUT_ABS=$PWD/$OUT
-(cd "$ROOT" && node --test-reporter=dot tests/sim_glue.mjs "$OUT_ABS")
+(cd "$ROOT" && node --test-reporter=dot tests/sim_glue.mjs "$OUT_ABS" && node --test-reporter=dot tests/sim_site.mjs)
+
+# 5. preview: the site's layout, to look at (never to install from)
+if [ "$PREVIEW" = 1 ]; then
+    P=$OUT/preview
+    rm -rf "$P"
+    mkdir -p "$P/webapp/installer"
+    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$P/"
+    "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
+import json, sys
+from pathlib import Path
+web, out, version = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+sys.path.insert(0, str(web))
+from make_site import strip_module                   # the site's own assembly (web/make_site.py main)
+html = (web / "index_pkg.html").read_text(encoding="utf-8")
+lib = strip_module((web / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + strip_module((web / "fm1ota.js").read_text(encoding="utf-8"))
+meta = json.dumps({"version": version + " (preview)", "product": "FM-1_900", "pkg": "../../firmware/preview-has-no-package.fwsc"})
+out.write_text(html.replace("/*LIB*/", lib).replace("/*META*/", meta), encoding="utf-8")
+PY
+    echo "build_sim: preview $P (cd $P && python3 -m http.server 8001)"
+fi
 echo "build_sim: $OUT ready, firmware DRUM-$VERSION (cd $OUT && python3 -m http.server 8001)"

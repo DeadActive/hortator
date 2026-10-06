@@ -12,12 +12,17 @@
   --silk: #e6e4dc;
   --led: #f2f7ff;
   --focus: #ffffff;
+  --rule: #a9afb6;
+  --warn-bg: #e9ddc7;
+  --warn-ink: #4a3a1c;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --backdrop: #1f2226; --ink: #e3e6ea; --ink-soft: #a7aeb6; }
+  :root:not([data-theme="light"]) { --backdrop: #1f2226; --ink: #e3e6ea; --ink-soft: #a7aeb6; --rule: #3c4249;
+    --warn-bg: #3a3222; --warn-ink: #ead9b5; }
 }
-:root[data-theme="dark"] { --backdrop: #1f2226; --ink: #e3e6ea; --ink-soft: #a7aeb6; }
+:root[data-theme="dark"] { --backdrop: #1f2226; --ink: #e3e6ea; --ink-soft: #a7aeb6; --rule: #3c4249;
+  --warn-bg: #3a3222; --warn-ink: #ead9b5; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -33,24 +38,61 @@ body {
   padding: 16px 16px max(16px, env(safe-area-inset-bottom));
 }
 
-/* ---- page copy */
-.top { width: min(100%, 1000px); }
-.top h1 { font-size: 22px; font-weight: 500; margin: 0 0 2px; letter-spacing: 0.01em; }
-.top p { margin: 0; color: var(--ink-soft); max-width: 62ch; }
-.top nav { display: flex; gap: 8px; margin: 10px 0 0; flex-wrap: wrap; }
+/* ---- page: header, sections, footer (one column, the device's width) */
+.top, .play, .features, .install, .foot { width: min(100%, 1000px); }
 button { font: inherit; }
-.top nav button, .confirm button {
+.top { padding: 28px 0 8px; }
+.brand { display: flex; align-items: baseline; gap: 12px; margin: 0 0 14px; }
+.silk { font: 15px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.05em; }
+.by { font-size: 13px; color: var(--ink-soft); }
+.top h1 { font-size: clamp(26px, 4.4vw, 40px); font-weight: 600; line-height: 1.12; margin: 0; max-width: 20ch;
+  letter-spacing: -0.01em; }
+.lede { margin: 12px 0 0; color: var(--ink-soft); font-size: 17px; max-width: 56ch; }
+.actions { display: flex; gap: 10px; margin: 20px 0 0; flex-wrap: wrap; }
+.cta {
+  display: inline-block; text-decoration: none; font-weight: 500; padding: 10px 22px; border-radius: 999px;
+  background: var(--ink); color: var(--backdrop); border: 1px solid var(--ink);
+}
+.cta.ghost { background: transparent; color: var(--ink); }
+.cta:hover { opacity: 0.88; }
+
+.play { padding-top: 26px; }
+.play-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.play-bar > button, .confirm button {
   background: transparent; color: var(--ink); border: 1px solid var(--ink-soft); border-radius: 999px;
   padding: 3px 14px; cursor: pointer;
 }
-.top nav button:hover, .confirm button:hover { border-color: var(--ink); }
-.confirm { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.help { width: min(100%, 1000px); display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; margin-top: 8px; }
+.play-bar > button:hover, .confirm button:hover { border-color: var(--ink); }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-basis: 100%; }
+.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; margin-top: 8px; }
 .help h2 { font-size: 15px; font-weight: 500; margin: 8px 0 2px; }
 .help ul { margin: 0; padding-left: 18px; color: var(--ink-soft); }
-.note { min-height: 1.5em; margin: 6px 0 0; color: var(--ink-soft); width: min(100%, 1000px); }
-.foot { width: min(100%, 1000px); color: var(--ink-soft); font-size: 13px; margin-top: auto; }
-.foot p { max-width: 80ch; }
+.note { min-height: 1.5em; margin: 6px 0 0; color: var(--ink-soft); }
+
+.features, .install { padding: 56px 0 0; }
+.features > h2, .install > h2 { font-size: 26px; font-weight: 600; margin: 0 0 20px; letter-spacing: -0.01em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 28px 36px; }
+.grid article { border-top: 2px solid var(--ink); padding-top: 12px; }
+.grid h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+.grid p { margin: 0; color: var(--ink-soft); }
+.grid p.where { margin-top: 10px; font-size: 14px; color: var(--ink); }
+.where b { font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.04em; padding: 3px 6px 2px;
+  border-radius: 5px; background: var(--body); color: var(--silk); vertical-align: 1px; }
+
+.steps { list-style: none; counter-reset: step; padding: 0; margin: 0 0 24px; max-width: 640px; }
+.steps > li { counter-increment: step; position: relative; padding: 0 0 18px 52px; }
+.steps > li::before {
+  content: counter(step); position: absolute; left: 0; top: -2px; width: 34px; height: 34px; border-radius: 9px;
+  display: grid; place-items: center; font: 14px/1 "Silkscreen", ui-monospace, monospace;
+  background: linear-gradient(180deg, var(--cap-top), var(--cap)); color: var(--silk); box-shadow: 0 2px 0 #1c1e21;
+}
+.steps h3 { font-size: 17px; font-weight: 600; margin: 3px 0 2px; }
+.steps p { margin: 0; color: var(--ink-soft); }
+.beta { max-width: 640px; margin: 0 0 20px; padding: 12px 14px; border-radius: 10px; font-size: 15px;
+  background: var(--warn-bg); color: var(--warn-ink); }
+
+.foot { color: var(--ink-soft); font-size: 13px; margin-top: 64px; border-top: 1px solid var(--rule); padding-top: 14px; }
+.foot p { max-width: 80ch; margin: 0 0 8px; }
 .foot a { color: inherit; }
 
 /* ---- the device: drawn at its design size, scaled to fit (app.js sets --scale and the layout) */
@@ -139,12 +181,12 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 .power button:disabled { opacity: 0.6; cursor: progress; }
 .power p { margin: 10px 0 0; color: var(--ink); font-size: 14px; }
 
-@media (max-height: 520px) {                          /* phones held sideways: one header line */
-  .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .top p { display: none; }
-  .top nav { margin: 0; }
-  .top h1 { font-size: 17px; margin: 0; }
+@media (max-height: 520px) {                          /* phones held sideways: the device first */
+  .top { padding-top: 8px; }
+  .top h1 { font-size: 20px; }
+  .lede { display: none; }
+  .actions { margin-top: 8px; }
   .stage { margin-top: 6px; }
 }
-@media (max-width: 480px) { .top p { font-size: 14px; } }
+@media (max-width: 480px) { .lede { font-size: 15px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

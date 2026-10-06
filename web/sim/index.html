@@ -5,63 +5,128 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>FM-1 drum machine simulator</title>
-<meta name="description" content="The FM-1 drum machine firmware running in your browser: play the keys, program the sequencer, press PLAY.">
+<title>FM-1 Drums: a drum machine for the M-VAVE FM-1</title>
+<meta name="description" content="FM-1 Drums turns the M-VAVE FM-1 into an eight-track drum machine. Play it in your browser, then install it over USB.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="sim.css">
 </head>
 <body>
 <header class="top">
-  <h1>FM-1 drum machine</h1>
-  <p>The FM-1's drum firmware, compiled for the browser. Press PLAY to hear the demo, then make it yours.</p>
-  <nav>
-    <button type="button" id="help-toggle" aria-expanded="false" aria-controls="help">Controls</button>
-    <button type="button" id="reset">Reset to demos</button>
+  <p class="brand"><span class="silk">FM-1 DRUMS</span><span class="by">by DEADACTIVE</span></p>
+  <h1>An eight-track drum machine for the M-VAVE FM-1</h1>
+  <p class="lede">Custom firmware for the FM-1. Below, the same code runs in your browser: switch it on, press PLAY,
+    then make the pattern yours.</p>
+  <nav class="actions">
+    <a class="cta" href="#play">Play it below</a>
+    <a class="cta ghost" href="webapp/installer/">Install on your FM-1</a>
   </nav>
-  <div id="reset-confirm" class="confirm" hidden>
-    <span>Erase your saves in this browser and restore the four demos?</span>
-    <button type="button" id="reset-yes">Erase and restart</button>
-    <button type="button" id="reset-no">Keep my saves</button>
-  </div>
 </header>
 
-<section id="help" class="help" hidden>
-  <div>
-    <h2>Mouse and touch</h2>
-    <ul>
-      <li>Keys and buttons play while held. Several fingers work.</li>
-      <li>Turn a knob by dragging it up or down, with the mouse wheel, or by hovering it and pressing ↑ ↓.</li>
-      <li>To hold a button for a combination (SEQ held + a key), right-click it or long-press it. Tap it again to let go.</li>
-    </ul>
+<section id="play" class="play" aria-label="Simulator">
+  <div class="play-bar">
+    <button type="button" id="help-toggle" aria-expanded="false" aria-controls="help">Controls</button>
+    <button type="button" id="reset">Reset to demos</button>
+    <div id="reset-confirm" class="confirm" hidden>
+      <span>Erase your saves in this browser and restore the four demos?</span>
+      <button type="button" id="reset-yes">Erase and restart</button>
+      <button type="button" id="reset-no">Keep my saves</button>
+    </div>
   </div>
-  <div>
-    <h2>Computer keyboard</h2>
-    <ul>
-      <li>Lower keys: Z X C V B N M , . / with S D F H J L ; ' for the raised ones.</li>
-      <li>Upper keys: Q W E R T Y with 3 4 6.</li>
-      <li>Space PLAY, Enter REC, Esc HOME, ← OCT−, → OCT+.</li>
-    </ul>
+
+  <div id="help" class="help" hidden>
+    <div>
+      <h2>Mouse and touch</h2>
+      <ul>
+        <li>Keys and buttons play while held. Several fingers work.</li>
+        <li>Turn a knob by dragging it up or down, with the mouse wheel, or by hovering it and pressing ↑ ↓.</li>
+        <li>To hold a button for a combination (SEQ held + a key), right-click it or long-press it. Tap it again to let go.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Computer keyboard</h2>
+      <ul>
+        <li>Lower keys: Z X C V B N M , . / with S D F H J L ; ' for the raised ones.</li>
+        <li>Upper keys: Q W E R T Y with 3 4 6.</li>
+        <li>Space PLAY, Enter REC, Esc HOME, ← OCT−, → OCT+.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div id="fit" class="fit">
+      <div id="device" class="device" aria-label="FM-1 panel"></div>
+    </div>
+    <div id="power" class="power">
+      <button type="button" id="power-on" disabled>Switch on</button>
+      <p id="power-note">Loading…</p>
+    </div>
+  </div>
+  <p id="note" class="note" role="status"></p>
+</section>
+
+<section id="features" class="features">
+  <h2>What it does</h2>
+  <div class="grid">
+    <article>
+      <h3>Eight drum tracks</h3>
+      <p>Each track plays a drum model: 808 and 909 kicks, snares and claps, hats, toms, cowbell, cymbal, rim, clave,
+        conga, and Plaits-style kicks, snares and hats. Every model has TUNE, DECAY, TONE and a fourth knob.</p>
+      <p class="where">On the panel: <b>EDIT</b>. ALGORITHM or a white key on HOME picks the track.</p>
+    </article>
+    <article>
+      <h3>Step sequencer</h3>
+      <p>Up to 64 steps per track, each track with its own length. Accents, swing, PROB and RATCH per step, fills that
+        play every other bar, live recording, and mutes that wait for the next bar.</p>
+      <p class="where">On the panel: <b>SEQ</b>, the 16 white keys are the steps. <b>REC</b> for TRACKS and recording.</p>
+    </article>
+    <article>
+      <h3>Grids</h3>
+      <p>Mutable Instruments' pattern generator: move through its drum map, add chaos, or switch to Euclidean rhythms.
+        Any track can follow one of its three channels.</p>
+      <p class="where">On the panel: <b>ARP</b>.</p>
+    </article>
+    <article>
+      <h3>Compressor</h3>
+      <p>The Streams compressor, keyed by any track: duck the hats and the reverb under the kick for a pumping mix.
+        GHOST keeps the pump going with the key track muted.</p>
+      <p class="where">On the panel: <b>HOME</b>, then PRESETS to the COMP pages.</p>
+    </article>
+    <article>
+      <h3>LFOs and RESON</h3>
+      <p>Two LFOs per track, ten waves with morph, synced to the tempo. RESON adds a string, pipe or chord resonator
+        to a track.</p>
+      <p class="where">On the panel: <b>LFO</b>; RESON on the <b>FX</b> pages.</p>
+    </article>
+    <article>
+      <h3>Effects</h3>
+      <p>Distortion and the SLICER on every track; delay, ROOM or SPRING reverb and chorus sends; a master limiter, and
+        BASS+ to make the small speaker sound bigger.</p>
+      <p class="where">On the panel: <b>FX</b>, PRESETS turns the pages. BASS+ is in the menu (hold HOME).</p>
+    </article>
   </div>
 </section>
 
-<main class="stage">
-  <div id="fit" class="fit">
-    <div id="device" class="device" aria-label="FM-1 panel"></div>
-  </div>
-  <div id="power" class="power">
-    <button type="button" id="power-on" disabled>Switch on</button>
-    <p id="power-note">Loading…</p>
-  </div>
-</main>
-
-<p id="note" class="note" role="status"></p>
+<section id="install" class="install">
+  <h2>Put it on your FM-1</h2>
+  <ol class="steps">
+    <li><h3>Use Chrome or Edge on a computer</h3><p>The installer talks to the FM-1 over USB MIDI, which only these browsers allow.</p></li>
+    <li><h3>Connect the FM-1 with a USB data cable</h3><p>Straight into the computer. No probe or Transporter is needed.</p></li>
+    <li><h3>Press Install and wait</h3><p>A few minutes. Keep the cable in until it says Done; the FM-1 restarts by itself.</p></li>
+  </ol>
+  <p class="beta">FM-1 Drums is beta firmware and may be unstable. You install it at your own risk: the author accepts
+    no responsibility if your FM-1 is damaged or misbehaves. M-VAVE's own updater, M-UPGRADE, takes you back to the
+    official firmware.</p>
+  <p><a class="cta" href="webapp/installer/">Open the installer</a></p>
+</section>
 
 <footer class="foot">
-  <p>An unofficial simulator. Firmware: the DEADACTIVE drum machine fork of Felucca by Leo Kuroshita, Hügelton
-  Instruments, licensed GPL-3.0: <a href="source.tar.gz">download the source code</a> this page was built from.
-  Saves stay in this browser.</p>
+  <p>FM-1 Drums by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
+    <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. Licensed GPL-3.0:
+    <a href="source.tar.gz">download the source code</a> this page was built from. Saves stay in this browser.</p>
+  <p>Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and
+    VCSL (CC0 1.0). M-VAVE and FM-1 are trademarks of their respective owners; this project is not affiliated with M-VAVE.</p>
 </footer>
 <script type="module" src="app.js"></script>
 </body>

@@ -132,7 +132,8 @@ function relayout() {
     device.style.height = `${L.H}px`;
   }
   const availW = Math.min(document.documentElement.clientWidth - 32, 1000);
-  const availH = window.innerHeight - fit.getBoundingClientRect().top - window.scrollY - 12;   // keys above the fold
+  const play = document.getElementById('play') ?? document.body;     // the device fits the window seen from #play
+  const availH = window.innerHeight - (fit.getBoundingClientRect().top - play.getBoundingClientRect().top) - 40;
   const scale = Math.max(0.3, Math.min(availW / L.W, availH / L.H, 1.2));
   device.style.setProperty('--scale', scale);
   fit.style.width = `${L.W * scale}px`;

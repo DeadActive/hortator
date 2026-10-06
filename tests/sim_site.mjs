@@ -51,3 +51,15 @@ test('installer: named FM-1 Drums, no language switch, /*LIB*/ and /*META*/ kept
   assert.equal(NOW.split('/*META*/').length, 2);
   for (const id of ['go', 'bar', 'status', 'log']) assert.match(NOW, new RegExp(`id="${id}"`), id);
 });
+
+// ---- the landing page: the simulator as the hero, what it does, install
+const LANDING = readFileSync('web/sim/index.html', 'utf8');
+
+test('landing: sections play, features, install; install goes to the installer; the source is linked', () => {
+  for (const id of ['play', 'features', 'install']) assert.match(LANDING, new RegExp(`<section[^>]*id="${id}"`), id);
+  assert.match(LANDING, /href="webapp\/installer\/"/);
+  assert.match(LANDING, /href="#play"/);
+  assert.match(LANDING, /href="source\.tar\.gz"/);
+  assert.match(LANDING.match(/<title>(.*)<\/title>/)[1], /FM-1 Drums/);
+  assert.match(LANDING, /id="device"/, 'the simulator is on the page');
+});

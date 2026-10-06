@@ -40,6 +40,22 @@ Everything the script writes goes under `build/sim/`:
 
 `build/sim/` is a self-contained static folder that can be put on any static host. It needs no special headers and no SharedArrayBuffer.
 
+## The site: landing page and installer
+
+`web/sim/index.html` is the project's landing page: the name and one sentence, the simulator as the hero, what the
+firmware does (with where to find it on the panel), how to install, credits and the source link.
+
+`web/index_pkg.html` is the installer page, restyled to match, in English only and named FM-1 Drums. This was a
+user-granted exception to the simulator's file rules (2026-10-07). Its script is `main`'s at 12a1ba0 with exactly
+four changes: the text table, the fixed language, no language switch, and the status label. `tests/sim_site.mjs`
+rebuilds that script from 12a1ba0 and requires a byte-for-byte match, so the install logic cannot drift unnoticed.
+
+`tools/build_sim.sh --preview` (with `--ref main` for the current firmware) writes `build/sim/preview/` in the
+site's layout. The landing page is at `/` and the installer at `webapp/installer/`, assembled with `make_site.py`'s
+own `strip_module`. Its firmware package is a placeholder that does not exist, so the preview installer shows
+"Could not load the firmware" and Install stays disabled. Never install from a preview; a real install needs the
+site `make_site.py` builds.
+
 ## How it works
 
 | Unit | File | Job |
@@ -119,7 +135,36 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
 
 ## Requests for the firmware session
 
-1. **Publish the simulator next to the installer** (optional). `web/make_site.py` could copy `build/sim/` to
+1. **Make the landing page the site's front page.** In `web/make_site.py`, replace the root `index.html` redirect
+   with the landing page when `build/sim/` has been built, and keep the installer at `webapp/installer/`; the landing
+   page links `webapp/installer/` and `source.tar.gz` relatively. Proposed diff (replaces the one below):
+
+   ```diff
+   @@
+   -  index.html                  redirect to the installer
+   +  index.html                  the FM-1 Drums landing page with the simulator (build/sim, docs/SIMULATOR.md);
+   +                              a redirect to the installer when the simulator was not built
+   @@
+   -    (out / "index.html").write_text(
+   -        '<!doctype html><meta charset="utf-8"><title>Felucca</title>'
+   -        '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
+   -        '<a href="webapp/installer/">Felucca installer</a>\n', encoding="utf-8")
+   +    sim = HERE.parent / "build" / "sim"
+   +    if (sim / "fm1sim.wasm").exists():
+   +        for f in sim.iterdir():
+   +            if f.is_file() and f.suffix in (".html", ".js", ".css", ".wasm", ".gz"):
+   +                shutil.copy(f, out / f.name)
+   +    else:
+   +        (out / "index.html").write_text(
+   +            '<!doctype html><meta charset="utf-8"><title>FM-1 Drums</title>'
+   +            '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
+   +            '<a href="webapp/installer/">FM-1 Drums installer</a>\n', encoding="utf-8")
+   ```
+
+   Build the simulator first (`tools/build_sim.sh --ref <the commit being published>`), so the page and the
+   package come from the same firmware.
+
+   Superseded, kept for reference: **Publish the simulator next to the installer** (optional). `web/make_site.py` could copy `build/sim/` to
    `OUT/webapp/sim/` when it has been built, so GitHub Pages serves it beside the installer. Proposed diff:
 
    ```diff
