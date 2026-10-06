@@ -5,7 +5,7 @@
  * Four columns map to KNOB 1..4; rendering (ui_draw.c) is lazy: every element remembers what it
  * last drew and is redrawn only on change. */
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "DRUM-0.1"
+#define FELUCCA_VERSION "DRUM-DEV"         /* host tests; builds pass DRUM-<VERSION> (tools/build.py) */
 #endif
 static void project_save(uint32_t slot);
 static void project_load(uint32_t slot);

@@ -32,7 +32,8 @@ sys.path.insert(0, str(SRC / "tools"))
 sys.path.insert(0, str(SRC / "web"))
 import fm1pkg_make  # noqa: E402
 import lz4blk  # noqa: E402
-import make_site  # noqa: E402
+import make_site
+import version as drum_version  # noqa: E402
 
 APP_XIP = 0x02000120                # app.bin offset 0 in the XIP map; the SPL jumps here
 APP_SLOT = fm1pkg_make.APP_SLOT
@@ -50,7 +51,7 @@ SDK_SHA256 = {
 }
 
 PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
-VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
+VERSION = None                      # FELUCCA_VERSION for release builds (default: the drum version, VERSION)
 
 
 def toolchain():
@@ -182,8 +183,7 @@ def build_app():
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
-    if VERSION:
-        flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
+    flags.append(f'-DFELUCCA_VERSION="{VERSION or drum_version.firmware_string(drum_version.read())}"')
     tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
@@ -301,11 +301,12 @@ def mmio_check():
 
 
 def drum_label():
-    """drum-<commit>, -dirty when tracked files differ from it: the installer names the exact source it ships"""
+    """drum-<version>+<commit>, -dirty when tracked files differ from it: the installer names the exact source
+    it ships (docs/VERSIONING.md)"""
     def git(*a):
         return subprocess.run(["git", *a], cwd=SRC, capture_output=True, text=True).stdout.strip()
     rev = git("rev-parse", "--short", "HEAD") or "unknown"
-    return f"drum-{rev}" + ("-dirty" if git("status", "--porcelain", "--untracked-files=no") else "")
+    return f"drum-{drum_version.read()}+{rev}" + ("-dirty" if git("status", "--porcelain", "--untracked-files=no") else "")
 
 
 def main():

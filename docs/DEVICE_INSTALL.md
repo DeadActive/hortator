@@ -42,7 +42,7 @@ Both directions now work on your FM-1, with firmware many people run.
    Expected: it finds the FM-1, asks to confirm, writes, and the FM-1 restarts.
 
    Or with the web installer: every `DRUM_PACKAGE=1 ./build.sh` also rebuilds a local copy of the site in
-   `build/site` with that same package, labelled `drum-<commit>` (`-dirty` when the source had uncommitted
+   `build/site` with that same package, labelled `drum-<version>+<commit>` (docs/VERSIONING.md; `-dirty` when the source had uncommitted
    changes). Serve it with `cd build/site && python3 -m http.server 8000` and open
    http://localhost:8000/webapp/installer/ (Chrome or Edge). Check that the version it shows is the commit you
    noted in step 1.
