@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Host test of the MIDI input parsers: the running-status parser in
- * firmware/src/midi_uart.c (um_byte) and the USB-MIDI SysEx path of firmware/src/usb.c
- * (sysex_byte frame assembly, ota_wire_send packetising). */
+ * firmware/src/midi_uart.c (um_byte) and the USB-MIDI SysEx path of firmware/src/usb_app.c, the app's driver
+ * (sysex_byte frame assembly, ota_wire_send packetising). The loader's usb.c is tested end to end by ldr_test.
+ * Drum machine fork: 2026 DEADACTIVE */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,7 +12,7 @@
 #define FELUCCA_CDC 0
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"   /* SIE register macros (never touched here) */
-#include "../firmware/src/usb.c"
+#include "../firmware/src/usb_app.c"
 #include "../firmware/src/midi_uart.c"
 
 static uint32_t now_ms;
@@ -111,7 +112,7 @@ int main(void)
         0x80, 60, 0,
     };
     static const uint32_t want[] = {
-        0x643C9009u, 0x653E9009u, 0x66409009u, 0x0005C10Cu, 0x0006C10Cu, 0x7F07B00Bu, 0x003C8008u,
+        0x643C9009u, 0x653E9009u, 0x0000F80Fu, 0x66409009u, 0x0005C10Cu, 0x0006C10Cu, 0x7F07B00Bu, 0x003C8008u,
     };
     uint32_t i, bad = 0, n = sizeof want / sizeof want[0];
     for (i = 0; i < sizeof in; i++)
@@ -138,6 +139,20 @@ int main(void)
         }
         bad += (uint32_t)check("uart: channels 1, 2, 3, 10, 16 -> USB-MIDI packets", ok);
     }
+    {   /* realtime from the jack: Start / Stop queued with the time and the source (TRS = 2) for the MIDI clock
+         * feature; Active Sensing, Reset and the undefined F9 / FD queue nothing */
+        uint32_t w0 = mi_w;
+        fm1_ms = 1234u;
+        um_byte(0xFAu);
+        um_byte(0xFEu);
+        um_byte(0xFFu);
+        um_byte(0xF9u);
+        um_byte(0xFDu);
+        um_byte(0xFCu);
+        bad += (uint32_t)check("uart: Start / Stop queued with time and source TRS; FE FF F9 FD dropped",
+            mi_w == w0 + 2u && midi_in_q[w0 % MQ] == 0x0000FA0Fu && midi_in_q[(w0 + 1u) % MQ] == 0x0000FC0Fu &&
+            midi_in_ms[w0 % MQ] == 1234u && midi_in_source[w0 % MQ] == 2u && midi_in_source[(w0 + 1u) % MQ] == 2u);
+    }
     {   /* upstream 1.0: bytes lost to a ring overflow end the running status (no spurious notes from data bytes) */
         uint32_t w0;
         um_byte(0x90);
@@ -146,7 +161,22 @@ int main(void)
         memset((void *)um_ring, 0x40, UM_RING);      /* the ring holds data bytes only */
         w0 = mi_w;
         uart_midi_take(UM_RING + 10u);               /* more than the ring: bytes were lost */
-        bad += (uint32_t)check("uart: a ring overflow ends the running status", mi_w == w0);
+        bad += (uint32_t)check("uart: a ring overflow ends the running status, marks the stream broken",
+                               mi_w == w0 && midi_in_overflow == 1);
+        midi_in_overflow = 0;                         /* what seq.c's midi_block does */
+        mi_r = mi_w;
+    }
+    {   /* the input ring full (the audio ISR behind): the TRS message is refused, the stream marked broken */
+        uint32_t w0, d0 = um.drops;
+        mi_r = mi_w - MQ;
+        w0 = mi_w;
+        um_byte(0x99u);
+        um_byte(36u);
+        um_byte(100u);
+        bad += (uint32_t)check("uart: a full input ring refuses the message, marks the stream broken, one drop",
+                               mi_w == w0 && midi_in_overflow == 1 && um.drops == d0 + 1u);
+        midi_in_overflow = 0;
+        mi_r = mi_w;
     }
     bad += (uint32_t)test_usb_sysex();
     printf("%s\n", bad ? "MIDI PARSER TEST FAILED" : "midi parser test passed");

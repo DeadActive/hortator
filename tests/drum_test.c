@@ -321,6 +321,82 @@ static void test_midi_safe_start(void)
     safe_start = 0;
 }
 
+/* TRS MIDI (midi_uart.c, on by default since stage 2 step 4): bytes from the jack reach the same ring as USB
+ * (midi_enqueue, source TRS) and play exactly as USB's */
+static void trs(const char *p, uint32_t n)
+{
+    while (n--)
+        um_byte((uint8_t)*p++);
+}
+
+static void test_midi_trs(void)
+{
+    /* ch 10 note 60, a Clock and an Active Sensing inside the running status, note 61; ch 1 note 62; ch 10 note
+     * 63 at velocity 0 (a keyboard's note-off) */
+    static const char IN[] = "\x99\x3C\x5A\xF8\xFE\x3D\x64\x90\x3E\x5A\x99\x3F";
+    uint32_t i, a[NTRK], a0, ok;
+    host_init();
+    for (i = 0; i < NTRK; i++) {
+        trk[i].p[P_NOTE] = 60 + (int)i;
+        a[i] = hit_age(&trk[i]);
+    }
+    a0 = mi_w;
+    trs(IN, sizeof IN - 1u);
+    um_byte(0);                                      /* the velocity 0 (a NUL ends the string above) */
+    check("TRS MIDI: notes, the Clock between them, another channel and a velocity-0 note queued (source TRS)",
+          mi_w == a0 + 5u && (midi_in_q[(a0 + 1u) % MQ] & 0xFFFFu) == (0x0Fu | 0xF8u << 8) &&
+          midi_in_source[a0 % MQ] == 2u && midi_in_source[(a0 + 4u) % MQ] == 2u);
+    render_mix(0, 0, CTL);
+    ok = 1;
+    for (i = 2; i < NTRK; i++)
+        ok &= hit_age(&trk[i]) == a[i];
+    check("TRS MIDI: the drum channel's notes play at their velocity, also after a Clock / Active Sensing byte",
+          hit_age(&trk[0]) != a[0] && (trk[0].v[0].vel == 90 || trk[0].v[1].vel == 90) &&
+          hit_age(&trk[1]) != a[1] && (trk[1].v[0].vel == 100 || trk[1].v[1].vel == 100));
+    check("TRS MIDI: another channel and a velocity-0 note-on play nothing; the ring empties", ok && mi_r == mi_w);
+
+    a[4] = hit_age(&trk[4]);
+    a[5] = hit_age(&trk[5]);
+    a0 = mi_w;
+    midi_enqueue(0x09u | 0x99u << 8 | 64u << 16 | 90u << 24, 1u);       /* USB: note 64 */
+    trs("\x99\x41\x5A", 3);                                              /* TRS: note 65 */
+    render_mix(0, 0, CTL);
+    check("TRS + USB MIDI in one block: both notes play, each with its source (USB 1, TRS 2)",
+          hit_age(&trk[4]) != a[4] && hit_age(&trk[5]) != a[5] &&
+          midi_in_source[a0 % MQ] == 1u && midi_in_source[(a0 + 1u) % MQ] == 2u);
+
+    a[6] = hit_age(&trk[6]);
+    for (i = 0; i < 48u; i++) {                      /* 2 beats of Clock with a note in the middle */
+        um_byte(0xF8u);
+        if (i == 24u)
+            trs("\x99\x42\x5A", 3);                  /* note 66 */
+    }
+    render_mix(0, 0, CTL);
+    check("TRS MIDI: a dense Clock stream around a note: the note plays, the ring empties",
+          hit_age(&trk[6]) != a[6] && mi_r == mi_w);
+
+    memset((void *)um_ring, 0x40, UM_RING);          /* data bytes only, and more than the ring: bytes lost */
+    uart_midi_take(UM_RING + 10u);
+    ok = midi_in_overflow == 1;
+    a0 = dvage;
+    render_mix(0, 0, CTL);
+    check("TRS ring overflow: the stream marked broken, then the backlog dropped and the ring open again",
+          ok && midi_in_overflow == 0 && mi_r == mi_w && dvage == a0);
+    a[7] = hit_age(&trk[7]);
+    trs("\x99\x43\x5A", 3);                          /* note 67 */
+    render_mix(0, 0, CTL);
+    check("TRS after an overflow: a new note plays", hit_age(&trk[7]) != a[7]);
+
+    safe_start = 1;
+    for (i = 0; i < 48u; i++)
+        um_byte(0xF8u);
+    trs("\x99\x3C\x5A", 3);
+    a0 = dvage;
+    render_mix(0, 0, CTL);
+    check("safe start with a TRS Clock and notes: no hits, the ring emptied", dvage == a0 && mi_r == mi_w);
+    safe_start = 0;
+}
+
 static void test_live_record(void)
 {
     uint32_t p = FS * 60 / 120 / 4, a, at[4], n;
@@ -2891,6 +2967,7 @@ int main(void)
     test_midi();
     test_midi_ring();
     test_midi_safe_start();
+    test_midi_trs();
     test_live_record();
     test_len_change_sync();
     test_prob_chance();
