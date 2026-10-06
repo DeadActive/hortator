@@ -114,6 +114,7 @@ docker run --rm -v "$PWD":/src -w /src -u "$(id -u):$(id -g)" -e EM_CACHE=/src/$
 # 4. the page next to it, with the source it was built from (GPL-3.0: the page links source.tar.gz), then the glue
 #    test on the built wasm
 cp "$ROOT"/web/sim/* "$OUT/"
+PAGE=$(cd "$ROOT/web/sim" && ls)                       # the page's own files (the preview copies the stamped ones)
 if [ -n "$REF" ]; then
     (cd "$OUT" && tar -czf source.tar.gz src)
 else
@@ -121,6 +122,28 @@ else
 fi
 [ -n "$REF" ] || [ -z "$(git status --porcelain -- firmware tests web tools)" ] ||
     echo "build_sim: uncommitted changes: source.tar.gz is HEAD, not this build (commit before publishing)" >&2
+# stamp every local reference with a hash of what is published (?v=): after an update, browsers never mix cached old
+# files with new ones (app.js of one build, layout.js of another)
+"$PY" - "$OUT" $PAGE fm1sim.wasm reel.bin.gz reel.json version.json source.tar.gz <<'PY'
+import hashlib, sys
+from pathlib import Path
+out, names = Path(sys.argv[1]), sys.argv[2:]
+h = hashlib.sha1()
+for n in sorted(names):
+    if (out / n).exists():
+        h.update(n.encode()); h.update((out / n).read_bytes())
+stamp = h.hexdigest()[:10]
+for n in names:
+    f = out / n
+    if f.suffix not in (".html", ".js", ".css") or not f.exists():
+        continue
+    t = f.read_text(encoding="utf-8")
+    for m in names:
+        for q in ("'", '"'):
+            t = t.replace(f"{q}./{m}{q}", f"{q}./{m}?v={stamp}{q}").replace(f"{q}{m}{q}", f"{q}{m}?v={stamp}{q}")
+    f.write_text(t, encoding="utf-8")
+print(f"build_sim: page stamped ?v={stamp}")
+PY
 OUT_ABS=$PWD/$OUT
 (cd "$ROOT" && node --test-reporter=dot tests/sim_glue.mjs "$OUT_ABS" && node --test-reporter=dot tests/sim_site.mjs)
 
@@ -140,9 +163,9 @@ sys.path.insert(0, sys.argv[1])
 import make_site                                     # the site exactly as web/make_site.py makes it
 make_site.main(sys.argv[2], sys.argv[3], sys.argv[4])
 PY
-        cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$OUT/version.json" "$P/"   # the landing page at /
+        for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json version.json; do cp "$OUT/$f" "$P/"; done   # the landing page at /
     else
-    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$OUT/version.json" "$P/"
+    for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json version.json; do cp "$OUT/$f" "$P/"; done
     "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
 import json, sys
 from pathlib import Path

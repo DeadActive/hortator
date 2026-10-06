@@ -155,7 +155,7 @@ import { execFileSync } from 'node:child_process';
 
 test('the page links to the source archive it ships, and the archive holds the firmware and the sim', () => {
   const html = readFileSync(join(DIR, 'index.html'), 'utf8');
-  assert.match(html, /<a [^>]*href="source\.tar\.gz"/);
+  assert.match(html, /<a [^>]*href="source\.tar\.gz(\?v=[0-9a-f]+)?"/);
   const list = execFileSync('tar', ['-tzf', join(DIR, 'source.tar.gz')], { encoding: 'utf8' }).split('\n');
   for (const f of ['firmware/src/felucca.c', 'tests/sim_core.c', 'web/sim/app.js', 'tools/build_sim.sh', 'LICENSE'])
     assert.ok(list.some(l => l.endsWith(f)), f);
@@ -344,4 +344,19 @@ test('version.json: the firmware built here, its date and what is new, from VERS
     assert.ok(n.title && n.title.length < 60, `title: ${n.title}`);
     assert.ok(n.text.length > 0);
   }
+});
+
+test('published page: every local file it loads carries the build stamp (?v=), so an update never mixes old and new files', () => {
+  const html = readFileSync(join(DIR, 'index.html'), 'utf8');
+  const stamp = html.match(/app\.js\?v=([0-9a-f]{8,})/)?.[1];
+  assert.ok(stamp, 'app.js stamped');
+  assert.match(html, new RegExp(`sim\\.css\\?v=${stamp}`));
+  const local = ['controls.js', 'store.js', 'audio.js', 'reel.js', 'layout.js', 'engine.js', 'worklet.js',
+    'fm1sim.wasm', 'reel.bin.gz', 'reel.json', 'version.json'];
+  const js = ['app.js', 'layout.js', 'worklet.js'].map(f => readFileSync(join(DIR, f), 'utf8')).join('\n');
+  for (const f of local) {
+    const refs = [...js.matchAll(new RegExp(`['"](?:\\./)?${f.replace('.', '\\.')}(\\?v=[0-9a-f]+)?['"]`, 'g'))];
+    for (const r of refs) assert.equal(r[1], `?v=${stamp}`, `${f} referenced without the stamp: ${r[0]}`);
+  }
+  assert.ok(js.includes(`worklet.js?v=${stamp}`) && js.includes(`fm1sim.wasm?v=${stamp}`));
 });

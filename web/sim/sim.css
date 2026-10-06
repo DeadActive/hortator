@@ -39,7 +39,7 @@ body {
 }
 
 /* ---- page: the hero, then sections and footer in one column (the device's width) */
-.install, .foot, .help { width: min(100% - 32px, 1000px); }
+.install, .foot { width: min(100% - 32px, 1000px); }
 button { font: inherit; }
 .silk { font: 15px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.05em; }
 .cta {
@@ -110,9 +110,14 @@ button { font: inherit; }
 .play-bar > button:hover, .confirm button:hover { border-color: var(--hero-ink); }
 .confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; flex-basis: 100%; }
 .play-bar .note { flex-basis: 100%; text-align: center; margin: 0; min-height: 0; color: #c5c9cf; }
-.help { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; margin-top: 16px; }
+.help {                                         /* a sheet over the stage, above the Controls bar that opens it */
+  position: absolute; z-index: 8; left: 50%; bottom: 110px; transform: translateX(-50%); width: min(780px, 100% - 32px);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; padding: 14px 22px 18px;
+  border-radius: 16px; background: rgba(16, 18, 21, .94); color: #e9ebee; box-shadow: 0 20px 50px rgba(0,0,0,.5);
+  max-height: calc(100vh - 180px); overflow: auto;   /* above Switch on and the bar */
+}
 .help h2 { font-size: 15px; font-weight: 500; margin: 8px 0 2px; }
-.help ul { margin: 0; padding-left: 18px; color: var(--ink-soft); }
+.help ul { margin: 0; padding-left: 18px; color: #b8bdc4; }
 .note { min-height: 1.5em; margin: 6px 0 0; color: var(--ink-soft); }
 
 /* depth: the panel's parts stand off its face; the body is extruded behind it (app.js adds the .slab layers) */
@@ -274,9 +279,17 @@ html { scroll-behavior: smooth; }
 }
 @media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after { animation: none; } }
 
-.foot { color: var(--ink-soft); font-size: 13px; margin-top: 64px; border-top: 1px solid var(--rule); padding-top: 14px; }
-.foot p { max-width: 80ch; margin: 0 0 8px; }
+.foot {                                          /* three parts: the name, the ways around, the credits */
+  display: grid; grid-template-columns: 1.1fr 0.9fr 1.6fr; gap: 40px; margin-top: 96px; padding: 28px 0 8px;
+  border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: 13px;
+}
+.foot p { margin: 0 0 8px; max-width: 60ch; }
 .foot a { color: inherit; }
+.foot-mark { font-size: 22px; letter-spacing: .08em; color: var(--ink); margin-bottom: 12px !important; }
+.foot-nav { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.foot-nav a { color: var(--ink); text-decoration: none; }
+.foot-nav a:hover { text-decoration: underline; }
+@media (max-width: 760px) { .foot { grid-template-columns: 1fr; gap: 24px; } }
 
 /* ---- the device: drawn at its design size, scaled to fit (app.js sets --scale and the layout) */
 .fit { position: relative; }

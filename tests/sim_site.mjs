@@ -138,3 +138,17 @@ test('install: the version and what is new, the connection diagram, the installe
   assert.match(sec, /<details[^>]*>\s*<summary>If an install fails<\/summary>/);
   assert.match(sec, /beta/i);
 });
+
+test('Controls opens its help over the hero stage, next to the button (not below the whole scroll track)', () => {
+  const stage = LANDING.slice(LANDING.indexOf('id="stage"'), LANDING.indexOf('id="play"'));
+  assert.match(stage, /id="help-toggle"/);
+  assert.match(stage, /id="help"/, 'the help panel is inside the sticky stage');
+});
+
+test('footer: the name and its origin, the ways around the page, the credits and the licence', () => {
+  const foot = LANDING.slice(LANDING.indexOf('<footer'), LANDING.indexOf('</footer>'));
+  assert.match(foot, /HORTATOR/);
+  for (const href of ['#play', 'webapp/installer/', '#install', 'source.tar.gz']) assert.ok(foot.includes(`href="${href}"`), href);
+  for (const credit of ['Felucca', 'Leo Kuroshita', 'DEADACTIVE', 'Terminus', 'CC0', 'GPL-3.0', 'not affiliated'])
+    assert.ok(foot.includes(credit), credit);
+});

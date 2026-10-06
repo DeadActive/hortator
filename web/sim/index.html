@@ -55,28 +55,27 @@
         <button type="button" id="reset-no">Keep my saves</button>
       </div>
     </div>
+    <div id="help" class="help" hidden>
+      <div>
+        <h2>Mouse and touch</h2>
+        <ul>
+          <li>Keys and buttons play while held. Several fingers work.</li>
+          <li>Turn a knob by dragging it up or down, with the mouse wheel, or by hovering it and pressing ↑ ↓.</li>
+          <li>To hold a button for a combination (SEQ held + a key), right-click it or long-press it. Tap it again to let go.</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Computer keyboard</h2>
+        <ul>
+          <li>Lower keys: Z X C V B N M , . / with S D F H J L ; ' for the raised ones.</li>
+          <li>Upper keys: Q W E R T Y with 3 4 6.</li>
+          <li>Space PLAY, Enter REC, Esc HOME, ← OCT−, → OCT+.</li>
+        </ul>
+      </div>
+    </div>
   </div>
   <span id="play" class="hero-end" aria-hidden="true"></span>
 </section>
-
-<div id="help" class="help" hidden>
-  <div>
-    <h2>Mouse and touch</h2>
-    <ul>
-      <li>Keys and buttons play while held. Several fingers work.</li>
-      <li>Turn a knob by dragging it up or down, with the mouse wheel, or by hovering it and pressing ↑ ↓.</li>
-      <li>To hold a button for a combination (SEQ held + a key), right-click it or long-press it. Tap it again to let go.</li>
-    </ul>
-  </div>
-  <div>
-    <h2>Computer keyboard</h2>
-    <ul>
-      <li>Lower keys: Z X C V B N M , . / with S D F H J L ; ' for the raised ones.</li>
-      <li>Upper keys: Q W E R T Y with 3 4 6.</li>
-      <li>Space PLAY, Enter REC, Esc HOME, ← OCT−, → OCT+.</li>
-    </ul>
-  </div>
-</div>
 
 <section id="features" class="features" aria-labelledby="features-title">
   <header class="features-head">
@@ -189,11 +188,24 @@
 </section>
 
 <footer class="foot">
-  <p>Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
-    <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. Licensed GPL-3.0:
-    <a href="source.tar.gz">download the source code</a> this page was built from. Saves stay in this browser.</p>
-  <p>Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and
-    VCSL (CC0 1.0). M-VAVE and FM-1 are trademarks of their respective owners; this project is not affiliated with M-VAVE.</p>
+  <div class="foot-brand">
+    <p class="silk foot-mark">HORTATOR</p>
+    <p>On a Roman galley, the hortator beat the drum that kept the rowers in time. This one keeps eight tracks.</p>
+  </div>
+  <nav class="foot-nav" aria-label="On this page">
+    <a href="#play">Play it in the browser</a>
+    <a href="webapp/installer/">Install on your FM-1</a>
+    <a href="#install">What's new</a>
+    <a href="source.tar.gz">Source code (GPL-3.0)</a>
+  </nav>
+  <div class="foot-credits">
+    <p>Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
+      <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. Licensed GPL-3.0, no
+      warranty. Saves made here stay in this browser.</p>
+    <p>Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and
+      VCSL (CC0 1.0). M-VAVE and FM-1 are trademarks of their respective owners; this project is not affiliated with
+      M-VAVE.</p>
+  </div>
 </footer>
 <script type="module" src="app.js"></script>
 </body>
