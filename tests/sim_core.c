@@ -79,6 +79,7 @@ uint32_t sim_render(uint32_t frames)                     /* interleaved float st
             sim_half ^= 1u;
             fm1_alnk0_irq();
             sim_samples += HALF_FRAMES;
+            sim_ms_update();
             sim_pos = 0;
         }
         h = &abuf[sim_half * HALF_WORDS];

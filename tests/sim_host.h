@@ -21,11 +21,20 @@
 /* ---- clock: TIMER4 (24 MHz) from the audio sample count; time stops when the audio does */
 #define FM1_TICKS_PER_US 24u
 static uint64_t sim_samples;
+static volatile uint32_t fm1_ms;                       /* main.c's millisecond count (also usb_app.c's tentative one) */
+static uint32_t sim_ms_skew;                            /* the ms a busy-wait burned (fm1_wdt_feed) */
 static uint32_t fm1_ticks(void) { return (uint32_t)(sim_samples * 24000000u / 44100u); }
+static void sim_ms_update(void) { fm1_ms = (uint32_t)(sim_samples * 1000u / 44100u) + sim_ms_skew; }
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 static void fm1_irq_off(void) {}
 static void fm1_irq_on(void) {}
-static void fm1_wdt_feed(void) {}
+/* only firmware busy-waits feed the watchdog outside the main loop (panel_setup waits for input): no input or
+ * audio can arrive inside one here, so each feed moves the clock a second on and the wait times out */
+static void fm1_wdt_feed(void)
+{
+    sim_ms_skew += 1000u;
+    sim_ms_update();
+}
 
 /* ---- input (hal/fm1_input.h API): levels set by the page, press edges latched until the UI takes them */
 #define FM1_NCOL 11u

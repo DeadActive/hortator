@@ -8,6 +8,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PYTHON:-python3}
+export PYTHONDONTWRITEBYTECODE=1                      # no __pycache__ next to tools/build.py: output stays in build/sim
 OUT=build/sim
 GEN=$OUT/gen
 mkdir -p "$GEN" "$OUT/host"

@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <signal.h>
+#include <unistd.h>
 
 static int fails;
 static int check(const char *what, int ok)
@@ -240,6 +242,53 @@ static void test_drift(void)
     check("drift: every firmware source is in the simulator or left out on purpose", ok);
 }
 
+static void hang(int sig)
+{
+    static const char msg[] = "FAIL  the simulator hung (no return within 10 s)\n";
+    (void)sig;
+    fflush(stdout);                                  /* a test binary: the lines before this one matter */
+    write(1, msg, sizeof msg - 1u);
+    _exit(1);
+}
+
+/* menu -> HARDWARE CALIBRATION: panel_setup waits on fm1_ms and input; in the browser no input arrives while it
+ * spins (the worklet takes messages between quanta), so it must time out and come back, keeping the panel table */
+static void test_calibration_menu(void)
+{
+    uint32_t i, ms0;
+    panel_t before;
+    sim_init(1);
+    run(FS / 2u);
+    ms0 = fm1_ms;
+    run(FS);
+    check("fm1_ms follows the audio clock", fm1_ms - ms0 >= 990u && fm1_ms - ms0 <= 1010u);
+    before = panel;
+    sim_btn(B_HOME, 1);                              /* HOME held: the menu */
+    run(FS * 8u / 10u);
+    sim_btn(B_HOME, 0);
+    run(4096);
+    check("HOME held opens the menu", ui.menu == 1u);
+    for (i = 0; i < 20u && ui.menu_sel != MI_PANEL; i++) {
+        sim_enc(EN_PRESET, 1);
+        run(2048);
+    }
+    check("PRESETS reaches HARDWARE CALIBRATION", ui.menu_sel == MI_PANEL);
+    signal(SIGALRM, hang);
+    alarm(10);
+    sim_btn(B_OCTUP, 1);                             /* OK */
+    run(4096);
+    sim_btn(B_OCTUP, 0);
+    run(FS);
+    alarm(0);
+    check("calibration times out and comes back, the panel table kept", !memcmp(&panel, &before, sizeof panel));
+    sim_btn(B_HOME, 1);                              /* HOME held again: leave the menu */
+    run(FS * 8u / 10u);
+    sim_btn(B_HOME, 0);
+    run(4096);
+    tap(B_PLAY);
+    check("out of the menu, the machine still plays", !ui.menu && peak(FS) > 0.01f);
+}
+
 static void test_frame_cost(void)                    /* informational: a UI frame runs in the audio thread */
 {
     clock_t t0;
@@ -261,6 +310,7 @@ int main(void)
     test_leds();
     test_demos_and_flash();
     test_drift();
+    test_calibration_menu();
     test_frame_cost();
     printf(fails ? "sim_test: %d FAILED\n" : "sim_test: all ok\n", fails);
     return fails != 0;
