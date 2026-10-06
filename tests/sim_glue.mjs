@@ -166,3 +166,113 @@ test('a right-click latches; the contextmenu a touch or pen long-press also fire
   assert.equal(contextMenuLatches('pen'), false);
   assert.equal(contextMenuLatches(undefined), true, 'no pointerdown seen (keyboard context-menu key): a mouse-like latch');
 });
+
+// ---- store.js: the flash in IndexedDB, against a fake database (node has none)
+import { FlashStore } from '../web/sim/store.js';
+
+function fakeDb(data, mode = {}) {                  // mode.throwTx: transaction() throws; mode.abort: writes abort
+  return {
+    closed: false,
+    transaction() {
+      if (mode.throwTx) throw new Error('InvalidStateError: connection lost');
+      const tx = { oncomplete: null, onabort: null, onerror: null };
+      const writes = [];
+      tx.objectStore = () => ({
+        put: (v, k) => writes.push([k, v]),
+        clear: () => writes.push(['clear']),
+        getAllKeys: () => { const r = {}; setTimeout(() => { r.result = [...data.keys()]; r.onsuccess?.(); }); return r; },
+        getAll: () => { const r = {}; setTimeout(() => { r.result = [...data.values()]; r.onsuccess?.(); }); return r; },
+      });
+      setTimeout(() => {
+        if (mode.abort) { tx.error = new Error('QuotaExceededError'); tx.onabort?.(); return; }
+        for (const w of writes) if (w[0] === 'clear') data.clear(); else data.set(w[0], w[1]);
+        tx.oncomplete?.();
+      });
+      return tx;
+    },
+  };
+}
+const tick = () => new Promise(r => setTimeout(r, 5));
+const sector = v => new Uint8Array(4096).fill(v);
+
+test('store: loads what is stored, writes sectors', async () => {
+  const data = new Map([[0x97000, sector(1)]]);
+  const notes = [];
+  const st = new FlashStore(async () => fakeDb(data), n => notes.push(n));
+  const got = await st.load();
+  assert.deepEqual(got.map(([k]) => k), [0x97000]);
+  st.put([{ off: 0x99000, bytes: sector(2) }]);
+  await tick();
+  assert.equal(data.get(0x99000)[0], 2);
+  assert.equal(st.pending.size, 0);
+  assert.deepEqual(notes, []);
+});
+
+test('store: a lost connection reopens once and the write lands', async () => {
+  const data = new Map(), first = {};
+  let opens = 0;
+  const st = new FlashStore(async () => fakeDb(data, opens++ === 0 ? first : {}), () => {});
+  await st.load();
+  first.throwTx = true;                             // the connection goes bad (Safari after backgrounding)
+  st.put([{ off: 0x97000, bytes: sector(3) }]);
+  await tick(); await tick();
+  assert.equal(opens, 2, 'reopened once');
+  assert.equal(data.get(0x97000)?.[0], 3);
+  assert.equal(st.pending.size, 0);
+});
+
+test('store: when writing keeps failing, a note says so and the sectors wait for the next write', async () => {
+  const data = new Map();
+  const notes = [];
+  let bad = true;
+  const st = new FlashStore(async () => fakeDb(data, bad ? { abort: true } : {}), n => notes.push(n));
+  await st.load();
+  st.put([{ off: 0x97000, bytes: sector(4) }]);
+  await tick(); await tick();
+  assert.equal(notes.length, 1, 'one note');
+  assert.equal(st.pending.size, 1, 'kept');
+  bad = false;
+  st.db = null;                                     // storage works again (next open succeeds)
+  st.put([{ off: 0x99000, bytes: sector(5) }]);
+  await tick(); await tick();
+  assert.equal(data.get(0x97000)?.[0], 4, 'the earlier sector is written too');
+  assert.equal(data.get(0x99000)?.[0], 5);
+  assert.equal(st.pending.size, 0);
+});
+
+test('store: storage blocked at load: a note, an empty start, puts do not throw', async () => {
+  const notes = [];
+  const st = new FlashStore(async () => { throw new Error('SecurityError'); }, n => notes.push(n));
+  assert.deepEqual(await st.load(), []);
+  assert.equal(notes.length, 1);
+  st.put([{ off: 0x97000, bytes: sector(1) }]);
+  await tick();
+});
+
+test('store: after clear (Reset to demos), late writes are dropped', async () => {
+  const data = new Map([[0x97000, sector(1)]]);
+  const st = new FlashStore(async () => fakeDb(data), () => {});
+  await st.load();
+  await st.clear();
+  st.put([{ off: 0x99000, bytes: sector(2) }]);
+  await tick();
+  assert.equal(data.size, 0);
+});
+
+// ---- audio.js: keeping the AudioContext (the simulator's clock) running on phones
+import { needsResume, playbackSession } from '../web/sim/audio.js';
+
+test('needsResume: a suspended or interrupted context is resumed; a running or closed one is not', () => {
+  assert.equal(needsResume('suspended'), true);
+  assert.equal(needsResume('interrupted'), true);   // iOS: a call, another app took the audio
+  assert.equal(needsResume('running'), false);
+  assert.equal(needsResume('closed'), false);
+});
+
+test('playbackSession: asks for a playback session where the browser has one (iOS: sound with the silent switch on)', () => {
+  const nav = { audioSession: { type: 'auto' } };
+  assert.equal(playbackSession(nav), true);
+  assert.equal(nav.audioSession.type, 'playback');
+  assert.equal(playbackSession({}), false, 'no audioSession: nothing to do');
+  assert.equal(playbackSession({ get audioSession() { throw new Error('denied'); } }), false, 'never throws');
+});

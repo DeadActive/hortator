@@ -2,8 +2,10 @@
 // Drum machine fork: 2026 DEADACTIVE
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
-// frames it sends back, and keeps the flash it writes in IndexedDB.
+// frames it sends back, and keeps the flash it writes in IndexedDB (store.js).
 import { BTN, B, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js';
+import { FlashStore, openFlashDb } from './store.js';
+import { needsResume, playbackSession } from './audio.js';
 
 // ---- layouts: design-size boxes [x, y, w, h] (the device is scaled to fit the window)
 const WHITE = KEYS.filter(k => !k.black), BLACK = KEYS.filter(k => k.black);
@@ -211,7 +213,9 @@ function bindControls() {
     if (k) { e.preventDefault(); release(k.ctl, 'kbd'); }
   });
   window.addEventListener('blur', releaseAll);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); else wake(); });
+  device.addEventListener('pointerdown', wake, true);
+  window.addEventListener('keydown', wake, true);
 }
 
 // encoders: 12 px of drag = one detent, up = clockwise; MASTER is a pot (0..1023 over 270 degrees)
@@ -277,40 +281,12 @@ function paint() {
   requestAnimationFrame(paint);
 }
 
-// ---- flash in IndexedDB (fm1-sim / flash, key = sector offset)
-let db = null;
-function openDb() {
-  return new Promise((resolve, reject) => {
-    const r = indexedDB.open('fm1-sim', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('flash');
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-  });
-}
-async function loadFlash() {
-  try {
-    db = await openDb();
-    return await new Promise((resolve, reject) => {
-      const out = [], req = db.transaction('flash').objectStore('flash').openCursor();
-      req.onsuccess = () => {
-        const c = req.result;
-        if (!c) return resolve(out);
-        out.push([Number(c.key), new Uint8Array(c.value)]);
-        c.continue();
-      };
-      req.onerror = () => reject(req.error);
-    });
-  } catch {
-    db = null;
-    note.textContent = 'This browser blocks storage here, so saves last until you close the page.';
-    return [];
-  }
-}
-function storeSectors(sectors) {
-  if (!db) return;
-  const tx = db.transaction('flash', 'readwrite');
-  for (const { off, bytes } of sectors) tx.objectStore('flash').put(bytes, off);
-  tx.onerror = () => { note.textContent = 'Saving to this browser failed; your last save may be lost on reload.'; };
+// ---- flash in IndexedDB (store.js), the audio clock (audio.js)
+const store = new FlashStore(openFlashDb, msg => { note.textContent = msg; });
+let ctx = null;
+function wake() {                                 // a tap or a key brings a stopped context back
+  if (!ctx || !needsResume(ctx.state)) return;
+  ctx.resume().catch(() => {});
 }
 
 // ---- power on
@@ -324,15 +300,16 @@ async function powerOn() {
   pnote.textContent = 'Starting…';
   try {
     if (!window.AudioWorkletNode) throw new Error('This browser has no AudioWorklet. Use a current Chrome, Firefox or Safari.');
-    const ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
+    playbackSession(navigator);
+    ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                         // inside the tap: browsers allow sound from here on
     await ctx.audioWorklet.addModule('worklet.js');
-    const [wasm, sectors] = await Promise.all([wasmBytes, loadFlash()]);
+    const [wasm, sectors] = await Promise.all([wasmBytes, store.load()]);
     node = new AudioWorkletNode(ctx, 'fm1', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm, sectors } });
     node.port.onmessage = e => {
       const m = e.data;
       if (m.t === 'frame') frame = m;
-      else if (m.t === 'flash') storeSectors(m.sectors);
+      else if (m.t === 'flash') store.put(m.sectors);
       else if (m.t === 'error') note.textContent = `The firmware failed to start: ${m.message}`;
     };
     node.connect(ctx.destination);
@@ -340,6 +317,10 @@ async function powerOn() {
     send({ t: 'master', value: masterValue });
     for (const m of pending.splice(0)) node.port.postMessage(m);
     if (ctx.sampleRate !== 44100) note.textContent = `Audio runs at ${ctx.sampleRate} Hz here, not 44100 Hz: pitch and tempo are off.`;
+    ctx.addEventListener('statechange', () => {
+      if (needsResume(ctx.state) && !document.hidden) note.textContent = 'Sound stopped. Tap the panel to start it again.';
+      else if (ctx.state === 'running' && note.textContent.startsWith('Sound stopped')) note.textContent = '';
+    });
     document.getElementById('power').hidden = true;
   } catch (err) {
     btn.disabled = false;
@@ -360,15 +341,7 @@ function bindPage() {
   document.getElementById('reset').addEventListener('click', () => { confirm.hidden = false; });
   document.getElementById('reset-no').addEventListener('click', () => { confirm.hidden = true; });
   document.getElementById('reset-yes').addEventListener('click', async () => {
-    try {
-      const d = db ?? await openDb();
-      await new Promise((resolve, reject) => {
-        const tx = d.transaction('flash', 'readwrite');
-        tx.objectStore('flash').clear();
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch { /* nothing stored: a reload is a fresh start anyway */ }
+    await store.clear();
     location.reload();
   });
   const on = document.getElementById('power-on');

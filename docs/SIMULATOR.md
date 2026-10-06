@@ -42,11 +42,18 @@ Everything the script writes goes under `build/sim/`:
 | Demos | `tests/sim_demo.c` | the first visit's four projects (the drumsim kits 808 / 909 / Plaits / mixed), saved to slots 1–4 with `project_save`, slot 1 loaded |
 | Engine | `web/sim/engine.js` | loads the wasm (no emscripten JS glue), wraps the API; used by the worklet and by node |
 | Worklet | `web/sim/worklet.js` | the firmware runs here, in the audio thread: 128 frames per quantum. The audio ISR runs once per 256-frame half and the UI frame every 15 ms of audio, as on the device. It posts the screen, the LEDs and written flash sectors to the page |
+| Storage, audio | `web/sim/store.js`, `web/sim/audio.js` | the flash in IndexedDB (written sectors wait until a write completes; a lost connection is reopened once; a failure shows a note and is retried with the next save); resuming the AudioContext (the clock) after a phone stops it, and the iOS playback session (sound with the silent switch on) |
 | Controls | `web/sim/controls.js` | the panel's controls as data: labels in `panel.c` order, the keys, the computer keyboard map, held-state bookkeeping |
 | Page | `web/sim/index.html`, `app.js`, `sim.css` | draws the panel (landscape: as the device; portrait phones: stacked), handles input, paints frames, stores the flash in IndexedDB |
 
-Not simulated: USB (MIDI, audio, console), OTA and update mode, TRS MIDI, panel calibration, boot guard, battery
-(it shows full), CPU load (it reads 0).
+Not simulated: USB (MIDI, audio, console), OTA and update mode, TRS MIDI, boot guard, battery (it shows full), CPU
+load (it reads 0). The menu's HARDWARE CALIBRATION is a firmware busy-wait for input that cannot arrive inside it
+here: `fm1_wdt_feed` moves the clock on, so it times out at once (SETUP CANCELLED) and keeps the panel table.
+`fm1_ms` follows the audio clock.
+
+The build also writes `build/sim/source.tar.gz` (`git archive HEAD`), which the page's footer links: a public copy
+of the page offers the GPL-3.0 source it was built from. Commit before building a copy to publish (the script warns
+otherwise).
 
 ### Storage
 
@@ -86,7 +93,8 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
   - PLAY's LED blinks, and key LEDs follow held keys (F5 included);
   - the demos fill four slots;
   - flash survives a power cycle, and hostile flash boots;
-  - the drift guard: `felucca.c` gaining a source the simulator lacks fails, by name.
+  - the drift guard: `felucca.c` gaining a source the simulator lacks fails, by name;
+  - the menu's HARDWARE CALIBRATION comes back (a hang fails within 10 s), and `fm1_ms` follows the audio clock.
 
   It also prints the cost of a UI frame (about 70–140 µs, against 2.9 ms per audio quantum).
 - `tests/sim_glue.mjs` runs on the built wasm through `engine.js` (node). It checks:
@@ -96,7 +104,11 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
   - `controls.js` against `panel.c`'s enums;
   - the keyboard map (complete, no duplicates);
   - refcounted holds;
-  - autorepeat.
+  - autorepeat;
+  - the touch long-press latch;
+  - the IndexedDB store against a fake database (lost connection, repeated failures, blocked storage, reset);
+  - resuming the AudioContext and the iOS playback session;
+  - the footer links `source.tar.gz`, which holds the firmware and the sim.
 
 ## Requests for the firmware session
 
