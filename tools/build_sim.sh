@@ -55,6 +55,32 @@ fi
 VERSION=$(cat "$ROOT/VERSION.txt" 2>/dev/null || echo DEV)
 DEFS=(-DFELUCCA_VERSION="\"DRUM-$VERSION\"")         # ABOUT shows the firmware's version, as tools/build.py does
 
+# the landing page's version line and "what's new": VERSION.txt, the commit, CHANGELOG.md's Unreleased and this version
+"$PY" - "$ROOT/CHANGELOG.md" "$VERSION" "$(git rev-parse --short "${REF:-HEAD}")" "$(git log -1 --format=%cs "${REF:-HEAD}")" \
+    > "$OUT/version.json" <<'PY'
+import json, re, sys
+from pathlib import Path
+log, version, commit, date = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+sections, cur = {}, None
+for line in (log.read_text(encoding="utf-8").splitlines() if log.exists() else []):
+    m = re.match(r"## (Unreleased|(\d+\.\d+\.\d+) - (\d{4}-\d{2}-\d{2}))\s*$", line)
+    if m:
+        cur = sections.setdefault(m[2] or "Unreleased", {"date": m[3], "notes": []})
+    elif cur is not None and line.startswith("- "):
+        cur["notes"].append(line[2:].strip())
+    elif cur is not None and line.startswith("  ") and cur["notes"]:
+        cur["notes"][-1] += " " + line.strip()
+def note(text):                                   # a short title: the words before the first colon or bracket
+    text = text.replace("`", "")
+    head = re.split(r"[:(]", text, maxsplit=1)[0].strip()
+    title = head if 0 < len(head) <= 48 else " ".join(text.split()[:5])
+    return {"title": title, "text": text}
+rel = sections.get(version, {"date": None, "notes": []})
+print(json.dumps({"version": version, "commit": commit, "date": date,
+                  "since": [note(n) for n in sections.get("Unreleased", {"notes": []})["notes"]],
+                  "release": {"version": version, "date": rel["date"], "notes": [note(n) for n in rel["notes"]]}}, indent=1))
+PY
+
 # 1. generated headers (tools/build.py's list, written into build/sim/gen) and the input matrix keymap
 "$PY" -c 'import sys; sys.path.insert(0, sys.argv[2] + "/tools"); import build; from pathlib import Path; build.GEN = Path(sys.argv[1]).resolve(); build.generate()' "$GEN" "$ROOT" >/dev/null
 awk '/static const int8_t FM1_KEYMAP/,/^};/' "$ROOT/firmware/hal/fm1_input.h" > "$GEN/sim_keymap.h"
@@ -114,9 +140,9 @@ sys.path.insert(0, sys.argv[1])
 import make_site                                     # the site exactly as web/make_site.py makes it
 make_site.main(sys.argv[2], sys.argv[3], sys.argv[4])
 PY
-        cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$P/"   # the landing page at /
+        cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$OUT/version.json" "$P/"   # the landing page at /
     else
-    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$P/"
+    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$OUT/version.json" "$P/"
     "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
 import json, sys
 from pathlib import Path

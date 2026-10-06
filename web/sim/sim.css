@@ -207,6 +207,73 @@ html { scroll-behavior: smooth; }
 .beta { max-width: 640px; margin: 0 0 20px; padding: 12px 14px; border-radius: 10px; font-size: 15px;
   background: var(--warn-bg); color: var(--warn-ink); }
 
+/* install: the connection as a diagram (laptop, a USB cable with light travelling along it, the FM-1), the three
+   steps under its three parts, then what is new in this build beside the way to the installer */
+.install { padding: 96px 0 0; }
+.install-head h2 {
+  font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; font-stretch: 112%; font-weight: 600;
+  font-size: clamp(32px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.02em; margin: 0;
+}
+.install-head p { color: var(--ink-soft); font-size: 17px; max-width: 52ch; margin: 16px 0 0; }
+.cable-diagram, .install-steps { display: grid; grid-template-columns: 30% 1fr 40%; column-gap: 0; }
+.cable-diagram { align-items: center; margin: 48px 0 0; }
+.laptop .lid {
+  position: relative; aspect-ratio: 16 / 10; border: 9px solid #2b2e33; border-bottom-width: 12px; border-radius: 12px 12px 0 0;
+  background: #eef0f2; overflow: hidden;
+}
+.laptop .bar { position: absolute; left: 0; right: 0; top: 0; height: 14%; background: #d5d9de; }
+.laptop .bar::before { content: ""; position: absolute; left: 6%; top: 34%; width: 22%; height: 32%; border-radius: 99px;
+  background: #b9bfc6; }
+.laptop .ghost-btn {
+  position: absolute; left: 12%; top: 46%; padding: 0.4em 1.2em; border-radius: 99px; background: #23272c; color: #f3f4f6;
+  font: 600 clamp(9px, 1.1vw, 13px)/1 "IBM Plex Sans", system-ui, sans-serif;
+}
+.laptop .ghost-line { position: absolute; left: 12%; right: 12%; top: 74%; height: 5%; border-radius: 9px; background: #c9ced4; }
+.laptop .ghost-line::after { content: ""; position: absolute; inset: 0; width: 0; border-radius: inherit; background: #23272c;
+  animation: write 6s ease-in-out infinite; }
+@keyframes write { 0%, 12% { width: 0; } 70%, 88% { width: 100%; } 100% { width: 100%; opacity: 0; } }
+.laptop .deck { height: 12px; margin: 0 -7%; border-radius: 0 0 14px 14px; background: linear-gradient(#b4bac1, #8e959d); }
+.usb { position: relative; height: 6px; margin: 0 6px; }
+.usb .wire { position: absolute; inset: 0; border-radius: 3px; background: #2b2e33; }
+.usb::before, .usb::after { content: ""; position: absolute; top: -5px; width: 16px; height: 16px; border-radius: 3px; background: #2b2e33; }
+.usb::before { left: -6px; }
+.usb::after { right: -6px; }
+.usb .pulse { position: absolute; inset: 0; animation: travel 2.4s linear infinite; }   /* moved by transform only */
+.usb .pulse.late { animation-delay: 1.2s; }
+.usb .pulse::after { content: ""; position: absolute; left: 0; top: -3px; width: 12px; height: 12px; border-radius: 50%;
+  background: #f2f7ff; box-shadow: 0 0 12px 4px rgba(170, 200, 255, 0.7); }
+@keyframes travel { from { transform: translateX(0); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; }
+  to { transform: translateX(calc(100% - 12px)); opacity: 0; } }
+.fm1-shot { position: relative; aspect-ratio: 1000 / 620; filter: drop-shadow(0 14px 22px rgba(20, 24, 30, 0.35)); }
+.install-steps { list-style: none; counter-reset: step; padding: 0; margin: 22px 0 0; column-gap: 28px; }
+.install-steps li { counter-increment: step; position: relative; padding-left: 46px; }
+.install-steps li::before {
+  content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 9px;
+  display: grid; place-items: center; font: 14px/1 "Silkscreen", ui-monospace, monospace;
+  background: linear-gradient(180deg, var(--cap-top), var(--cap)); color: var(--silk); box-shadow: 0 2px 0 #1c1e21;
+}
+.install-steps h3 { font-size: 16px; font-weight: 600; margin: 4px 0 4px; }
+.install-steps p { margin: 0; color: var(--ink-soft); font-size: 15px; }
+.install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; margin: 64px 0 0; align-items: start; }
+.fw-version { margin: 0; font-size: 14px; color: var(--ink-soft); }
+.whats-new h3 { font-size: 20px; font-weight: 600; margin: 6px 0 12px; }
+.whats-new ul { list-style: none; margin: 0; padding: 0; }
+.whats-new li { padding: 12px 0; border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: 15px; }
+.whats-new li span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.whats-new li b { color: var(--ink); font-weight: 600; }
+.cta.big { font-size: 18px; padding: 16px 34px; }
+.install-go .beta { margin: 22px 0 18px; }
+.install-go details { border-top: 1px solid var(--rule); padding: 12px 0; }
+.install-go summary { cursor: pointer; font-weight: 500; }
+.install-go details p { color: var(--ink-soft); font-size: 15px; margin: 8px 0 0; }
+@media (max-width: 760px) {
+  .cable-diagram { grid-template-columns: 34% 1fr 44%; }
+  .install-steps, .install-grid { grid-template-columns: 1fr; }
+  .install-steps { row-gap: 18px; }
+  .install-grid { gap: 36px; }
+}
+@media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after { animation: none; } }
+
 .foot { color: var(--ink-soft); font-size: 13px; margin-top: 64px; border-top: 1px solid var(--rule); padding-top: 14px; }
 .foot p { max-width: 80ch; margin: 0 0 8px; }
 .foot a { color: inherit; }

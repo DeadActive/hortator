@@ -139,17 +139,53 @@
   </div>
 </section>
 
-<section id="install" class="install">
-  <h2>Put it on your FM-1</h2>
-  <ol class="steps">
-    <li><h3>Use Chrome or Edge on a computer</h3><p>The installer talks to the FM-1 over USB MIDI, which only these browsers allow.</p></li>
-    <li><h3>Connect the FM-1 with a USB data cable</h3><p>Straight into the computer. No probe or Transporter is needed.</p></li>
-    <li><h3>Press Install and wait</h3><p>A few minutes. Keep the cable in until it says Done; the FM-1 restarts by itself.</p></li>
+<section id="install" class="install" aria-labelledby="install-title">
+  <header class="install-head">
+    <h2 id="install-title">Put it on your FM-1.</h2>
+    <p>It installs from a web page over the FM-1's own USB cable, in a few minutes. Nothing to download, no
+      extra hardware.</p>
+  </header>
+
+  <div class="cable-diagram" id="cable" aria-hidden="true">
+    <div class="laptop">
+      <div class="lid"><span class="bar"></span><span class="ghost-btn">Install</span><span class="ghost-line"></span></div>
+      <div class="deck"></div>
+    </div>
+    <div class="usb"><span class="wire"></span><span class="pulse"></span><span class="pulse late"></span></div>
+    <div class="fm1-shot" id="install-mini"></div>
+  </div>
+  <ol class="install-steps">
+    <li><h3>Open the installer in Chrome or Edge</h3><p>On a computer: the installer talks to the FM-1 over USB MIDI,
+      which only these browsers allow.</p></li>
+    <li><h3>Plug in the FM-1</h3><p>With a USB data cable, straight into the computer. No probe or Transporter.</p></li>
+    <li><h3>Press Install and wait</h3><p>Keep the cable in until it says Done. The FM-1 restarts with
+      FM-1 Drums.</p></li>
   </ol>
-  <p class="beta">FM-1 Drums is beta firmware and may be unstable. You install it at your own risk: the author accepts
-    no responsibility if your FM-1 is damaged or misbehaves. M-VAVE's own updater, M-UPGRADE, takes you back to the
-    official firmware.</p>
-  <p><a class="cta" href="webapp/installer/">Open the installer</a></p>
+
+  <div class="install-grid">
+    <div class="whats-new">
+      <p class="fw-version" id="fw-version">FM-1 Drums</p>
+      <h3>What's new</h3>
+      <ul id="whats-new"></ul>
+    </div>
+    <div class="install-go">
+      <a class="cta big" href="webapp/installer/">Open the installer</a>
+      <p class="beta">FM-1 Drums is beta firmware and may be unstable. You install it at your own risk: the author
+        accepts no responsibility if your FM-1 is damaged or misbehaves.</p>
+      <details>
+        <summary>Back to the official firmware</summary>
+        <p>M-VAVE's own updater, M-UPGRADE, puts the official firmware back: from
+          <a href="https://www.m-vave.com/download" target="_blank" rel="noopener">m-vave.com/download</a>, Downloads →
+          PC Software → M-UPGRADE, with PC Firmware → FM-1 V15.</p>
+      </details>
+      <details>
+        <summary>If an install fails</summary>
+        <p>Replug the cable and press Install again: the FM-1 stays in update mode until a write has finished. If it
+          no longer starts at all, recovering it needs a
+          <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">Transporter</a>.</p>
+      </details>
+    </div>
+  </div>
 </section>
 
 <footer class="foot">

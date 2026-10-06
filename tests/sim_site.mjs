@@ -126,3 +126,12 @@ test('features: each names a recorded clip and real panel controls', () => {
   assert.match(sec, /id="manual-screen"/, 'the sticky screen');
   assert.match(sec, /id="locator"/, 'the panel locator');
 });
+
+test('install: the version and what is new, the connection diagram, the installer, the way back and the recovery', () => {
+  const sec = LANDING.slice(LANDING.indexOf('id="install"'), LANDING.indexOf('<footer'));
+  for (const id of ['fw-version', 'whats-new', 'cable']) assert.match(sec, new RegExp(`id="${id}"`), id);
+  assert.match(sec, /href="webapp\/installer\/"/);
+  assert.match(sec, /<details[^>]*>\s*<summary>Back to the official firmware<\/summary>/);
+  assert.match(sec, /<details[^>]*>\s*<summary>If an install fails<\/summary>/);
+  assert.match(sec, /beta/i);
+});

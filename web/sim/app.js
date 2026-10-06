@@ -407,9 +407,13 @@ const manualPx = manualImg && new Uint32Array(manualImg.data.buffer);
 const manualFb = new Uint16Array(240 * 240);
 const mini = {};
 let manualOn = false, manualClip = null, manualPos = -1, manualT0 = 0, manualFeat = null;
-function buildLocator() {
-  const host = document.getElementById('locator');
-  if (!host) return;
+function buildLocator() {                          // the features' locator: its parts by label, to light
+  Object.assign(mini, buildMini(document.getElementById('locator')));
+  BTN.forEach((b, id) => { if (mini[`btn:${id}`]) mini[b.label] = mini[`btn:${id}`]; });
+}
+function buildMini(host) {                         // a small FM-1 from the layout table, scaled to its host
+  const parts = {};
+  if (!host) return parts;
   const L = LAYOUTS.landscape, inner = document.createElement('div');
   inner.className = 'mini';
   const part = (cls, b, key) => {
@@ -417,18 +421,42 @@ function buildLocator() {
     d.className = cls;
     d.style.cssText = `left:${b[0]}px;top:${b[1]}px;width:${b[2]}px;height:${b[3]}px`;
     inner.append(d);
-    if (key) mini[key] = d;
+    if (key) parts[key] = d;
   };
   for (const [name, b] of Object.entries(L.deco)) part(`m-${name}`, b);
   part('m-lcd', L.lcd);
   for (const [k, b] of Object.entries(L.ctl)) part(k.startsWith('key') ? 'm-key' : 'm-btn', b, k);
   for (const [id, b] of Object.entries(L.enc)) part('m-enc', b, id === 'master' ? 'MASTER' : ENC[id].label);
-  BTN.forEach((b, id) => { mini[b.label] = mini[`btn:${id}`]; });
   host.append(inner);
   const fitMini = () => { inner.style.transform = `scale(${host.clientWidth / L.W})`; };
   new ResizeObserver(fitMini).observe(host);
   fitMini();
+  return parts;
 }
+
+// ---- install: the firmware this site ships and what is new in it (version.json, written by the build)
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+  'November', 'December'];
+function plainNote(n) {                            // the changelog's line for players: no upstream credits or baselines
+  let t = n.text.replace(/\s*\((?:upstream|adapted)[^()]*(?:\([^()]*\)[^()]*)*\)/gi, '')
+    .replace(/\s*Frozen baseline[^.]*\./gi, '');
+  if (t.startsWith(n.title)) t = t.slice(n.title.length).replace(/^[\s:,]+/, '');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+fetch('version.json').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
+  const [y, m, d] = v.date.split('-').map(Number);
+  const newer = v.since.length ? ` and ${v.since.length} newer change${v.since.length > 1 ? 's' : ''}` : '';
+  document.getElementById('fw-version').textContent =
+    `Version ${v.version}${newer}, built ${d} ${MONTHS[m - 1]} ${y} from commit ${v.commit}`;
+  const ul = document.getElementById('whats-new');
+  for (const n of [...v.since, ...v.release.notes]) {
+    const li = document.createElement('li'), span = document.createElement('span'), b = document.createElement('b');
+    b.textContent = n.title;
+    span.append(b, ' ', plainNote(n));                // clamped to three lines inside the item's padding
+    li.append(span);
+    ul.append(li);
+  }
+}).catch(() => { document.querySelector('.whats-new')?.remove(); });
 function manualShow() {                            // the feature now in the middle of the window
   if (!manualFeat || !clips || !manualCtx) return;
   const c = clips[manualFeat.dataset.clip];
@@ -458,6 +486,7 @@ function manualTick(now) {
 build();
 relayout();
 buildLocator();
+buildMini(document.getElementById('install-mini'));
 const manualObserver = new IntersectionObserver(entries => {
   for (const e of entries) if (e.isIntersecting && e.target !== manualFeat) {
     manualFeat?.classList.remove('active');

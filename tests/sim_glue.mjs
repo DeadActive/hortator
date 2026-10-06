@@ -331,3 +331,17 @@ test('reel snapshots: a clip replayed from its start snapshot ends on the same s
     assert.deepEqual(fb, ends.get(c.name), c.name);
   }
 });
+
+test('version.json: the firmware built here, its date and what is new, from VERSION.txt and CHANGELOG.md', () => {
+  const v = JSON.parse(readFileSync(join(DIR, 'version.json'), 'utf8'));
+  assert.equal(v.version, readFileSync('VERSION.txt', 'utf8').trim());
+  assert.match(v.commit, /^[0-9a-f]{7,}$/);
+  assert.match(v.date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(Array.isArray(v.since) && Array.isArray(v.release.notes));
+  assert.equal(v.release.version, v.version);
+  assert.ok(v.since.length + v.release.notes.length > 0, 'something to show');
+  for (const n of [...v.since, ...v.release.notes]) {
+    assert.ok(n.title && n.title.length < 60, `title: ${n.title}`);
+    assert.ok(n.text.length > 0);
+  }
+});
