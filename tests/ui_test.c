@@ -1874,6 +1874,106 @@ static void test_key_selects_track(void)
     check("HOME: a white key selects its track", song.sel == 2);
 }
 
+/* MENU > SPEAKER EQ (sound pack): KNOB 1 steps FLAT LOWCUT BASS+ and stops at the ends, OCT+ steps and wraps;
+ * the master follows (fx_lowcut); a stored value past BASS+ loads as FLAT */
+static void test_speaker_eq(void)
+{
+    static const int8_t TURN[6] = {1, 1, 1, -1, -1, -1};
+    static const uint8_t WANT[6] = {1, 2, 2, 1, 0, 0};
+    uint32_t ok = 1, i;
+    ui_host_init();
+    settings.lowcut = 0;
+    fx_lowcut = 0;
+    ui.menu = 1;
+    ui.menu_sel = MI_SPKEQ;
+    ui.force = 1;
+    for (i = 0; i < 6u; i++) {
+        turn(EN_K1, TURN[i]);
+        ui_frame();
+        ok &= settings.lowcut == WANT[i] && fx_lowcut == WANT[i];
+    }
+    check("SPEAKER EQ: KNOB 1 steps FLAT LOWCUT BASS+, stops at the ends; the master follows", ok);
+    ok = 1;
+    for (i = 0; i < 4u; i++) {
+        press(B_OCTUP);
+        ui_frame();
+        release_all();
+        ui_frame();
+        ok &= settings.lowcut == (i + 1u) % 3u && fx_lowcut == (i + 1u) % 3u;
+    }
+    check("SPEAKER EQ: OCT+ steps and wraps", ok);
+    settings.lowcut = 2;
+    fx_lowcut = 2;
+    ui.force = 1;
+    snap_page("menu_speaker_eq");
+    settings.lowcut = 3;
+    settings_init();
+    check("SPEAKER EQ: a stored value past BASS+ loads as FLAT", settings.lowcut == 0 && fx_lowcut == 0);
+    ui.menu = 0;
+    ui.force = 1;
+}
+
+
+/* sound pack: REV/CHO split into REVERB (TYPE SIZE DAMP) and CHORUS (RATE DEPTH); FX reaches both, TYPE turns
+ * ROOM / SPRING; screens for the user */
+static void fx_open(const char *title)              /* FX until the page shows */
+{
+    uint32_t k;
+    for (k = 0; k < NPAGES && (!str_eq(cur_page()->title, title) || ui.home); k++) {
+        press(B_FX);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+}
+static void test_reverb_pages(void)
+{
+    ui_host_init();
+    fx_open("REVERB");
+    check("FX reaches REVERB: TYPE SIZE DAMP", str_eq(cur_page()->title, "REVERB") && cur_page()->id[0] == G_RTYPE &&
+          cur_page()->id[1] == G_RSIZE && cur_page()->id[2] == G_RDAMP && cur_page()->id[3] == 0xFF);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("REVERB: KNOB 1 turns TYPE to SPRING", song.g[G_RTYPE] == 1);
+    check("REVERB: the TYPE names fit the 5-character value (ROOM, SPRNG)",
+          strlen(N_RTYPE[0]) <= 5u && strlen(N_RTYPE[1]) <= 5u && str_eq(N_RTYPE[1], "SPRNG"));
+    snap_page("fx_reverb_spring");
+    fx_open("CHORUS");
+    check("FX reaches CHORUS: RATE DEPTH", str_eq(cur_page()->title, "CHORUS") && cur_page()->id[0] == G_CRATE &&
+          cur_page()->id[1] == G_CDEPTH && cur_page()->id[2] == 0xFF && cur_page()->id[3] == 0xFF);
+    snap_page("fx_chorus");
+}
+
+/* sound pack: division knobs run by length (4BAR .. 1/32), the stored value stays the id; the gauge follows */
+static void test_div_order(void)
+{
+    static const int16_t WANT[10] = {9, 8, 7, 6, 0, 1, 4, 2, 5, 3};
+    const param_desc_t *d = &TP[P_SDIV];
+    uint32_t i, ok = 1;
+    for (i = 0; i + 1u < 10u; i++)
+        ok &= param_turn(d, WANT[i], 1) == WANT[i + 1] && param_turn(d, WANT[i + 1], -1) == WANT[i];
+    ok &= param_turn(d, 3, 1) == 3 && param_turn(d, 9, -1) == 9 && param_turn(d, 9, 20) == 3;
+    check("DIV: the knob steps 4BAR 2BAR 1/1 1/2 1/4 1/8 8T 1/16 16T 1/32, stopping at the ends", ok);
+    check("DLY TIME: the same order", param_turn(&GP[G_DTIME], 6, 1) == 0 && param_turn(&GP[G_DTIME], 0, -1) == 6);
+    check("DIV gauge: by length (4BAR empty, 1/32 full, 1/4 at 4/9)",
+          RATIO(d, 9) == 0 && RATIO(d, 3) == 1000 && RATIO(d, 0) == 444);
+    check("other knobs keep their order (SLICER RATE, ids as shown)", param_turn(&TP[P_SLRATE], 1, 1) == 2);
+    ui_host_init();
+    settings.accel = 0;
+    seq_open("PATTERN");
+    trk[song.sel].p[P_SDIV] = 9;
+    ok = 1;
+    for (i = 1; i < 10u; i++) {
+        turn(EN_K2, 1);
+        ui_frame();
+        ok &= trk[song.sel].p[P_SDIV] == WANT[i];
+    }
+    check("PATTERN DIV: turning right walks the length order", ok);
+    trk[song.sel].p[P_SDIV] = 8;
+    snap_page("seq/pattern_div_2bar");
+    settings.accel = 1;
+}
+
 int main(void)
 {
     test_safe_start();
@@ -1916,6 +2016,9 @@ int main(void)
     test_project_roundtrip();
     test_project_rejects();
     test_ui_frame_cost();
+    test_speaker_eq();
+    test_reverb_pages();
+    test_div_order();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

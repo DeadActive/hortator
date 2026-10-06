@@ -81,6 +81,8 @@ static void settings_init(void)
     settings.mutebar &= 1u;                    /* .noinit: fields added after "SET3" */
     if (settings.accel > 1u)
         settings.accel = 1u;
+    if (settings.lowcut > 2u)                  /* SPEAKER EQ: FLAT LOWCUT BASS+ */
+        settings.lowcut = 0;
     palette_set(settings.palette);
-    fx_lowcut = (uint8_t)(settings.lowcut != 0);
+    fx_lowcut = (uint8_t)settings.lowcut;
 }

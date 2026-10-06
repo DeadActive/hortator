@@ -66,7 +66,7 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 For each: what you should see / hear. Note anything different (page, knob, what happened).
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
   then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
-  REV/CHO, COMP (HOME 2/3 and 3/3: HOME pressed on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
+  REVERB, CHORUS, COMP (HOME 2/3 and 3/3: HOME pressed on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
   GLOBAL 3/3 (MUTE NOW / BAR), LFO 1/2 and 2/2,
   PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
   `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
@@ -178,6 +178,20 @@ Report what you saw first; we'll go through it together.
   TRS adapter type (A / B); if it grows but nothing plays, check the channel (GLOBAL page, CH).
 - A MIDI clock on TRS: nothing follows it yet (the MIDI clock feature comes later); notes still play while it runs,
   the panel and audio behave as before.
+
+### Sound pack (check on the FM-1)
+
+- MENU (HOME held) > SPEAKER EQ: FLAT, LOWCUT, BASS+ (KNOB 1; OCT+ steps round). On the speaker, BASS+ makes the
+  kick's bass audible without the mids getting thinner; the choice survives a power cycle.
+- FX > REVERB: TYPE SPRNG (the spring) on a snare (send on the FX page, REV): the spring's chirp and drip; SIZE and
+  DAMP change it; switching TYPE while it rings: no click. FX > CHORUS: RATE and DEPTH as before.
+- PATTERN DIV on a hi-hat track: the knob runs 4BAR 2BAR 1/1 1/2 1/4 … 1/32; at 2BAR / 4BAR the hat plays once per
+  2 / 4 bars, in time with a 1/16 kick. DLY TIME at 1/2 and slower: long echoes (the longest cut to 1.49 s).
+- A project saved before this build loads with ROOM and sounds as before. With the heaviest kit and SPRNG, the
+  CPU meter stays close to where it was.
+- Listen first on the computer: build/drum_renders/sp_speaker_eq.wav (FLAT, LOWCUT, BASS+, 2 bars each),
+  sp_reverb.wav (ROOM, then SPRNG at SIZE 0 / 64 / 127, DAMP 0 / 127), sp_slow_div.wav (a hat on 2BAR then 4BAR,
+  the snare's delay at 1/2).
 
 ### TOOLS (check on the FM-1)
 

@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, LOWCUT, ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, ABOUT. */
+/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, ABOUT. */
 /* ------------------------------------------------------------ menu --- */
-enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "ACCEL", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+enum { MI_COLOR, MI_SPKEQ, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "ZOOM", "ACCEL", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
-    return i == MI_LOWCUT ? &settings.lowcut : i == MI_ZOOM ? &settings.zoom : i == MI_ACCEL ? &settings.accel : 0;
+    return i == MI_ZOOM ? &settings.zoom : i == MI_ACCEL ? &settings.accel : 0;
 }
 
 static void draw_menu(void)
@@ -47,10 +48,12 @@ static void draw_menu(void)
                     cv_rect(4, y + 6, 3, 3, C_WHITE);
                 cv_text(14, y, &FONT_S, MI_NAME[i], sel ? C_WHITE : C_GRAY);
                 if (menu_onoff(i))
-                    cv_text(90, y, &FONT_S, *menu_onoff(i) ? "ON" : "OFF", C_HI);
+                    cv_text(102, y, &FONT_S, *menu_onoff(i) ? "ON" : "OFF", C_HI);
+                if (i == MI_SPKEQ)
+                    cv_text(102, y, &FONT_S, SPK_EQ[settings.lowcut % 3u], C_HI);
                 if (i == MI_COLOR) {
                     uint32_t k;
-                    cv_text(90, y, &FONT_S, PALETTES[settings.palette].name, C_HI);
+                    cv_text(102, y, &FONT_S, PALETTES[settings.palette].name, C_HI);
                     for (k = 0; k < 5u; k++)
                         cv_rect(160 + (int32_t)k * 14, y + 3, 10, 10, pal[k]);
                 }
@@ -97,11 +100,18 @@ static void menu_input(uint32_t pressed)
         settings.palette = (settings.palette + (s > 0 ? 1u : NPALETTES - 1u)) % NPALETTES;
         palette_set(settings.palette);              /* (the menu signature redraws) */
     }
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_SPKEQ) {
+        /* KNOB 1 steps FLAT LOWCUT BASS+ and stops at the ends; OCT+ steps and wraps (upstream 1.0.2) */
+        settings.lowcut = s > 0 ? (settings.lowcut < 2u ? settings.lowcut + 1u : 2u)
+                        : s < 0 ? (settings.lowcut ? settings.lowcut - 1u : 0u) : (settings.lowcut + 1u) % 3u;
+        fx_lowcut = (uint8_t)settings.lowcut;
+        ok = 0;
+        s = 0;
+    }
     if ((s != 0 || ok) && ui.menu == 1 && menu_onoff(ui.menu_sel)) {
         /* KNOB 1: right = ON, left = OFF; OCT+ toggles */
         uint32_t *v = menu_onoff(ui.menu_sel);
         *v = s > 0 ? 1u : s < 0 ? 0u : !*v;
-        fx_lowcut = (uint8_t)(settings.lowcut != 0);
         ok = 0;
     }
     if (ok && ui.menu == 1) {

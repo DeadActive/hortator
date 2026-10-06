@@ -182,7 +182,7 @@ static void edit_param(uint32_t slot, int32_t steps)
     d = page_desc(pg, slot, &vp);
     if (!d || !vp || d->max == d->min)
         return;
-    v = clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
+    v = param_turn(d, *vp, accel(EN_K1 + slot, steps, d->max - d->min));
     if (pg->scope == SC_TRACK && id == P_RMODEL && v != RS_OFF && *vp == RS_OFF && reson_tracks(TSEL) >= RS_MAXTRK) {
         ui_message("RESON: 4 TRACKS MAX");            /* RESON on 4 tracks at most (CPU) */
         return;
@@ -427,7 +427,7 @@ static void ui_input(void)
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
             if (d->max > d->min)
-                *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, d->max - d->min), d->min, d->max);
+                *vp = (int16_t)param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
         } else {
             edit_param(k, s);
         }

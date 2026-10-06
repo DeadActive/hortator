@@ -9,6 +9,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 - TRS MIDI input on by default: notes from the jack play like USB's; clock bytes are queued for the coming MIDI
   clock feature (upstream Felucca 1.0, stage 2 step 4, frozen baseline `frozen-base-5`).
+- Sound pack (upstream Felucca 1.0.2): MENU SPEAKER EQ FLAT / LOWCUT / BASS+ (the bass heard through its harmonics
+  on the small speaker); SPRING reverb (shown SPRNG) beside ROOM on the new REVERB page (TYPE SIZE DAMP; chorus on
+  its own CHORUS page); slow divisions 1/2, 1/1, 2BAR, 4BAR on PATTERN DIV and delay TIME, division knobs ordered
+  by length. Projects are FDR7 (older ones load with ROOM).
 
 ## 0.5.0 - 2026-10-06
 

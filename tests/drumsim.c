@@ -266,6 +266,54 @@ static void reson_chord_bar(uint32_t b) { trk[1].p[P_RSTRCT] = (int16_t)((b % RS
 static void reson_dist_bar(uint32_t b) { trk[1].p[P_DIST] = trk[2].p[P_DIST] = (int16_t)(b & 1u ? 110 : 0); }
 static void reson_none_bar(uint32_t b) { (void)b; }
 
+/* sound pack demos (120 BPM, whole mix). sp_speaker_eq.wav: the 808 kit, 2 bars each FLAT, LOWCUT, BASS+;
+ * sp_reverb.wav: a snare on 2 and 4 into the reverb, 2 bars each ROOM, SPRING at SIZE 0 / 64 / 127 (DAMP 60), SPRING
+ * SIZE 127 DAMP 0 and DAMP 127; sp_slow_div.wav: a 1/16 kick with a hat on 2BAR (4 bars) then 4BAR (8 bars), the
+ * snare's delay at TIME 1/2 */
+static void sp_kit(void)
+{
+    static const char *const PAT[3] = {"X...x...x...x...", "....X.......X...", "x.x.x.x.x.x.x.x."};
+    static const uint32_t MODEL[3] = {DM_K808, DM_S808, DM_HATC};
+    uint32_t i, k;
+    host_init();
+    for (i = 0; i < 3u; i++) {
+        drum_set_model(&trk[i], MODEL[i]);
+        for (k = 0; k < 16u; k++) {
+            trk[i].step[k].on = PAT[i][k] != '.';
+            trk[i].step[k].acc = PAT[i][k] == 'X';
+        }
+    }
+}
+static void sp_eq_bar(uint32_t b) { fx_lowcut = (uint8_t)(b / 2u < 3u ? b / 2u : 2u); }
+static void sp_rev_bar(uint32_t b)
+{
+    static const int16_t TYPE[6] = {0, 1, 1, 1, 1, 1}, SIZE[6] = {90, 0, 64, 127, 127, 127}, DAMP[6] = {60, 60, 60, 60, 0, 127};
+    uint32_t s = b / 2u < 6u ? b / 2u : 5u;
+    song.g[G_RTYPE] = TYPE[s];
+    song.g[G_RSIZE] = SIZE[s];
+    song.g[G_RDAMP] = DAMP[s];
+}
+static void sp_div_bar(uint32_t b) { trk[2].p[P_SDIV] = b < 4u ? 8 : 9; }
+static void write_sound_pack(const char *dir)
+{
+    sp_kit();
+    write_demo(dir, "sp_speaker_eq.wav", 6, sp_eq_bar);
+    fx_lowcut = 0;
+    sp_kit();
+    drum_set_model(&trk[0], DM_K808);
+    memset(trk[0].step, 0, sizeof trk[0].step);      /* the snare alone */
+    memset(trk[2].step, 0, sizeof trk[2].step);
+    trk[1].p[P_REV] = 110;
+    write_demo(dir, "sp_reverb.wav", 12, sp_rev_bar);
+    song.g[G_RTYPE] = 0;
+    sp_kit();
+    trk[1].p[P_DLY] = 90;
+    song.g[G_DTIME] = 6;                             /* 1/2 */
+    for (uint32_t k = 0; k < 16u; k++)
+        trk[2].step[k].on = 1;
+    write_demo(dir, "sp_slow_div.wav", 12, sp_div_bar);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -366,5 +414,6 @@ int main(int argc, char **argv)
     write_demo(dir, "reson_sweep.wav", 4, reson_none_bar);
     reson_kit(RS_PIPE);
     write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);      /* RESON into DIST, every other bar */
+    write_sound_pack(dir);
     return 0;
 }
