@@ -139,6 +139,16 @@ Report what you saw first; we'll go through it together.
   the kick changes on the bar, no click.
 - SAVE / power cycle / LOAD: GHOST comes back; a project saved before (FDR5) loads with KEEP.
 
+### USB-MIDI (stage 2 step 2: check on the FM-1)
+
+- Notes from a DAW over USB on the drum channel: every hit plays; a dense burst (e.g. a 1/64 roll on several notes,
+  or a pasted block of notes): every hit plays, nothing stuck, the FM-1 stays responsive.
+- **Run the web installer again with the same package after installing**: it must find the FM-1 and hand over to
+  the update loader (the M-UPGRADE command now goes through the new driver). The pinned loader and the stock UBOOT
+  path stay the way back either way.
+- The web editor connects and reads / writes as before (its SysEx frames go through the new driver).
+- Unplug / replug while notes are sent: MIDI works again after the replug.
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second
