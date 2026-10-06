@@ -10,6 +10,8 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 "$OUT/drum_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/sound_pack_test" tests/sound_pack_test.c -lm
 "$OUT/sound_pack_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
+"$OUT/usb_audio_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DDM_QCHECK -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test_q" tests/drum_test.c -lm
 "$OUT/drum_test_q" > "$OUT/drum_test_q.txt" || { grep FAIL "$OUT/drum_test_q.txt"; exit 1; }
 echo "drum_test with Q24 overflow checks: all passed"

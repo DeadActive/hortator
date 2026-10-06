@@ -73,6 +73,18 @@ static void track_dist(track_t *t, int32_t *b, uint32_t n)
  * get quieter instead of crushed. */
 #define LIM_T 18000
 static int32_t lim_env = LIM_T;
+/* MENU > USB LEVEL FIXED (upstream 1.0.2, #42: record over USB with the speaker turned down): the mix goes to
+ * master_out at the full MASTER level, USB audio takes that (audio.c uac_tap), and only then does MASTER scale what
+ * the DAC gets (usb_fixed_dac). MASTER (0, the default): MASTER before master_out, as always (USB follows the knob) */
+static volatile uint8_t fx_usb_fixed;
+#define MASTER_FULL 4096                /* main.c: the MASTER knob's top, Q12 */
+static __attribute__((noinline)) void usb_fixed_dac(int32_t *out, uint32_t n)   /* audio ISR, after uac_tap */
+{
+    uint32_t i;
+    int32_t m = (int32_t)song.master_q12;
+    for (i = 0; i < 2u * n; i++)
+        out[i] = (out[i] * m) >> 12;                /* (|out| <= 32767 after the soft clip: fits) */
+}
 static volatile uint8_t fx_lowcut;     /* settings (MENU SPEAKER EQ): 0 FLAT, 1 LOWCUT 12 dB/oct ~110 Hz, 2 BASS+ (the
                                         * small speaker): 12 dB/oct ~220 Hz plus the harmonics of the bass (spk_bass) */
 static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
@@ -387,6 +399,7 @@ static uint32_t comp_was = NTRK;                 /* the COMP source of the last 
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB LEVEL FIXED: MASTER after) */
     if (safe_start) {                                 /* safe start: silence, no track / model / FX code */
         for (i = 0; i < n; i++)
             out[2u * i] = out[2u * i + 1u] = 0;
@@ -415,8 +428,8 @@ static void mix_block(int32_t *out, uint32_t n)
     lfo_restore();                                      /* the knobs as set again */
     fx_buses(send_c, send_d, send_r, wet, n);
     for (i = 0; i < n; i++) {
-        int32_t l = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * (int32_t)song.master_q12) >> 10;
-        int32_t r = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * (int32_t)song.master_q12) >> 10;   /* fits Q12 */
+        int32_t l = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
+        int32_t r = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
