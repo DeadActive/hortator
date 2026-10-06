@@ -2230,6 +2230,53 @@ static void test_perform_screens(void)
     ui_frame();
 }
 
+/* review: FX pressed and a key at once, before the UI's pass has seen FX: still the layer's (no note) */
+static void test_perform_fast_key(void)
+{
+    uint32_t age;
+    ui_host_init();
+    ui_frame();
+    age = hit_age(&trk[0]);
+    fm1_in.buttons |= fx_bit();                       /* FX down, the UI has not run since */
+    keys(1u << 0);                                    /* F3 in the same moment */
+    render_mix(0, 0, CTL);                            /* the audio render first */
+    check("FX + a key before the UI's pass: the key is the layer's, no note",
+          (kb_layer & 1u) && hit_age(&trk[0]) == age);
+    keys(0);
+    release_all();
+    ui_frame();
+    ui_frame();
+}
+
+/* review: FX held into the menu and out again: the press is dead (no map, no layer, no PAGE), the macros off */
+static void test_perform_dead_hold(void)
+{
+    uint32_t p, i;
+    for (p = 0; p < 2u; p++) {
+        ui_host_init();
+        settings.perfpage = p;
+        press(B_FX);
+        turn(EN_K2, 10);                              /* CRUSH: the layer open at once */
+        fx_hold_frames(2);
+        for (i = 0; i < 1000u && !ui.menu; i++) {     /* HOME held too: the menu */
+            fm1_in.buttons |= 1u << panel.btn[B_HOME];
+            fx_hold_frames(1);
+        }
+        fm1_in.buttons &= ~(1u << panel.btn[B_HOME]);
+        fx_hold_frames(2);
+        check(p ? "PAGE: FX held into the menu: the CRUSH macro off there" : "HOLD: FX held into the menu: the CRUSH macro off there",
+              ui.menu && !perf_k[1]);
+        menu_close();
+        fx_hold_frames(3);                            /* FX still held, the menu gone */
+        check(p ? "PAGE: FX held out of the menu: dead (no PERFORM page, keys not the layer's)"
+                : "HOLD: FX held out of the menu: dead (no map, keys not the layer's)",
+              !ui.layer && !ui.pg_open && !perf_mask);
+        release_all();
+        ui_frame();
+        settings.perfpage = 0;
+    }
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2282,6 +2329,8 @@ int main(void)
     test_perform_menu_kills();
     test_perform_page();
     test_perform_screens();
+    test_perform_fast_key();
+    test_perform_dead_hold();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

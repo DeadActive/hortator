@@ -300,17 +300,19 @@ static void fx_layer(uint32_t now, int home_tap)
 {
     uint32_t bit = 1u << panel.btn[B_FX], *t0 = &ui.fx_t0, k, show, down = (fm1_in.buttons & bit) != 0u;
     int32_t s;
-    if (!fx_allowed())
+    if (!fx_allowed()) {
         perf_kill = 1;
-    else if (!kb_layer)
+        perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* (the macros too: nothing runs under a menu) */
+    } else if (!kb_layer) {
         perf_kill = 0;
+    }
     if (ui.pg_open && (!fx_allowed() || home_tap || ui.page != ui.pg_page || ui.home != ui.pg_home))
         perf_page_close();
     if (down) {
         if (!*t0)
             *t0 = (now & ~7u) | FX_DOWN;
         if (!fx_allowed())
-            *t0 |= FX_DEAD;
+            *t0 = (*t0 | FX_DEAD) & ~FX_OPEN;           /* dead until let go: no map, no layer, no PAGE */
         if (!(*t0 & FX_DEAD) && (kb_layer || now - (*t0 & ~7u) >= FX_HOLD_MS * 1000u * FM1_TICKS_PER_US))
             *t0 |= FX_OPEN;
     } else if (*t0) {
@@ -332,7 +334,9 @@ static void fx_layer(uint32_t now, int home_tap)
         ui.pg_page = ui.page;
         ui.pg_home = ui.home;
     }
-    perf_mask = (down && !(*t0 & FX_DEAD) ? bit : 0u) | (ui.pg_open ? PERF_PAGE : 0u);
+    perf_mask = (fx_allowed() && !(*t0 & FX_DEAD) ? bit : 0u) | (ui.pg_open ? PERF_PAGE : 0u);   /* armed before FX
+                                                         * is pressed: a key struck with it is the layer's even before
+                                                         * this pass has seen FX (keyboard_block tests the button) */
     show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer || ui.pg_open);
     if (show != ui.layer) {
         ui.layer = (uint8_t)show;
