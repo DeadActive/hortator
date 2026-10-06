@@ -408,6 +408,85 @@ static int fdr7_round_trip(void)
     project_load(2);
     return song.g[G_RTYPE] == 1;
 }
+/* FDR8: the motion goes through a save and a load (flash) */
+static int fdr8_motion_round_trip(void)
+{
+    motion_store_t want;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    motion_add(0, 4, P_E1, 100);
+    motion_add(5, 63, P_PAN, -64);
+    motion_add(7, 0, P_LFO2 + LF_DEPTH, 127);
+    mo.s.on = 0xA1u;
+    want = mo.s;
+    project_save(2);
+    memset(&mo, 0, sizeof mo);
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_load(2);
+    return !memcmp(&mo.s, &want, sizeof want);
+}
+/* an FDR7 record (3028 B, no motion) loads: its values, no motion */
+static int fdr7_converts(void)
+{
+    project_v7_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V7;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    v.g[G_RTYPE] = 1;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].step[9].on = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    motion_add(0, 1, P_E1, 5);                       /* motion in RAM before: the load replaces it */
+    project_load(1);
+    return song.g[G_RTYPE] == 1 && trk[2].step[9].on && mo.s.count == 0u && sizeof v == 3028u;
+}
+/* a broken motion block: the project loads, the motion dropped */
+static int fdr8_bad_motion_dropped(void)
+{
+    project_t *p = &proj_slot[0];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[3].step[5].on = 1;
+    motion_add(0, 4, P_E1, 100);
+    project_save(0);
+    p->motion.ev[0].trk = 9;                         /* out of range */
+    p->sum = proj_sum(p);
+    memset(&mo, 0, sizeof mo);
+    trk[3].step[5].on = 0;
+    project_load(0);
+    return trk[3].step[5].on && mo.s.count == 0u;
+}
+/* Review Focus 3: a load while motion plays: the stop after it puts nothing of the old project back */
+static int fdr8_load_while_playing(void)
+{
+    uint32_t b;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[0].p[P_E1] = 11;
+    project_save(1);                                 /* the project: E1 11 */
+    trk[0].p[P_E1] = 64;
+    motion_add(0, 0, P_E1, 100);
+    transport_req = 1;
+    for (b = 0; b < 8u; b++)
+        render_mix(L, R, CTL);                       /* motion plays: E1 100, the base 64 */
+    project_load(1);
+    for (b = 0; b < 8u; b++)
+        render_mix(L, R, CTL);                       /* the stop the load asked for */
+    return !song.playing && trk[0].p[P_E1] == 11;
+}
 /* review focus 1: RESON at every extreme (pitch with a chord's top note and the fine offset, STRCT, TONE, POS):
  * the lines stay inside rs_buf (ASan) and the output bounded */
 static int reson_extremes(void)
@@ -449,7 +528,11 @@ int main(void)
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
     check("project: an FDR5 record loads with GHOST KEEP", fdr5_converts());
     check("project: an FDR6 record (same size as FDR5) loads with reverb TYPE ROOM", fdr6_converts());
-    check("project: FDR7 keeps the reverb TYPE", fdr7_round_trip());
+    check("project: the reverb TYPE survives a save and a load", fdr7_round_trip());
+    check("project: FDR8 keeps the motion through a save and a load", fdr8_motion_round_trip());
+    check("project: an FDR7 record (3028 B) loads with no motion", fdr7_converts());
+    check("project: a broken motion block is dropped, the project loads", fdr8_bad_motion_dropped());
+    check("project: a load while motion plays: the old base is not put back", fdr8_load_while_playing());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());
