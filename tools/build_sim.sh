@@ -67,7 +67,7 @@ TEST_BIN=$PWD/$OUT/host/sim_test
 (cd "$ROOT" && "$TEST_BIN")
 # the landing page's reel: the same core, a scripted performance recorded (tests/sim_record.c)
 cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_record" "$ROOT/tests/sim_record.c" -lm
-"$OUT/host/sim_record" "$OUT/reel.bin" "$OUT/reel.hash"
+"$OUT/host/sim_record" "$OUT/reel.bin" "$OUT/reel.hash" "$OUT/reel.json"
 gzip -9 -n -f -k "$OUT/reel.bin"
 
 [ "$HOST_ONLY" = 1 ] && exit 0
@@ -114,9 +114,9 @@ sys.path.insert(0, sys.argv[1])
 import make_site                                     # the site exactly as web/make_site.py makes it
 make_site.main(sys.argv[2], sys.argv[3], sys.argv[4])
 PY
-        cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$P/"   # the landing page at /
+        cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$P/"   # the landing page at /
     else
-    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$P/"
+    cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$OUT/reel.json" "$P/"
     "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
 import json, sys
 from pathlib import Path

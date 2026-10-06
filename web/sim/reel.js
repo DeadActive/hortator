@@ -36,3 +36,15 @@ export function parseReel(buf) {
     },
   };
 }
+
+// the screen as it stands at each of the given frames (after applying it): a clip plays from its snapshot on, so a
+// feature's screen can loop its own stretch -> Map(frame -> { fb, leds, keyLeds })
+export function snapshots(reel, frames) {
+  const want = new Set(frames), out = new Map(), fb = new Uint16Array(240 * 240);
+  const last = Math.max(...frames);
+  for (let i = 0; i <= last; i++) {
+    const f = reel.apply(i, fb);
+    if (want.has(i)) out.set(i, { fb: fb.slice(), leds: f.leds, keyLeds: f.keyLeds });
+  }
+  return out;
+}

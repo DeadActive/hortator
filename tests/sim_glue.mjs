@@ -279,15 +279,15 @@ test('playbackSession: asks for a playback session where the browser has one (iO
 });
 
 // ---- the hero's reel: recorded screen, LEDs and knobs (tests/sim_record.c), replayed by reel.js
-import { parseReel } from '../web/sim/reel.js';
+import { parseReel, snapshots } from '../web/sim/reel.js';
 
-test('reel: 30 s at 15 fps, replaying every frame rebuilds the recorder\'s last screen, small enough to ship', async () => {
+test('reel: 34 s at 15 fps, replaying every frame rebuilds the recorder\'s last screen, small enough to ship', async () => {
   const gz = readFileSync(join(DIR, 'reel.bin.gz'));
   assert.ok(gz.length < 1.5e6, `reel.bin.gz is ${gz.length} B`);
   const buf = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
   const reel = parseReel(buf);
   assert.equal(reel.fps, 15);
-  assert.equal(reel.frames, 450);
+  assert.equal(reel.frames, 510);
   const fb = new Uint16Array(240 * 240);
   let leds = 0, keys = 0, turns = 0;
   for (let i = 0; i < reel.frames; i++) {
@@ -300,4 +300,34 @@ test('reel: 30 s at 15 fps, replaying every frame rebuilds the recorder\'s last 
   assert.equal(h, Number(readFileSync(join(DIR, 'reel.hash'), 'utf8')), 'the replayed last frame is the recorded one');
   assert.ok(leds && keys, 'button and key LEDs light during the reel');
   assert.ok(turns > 0, 'knobs turn during the reel');
+});
+
+test('reel clips: the recorder names each page\'s stretch (the landing page plays them per feature)', () => {
+  const clips = JSON.parse(readFileSync(join(DIR, 'reel.json'), 'utf8'));
+  const names = clips.map(c => c.name);
+  for (const n of ['home', 'seq', 'sound', 'fx', 'grids', 'comp', 'tracks', 'lfo'])
+    assert.ok(names.includes(n), n);
+  let last = 0;
+  for (const c of clips) {
+    assert.ok(c.from >= last && c.to > c.from && c.to <= 510, `${c.name} ${c.from}..${c.to}`);
+    last = c.to;
+  }
+});
+
+test('reel snapshots: a clip replayed from its start snapshot ends on the same screen as the whole reel played through', async () => {
+  const gz = readFileSync(join(DIR, 'reel.bin.gz'));
+  const buf = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  const reel = parseReel(buf);
+  const clips = JSON.parse(readFileSync(join(DIR, 'reel.json'), 'utf8'));
+  const snaps = snapshots(reel, clips.map(c => c.from));
+  const seq = new Uint16Array(240 * 240), ends = new Map();
+  for (let i = 0; i < reel.frames; i++) {
+    reel.apply(i, seq);
+    for (const c of clips) if (i === c.to - 1) ends.set(c.name, seq.slice());
+  }
+  for (const c of clips) {
+    const fb = snaps.get(c.from).fb.slice();
+    for (let i = c.from + 1; i < c.to; i++) reel.apply(i, fb);
+    assert.deepEqual(fb, ends.get(c.name), c.name);
+  }
 });
