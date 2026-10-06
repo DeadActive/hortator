@@ -102,7 +102,7 @@ static void test_audio(void)
     uint32_t on = 0, off = 0, i;
     sim_init(1);
     four_on_the_floor();
-    run(4096);
+    run(FS * 3u);                                    /* the earlier tests' FX tails (one process, not a RAM wipe) */
     check("before PLAY: silent", peak(FS / 2u) < 4.0f / 32768.0f);
     tap(B_PLAY);
     check("PLAY: the transport runs", sim_playing());
@@ -139,6 +139,58 @@ static void test_leds(void)
     check("released: its LED goes off", !((sim_leds() >> (14u + 5u)) & 1u));
 }
 
+static uint32_t dirty_count(void)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < SIM_FLASH_SIZE / 4096u; i++)
+        n += (sim_flash_dirty()[i / 32u] >> (i % 32u)) & 1u;
+    return n;
+}
+
+static void power_cycle(const uint8_t *image)        /* RAM lost (.noinit too), the flash image kept */
+{
+    memset(proj_slot, 0, sizeof proj_slot);
+    settings.magic = 0;
+    panel.magic = 0;
+    sim_flash_reset();
+    memcpy(sim_flash(), image, SIM_FLASH_SIZE);
+    sim_init(0);
+}
+
+static uint8_t image[SIM_FLASH_SIZE];
+
+static void test_demos_and_flash(void)
+{
+    uint32_t k, on = 0, i;
+    sim_init(1);
+    for (k = 0; k < 4u; k++)
+        on += (uint32_t)project_used(k);
+    check("demos: four used project slots", on == 4u);
+    for (k = 0, on = 0; k < 16u; k++)
+        on += trk[0].step[k].on;
+    check("demos: the current project is demo 1 (track 1 has steps)", on > 0u);
+    tap(B_PLAY);
+    check("demos: PLAY grooves at once", peak(FS) > 0.01f);
+    tap(B_PLAY);
+    run(FS);
+    check("demos: the fresh boot left dirty flash sectors", dirty_count() > 0u);
+    sim_flash_clean();
+    check("sim_flash_clean clears them", dirty_count() == 0u);
+    trk[0].step[1].on = (uint8_t)!trk[0].step[1].on;
+    on = trk[0].step[1].on;
+    project_save(0);
+    check("a save dirties sectors", dirty_count() > 0u);
+    memcpy(image, sim_flash(), SIM_FLASH_SIZE);
+    power_cycle(image);
+    project_load(0);
+    check("round trip: after a power cycle, slot 1 loads the saved change", trk[0].step[1].on == on);
+    for (i = 0x97000u; i < 0xE0000u; i++)            /* hostile store contents */
+        image[i] = (uint8_t)(i * 2654435761u >> 24);
+    power_cycle(image);
+    run(FS);
+    check("hostile flash: boots and runs", fb_lit() > 500u);
+}
+
 static void test_frame_cost(void)                    /* informational: a UI frame runs in the audio thread */
 {
     clock_t t0;
@@ -158,6 +210,7 @@ int main(void)
     test_boot_and_input();
     test_audio();
     test_leds();
+    test_demos_and_flash();
     test_frame_cost();
     printf(fails ? "sim_test: %d FAILED\n" : "sim_test: all ok\n", fails);
     return fails != 0;

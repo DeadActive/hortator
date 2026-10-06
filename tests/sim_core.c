@@ -147,4 +147,4 @@ uint8_t *sim_flash(void) { return hflash; }
 uint32_t *sim_flash_dirty(void) { return sim_dirty; }
 void sim_flash_clean(void) { memset(sim_dirty, 0, sizeof sim_dirty); }
 
-static void sim_demo_install(void) {}
+#include "sim_demo.c"
