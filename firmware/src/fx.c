@@ -152,11 +152,13 @@ static inline void master_out(int32_t *l, int32_t *r)
     *r = softclip(*r);
 }
 
-/* length of one division (N_DIV order) in samples at the song tempo */
-static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* beats = 1 / DEN */
+/* length of one division (N_DIV id) in samples at the song tempo: ids 0..5 a quarter / DEN, the slow ids 6..9
+ * (1/2 1/1 2BAR 4BAR) a quarter x 2, 4, 8, 16 (upstream 1.0.2) */
+static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* beats = 1 / DEN; original ids fixed, slow rates append */
 static uint32_t div_samples(uint32_t div)
 {
-    return (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM] / DIV_DEN[div % 6u];
+    uint32_t quarter = (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM];
+    return div < 6u ? quarter / DIV_DEN[div] : div < 10u ? quarter << (div - 5u) : quarter / DIV_DEN[div % 6u];
 }
 
 static uint32_t delay_samples(void)

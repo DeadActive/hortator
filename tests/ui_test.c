@@ -1944,6 +1944,36 @@ static void test_reverb_pages(void)
     snap_page("fx_chorus");
 }
 
+/* sound pack: division knobs run by length (4BAR .. 1/32), the stored value stays the id; the gauge follows */
+static void test_div_order(void)
+{
+    static const int16_t WANT[10] = {9, 8, 7, 6, 0, 1, 4, 2, 5, 3};
+    const param_desc_t *d = &TP[P_SDIV];
+    uint32_t i, ok = 1;
+    for (i = 0; i + 1u < 10u; i++)
+        ok &= param_turn(d, WANT[i], 1) == WANT[i + 1] && param_turn(d, WANT[i + 1], -1) == WANT[i];
+    ok &= param_turn(d, 3, 1) == 3 && param_turn(d, 9, -1) == 9 && param_turn(d, 9, 20) == 3;
+    check("DIV: the knob steps 4BAR 2BAR 1/1 1/2 1/4 1/8 8T 1/16 16T 1/32, stopping at the ends", ok);
+    check("DLY TIME: the same order", param_turn(&GP[G_DTIME], 6, 1) == 0 && param_turn(&GP[G_DTIME], 0, -1) == 6);
+    check("DIV gauge: by length (4BAR empty, 1/32 full, 1/4 at 4/9)",
+          RATIO(d, 9) == 0 && RATIO(d, 3) == 1000 && RATIO(d, 0) == 444);
+    check("other knobs keep their order (SLICER RATE, ids as shown)", param_turn(&TP[P_SLRATE], 1, 1) == 2);
+    ui_host_init();
+    settings.accel = 0;
+    seq_open("PATTERN");
+    trk[song.sel].p[P_SDIV] = 9;
+    ok = 1;
+    for (i = 1; i < 10u; i++) {
+        turn(EN_K2, 1);
+        ui_frame();
+        ok &= trk[song.sel].p[P_SDIV] == WANT[i];
+    }
+    check("PATTERN DIV: turning right walks the length order", ok);
+    trk[song.sel].p[P_SDIV] = 8;
+    snap_page("seq/pattern_div_2bar");
+    settings.accel = 1;
+}
+
 int main(void)
 {
     test_safe_start();
@@ -1988,6 +2018,7 @@ int main(void)
     test_ui_frame_cost();
     test_speaker_eq();
     test_reverb_pages();
+    test_div_order();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

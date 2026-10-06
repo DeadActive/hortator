@@ -14,7 +14,7 @@ static void panel_setup(void);
 
 #define ACC C_HI
 #define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)
-#define RATIO(d, v) ((d)->max > (d)->min ? ((int32_t)(v) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
+#define RATIO(d, v) ((d)->max > (d)->min ? (enum_rank((d), (int32_t)(v)) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
 #define Y_HEAD 0
 #define H_HEAD 20
 #define Y_LABEL 26

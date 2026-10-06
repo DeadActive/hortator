@@ -2908,6 +2908,123 @@ static void test_cond_codes(void)
     check("PROB: shown as 100% / 75% / 0% / 1-SHOT / 3/5", ok);
 }
 
+/* sound pack: the slow divisions (ids 6..9: 1/2 1/1 2BAR 4BAR) */
+static void test_slow_divisions(void)
+{
+    static const uint32_t W120[10] = {22050, 11025, 5512, 2756, 7350, 3675, 44100, 88200, 176400, 352800};
+    static const uint32_t W40[10] = {66150, 33075, 16537, 8268, 22050, 11025, 132300, 264600, 529200, 1058400};
+    static const uint32_t W240[10] = {11025, 5512, 2756, 1378, 3675, 1837, 22050, 44100, 88200, 176400};
+    uint32_t d, ok = 1, n0 = 0, n1 = 0, f, bar = FS * 60 / 240 * 4, a0, a1, at0[12], at1[4];
+    host_init();
+    for (d = 0; d < 10u; d++) {
+        song.g[G_BPM] = 120;
+        ok &= div_samples(d) == W120[d];
+        song.g[G_BPM] = 40;
+        ok &= div_samples(d) == W40[d];
+        song.g[G_BPM] = 240;
+        ok &= div_samples(d) == W240[d];
+    }
+    check("divisions: all ten exact at 40, 120, 240 BPM (1/2 .. 4BAR = 2 .. 16 beats)", ok);
+
+    host_init();                                     /* 240 BPM: a bar is 44100 samples */
+    song.g[G_BPM] = 240;
+    trk[0].step[0].on = 1;                           /* 1/16, one hit a bar */
+    trk[1].p[P_SDIV] = 9;                            /* 4BAR, every step on: one hit every 4 bars */
+    for (d = 0; d < 16u; d++)
+        trk[1].step[d].on = 1;
+    play();
+    a0 = hit_age(&trk[0]);
+    a1 = hit_age(&trk[1]);
+    for (f = 0; f < 9u * bar; f += CTL) {
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a0 && n0 < 12u)
+            at0[n0++] = f, a0 = hit_age(&trk[0]);
+        if (hit_age(&trk[1]) != a1 && n1 < 4u)
+            at1[n1++] = f, a1 = hit_age(&trk[1]);
+    }
+    /* (the 1/16 step is a whole number of samples, 2756 for 2756.25: that track runs 4 samples a bar early, as every
+     * division with a remainder does today; the 4BAR step, 176400, is exact. So "on the bar hits" within 2 blocks) */
+#define NEAR(a, b) ((a) > (b) ? (a) - (b) <= 2u * CTL : (b) - (a) <= 2u * CTL)
+    check("divisions: a 4BAR track fires once every 4 bars, on the 1/16 track's bar hits (within the rounding)",
+          n0 >= 9u && n1 == 3u && at1[0] == at0[0] && NEAR(at1[1], at0[4]) && NEAR(at1[2], at0[8]));
+#undef NEAR
+
+    host_init();
+    song.g[G_BPM] = 40;
+    trk[0].p[P_SDIV] = 9;
+    trk[0].p[P_SSWING] = 100;
+    {
+        uint64_t p = 1058400u, sw = p * (uint64_t)track_swing(&trk[0]) / 250u;
+        check("divisions: swing on a 4BAR step at 40 BPM (no overflow)",
+              track_swing(&trk[0]) > 0 && step_samples(&trk[0], 1058400u, 0) == p + sw &&
+              step_samples(&trk[0], 1058400u, 1) == p - sw);
+    }
+
+    host_init();
+    song.g[G_BPM] = 240;
+    trk[0].p[P_SDIV] = 8;                            /* 2BAR: 88200 samples a step */
+    trk[0].step[0].on = 1;
+    trk[0].step[0].rat = 1;                          /* 2 hits */
+    play();
+    {
+        uint32_t at[4];
+        check("divisions: a ratchet on a 2BAR step rolls 2 hits inside the step", hits_at(0, 88200u, at, 4) == 2u);
+    }
+
+    host_init();
+    song.g[G_BPM] = 240;
+    trk[0].p[P_SDIV] = 8;
+    song.rec = 1u;
+    play();
+    render_mix(0, 0, 88200u + 88200u * 3u / 4u / CTL * CTL);   /* 3/4 into step 1 */
+    fm1_in.notes = 1u << KEY_TRK_KEY[0];
+    render_mix(0, 0, CTL);
+    fm1_in.notes = 0;
+    check("divisions: live record on a 2BAR step: a late hit goes into the next step",
+          trk[0].step[2].on && !trk[0].step[1].on);
+
+    host_init();
+    song.g[G_BPM] = 120;
+    song.g[G_DTIME] = 8;                             /* 2BAR = 4 s: longer than the delay line */
+    check("divisions: delay TIME 2BAR is cut to the delay line (1.49 s)", delay_samples() == DLY_LEN - 1u);
+    song.g[G_DTIME] = 6;                             /* 1/2 at 120 BPM = 1 s: fits */
+    check("divisions: delay TIME 1/2 at 120 BPM is 1 s", delay_samples() == 44100u);
+}
+
+/* review focus 3: DIV 1/16 -> 4BAR -> 1/16 while playing: the track keeps playing */
+static void test_div_change_while_playing(void)
+{
+    uint32_t at[8], d;
+    host_init();
+    song.g[G_BPM] = 240;
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = 1;
+    play();
+    render_mix(0, 0, 3u * 2756u);
+    trk[0].p[P_SDIV] = 9;
+    render_mix(0, 0, 2u * 2756u);
+    trk[0].p[P_SDIV] = 2;
+    check("divisions: 1/16 -> 4BAR -> 1/16 while playing: hits resume within two 1/16 steps",
+          hits_at(0, 2u * 2756u + CTL, at, 8) >= 1u);
+}
+
+/* review focus 4: a BPM change in the middle of a 4BAR step: the next step comes at the new length */
+static void test_bpm_change_in_slow_step(void)
+{
+    uint32_t at[4], d;
+    host_init();
+    song.g[G_BPM] = 120;
+    trk[0].p[P_SDIV] = 9;                            /* 4BAR at 120 BPM: 352800 samples */
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = 1;
+    play();
+    render_mix(0, 0, CTL);                           /* step 0 */
+    render_mix(0, 0, 100000u / CTL * CTL);
+    song.g[G_BPM] = 240;                             /* 4BAR now 176400 */
+    check("divisions: BPM doubled inside a 4BAR step: the next step within the new length",
+          hits_at(0, 176400u, at, 4) == 1u);
+}
+
 int main(void)
 {
     test_cond_codes();
@@ -2969,6 +3086,9 @@ int main(void)
     test_midi_safe_start();
     test_midi_trs();
     test_live_record();
+    test_slow_divisions();
+    test_div_change_while_playing();
+    test_bpm_change_in_slow_step();
     test_len_change_sync();
     test_prob_chance();
     test_cond_loops();
