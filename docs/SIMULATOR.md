@@ -53,8 +53,13 @@ rebuilds that script from 12a1ba0 and requires a byte-for-byte match, so the ins
 `tools/build_sim.sh --preview` (with `--ref main` for the current firmware) writes `build/sim/preview/` in the
 site's layout. The landing page is at `/` and the installer at `webapp/installer/`, assembled with `make_site.py`'s
 own `strip_module`. Its firmware package is a placeholder that does not exist, so the preview installer shows
-"Could not load the firmware" and Install stays disabled. Never install from a preview; a real install needs the
-site `make_site.py` builds.
+"Could not load the firmware" and Install stays disabled.
+
+To preview with a real firmware package, pass one the firmware session already built: `tools/build_sim.sh --ref
+<its commit> --preview --package <path>/felucca-drum-X.Y.Z-<commit>.fwsc`. The package is copied into `build/sim`
+(the original is never touched), and the preview is assembled by `make_site.main` itself, labelled from the file
+name (`drum-X.Y.Z+<commit>`). Use the package's own commit as `--ref` so the simulator and the firmware match. That
+preview's installer *can* flash an FM-1.
 
 ## How it works
 

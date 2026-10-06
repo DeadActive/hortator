@@ -10,23 +10,32 @@
 #   tools/build_sim.sh --preview        also build/sim/preview/: the site's layout (the landing page at /, the installer
 #                                       at webapp/installer/, assembled as web/make_site.py does, with no firmware
 #                                       package: it shows "could not load" and cannot install)
+#   tools/build_sim.sh --ref main --preview --package FILE.fwsc
+#                                       the preview with a firmware package already built (tools/build.py,
+#                                       DRUM_PACKAGE=1): copied in, the site assembled by make_site.py; its installer
+#                                       can flash an FM-1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PYTHON:-python3}
 export PYTHONDONTWRITEBYTECODE=1                      # no __pycache__ next to tools/build.py: output stays in build/sim
 OUT=build/sim
 GEN=$OUT/gen
-HOST_ONLY=0 REF= PREVIEW=0
+HOST_ONLY=0 REF= PREVIEW=0 PACKAGE=
 while [ $# -gt 0 ]; do
     case "$1" in
         --host-only) HOST_ONLY=1 ;;
         --preview) PREVIEW=1 ;;
+        --package) PACKAGE=${2:?--package needs a .fwsc file}; shift ;;
         --ref) REF=${2:?--ref needs a commit or branch}; shift ;;
         *) echo "build_sim: unknown option $1" >&2; exit 2 ;;
     esac
     shift
 done
 mkdir -p "$GEN" "$OUT/host"
+if [ -n "$PACKAGE" ] && { [ "$PREVIEW" = 0 ] || [ ! -f "$PACKAGE" ]; }; then
+    echo "build_sim: --package needs --preview and an existing .fwsc ($PACKAGE)" >&2
+    exit 2
+fi
 
 # 0. the source root: this checkout, or REF's tree with the simulator's files (tests/sim_*, web/sim) laid over it
 ROOT=.
@@ -89,11 +98,24 @@ fi
 OUT_ABS=$PWD/$OUT
 (cd "$ROOT" && node --test-reporter=dot tests/sim_glue.mjs "$OUT_ABS" && node --test-reporter=dot tests/sim_site.mjs)
 
-# 5. preview: the site's layout, to look at (never to install from)
+# 5. preview: the site's layout, to look at (and, with --package, to install from)
 if [ "$PREVIEW" = 1 ]; then
     P=$OUT/preview
     rm -rf "$P"
     mkdir -p "$P/webapp/installer"
+    if [ -n "$PACKAGE" ]; then
+        cp "$PACKAGE" "$OUT/package.fwsc"                 # a copy: the original is never touched
+        LABEL=$(basename "$PACKAGE" .fwsc | sed -nE 's/^felucca-(drum-[0-9.]+)-([0-9a-f]+(-dirty)?)$/\1+\2/p')
+        LABEL=${LABEL:-drum-$VERSION}
+        echo "build_sim: preview with the firmware package $(basename "$PACKAGE") ($LABEL)"
+        "$PY" - "$ROOT/web" "$OUT/package.fwsc" "$LABEL" "$P" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import make_site                                     # the site exactly as web/make_site.py makes it
+make_site.main(sys.argv[2], sys.argv[3], sys.argv[4])
+PY
+        cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$P/"   # the landing page at /
+    else
     cp "$ROOT"/web/sim/* "$OUT/fm1sim.wasm" "$OUT/source.tar.gz" "$OUT/reel.bin.gz" "$P/"
     "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
 import json, sys
@@ -106,6 +128,7 @@ lib = strip_module((web / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + str
 meta = json.dumps({"version": version + " (preview)", "product": "FM-1_900", "pkg": "../../firmware/preview-has-no-package.fwsc"})
 out.write_text(html.replace("/*LIB*/", lib).replace("/*META*/", meta), encoding="utf-8")
 PY
+    fi
     echo "build_sim: preview $P (cd $P && python3 -m http.server 8001)"
 fi
 echo "build_sim: $OUT ready, firmware DRUM-$VERSION (cd $OUT && python3 -m http.server 8001)"
