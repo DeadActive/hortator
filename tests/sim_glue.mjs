@@ -93,7 +93,7 @@ test('releaseAll lets go of held keys and buttons', async () => {
 });
 
 // ---- controls.js: the panel's data, checked against the firmware
-import { BTN, ENC, KEYS, KEYBOARD, HeldSet, keyEvent } from '../web/sim/controls.js';
+import { BTN, ENC, KEYS, KEYBOARD, HeldSet, keyEvent, contextMenuLatches } from '../web/sim/controls.js';
 
 function cEnum(first) {                             // panel.c: enum { B_FX, ..., NB } -> ['B_FX', ...]
   const src = readFileSync('firmware/src/panel.c', 'utf8');
@@ -158,4 +158,11 @@ test('the page links to the source archive it ships, and the archive holds the f
   const list = execFileSync('tar', ['-tzf', join(DIR, 'source.tar.gz')], { encoding: 'utf8' }).split('\n');
   for (const f of ['firmware/src/felucca.c', 'tests/sim_core.c', 'web/sim/app.js', 'tools/build_sim.sh', 'LICENSE'])
     assert.ok(list.some(l => l.endsWith(f)), f);
+});
+
+test('a right-click latches; the contextmenu a touch or pen long-press also fires does not (the timer does)', () => {
+  assert.equal(contextMenuLatches('mouse'), true);
+  assert.equal(contextMenuLatches('touch'), false);
+  assert.equal(contextMenuLatches('pen'), false);
+  assert.equal(contextMenuLatches(undefined), true, 'no pointerdown seen (keyboard context-menu key): a mouse-like latch');
 });

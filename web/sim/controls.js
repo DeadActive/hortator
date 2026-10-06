@@ -45,6 +45,10 @@ export function keyEvent(e) {
   return { ctl: `${c.kind}:${c.id}`, down };
 }
 
+// does a contextmenu event latch a button? A right-click does; a touch / pen long-press fires contextmenu too (Android
+// Chrome, Windows) and the long-press timer latches it, so that one must not (it would toggle the latch back off)
+export function contextMenuLatches(lastPointerType) { return lastPointerType !== 'touch' && lastPointerType !== 'pen'; }
+
 // a control is held while any source (a pointer, the keyboard, a latch) holds it
 export class HeldSet {
   constructor() { this.m = new Map(); }

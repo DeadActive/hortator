@@ -3,7 +3,7 @@
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
 // frames it sends back, and keeps the flash it writes in IndexedDB.
-import { BTN, B, ENC, KEYS, HeldSet, keyEvent, keyHint } from './controls.js';
+import { BTN, B, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js';
 
 // ---- layouts: design-size boxes [x, y, w, h] (the device is scaled to fit the window)
 const WHITE = KEYS.filter(k => !k.black), BLACK = KEYS.filter(k => k.black);
@@ -166,13 +166,15 @@ function toggleLatch(ctl) {
 }
 
 function bindControls() {
+  let lastPointerType;
   device.addEventListener('contextmenu', e => {          // right-click a button: hold it (combinations)
     const el = e.target.closest('[data-ctl]');
     e.preventDefault();
-    if (el && el.classList.contains('btn')) toggleLatch(el.dataset.ctl);
+    if (el && el.classList.contains('btn') && contextMenuLatches(lastPointerType)) toggleLatch(el.dataset.ctl);
   });
   device.addEventListener('pointerdown', e => {
     const el = e.target.closest('[data-ctl]');
+    lastPointerType = e.pointerType;
     if (!el || e.button !== 0) return;
     const ctl = el.dataset.ctl, src = `p${e.pointerId}`;
     e.preventDefault();
