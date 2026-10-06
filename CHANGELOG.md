@@ -5,6 +5,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- MIDI clock in (upstream Felucca 1.0, adapted from contributions by ChanceTheMaker and keremimo): GLOBAL CLK INT /
+  USB / TRS; the steps (every division), Grids, the slicer, synced LFOs and the delay follow the source's tempo,
+  its Start / Continue / Stop drive the transport (step 0 on the first pulse; stops if the clock stops for 0.5 s).
+- Exact step timing: each track carries its step-length remainder, so divisions never drift against each other
+  (e.g. a 1/16 and a 1/4 track at 120 BPM) or against an external clock.
+
 ## 0.8.0 - 2026-10-07
 
 - USB audio input (upstream Felucca 1.0, UAC1): the FM-1 records into a DAW over its USB cable (16-bit stereo,

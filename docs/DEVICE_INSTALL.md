@@ -206,6 +206,16 @@ Report what you saw first; we'll go through it together.
   the speaker / headphones follow the knob.
 - With nothing recording (DAW closed or another input chosen), the CPU meter is as without USB audio.
 
+### MIDI clock (check on the FM-1)
+
+- GLOBAL > CLK USB, a DAW sending MIDI clock to the FM-1: the DAW's Start / Stop / Continue start, stop and resume
+  the FM-1 (step 0 on the downbeat); a 1/16 hat stays tight against the DAW's metronome for 5+ minutes; a tempo
+  change in the DAW is followed within a beat; the header shows the DAW's BPM; the BPM knob says CLK USB.
+- Unplug the cable while it plays: the FM-1 stops within half a second.
+- CLK TRS with a hardware sequencer on the TRS input: the same.
+- CLK INT: as before; a 1/16 track and a 1/4 track never drift apart.
+- PLAY on the FM-1 while CLK USB: it waits for the DAW's clock (stops again after 0.5 s if none comes).
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second

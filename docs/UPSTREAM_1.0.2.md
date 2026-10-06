@@ -50,7 +50,9 @@ pack: user decision 2026-10-06.)
    0.8.0 (frozen-base-6): upstream's code in the frozen `usb_app.c` switched on (`FELUCCA_UAC`), `hal/fm1_usb.h`'s
    EP4 lines (the loader byte-identical), upstream's `audio.c` hooks, the console's UAC lines, MENU USB LEVEL
    (MASTER / FIXED, 1.0.2 #42). Checked on the FM-1 (recording works).
-3. **MIDI clock in** (`midi_clock.c`): INT / USB / TRS; Grids clock and the LFOs follow it.
+3. **MIDI clock in** (`midi_clock.c`): INT / USB / TRS; Grids clock and the LFOs follow it. Done in 0.9.0, with exact step
+   timing (and three fixes to upstream's clock: tempo over a beat, a rounded rescale incl. the advance in progress,
+   interpolation stopping short of the next pulse).
 4. **PERFORM layer** (`perform.c`): hold-to-play master FX (REPEAT, REVERSE, TAPE STOP, FREEZE, filters, OCT,
    THROW, CRUSH), using our SLICER buffers; 8 mute bits.
 5. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
@@ -84,3 +86,4 @@ The frozen-code baseline is named in `tools/frozen_base.txt` (with the pinned up
 | frozen-base-5 | 727f272 (1.0) | `firmware/src/felucca.c`, `firmware/src/midi_uart.c` (not frozen) | `FELUCCA_UART` 1; 727f272's `midi_uart.c` (through `midi_enqueue`: source TRS, timestamp, Clock / Start / Continue / Stop queued; a full ring or lost bytes mark the stream broken) | TRS MIDI IN on in every build; the frozen `main.c`'s UART poll compiles in both builds, so the reference build carries it |
 | frozen-base-6 | 727f272 (1.0) | `firmware/hal/fm1_usb.h` | the EP4 lines (its DMA address / count registers, `fm1_usb_ep4_txbuf`, `fm1_usb_ep4_send`) | the USB audio input's isochronous endpoint; the update loader includes the header but uses none of it (byte-identical) |
 | frozen-base-6 | 727f272 (1.0) | `firmware/src/felucca.c`, `firmware/src/audio.c` (not frozen) | `FELUCCA_UAC` 1; `uac_render_start` / `uac_tap` | `usb_app.c`'s audio code and the frozen `main.c`'s nested `uac_service` compile in both builds |
+| frozen-base-7 | — (user decision) | `firmware/src/seq.c` (not frozen) | the reference build reads each MIDI input packet's timestamp and source (`midi_in_ms`, `midi_in_source`) | the drum firmware's MIDI clock reads them, so the frozen `midi_enqueue` keeps its stores in both builds (the compiler dropped them where nothing read them) |

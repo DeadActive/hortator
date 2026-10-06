@@ -2005,6 +2005,28 @@ static void test_usb_level(void)
     ui.force = 1;
 }
 
+/* MIDI clock: GLOBAL with CLK USB, and the BPM knob while following (a message, the tempo kept) */
+static void test_clock_screens(void)
+{
+    int16_t bpm;
+    ui_host_init();
+    while (!str_eq(cur_page()->title, "GLOBAL") || ui.home) {
+        press(B_GLO);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+    song.g[G_CLOCK] = 1;
+    ui.force = 1;
+    snap_page("global_clk_usb");
+    bpm = song.g[G_BPM];
+    turn(EN_SELECT, 3);
+    ui_frame();
+    check("CLK USB: the BPM knob keeps the tempo (the clock's) and says so", song.g[G_BPM] == bpm && ui.msg_t);
+    song.g[G_CLOCK] = 0;
+    render_mix(0, 0, CTL);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2051,6 +2073,7 @@ int main(void)
     test_reverb_pages();
     test_div_order();
     test_usb_level();
+    test_clock_screens();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
