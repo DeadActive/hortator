@@ -187,7 +187,7 @@ static void test_seq_timing(void)
     play();
     n = hits_at(0, 17 * p, at, 8);
     check("seq: steps 0 and 4 of 16 fire at 0 and 4 steps, then loop at 16",
-          n == 3 && at[0] == 0 && at[1] / CTL == CEILB(4 * p) && at[2] / CTL == CEILB(16 * p));
+          n == 3 && at[0] == 0 && at[1] / CTL == CEILB(4u * 11025u / 2u) && at[2] / CTL == CEILB(16u * 11025u / 2u));   /* exact 1/16s */
     host_init();
     trk[1].p[P_SLEN] = 3;
     trk[1].step[0].on = 1;
@@ -2942,12 +2942,8 @@ static void test_slow_divisions(void)
         if (hit_age(&trk[1]) != a1 && n1 < 4u)
             at1[n1++] = f, a1 = hit_age(&trk[1]);
     }
-    /* (the 1/16 step is a whole number of samples, 2756 for 2756.25: that track runs 4 samples a bar early, as every
-     * division with a remainder does today; the 4BAR step, 176400, is exact. So "on the bar hits" within 2 blocks) */
-#define NEAR(a, b) ((a) > (b) ? (a) - (b) <= 2u * CTL : (b) - (a) <= 2u * CTL)
-    check("divisions: a 4BAR track fires once every 4 bars, on the 1/16 track's bar hits (within the rounding)",
-          n0 >= 9u && n1 == 3u && at1[0] == at0[0] && NEAR(at1[1], at0[4]) && NEAR(at1[2], at0[8]));
-#undef NEAR
+    check("divisions: a 4BAR track fires once every 4 bars, on the 1/16 track's bar hits",
+          n0 >= 9u && n1 == 3u && at1[0] == at0[0] && at1[1] == at0[4] && at1[2] == at0[8]);
 
     host_init();
     song.g[G_BPM] = 40;
@@ -3025,6 +3021,101 @@ static void test_bpm_change_in_slow_step(void)
           hits_at(0, 176400u, at, 4) == 1u);
 }
 
+/* exact step timing: a division is num / den beats; each track carries its step-length remainder, so den steps last
+ * exactly num beats: no drift between divisions (or against an external clock) */
+static void test_exact_timing(void)
+{
+    static const int16_t BPMS[4] = {97, 120, 133, 171};
+    uint32_t b, d, ok = 1, f, a0, a1, n0 = 0, n1 = 0, bad = 0, h0[1100], h1[300];
+    for (b = 0; b < 4u; b++) {
+        host_init();
+        song.g[G_BPM] = BPMS[b];
+        for (d = 0; d < 10u; d++) {
+            static const uint32_t NUM[10] = {1, 1, 1, 1, 1, 1, 2, 4, 8, 16}, DEN[10] = {1, 2, 4, 8, 3, 6, 1, 1, 1, 1};
+            uint32_t k, rem = 0, sum = 0, beat = (uint32_t)FS * 60u / (uint32_t)BPMS[b];
+            for (k = 0; k < DEN[d]; k++) {
+                sum += div_period(d, rem);
+                rem = div_rem_next(d, rem);
+            }
+            ok &= sum == beat * NUM[d] && rem == 0u;
+        }
+    }
+    check("exact timing: den steps of every division last exactly num beats (97, 120, 133, 171 BPM)", ok);
+
+    host_init();                                     /* 120 BPM: a 1/16 and a 1/4 track over 256 beats */
+    trk[0].p[P_SDIV] = 2;
+    trk[1].p[P_SDIV] = 0;
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = trk[1].step[d].on = 1;
+    play();
+    a0 = hit_age(&trk[0]);
+    a1 = hit_age(&trk[1]);
+    for (f = 0; f < 256u * 22050u; f += CTL) {
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a0) {
+            a0 = hit_age(&trk[0]);
+            if (n0 < 1100u)
+                h0[n0] = f;
+            n0++;
+        }
+        if (hit_age(&trk[1]) != a1) {
+            a1 = hit_age(&trk[1]);
+            if (n1 < 300u)
+                h1[n1] = f;
+            n1++;
+        }
+    }
+    for (b = 0; b < 256u && 4u * b < 1100u; b++)
+        bad += h0[4u * b] != h1[b];
+    check("exact timing: a 1/16 and a 1/4 track at 120 BPM stay together for 256 beats (every 4th 1/16 on the 1/4)",
+          n1 >= 256u && n0 >= 1024u && bad == 0u);
+
+    host_init();                                     /* review focus 5: swing 60 on a 1/16 track: pairs keep their total */
+    trk[0].p[P_SDIV] = 2;
+    trk[0].p[P_SSWING] = 60;
+    for (d = 0; d < 16u; d++)
+        trk[1].step[d].on = trk[0].step[d].on = 1;
+    trk[1].p[P_SDIV] = 0;
+    play();
+    a0 = hit_age(&trk[0]);
+    a1 = hit_age(&trk[1]);
+    n0 = n1 = 0;
+    for (f = 0; f < 64u * 22050u; f += CTL) {
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a0) {
+            a0 = hit_age(&trk[0]);
+            if (n0 < 1100u)
+                h0[n0] = f;
+            n0++;
+        }
+        if (hit_age(&trk[1]) != a1) {
+            a1 = hit_age(&trk[1]);
+            if (n1 < 300u)
+                h1[n1] = f;
+            n1++;
+        }
+    }
+    bad = 0;
+    for (b = 0; b < 64u; b++)
+        bad += h0[4u * b] != h1[b];
+    check("exact timing: with swing, every 4th 1/16 still lands on the 1/4 (64 beats)", n1 >= 64u && bad == 0u);
+
+    host_init();                                     /* review focus 1: DIV 1/16 -> 8T -> 1/16 while playing */
+    trk[0].p[P_SDIV] = 2;
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = 1;
+    play();
+    render_mix(0, 0, 3u * 5512u);
+    trk[0].p[P_SDIV] = 4;
+    render_mix(0, 0, 3u * 7350u);
+    trk[0].p[P_SDIV] = 2;
+    {
+        uint32_t at[8];
+        check("exact timing: DIV changed while playing: the track keeps stepping", hits_at(0, 3u * 5513u, at, 8) >= 2u &&
+              trk[0].seq_rem < 4u);
+    }
+}
+
 int main(void)
 {
     test_cond_codes();
@@ -3079,6 +3170,7 @@ int main(void)
     test_empty_slot();
     test_mix_health();
     test_seq_timing();
+    test_exact_timing();
     test_seq_edges();
     test_keys();
     test_midi();

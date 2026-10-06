@@ -2,7 +2,7 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Sound pack (docs/superpowers/specs/2026-10-06-sound-pack-design.md): BASS+, SPRING and the slow divisions against
  * upstream 1.0.2's code (sound_pack_ref.h), and today's sound kept bit for bit: HASH_FLAT / HASH_LOWCUT are the
- * kit below rendered by the build before the sound pack (trs-midi 08866e0 .. bf98902). */
+ * kit below rendered with exact step timing (midi-clock, re-pinned with the user's approval). */
 #include "drum_host.h"
 #include <stdlib.h>
 #include <math.h>
@@ -268,8 +268,8 @@ static void test_switch_round_trip_silent(void)
     check("TYPE ROOM -> SPRING -> ROOM, send silent: the wet is exactly 0 (nothing stale plays)", ok);
 }
 
-#define HASH_FLAT 0xb35154deu
-#define HASH_LOWCUT 0xd5959edeu
+#define HASH_FLAT 0xd90a35bcu
+#define HASH_LOWCUT 0x118ed45eu
 
 int main(void)
 {
