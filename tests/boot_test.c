@@ -248,7 +248,7 @@ static int fdr3_converts(void)
     memset(&v, 0, sizeof v);
     v.magic = PROJ_MAGIC_V3;
     v.size = sizeof v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_CGHOST; i++)
         v.g[i] = song.g[i];
     v.g[G_CSRC] = 2;
     for (k = 0; k < NTRK; k++)
@@ -276,7 +276,7 @@ static int fdr4_converts(void)
     memset(&v, 0, sizeof v);
     v.magic = PROJ_MAGIC_V4;
     v.size = sizeof v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_CGHOST; i++)
         v.g[i] = song.g[i];
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < P_RMODEL; i++)
@@ -291,6 +291,34 @@ static int fdr4_converts(void)
     project_load(3);
     return trk[2].p[P_LFO1 + LF_DEST] == 9 && trk[2].step[5].on && trk[2].p[P_RMODEL] == RS_OFF &&
            trk[2].p[P_RTUNE] == TP[P_RTUNE].def && trk[2].p[P_RDECAY] == TP[P_RDECAY].def;
+}
+/* an FDR5 record (RESON, no GHOST) loads: its parameters; GHOST KEEP (as it sounded) */
+static int fdr5_converts(void)
+{
+    project_v5_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V5;
+    v.size = sizeof v;
+    for (i = 0; i < G_CGHOST; i++)
+        v.g[i] = song.g[i];
+    v.g[G_CSRC] = 1;
+    v.g[G_CMKUP] = 77;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].p[P_RMODEL] = RS_PIPE;
+    v.t[2].step[5].on = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 3u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    song.g[G_CGHOST] = CG_HIDE;                      /* the live state differs: the load replaces it */
+    project_load(3);
+    return song.g[G_CSRC] == 1 && song.g[G_CMKUP] == 77 && song.g[G_CGHOST] == CG_KEEP &&
+           trk[2].p[P_RMODEL] == RS_PIPE && trk[2].step[5].on;
 }
 /* review focus 1: RESON at every extreme (pitch with a chord's top note and the fine offset, STRCT, TONE, POS):
  * the lines stay inside rs_buf (ASan) and the output bounded */
@@ -331,6 +359,7 @@ int main(void)
     check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
+    check("project: an FDR5 record loads with GHOST KEEP", fdr5_converts());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     for (k = 0; k < F_KINDS; k++)

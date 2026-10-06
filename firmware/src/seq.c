@@ -237,7 +237,7 @@ static void events_block(uint32_t n)
     pr = panic_req;
     panic_req = 0;
     if (song.mute_q) {                              /* TRACKS' waiting mutes: before the bar's first steps */
-        uint32_t src = comp_src(), sb = src < NTRK ? 1u << src : 0u, l16 = grids_l16(gclk.cnt);
+        uint32_t src = comp_src(), gs = comp_ghost_src(), sb = gs < NTRK ? 1u << gs : 0u, l16 = grids_l16(gclk.cnt);
         int bar = song.playing && ((gclk.cnt + 1u) & 15u) == 0u;
         if (bar && (song.mute_q & sb) && gclk.pos + n + MUTE_LEAD >= l16) {   /* the COMP source plays on muted (ghost
                                                          * key): it changes ahead of the bar */

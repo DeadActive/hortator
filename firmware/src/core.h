@@ -66,8 +66,10 @@ enum {                          /* global parameters */
     G_GLEN1, G_GLEN2, G_GLEN3,                       /* Euclidean length per channel, 1..32 sixteenths */
     G_CSRC, G_CTHR, G_CRAT, G_CREL,                  /* COMP (comp.c): source track (0 off), threshold, ratio, release */
     G_CATK, G_CKNEE, G_CMKUP,                        /* attack, soft knee, makeup (127 = limiter) */
+    G_CGHOST,                                        /* a muted / any source heard: CG_MUTE CG_KEEP CG_HIDE (fx.c) */
     G_COUNT
 };
+enum { CG_MUTE, CG_KEEP, CG_HIDE };                 /* GHOST: muted = muted; muted still keys; never heard, keys */
 enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR };   /* TOOLS actions, the MUTE setting: shown like globals, not stored
                                                      * in projects */
 

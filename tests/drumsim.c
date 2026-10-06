@@ -214,6 +214,14 @@ static void pump_kit(int src, int rat, int mkup, int thr)
 
 static void rel_bar(uint32_t b) { song.g[G_CREL] = (int16_t)(5 + b * 12); }
 
+/* GHOST: the pump kit with the kick heard, then muted with KEEP (ghost), muted with MUTE (no pump), HIDE unmuted */
+static void ghost_kit(int ghost, int muted)
+{
+    pump_kit(1, 45, 0, 26);
+    song.g[G_CGHOST] = (int16_t)ghost;
+    trk[0].p[P_MUTE] = (int16_t)muted;
+}
+
 /* LFO demos (4 bars at 120 BPM each): a hat pattern with LFO 1 on TONE, a cymbal with LFO 1 on LVL, a kick with
  * LFO 1 on PAN: every waveform in turn, one bar each, SYNC 1/4 .. */
 static void lfo_kit(uint32_t dest)
@@ -332,6 +340,14 @@ int main(int argc, char **argv)
     write_demo(dir, "pump_rel_sweep.wav", 4, rel_bar);
     pump_kit(1, 45, 127, 26);
     write_demo(dir, "pump_limit.wav", 4, prob_bar);
+    ghost_kit(CG_KEEP, 0);
+    write_demo(dir, "ghost_keep_heard.wav", 4, prob_bar);
+    ghost_kit(CG_KEEP, 1);
+    write_demo(dir, "ghost_keep_muted.wav", 4, prob_bar);
+    ghost_kit(CG_MUTE, 1);
+    write_demo(dir, "ghost_mute_muted.wav", 4, prob_bar);
+    ghost_kit(CG_HIDE, 0);
+    write_demo(dir, "ghost_hide.wav", 4, prob_bar);
     lfo_kit(3);
     write_demo(dir, "lfo_tone.wav", LW_COUNT, lfo_wave_bar);
     lfo_kit(9);

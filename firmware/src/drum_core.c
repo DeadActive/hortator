@@ -136,7 +136,8 @@ static void drum_hit(track_t *t, uint32_t vel)
     if (safe_start)
         return;
     lfo_hit(t);                                     /* HIT LFOs restart, the trigger reads their values */
-    if (t->p[P_MUTE] && (uint32_t)(t - trk) != comp_src())   /* a muted COMP source still plays (ghost key, fx.c) */
+    if (t->p[P_MUTE] && (uint32_t)(t - trk) != comp_ghost_src())   /* a muted COMP source still plays (GHOST KEEP /
+                                                                       * HIDE, fx.c) */
         return;
     if (t->p[P_CHOKE])
         for (i = 0; i < NTRK; i++)

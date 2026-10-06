@@ -494,6 +494,18 @@ static void draw_mix(void)
     }
 }
 
+/* the COMP source in the mix: HEARD, GHOST (keys the compressor, not heard: muted with GHOST KEEP, or HIDE),
+ * MUTED (GHOST MUTE: keys nothing); "" with SRC OFF */
+static const char *comp_src_state(void)
+{
+    uint32_t src = comp_src();
+    if (src >= NTRK)
+        return "";
+    if (trk[src].p[P_MUTE])
+        return song.g[G_CGHOST] == CG_MUTE ? "MUTED" : "GHOST";
+    return song.g[G_CGHOST] == CG_HIDE ? "GHOST" : "HEARD";
+}
+
 /* COMP pages: the routing, the gain reduction now and the source's level; page 2 adds the curve (input -> output
  * level, -48..0 dB in, -48..+12 dB out) for the knobs' THRSH / RATIO / MKUP / KNEE */
 static void graph_comp(uint16_t c, int curve)
@@ -532,6 +544,10 @@ static void graph_comp(uint16_t c, int curve)
     cv_text(4, curve ? 62 : 46, &FONT_S, "IN", C_GRAY);
     cv_rect(36, curve ? 69 : 53, curve ? 70 : 120, 1, C_LINE);
     cv_rect(36, curve ? 65 : 49, (comp_on() ? meter_px(comp.peak) : 0) * (curve ? 70 : 120) / MX_LW, 9, C_AMB);
+    {                                                   /* the source in the mix, next to its level (IN) */
+        const char *st = comp_src_state();
+        cv_text(curve ? 36 : 162, curve ? 84 : 46, &FONT_S, st, str_eq(st, "HEARD") ? C_GRAY : C_AMB);
+    }
     if (curve) {
         comp_set_t s = comp_knobs();
         comp_cfg_t cf;
@@ -688,10 +704,10 @@ static uint32_t graph_signature(void)
                  2654435761u;
     }
     if (pg->graph == GR_COMP) {
-        for (i = G_CSRC; i <= G_CMKUP; i++)
+        for (i = G_CSRC; i <= G_CGHOST; i++)
             h = (h ^ (uint32_t)song.g[i]) * 16777619u;
         for (i = 0; i < NTRK; i++)
-            h = (h ^ (uint32_t)trk[i].p[P_DUCK]) * 16777619u;
+            h = (h ^ (uint32_t)(trk[i].p[P_DUCK] | trk[i].p[P_MUTE] << 1)) * 16777619u;
         h ^= ui.page * 389u;
         if (comp_on())
             h ^= ((uint32_t)(-comp.gr) >> 7) * 2654435761u + (uint32_t)meter_px(comp.peak) * 40503u;

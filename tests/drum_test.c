@@ -1614,6 +1614,7 @@ static void test_comp_formats(void)
  * after a fresh cymbal hit; options: T2 ducked, the source muted / at LEVEL 0, T2's reverb send measured */
 /* (src_before: the SRC during the first 0.25 s, then src; src_duck: DUCK on the source itself) */
 typedef struct { int32_t after, late, send, src_peak; } comp_meas_t;
+static int16_t scene_ghost = CG_KEEP;               /* GHOST for comp_scene */
 static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, int src_duck, int src_before)
 {
     comp_meas_t m = {0, 0, 0, 0};
@@ -1623,6 +1624,7 @@ static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, 
     drum_set_model(&trk[1], DM_CYMB);
     trk[1].p[P_REV] = 127;
     song.g[G_CSRC] = (int16_t)src_before;
+    song.g[G_CGHOST] = scene_ghost;
     trk[1].p[P_DUCK] = (int16_t)duck;
     trk[0].p[P_DUCK] = (int16_t)src_duck;
     trk[0].p[P_MUTE] = (int16_t)src_muted;
@@ -1694,6 +1696,65 @@ static void test_comp_ghost(void)
     check("COMP ghost key: a muted source is silent and still ducks exactly as heard",
           ghost.src_peak == 0 && ghost.after == heard.after && ghost.late == heard.late);
     check("COMP: a source at LEVEL 0 still ducks exactly as heard", quiet.after == heard.after);
+}
+
+/* GHOST: MUTE (a muted source is muted: silent, ducks nothing), KEEP (above), HIDE (never heard, always ducks) */
+static void test_comp_ghost_modes(void)
+{
+    comp_meas_t dry = comp_scene(1, 0, 0, 0, 0, 1), heard = comp_scene(1, 1, 0, 0, 0, 1), m_open, m_muted, h_open, h_muted;
+    scene_ghost = CG_MUTE;
+    m_open = comp_scene(1, 1, 0, 0, 0, 1);
+    m_muted = comp_scene(1, 1, 1, 0, 0, 1);
+    scene_ghost = CG_HIDE;
+    h_open = comp_scene(1, 1, 0, 0, 0, 1);
+    h_muted = comp_scene(1, 1, 1, 0, 0, 1);
+    scene_ghost = CG_KEEP;
+    printf("     GHOST: T2 after the kick: dry %d, ducked %d; MUTE muted %d, HIDE %d / muted %d; source peak MUTE %d HIDE %d\n",
+           dry.after, heard.after, m_muted.after, h_open.after, h_muted.after, m_open.src_peak, h_open.src_peak);
+    check("COMP GHOST MUTE: unmuted, the source is heard and ducks as with KEEP",
+          m_open.src_peak == heard.src_peak && m_open.after == heard.after && m_open.late == heard.late);
+    check("COMP GHOST MUTE: a muted source is silent and ducks nothing (within 0.5 dB of no DUCK)",
+          m_muted.src_peak == 0 && m_muted.after * 20 >= dry.after * 19 && m_muted.late * 20 >= dry.late * 19);
+    check("COMP GHOST HIDE: the source is never heard, muted or not, and ducks exactly as heard",
+          h_open.src_peak == 0 && h_muted.src_peak == 0 && h_open.after == heard.after && h_open.late == heard.late &&
+              h_muted.after == heard.after);
+}
+
+/* GHOST changed while the source rings (KEEP -> HIDE -> KEEP -> MUTE with the source muted): 5 ms fades, no click */
+static void test_comp_ghost_switch(void)
+{
+    static int32_t ref[SECS(0.12)], out[SECS(0.12)];
+    int32_t dref = 0, dout = 0, hid = 0;
+    uint32_t r, f, i;
+    for (r = 0; r < 2u; r++) {
+        int32_t *o = r ? out : ref;
+        host_init();
+        drum_set_model(&trk[0], DM_K909);
+        song.g[G_CSRC] = 1;
+        drum_hit(&trk[0], 127);
+        for (f = 0; f < SECS(0.12); f += CTL) {
+            if (r && f / CTL == SECS(0.01) / CTL)
+                song.g[G_CGHOST] = CG_HIDE;
+            if (r && f / CTL == SECS(0.04) / CTL)
+                song.g[G_CGHOST] = CG_KEEP;
+            if (r && f / CTL == SECS(0.07) / CTL) {
+                trk[0].p[P_MUTE] = 1;            /* muted while KEEP (ghost), then MUTE: it stays silent */
+                song.g[G_CGHOST] = CG_MUTE;
+            }
+            trk[0].peak = 0;
+            render_mix(o + f, 0, CTL);
+            if (r && ((f >= SECS(0.02) && f + CTL <= SECS(0.04)) || f >= SECS(0.08)) && trk[0].peak > hid)
+                hid = trk[0].peak;                /* the source in the mix (the output keeps the DC blocker's tail) */
+        }
+    }
+    for (i = SECS(0.008); i < SECS(0.12); i++) {     /* after the kick's attack: the switches' fades */
+        dref = abs(ref[i] - ref[i - 1]) > dref ? abs(ref[i] - ref[i - 1]) : dref;
+        dout = abs(out[i] - out[i - 1]) > dout ? abs(out[i] - out[i - 1]) : dout;
+    }
+    printf("     GHOST switched while ringing: largest step %d (unswitched %d), hidden / muted level %d\n",
+           (int)dout, (int)dref, (int)hid);
+    check("COMP GHOST changed while the source rings: no click, hidden while HIDE, silent once muted in MUTE",
+          dout <= 2 * dref + 64 && hid == 0);
 }
 
 /* SRC changed while playing: T2 (the cymbal) as the source for 0.25 s charges the detector, then T1: the same
@@ -2179,6 +2240,7 @@ static void mute_bar_run(int32_t *o, int mute, int src)
     trk[0].step[0].on = trk[0].step[15].on = 1;
     if (src) {
         song.g[G_CSRC] = 1;
+        song.g[G_CGHOST] = src == 2 ? CG_MUTE : CG_KEEP;
         trk[1].p[P_DUCK] = 1;
     }
     play();
@@ -2192,7 +2254,9 @@ static void mute_bar_run(int32_t *o, int mute, int src)
 static void test_mute_next_bar(void)
 {
     int src;
-    for (src = 0; src < 2; src++) {
+    static const char *const WHO[3] = {"track", "COMP source", "COMP source, GHOST MUTE"};
+    char what[96];
+    for (src = 0; src < 3; src++) {
         int32_t on2 = 2 * MBAR - 64, on3 = 3 * MBAR - 64, i, leak = 0, pr = 0, pb = 0, dref = 0, dout = 0;
         mute_bar_run(mb_ref, 0, src);
         mute_bar_run(mb_out, 1, src);
@@ -2212,12 +2276,11 @@ static void test_mute_next_bar(void)
             pb = abs(mb_out[i]) > pb ? abs(mb_out[i]) : pb;
         }
         printf("     mute on the bar (%s): muted bar %d loud samples, largest step %d (tail %d); unmuted attack %d / %d\n",
-               src ? "COMP source" : "track", (int)leak, (int)dout, (int)dref, (int)pb, (int)pr);
-        check(src ? "mute on the bar, COMP source: the muted bar has no part of the kick, no click"
-                  : "mute on the bar: the muted bar has no part of the kick, no click",
-              leak == 0 && dout <= 2 * dref + 64);
-        check(src ? "unmute on the bar, COMP source: the kick's full attack" : "unmute on the bar: the kick's full attack",
-              pb * 10 >= pr * 9);
+               WHO[src], (int)leak, (int)dout, (int)dref, (int)pb, (int)pr);
+        snprintf(what, sizeof what, "mute on the bar (%s): the muted bar has no part of the kick, no click", WHO[src]);
+        check(what, leak == 0 && dout <= 2 * dref + 64);
+        snprintf(what, sizeof what, "unmute on the bar (%s): the kick's full attack", WHO[src]);
+        check(what, pb * 10 >= pr * 9);
     }
 }
 
@@ -2733,6 +2796,8 @@ int main(void)
     test_comp_off_identical();
     test_comp_source_not_ducked();
     test_comp_ghost();
+    test_comp_ghost_modes();
+    test_comp_ghost_switch();
     test_comp_src_change();
     test_comp_extremes();
     test_comp_mute_click();

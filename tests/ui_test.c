@@ -515,6 +515,49 @@ static void test_comp_pages(void)
     snap_page("comp/03_page2_curve_hard");
 }
 
+/* COMP 3/3's KNOB 4: GHOST (MUTE KEEP HIDE, KEEP at start); the picture shows the source HEARD / GHOST / MUTED */
+static void test_comp_ghost_knob(void)
+{
+    char v[12];
+    const char *u;
+    int ok = 1;
+    ui_host_init();
+    song.g[G_CSRC] = 1;
+    trk[1].p[P_DUCK] = 1;
+    open_comp(1);
+    check("COMP 3/3: KNOB 4 is GHOST, KEEP at start, the source HEARD",
+          cur_page()->id[3] == G_CGHOST && str_eq(GP[G_CGHOST].label, "GHOST") && song.g[G_CGHOST] == CG_KEEP &&
+              str_eq(comp_src_state(), "HEARD"));
+    param_format(&GP[G_CGHOST], CG_MUTE, v, &u);
+    ok &= str_eq(v, "MUTE");
+    param_format(&GP[G_CGHOST], CG_HIDE, v, &u);
+    ok &= str_eq(v, "HIDE");
+    check("GHOST values: MUTE KEEP HIDE", ok);
+    trk[0].p[P_MUTE] = 1;
+    ui_frame();
+    check("GHOST KEEP, the source muted: GHOST", str_eq(comp_src_state(), "GHOST"));
+    snap_page("comp/05_ghost_keep_muted");
+    turn(EN_K1 + 3, -1);
+    ui_frame();
+    check("KNOB 4 down: MUTE; the muted source MUTED", song.g[G_CGHOST] == CG_MUTE && str_eq(comp_src_state(), "MUTED"));
+    snap_page("comp/06_ghost_mute_muted");
+    trk[0].p[P_MUTE] = 0;
+    turn(EN_K1 + 3, 2);
+    ui_frame();
+    check("KNOB 4 up twice: HIDE; the unmuted source GHOST", song.g[G_CGHOST] == CG_HIDE && str_eq(comp_src_state(), "GHOST"));
+    snap_page("comp/07_ghost_hide");
+    open_comp(0);
+    snap_page("comp/08_ghost_hide_page1");
+    song.g[G_CSRC] = 0;
+    check("SRC OFF: no source state", str_eq(comp_src_state(), ""));
+    song.g[G_CSRC] = 1;
+    project_save(0);
+    song.g[G_CGHOST] = CG_MUTE;
+    project_load(0);
+    check("GHOST is saved with the project (FDR6)", song.g[G_CGHOST] == CG_HIDE);
+    memset(&proj_slot[0], 0, sizeof proj_slot[0]);  /* the slot empty again for the project tests */
+}
+
 /* COMP pages: white keys toggle DUCK (lit = ducked), not on the source; with SRC OFF too; elsewhere they play */
 static void test_comp_keys(void)
 {
@@ -1859,6 +1902,7 @@ int main(void)
     test_preset_pages();
     test_global_mute_setting();
     test_comp_pages();
+    test_comp_ghost_knob();
     test_comp_keys();
     test_tools_all();
     test_layer_in_edit();

@@ -167,6 +167,8 @@ static struct {
 
 static int comp_on(void) { return song.g[G_CSRC] >= 1 && song.g[G_CSRC] <= NTRK; }
 static uint32_t comp_src(void) { return comp_on() ? (uint32_t)song.g[G_CSRC] - 1u : NTRK; }   /* NTRK = off */
+/* GHOST: the source when it keys the compressor also while muted (KEEP, HIDE), NTRK when not (MUTE, or off) */
+static uint32_t comp_ghost_src(void) { return song.g[G_CGHOST] != CG_MUTE ? comp_src() : NTRK; }
 static comp_set_t comp_knobs(void)
 {
     comp_set_t s;

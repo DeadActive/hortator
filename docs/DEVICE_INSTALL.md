@@ -119,14 +119,25 @@ Report what you saw first; we'll go through it together.
 
 ### M3: COMP sidechain (check on the FM-1)
 
-- HOME on the HOME screen: COMP (HOME 2/3: SRC THRSH RATIO REL), HOME again: 3/3 (ATK KNEE MKUP, the curve),
+- HOME on the HOME screen: COMP (HOME 2/3: SRC THRSH RATIO REL), HOME again: 3/3 (ATK KNEE MKUP GHOST, the curve),
   HOME again: back to HOME 1/3. FX no longer has the COMP pages. SRC T1 with a kick pattern; on a COMP page the
   white keys 2-8 light for the ducked tracks (key 1, the source, does not toggle). PLAY: the ducked tracks pump
   with the kick, the GR meter moves; REL longer = slower recovery; RATIO higher = deeper duck; MKUP raises the
   ducked tracks (at the end LIMIT).
-- Mute T1 (TRACKS, OCT- held + key 1): the kick is silent, the others still pump (ghost key).
+- Mute T1 (TRACKS, OCT- held + key 1): the kick is silent, the others still pump (ghost key, GHOST KEEP).
 - SRC OFF: the mix sounds exactly as before M3.
 - SAVE / power cycle / LOAD: SRC, the COMP knobs and DUCK come back; an M2 project loads with COMP off.
+
+### COMP GHOST (check on the FM-1)
+
+- HOME 3/3, KNOB 4 GHOST: KEEP at start; MUTE, KEEP, HIDE. The COMP picture shows the source HEARD / GHOST / MUTED
+  next to its IN level.
+- KEEP: T1 muted (TRACKS, OCT- held + key 1) is silent and the others pump (as before), GHOST shown.
+- MUTE: T1 muted is silent and nothing pumps (MUTED); unmuted it is heard and pumps (HEARD).
+- HIDE: T1 is never heard, muted or not, and the others pump (GHOST).
+- Turning GHOST while the kick plays: no click. Mute on the next bar (GLOBAL 3/3 MUTE NEXT BAR) in each mode:
+  the kick changes on the bar, no click.
+- SAVE / power cycle / LOAD: GHOST comes back; a project saved before (FDR5) loads with KEEP.
 
 ### TOOLS (check on the FM-1)
 

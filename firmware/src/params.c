@@ -13,6 +13,7 @@ static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"}
 static const char *const N_CHOKE[] = {"OFF", "1", "2", "3", "4"};
 static const char *const N_SRC[] = {"STEP", "G-KCK", "G-SNR", "G-HAT"};   /* P_SRC: its steps or a Grids channel */
 static const char *const N_GMODE[] = {"MAP", "EUCL"};
+static const char *const N_GHOST[] = {"MUTE", "KEEP", "HIDE"};
 static const char *const N_CSRC[] = {"OFF", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
 static const char *const N_KNEE[] = {"HARD", "SOFT"};
 static const char *const N_LWAVE[] = {"SQUAR", "SAW", "RSAW", "SINE", "TRI", "S&H", "WANDR", "EXP+", "EXP-", "RWALK"};
@@ -107,6 +108,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CATK] = PD("ATK", F_CATK, 0, 127, 2),
     [G_CKNEE] = PE("KNEE", N_KNEE, 1),
     [G_CMKUP] = PD("MKUP", F_CMKUP, 0, 127, 0),
+    [G_CGHOST] = PE("GHOST", N_GHOST, CG_KEEP),
 };
 
 /* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE (G_MUTEBAR, the device setting
