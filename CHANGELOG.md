@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.10.0 - 2026-10-07
+
 - PERFORM (upstream Felucca 1.0's FX hold layer): hold FX, then the black keys play master effects while held
   (REPEAT 1/8 1/16 1/32, REVERSE, TAPE STOP, LPF, HPF, FREEZE, OCT UP, OCT DN), the white track keys mute their
   track while held, KNOB 1..4 are FILTER / CRUSH / THROW / DEPTH (SHIMMER with OCT); a tap on FX still opens the FX
