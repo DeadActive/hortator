@@ -59,6 +59,26 @@ reference for the structure; it uses floating point, so this would be a port to 
 3. Whether to measure a throwaway prototype's cost first (recommended).
 4. How the STEP grid and the footer show notes and slides.
 
+## Heavy / distorted sound (parked 2026-10-07)
+
+Today DIST is a per-track insert (RESON → DIST → SLICER → level / pan → sends; drive only, no dry / wet), and the
+send buses are chorus, delay and reverb. The user asked to park these four, for a heavier sound:
+
+- **DIST modes:** a mode knob beside the drive: SOFT (today's asymmetric soft clip), HARD CLIP (harsher), FUZZ
+  (heavy asymmetric clip), RECTIFY (octave-up rip, gated feel), WAVEFOLD (metallic, synth-like grind). Cheap: one
+  per-sample shaper per mode, same tone low-pass and make-up after it. Optionally a MIX knob (parallel drive: the
+  grit on top, the attack and low end kept).
+- **BITCRUSH / DECIMATE:** per track, fewer bits and a sample-and-hold rate reduction: industrial, digitally
+  destroyed drums. Where in the chain (before / after DIST) is a design question.
+- **Master drive:** a saturation stage on the whole mix (tape-style soft saturation, maybe a crusher option) after
+  the buses, before the master limiter / soft clip: everything glued and dirty. One or two global knobs.
+- **Transient shaper:** per track, attack and sustain gain from two envelope followers (fast / slow), before DIST
+  so a heavy kick still clicks through the distortion.
+
+Open questions for when we return: which page holds the new knobs (FX has DIST CHO DLY REV); per-track parameters
+mean a project format step (FDR8 is planned for song chain + names: combine or follow); CPU on 8 tracks (all are
+small per-sample loops; the target budget check covers them); A/B WAVs for each before the design is fixed.
+
 ## Also parked
 
 - **FM drum engine:** Mutable Instruments Peaks' FM drum (integer maths, MIT) was the best fit found.
