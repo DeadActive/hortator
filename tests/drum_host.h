@@ -18,6 +18,8 @@
 #undef memcpy
 #undef memcmp
 static struct { volatile uint32_t notes, buttons; } fm1_in;
+static void fm1_irq_off(void) {}                    /* (the main loop's guard: nothing to guard on the host) */
+static void fm1_irq_on(void) {}
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"
 #include "../firmware/src/comp.c"
@@ -69,6 +71,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     perf_seq = 0;
     memset(perf_ord, 0, sizeof perf_ord);
     sl_lent = 0;
+    memset(&mo, 0, sizeof mo);                     /* MOTION: no events, nothing held */
     comp_reset();
     comp_was = NTRK;
 }
