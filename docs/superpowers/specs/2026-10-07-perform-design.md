@@ -24,6 +24,7 @@ User decisions (2026-10-07):
 - **The buffer:** the SLICER's recordings (`sl_buf`, 8 x 4096 int16 = 64 KB) borrowed, as upstream. With 8
   tracks the loop is 16384 stereo frames at 22.05 kHz (743 ms, upstream 371 ms): REPEAT 1/8 / REVERSE run from
   41 BPM. While borrowed, STUT tracks play live; their recordings are dropped when it is given back. No new RAM.
+- **Two modes, MENU > PERFORM = HOLD / PAGE** (user, 2026-10-07; default HOLD, §2a).
 - Version after the merge: **0.10.0**.
 
 ## 2. The FX button: tap or hold
@@ -37,6 +38,23 @@ User decisions (2026-10-07):
   notes. A layer key keeps its effect until it is let go, even after FX is (the map stays while one is held).
 - **Off:** in the menu, a confirm dialog or the UPDATE MODE countdown no layer opens and every effect is off until
   its keys are let go (upstream's `perf_kill`). FX pressed there stays a dead press (no effect, no map).
+
+## 2a. MENU > PERFORM: HOLD / PAGE
+
+A setting of the FM-1 (all projects, kept over power-off, as USB LEVEL: `settings.perfpage`, stored in the
+settings record's `zoom` word bit 4; older saves read HOLD). KNOB 1 right PAGE / left HOLD, OCT+ toggles.
+- **HOLD** (default): as §2 — the layer lasts while FX (or a layer key) is held; the macros go back to off when
+  FX is let go.
+- **PAGE:** FX held (0.4 s alone, or at once with a key or a knob, as in HOLD) opens the PERFORM screen, and it
+  **stays** when FX is let go: the map and the macro columns, the black keys playing effects and the white track
+  keys muting while held, KNOB 1..4 the macros — with no button held. The macros keep their values while it
+  shows. It closes when the screen changes: an FX tap (the FX pages), another page button, a PRESET page turn,
+  HOME (tap or the menu), REC opening TRACKS, a dialog; PLAY / STOP, REC arming on SEQ / TRACKS, OCT± and the
+  track knob (ALGO) leave it open. Closing ends the held effects' ownership as in HOLD (a key still held stays
+  the layer's until let go) and puts the macros back to off.
+- The PERFORM screen is its own section, not one of the FX pages.
+- The MENU gains the row (nine rows, 18 px apart).
+
 - Not taken: upstream's other quick layers (GLO / SCL / EDIT, skipped in §3), the GLO solo, the HOLD time menu
   (fixed 0.4 s, as the STEP grid's hold), the "HOLD [FX] QUICK" hint.
 
@@ -109,6 +127,10 @@ rendering blocks:
 - stacking: two buffer effects, the last pressed plays, letting it go returns to the other;
 - the buffer: STUT records nothing while lent; given back, its recordings are dropped and it records again;
 - off: the menu opened with an effect held: silent of effects until the key is let go;
+- PAGE: FX held opens the screen, it stays after FX is let go; keys play effects / mute without FX; the knobs are
+  the macros and keep their values; an FX tap / another page button / HOME closes it (macros off), PLAY and OCT±
+  do not; HOLD mode: the map goes with FX. The setting toggles in the MENU and survives a power cycle
+  (`boot_test`'s settings round trip);
 - `ui_test`: screens of the map (idle, keys held, an unavailable REPEAT, OCT with SHIMMER) and the LEDs.
 
 For the user's ears and eyes: a drumsim WAV per effect on the demo kit (`pf_*.wav`) and the map screenshots.
@@ -117,6 +139,8 @@ harmonizer): the user approves them before they are written (upstream's: 28 / 21
 
 ## 7. On the device (the user)
 
+- MENU > PERFORM PAGE: hold FX, let go: the PERFORM screen stays; keys and knobs work without FX; FX tap / another
+  page leaves it.
 - Hold FX: the map; each black key's effect while held, on the 1/16 for REPEAT / REVERSE; white keys mute.
 - The knobs with FX held; let go: everything back, no click.
 - Tap FX: the FX pages. Keys pressed with FX make no notes.
