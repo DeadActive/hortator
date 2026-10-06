@@ -5,6 +5,9 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- TRS MIDI input on by default: notes from the jack play like USB's; clock bytes are queued for the coming MIDI
+  clock feature (upstream Felucca 1.0, stage 2 step 4, frozen baseline `frozen-base-5`).
+
 ## 0.5.0 - 2026-10-06
 
 The first numbered version: everything on `main` so far.

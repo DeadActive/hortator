@@ -166,6 +166,16 @@ Report what you saw first; we'll go through it together.
 - Power off and on: the saved project loads, the settings and the panel layout (OCT- + OCT+ at power-on) are kept;
   a project saved with the previous build still loads.
 
+### TRS MIDI (stage 2 step 4: check on the FM-1)
+
+- A keyboard or sequencer on the TRS MIDI input sending on the drum channel (GLOBAL page, CH; 10 by default):
+  every note plays the tracks whose NOTE matches, as over USB; a keyboard's note-off plays nothing.
+- USB MIDI from a DAW at the same time: both play.
+- Nothing plugged into TRS (also plugging / unplugging the cable while idle): no stray hits. Optional: console
+  `status` shows `uart_enabled 1` and `uart_rx_bytes 0` with nothing plugged in.
+- A MIDI clock on TRS: nothing follows it yet (the MIDI clock feature comes later); notes still play while it runs,
+  the panel and audio behave as before.
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second
