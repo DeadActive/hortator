@@ -182,8 +182,8 @@ static void test_demos_and_flash(void)
     check("a save dirties sectors", dirty_count() > 0u);
     memcpy(image, sim_flash(), SIM_FLASH_SIZE);
     power_cycle(image);
-    project_load(0);
-    check("round trip: after a power cycle, slot 1 loads the saved change", trk[0].step[1].on == on);
+    check("round trip: a boot from flash makes slot 1 the current project, with the saved change",
+          trk[0].step[1].on == on && project_used(3));
     for (i = 0x97000u; i < 0xE0000u; i++)            /* hostile store contents */
         image[i] = (uint8_t)(i * 2654435761u >> 24);
     power_cycle(image);

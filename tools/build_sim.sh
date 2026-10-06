@@ -23,3 +23,21 @@ cc "${CFLAGS[@]}" -o "$OUT/host/sim_test" tests/sim_test.c -lm
 "$OUT/host/sim_test"
 
 [ "${1:-}" = "--host-only" ] && exit 0
+
+# 3. wasm: emscripten in Docker (pinned), the same sim core, no JS glue (web/sim/engine.js loads it)
+IMG=emscripten/emsdk:6.0.11
+if ! docker info >/dev/null 2>&1; then
+    [ "$(uname)" = Darwin ] && open -a Docker
+    for _ in $(seq 60); do docker info >/dev/null 2>&1 && break; sleep 1; done
+fi
+EXPORTS=_sim_init,_sim_render,_sim_frame,_sim_btn,_sim_key,_sim_enc,_sim_master,_sim_leds,_sim_fb,_sim_audio,_sim_flash
+EXPORTS=$EXPORTS,_sim_flash_reset,_sim_flash_dirty,_sim_flash_clean,_sim_playing
+docker run --rm -v "$PWD":/src -w /src -u "$(id -u):$(id -g)" -e EM_CACHE=/src/$OUT/emcache "$IMG" \
+    emcc -O2 -sSTANDALONE_WASM --no-entry -sINITIAL_MEMORY=8MB -sSTACK_SIZE=256KB -sEXPORTED_FUNCTIONS="$EXPORTS" \
+    -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined \
+    -I"$GEN" -Ifirmware/src -Itests -o "$OUT/fm1sim.wasm" tests/sim_core.c
+
+# 4. the page next to it, then the glue test on the built wasm
+cp web/sim/* "$OUT/"
+node --test-reporter=dot tests/sim_glue.mjs "$OUT"
+echo "build_sim: $OUT ready (cd $OUT && python3 -m http.server 8001)"

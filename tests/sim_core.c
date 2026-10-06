@@ -57,6 +57,9 @@ void sim_init(int fresh)                                 /* main.c's boot order 
     ui.force = 1;
     if (fresh)
         sim_demo_install();
+    else if (project_used(0))                             /* a returning visitor: their slot 1, not the device's empty
+                                                           * power-on pattern (PLAY should groove on a public demo) */
+        project_load(0);
     sim_next_frame = sim_samples + SIM_FRAME_SAMPLES;
 }
 
