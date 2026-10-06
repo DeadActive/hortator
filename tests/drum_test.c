@@ -3116,6 +3116,49 @@ static void test_exact_timing(void)
     }
 }
 
+/* final review: the SLICER keeps the steps' exact timing (its slices carry their remainder too): the k-th slice and
+ * the k-th step of the same division keep their offset within a block (the slice is seen about a block before its step) for
+ * 2 minutes at 120 BPM (1/8 1/16 1/32 8T 16T); before, the slices fell behind by ~240 samples a minute */
+static void test_slicer_exact(void)
+{
+    static const int16_t SLR[5] = {0, 1, 2, 3, 4}, DIV[5] = {1, 2, 3, 4, 5};   /* SLRATE -> the same step DIV */
+    static uint32_t st[4000], sv[4000];
+    uint32_t r, ok = 1;
+    for (r = 0; r < 5u; r++) {
+        uint32_t f, cnt, bad = 0, ns = 0, nv = 0, k;
+        uint8_t idx;
+        host_init();
+        song.g[G_BPM] = 120;
+        for (f = 0; f < 16u; f++)
+            trk[0].step[f].on = 1;
+        trk[0].p[P_SDIV] = DIV[r];
+        trk[0].p[P_SLCR] = 1;                        /* GATE */
+        trk[0].p[P_SLRATE] = SLR[r];
+        play();
+        cnt = trk[0].seq_cnt;
+        idx = sl[0].idx;
+        for (f = 0; f < 120u * FS; f += CTL) {
+            render_mix(0, 0, CTL);
+            if (trk[0].seq_cnt != cnt && ns < 4000u)
+                st[ns++] = f;
+            if (sl[0].idx != idx && nv < 4000u)
+                sv[nv++] = f;
+            cnt = trk[0].seq_cnt;
+            idx = sl[0].idx;
+        }
+        for (k = 1; k < ns && k < nv; k++)
+            {   /* within a block of the first offset (a boundary on a block edge is seen a block apart) */
+                int32_t d = (int32_t)(sv[k] - st[k]) - (int32_t)(sv[0] - st[0]);
+                bad += d > (int32_t)CTL || d < -(int32_t)CTL;
+            }
+        if (bad)
+            printf("     SLRATE %d: %u of %u slices off their step's offset (last %d samples, first %d)\n", SLR[r], bad, ns,
+                   (int32_t)(sv[ns < nv ? ns - 1u : nv - 1u] - st[ns < nv ? ns - 1u : nv - 1u]), (int32_t)(sv[0] - st[0]));
+        ok &= bad == 0u && ns > 400u && nv >= ns - 1u;
+    }
+    check("exact timing: SLICER slices keep their steps' timing for 2 minutes at 120 BPM (5 rates)", ok);
+}
+
 int main(void)
 {
     test_cond_codes();
@@ -3171,6 +3214,7 @@ int main(void)
     test_mix_health();
     test_seq_timing();
     test_exact_timing();
+    test_slicer_exact();
     test_seq_edges();
     test_keys();
     test_midi();

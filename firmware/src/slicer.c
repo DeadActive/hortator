@@ -58,6 +58,7 @@ typedef struct {
     uint8_t idx;                 /* step 0..15 */
     uint8_t bit;                 /* this step's pattern bit (latched at its start) */
     uint8_t rec_on;              /* recording this step */
+    uint8_t rem;                 /* the slice length's remainder carried to the next (as seq.c's steps) */
 } sl_t;
 static sl_t sl[NTRK];
 
@@ -67,6 +68,7 @@ static void slicer_start(void)   /* seq_start: the next block starts step 0 of e
     for (k = 0; k < NTRK; k++) {
         sl[k].idx = 15;
         sl[k].pos = sl[k].len = 0;
+        sl[k].rem = 0;
     }
 }
 
@@ -78,8 +80,12 @@ static void sl_enter(const track_t *t, sl_t *s)
     uint32_t mode = (uint32_t)t->p[P_SLCR];
     int32_t sw;
     s->idx = (uint8_t)((s->idx + 1u) & 15u);
-    s->base = beat_samples() / SL_DEN[(uint32_t)t->p[P_SLRATE] % 6u];
-    sw = track_swing(t) * (int32_t)s->base / 250;   /* as seq.c step_samples */
+    {   /* the slice carries its length's remainder, as the steps do (seq.c div_period): exact on the beat */
+        uint32_t den = SL_DEN[(uint32_t)t->p[P_SLRATE] % 6u], x = beat_samples() + s->rem;
+        s->base = x / den;
+        s->rem = (uint8_t)(x % den);
+        sw = track_swing(t) * (int32_t)(beat_samples() / den) / 250;   /* as seq.c step_samples: the plain length */
+    }
     s->len = s->base + (uint32_t)((s->idx & 1u) ? -sw : sw);
     s->pos = 0;
     s->bit = (uint8_t)((sl_pattern(t) >> s->idx) & 1u);
