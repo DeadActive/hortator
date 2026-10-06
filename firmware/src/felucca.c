@@ -88,11 +88,15 @@ static void audio_silence(void)                 /* IRQs off: the DMA would loop 
 }
 static int st_erase(uint32_t off)
 {
-    uint32_t took;
+    uint32_t took, f;
+    int rc;
     if (!FL_STORE_OK(off, 0x1000u))
         return -8;
+    f = irq_save();
     audio_silence();
-    return fl_erase4k(off, &took);
+    rc = FL_FAR(fl_erase4k_ram)(off, &took);
+    irq_restore(f);
+    return rc;
 }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 {
