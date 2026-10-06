@@ -38,24 +38,32 @@ Needs a short spec first: the frozen-code check (H2, `tools/check_untouched.py`)
 - Storage hardening: sequence wrap, header slot check, oversize loads refused, full read-back compare —
   `storage.c` (not upstream's FM6 objects); with it the `st_erase` order (IRQs off before the silence).
 - TRS MIDI on by default, realtime bytes (clock) queued from TRS and USB.
-Skipped: the LED glow (1.0.1), USB audio, the minsize build marks on frozen functions.
+Skipped: the LED glow (1.0.1), the minsize build marks on frozen functions. (USB audio moved to §3, after the sound
+pack: user decision 2026-10-06.)
 
 ## 3. Features (each its own design / spec / plan)
 
 1. **Sound pack:** BASS+ speaker EQ (`fx.c spk_bass`, with 1.0.2's #42 fix), SPRING reverb (`rev_spring`, the room
    reverb's buffers), slower divisions 1/2, 1/1, 2BAR, 4BAR (appended IDs).
-2. **MIDI clock in** (`midi_clock.c`): INT / USB / TRS; Grids clock and the LFOs follow it.
-3. **PERFORM layer** (`perform.c`): hold-to-play master FX (REPEAT, REVERSE, TAPE STOP, FREEZE, filters, OCT,
+2. **USB audio input** (user decision 2026-10-06, after the sound pack): the master output to the computer as a
+   class-compliant UAC1 input, 16-bit stereo 44.1 kHz (record the FM-1 over the cable; no playback into it). The
+   code is in the frozen `usb_app.c` already, compiled out (`FELUCCA_UAC`); it needs a baseline tag with
+   `hal/fm1_usb.h`'s EP4 additions (header only, the loader must stay byte-identical), upstream's `uac_render_start`
+   / `uac_tap` hooks in `audio.c`, the console's UAC lines. Open questions for its design: the CPU cost of the
+   nested 1 ms `uac_service` on heavy kits, a clean recording under load, the installer / DAWs finding the MIDI of
+   the composite device.
+3. **MIDI clock in** (`midi_clock.c`): INT / USB / TRS; Grids clock and the LFOs follow it.
+4. **PERFORM layer** (`perform.c`): hold-to-play master FX (REPEAT, REVERSE, TAPE STOP, FREEZE, filters, OCT,
    THROW, CRUSH), using our SLICER buffers; 8 mute bits.
-4. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
+5. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
    the LFOs' modulated copy.
-5. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR6) for both.
-6. **PHYS percussion** (`eng_phys.c`, `phys_dsp.c`, MIT DaisySP / Rings): MEMB and MODAL, e.g. as RESON's modal
+6. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR6) for both.
+7. **PHYS percussion** (`eng_phys.c`, `phys_dsp.c`, MIT DaisySP / Rings): MEMB and MODAL, e.g. as RESON's modal
    models; its 64/32 divisions replaced (integer target rule).
-7. **Anti-aliased UI** (`gfx.c`, Inter Tight OFL, themes, Fukiai icons, keycaps, render lint): last, after the
+8. **Anti-aliased UI** (`gfx.c`, Inter Tight OFL, themes, Fukiai icons, keycaps, render lint): last, after the
    screens settle; ~45 KB flash; `main.c`'s FONT_S / FONT_L / C_* kept by shims.
 
-Skipped: FM6, upstream's DRUM engine (duplicates ours), melodic / synth engines and editors, USB audio, quick
+Skipped: FM6, upstream's DRUM engine (duplicates ours), melodic / synth engines and editors, quick
 layers, LED glow. Parked separately: the 303 voice (`docs/IDEAS.md`).
 
 ## Frozen-file changes (by baseline tag)
