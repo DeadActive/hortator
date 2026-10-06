@@ -275,6 +275,31 @@ static void test_midi(void)
           hit_age(&trk[1]) != a0 && hit_age(&trk[3]) != a3);
 }
 
+/* the USB-MIDI ring (usb_app.c): an overflow drops the broken backlog and the ring works again; Clock / Start /
+ * Stop are queued but nothing uses them yet (the MIDI clock feature will) */
+static void test_midi_ring(void)
+{
+    uint32_t i, a0;
+    host_init();
+    for (i = 0; i <= MQ; i++)                        /* one more than fits: the overflow flag */
+        midi_enqueue(0x09u | 0x99u << 8 | 38u << 16 | 90u << 24, 1u);
+    a0 = dvage;
+    render_mix(0, 0, CTL);
+    check("MIDI ring overflow: the backlog is dropped (no hits), the ring empty and open again",
+          midi_in_overflow == 0 && mi_r == mi_w && dvage == a0);
+    a0 = hit_age(&trk[1]);
+    midi_enqueue(0x09u | 0x99u << 8 | 38u << 16 | 90u << 24, 1u);
+    render_mix(0, 0, CTL);
+    check("MIDI ring after an overflow: a new note plays", hit_age(&trk[1]) != a0);
+    a0 = dvage;
+    midi_enqueue(0x0Fu | 0xFAu << 8, 1u);           /* Start, Clock, Stop */
+    midi_enqueue(0x0Fu | 0xF8u << 8, 1u);
+    midi_enqueue(0x0Fu | 0xFCu << 8, 1u);
+    render_mix(0, 0, CTL);
+    check("MIDI realtime (Start / Clock / Stop) is read and ignored for now: no hit, transport unchanged",
+          mi_r == mi_w && dvage == a0 && !song.playing);
+}
+
 static void test_live_record(void)
 {
     uint32_t p = FS * 60 / 120 / 4, a, at[4], n;
@@ -2843,6 +2868,7 @@ int main(void)
     test_seq_edges();
     test_keys();
     test_midi();
+    test_midi_ring();
     test_live_record();
     test_len_change_sync();
     test_prob_chance();

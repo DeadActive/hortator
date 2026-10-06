@@ -164,6 +164,12 @@ static void keyboard_block(void)
 
 static void midi_block(void)
 {
+    if (midi_in_overflow) {                         /* (upstream 1.0, usb_app.c) the ring overflowed: the stream is
+                                                     * broken, drop the backlog and open the ring again */
+        mi_r = mi_w;
+        midi_in_overflow = 0;
+        return;
+    }
     while (mi_r != mi_w) {
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu, i;
