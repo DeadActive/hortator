@@ -1913,6 +1913,37 @@ static void test_speaker_eq(void)
     ui.force = 1;
 }
 
+
+/* sound pack: REV/CHO split into REVERB (TYPE SIZE DAMP) and CHORUS (RATE DEPTH); FX reaches both, TYPE turns
+ * ROOM / SPRING; screens for the user */
+static void fx_open(const char *title)              /* FX until the page shows */
+{
+    uint32_t k;
+    for (k = 0; k < NPAGES && (!str_eq(cur_page()->title, title) || ui.home); k++) {
+        press(B_FX);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+}
+static void test_reverb_pages(void)
+{
+    ui_host_init();
+    fx_open("REVERB");
+    check("FX reaches REVERB: TYPE SIZE DAMP", str_eq(cur_page()->title, "REVERB") && cur_page()->id[0] == G_RTYPE &&
+          cur_page()->id[1] == G_RSIZE && cur_page()->id[2] == G_RDAMP && cur_page()->id[3] == 0xFF);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("REVERB: KNOB 1 turns TYPE to SPRING", song.g[G_RTYPE] == 1);
+    check("REVERB: the TYPE names fit the 5-character value (ROOM, SPRNG)",
+          strlen(N_RTYPE[0]) <= 5u && strlen(N_RTYPE[1]) <= 5u && str_eq(N_RTYPE[1], "SPRNG"));
+    snap_page("fx_reverb_spring");
+    fx_open("CHORUS");
+    check("FX reaches CHORUS: RATE DEPTH", str_eq(cur_page()->title, "CHORUS") && cur_page()->id[0] == G_CRATE &&
+          cur_page()->id[1] == G_CDEPTH && cur_page()->id[2] == 0xFF && cur_page()->id[3] == 0xFF);
+    snap_page("fx_chorus");
+}
+
 int main(void)
 {
     test_safe_start();
@@ -1956,6 +1987,7 @@ int main(void)
     test_project_rejects();
     test_ui_frame_cost();
     test_speaker_eq();
+    test_reverb_pages();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
