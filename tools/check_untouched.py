@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 # Drum machine fork: 2026 DEADACTIVE
-"""Fail when code the USB update / recovery path depends on differs from upstream Felucca.
+"""Fail when code the USB update / recovery path depends on differs from the frozen baseline (tools/frozen_base.txt:
+upstream Felucca 1e838e1, or a fork baseline tag = 1e838e1 + cited upstream hunks).
 
   tools/check_untouched.py [--tree DIR]     DIR: a copy of the repo root (default: the repo)
 
@@ -14,8 +15,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-BASE = "1e838e1"
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def frozen_base():
+    for ln in (ROOT / "tools/frozen_base.txt").read_text().splitlines():
+        if ln.startswith("FROZEN_BASE "):
+            return ln.split()[1]
+    raise SystemExit("tools/frozen_base.txt: no FROZEN_BASE")
+
+
+BASE = frozen_base()
 FROZEN_DIRS = ["firmware/hal", "firmware/loader"]
 FROZEN_FILES = ["firmware/src/ota.c", "firmware/src/usb.c", "firmware/crt0.S", "firmware/app.ld"]
 MAGIC = re.compile(r"^#define ST_MAGIC 0x[0-9A-Fa-f]{8}u\b")
@@ -55,6 +65,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tree", type=Path, default=ROOT)
     tree = ap.parse_args().tree
+    print(f"check_untouched: baseline {BASE}")
     bad = []
     files = FROZEN_FILES + [f for d in FROZEN_DIRS for f in upstream_tree(d)]
     for f in files:

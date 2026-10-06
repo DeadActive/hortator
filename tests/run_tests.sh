@@ -31,6 +31,8 @@ $CC -o "$OUT/ldr_test" tests/ldr_test.c
 run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" "$PKG"
 run "drum suite (models, mix, sequencer, UI, guards)" sh tests/run_drum_tests.sh
 run "target cost of the render loops" python3 tests/target_budget.py build/felucca.dis tests/target_budget.txt
+run "update loader = the pinned one (tools/frozen_base.txt)" python3 tools/check_loader.py build
+run "loader pin self-test (a changed loader is caught)" python3 tools/check_loader.py --selftest build
 if [ -f build/upstream/build/felucca.dis ]; then
     run "frozen code in the binary = upstream's (H2)" python3 tools/compare_upstream.py build build/upstream/build
     run "H2 self-test (changed effects are caught)" python3 tools/compare_upstream.py --selftest build build/upstream/build
