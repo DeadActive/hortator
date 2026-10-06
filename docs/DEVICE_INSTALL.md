@@ -151,6 +151,15 @@ Report what you saw first; we'll go through it together.
 - Safe start (SEQ held at power-on) with a DAW sending notes or clock: the installer still finds the FM-1.
 - Unplug / replug while notes are sent: MIDI works again after the replug.
 
+### Storage (stage 2 step 3: check on the FM-1)
+
+- Play a pattern with long REVERB / DELAY tails, press STOP and SAVE the project at once (tails still sounding):
+  no buzz or looped grain during the save. (While playing, SAVE still shows STOP TO SAVE; a setting changed
+  while playing is written at STOP: no buzz then either.)
+- Change a setting (palette or MUTE NEXT BAR) so the settings are saved: no buzz.
+- Power off and on: the saved project loads, the settings and the panel layout (OCT- + OCT+ at power-on) are kept;
+  a project saved with the previous build still loads.
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second
