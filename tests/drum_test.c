@@ -300,6 +300,27 @@ static void test_midi_ring(void)
           mi_r == mi_w && dvage == a0 && !song.playing);
 }
 
+/* safe start (SEQ at power-on, the recovery mode) plays nothing but still empties the MIDI ring: a DAW's notes or
+ * clock must not fill it, or usb_app.c holds every USB packet back (the installer's SysEx too) */
+static void test_midi_safe_start(void)
+{
+    static const uint8_t KEY[8] = {0x04, 0xF0, 0x22, 0x24, 0x07, 0x35, 0x7D, 0xF7};   /* UBOOT soft key, 2 packets */
+    uint32_t i, a0;
+    int took;
+    host_init();
+    safe_start = 1;
+    for (i = 0; i < 48u; i++)                        /* more than 40: fewer than 16 + 8 slots free */
+        midi_enqueue(0x09u | 0x99u << 8 | 38u << 16 | 90u << 24, 1u);
+    a0 = dvage;
+    render_mix(0, 0, CTL);
+    usb.uboot_req = 0;
+    took = ep1_take(KEY, 8);
+    check("safe start: no hits, the MIDI ring emptied, USB SysEx (the UBOOT key) still taken",
+          dvage == a0 && mi_r == mi_w && took == 1 && usb.uboot_req == 1);
+    usb.uboot_req = 0;
+    safe_start = 0;
+}
+
 static void test_live_record(void)
 {
     uint32_t p = FS * 60 / 120 / 4, a, at[4], n;
@@ -2869,6 +2890,7 @@ int main(void)
     test_keys();
     test_midi();
     test_midi_ring();
+    test_midi_safe_start();
     test_live_record();
     test_len_change_sync();
     test_prob_chance();

@@ -173,6 +173,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
 /* one block of the whole mix (shared with the host tests): events -> each drum track -> dist -> SLICER
  * -> level / pan / sends -> buses -> master; out: stereo Q15 */
 static void events_block(uint32_t n);                    /* seq.c */
+static void midi_drop(void);                             /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL];
 
 /* one track into the dry mix and the sends; a track with no voice sounding costs the LFO tick and a cleared
@@ -248,6 +249,8 @@ static void mix_block(int32_t *out, uint32_t n)
     if (safe_start) {                                 /* safe start: silence, no track / model / FX code */
         for (i = 0; i < n; i++)
             out[2u * i] = out[2u * i + 1u] = 0;
+        midi_drop();                                    /* MIDI in dropped, the ring kept empty: a full ring holds
+                                                         * every USB packet back (usb_app.c), the installer's SysEx too */
         return;
     }
     for (i = 0; i < n; i++)

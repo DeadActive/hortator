@@ -162,12 +162,18 @@ static void keyboard_block(void)
     }
 }
 
+/* the MIDI ring emptied and open again (usb_app.c's overflow flag cleared) */
+static void midi_drop(void)
+{
+    mi_r = mi_w;
+    midi_in_overflow = 0;
+}
+
 static void midi_block(void)
 {
     if (midi_in_overflow) {                         /* (upstream 1.0, usb_app.c) the ring overflowed: the stream is
-                                                     * broken, drop the backlog and open the ring again */
-        mi_r = mi_w;
-        midi_in_overflow = 0;
+                                                     * broken, drop the backlog */
+        midi_drop();
         return;
     }
     while (mi_r != mi_w) {

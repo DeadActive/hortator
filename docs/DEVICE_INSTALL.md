@@ -146,7 +146,9 @@ Report what you saw first; we'll go through it together.
 - **Run the web installer again with the same package after installing**: it must find the FM-1 and hand over to
   the update loader (the M-UPGRADE command now goes through the new driver). The pinned loader and the stock UBOOT
   path stay the way back either way.
-- The web editor connects and reads / writes as before (its SysEx frames go through the new driver).
+- The installer finds the FM-1 and reads its identity while a DAW keeps sending notes / clock (its SysEx frames go
+  through the new driver).
+- Safe start (SEQ held at power-on) with a DAW sending notes or clock: the installer still finds the FM-1.
 - Unplug / replug while notes are sent: MIDI works again after the replug.
 
 ### TOOLS (check on the FM-1)
