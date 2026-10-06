@@ -77,13 +77,29 @@ static void ui_leds(void)
 }
 
 /* ---------------------------------------------------------- input --- */
+/* knob acceleration (upstream 1.0, #23 / #52): only a turn going on in one direction over a wide value (range > 32)
+ * speeds up, by the longer of this read's and the previous read's time per detent (ACC_RATE / ms: x2 .. x4); a slow
+ * turn, the first two detents of a turn, a single quick detent (a bounce) and a reversal are one step per detent.
+ * MENU > KNOB ACCEL OFF: always one step. ui.enc_t[role]: bits 0..23 the ms of its last read, bit 24 its direction
+ * (+1), 25..31 its ms per detent (127 slow) */
+#define ACC_GAP 40u
+#define ACC_RATE 50u
 static int32_t accel(uint32_t role, int32_t s, int32_t range)
 {
-    uint32_t now = fm1_ticks(), dt = now - ui.enc_t[role];
-    ui.enc_t[role] = now;
-    if (range > 40 && dt < 60u * 1000u * FM1_TICKS_PER_US)
-        return s * (range > 150 ? 6 : 3);
-    return s;
+    uint32_t now = (fm1_ticks() / (1000u * FM1_TICKS_PER_US)) & 0xFFFFFFu, st = ui.enc_t[role], up = s > 0, pi = st >> 25;
+    uint32_t a, i, m = 1;
+    if (!settings.accel || range <= 32 || !s)
+        return s;
+    a = (uint32_t)(s < 0 ? -s : s);
+    i = ((now - st) & 0xFFFFFFu) / a;                   /* ms per detent of this read */
+    if (!st || ((st >> 24) & 1u) != up || i >= ACC_GAP)
+        i = 127u;                                       /* a new turn, or reversed */
+    else if (pi < ACC_GAP) {
+        m = ACC_RATE / (i > pi ? i : pi ? pi : 1u);
+        m = m < 1u ? 1u : m > 4u ? 4u : m;
+    }
+    ui.enc_t[role] = now | up << 24 | (i ? i : 1u) << 25;
+    return s * (int32_t)m;
 }
 
 /* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH. The first turn of a hold cancels the hold's accent

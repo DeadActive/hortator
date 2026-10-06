@@ -954,6 +954,51 @@ static void test_no_save_while_playing(void)
     memset(proj_slot, 0, sizeof proj_slot);
 }
 
+/* upstream 1.0 (#23 / #52): knob acceleration only for a turn going on in one direction over a wide range; the
+ * first detents, a single quick detent (a bounce) and a reversal are one step each; at most x4; MENU switches it off */
+static int32_t acc_at(int32_t s, int32_t range, uint32_t gap_ms)
+{
+    host_ticks += gap_ms * 1000u * FM1_TICKS_PER_US;
+    return accel(EN_K1, s, range);
+}
+
+static void test_knob_accel(void)
+{
+    int32_t r[6];
+    uint32_t k, ok = 1;
+    ui_host_init();
+    settings.accel = 1;
+    for (k = 0; k < 4u; k++)
+        ok &= acc_at(1, 127, 100) == 1;
+    check("accel: a slow turn (100 ms a detent): one step per detent", ok);
+    for (k = 0; k < 6u; k++)                         /* a new turn (after a pause), fast */
+        r[k] = acc_at(1, 127, k ? 8u : 300u);
+    printf("     accel, a new fast turn (8 ms a detent): %d %d %d %d %d %d\n", r[0], r[1], r[2], r[3], r[4], r[5]);
+    check("accel: a fast turn speeds up after its first detents, at most x4",
+          r[0] == 1 && r[1] == 1 && r[5] > 1 && r[5] <= 4);
+    check("accel: a reversal is one step", acc_at(-1, 127, 8) == -1);
+    check("accel: a single quick detent after a pause (a bounce) is one step", acc_at(1, 127, 300) == 1 && acc_at(1, 127, 8) == 1);
+    for (k = 0, ok = 1; k < 6u; k++)
+        ok &= acc_at(1, 32, 8) == 1;
+    check("accel: a small range (32 or less) is never accelerated", ok);
+    settings.accel = 0;
+    for (k = 0, ok = 1; k < 6u; k++)
+        ok &= acc_at(1, 127, 8) == 1;
+    check("accel: KNOB ACCEL OFF: one step per detent", ok);
+    settings.accel = 1;
+    {
+        const panel_t keep = panel;
+        panel.btn[1] = panel.btn[0];                 /* a calibration with one button learned twice */
+        panel_init();
+        check("calibration: a button learned twice falls back to the default table", !memcmp(&panel, &PANEL_DEFAULT, sizeof panel));
+        panel = keep;
+        panel.enc[2] = panel.enc[1];
+        panel_init();
+        check("calibration: a knob learned twice falls back to the default table", !memcmp(&panel, &PANEL_DEFAULT, sizeof panel));
+        panel = keep;
+    }
+}
+
 static void test_quick_mute(void)
 {
     uint32_t a, k, ok = 1, on = 0, off = 0;
@@ -1807,6 +1852,7 @@ int main(void)
     test_mixer_and_rec();
     test_quick_mute();
     test_no_save_while_playing();
+    test_knob_accel();
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
     test_reson_pages();

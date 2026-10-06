@@ -1,14 +1,18 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, LOWCUT, ZOOM, HARDWARE CALIBRATION, ABOUT. */
+/* Felucca menu (HOME held): COLOR, LOWCUT, ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, ABOUT. */
 /* ------------------------------------------------------------ menu --- */
-enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "ACCEL", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
+{
+    return i == MI_LOWCUT ? &settings.lowcut : i == MI_ZOOM ? &settings.zoom : i == MI_ACCEL ? &settings.accel : 0;
+}
 
 static void draw_menu(void)
 {
     uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
-                            settings.zoom * 104729u;
+                            settings.zoom * 104729u + settings.accel * 15485863u;
     if (!ui.force && sig == ui.menu_sig)
         return;
     ui.menu_sig = sig;
@@ -42,8 +46,8 @@ static void draw_menu(void)
                 if (sel)
                     cv_rect(4, y + 6, 3, 3, C_WHITE);
                 cv_text(14, y, &FONT_S, MI_NAME[i], sel ? C_WHITE : C_GRAY);
-                if (i == MI_LOWCUT || i == MI_ZOOM)
-                    cv_text(90, y, &FONT_S, (i == MI_LOWCUT ? settings.lowcut : settings.zoom) ? "ON" : "OFF", C_HI);
+                if (menu_onoff(i))
+                    cv_text(90, y, &FONT_S, *menu_onoff(i) ? "ON" : "OFF", C_HI);
                 if (i == MI_COLOR) {
                     uint32_t k;
                     cv_text(90, y, &FONT_S, PALETTES[settings.palette].name, C_HI);
@@ -93,9 +97,9 @@ static void menu_input(uint32_t pressed)
         settings.palette = (settings.palette + (s > 0 ? 1u : NPALETTES - 1u)) % NPALETTES;
         palette_set(settings.palette);              /* (the menu signature redraws) */
     }
-    if ((s != 0 || ok) && ui.menu == 1 && (ui.menu_sel == MI_LOWCUT || ui.menu_sel == MI_ZOOM)) {
+    if ((s != 0 || ok) && ui.menu == 1 && menu_onoff(ui.menu_sel)) {
         /* KNOB 1: right = ON, left = OFF; OCT+ toggles */
-        uint32_t *v = ui.menu_sel == MI_LOWCUT ? &settings.lowcut : &settings.zoom;
+        uint32_t *v = menu_onoff(ui.menu_sel);
         *v = s > 0 ? 1u : s < 0 ? 0u : !*v;
         fx_lowcut = (uint8_t)(settings.lowcut != 0);
         ok = 0;

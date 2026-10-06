@@ -31,11 +31,15 @@ static const panel_t PANEL_DEFAULT = {
 
 static void panel_init(void)                     /* also after a flash load: ids are used as array indexes and shifts */
 {
-    uint32_t i, ok = panel.magic == PANEL_MAGIC;
-    for (i = 0; ok && i < NB; i++)
-        ok = panel.btn[i] < 14u;
-    for (i = 0; ok && i < NE; i++)
-        ok = panel.enc[i] < 7u && (panel.dir[i] == 1 || panel.dir[i] == -1);
+    uint32_t i, buttons = 0, encoders = 0, ok = panel.magic == PANEL_MAGIC;
+    for (i = 0; ok && i < NB; i++) {                    /* (upstream 1.0) and no id learned twice */
+        ok = panel.btn[i] < 14u && !(buttons & (1u << panel.btn[i]));
+        buttons |= ok ? 1u << panel.btn[i] : 0u;
+    }
+    for (i = 0; ok && i < NE; i++) {
+        ok = panel.enc[i] < 7u && !(encoders & (1u << panel.enc[i])) && (panel.dir[i] == 1 || panel.dir[i] == -1);
+        encoders |= ok ? 1u << panel.enc[i] : 0u;
+    }
     if (!ok)
         panel = PANEL_DEFAULT;
 }
@@ -59,7 +63,7 @@ static int32_t panel_enc(uint32_t role)
 
 /* user settings that survive a reset */
 #define SETTINGS_MAGIC 0x53455433u              /* "SET3" */
-struct { uint32_t magic, palette, lowcut, zoom, mutebar; } settings __attribute__((section(".noinit")));   /* mutebar:
+struct { uint32_t magic, palette, lowcut, zoom, mutebar, accel; } settings __attribute__((section(".noinit")));   /* mutebar:
                                                                                    * TRACKS mutes wait for the next bar */
 
 static void settings_save(void);
@@ -72,8 +76,11 @@ static void settings_init(void)
         settings.palette = 4;                  /* MONO (default) */
         settings.lowcut = 0;
         settings.zoom = 0;                     /* large readout of the touched value: off */
+        settings.accel = 1;                    /* knob acceleration (calm, upstream 1.0): on */
     }
-    settings.mutebar &= 1u;                    /* .noinit: a field added after "SET3" */
+    settings.mutebar &= 1u;                    /* .noinit: fields added after "SET3" */
+    if (settings.accel > 1u)
+        settings.accel = 1u;
     palette_set(settings.palette);
     fx_lowcut = (uint8_t)(settings.lowcut != 0);
 }

@@ -163,11 +163,12 @@ static int mutebar_persists(void)
             settings.lowcut = 0;
             settings.zoom = z;
             settings.mutebar = m;
+            settings.accel = (z ^ m) & 1u;
             settings_save();
             rfill(&settings, sizeof settings);       /* power off: .noinit is anything */
             persist_boot();
             settings_init();
-            ok &= settings.zoom == z && settings.mutebar == m;
+            ok &= settings.zoom == z && settings.mutebar == m && settings.accel == ((z ^ m) & 1u);
         }
     return ok;
 }
@@ -331,7 +332,7 @@ int main(void)
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
-    check("settings: MUTE NEXT BAR and ZOOM survive a power cycle (Felucca's settings format)", mutebar_persists());
+    check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {
