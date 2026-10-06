@@ -495,6 +495,10 @@ static track_t *midi_route(uint32_t ch, uint32_t note, int on)
     return t;
 }
 
+/* frozen-base-7 glue: the drum firmware's MIDI clock reads each input packet's timestamp and source, so the
+ * frozen usb_app.c midi_enqueue keeps storing them; read here too, so this reference build keeps the same stores */
+static volatile uint32_t midi_clock_glue;
+
 /* everything that happens between two rendered blocks */
 static void events_block(uint32_t n)
 {
@@ -535,6 +539,7 @@ static void events_block(uint32_t n)
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
+        midi_clock_glue += midi_in_ms[mi_r % MQ] + midi_in_source[mi_r % MQ];   /* (frozen-base-7 glue) */
         mi_r++;
         if (st == 0x90u && d2)
             input_on(midi_route(ch, d1, 1), d1, d2);
