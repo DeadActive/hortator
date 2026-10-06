@@ -169,6 +169,18 @@ static void tracks_rec_tap(void)                       /* arm / disarm; arming w
         transport_req = 1;
 }
 
+/* MOTION page: KNOB 1 PLAY (right ON, left OFF), KNOB 4 CLEAR (a turn right asks: "CLEAR MOTION T<n>?") */
+static void motion_page_edit(uint32_t slot, int32_t steps)
+{
+    if (slot == 0u) {
+        motion_set_play(song.sel, steps > 0);
+    } else if (slot == 3u && steps > 0 && motion_count(song.sel)) {
+        ui.confirm = 2;
+        ui.confirm_trk = song.sel;
+        ui.force = 1;
+    }
+}
+
 static void edit_param(uint32_t slot, int32_t steps)
 {
     int16_t *vp;
@@ -179,6 +191,10 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (pg->scope == SC_GRID) {
         if (slot == 0u)
             bank_set((int32_t)ui.bank + (steps > 0 ? 1 : -1));
+        return;
+    }
+    if (pg->graph == GR_MOTION) {                     /* the MOTION page's own knobs */
+        motion_page_edit(slot, steps);
         return;
     }
     if (pg->scope == SC_MIX) {
@@ -392,8 +408,13 @@ static void ui_input(void)
         if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
             char m[12] = "1 CLEARED";
             m[0] = (char)('1' + ui.confirm_trk);
-            track_clear(&trk[ui.confirm_trk % NTRK]);
-            ui_say("TRACK ", m);
+            if (ui.confirm == 2u) {                     /* the MOTION page's CLEAR */
+                motion_clear(ui.confirm_trk % NTRK);
+                ui_message("MOTION CLEARED");
+            } else {
+                track_clear(&trk[ui.confirm_trk % NTRK]);
+                ui_say("TRACK ", m);
+            }
             ui.confirm = 0;
             ui.force = 1;
         } else if ((pressed >> panel.btn[B_OCTDN]) & 1u) {

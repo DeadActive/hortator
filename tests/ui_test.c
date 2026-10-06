@@ -2340,6 +2340,46 @@ static void test_motion_model_change(void)
     check("INIT ALL: no motion left", mo.s.count == 0u);
 }
 
+/* the MOTION page: PLAY, EVENTS, CLEAR with its dialog; screens */
+static void test_motion_page(void)
+{
+    ui_host_init();
+    seq_open("MOTION");
+    check("SEQ reaches the MOTION page", !ui.home && str_eq(cur_page()->title, "MOTION"));
+    snap_page("motion/empty");
+    motion_add(0, 0, P_E1, 20);
+    motion_add(0, 4, P_E1, 60);
+    motion_add(0, 9, P_PAN, -30);
+    transport_req = 1;
+    ui_frame();
+    ui.force = 1;
+    snap_page("motion/events");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("MOTION KNOB 1 left: PLAY OFF", !motion_on(0));
+    turn(EN_K1, 1);
+    ui_frame();
+    check("MOTION KNOB 1 right: PLAY ON", motion_on(0));
+    turn(EN_K4, 1);
+    ui_frame();
+    check("MOTION KNOB 4: asks before clearing", ui.confirm == 2u && motion_count(0) == 3u);
+    snap_page("motion/confirm");
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("the dialog: OCT- keeps the motion", !ui.confirm && motion_count(0) == 3u);
+    turn(EN_K4, 1);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("the dialog: OCT+ clears the track's motion", !ui.confirm && motion_count(0) == 0u);
+    transport_req = 2;
+    ui_frame();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2396,6 +2436,7 @@ int main(void)
     test_perform_dead_hold();
     test_motion_recording();
     test_motion_model_change();
+    test_motion_page();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
