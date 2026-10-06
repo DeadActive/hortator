@@ -131,7 +131,7 @@ if [ "$PREVIEW" = 1 ]; then
     mkdir -p "$P/webapp/installer"
     if [ -n "$PACKAGE" ]; then
         cp "$PACKAGE" "$OUT/package.fwsc"                 # a copy: the original is never touched
-        LABEL=$(basename "$PACKAGE" .fwsc | sed -nE 's/^felucca-(drum-[0-9.]+)-([0-9a-f]+(-dirty)?)$/\1+\2/p')
+        LABEL=$(basename "$PACKAGE" .fwsc | sed -nE 's/^felucca-((drum|hortator)-[0-9.]+)-([0-9a-f]+(-dirty)?)$/\1+\3/p')
         LABEL=${LABEL:-drum-$VERSION}
         echo "build_sim: preview with the firmware package $(basename "$PACKAGE") ($LABEL)"
         "$PY" - "$ROOT/web" "$OUT/package.fwsc" "$LABEL" "$P" <<'PY'

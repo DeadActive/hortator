@@ -45,7 +45,7 @@ Everything the script writes goes under `build/sim/`:
 `web/sim/index.html` is the project's landing page: the name and one sentence, the simulator as the hero, what the
 firmware does (with where to find it on the panel), how to install, credits and the source link.
 
-`web/index_pkg.html` is the installer page, restyled to match, in English only and named FM-1 Drums. This was a
+`web/index_pkg.html` is the installer page, restyled to match, in English only and named Hortator (the firmware's name since 2026-10-07). This was a
 user-granted exception to the simulator's file rules (2026-10-07). Its script is `main`'s at 12a1ba0 with exactly
 four changes: the text table, the fixed language, no language switch, and the status label. `tests/sim_site.mjs`
 rebuilds that script from 12a1ba0 and requires a byte-for-byte match, so the install logic cannot drift unnoticed.
@@ -147,7 +147,7 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
    ```diff
    @@
    -  index.html                  redirect to the installer
-   +  index.html                  the FM-1 Drums landing page with the simulator (build/sim, docs/SIMULATOR.md);
+   +  index.html                  the Hortator landing page with the simulator (build/sim, docs/SIMULATOR.md);
    +                              a redirect to the installer when the simulator was not built
    @@
    -    (out / "index.html").write_text(
@@ -161,9 +161,9 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
    +                shutil.copy(f, out / f.name)
    +    else:
    +        (out / "index.html").write_text(
-   +            '<!doctype html><meta charset="utf-8"><title>FM-1 Drums</title>'
+   +            '<!doctype html><meta charset="utf-8"><title>Hortator</title>'
    +            '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
-   +            '<a href="webapp/installer/">FM-1 Drums installer</a>\n', encoding="utf-8")
+   +            '<a href="webapp/installer/">Hortator installer</a>\n', encoding="utf-8")
    ```
 
    Build the simulator first (`tools/build_sim.sh --ref <the commit being published>`), so the page and the
@@ -201,6 +201,24 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
    +static const char *const B_NAME[NB] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE",
    ```
 
-3. Nothing else in `firmware/**` is needed. The simulator includes the sources as they are.
+3. **The firmware's name is Hortator** (user decision, 2026-10-07). The landing page and the installer use it;
+   on the device it still reads FM-1 DRUMS. Proposed:
+
+   ```diff
+   --- a/firmware/src/main.c                        (boot screen)
+   -    draw_text_box(0, 100, 240, &FONT_L, "FM-1 DRUMS", C_HI, 1);
+   +    draw_text_box(0, 100, 240, &FONT_L, "HORTATOR", C_HI, 1);
+   --- a/firmware/src/ui_menu.c                     (ABOUT)
+   -            cv_text(4, 4, &FONT_L, "FM-1 DRUMS", C_HI);
+   +            cv_text(4, 4, &FONT_L, "HORTATOR", C_HI);
+   ```
+
+   "HORTATOR" is 8 characters, 128 px in FONT_L: it fits where "FM-1 DRUMS" (10) did. The version labels
+   (`DRUM-x.y.z` on the device, `drum-x.y.z+<commit>` in the installer and package names; `tools/build.py`
+   `drum_label`, `tools/version.py` and its checks) can stay as they are or become `HORTATOR-` / `hortator-`. That is
+   the firmware session's call: `tools/build_sim.sh --package` reads either form from the file name. README.md
+   (still upstream Felucca's) would be the place to introduce the name.
+
+4. Nothing else in `firmware/**` is needed. The simulator includes the sources as they are.
 
    Tidy-up suggestion, also optional: `tests/drum_host.h` includes `<libproc.h>` / `<sys/resource.h>` (macOS only) for `instr_now`. Guarding those with `#ifdef __APPLE__` would let other hosts and emscripten reuse it, but `tests/sim_host.h` works without it.

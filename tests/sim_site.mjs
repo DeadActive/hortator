@@ -23,7 +23,7 @@ const CHANGES = [
   ['let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";', 'const lang = "en";'],
   ['  $("lang").textContent = t("other");\n', ''],
   ['$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });\n', ''],
-  ['say(`Felucca ${meta.version}`);', 'say(`FM-1 Drums ${meta.version}`);'],
+  ['say(`Felucca ${meta.version}`);', 'say(`Hortator ${meta.version}`);'],
 ];
 
 test('installer: the script is main\'s, changed only in its text table, the language lines and the label', { skip: !ORIG && 'no git history' }, () => {
@@ -42,10 +42,11 @@ test('installer: English only, every message the logic can show is still there',
   for (const [, k] of NOW.matchAll(/data-t="(\w+)"/g)) assert.equal(typeof now.en[k], 'string', `data-t ${k}`);
 });
 
-test('installer: named FM-1 Drums, no language switch, /*LIB*/ and /*META*/ kept for make_site.py', () => {
+test('installer: named Hortator, no language switch, /*LIB*/ and /*META*/ kept for make_site.py', () => {
   assert.match(NOW, /<html lang="en">/);
-  assert.match(NOW.match(/<title>(.*)<\/title>/)[1], /FM-1 Drums/);
-  assert.match(NOW.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1], /FM-1 Drums/);
+  assert.match(NOW.match(/<title>(.*)<\/title>/)[1], /Hortator/);
+  assert.match(NOW.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1], /Hortator/);
+  assert.doesNotMatch(NOW, /FM-1 Drums|FM-1 DRUMS/, 'the old name is gone');
   assert.doesNotMatch(NOW, /id="lang"/);
   assert.equal(NOW.split('/*LIB*/').length, 2);
   assert.equal(NOW.split('/*META*/').length, 2);
@@ -64,7 +65,9 @@ test('landing: hero (with the device and the #play end), features, install; inst
   assert.match(LANDING, /href="webapp\/installer\/"/);
   assert.match(LANDING, /href="#play"/);
   assert.match(LANDING, /href="source\.tar\.gz"/);
-  assert.match(LANDING.match(/<title>(.*)<\/title>/)[1], /FM-1 Drums/);
+  assert.match(LANDING.match(/<title>(.*)<\/title>/)[1], /Hortator/);
+  assert.doesNotMatch(LANDING, /FM-1 Drums|FM-1 DRUMS/, 'the old name is gone');
+  assert.match(LANDING, /galley/, 'the name\'s origin is told');
   assert.match(LANDING, /id="device"/, 'the simulator is on the page');
 });
 
