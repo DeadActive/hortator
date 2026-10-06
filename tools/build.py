@@ -29,8 +29,10 @@ OUT = SRC / "build"
 GEN = OUT / "gen"
 LDR = OUT / "loader"
 sys.path.insert(0, str(SRC / "tools"))
+sys.path.insert(0, str(SRC / "web"))
 import fm1pkg_make  # noqa: E402
 import lz4blk  # noqa: E402
+import make_site  # noqa: E402
 
 APP_XIP = 0x02000120                # app.bin offset 0 in the XIP map; the SPL jumps here
 APP_SLOT = fm1pkg_make.APP_SLOT
@@ -298,6 +300,14 @@ def mmio_check():
     return errors
 
 
+def drum_label():
+    """drum-<commit>, -dirty when tracked files differ from it: the installer names the exact source it ships"""
+    def git(*a):
+        return subprocess.run(["git", *a], cwd=SRC, capture_output=True, text=True).stdout.strip()
+    rev = git("rev-parse", "--short", "HEAD") or "unknown"
+    return f"drum-{rev}" + ("-dirty" if git("status", "--porcelain", "--untracked-files=no") else "")
+
+
 def main():
     global PRODUCT, VERSION
     ap = argparse.ArgumentParser()
@@ -351,6 +361,7 @@ def main():
     print(f"app      {OUT / 'felucca.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
+    make_site.main(OUT / name, VERSION or drum_label(), OUT / "site")   # the local web installer: always this package
     return 0
 
 

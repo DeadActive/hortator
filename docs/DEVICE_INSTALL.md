@@ -41,6 +41,12 @@ Both directions now work on your FM-1, with firmware many people run.
    `~/fm1-venv/bin/python tools/fm1_install.py build/felucca-UNTESTED.fwsc`
    Expected: it finds the FM-1, asks to confirm, writes, and the FM-1 restarts.
 
+   Or with the web installer: every `DRUM_PACKAGE=1 ./build.sh` also rebuilds a local copy of the site in
+   `build/site` with that same package, labelled `drum-<commit>` (`-dirty` when the source had uncommitted
+   changes). Serve it with `cd build/site && python3 -m http.server 8000` and open
+   http://localhost:8000/webapp/installer/ (Chrome or Edge). Check that the version it shows is the commit you
+   noted in step 1.
+
 ## 4. First boot (in this order)
 1. The start screen reads **FM-1 DRUMS** / DRUM MACHINE (UNTESTED), then the HOME screen appears.
 2. The 8 white keys F3..F4 play the 8 tracks (kick, snare, clap, hats, ...).
