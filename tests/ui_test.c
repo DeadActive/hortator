@@ -14,6 +14,7 @@ static void snap_page(const char *name);
 static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
 static uint32_t fb_lit(uint32_t y0, uint32_t y1);
+static void tap(uint32_t b);
 
 static void test_families(void)
 {
@@ -120,14 +121,14 @@ static void test_model_swap(void)
     m0 = (uint32_t)trk[0].p[P_MODEL];
     trk[0].p[P_E1] = 3;                              /* an edited DECAY */
     drum_hit(&trk[0], 127);
-    turn(EN_PRESET, 1);
-    ui_frame();
-    check("PRESET on HOME: next model with its default sound, voices stopped",
-          (uint32_t)trk[0].p[P_MODEL] == (m0 + 1u) % NMODELS && trk[0].model == trk[0].p[P_MODEL] &&
-              trk[0].p[P_E1] == DMODELS[(m0 + 1u) % NMODELS].edit[1].def && !trk[0].v[0].active);
     press(B_EDIT);
     ui_frame();
     release_all();
+    turn(EN_K1, 1);
+    ui_frame();
+    check("MODEL knob on EDIT (page 1): next model with its default sound, voices stopped",
+          (uint32_t)trk[0].p[P_MODEL] == (m0 + 1u) % NMODELS && trk[0].model == trk[0].p[P_MODEL] &&
+              trk[0].p[P_E1] == DMODELS[(m0 + 1u) % NMODELS].edit[1].def && !trk[0].v[0].active);
     turn(EN_K1, -1);
     ui_frame();
     check("MODEL knob on EDIT (page 1): back to the first model, defaults loaded",
@@ -138,6 +139,61 @@ static void test_model_swap(void)
     turn(EN_PRESET, 1);
     ui_frame();
     check("PRESET elsewhere (FX page) leaves the model alone", (uint32_t)trk[0].p[P_MODEL] == m0);
+}
+
+/* PRESET turns the current section's pages, both ways, stopping at the ends (HOME: HOME 1/3 <-> COMP 2/3 <-> 3/3);
+ * it no longer changes the engine */
+static void preset(int32_t d)
+{
+    turn(EN_PRESET, d);
+    ui_frame();
+}
+
+static void test_preset_pages(void)
+{
+    uint32_t m0, pos, k;
+    ui_host_init();
+    m0 = (uint32_t)TSEL->p[P_MODEL];
+    preset(1);
+    check("PRESET on HOME: COMP (HOME 2/3), the engine unchanged",
+          !ui.home && cur_page()->fam == FAM_HOME && page_id(cur_page(), 0) == G_CSRC && (uint32_t)TSEL->p[P_MODEL] == m0);
+    preset(1);
+    check("PRESET again: COMP (HOME 3/3)", page_id(cur_page(), 0) == G_CATK);
+    preset(1);
+    check("PRESET at the last page: stays", page_id(cur_page(), 0) == G_CATK);
+    preset(-1);
+    preset(-1);
+    check("PRESET back twice: the HOME screen", ui.home);
+    preset(-1);
+    check("PRESET back on HOME 1/3: stays, the engine unchanged", ui.home && (uint32_t)TSEL->p[P_MODEL] == m0);
+    tap(B_FX);
+    preset(1);
+    check("PRESET on FX: SLICER", str_eq(cur_page()->title, "SLICER"));
+    preset(1);
+    check("PRESET again: RESON 1/2", str_eq(cur_page()->title, "RESON") && page_id(cur_page(), 0) == P_RMODEL);
+    preset(-1);
+    check("PRESET back: SLICER", str_eq(cur_page()->title, "SLICER"));
+    tap(B_SEQ);
+    tap(B_FX);
+    check("FX again later: the page PRESET left it on (SLICER)", str_eq(cur_page()->title, "SLICER"));
+    tap(B_EDIT);                                     /* SOUND 1/3 .. 3/3; page 4 is empty for every engine: skipped */
+    for (k = 0; k < 6u; k++)
+        preset(1);
+    check("PRESET on EDIT: stops on the engine's last SOUND page (empty pages skipped)",
+          str_eq(cur_page()->title, "SOUND") && fam_pages(FAM_SND, &pos) == pos && !page_hidden(ui.page));
+    tap(B_OCTUP);                                    /* the layer */
+    preset(1);
+    check("PRESET in the layer: LAYER 2/2", str_eq(cur_page()->title, "LAYER") && page_id(cur_page(), 0) == P_LDEC);
+    preset(1);
+    check("PRESET at LAYER 2/2: stays", page_id(cur_page(), 0) == P_LDEC);
+    press(B_REC);                                    /* TRACKS: one page */
+    ui_frame();
+    release_all();
+    ui_frame();
+    k = ui.page;
+    preset(1);
+    preset(-1);
+    check("PRESET on TRACKS: nothing to turn", ui.page == k && cur_page()->fam == FAM_MIX);
 }
 
 static void test_home_macros(void)
@@ -1376,10 +1432,8 @@ static void test_engine_screens(void)
     uint32_t mi, k, n = 0;
     for (mi = 0; mi < NMODELS; mi++) {
         ui_host_init();
-        for (k = 0; k < 2u * NMODELS && (uint32_t)TSEL->p[P_MODEL] != mi; k++) {   /* PRESET on HOME: next engine */
-            turn(EN_PRESET, 1);
-            ui_frame();
-        }
+        for (k = 0; k < 2u * NMODELS && (uint32_t)TSEL->p[P_MODEL] != mi; k++)   /* the next engine */
+            model_step(1);
         for (k = 0; k < 4u; k++)                     /* every EDIT page this engine shows */
             if (!page_hidden(page_first(FAM_SND) + k))
                 engine_page_shots(mi, page_first(FAM_SND) + k);
@@ -1724,6 +1778,7 @@ int main(void)
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
     test_reson_pages();
+    test_preset_pages();
     test_global_mute_setting();
     test_comp_pages();
     test_comp_keys();

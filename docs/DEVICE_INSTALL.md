@@ -64,12 +64,15 @@ For each: what you should see / hear. Note anything different (page, knob, what 
   GLOBAL 3/3 (MUTE NOW / BAR), LFO 1/2 and 2/2,
   PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
   `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
-- Every engine: PRESET on HOME steps through the 21 engines; each plays on its key.
+- Every engine: KNOB 1 (MODEL) on EDIT's first page steps through the 21 engines; each plays on its key.
+- PRESET knob, on any screen: the section's next / previous page (HOME 1/3 <-> COMP 2/3 <-> 3/3, FX <-> SLICER <->
+  RESON <-> DLY ..., the SOUND pages, the LAYER pages in the layer); it stops at the first / last page and no
+  longer changes the engine.
 - HOME: a white key plays its track and selects it (the knobs and T<n> follow). An LFO on one of the HOME knobs
   shows its live value as a small mark under that gauge, as on EDIT.
 - The demo kits: the kits in `tests/drumsim.c` (`KITS`) use other engines than the power-on kit. First set each
-  track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with PRESET on HOME or MODEL
-  on EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
+  track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with MODEL (KNOB 1) on
+  EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
 - Live recording: arm a track (REC tap on TRACKS; on SEQ a REC tap only opens TRACKS) and play its key while
   running, on TRACKS or any page where the keys play: the steps appear.

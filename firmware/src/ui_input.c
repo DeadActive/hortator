@@ -387,8 +387,8 @@ static void ui_input(void)
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);
     }
-    if ((s = panel_enc(EN_PRESET)) != 0 && (ui.home || cur_fam() == FAM_SND))
-        model_step(s);
+    if ((s = panel_enc(EN_PRESET)) != 0)              /* PRESET: the section's pages (the engine: MODEL on EDIT 1) */
+        page_turn(s > 0 ? 1 : -1);
     if ((s = panel_enc(EN_ALGO)) != 0)
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
     if ((s = panel_enc(EN_SELECT)) != 0) {

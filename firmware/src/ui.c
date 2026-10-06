@@ -168,6 +168,30 @@ static void home_step(void)                           /* HOME: the HOME screen -
     }
 }
 
+/* PRESET: the current section's next / previous page (its empty pages skipped), stopping at the ends; HOME 1/3 is
+ * the HOME section's first page (then COMP 2/3, 3/3) */
+static void page_turn(int32_t dir)
+{
+    uint32_t fam, i;
+    if (ui.home) {
+        if (dir > 0)
+            home_step();                              /* HOME 1/3 -> COMP 2/3 */
+        return;
+    }
+    fam = cur_page()->fam;
+    i = ui.page;
+    do
+        i = dir > 0 ? i + 1u : i - 1u;                /* (below 0: wraps above NPAGES, out of the section) */
+    while (i < NPAGES && PAGES[i].fam == fam && page_hidden(i));
+    if (i < NPAGES && PAGES[i].fam == fam) {
+        ui.page = (uint8_t)i;
+        ui.fam_last[fam] = ui.page;
+        page_entered();
+    } else if (dir < 0 && fam == FAM_HOME) {
+        go_home();                                    /* COMP 2/3 back to HOME 1/3 */
+    }
+}
+
 /* --------------------------------------------- what a track shows --- */
 /* the STEP grid, PATTERN, the footer, TRACKS and the keys show a track's steps, or, when its SRC is a Grids
  * channel, that channel's pattern (read-only: Grids makes it) */
