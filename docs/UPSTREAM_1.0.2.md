@@ -57,3 +57,16 @@ Skipped: the LED glow (1.0.1), USB audio, the minsize build marks on frozen func
 
 Skipped: FM6, upstream's DRUM engine (duplicates ours), melodic / synth engines and editors, USB audio, quick
 layers, LED glow. Parked separately: the 303 voice (`docs/IDEAS.md`).
+
+## Frozen-file changes (by baseline tag)
+
+The frozen-code baseline is named in `tools/frozen_base.txt` (with the pinned update loader's sha256). A tag is
+1e838e1 + exactly the upstream hunks below (and, marked "not frozen", what its reference build needs).
+
+| Tag | Upstream | File | Hunk | Why |
+| --- | --- | --- | --- | --- |
+| frozen-base-2 | 727f272 (1.0) | `firmware/hal/fm1_input.h` | the whole file (1.0's, without 1.0.1's LED glow) | key presses after 2 frames, releases after 8; the encoder learns one detent state (#23: double counts, dead knob) |
+| frozen-base-2 | 727f272 (1.0) | `firmware/src/main.c` | `fm1_timer5_irq`; `timer5_start` priority 4; `felucca_dbg.in_audio = 0` at boot | the scan nests into the audio render: no ~16 Hz LED flicker, no lost encoder frames; USB / UART polls after the render |
+| frozen-base-2 | 727f272 (1.0) | `firmware/src/audio.c` (not frozen) | `t5_nested_ticks` | the render's time excludes the nested scan |
+| frozen-base-2 | — (user decision) | `tools/build.py` (not frozen) | the app with `-mllvm -enable-global-merge=false` (the loader's flags unchanged) | the merged small statics differed between the fork's and the baseline's builds, so H2 could not name the frozen code's data alike |
+| frozen-base-2 | — (user decision) | `tools/compare_upstream.py` (not frozen) | `PTR_ARG`: in the reviewed inlining `ota_send_msg` + `ota_wire_send`, the callee's pointer argument is `ota_wire` | the inlined call reads `ota_wire` through its pointer argument; the binding is one recorded fact, and a self-test shows a wrong binding fails |

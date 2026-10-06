@@ -160,3 +160,12 @@ Report what you saw first; we'll go through it together.
 - CPU: RESON on 4 tracks (2 CHORD) with a dense pattern: GLOBAL -> SYSTEM CPU under 100 %, no crackle (note the
   CPU % you see: the stress case on the host is above the stock reference, by decision).
 - SAVE / power cycle / LOAD: RESON comes back; an older project loads with RESON OFF.
+
+### Panel (stage 2 step 1: check on the FM-1)
+
+- LEDs: with a dense pattern playing (8 tracks, RESON / FX on), no flicker on the key / button LEDs.
+- Knobs: turning slowly or fast, no skipped steps and no double steps; a knob left half-way into a click for a
+  few seconds, then turned, still moves one step per click; a slow turn with short pauses keeps moving.
+- Pads: presses respond at once; a held pad does not retrigger; fast repeats all play.
+- Safe start (SEQ held at power-on) still works; USB and the installer still work as before (the update loader is
+  unchanged).
