@@ -61,6 +61,7 @@ typedef struct {
     uint8_t rem;                 /* the slice length's remainder carried to the next (as seq.c's steps) */
 } sl_t;
 static sl_t sl[NTRK];
+static uint8_t sl_lent;          /* perform.c has borrowed sl_buf: STUT plays live, records nothing */
 
 static void slicer_start(void)   /* seq_start: the next block starts step 0 of every track */
 {
@@ -92,8 +93,8 @@ static void sl_enter(const track_t *t, sl_t *s)
     s->rp = 0;
     s->loop = 0;
     s->rec_on = 0;
-    if (mode != SL_STUT) {
-        s->rec = 0;                                 /* nothing old to repeat when STUT comes on */
+    if (mode != SL_STUT + sl_lent) {               /* (lent: never STUT) */
+        s->rec = 0;                                 /* nothing old to repeat when STUT comes on (or the buffer is lent) */
     } else if (s->bit) {
         s->rec = 0;                                 /* a live step: record it */
         s->rec_on = 1;

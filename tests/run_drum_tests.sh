@@ -14,13 +14,15 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 "$OUT/usb_audio_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/midi_clock_test" tests/midi_clock_test.c -lm
 "$OUT/midi_clock_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/perform_test" tests/perform_test.c -lm
+"$OUT/perform_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DDM_QCHECK -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test_q" tests/drum_test.c -lm
 "$OUT/drum_test_q" > "$OUT/drum_test_q.txt" || { grep FAIL "$OUT/drum_test_q.txt"; exit 1; }
 echo "drum_test with Q24 overflow checks: all passed"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drumsim" tests/drumsim.c -lm
 "$OUT/drumsim" build/drum_renders >/dev/null && echo "renders: build/drum_renders"
 rm -rf build/ui_shots
-mkdir -p build/ui_shots/engines build/ui_shots/seq build/ui_shots/grids build/ui_shots/comp build/ui_shots/lfo build/ui_shots/reson
+mkdir -p build/ui_shots/engines build/ui_shots/seq build/ui_shots/grids build/ui_shots/comp build/ui_shots/lfo build/ui_shots/reson build/ui_shots/perform
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
 "$OUT/ui_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/audio_isr_test" tests/audio_isr_test.c -lm
@@ -32,7 +34,7 @@ tail -1 "$OUT/boot_test.txt"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast \
     -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/comp_overflow" tests/comp_overflow.c -lm
 "$OUT/comp_overflow"
-"$PY" -c "import glob,PIL.Image as I; [I.open(p).resize((480,480),I.NEAREST).save(p[:-4]+'.png') for p in glob.glob('build/ui_shots/**/*.ppm', recursive=True)]" && rm -f build/ui_shots/*.ppm build/ui_shots/engines/*.ppm build/ui_shots/seq/*.ppm build/ui_shots/grids/*.ppm build/ui_shots/comp/*.ppm build/ui_shots/lfo/*.ppm build/ui_shots/reson/*.ppm && echo "screens: build/ui_shots"
+"$PY" -c "import glob,PIL.Image as I; [I.open(p).resize((480,480),I.NEAREST).save(p[:-4]+'.png') for p in glob.glob('build/ui_shots/**/*.ppm', recursive=True)]" && rm -f build/ui_shots/*.ppm build/ui_shots/engines/*.ppm build/ui_shots/seq/*.ppm build/ui_shots/grids/*.ppm build/ui_shots/comp/*.ppm build/ui_shots/lfo/*.ppm build/ui_shots/reson/*.ppm build/ui_shots/perform/*.ppm && echo "screens: build/ui_shots"
 REF=build/drum_ref
 FID=""
 if sh tests/fetch_ref.sh >/dev/null 2>&1; then

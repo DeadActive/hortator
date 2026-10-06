@@ -266,6 +266,7 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.mutebar = (p.zoom >> 1) & 1u;     /* kept in zoom's bit 1: the flash format stays Felucca's */
         settings.accel = !((p.zoom >> 2) & 1u);    /* bit 2 = KNOB ACCEL OFF: older saves read as on */
         settings.usbfix = (p.zoom >> 3) & 1u;      /* bit 3 = USB LEVEL FIXED: older saves read MASTER */
+        settings.perfpage = (p.zoom >> 4) & 1u;    /* bit 4 = PERFORM PAGE: older saves read HOLD */
         if (p.panel.magic == PANEL_MAGIC)
             panel = p.panel;
         persist_saved = p;
@@ -296,7 +297,8 @@ static void settings_save(void)                    /* asked for while playing: w
     p.magic = PERSIST_MAGIC;
     p.palette = settings.palette;
     p.lowcut = settings.lowcut;
-    p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3;
+    p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
+             (settings.perfpage & 1u) << 4;
     p.panel = panel;
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;

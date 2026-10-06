@@ -49,7 +49,16 @@ static void ui_leds(void)
             (fam != FAM_LAY && (fam != FAM_LFO || !song.lsel)) || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u);
-    if (grid_mode()) {                                /* the bank's steps; the playhead inverted */
+    if (ui.layer) {                                   /* PERFORM: effects blink, held lit, unavailable dark; the
+                                                       * track keys lit while their track sounds */
+        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
+        uint32_t held = perf_kill ? 0u : perf_held, ok = perf_avail();
+        for (k = 0; k < 27u; k++) {
+            uint32_t e = perf_key(k);
+            led_put(nl, 14u + k, e < PF_M1 ? (int)(((ok >> e) & 1u) && (((held >> e) & 1u) || blink))
+                               : e < PF_N ? (int)(!((held >> e) & 1u) && !trk[e - PF_M1].p[P_MUTE]) : 0);
+        }
+    } else if (grid_mode()) {                         /* the bank's steps; the playhead inverted */
         const track_t *t = TSEL;
         led_put(nl, panel.btn[B_OCTDN], ui.bank > 0u);
         led_put(nl, panel.btn[B_OCTUP], ui.bank + 1u < bank_count());
@@ -269,6 +278,72 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
     return tap ? BT_TAP : BT_NONE;
 }
 
+/* PERFORM (perform.c): FX tapped = its pages, on the release (nothing else touched); FX held = the layer: keys
+ * pressed with it are its own (seq.c keyboard_block), KNOB 1..4 its macros FILTER CRUSH THROW DEPTH (never saved,
+ * back to off when FX is let go). It opens at once with a key or a knob, else after FX_HOLD_MS (then the release
+ * does nothing). No layer in the menu or a dialog: a press there stays dead until let go, and every effect is off
+ * until its keys are let go */
+#define FX_HOLD_MS 400u
+#define FX_DOWN 1u
+#define FX_OPEN 2u
+#define FX_DEAD 4u
+static int fx_allowed(void) { return !ui.menu && !ui.confirm; }
+/* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros off; keys
+ * still held stay the layer's until let go */
+static void perf_page_close(void)
+{
+    ui.pg_open = 0;
+    perf_mask &= ~PERF_PAGE;
+    perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
+}
+static void fx_layer(uint32_t now, int home_tap)
+{
+    uint32_t bit = 1u << panel.btn[B_FX], *t0 = &ui.fx_t0, k, show, down = (fm1_in.buttons & bit) != 0u;
+    int32_t s;
+    if (!fx_allowed()) {
+        perf_kill = 1;
+        perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* (the macros too: nothing runs under a menu) */
+    } else if (!kb_layer) {
+        perf_kill = 0;
+    }
+    if (ui.pg_open && (!fx_allowed() || home_tap || ui.page != ui.pg_page || ui.home != ui.pg_home))
+        perf_page_close();
+    if (down) {
+        if (!*t0)
+            *t0 = (now & ~7u) | FX_DOWN;
+        if (!fx_allowed())
+            *t0 = (*t0 | FX_DEAD) & ~FX_OPEN;           /* dead until let go: no map, no layer, no PAGE */
+        if (!(*t0 & FX_DEAD) && (kb_layer || now - (*t0 & ~7u) >= FX_HOLD_MS * 1000u * FM1_TICKS_PER_US))
+            *t0 |= FX_OPEN;
+    } else if (*t0) {
+        if (!(*t0 & (FX_OPEN | FX_DEAD)))
+            open_family(FAM_FX);                        /* a tap: the FX pages, as the button always did */
+        *t0 = 0;
+        if (!ui.pg_open)
+            perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* HOLD: the macros snap back */
+    }
+    if ((down && !(*t0 & FX_DEAD)) || ui.pg_open)
+        for (k = 0; k < 4u; k++)                        /* the macros: FILTER CRUSH THROW DEPTH */
+            if ((s = panel_enc(EN_K1 + k)) != 0) {
+                perf_k[k] = (int8_t)clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
+                if (down)
+                    *t0 |= FX_OPEN;
+            }
+    if (settings.perfpage && (*t0 & FX_OPEN) && !ui.pg_open && fx_allowed()) {   /* PAGE: the screen stays */
+        ui.pg_open = 1;
+        ui.pg_page = ui.page;
+        ui.pg_home = ui.home;
+    }
+    perf_mask = (fx_allowed() && !(*t0 & FX_DEAD) ? bit : 0u) | (ui.pg_open ? PERF_PAGE : 0u);   /* armed before FX
+                                                         * is pressed: a key struck with it is the layer's even before
+                                                         * this pass has seen FX (keyboard_block tests the button) */
+    show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer || ui.pg_open);
+    if (show != ui.layer) {
+        ui.layer = (uint8_t)show;
+        ui.force = 1;
+    }
+}
+
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
@@ -277,6 +352,10 @@ static void ui_input(void)
     int32_t s;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+    fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
+    if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE))   /* PERFORM: keys are the layer's */
+        notes = 0;
+    notes &= ~kb_layer;
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {
             menu_close();
@@ -366,7 +445,7 @@ static void ui_input(void)
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_MIX && f != FAM_LAY)
+                if (FAM_BTN[f] == b && f != FAM_MIX && f != FAM_LAY && b != B_FX)
                     open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }

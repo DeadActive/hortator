@@ -190,11 +190,12 @@ static int usb_level_persists(void)
         settings.mutebar = 1;
         settings.accel = 0;
         settings.usbfix = u;
+        settings.perfpage = u;
         settings_save();
         rfill(&settings, sizeof settings);           /* power off: .noinit is anything */
         persist_boot();
         settings_init();
-        ok &= settings.usbfix == u && fx_usb_fixed == u && settings.palette == 2 && settings.lowcut == 2 &&
+        ok &= settings.usbfix == u && settings.perfpage == u && fx_usb_fixed == u && settings.palette == 2 && settings.lowcut == 2 &&
               settings.zoom == 1 && settings.mutebar == 1 && settings.accel == 0;
     }
     return ok;

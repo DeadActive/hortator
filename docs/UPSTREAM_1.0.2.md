@@ -54,7 +54,8 @@ pack: user decision 2026-10-06.)
    timing (and three fixes to upstream's clock: tempo over a beat, a rounded rescale incl. the advance in progress,
    interpolation stopping short of the next pulse).
 4. **PERFORM layer** (`perform.c`): hold-to-play master FX (REPEAT, REVERSE, TAPE STOP, FREEZE, filters, OCT,
-   THROW, CRUSH), using our SLICER buffers; 8 mute bits.
+   THROW, CRUSH), using our SLICER buffers; 8 mute bits. Done in 0.10.0 (keys: white = track mutes, black =
+   effects; REPEAT / REVERSE on the Grids clock's 1/16; MENU PERFORM HOLD / PAGE).
 5. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
    the LFOs' modulated copy.
 6. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR8, after the sound pack's FDR7) for both.

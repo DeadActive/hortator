@@ -54,7 +54,8 @@ static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
  * its half. So a tempo change keeps Grids on the step tracks' 1/16s, and no Grids step is ever skipped (the chaos
  * sequence stays the original's). */
 #define MUTE_LEAD 256u   /* samples ahead of the bar: the COMP source mute fade (5 ms) and a declick end there */
-static struct { uint32_t pos, cnt; uint8_t half, rem; } gclk;   /* samples into the 1/16, 1/16s since PLAY, odd 1/32 done */
+static struct { uint32_t pos, cnt; uint8_t half, rem, at; } gclk;   /* samples into the 1/16, 1/16s since PLAY, odd 1/32
+                                                                      * done; at: a 1/16 started this block (perform.c) */
 static uint32_t grids_l16(uint32_t cnt)
 {
     uint32_t p16 = div_period(2u, gclk.rem);
@@ -92,8 +93,17 @@ static void grids_tick(uint32_t n)
         gclk.pos = start ? (song.g[G_CLOCK] ? gclk.pos - 0x7FFFFFFFu : 0) : gclk.pos - l16;   /* (as seq_tick) */
         gclk.cnt++;
         gclk.half = 0;
+        gclk.at = 1;
         grids_fire();                               /* the even 1/32, on the 1/16 */
     }
+}
+
+/* perform.c: 1 when a 1/16 of the Grids clock started in this block (read once a block, then cleared) */
+static uint32_t seq_16th(void)
+{
+    uint32_t a = gclk.at;
+    gclk.at = 0;
+    return a;
 }
 
 /* PROB of step s coming up on track t (LEN len): 100 % plays; a percentage plays when the track's next random
@@ -167,8 +177,25 @@ static void input_hit(track_t *t, uint32_t vel)
 
 static void keyboard_block(void)
 {
-    uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, i;
+    uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, i, key;
     kb_prev = cur;
+    for (key = 0; key < 27u; key++) {                     /* PERFORM (perform.c): a key pressed with FX held is the layer's
+                                                     * until let go: its effect, no note, no MIDI, nothing recorded */
+        uint32_t bit = 1u << key;
+        if (!(ch & bit))
+            continue;
+        if (cur & bit) {
+            if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE)) {
+                kb_layer |= bit;
+                perf_press(perf_key(key), 1);
+                ch &= ~bit;
+            }
+        } else if (kb_layer & bit) {
+            kb_layer &= ~bit;
+            perf_press(perf_key(key), 0);
+            ch &= ~bit;
+        }
+    }
     if (song.seq_mode == 1u || (song.seq_mode == 2u && ((fm1_in.buttons >> song.octdn) & 1u)))
         ch &= ~cur;                                 /* the STEP grid / TRACKS / COMP ducks (ui_input.c) own presses; releases
                                                      * still send their note-off (no hung notes). TRACKS while armed

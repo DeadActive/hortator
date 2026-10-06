@@ -314,6 +314,35 @@ static void write_sound_pack(const char *dir)
     write_demo(dir, "sp_slow_div.wav", 12, sp_div_bar);
 }
 
+/* PERFORM demos (120 BPM, the sound pack's 808 kit with a reverb / delay send): 4 bars each, the effect (a key or a
+ * knob) held over bars 2 and 3: pf_<name>.wav */
+static const struct { const char *name; uint32_t held; int8_t k[4]; } PF_DEMO[] = {
+    {"pf_repeat_8.wav", 1u << PF_R8, {0}}, {"pf_repeat_16.wav", 1u << PF_R16, {0}},
+    {"pf_repeat_32.wav", 1u << PF_R32, {0}}, {"pf_reverse.wav", 1u << PF_REV, {0}},
+    {"pf_tape_stop.wav", 1u << PF_TAPE, {0}}, {"pf_lpf.wav", 1u << PF_LPF, {0}}, {"pf_hpf.wav", 1u << PF_HPF, {0}},
+    {"pf_freeze.wav", 1u << PF_FRZ, {0}}, {"pf_oct_up.wav", 1u << PF_OUP, {0}}, {"pf_oct_dn.wav", 1u << PF_ODN, {0}},
+    {"pf_oct_up_shimmer.wav", 1u << PF_OUP, {0, 0, 0, 60}}, {"pf_mute_kick.wav", 1u << PF_M1, {0}},
+    {"pf_crush.wav", 0, {0, 80, 0, 0}}, {"pf_throw.wav", 0, {0, 0, 100, 0}}, {"pf_filter_knob.wav", 0, {-70, 0, 0, 0}},
+};
+static uint32_t pf_cur;
+static void pf_bar(uint32_t b)
+{
+    uint32_t on = b == 1u || b == 2u, k;
+    perf_held = on ? PF_DEMO[pf_cur].held : 0u;
+    for (k = 0; k < 4u; k++)
+        perf_k[k] = on ? PF_DEMO[pf_cur].k[k] : 0;
+}
+static void write_perform(const char *dir)
+{
+    for (pf_cur = 0; pf_cur < sizeof PF_DEMO / sizeof PF_DEMO[0]; pf_cur++) {
+        sp_kit();
+        trk[1].p[P_REV] = 60;
+        trk[2].p[P_DLY] = 50;
+        write_demo(dir, PF_DEMO[pf_cur].name, 4, pf_bar);
+        perf_held = 0;
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -415,5 +444,6 @@ int main(int argc, char **argv)
     reson_kit(RS_PIPE);
     write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);      /* RESON into DIST, every other bar */
     write_sound_pack(dir);
+    write_perform(dir);
     return 0;
 }
