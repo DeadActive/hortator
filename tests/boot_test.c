@@ -173,6 +173,27 @@ static int mutebar_persists(void)
     return ok;
 }
 
+/* a settings record longer than ours (another firmware's, same marker): the defaults, not a half-read record */
+static int settings_oversize_refused(void)
+{
+    struct {
+        persist_t p;
+        uint8_t more[16];
+    } r;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();                                  /* finds the flash */
+    memset(&r, 0, sizeof r);
+    r.p.magic = PERSIST_MAGIC;
+    r.p.palette = 2;                                 /* not the default (4, MONO) */
+    r.p.panel = PANEL_DEFAULT;
+    st_save(OBJ_SETTINGS, &r, sizeof r);
+    memset(&settings, 0, sizeof settings);           /* power off */
+    persist_boot();
+    settings_init();
+    return settings.palette == 4u;
+}
+
 /* an M1 project in flash ("FDR1") loads: its steps and settings; PROB 100 %, 1 hit, SRC STEP, Grids defaults */
 static int fdr1_converts(void)
 {
@@ -362,6 +383,7 @@ int main(void)
     check("project: an FDR5 record loads with GHOST KEEP", fdr5_converts());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
+    check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {
