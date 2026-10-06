@@ -31,8 +31,11 @@ No frozen file changes (fx.c, params.c, pages.c, ui_menu.c, panel.c, project.c, 
 - `master_out` becomes upstream's: in BASS+ the two one-pole high-passes run one octave higher (~220 Hz, step
   `>> 5` instead of `>> 6`) and `spk_bass((l + r) >> 1)` is added to both sides after them. `spk_bass` is
   db70550's, byte for byte: a 4-pole low-pass (~150 Hz), a level-following clip at its own envelope (odd
-  harmonics), a band-pass ~220 Hz..1 kHz, × 3. Its state is new statics (`sb_lp1..4`, `sb_env`, `sb_h1`, `sb_h2`,
-  `sb_hl`).
+  harmonics), a band-pass ~220 Hz..1 kHz, × 3. Its state lives in the existing `fx` struct (`fx.sb_lp1..4`,
+  `fx.sb_env`, `fx.sb_h1`, `fx.sb_h2`, `fx.sb_hl`: no new small globals, which can upset H2); only those names
+  differ from upstream's text.
+- The MENU's value column moves from x 90 to x 102 so "SPEAKER EQ" (80 px in the 8 px font) fits; the longest
+  value (5 characters) still ends before COLOR's swatches at x 160.
 - `lowcut1` takes the step as an argument (`sh`), as upstream.
 - It applies to the whole master (headphones too), as upstream.
 
@@ -44,10 +47,11 @@ No frozen file changes (fx.c, params.c, pages.c, ui_menu.c, panel.c, project.c, 
   `G_COUNT`), so every existing global keeps its id (the editor protocol addresses globals by id).
 - Project format **FDR7** (`PROJ_MAGIC` "FDR7"): the globals array grows by one. FDR6 projects are converted on
   load like the earlier steps (TYPE = ROOM); FDR1..FDR5 keep their conversion paths, ending with TYPE = ROOM.
+  An old record's version is chosen by its format marker, not by its size: an FDR5 record and an FDR6 record are
+  both 3024 B (FDR7 is 3028 B), so the size alone would read an FDR6 record as FDR5 and drop it.
 - Pages: `REV/CHO` is replaced by `REVERB` {G_RTYPE, G_RSIZE, G_RDAMP, —} and `CHORUS` {G_CRATE, G_CDEPTH, —, —},
   in that order in the FX family (PRESET / page turning reaches both). The empty knobs show nothing, as on other
   pages with empty slots.
-- The web editor (`web/editor.html`, its built-in lists) knows TYPE and the two pages.
 
 ### 3.2 Sound
 
@@ -77,7 +81,6 @@ No frozen file changes (fx.c, params.c, pages.c, ui_menu.c, panel.c, project.c, 
 - **Sequencer:** a step can now last up to 16 beats (4BAR); at 40 BPM that is 1 058 400 samples. Swing
   (`track_swing * period / 250`, ≤ 100 × 1 058 400) fits in int32; ratchets divide the step; live recording
   compares against half a step. No change needed; the tests pin it.
-- The web editor's division list (`NDIV`) gets the four names.
 
 ## 5. Testing (host, failing first)
 
@@ -119,5 +122,6 @@ user), CHANGELOG has the lines, the user has checked §6 on the FM-1; merged as 
 
 ## 8. Out of scope
 
-USB LEVEL FIXED (upstream 1.0.2's MASTER-after-USB switch: comes with USB audio, §3.2), upstream's arpeggiator
+The web editor (`web/editor.html` is upstream 0.9's synth editor, unchanged in this fork; the drum firmware does
+not speak its protocol), USB LEVEL FIXED (upstream 1.0.2's MASTER-after-USB switch: comes with USB audio, §3.2), upstream's arpeggiator
 RATE (we have no arpeggiator), upstream removing the drum MIDI channel (we keep G_DRCH), new reverb RAM.
