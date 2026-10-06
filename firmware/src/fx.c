@@ -11,7 +11,8 @@ static const uint16_t REV_AP[2] = {556, 441};
 static int16_t rev_comb[1116 + 1188 + 1277 + 1356] __attribute__((section(".pool")));
 static union {                          /* ROOM's allpasses; SPRING's allpass chain (int32: no clamps) */
     int16_t ap[556 + 441];
-    int32_t sp[(556 + 441) / 2];
+    int32_t sp[(556 + 441 + 1) / 2];    /* all 997 int16 (upstream's 498 words left ap[996] stale: rev_clear
+                                         * missed it, and ROOM played it back after a switch as a click) */
 } rev_u __attribute__((section(".pool")));
 #define rev_ap (rev_u.ap)
 static struct {

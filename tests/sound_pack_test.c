@@ -230,6 +230,44 @@ static void test_switch_while_sending(void)
 }
 
 
+/* final review: ROOM -> SPRING -> ROOM with the send silent once ROOM has rung. Every reverb buffer must be cleared
+ * at each switch (rev_u's int16 view holds 997 samples, an odd count: one more than a 498-word int32 view covers),
+ * or ROOM plays the stale sample back as a click; so the wet stays exactly 0 for 2 s */
+static void test_switch_round_trip_silent(void)
+{
+    static int32_t z[CTL], in[CTL], w[CTL];
+    uint32_t blk, i, t = 0, ok = 1, clear = 1;
+    host_init();
+    for (blk = 0; blk < 400u; blk++) {               /* ROOM rings (200 Hz send) */
+        for (i = 0; i < CTL; i++, t++) {
+            in[i] = (int32_t)sine(200.0, t, 20000.0);
+            z[i] = 0;
+        }
+        fx_buses(z, z, in, w, CTL);
+    }
+    for (i = 0; i < CTL; i++)
+        in[i] = 0;
+    for (blk = 0; blk < 2u * FS / CTL; blk++) {
+        if (blk == 0u)
+            song.g[G_RTYPE] = 1;
+        if (blk == 100u)
+            song.g[G_RTYPE] = 0;
+        fx_buses(z, z, in, w, CTL);
+        if (blk == 0u || blk == 100u) {
+            const uint8_t *b = (const uint8_t *)&rev_u;
+            for (i = 0; i < sizeof rev_u; i++)
+                clear &= b[i] == 0;
+            for (i = 0; i < sizeof rev_comb / 2u; i++)
+                clear &= rev_comb[i] == 0;
+        }
+        if (blk > 100u)
+            for (i = 0; i < CTL; i++)
+                ok &= w[i] == 0;
+    }
+    check("TYPE switch: every reverb buffer cleared (all of rev_u, rev_comb)", clear);
+    check("TYPE ROOM -> SPRING -> ROOM, send silent: the wet is exactly 0 (nothing stale plays)", ok);
+}
+
 #define HASH_FLAT 0xb35154deu
 #define HASH_LOWCUT 0xd5959edeu
 
@@ -248,6 +286,7 @@ int main(void)
     test_spring_matches_upstream();
     test_spring_silence();
     test_switch_while_sending();
+    test_switch_round_trip_silent();
     printf(fails ? "sound_pack_test: %d FAILED\n" : "sound_pack_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
