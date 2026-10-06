@@ -16,7 +16,11 @@ A frozen function passes when:
  3. it is on INLINED (reviewed by the user's decision): the compiler inlined differently, and the effects are
     those of upstream's function with the listed callee(s) inlined ("union"), or are all found in upstream's
     function, which has the callee inlined ("prefix", fm1_cstart: upstream inlines fm1_main).
-Anything else, or a frozen function in upstream's binary but not in ours: FAIL."""
+    A union entry may record its callee's pointer argument (PTR_ARG, reviewed: the caller passes that object):
+    inlined, the callee's accesses through the pointer are that object's, resolved or not.
+Anything else, or a frozen function in upstream's binary but not in ours: FAIL.
+Both builds compile the app with global merging off (tools/build.py, user decision 2026-10-06), so data is named
+alike in both."""
 import re
 import sys
 from collections import Counter
@@ -44,6 +48,10 @@ RAM = (0x01C00000, 0x01D00000)
 XIP = (0x02000000, 0x02400000)
 # reviewed (user decision, 2026-10-05): the compiler inlines these differently in the two programs
 INLINED = {"ota_send_msg": ("union", ("ota_wire_send",)), "fm1_cstart": ("prefix", ("fm1_main",))}
+# reviewed facts about an inlined callee's pointer argument (user decision 2026-10-06): inlined, its accesses
+# through the pointer ("ptr") are accesses to the object the caller passes. ota_send_msg calls
+# ota_wire_send(ota_wire, w) (firmware/src/ota.c)
+PTR_ARG = {("ota_send_msg", "ota_wire_send"): "ota_wire"}
 
 
 def frozen_names():
@@ -216,10 +224,18 @@ def judge(ours, up, name):
     if mode and mode[0] == "union":                 # upstream's, the listed callees inlined, and recursively every
         want = Counter(eu)                           # callee upstream calls that our binary no longer calls here
         todo = list(mode[1])
+        bounds = set()
         while todo:
             callee = todo.pop()
             k = want.pop("call:" + callee, 0)
             ce = up.effects(callee)
+            bound = PTR_ARG.get((name, callee))
+            if bound:                                # its pointer argument, known once inlined (PTR_ARG)
+                bc = Counter()
+                for e, c in ce.items():
+                    bc[re.sub(r":ptr(?=$|[+=])", ":" + bound, e)] += c
+                ce = bc
+                bounds.add(bound)
             ce.pop("ret", None)
             for _ in range(k):
                 want.update(ce)
@@ -228,6 +244,12 @@ def judge(ours, up, name):
         eo2, want2 = Counter(eo), Counter(want)
         eo2.pop("ret", None)
         want2.pop("ret", None)
+        for b in bounds:                             # a bound pointer access our analysis left unresolved ("ptr")
+            for e in list((want2 - eo2).elements()):  # is that object's access (PTR_ARG): op and the rest the same
+                p = re.sub(r":" + re.escape(b) + r"(?=$|[+=])", ":ptr", e, count=1)
+                if p != e and eo2[p] > want2[p]:
+                    eo2[p] -= 1
+                    eo2[e] += 1
         if eo2 == want2:
             return None
         return f"effects differ from upstream's with {', '.join(mode[1])} inlined: ours-only {dict(eo2 - want2)}, upstream-only {dict(want2 - eo2)}"
@@ -332,6 +354,13 @@ def selftest(ours, up):
     why = judge(ours, up, "fm1_cstart")
     ours.funcs["fm1_cstart"] = saved
     print(f"compare_upstream selftest: a store deleted from fm1_cstart is {'caught' if why else 'NOT caught'}")
+    ok &= bool(why)
+    for key, obj in list(PTR_ARG.items()):           # a pointer binding to the wrong object (PTR_ARG) must fail
+        PTR_ARG[key] = "ota_msg"
+        why = key[0] in ours.funcs and judge(ours, up, key[0])
+        PTR_ARG[key] = obj
+        print(f"compare_upstream selftest: {key[1]}'s pointer bound to the wrong object in {key[0]} is "
+              f"{'caught' if why else 'NOT caught'}")
     ok &= bool(why)
     return 0 if ok else 1
 

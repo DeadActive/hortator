@@ -1722,8 +1722,8 @@ static void test_safe_start(void)
 {
     uint32_t i, peak = 0, a;
     safe_boot(1);
-    check("safe start: SEQ held through the boot's polled scan (FM1_DEBOUNCE + 4 scans)",
-          safe_start && host_scans == FM1_DEBOUNCE + 4u);
+    check("safe start: SEQ held through the boot's polled scan (FM1_DEB_RELEASE + 4 scans)",
+          safe_start && host_scans == FM1_DEB_RELEASE + 4u);
     a = dvage;
     keys(1u << KEY_TRK_KEY[0]);                      /* a white key */
     ui_frame();
@@ -1742,7 +1742,7 @@ static void test_safe_start(void)
         peak |= usr_nz[i];
     check("safe start: user sample slots unusable", peak == 0);
     safe_boot(0);
-    check("normal start: SEQ not held: no safe mode, the same scans", !safe_start && host_scans == FM1_DEBOUNCE + 4u);
+    check("normal start: SEQ not held: no safe mode, the same scans", !safe_start && host_scans == FM1_DEB_RELEASE + 4u);
     {
         panel_t keep = panel;                        /* a recalibrated panel: SEQ on another matrix id */
         uint8_t t = panel.btn[B_SEQ];

@@ -48,7 +48,8 @@ static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static void fm1_irq_off(void) {}
 static void fm1_irq_on(void) {}
 static void fm1_wdt_feed(void) {}
-#define FM1_DEBOUNCE 8u
+#define FM1_DEB_PRESS 2u               /* as hal/fm1_input.h (upstream 1.0) */
+#define FM1_DEB_RELEASE 8u
 static uint32_t host_scans;                          /* the boot's polled scans (tests: SEQ held = fm1_in.buttons) */
 static void fm1_input_scan(void) { host_scans++; }
 #define SCOPE_N 512u

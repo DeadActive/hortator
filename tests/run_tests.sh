@@ -22,6 +22,8 @@ $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
+$CC -o "$OUT/input_test" tests/input_test.c
+run "keys and buttons: fast press, long release, bouncy contacts, glitches; encoders (#23)" "$OUT/input_test"
 $CC -o "$OUT/ota_test" tests/ota_test.c
 run "M-UPGRADE entry" "$OUT/ota_test" "$PKG"
 # the "other app": the first half of this image (the rest erased), so the install must rewrite app sectors

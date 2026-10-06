@@ -170,7 +170,10 @@ def build_loader():
 # ---- app
 
 def build_app():
-    flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
+    # the app without global merging (user decision 2026-10-06): which small statics the compiler merges depends on
+    # the whole program, so the same frozen code would address its data differently here and in the frozen
+    # baseline's build (H2). The update loader keeps CFLAGS as they are (its binary is pinned).
+    flags = [*CFLAGS, "-mllvm", "-enable-global-merge=false", "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
                  "FELUCCA_ICONS", "FELUCCA_SLICE"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c

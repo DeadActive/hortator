@@ -28,6 +28,12 @@ with its own short design.
 - **The update loader is pinned:** a new check compares `build/loader/ota.bin` with the shipped loader
   (sha256 `cc98eed2…`, 6493 B, recorded in `tools/frozen_base.txt` as `LOADER_SHA256`). A step whose hunks would
   change the loader fails this check; moving the pin is the user's decision (like the cost budgets).
+- Both builds compile the app with global merging off (`-mllvm -enable-global-merge=false`, the update loader's
+  flags unchanged; user decision after measuring: +412 B, budgets pass): which small statics the compiler merges
+  depends on the whole program, and with upstream's new statics the frozen code's data addressing no longer lined
+  up between the fork and the baseline build. H2's reviewed inlining entry `ota_send_msg` + `ota_wire_send`
+  records one fact: the callee's pointer argument is `ota_wire` (`ota.c`), with a self-test that a wrong binding
+  fails (user decision).
 - `docs/UPSTREAM_1.0.2.md` gets a table of every frozen-file change: baseline tag, upstream commit, file, hunk,
   why.
 

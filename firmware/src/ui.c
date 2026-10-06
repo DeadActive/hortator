@@ -326,11 +326,11 @@ static void track_select(uint32_t i)
 }
 
 /* power-on, before audio_init (IRQs still off): SEQ held -> safe start. The HAL's polled scan
- * (TIMER4 waits, GPIO only) runs FM1_DEBOUNCE + 4 frames, ~7 ms */
+ * (TIMER4 waits, GPIO only) runs FM1_DEB_RELEASE + 4 frames (the longest debounce, upstream 1.0), ~7 ms */
 static void safe_start_check(void)
 {
     uint32_t k;
-    for (k = 0; k < FM1_DEBOUNCE + 4u; k++)
+    for (k = 0; k < FM1_DEB_RELEASE + 4u; k++)
         fm1_input_scan();
     safe_start = (uint8_t)((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u);
     if (safe_start)

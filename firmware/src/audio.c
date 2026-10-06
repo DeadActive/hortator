@@ -18,6 +18,7 @@ struct felucca_dbg {
     uint32_t prev_stage, prev_page, prev_home, prev_rst, prev_frames;   /* as found at boot */
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
+static volatile uint32_t t5_nested_ticks;              /* TIMER4 ticks TIMER5 spent nested in this ISR (main.c, upstream 1.0) */
 #define SCOPE_N 512u
 static int16_t scope_buf[SCOPE_N];
 static uint32_t scope_w;
@@ -49,6 +50,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
 {
     uint8_t p = fm1_audio_pending();
     uint32_t t0 = fm1_ticks();
+    t5_nested_ticks = 0;
     fm1_audio_ack_aux(p);
     felucca_dbg.in_audio = 1;
     if (p & FM1_AUDIO_HALF) {
@@ -62,7 +64,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             audio_block(o + 2u * b, CTL);
         fm1_audio_ack_half();
         audio_halves++;
-        us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
+        us = (fm1_ticks() - t0 - t5_nested_ticks) / FM1_TICKS_PER_US;   /* the render alone */
         if (us > audio_max_us)
             audio_max_us = us;
         if (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u)
