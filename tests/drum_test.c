@@ -572,7 +572,7 @@ static void test_stress(void)
 }
 
 /* the cost of 8 tracks of model mi kept busy (1/32 at 240 BPM, DECAY 127, every FX), with or without layers */
-static double kit_cost(uint32_t mi, int layers)
+static double kit_cost(uint32_t mi, int layers, int reson)
 {
     uint64_t i0;
     uint32_t i;
@@ -592,6 +592,9 @@ static double kit_cost(uint32_t mi, int layers)
         t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 60;
         t->p[P_SLCR] = 1;
         t->p[P_SDIV] = 3;
+        t->p[P_RMODEL] = (int16_t)(!reson || i >= 4u ? RS_OFF : i < 2u ? RS_CHORD : RS_STRNG);   /* RESON at most:
+                                                         * 4 tracks, 2 of them CHORD */
+        t->p[P_RDECAY] = 127;
         memset(t->step, 0, sizeof t->step);
         t->step[0].on = t->step[1].on = 1;
         t->p[P_SLEN] = 2;
@@ -623,7 +626,7 @@ static void test_cost(void)
         "x...x...x...x..x", "....x.......x...", "....x.......x..x", "x.x.x.x.x.x.x.x.",
         "..x...x...x...x.", "......x....x....", ".x.....x..x.....", "x...............",
     };
-    double ref = cost_ref("ref"), emax = cost_ref("extreme_max"), worst = 0, real, c;
+    double ref = cost_ref("ref"), emax = cost_ref("extreme_max"), rmax = cost_ref("extreme_reson_max"), worst = 0, real, c;
     uint32_t mi, wm = 0, lay, wl_ = 0, i, k;
     uint64_t i0;
 #ifdef DM_QCHECK
@@ -640,6 +643,7 @@ static void test_cost(void)
         t->p[P_DIST] = 40;
         t->p[P_SLCR] = 1;
         t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 40;
+        t->p[P_RMODEL] = (int16_t)(i == 1u ? RS_CHORD : i == 3u ? RS_STRNG : RS_OFF);   /* RESON on 2 tracks */
     }
     transport_req = 1;
     render_mix(0, 0, SECS(0.5));
@@ -648,13 +652,16 @@ static void test_cost(void)
     real = i0 ? (double)(instr_now() - i0) / SECS(4) : 0;
     for (mi = 0; mi < NMODELS; mi++)                 /* the extreme: every model kept busy on 8 tracks */
         for (lay = 0; lay < 2; lay++) {
-            c = kit_cost(mi, (int)lay);
+            c = kit_cost(mi, (int)lay, 0);
             if (c > worst) {
                 worst = c;
                 wm = mi;
                 wl_ = lay;
             }
         }
+    c = kit_cost(wm, (int)wl_, 1);                   /* the same worst kit, every track ringing (2 CHORD) */
+    printf("     extreme kit with RESON on 4 tracks (2 CHORD): %.0f (its own limit %.0f)\n", c, rmax);
+    check("cost: the extreme kit with RESON at most (4 tracks, 2 CHORD) within its recorded limit", !i0 || rmax == 0 || c <= rmax);
     printf("     realistic heavy kit: %.0f host instructions / sample (reference %.0f)\n", real, ref);
     printf("     extreme kit: %.0f (8 x %s%s; limit %.0f, above the reference by design: device shedding)\n", worst,
            N_MODEL[wm], wl_ ? " + layers" : "", emax);

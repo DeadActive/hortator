@@ -233,6 +233,31 @@ static void lfo_kit(uint32_t dest)
 
 static void lfo_wave_bar(uint32_t b) { trk[0].p[P_LFO1 + LF_WAVE] = (int16_t)(b % LW_COUNT); }
 
+/* RESON demos (120 BPM): a kick / snare / hat kit with RESON on the snare and hats */
+static void reson_kit(uint32_t model)
+{
+    uint32_t k;
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    drum_set_model(&trk[1], DM_S909);
+    drum_set_model(&trk[2], DM_HATC);
+    for (k = 0; k < 16u; k += 4u)
+        trk[0].step[k].on = 1;
+    trk[1].step[4].on = trk[1].step[12].on = 1;
+    for (k = 2; k < 16u; k += 4u)
+        trk[2].step[k].on = 1;
+    for (k = 1; k < 3u; k++) {
+        trk[k].p[P_RMODEL] = (int16_t)model;
+        trk[k].p[P_RDECAY] = 96;
+        trk[k].p[P_RMIX] = 90;
+    }
+    trk[2].p[P_RTUNE] = 72;
+}
+static void reson_model_bar(uint32_t b) { trk[1].p[P_RMODEL] = trk[2].p[P_RMODEL] = (int16_t)(RS_STRNG + b % 3u); }
+static void reson_chord_bar(uint32_t b) { trk[1].p[P_RSTRCT] = (int16_t)((b % RS_NCHORD) * 128u / RS_NCHORD + 3u); }
+static void reson_dist_bar(uint32_t b) { trk[1].p[P_DIST] = trk[2].p[P_DIST] = (int16_t)(b & 1u ? 110 : 0); }
+static void reson_none_bar(uint32_t b) { (void)b; }
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -313,5 +338,17 @@ int main(int argc, char **argv)
     write_demo(dir, "lfo_level.wav", LW_COUNT, lfo_wave_bar);
     lfo_kit(10);
     write_demo(dir, "lfo_pan.wav", LW_COUNT, lfo_wave_bar);
+    reson_kit(RS_STRNG);
+    write_demo(dir, "reson_models.wav", 3, reson_model_bar);   /* STRNG, PIPE, CHORD, one bar each */
+    reson_kit(RS_CHORD);
+    write_demo(dir, "reson_chords.wav", 8, reson_chord_bar);   /* a chord type per bar */
+    reson_kit(RS_STRNG);
+    trk[1].p[P_LFO1 + LF_DEST] = 11;                           /* R.TUN: a slow triangle sweep */
+    trk[1].p[P_LFO1 + LF_DEPTH] = 48;
+    trk[1].p[P_LFO1 + LF_WAVE] = LW_TRI;
+    trk[1].p[P_LFO1 + LF_RATE] = 16;                           /* SYNC 2 bars (16 * 17 / 128 = 2) */
+    write_demo(dir, "reson_sweep.wav", 4, reson_none_bar);
+    reson_kit(RS_PIPE);
+    write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);      /* RESON into DIST, every other bar */
     return 0;
 }

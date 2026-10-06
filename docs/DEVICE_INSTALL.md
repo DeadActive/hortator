@@ -142,3 +142,18 @@ Report what you saw first; we'll go through it together.
 - Each WAVE with MORPH turned: SQUAR softer, SAW bent, SINE squarer, TRI from falling to rising, S&H from steps to
   glides; TRIG HIT restarts on each hit, PLAY at PLAY.
 - SAVE / power cycle / LOAD: the LFOs come back; an older project loads with the LFOs off.
+
+
+### RESON (check on the FM-1)
+
+- FX: after SLICER, RESON 1/2 (MODEL TUNE DECAY MIX) and 2/2 (TONE STRCT POS). MODEL STRNG on the snare: each
+  hit rings at TUNE (C3 = a low string); DECAY longer = longer ring; MIX 100 % = only the ring; TONE darker =
+  muted; STRCT = a stretched, bell-ish ring; POS = a hollower / fuller ring.
+- PIPE: a hollow, odd-harmonic tube. CHORD: four strings; on CHORD the second knob of RESON 2/2 is CHORD (OCT …
+  CLUST), the picture shows the notes. A third track cannot take CHORD ("CHORD: 2 TRACKS MAX"); a fifth track
+  cannot take RESON at all ("RESON: 4 TRACKS MAX").
+- LFO DEST R.TUN: the ring's pitch sweeps smoothly; R.DCY / R.MIX / R.TON / R.STR / R.POS move those knobs.
+- Mute a ringing track: the ring stops at once without a click. MODEL OFF: the track sounds as before.
+- CPU: RESON on 4 tracks (2 CHORD) with a dense pattern: GLOBAL -> SYSTEM CPU under 100 %, no crackle (note the
+  CPU % you see: the stress case on the host is above the stock reference, by decision).
+- SAVE / power cycle / LOAD: RESON comes back; an older project loads with RESON OFF.

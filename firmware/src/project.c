@@ -186,7 +186,10 @@ static void project_load(uint32_t slot)
             t->step[i].rat = (uint8_t)(q->rat < 3u ? q->rat : 3u);
         }
     }
-    for (k = 0, i = 0; k < NTRK; k++)                   /* RESON CHORD on 2 tracks at most: the first two keep it */
+    for (k = 0, i = 0; k < NTRK; k++)                   /* RESON on 4 tracks at most: the first four keep it */
+        if (trk[k].p[P_RMODEL] != RS_OFF && ++i > RS_MAXTRK)
+            trk[k].p[P_RMODEL] = RS_OFF;
+    for (k = 0, i = 0; k < NTRK; k++)                   /* CHORD on 2 of them at most: the first two keep it */
         if (trk[k].p[P_RMODEL] == RS_CHORD && ++i > 2u)
             trk[k].p[P_RMODEL] = RS_STRNG;
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);

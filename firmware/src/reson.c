@@ -10,6 +10,7 @@
 #define RS_GMAX 32700                                 /* the loop gain's cap (0.998): never self-oscillating */
 #define RS_FLOOR 2u                                   /* the line's level (int16) under which the ring is over */
 #define RS_FINE 6144                                  /* R.TUN at full DEPTH: 2 octaves, in 1/256 semitone */
+#define RS_MAXTRK 4u                                  /* RESON on 4 tracks at most (CPU; 2 of them CHORD), by user decision */
 static int16_t rs_buf[NTRK][RS_LEN] __attribute__((section(".pool")));
 
 static const int8_t RS_CHORD_IV[RS_NCHORD][4] = {   /* semitones above TUNE, one note per line (N_RCHORD) */
@@ -25,6 +26,14 @@ static uint32_t reson_chords(const track_t *except)   /* tracks with MODEL CHORD
     uint32_t i, n = 0;
     for (i = 0; i < NTRK; i++)
         n += &trk[i] != except && trk[i].p[P_RMODEL] == RS_CHORD;
+    return n;
+}
+
+static uint32_t reson_tracks(const track_t *except)   /* tracks with RESON on (any model), other than except */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NTRK; i++)
+        n += &trk[i] != except && trk[i].p[P_RMODEL] != RS_OFF;
     return n;
 }
 
@@ -103,21 +112,31 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
         ring[i] = 0;
     for (s = 0; s < r->ns; s++) {
         int16_t *ln = buf + s * r->seg;
-        uint32_t li = r->len[s] >> 8, fr = r->len[s] & 255u, w = r->w, seg = r->seg, tap = r->tap[s];
-        int32_t lp = r->lp[s], apx = r->apx[s], apy = r->apy[s], g = r->g[s], k = r->k, a = r->a;
-        for (i = 0; i < n; i++) {
-            uint32_t p0 = w >= li ? w - li : w + seg - li, p1 = p0 ? p0 - 1u : seg - 1u;
-            int32_t x0 = ln[p0], d = x0 + (((ln[p1] - x0) * (int32_t)fr) >> 8), y, v;
+        uint32_t li = r->len[s] >> 8, w = r->w, seg = r->seg, tap = r->tap[s];
+        uint32_t rp = w >= li ? w - li : w + seg - li, tp = w >= tap ? w - tap : w + seg - tap;   /* read, pickup tap */
+        int32_t lp = r->lp[s], apx = r->apx[s], apy = r->apy[s], g = r->g[s], k = r->k, a = r->a, ink = r->kill ? 0 : 1;
+        int32_t fr = (int32_t)(r->len[s] & 255u), x1 = ln[rp ? rp - 1u : seg - 1u];   /* the older neighbour */
+        for (i = 0; i < n; i++) {                     /* 32-bit: |d - lp| < 2^16, |lp - apy| >> 2 and y >> 1 < 2^15 */
+            int32_t x0 = ln[rp], d = x0 + (((x1 - x0) * fr) >> 8), y, v;
+            x1 = x0;                                  /* (the write position is li >= 2 samples ahead: never read) */
             lp += ((d - lp) * k) >> 15;
-            y = (int32_t)(((int64_t)(lp - apy) * a) >> 15) + apx;
+            if (a) {                                  /* STRCT: the all-pass; at 0 a plain sample of delay */
+                y = ((((lp - apy) >> 2) * a) >> 13) + apx;
+                apy = y;
+            } else {
+                y = apx;
+            }
             apx = lp;
-            apy = y;
-            v = clamp((r->kill ? 0 : b[i] >> 2) + (int32_t)(((int64_t)y * g) >> 15), -32767, 32767);
-            ring[i] += tap ? v - ln[w >= tap ? w - tap : w + seg - tap] : v;
+            v = clamp(((b[i] >> 2) & -ink) + (((y >> 1) * g) >> 14), -32767, 32767);
+            ring[i] += tap ? v - ln[tp] : v;
             ln[w] = (int16_t)v;
-            peak = (uint32_t)(v < 0 ? -v : v) > peak ? (uint32_t)(v < 0 ? -v : v) : peak;
+            peak |= (uint32_t)(v ^ (v >> 31));          /* >= the largest |v| (the floor test only) */
             if (++w == seg)
                 w = 0;
+            if (++rp == seg)
+                rp = 0;
+            if (++tp == seg)
+                tp = 0;
         }
         r->lp[s] = lp;
         r->apx[s] = apx;
@@ -130,7 +149,7 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
             o = (int32_t)(((int64_t)o * fade) >> 15);
             fade = fade > fstep ? fade - fstep : 0;
         }
-        b[i] += (int32_t)(((int64_t)(o - b[i]) * mix) >> 15);
+        b[i] += (((o - b[i]) >> 5) * mix) >> 10;     /* |o - b| < 2^20: 32-bit */
     }
     r->peak = (uint16_t)peak;
     r->quiet = (uint16_t)(peak < RS_FLOOR ? r->quiet + 1u : 0u);

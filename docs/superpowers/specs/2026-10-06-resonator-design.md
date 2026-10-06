@@ -44,7 +44,8 @@ User decisions (brainstorming):
   is derived from it and capped just below 1 at the top (almost self-sustaining, never growing).
 - **TONE:** the damping filter's cutoff in the loop (dark, muted … bright, metallic).
 - **STRCT** (STRNG, PIPE): stiffness — a first-order all-pass in the loop stretches the overtones (string →
-  bell-ish / metal bar-ish). On CHORD this knob is **CHORD** (below).
+  bell-ish / metal bar-ish); its coefficient at STRCT max is set per note (a generated table: ~50 cents on the 4th
+  partial from C2 up, less at C1), so STRCT acts alike at every pitch. On CHORD this knob is **CHORD** (below).
 - **POS:** the pickup position — the output is the sum of two taps of the line (at 0 and at POS × the length),
   which thins out harmonics like a pickup along a string; no extra memory.
 - **CHORD types** (4 notes, one per string, above TUNE; a triad's 4th string is the root an octave up):
@@ -62,6 +63,8 @@ User decisions (brainstorming):
 - **RESON 1/2:** `MODEL` (OFF, STRNG, PIPE, CHORD), `TUNE` (C1 … C7, semitones), `DECAY` (ms / s), `MIX` (%).
 - **RESON 2/2:** `TONE`, `STRCT` (on CHORD: `CHORD` with the chord names), `POS`.
 - Defaults: MODEL OFF, TUNE C3, DECAY middle (~0.5 s), MIX 50 %, TONE bright-ish, STRCT 0, POS middle.
+- **RESON cap** (user decision after measuring the cost): RESON on at most **4 tracks** at a time. On a 5th track the
+  MODEL knob stays OFF and the screen says `RESON: 4 TRACKS MAX`; a loaded project keeps the first four.
 - **CHORD cap:** at most 2 tracks with MODEL CHORD. On a 3rd track the MODEL knob skips CHORD and the screen says
   `CHORD: 2 TRACKS MAX`; switching a CHORD track to another model frees its place at once. A loaded project with
   more than 2 CHORD tracks: the first two keep CHORD, the others play as STRNG.
@@ -92,10 +95,11 @@ User decisions (brainstorming):
 
 ## 6. Cost and safety
 
-- Estimates (host instructions per sample per track while it rings): STRNG / PIPE ~20, CHORD ~80. Worst case to
-  measure: all 8 tracks ringing, 2 of them CHORD, every FX on — against `tests/drum_cost_ref.txt` (realistic
-  heavy kit within `ref`, the extreme case within `extreme_max`). If it goes over, Claude stops and asks the user
-  with the numbers.
+- Measured (host instructions per sample per ringing track, the resonator alone): STRNG / PIPE ~67, CHORD ~207;
+  a ringing track also keeps its FX chain running. The realistic heavy kit with RESON on 2 tracks (CHORD + STRNG)
+  stays within `ref`. The extreme kit with RESON at its caps (4 tracks, 2 CHORD, DECAY max) measured 3060: by user
+  decision it has its own limit `extreme_reson_max` (3370, +10 %) in `tests/drum_cost_ref.txt`; `ref` and
+  `extreme_max` are unchanged (the stress case sheds voices on the device).
 - The target cost check (`tests/target_budget.txt`) gets a line for the resonator's per-sample loop.
 - Integer only, no float, no 64-bit division; bounded loops; the loop gain is capped below 1 and the line
   values are clamped, so the ring cannot run away; the idle cost (all MODEL OFF) stays within H4.

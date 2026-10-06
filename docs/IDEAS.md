@@ -67,7 +67,6 @@ reference for the structure; it uses floating point, so this would be a port to 
 - **LFO polish (deferred minors from the LFO review):**
   - when both LFOs target the same knob, the EDIT marker shows only LFO 1;
   - SYNC rates drift slowly against the sequencer (integer rounding);
-  - the routing line shows "OFF" for a DEST the engine lacks (should be "--");
   - untested: a tempo change while playing, corrupt saved LFO fields, white-key select on the LFO pages.
 - **Target cost budget:** the audio ISR measures about 8800 against its 15188 budget (−42 %); lowering the
   budget to the measured value would tighten the check; not decided yet.

@@ -1069,14 +1069,29 @@ static void test_reson_pages(void)
     turn(EN_K1, 1);
     ui_frame();
     check("RESON CHORD cap: once a place frees, the 3rd track gets CHORD", trk[2].p[P_RMODEL] == RS_CHORD);
-    for (k = 0; k < NTRK; k++)                       /* a project with 8 CHORD tracks loads with 2 */
+    for (k = 0; k < NTRK; k++)                       /* RESON on 4 tracks at most: a 5th track's knob stays OFF */
+        trk[k].p[P_RMODEL] = (int16_t)(k < 4u ? RS_STRNG : RS_OFF);
+    keys(1u << KEY_TRK_KEY[4]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON on 4 tracks at most: a 5th track's MODEL knob stays OFF, with the message",
+          song.sel == 4 && trk[4].p[P_RMODEL] == RS_OFF && str_eq(ui.msg, "RESON: 4 TRACKS MAX"));
+    trk[0].p[P_RMODEL] = RS_OFF;                     /* a place frees */
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON on 4 tracks at most: once a place frees, the 5th gets it", trk[4].p[P_RMODEL] == RS_STRNG);
+    for (k = 0; k < NTRK; k++)                       /* a project with 8 CHORD tracks loads with 2 CHORD + 2 STRNG */
         trk[k].p[P_RMODEL] = RS_CHORD;
     project_save(0);
     project_load(0);
     for (k = 0, n = 0; k < NTRK; k++)
         n += trk[k].p[P_RMODEL] == RS_CHORD;
-    check("RESON CHORD cap on load: the first two keep CHORD, the others play STRNG",
-          n == 2u && trk[0].p[P_RMODEL] == RS_CHORD && trk[1].p[P_RMODEL] == RS_CHORD && trk[7].p[P_RMODEL] == RS_STRNG);
+    check("RESON caps on load: the first two keep CHORD, the next two play STRNG, the rest OFF (4 tracks at most)",
+          n == 2u && trk[0].p[P_RMODEL] == RS_CHORD && trk[1].p[P_RMODEL] == RS_CHORD && trk[2].p[P_RMODEL] == RS_STRNG &&
+              trk[3].p[P_RMODEL] == RS_STRNG && trk[4].p[P_RMODEL] == RS_OFF && trk[7].p[P_RMODEL] == RS_OFF);
     memset(&proj_slot[0], 0, sizeof proj_slot[0]);  /* the slot empty again for the project tests */
 }
 

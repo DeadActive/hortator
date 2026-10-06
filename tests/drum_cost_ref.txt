@@ -9,3 +9,7 @@ extreme_max 2627
 # upstream Felucca's idle mix (its tests/cpu_baseline.txt, cpu/mix/idle, host instructions / sample): the
 # first seconds of the drum firmware stay within 1.25 x of it (device-readiness spec H4)
 upstream_idle 286
+# extreme with RESON at its caps (4 tracks, 2 of them CHORD, DECAY max) on the extreme kit = 3060 measured
+#          (2026-10-06, after optimizing reson.c); by the user's decision a separate limit (+10 %): the stress case
+#          sheds voices on the device; the realistic heavy kit with RESON on 2 tracks stays within ref.
+extreme_reson_max 3370
