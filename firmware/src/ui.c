@@ -57,6 +57,8 @@ static struct {
     uint8_t tr_h, tr_n;
     uint32_t tr_ph, tr_key, tr_frame;   /* the phase at the last point; what the trail is of; the frame it was fed */
     uint8_t persist_pending;     /* a settings save asked for while playing: written once stopped (project.c) */
+    uint32_t fx_t0;              /* PERFORM: FX's press time | FX_DOWN / FX_OPEN / FX_DEAD (ui_input.c fx_layer) */
+    uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }

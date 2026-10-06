@@ -15,6 +15,11 @@ static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
 static uint32_t fb_lit(uint32_t y0, uint32_t y1);
 static void tap(uint32_t b);
+static int led_on(uint32_t id)                       /* the LED of button / key id (ui_leds' last frame) */
+{
+    uint32_t q = led_pos[id];
+    return q != 0xFF && ((fm1_led[q >> 3] >> (q & 7u)) & 1u);
+}
 
 static void test_families(void)
 {
@@ -28,6 +33,7 @@ static void test_families(void)
         press(MAP[i].btn);
         ui_frame();
         release_all();
+        ui_frame();                                  /* (FX opens its pages on the release) */
         ok &= !ui.home && cur_page()->fam == MAP[i].fam;
     }
     check("buttons open their page families (EDIT SOUND, FX, SEQ, GLO, SAVE, ARP GRIDS, LFO LFO)", ok);
@@ -136,6 +142,7 @@ static void test_model_swap(void)
     press(B_FX);
     ui_frame();
     release_all();
+    ui_frame();
     turn(EN_PRESET, 1);
     ui_frame();
     check("PRESET elsewhere (FX page) leaves the model alone", (uint32_t)trk[0].p[P_MODEL] == m0);
@@ -475,6 +482,7 @@ static void test_comp_pages(void)
         press(B_FX);
         ui_frame();
         release_all();
+        ui_frame();
         fx_comp |= !ui.home && cur_page()->graph == GR_COMP;
     }
     check("FX no longer reaches COMP", !fx_comp);
@@ -1446,6 +1454,7 @@ static void test_screens(void)
             }
             ui_frame();
             release_all();
+            ui_frame();                              /* (FX opens its pages on the release) */
         }
         reach &= cur_page() == pg && !ui.home;
         snprintf(name, sizeof name, "%02u_", (unsigned)++n);
@@ -2027,6 +2036,105 @@ static void test_clock_screens(void)
     render_mix(0, 0, CTL);
 }
 
+/* PERFORM: FX tapped opens its pages on the release; held, the layer (keys, knobs, LEDs) */
+static uint32_t fx_bit(void) { return 1u << panel.btn[B_FX]; }
+static void fx_hold_frames(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        fm1_in.buttons |= fx_bit();
+        ui_frame();
+    }
+}
+static void test_perform_gesture(void)
+{
+    uint32_t fam;
+    ui_host_init();
+    press(B_FX);
+    ui_frame();
+    check("FX pressed: nothing yet (the page waits for the release)", ui.home);
+    release_all();
+    ui_frame();
+    check("FX tapped: the FX pages on the release", !ui.home && cur_fam() == FAM_FX && !ui.layer);
+    fam = cur_page() - PAGES;
+    press(B_FX);
+    fx_hold_frames(500);                              /* well past 0.4 s (1 ms a frame) */
+    check("FX held alone: the layer's map", ui.layer == 1u);
+    release_all();
+    ui_frame();
+    check("FX let go after the hold: no page change, the map gone", (uint32_t)(cur_page() - PAGES) == fam && !ui.layer);
+    press(B_FX);
+    ui_frame();
+    turn(EN_K2, 5);
+    fx_hold_frames(1);
+    check("FX + KNOB 2: CRUSH, the layer open at once", perf_k[1] > 0 && ui.layer == 1u);
+    release_all();
+    ui_frame();
+    check("FX let go: the macros back to off, no page change", !perf_k[1] && (uint32_t)(cur_page() - PAGES) == fam);
+}
+
+static void test_perform_keys(void)
+{
+    uint32_t sel;
+    ui_host_init();
+    sel = song.sel;
+    press(B_FX);
+    ui_frame();
+    keys(1u << 4);                                    /* A3: track 3's key */
+    fx_hold_frames(2);                                /* (the render takes the key after the UI's pass) */
+    check("FX + a track key: no track select, the layer open, track 3 muted",
+          song.sel == sel && ui.layer == 1u && ((perf_held >> (PF_M1 + 2u)) & 1u));
+    check("LEDs: the muted track's key dark", !led_on(14u + 4u));
+    keys(0);
+    fx_hold_frames(1);
+    release_all();
+    ui_frame();
+    check("all let go: nothing held, the map gone", !perf_held && !ui.layer);
+    seq_open("STEP");                                 /* the STEP grid: FX + a white key toggles no step */
+    {
+        step_t s0 = TSEL->step[0];
+        press(B_FX);
+        ui_frame();
+        keys(1u << 0);
+        fx_hold_frames(1);
+        keys(0);
+        fx_hold_frames(1);
+        release_all();
+        ui_frame();
+        check("STEP grid: FX + a white key toggles no step", TSEL->step[0].on == s0.on);
+    }
+}
+
+/* Review Focus 3 */
+static void test_perform_menu_kills(void)
+{
+    uint32_t i;
+    ui_host_init();
+    press(B_FX);
+    ui_frame();
+    keys(1u << 3);                                    /* G#3: REPEAT 1/16 */
+    fx_hold_frames(1);
+    check("REPEAT held in the layer", (perf_held >> PF_R16) & 1u);
+    release_all();
+    for (i = 0; i < 1000u && !ui.menu; i++) {         /* HOME held: the menu */
+        fm1_in.buttons |= 1u << panel.btn[B_HOME];
+        ui_frame();
+    }
+    release_all();
+    ui_frame();                                       /* (the next pass sees the menu: 1 ms) */
+    check("the menu opened with an effect key held: effects off, the key still the layer's",
+          ui.menu && perf_kill && !perf_act && (kb_layer >> 3) & 1u);
+    keys(0);
+    ui_frame();
+    check("the key let go: nothing held", !perf_held && !kb_layer);
+    release_all();
+    ui_frame();
+    menu_close();
+    ui_frame();
+    ui_frame();
+    check("menu closed, no key held: effects allowed again", !perf_kill);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2074,6 +2182,9 @@ int main(void)
     test_div_order();
     test_usb_level();
     test_clock_screens();
+    test_perform_gesture();
+    test_perform_keys();
+    test_perform_menu_kills();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
