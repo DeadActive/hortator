@@ -4,7 +4,7 @@
 /* Parameter descriptions and value formatting. P_E0..P_E7 are described by the track's model. */
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/2", "1/1", "2BAR", "4BAR"};   /* ids fixed: slow rates appended */
 static const char *const N_ONOFF[] = {"OFF", "ON"};
-static const char *const N_CLOCK[] = {"INT"};
+static const char *const N_CLOCK[] = {"INT", "USB", "TRS"};   /* G_CLOCK: = the input ring's source (1 USB, 2 TRS) */
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
 static const char *const N_GO[] = {"--", "GO"};

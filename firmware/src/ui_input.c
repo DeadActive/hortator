@@ -182,6 +182,10 @@ static void edit_param(uint32_t slot, int32_t steps)
     d = page_desc(pg, slot, &vp);
     if (!d || !vp || d->max == d->min)
         return;
+    if (pg->scope == SC_GLOBAL && id == G_BPM && song.g[G_CLOCK]) {
+        ui_message(song.g[G_CLOCK] == 1 ? "CLK USB" : "CLK TRS");
+        return;
+    }
     v = param_turn(d, *vp, accel(EN_K1 + slot, steps, d->max - d->min));
     if (pg->scope == SC_TRACK && id == P_RMODEL && v != RS_OFF && *vp == RS_OFF && reson_tracks(TSEL) >= RS_MAXTRK) {
         ui_message("RESON: 4 TRACKS MAX");            /* RESON on 4 tracks at most (CPU) */
@@ -409,8 +413,12 @@ static void ui_input(void)
     if ((s = panel_enc(EN_ALGO)) != 0)
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
     if ((s = panel_enc(EN_SELECT)) != 0) {
-        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-        ui.bpm_t = 40;
+        if (song.g[G_CLOCK])                         /* following a clock: its tempo, not the knob */
+            ui_message(song.g[G_CLOCK] == 1 ? "CLK USB" : "CLK TRS");
+        else {
+            song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
+            ui.bpm_t = 40;
+        }
     }
     for (k = 0; k < 4u; k++) {
         const page_t *pg = cur_page();
