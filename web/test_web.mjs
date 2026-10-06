@@ -525,8 +525,8 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 
 /* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image */
 class FakeFM1 {
-  constructor(image, { unplugAfter = Infinity } = {}) {
-    this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0;
+  constructor(image, { unplugAfter = Infinity, after = "FM-1_900" } = {}) {
+    this.image = image; this.unplugAfter = unplugAfter; this.after = after; this.served = 0; this.bad = 0;
     this.access = { inputs: new Map(), outputs: new Map() };
     this.boot("FM-1_015", "FM-1");
   }
@@ -563,7 +563,7 @@ class FakeFM1 {
       this.served++;
       if (this.served >= this.unplugAfter) { this.input.state = this.output.state = "disconnected"; return; }
       if (addr === 0xE0000000) setTimeout(() => this.boot("ota-FM-1_900", "Felucca Update"), 300);
-      else if (addr === 0xF0000000) setTimeout(() => this.boot("FM-1_900", "Felucca"), 300);
+      else if (addr === 0xF0000000) setTimeout(() => this.boot(this.after, "Felucca"), 300);
       else this.next();
     }
   }
@@ -599,6 +599,22 @@ async function updater() {
   ok(e && e.code === "lost", "fm1ota.js: unplugged in step 1 -> error code 'lost'");
   const e2 = await new Updater({ inputs: new Map(), outputs: new Map() }).install(image, "FM-1_900").then(() => null, (x) => x);
   ok(e2 && e2.code === "notfound", "fm1ota.js: no device -> error code 'notfound'");
+
+  // upstream 1.0: resume waits for the device after the write and checks it reports the package's identity
+  const dev4 = new FakeFM1(image);
+  dev4.boot("ota-FM-1_900", "Felucca Update");
+  const st4 = [];
+  const r4 = await new Updater(dev4.access).resume(image, (k) => st4.push(k), "FM-1_900");
+  ok(r4 === true && st4.includes("reboot") && st4.at(-1) === "done", "fm1ota.js: resume waits for the reboot and checks the identity");
+  const dev5 = new FakeFM1(image, { after: "FM-1_901" });
+  dev5.boot("ota-FM-1_900", "Felucca Update");
+  const e5 = await new Updater(dev5.access).resume(image, null, "FM-1_900").then(() => null, (x) => x);
+  ok(e5 && e5.code === "mismatch", "fm1ota.js: resume -> another identity after the reboot is error 'mismatch'");
+  // upstream 1.0: an FM-1 input is never paired with "the only output" of another name (that may be other gear)
+  const dev6 = new FakeFM1(image);
+  dev6.output.name = "Other gear";
+  const e6 = await new Updater(dev6.access).install(image, "FM-1_900").then(() => null, (x) => x);
+  ok(e6 && e6.code === "notfound" && dev6.served === 0, "fm1ota.js: no same-named output -> not paired with the only output");
 }
 
 await editorMock();
