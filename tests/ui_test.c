@@ -1974,6 +1974,37 @@ static void test_div_order(void)
     settings.accel = 1;
 }
 
+/* MENU > USB LEVEL (USB audio): KNOB 1 right FIXED / left MASTER, OCT+ toggles; the mix follows (fx_usb_fixed); the
+ * menu's eight rows for the user's eye */
+static void test_usb_level(void)
+{
+    uint32_t ok = 1;
+    ui_host_init();
+    settings.usbfix = 0;
+    fx_usb_fixed = 0;
+    ui.menu = 1;
+    ui.menu_sel = MI_USB;
+    ui.force = 1;
+    turn(EN_K1, 1);
+    ui_frame();
+    ok &= settings.usbfix == 1 && fx_usb_fixed == 1;
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= settings.usbfix == 0 && fx_usb_fixed == 0;
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= settings.usbfix == 1 && fx_usb_fixed == 1;
+    check("USB LEVEL: KNOB 1 right FIXED / left MASTER, OCT+ toggles; the mix follows", ok);
+    ui.force = 1;
+    snap_page("menu_usb_level");
+    settings.usbfix = 0;
+    fx_usb_fixed = 0;
+    ui.menu = 0;
+    ui.force = 1;
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2019,6 +2050,7 @@ int main(void)
     test_speaker_eq();
     test_reverb_pages();
     test_div_order();
+    test_usb_level();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

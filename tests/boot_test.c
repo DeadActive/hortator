@@ -173,6 +173,33 @@ static int mutebar_persists(void)
     return ok;
 }
 
+/* USB LEVEL (MENU): FIXED survives a power cycle in bit 3 of the stored zoom word; MASTER when it is clear (a 0.7.0
+ * save); the other settings read back unchanged */
+static int usb_level_persists(void)
+{
+    int ok = 1;
+    uint32_t u;
+    for (u = 0; u < 2u; u++) {
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = 2;
+        settings.lowcut = 2;
+        settings.zoom = 1;
+        settings.mutebar = 1;
+        settings.accel = 0;
+        settings.usbfix = u;
+        settings_save();
+        rfill(&settings, sizeof settings);           /* power off: .noinit is anything */
+        persist_boot();
+        settings_init();
+        ok &= settings.usbfix == u && fx_usb_fixed == u && settings.palette == 2 && settings.lowcut == 2 &&
+              settings.zoom == 1 && settings.mutebar == 1 && settings.accel == 0;
+    }
+    return ok;
+}
+
 /* a settings record longer than ours (another firmware's, same marker): the defaults, not a half-read record */
 static int settings_oversize_refused(void)
 {
@@ -424,6 +451,7 @@ int main(void)
     check("project: FDR7 keeps the reverb TYPE", fdr7_round_trip());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
+    check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());
     check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)

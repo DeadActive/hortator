@@ -1,19 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, ABOUT. */
+/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, ABOUT. */
 /* ------------------------------------------------------------ menu --- */
-enum { MI_COLOR, MI_SPKEQ, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "ZOOM", "ACCEL", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "ZOOM", "ACCEL", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
-    return i == MI_ZOOM ? &settings.zoom : i == MI_ACCEL ? &settings.accel : 0;
+    return i == MI_USB ? &settings.usbfix : i == MI_ZOOM ? &settings.zoom : i == MI_ACCEL ? &settings.accel : 0;
 }
 
 static void draw_menu(void)
 {
     uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
-                            settings.zoom * 104729u + settings.accel * 15485863u;
+                            settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u;
     if (!ui.force && sig == ui.menu_sig)
         return;
     ui.menu_sig = sig;
@@ -42,13 +42,13 @@ static void draw_menu(void)
             cv_text(4, 185, &FONT_S, "UNTESTED ON HARDWARE", C_DIM);
         } else {
             for (i = 0; i < MI_COUNT; i++) {
-                int32_t y = 4 + (int32_t)i * 24;
+                int32_t y = 4 + (int32_t)i * 20;   /* eight rows above the hints */
                 int sel = i == ui.menu_sel;
                 if (sel)
                     cv_rect(4, y + 6, 3, 3, C_WHITE);
                 cv_text(14, y, &FONT_S, MI_NAME[i], sel ? C_WHITE : C_GRAY);
                 if (menu_onoff(i))
-                    cv_text(102, y, &FONT_S, *menu_onoff(i) ? "ON" : "OFF", C_HI);
+                    cv_text(102, y, &FONT_S, i == MI_USB ? (*menu_onoff(i) ? "FIXED" : "MASTER") : *menu_onoff(i) ? "ON" : "OFF", C_HI);
                 if (i == MI_SPKEQ)
                     cv_text(102, y, &FONT_S, SPK_EQ[settings.lowcut % 3u], C_HI);
                 if (i == MI_COLOR) {
@@ -112,6 +112,7 @@ static void menu_input(uint32_t pressed)
         /* KNOB 1: right = ON, left = OFF; OCT+ toggles */
         uint32_t *v = menu_onoff(ui.menu_sel);
         *v = s > 0 ? 1u : s < 0 ? 0u : !*v;
+        fx_usb_fixed = (uint8_t)settings.usbfix;
         ok = 0;
     }
     if (ok && ui.menu == 1) {
