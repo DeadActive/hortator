@@ -392,7 +392,7 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 .power-toggle, .power-label { position: absolute; left: 0; top: 0; }
 .power-toggle {
   width: 46px; height: 26px; padding: 0; border-radius: 999px; cursor: pointer;
-  background: rgba(233,235,238,.12); border: 1.5px solid rgba(233,235,238,.75); transition: background .2s, border-color .2s;
+  background: #24282d; border: 1.5px solid rgba(233,235,238,.75); transition: background .2s, border-color .2s;   /* opaque: the line ends under it */
 }
 .power-toggle .knob { position: absolute; left: 3px; top: 3px; width: 17px; height: 17px; border-radius: 50%;
   background: #e9ebee; transition: transform .2s cubic-bezier(.3,.7,.3,1), background .2s; }
@@ -406,12 +406,9 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 .power-toggle:disabled { cursor: progress; opacity: .6; }
 .power-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .power-label { font-size: 13px; color: #c5c9cf; white-space: nowrap; pointer-events: none; }
-.power-lead { position: absolute; border-top: 1px solid rgba(233,235,238,.5); border-left: 1px solid rgba(233,235,238,.5);
-  pointer-events: none; }
-.power-lead.left { border-left: 0; border-right: 1px solid rgba(233,235,238,.5); }
-.power-lead::after { content: ""; position: absolute; bottom: -3px; left: -3.5px; width: 6px; height: 6px; border-radius: 50%;
-  background: #e9ebee; }
-.power-lead.left::after { left: auto; right: -3.5px; }
+.power-lead { position: absolute; width: 1px; margin-left: -0.5px; background: rgba(233,235,238,.5); pointer-events: none; }
+.power-lead::after { content: ""; position: absolute; left: -2.5px; bottom: -3px; width: 6px; height: 6px; border-radius: 50%;
+  background: #e9ebee; }                         /* the dot where the FM-1 has its switch */
 
 /* "more below": while the simulator holds the screen, a cue that the page goes on */
 .more-cue {

@@ -435,14 +435,13 @@ function placePower() {
   const k = fr.width / parseFloat(device.style.width);                         // the device's scale on screen
   const sx = fr.left + (powerAt[0] + powerAt[2] / 2) * k - st.left, sy = fr.top - st.top;   // the spot on its top edge
   const tw = els.power.offsetWidth, th = els.power.offsetHeight, lw = powerLabel.offsetWidth;
-  const right = sx + 56 + tw + 10 + lw <= st.width - 16;                       // to the right if it fits, else left
+  const tx = sx - tw / 2;                                                     // straight above the spot
+  const right = tx + tw + 10 + lw <= st.width - 16;                            // the label right of it if it fits
   const ty = Math.max(56, sy - 34 - th / 2), my = ty + th / 2;
-  const tx = right ? sx + 56 : sx - 56 - tw;
   els.power.style.transform = `translate(${tx}px, ${ty}px)`;
   powerLabel.style.transform = `translate(${right ? tx + tw + 10 : tx - 10 - lw}px, ${my - powerLabel.offsetHeight / 2}px)`;
-  powerLead.classList.toggle('left', !right);
-  Object.assign(powerLead.style, { left: `${right ? sx : tx + tw}px`, top: `${my}px`,
-    width: `${Math.abs((right ? tx : tx + tw) - sx)}px`, height: `${Math.max(0, sy - my)}px` });
+  Object.assign(powerLead.style, {                  // a vertical line from the edge up to the switch's centre (it ends
+    left: `${sx}px`, top: `${my}px`, height: `${Math.max(0, sy - my)}px` });   // under the switch, which is opaque)
 }
 function queueHero() { if (!heroQueued) { heroQueued = true; requestAnimationFrame(heroFrame); } }
 
