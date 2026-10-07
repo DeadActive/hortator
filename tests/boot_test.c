@@ -356,7 +356,7 @@ static int fdr5_converts(void)
     v.g[G_CSRC] = 1;
     v.g[G_CMKUP] = 77;
     for (k = 0; k < NTRK; k++)
-        for (i = 0; i < P_COUNT; i++)
+        for (i = 0; i < P_FTYPE; i++)
             v.t[k].p[i] = trk[k].p[i];
     v.t[2].p[P_RMODEL] = RS_PIPE;
     v.t[2].step[5].on = 1;
@@ -384,7 +384,7 @@ static int fdr6_converts(void)
     v.g[G_CGHOST] = CG_HIDE;
     v.g[G_RSIZE] = 33;
     for (k = 0; k < NTRK; k++)
-        for (i = 0; i < P_COUNT; i++)
+        for (i = 0; i < P_FTYPE; i++)
             v.t[k].p[i] = trk[k].p[i];
     v.t[4].step[7].on = 1;
     v.sum = proj_hash(&v, sizeof v - 4u);
@@ -440,7 +440,7 @@ static int fdr7_converts(void)
         v.g[i] = song.g[i];
     v.g[G_RTYPE] = 1;
     for (k = 0; k < NTRK; k++)
-        for (i = 0; i < P_COUNT; i++)
+        for (i = 0; i < P_FTYPE; i++)
             v.t[k].p[i] = trk[k].p[i];
     v.t[2].step[9].on = 1;
     v.sum = proj_hash(&v, sizeof v - 4u);
@@ -487,7 +487,7 @@ static int fdr8_load_while_playing(void)
         render_mix(L, R, CTL);                       /* the stop the load asked for */
     return !song.playing && trk[0].p[P_E1] == 11;
 }
-/* FDR9: the song and the name go through a save and a load (flash) */
+/* the song and the name go through a save and a load (flash; FDRA) */
 static int fdr9_round_trip(void)
 {
     memset(hflash, 0xFF, sizeof hflash);
@@ -505,7 +505,74 @@ static int fdr9_round_trip(void)
     project_load(2);
     return chain.cfg.count == 2u && chain.cfg.loop == 1u && chain.cfg.row[0].slot == 1u &&
            chain.cfg.row[0].repeat == 4u && chain.cfg.row[1].slot == 3u && chain.cfg.row[1].repeat == 16u &&
-           str_eq(chain.name, "BREAK 2") && chain.from == 3u && sizeof(project_t) == 3592u;
+           str_eq(chain.name, "BREAK 2") && chain.from == 3u && sizeof(project_t) == 3672u;
+}
+/* an FDR9 record (3592 B): its values, steps, motion, song and name; the filter OFF */
+static int fdr9_converts(void)
+{
+    project_v9_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V9;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_FTYPE; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[1].p[P_E1] = 99;
+    v.t[2].step[9].on = 1;
+    v.motion.count = 1;
+    v.motion.on = 1;
+    v.motion.ev[0] = (motion_event_t){0, 4, P_E1, 77};
+    v.song.count = 1;
+    v.song.row[0] = (chain_row_t){2, 3};
+    memcpy(v.name, "OLD ONE", 7);
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    trk[0].p[P_FTYPE] = FT_LP;                       /* before: the load sets the filter OFF */
+    project_load(1);
+    return sizeof v == 3592u && trk[1].p[P_E1] == 99 && trk[2].step[9].on && mo.s.count == 1u &&
+           chain.cfg.count == 1u && chain.cfg.row[0].slot == 2u && str_eq(chain.name, "OLD ONE") &&
+           trk[0].p[P_FTYPE] == FT_OFF && trk[0].p[P_FCUT] == 127 && trk[0].p[P_FDEC] == 40;
+}
+/* FDRA: the five filter knobs through a save and a load (flash) */
+static int fdra_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[5].p[P_FTYPE] = FT_NOTCH;
+    trk[5].p[P_FCUT] = 33;
+    trk[5].p[P_FRESO] = 101;
+    trk[5].p[P_FENV] = -17;
+    trk[5].p[P_FDEC] = 90;
+    project_save(3);
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(3);
+    return trk[5].p[P_FTYPE] == FT_NOTCH && trk[5].p[P_FCUT] == 33 && trk[5].p[P_FRESO] == 101 &&
+           trk[5].p[P_FENV] == -17 && trk[5].p[P_FDEC] == 90;
+}
+/* Review Focus 4: out-of-range filter values in a stored project: clamped on load */
+static int fdra_clamps(void)
+{
+    project_t *p = &proj_slot[0];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    project_save(0);
+    p->t[4].p[P_FTYPE] = 9;
+    p->t[4].p[P_FCUT] = 300;
+    p->t[4].p[P_FENV] = -200;
+    p->sum = proj_sum(p);
+    project_load(0);
+    return trk[4].p[P_FTYPE] == FT_N - 1 && trk[4].p[P_FCUT] == 127 && trk[4].p[P_FENV] == -64;
 }
 /* an FDR8 record (3544 B): its motion, an empty song, no name */
 static int fdr8_converts(void)
@@ -520,7 +587,7 @@ static int fdr8_converts(void)
     for (i = 0; i < G_COUNT; i++)
         v.g[i] = song.g[i];
     for (k = 0; k < NTRK; k++)
-        for (i = 0; i < P_COUNT; i++)
+        for (i = 0; i < P_FTYPE; i++)
             v.t[k].p[i] = trk[k].p[i];
     v.t[2].step[9].on = 1;
     v.motion.count = 1;
@@ -681,7 +748,10 @@ int main(void)
     check("project: an FDR7 record (3028 B) loads with no motion", fdr7_converts());
     check("project: a broken motion block is dropped, the project loads", fdr8_bad_motion_dropped());
     check("project: a load while motion plays: the old base is not put back", fdr8_load_while_playing());
-    check("project: FDR9 keeps the song and the name through a save and a load", fdr9_round_trip());
+    check("project: FDRA keeps the song and the name through a save and a load", fdr9_round_trip());
+    check("project: an FDR9 record loads, the filter OFF", fdr9_converts());
+    check("project: FDRA keeps the five filter knobs through a save and a load", fdra_round_trip());
+    check("project: out-of-range filter values are clamped on load", fdra_clamps());
     check("project: an FDR8 record (3544 B) loads with its motion, no song, no name", fdr8_converts());
     check("project: a broken song or name is dropped, the project loads", fdr9_bad_song_name_dropped());
     check("song: an empty slot refused; a slot's garbage made safe (ASan)", song_garbage_slot());

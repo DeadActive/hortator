@@ -3,13 +3,14 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDR9": the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every parameter and its
- * 64 steps (with PROB / RATCH, DUCK, the COMP settings, the LFOs, RESON), the motion (motion.c, 128 events), the song
- * and the project's name (song.c).
+ * Format "FDRA" (the 10th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
+ * parameter and its 64 steps (with PROB / RATCH, DUCK, the COMP settings, the LFOs, RESON, the FILTER), the motion
+ * (motion.c, 128 events), the song and the project's name (song.c).
  * M1's "FDR1", M2's "FDR2", M3's "FDR3", the LFOs' "FDR4" RESON's "FDR5", GHOST's "FDR6", the sound pack's
- * "FDR7" and motion's "FDR8" records (in flash) are converted on load.
+ * "FDR7", motion's "FDR8" and the song's "FDR9" records (in flash) are converted on load (the FILTER OFF).
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x39524446u                 /* "FDR9": + the song and the name (song.c) */
+#define PROJ_MAGIC 0x41524446u                 /* "FDRA" (the 10th): + the FILTER (filter.c) */
+#define PROJ_MAGIC_V9 0x39524446u              /* "FDR9": the song and the name, converted on load */
 #define PROJ_MAGIC_V8 0x38524446u              /* "FDR8": the motion, converted on load */
 #define PROJ_MAGIC_V7 0x37524446u              /* "FDR7": the reverb TYPE (sound pack), converted on load */
 #define PROJ_MAGIC_V6 0x36524446u              /* "FDR6": GHOST projects, converted on load */
@@ -32,7 +33,7 @@ typedef struct {
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint32_t sum;
 } project_t;
-typedef char project_size[sizeof(project_t) == 3592u ? 1 : -1];
+typedef char project_size[sizeof(project_t) == 3672u ? 1 : -1];
 project_t proj_slot[4] __attribute__((section(".noinit")));
 
 static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
@@ -80,12 +81,17 @@ typedef struct {
     struct { int16_t p[P_RMODEL]; step_t step[NSTEP]; } t[NTRK];
     uint32_t sum;
 } project_v4_t;
-/* RESON's format: the globals before G_CGHOST (the parameters as now) */
+/* a track as FDR5..FDR9 stored it: the parameters before P_FTYPE (no FILTER) */
+typedef struct {
+    int16_t p[P_FTYPE];
+    step_t step[NSTEP];
+} proj_trk_v9_t;
+/* RESON's format: the globals before G_CGHOST (the parameters before P_FTYPE) */
 typedef struct {
     uint32_t magic, size;
     int16_t g[G_CGHOST];
     uint8_t sel, rsv[3];
-    proj_trk_t t[NTRK];
+    proj_trk_v9_t t[NTRK];
     uint32_t sum;
 } project_v5_t;
 /* GHOST's format: the globals before G_RTYPE (the parameters as now). 3024 B, as an FDR5 record: the version is
@@ -94,7 +100,7 @@ typedef struct {
     uint32_t magic, size;
     int16_t g[G_RTYPE];
     uint8_t sel, rsv[3];
-    proj_trk_t t[NTRK];
+    proj_trk_v9_t t[NTRK];
     uint32_t sum;
 } project_v6_t;
 /* the sound pack's format: everything but the motion. 3028 B */
@@ -102,7 +108,7 @@ typedef struct {
     uint32_t magic, size;
     int16_t g[G_COUNT];
     uint8_t sel, rsv[3];
-    proj_trk_t t[NTRK];
+    proj_trk_v9_t t[NTRK];
     uint32_t sum;
 } project_v7_t;
 /* motion's format: everything but the song and the name. 3544 B */
@@ -110,34 +116,59 @@ typedef struct {
     uint32_t magic, size;
     int16_t g[G_COUNT];
     uint8_t sel, rsv[3];
-    proj_trk_t t[NTRK];
+    proj_trk_v9_t t[NTRK];
     motion_store_t motion;
     uint32_t sum;
 } project_v8_t;
+/* FDR9: everything but the FILTER. 3592 B */
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_v9_t t[NTRK];
+    motion_store_t motion;
+    chain_config_t song;
+    char name[NAME_LEN];
+    uint32_t sum;
+} project_v9_t;
 static union {
     project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
-    project_v8_t v8;
+    project_v8_t v8; project_v9_t v9;
 } proj_old;
 
 /* an old record (proj_old, version ver) -> q: what it has; the rest at the defaults (v1: PROB 100 %, 1 hit,
  * SRC STEP, Grids; v1 / v2: COMP off, DUCK off; v1..v3: the LFOs off; v1..v4: RESON off; v1..v5: GHOST KEEP;
- * v1..v6: reverb TYPE ROOM; v1..v7: no motion; all: no song, no name) */
+ * v1..v6: reverb TYPE ROOM; v1..v7: no motion; v1..v8: no song, no name; all: the FILTER OFF) */
 static void proj_from_old(project_t *q, uint32_t ver)
 {
     uint32_t i, k;
     uint32_t ng, np;
-    if (ver == 8u) {                                 /* the same up to the motion: no song, no name */
+    if (ver >= 8u) {                                 /* FDR8 / FDR9: the tracks without the FILTER */
+        const int16_t *g = ver == 8u ? proj_old.v8.g : proj_old.v9.g;
+        const proj_trk_v9_t *ot = ver == 8u ? proj_old.v8.t : proj_old.v9.t;
         memset(q, 0, sizeof *q);
-        memcpy(q, &proj_old.v8, sizeof proj_old.v8 - 4u);
         q->magic = PROJ_MAGIC;
         q->size = sizeof *q;
+        for (i = 0; i < G_COUNT; i++)
+            q->g[i] = g[i];
+        q->sel = ver == 8u ? proj_old.v8.sel : proj_old.v9.sel;
+        for (k = 0; k < NTRK; k++) {
+            for (i = 0; i < P_COUNT; i++)
+                q->t[k].p[i] = i < P_FTYPE ? ot[k].p[i] : TP[i].def;
+            memcpy(q->t[k].step, ot[k].step, sizeof q->t[k].step);
+        }
+        q->motion = ver == 8u ? proj_old.v8.motion : proj_old.v9.motion;
+        if (ver == 9u) {
+            q->song = proj_old.v9.song;
+            memcpy(q->name, proj_old.v9.name, NAME_LEN);
+        }
         q->sum = proj_sum(q);
         return;
     }
     ng = ver == 1u ? (uint32_t)G_GMODE : ver == 2u ? (uint32_t)G_CSRC : ver == 6u ? (uint32_t)G_RTYPE
                 : ver == 7u ? (uint32_t)G_COUNT : (uint32_t)G_CGHOST;
     np = ver == 1u ? (uint32_t)P_SRC : ver == 2u ? (uint32_t)P_DUCK : ver == 3u ? (uint32_t)P_LFO1
-                : ver == 4u ? (uint32_t)P_RMODEL : (uint32_t)P_COUNT;
+                : ver == 4u ? (uint32_t)P_RMODEL : (uint32_t)P_FTYPE;
     memset(q, 0, sizeof *q);
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
@@ -173,16 +204,16 @@ static void proj_fetch(uint32_t slot)
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
     if (n > 8 && n <= (int)sizeof proj_old && n != (int)sizeof *q) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[9] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
-                                          PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8};
-        static const uint32_t SIZE[9] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
-                                         sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
-                                         sizeof proj_old.v8};
+        static const uint32_t MAGIC[10] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
+                                           PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9};
+        static const uint32_t SIZE[10] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+                                          sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
+                                          sizeof proj_old.v8, sizeof proj_old.v9};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 9u; ver++)
+        for (ver = 1; ver < 10u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
                 proj_from_old(q, ver);
