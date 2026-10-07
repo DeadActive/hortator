@@ -3,11 +3,11 @@
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
 // frames it sends back, and keeps the flash it writes in IndexedDB (store.js).
-import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=f8e51fdd5f';
-import { FlashStore, openFlashDb } from './store.js?v=f8e51fdd5f';
-import { needsResume, playbackSession } from './audio.js?v=f8e51fdd5f';
-import { parseReel, snapshots } from './reel.js?v=f8e51fdd5f';
-import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=f8e51fdd5f';
+import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=972cbbc82b';
+import { FlashStore, openFlashDb } from './store.js?v=972cbbc82b';
+import { needsResume, playbackSession } from './audio.js?v=972cbbc82b';
+import { parseReel, snapshots } from './reel.js?v=972cbbc82b';
+import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=972cbbc82b';
 
 // ---- the panel's elements (built once, placed per layout)
 const device = document.getElementById('device');
@@ -293,7 +293,7 @@ function wake() {                                 // a tap or a key brings a sto
 }
 
 // ---- power on
-const wasmBytes = fetch('fm1sim.wasm?v=f8e51fdd5f').then(r => {
+const wasmBytes = fetch('fm1sim.wasm?v=972cbbc82b').then(r => {
   if (!r.ok) throw new Error(`fm1sim.wasm: HTTP ${r.status}`);
   return r.arrayBuffer();
 });
@@ -320,7 +320,7 @@ async function powerOn() {
     playbackSession(navigator);
     ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                         // inside the tap: browsers allow sound from here on
-    await ctx.audioWorklet.addModule('worklet.js?v=f8e51fdd5f');
+    await ctx.audioWorklet.addModule('worklet.js?v=972cbbc82b');
     const [wasm, sectors] = await Promise.all([wasmBytes, store.load()]);
     node = new AudioWorkletNode(ctx, 'fm1', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm, sectors } });
     node.port.onmessage = e => {
@@ -390,9 +390,9 @@ function bindPage() {
 let reel = null, reelPos = -1, reelT0 = 0, clips = null, snaps = null;
 const reelFb = new Uint16Array(240 * 240);
 if (window.DecompressionStream)
-  fetch('reel.bin.gz?v=f8e51fdd5f')
+  fetch('reel.bin.gz?v=972cbbc82b')
     .then(r => r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : Promise.reject())
-    .then(b => { reel = parseReel(b); reelT0 = performance.now(); return fetch('reel.json?v=f8e51fdd5f'); })
+    .then(b => { reel = parseReel(b); reelT0 = performance.now(); return fetch('reel.json?v=972cbbc82b'); })
     .then(r => r.json())
     .then(list => { clips = Object.fromEntries(list.map(c => [c.name, c])); snaps = snapshots(reel, list.map(c => c.from)); manualShow(); })
     .catch(() => { /* no reel: the screen stays dark until Switch on */ });
@@ -503,7 +503,7 @@ function plainNote(n) {                            // the changelog's line for p
   if (t.startsWith(n.title)) t = t.slice(n.title.length).replace(/^[\s:,]+/, '');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
-fetch('version.json?v=f8e51fdd5f').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
+fetch('version.json?v=972cbbc82b').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
   const [y, m, d] = v.date.split('-').map(Number);
   const newer = v.since.length ? ` and ${v.since.length} newer change${v.since.length > 1 ? 's' : ''}` : '';
   document.getElementById('fw-version').textContent =

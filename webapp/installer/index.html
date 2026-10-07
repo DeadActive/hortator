@@ -413,7 +413,7 @@ const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textCont
 const say = (txt) => { lastKey = null; $("status").textContent = txt; };
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
-const meta = {"version": "drum-0.12.0+ac3557f", "product": "FM-1_900", "pkg": "../../firmware/felucca-drum-0.12.0-ac3557f.fwsc"};
+const meta = {"version": "drum-0.13.0+63b235d", "product": "FM-1_900", "pkg": "../../firmware/felucca-drum-0.13.0-63b235d.fwsc"};
 
 let writing = false;
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
