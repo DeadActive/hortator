@@ -123,11 +123,13 @@ static int step_plays(track_t *t, const step_t *s, uint32_t len)
     return loop % b == a - 1u;
 }
 
+static const step_t *seq_steps(const track_t *t);   /* song.c: a song's row, else the track's own */
+
 /* the step that came up: decided once (step_plays), then RATCH hits spread over its length len_s, the first
  * now (rat_due plays the others). A track following Grids plays nothing from its steps. */
 static void step_fire(track_t *t, uint32_t len_s)
 {
-    const step_t *s = &t->step[t->seq_idx];
+    const step_t *s = &seq_steps(t)[t->seq_idx];
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
     t->rat_n = 0;
     if (t->p[P_SRC] || !s->on || !step_plays(t, s, len))
@@ -253,6 +255,8 @@ static void midi_block(void)
 }
 
 #include "motion.c"                 /* knob moves per step (upstream 1.0's motion recording) */
+static void seq_stop(void);
+#include "song.c"                   /* SONG: rows of the four slots (upstream 1.0's song chain) */
 
 static void seq_start(void)
 {
@@ -276,12 +280,14 @@ static void seq_start(void)
     song.playing = 1;
     slicer_start();
     motion_begin();
+    chain_start();                                  /* song.c: an armed song from row 1 */
 }
 
 static void seq_stop(void)
 {
     song.playing = 0;
     motion_end();                                   /* motion.c: the patch back */
+    chain_stop();                                   /* song.c: the timing and REC back */
 }
 
 static void seq_tick(track_t *t, uint32_t n)
@@ -298,7 +304,8 @@ static void seq_tick(track_t *t, uint32_t n)
         if (t->seq_pos >= 0x7FFFFFFFu) {            /* PLAY: step 0 (its remainder 0); following a clock, the advance
                                                      * into it counts (it began on the pulse), else the steps sit that
                                                      * far behind the clock's grid for good */
-            t->seq_pos = song.g[G_CLOCK] ? t->seq_pos - 0x7FFFFFFFu : 0;
+            t->seq_pos = song.g[G_CLOCK] || chain.cut ? t->seq_pos - 0x7FFFFFFFu : 0;   /* (a song's row change: the
+                                                     * block's rest after it, as the clock's) */
         } else {
             t->seq_pos -= cur_len;
             t->seq_rem = (uint8_t)div_rem_next(div, t->seq_rem);
@@ -383,9 +390,12 @@ static void events_block(uint32_t n)
     }
     run = !clock_mode || midi_clock.have_pulse;     /* following: step 0 / the resumed step on the first pulse */
     if (run) {
+        if (chain.running)
+            chain_tick(seq_n);                       /* song.c: a row ends in this block -> the next one */
         for (i = 0; i < NTRK; i++)
             seq_tick(&trk[i], seq_n);
         grids_tick(seq_n);
+        chain.cut = 0;
     }
     if (song.playing)
         song.tick++;
