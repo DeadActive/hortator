@@ -14,6 +14,8 @@ static uint32_t chain_prepare(void);
 static int project_name(uint32_t slot, char *b);
 static void project_rename(uint32_t slot, const char *name);
 static int transport_busy(void);
+static int name_on(void);                  /* ui_name.c (NAME) */
+static void draw_name(void);
 static void panel_setup(void);
 
 #define ACC C_HI

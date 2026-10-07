@@ -1001,6 +1001,10 @@ static void test_no_save_while_playing(void)
     ui_frame();
     turn(EN_K1 + 3, 1);
     ui_frame();
+    press(B_OCTUP);                                  /* NAME: OCT+ writes */
+    ui_frame();
+    release_all();
+    ui_frame();
     check("SAVE stopped: saved", project_used(0));
     memset(proj_slot, 0, sizeof proj_slot);
 }
@@ -2516,6 +2520,136 @@ static void test_song_delete(void)
     check("SONG: OCT+ clears the song", chain.cfg.count == 0u && ui.song_row == 0u);
 }
 
+static void name_type(uint32_t key)                  /* one key tap (key index from F3) */
+{
+    keys(1u << key);
+    ui_frame();
+    keys(0);
+    ui_frame();
+}
+static void project_page(void)
+{
+    uint32_t k;
+    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != G_SLOT); k++)
+        tap(B_SAVE);
+}
+static void save_knob(void)                          /* SAVE: GO, and GO again */
+{
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+}
+static void test_name_save(void)
+{
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_page();
+    save_knob();
+    check("SAVE opens NAME, prefilled PROJECT A, nothing written yet", name_on() && str_eq(nm.s, "PROJECT A") &&
+          !project_used(0));
+    snap_page("name/abc");
+    while (nm.len) {                                 /* C# (key 8): DELETE */
+        nm.cur = nm.len;
+        name_type(8);
+    }
+    name_type(0);                                    /* F3: AB -> A */
+    name_type(0);                                    /* again within 0.8 s: B */
+    host_ticks += 900u * 1000u * FM1_TICKS_PER_US;   /* 0.9 s: kept */
+    ui_frame();
+    name_type(2);                                    /* G3: CD -> C */
+    host_ticks += 900u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    name_type(3);                                    /* G#3: SPACE */
+    name_type(10);                                   /* D#4: 123 */
+    snap_page("name/123");
+    name_type(0);                                    /* 1 */
+    name_type(2);                                    /* 2 */
+    check("NAME: multi-tap, the timeout, SPACE, 123", str_eq(nm.s, "BC 12") && nm.cur == 5u);
+    name_type(1);                                    /* F#3: left */
+    name_type(8);                                    /* DELETE: the 1 */
+    check("NAME: cursor left, DELETE", str_eq(nm.s, "BC 2") && nm.cur == 3u);
+    turn(EN_K1, -3);
+    ui_frame();
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME: KNOB 1 the cursor, KNOB 2 the character", nm.cur == 0u && nm.s[0] == 'C');
+    turn(EN_K1, 10);
+    ui_frame();
+    name_type(3);                                    /* a trailing space: dropped when written */
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    {
+        char b[NAME_LEN + 1u];
+        check("NAME OCT+: saved with the name (ends trimmed), the current name", !name_on() && project_used(0) &&
+              project_name(0, b) && str_eq(b, "CC 2") && str_eq(chain.name, "CC 2"));
+    }
+    project_page();
+    ui.force = 1;
+    snap_page("name/project");
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME knob: renames the selected slot, prefilled with its name", name_on() && str_eq(nm.s, "CC 2"));
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("NAME OCT-: cancelled, nothing written", !name_on() && str_eq(chain.name, "CC 2"));
+    turn(EN_K1, 1);                                  /* slot B: empty */
+    ui_frame();
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME knob on an empty slot: EMPTY SLOT", !name_on() && str_eq(ui.msg, "EMPTY SLOT"));
+}
+static void test_name_keys_silent(void)
+{
+    uint32_t a;
+    ui_host_init();
+    project_page();
+    transport_req = 1;
+    ui_frame();
+    transport_req = 0;
+    name_open(NK_SAVE, 0);
+    song.rec = 1u;
+    a = hit_age(&trk[0]);
+    name_type(0);                                    /* F3: track 1's key */
+    press(B_FX);
+    ui_frame();
+    name_type(1);                                    /* F#3 with FX held: not PERFORM */
+    release_all();
+    ui_frame();
+    check("NAME: the keys never sound, record or start PERFORM", hit_age(&trk[0]) == a && !perf_held &&
+          !trk[0].step[0].on && !trk[0].step[1].on && str_eq(nm.s, "PROJECT AA"));
+}
+static void test_name_stop_to_save(void)
+{
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_page();
+    name_open(NK_SAVE, 0);
+    transport_req = 1;
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("NAME OCT+ while playing: STOP TO SAVE, the screen stays", name_on() && !project_used(0) &&
+          str_eq(ui.msg, "STOP TO SAVE"));
+    tap(B_PLAY);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("... stopped (PLAY works in NAME): saved", !name_on() && project_used(0));
+    name_open(NK_SAVE, 1);
+    tap(B_HOME);
+    ui_frame();
+    check("NAME: HOME cancels", !name_on() && !project_used(1));
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2577,6 +2711,9 @@ int main(void)
     test_song_play_ui();
     test_song_play_twice();
     test_song_delete();
+    test_name_save();
+    test_name_keys_silent();
+    test_name_stop_to_save();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

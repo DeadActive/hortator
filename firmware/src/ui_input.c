@@ -30,6 +30,8 @@ static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 
 static int octdn_held(void) { return (int)((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u); }
 
+#include "ui_name.c"                               /* NAME: naming a project */
+
 static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0};
@@ -49,7 +51,11 @@ static void ui_leds(void)
             (fam != FAM_LAY && (fam != FAM_LFO || !song.lsel)) || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u);
-    if (ui.layer) {                                   /* PERFORM: effects blink, held lit, unavailable dark; the
+    if (name_on()) {                                  /* NAME: the keys that type */
+        uint32_t m = name_leds(fm1_ticks());
+        for (k = 0; k < 27u; k++)
+            led_put(nl, 14u + k, (int)((m >> k) & 1u));
+    } else if (ui.layer) {                            /* PERFORM: effects blink, held lit, unavailable dark; the
                                                        * track keys lit while their track sounds */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
         uint32_t held = perf_kill ? 0u : perf_held, ok = perf_avail();
@@ -268,6 +274,11 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
     if (pg->graph == GR_STEPS && song_lock())         /* PATTERN: a song's row */
         return;
+    if (pg->graph == GR_SLOTS && id == G_NAME) {      /* PROJECT, NAME: rename the selected slot */
+        if (steps > 0)
+            name_rename();
+        return;
+    }
     d = page_desc(pg, slot, &vp);
     if (!d || !vp || d->max == d->min)
         return;
@@ -311,9 +322,12 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
         project_load((uint32_t)song.g[G_SLOT] - 1u);
         break;
-    case G_SAVE:
+    case G_SAVE:                                      /* NAME first: OCT+ there writes */
         *vp = 0;
-        project_save((uint32_t)song.g[G_SLOT] - 1u);
+        if (transport_busy())
+            ui_message("STOP TO SAVE");
+        else
+            name_open(NK_SAVE, (uint32_t)song.g[G_SLOT] - 1u);
         break;
     case G_CLRSEQ:
         *vp = 0;
@@ -374,7 +388,7 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 #define FX_DOWN 1u
 #define FX_OPEN 2u
 #define FX_DEAD 4u
-static int fx_allowed(void) { return !ui.menu && !ui.confirm; }
+static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on(); }
 /* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros off; keys
  * still held stay the layer's until let go */
 static void perf_page_close(void)
@@ -443,6 +457,10 @@ static void ui_input(void)
     if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE))   /* PERFORM: keys are the layer's */
         notes = 0;
     notes &= ~kb_layer;
+    if (name_on()) {                                  /* NAME owns the panel: OCT+ / OCT- / HOME / PLAY, the keys, K1 K2 */
+        name_input(pressed, notes, now, home);
+        return;
+    }
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {
             menu_close();

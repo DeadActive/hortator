@@ -406,16 +406,20 @@ static void graph_scope(uint16_t c)
 static void graph_slots(void)
 {
     uint32_t i;
+    char nb[NAME_LEN + 1u], f[NAME_LEN + 1u];
     for (i = 0; i < 4u; i++) {
-        int32_t y = 8 + (int32_t)i * 26;
-        char b[4];
-        int sel = (int32_t)i + 1 == song.g[G_SLOT];
-        b[0] = (char)('1' + i);
-        b[1] = 0;
+        int32_t y = 4 + (int32_t)i * 24;
+        char b[2] = {(char)('A' + i), 0};
+        int sel = (int32_t)i + 1 == song.g[G_SLOT], used = project_name(i, nb);
         if (sel)
             cv_rect(4, y + 6, 3, 3, C_WHITE);
         cv_text(14, y, &FONT_S, b, sel ? C_WHITE : C_GRAY);
-        cv_text(40, y, &FONT_S, project_used(i) ? "USED" : "EMPTY", project_used(i) ? (sel ? C_WHITE : C_HI) : C_DIM);
+        fit(f, used ? (nb[0] ? nb : "USED") : "EMPTY", &FONT_S, 190);
+        cv_text(40, y, &FONT_S, f, used ? (sel ? C_WHITE : C_HI) : C_DIM);
+    }
+    if (chain.name[0]) {
+        cv_text(14, 102, &FONT_S, "NOW", C_DIM);
+        cv_text(52, 102, &FONT_S, chain.name, C_GRAY);
     }
 }
 
@@ -693,9 +697,14 @@ static uint32_t graph_signature(void)
     h ^= (uint32_t)song.g[G_SLOT] * 13u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
-    if (pg->graph == GR_SLOTS)
-        for (i = 0; i < 4u; i++)
-            h ^= (uint32_t)project_used(i) << (20u + i);
+    if (pg->graph == GR_SLOTS) {
+        char nb[NAME_LEN + 1u];
+        for (i = 0; i < 4u; i++) {
+            h ^= (uint32_t)project_name(i, nb) << (20u + i);
+            h = str_hash(h, nb);
+        }
+        h = str_hash(h, chain.name);
+    }
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
         h ^= steps_hash(t) + (song.playing ? view_idx(t) + 1u : 0u) * 31u;
         h ^= (ui.held < 16u && ui.step_t0[ui.held] ? ui.held + 1u : 0u) * 977u;
@@ -1123,6 +1132,10 @@ static void draw_columns(void)
             draw_column(c, "USB", val, "USB", C_HI, -1, ICON_AUTO);
             continue;
         }
+        if (pg->id[c] == G_NAME && pg->scope == SC_GLOBAL) {
+            draw_column(c, "NAME", "EDIT", "", C_HI, -1, ICON_AUTO);
+            continue;
+        }
         if (pg->id[c] == G_INFO && pg->scope == SC_GLOBAL) {
             fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
             unit = "%";
@@ -1181,6 +1194,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             draw_text_box(0, 132, 240, &FONT_S, "OCT- NO    OCT+ YES", C_GRAY, 1);
             ui.force = 0;
         }
+        return;
+    }
+    if (name_on()) {                                  /* NAME: its own screen */
+        draw_name();
         return;
     }
     bank_fix();
