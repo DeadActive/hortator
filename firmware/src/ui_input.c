@@ -49,7 +49,16 @@ static void ui_leds(void)
             (fam != FAM_LAY && (fam != FAM_LFO || !song.lsel)) || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u);
-    if (grid_mode()) {                                /* the bank's steps; the playhead inverted */
+    if (ui.layer) {                                   /* PERFORM: effects blink, held lit, unavailable dark; the
+                                                       * track keys lit while their track sounds */
+        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
+        uint32_t held = perf_kill ? 0u : perf_held, ok = perf_avail();
+        for (k = 0; k < 27u; k++) {
+            uint32_t e = perf_key(k);
+            led_put(nl, 14u + k, e < PF_M1 ? (int)(((ok >> e) & 1u) && (((held >> e) & 1u) || blink))
+                               : e < PF_N ? (int)(!((held >> e) & 1u) && !trk[e - PF_M1].p[P_MUTE]) : 0);
+        }
+    } else if (grid_mode()) {                         /* the bank's steps; the playhead inverted */
         const track_t *t = TSEL;
         led_put(nl, panel.btn[B_OCTDN], ui.bank > 0u);
         led_put(nl, panel.btn[B_OCTUP], ui.bank + 1u < bank_count());
@@ -141,6 +150,7 @@ static void tracks_edit(uint32_t slot, int32_t steps)
     }
     id = slot == 1u ? P_LEVEL : slot == 2u ? P_SLEN : P_PAN;
     t->p[id] = (int16_t)clamp(t->p[id] + accel(EN_K1 + slot, steps, TP[id].max - TP[id].min), TP[id].min, TP[id].max);
+    motion_capture(t, id);                          /* motion.c: LEVEL / PAN recorded (LEN never) */
 }
 
 static void mute_bar_set(uint32_t on)                  /* TRACKS' mutes: at once / on the next bar (device setting) */
@@ -159,6 +169,18 @@ static void tracks_rec_tap(void)                       /* arm / disarm; arming w
         transport_req = 1;
 }
 
+/* MOTION page: KNOB 1 PLAY (right ON, left OFF), KNOB 4 CLEAR (a turn right asks: "CLEAR MOTION T<n>?") */
+static void motion_page_edit(uint32_t slot, int32_t steps)
+{
+    if (slot == 0u) {
+        motion_set_play(song.sel, steps > 0);
+    } else if (slot == 3u && steps > 0 && motion_count(song.sel)) {
+        ui.confirm = 2;
+        ui.confirm_trk = song.sel;
+        ui.force = 1;
+    }
+}
+
 static void edit_param(uint32_t slot, int32_t steps)
 {
     int16_t *vp;
@@ -169,6 +191,10 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (pg->scope == SC_GRID) {
         if (slot == 0u)
             bank_set((int32_t)ui.bank + (steps > 0 ? 1 : -1));
+        return;
+    }
+    if (pg->graph == GR_MOTION) {                     /* the MOTION page's own knobs */
+        motion_page_edit(slot, steps);
         return;
     }
     if (pg->scope == SC_MIX) {
@@ -182,7 +208,11 @@ static void edit_param(uint32_t slot, int32_t steps)
     d = page_desc(pg, slot, &vp);
     if (!d || !vp || d->max == d->min)
         return;
-    v = clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
+    if (pg->scope == SC_GLOBAL && id == G_BPM && song.g[G_CLOCK]) {
+        ui_message(song.g[G_CLOCK] == 1 ? "CLK USB" : "CLK TRS");
+        return;
+    }
+    v = param_turn(d, *vp, accel(EN_K1 + slot, steps, d->max - d->min));
     if (pg->scope == SC_TRACK && id == P_RMODEL && v != RS_OFF && *vp == RS_OFF && reson_tracks(TSEL) >= RS_MAXTRK) {
         ui_message("RESON: 4 TRACKS MAX");            /* RESON on 4 tracks at most (CPU) */
         return;
@@ -192,6 +222,8 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
     *vp = (int16_t)v;
+    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+        motion_capture(TSEL, (uint32_t)(vp - TSEL->p));   /* motion.c: recorded when armed and playing */
     if (pg->scope == SC_GLOBAL && id == G_MUTEBAR) {
         mute_bar_set((uint32_t)v);
         return;
@@ -235,6 +267,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
         fm1_irq_off();
         drum_set_model(TSEL, (uint32_t)TSEL->p[P_MODEL]);
+        motion_rebase(song.sel);
         fm1_irq_on();
         ui_message("SOUND INIT");
         ui.force = 1;
@@ -265,6 +298,72 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
     return tap ? BT_TAP : BT_NONE;
 }
 
+/* PERFORM (perform.c): FX tapped = its pages, on the release (nothing else touched); FX held = the layer: keys
+ * pressed with it are its own (seq.c keyboard_block), KNOB 1..4 its macros FILTER CRUSH THROW DEPTH (never saved,
+ * back to off when FX is let go). It opens at once with a key or a knob, else after FX_HOLD_MS (then the release
+ * does nothing). No layer in the menu or a dialog: a press there stays dead until let go, and every effect is off
+ * until its keys are let go */
+#define FX_HOLD_MS 400u
+#define FX_DOWN 1u
+#define FX_OPEN 2u
+#define FX_DEAD 4u
+static int fx_allowed(void) { return !ui.menu && !ui.confirm; }
+/* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros off; keys
+ * still held stay the layer's until let go */
+static void perf_page_close(void)
+{
+    ui.pg_open = 0;
+    perf_mask &= ~PERF_PAGE;
+    perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
+}
+static void fx_layer(uint32_t now, int home_tap)
+{
+    uint32_t bit = 1u << panel.btn[B_FX], *t0 = &ui.fx_t0, k, show, down = (fm1_in.buttons & bit) != 0u;
+    int32_t s;
+    if (!fx_allowed()) {
+        perf_kill = 1;
+        perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* (the macros too: nothing runs under a menu) */
+    } else if (!kb_layer) {
+        perf_kill = 0;
+    }
+    if (ui.pg_open && (!fx_allowed() || home_tap || ui.page != ui.pg_page || ui.home != ui.pg_home))
+        perf_page_close();
+    if (down) {
+        if (!*t0)
+            *t0 = (now & ~7u) | FX_DOWN;
+        if (!fx_allowed())
+            *t0 = (*t0 | FX_DEAD) & ~FX_OPEN;           /* dead until let go: no map, no layer, no PAGE */
+        if (!(*t0 & FX_DEAD) && (kb_layer || now - (*t0 & ~7u) >= FX_HOLD_MS * 1000u * FM1_TICKS_PER_US))
+            *t0 |= FX_OPEN;
+    } else if (*t0) {
+        if (!(*t0 & (FX_OPEN | FX_DEAD)))
+            open_family(FAM_FX);                        /* a tap: the FX pages, as the button always did */
+        *t0 = 0;
+        if (!ui.pg_open)
+            perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* HOLD: the macros snap back */
+    }
+    if ((down && !(*t0 & FX_DEAD)) || ui.pg_open)
+        for (k = 0; k < 4u; k++)                        /* the macros: FILTER CRUSH THROW DEPTH */
+            if ((s = panel_enc(EN_K1 + k)) != 0) {
+                perf_k[k] = (int8_t)clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
+                if (down)
+                    *t0 |= FX_OPEN;
+            }
+    if (settings.perfpage && (*t0 & FX_OPEN) && !ui.pg_open && fx_allowed()) {   /* PAGE: the screen stays */
+        ui.pg_open = 1;
+        ui.pg_page = ui.page;
+        ui.pg_home = ui.home;
+    }
+    perf_mask = (fx_allowed() && !(*t0 & FX_DEAD) ? bit : 0u) | (ui.pg_open ? PERF_PAGE : 0u);   /* armed before FX
+                                                         * is pressed: a key struck with it is the layer's even before
+                                                         * this pass has seen FX (keyboard_block tests the button) */
+    show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer || ui.pg_open);
+    if (show != ui.layer) {
+        ui.layer = (uint8_t)show;
+        ui.force = 1;
+    }
+}
+
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
@@ -273,6 +372,10 @@ static void ui_input(void)
     int32_t s;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+    fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
+    if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE))   /* PERFORM: keys are the layer's */
+        notes = 0;
+    notes &= ~kb_layer;
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {
             menu_close();
@@ -305,8 +408,13 @@ static void ui_input(void)
         if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
             char m[12] = "1 CLEARED";
             m[0] = (char)('1' + ui.confirm_trk);
-            track_clear(&trk[ui.confirm_trk % NTRK]);
-            ui_say("TRACK ", m);
+            if (ui.confirm == 2u) {                     /* the MOTION page's CLEAR */
+                motion_clear(ui.confirm_trk % NTRK);
+                ui_message("MOTION CLEARED");
+            } else {
+                track_clear(&trk[ui.confirm_trk % NTRK]);
+                ui_say("TRACK ", m);
+            }
             ui.confirm = 0;
             ui.force = 1;
         } else if ((pressed >> panel.btn[B_OCTDN]) & 1u) {
@@ -362,7 +470,7 @@ static void ui_input(void)
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_MIX && f != FAM_LAY)
+                if (FAM_BTN[f] == b && f != FAM_MIX && f != FAM_LAY && b != B_FX)
                     open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }
@@ -409,8 +517,12 @@ static void ui_input(void)
     if ((s = panel_enc(EN_ALGO)) != 0)
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
     if ((s = panel_enc(EN_SELECT)) != 0) {
-        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-        ui.bpm_t = 40;
+        if (song.g[G_CLOCK])                         /* following a clock: its tempo, not the knob */
+            ui_message(song.g[G_CLOCK] == 1 ? "CLK USB" : "CLK TRS");
+        else {
+            song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
+            ui.bpm_t = 40;
+        }
     }
     for (k = 0; k < 4u; k++) {
         const page_t *pg = cur_page();
@@ -426,11 +538,18 @@ static void ui_input(void)
         if (ui.home) {
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
-            if (d->max > d->min)
-                *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, d->max - d->min), d->min, d->max);
+            if (d->max > d->min) {
+                *vp = (int16_t)param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
+                if (vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+                    motion_capture(TSEL, (uint32_t)(vp - TSEL->p));
+            }
         } else {
             edit_param(k, s);
         }
+    }
+    if (mo.full) {                                      /* motion.c: a turn found no free place */
+        mo.full = 0;
+        ui_message("MOTION FULL");
     }
 }
 

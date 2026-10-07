@@ -9,13 +9,41 @@ static int16_t cho_buf[CHO_LEN] __attribute__((section(".pool")));
 static const uint16_t REV_COMB[4] = {1116, 1188, 1277, 1356};
 static const uint16_t REV_AP[2] = {556, 441};
 static int16_t rev_comb[1116 + 1188 + 1277 + 1356] __attribute__((section(".pool")));
-static int16_t rev_ap[556 + 441] __attribute__((section(".pool")));
+static union {                          /* ROOM's allpasses; SPRING's allpass chain (int32: no clamps) */
+    int16_t ap[556 + 441];
+    int32_t sp[(556 + 441 + 1) / 2];    /* all 997 int16 (upstream's 498 words left ap[996] stale: rev_clear
+                                         * missed it, and ROOM played it back after a switch as a click) */
+} rev_u __attribute__((section(".pool")));
+#define rev_ap (rev_u.ap)
 static struct {
     uint32_t dly_w, cho_w, cho_ph;
     int32_t dly_lp;
     uint16_t comb_i[4], ap_i[2];
     int32_t comb_lp[4];
+    int32_t sb_lp1, sb_lp2, sb_lp3, sb_lp4, sb_env, sb_h1, sb_h2, sb_hl;   /* BASS+ (spk_bass) */
+    uint8_t rtype;                       /* the reverb model running (G_RTYPE: 0 ROOM, 1 SPRING) */
+    uint16_t sp_w;                       /* SPRING: the loop's write index (SP_MASK) */
+    int32_t sp_lp, sp_hp, sp_he, sp_size;   /* .. its loop low-pass, low cut (and its remainder), the loop
+                                             * length (Q8, glides) */
+    uint32_t sp_ph;                      /* .. the output tap's wobble */
 } fx;
+
+/* SPRING (G_RTYPE 1, upstream 1.0.2): one spring of a spring tank, mono like the other buses, in the ROOM's own
+ * buffers (no RAM of its own): the input and the loop's return -> a low cut (~110 Hz: a spring carries little bass)
+ * -> SP_N stretched first-order allpasses, (a + z^-4) / (1 + a z^-4) (after Valimaki, Parker and Abel: below
+ * fs / 8 = 5.5 kHz the group delay rises with frequency, the chirp; each pass round the loop adds more of
+ * it: the "boing", the drips) -> the loop's delay line (rev_comb, SP_LEN) -> back through a one-pole
+ * low-pass (DAMP) and the decay gain (SIZE). The output: the spring's far end, half way along the loop
+ * (the first sound 15 .. 30 ms after the send: the tank's own pre-delay; a slow wobble of a sample or two
+ * on it), plus a second, quieter pickup at three quarters (a shorter spring beside it: denser). SIZE sets
+ * the loop's length (30 .. 60 ms) and its decay; DAMP the loop's low-pass. The allpasses' states: 4
+ * samples each (int32), in rev_ap's memory. Changing the model fades the old one's block out and clears both buffers. */
+#define SP_LEN 4096u                     /* the loop's line in rev_comb (4937 samples) */
+#define SP_MASK (SP_LEN - 1u)
+#define SP_N 10u                         /* allpass stages */
+#define SP_A 2867                        /* their coefficient, Q12 (0.7: Q12 keeps (x - o) * a in 32 bits up to
+                                          * |x - o| < 749000, far past any peak the chain reaches) */
+_Static_assert(sizeof rev_comb / 2u >= SP_LEN && sizeof rev_u.sp / 4u >= 4u * (SP_N + 1u), "SPRING in ROOM's buffers");
 
 /* DIST: low cut -> drive (1x..8x, exponential) -> asymmetric soft clip
  * (a little bias = even harmonics) -> tone low-pass that closes with drive ->
@@ -45,7 +73,20 @@ static void track_dist(track_t *t, int32_t *b, uint32_t n)
  * get quieter instead of crushed. */
 #define LIM_T 18000
 static int32_t lim_env = LIM_T;
-static volatile uint8_t fx_lowcut;     /* settings: 12 dB/oct ~110 Hz for the small speaker */
+/* MENU > USB LEVEL FIXED (upstream 1.0.2, #42: record over USB with the speaker turned down): the mix goes to
+ * master_out at the full MASTER level, USB audio takes that (audio.c uac_tap), and only then does MASTER scale what
+ * the DAC gets (usb_fixed_dac). MASTER (0, the default): MASTER before master_out, as always (USB follows the knob) */
+static volatile uint8_t fx_usb_fixed;
+#define MASTER_FULL 4096                /* main.c: the MASTER knob's top, Q12 */
+static __attribute__((noinline)) void usb_fixed_dac(int32_t *out, uint32_t n)   /* audio ISR, after uac_tap */
+{
+    uint32_t i;
+    int32_t m = (int32_t)song.master_q12;
+    for (i = 0; i < 2u * n; i++)
+        out[i] = (out[i] * m) >> 12;                /* (|out| <= 32767 after the soft clip: fits) */
+}
+static volatile uint8_t fx_lowcut;     /* settings (MENU SPEAKER EQ): 0 FLAT, 1 LOWCUT 12 dB/oct ~110 Hz, 2 BASS+ (the
+                                        * small speaker): 12 dB/oct ~220 Hz plus the harmonics of the bass (spk_bass) */
 static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
 
 /* DC blocker (~2 Hz), always on: a leaky integrator of the input (Q6 state) subtracted from it.
@@ -62,12 +103,37 @@ static inline int32_t dc_block(int32_t x, int32_t *dc, int32_t *err)
 }
 
 static int32_t lce[4];
-static inline int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err)   /* x minus its one-pole low-pass */
+static inline int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err, uint32_t sh)   /* x minus its one-pole low-pass */
 {
-    int32_t e = x - *lc + *err, d = e >> 6;
-    *err = e - (d << 6);
+    int32_t e = x - *lc + *err, d = e >> sh;
+    *err = e - (d << sh);
     *lc += d;
     return x - *lc;
+}
+
+/* BASS+ (upstream 1.0.2): what the speaker cannot play, heard through its harmonics. The bass below ~150 Hz is
+ * clipped at its own envelope (a level-following trapezoid: odd harmonics), then band-passed ~220 Hz..1 kHz and
+ * added. The low-pass has 4 poles (#42: with 2, the trapezoid rebuilt the 300 .. 600 Hz of the mix itself, late,
+ * and cancelled up to 6 dB of it; now under 0.5 dB). Upstream's text; its state lives in fx (no new globals). */
+static inline int32_t spk_bass(int32_t m)
+{
+    int32_t a, t, u;
+    fx.sb_lp1 += ((m - fx.sb_lp1) * 692) >> 15;
+    fx.sb_lp2 += ((fx.sb_lp1 - fx.sb_lp2) * 692) >> 15;
+    fx.sb_lp3 += ((fx.sb_lp2 - fx.sb_lp3) * 692) >> 15;
+    fx.sb_lp4 += ((fx.sb_lp3 - fx.sb_lp4) * 692) >> 15;
+    a = fx.sb_lp4 < 0 ? -fx.sb_lp4 : fx.sb_lp4;
+    if (a > fx.sb_env)
+        fx.sb_env += (a - fx.sb_env) >> 2;
+    else if (fx.sb_env > 0)
+        fx.sb_env -= (fx.sb_env >> 11) + 1;
+    t = clamp(fx.sb_lp4 * 8, -fx.sb_env, fx.sb_env);
+    fx.sb_h1 += (t - fx.sb_h1) >> 5;
+    u = t - fx.sb_h1;
+    fx.sb_h2 += (u - fx.sb_h2) >> 5;
+    u -= fx.sb_h2;
+    fx.sb_hl += (u - fx.sb_hl) >> 3;
+    return fx.sb_hl * 3;
 }
 
 static inline void master_out(int32_t *l, int32_t *r)
@@ -76,10 +142,12 @@ static inline void master_out(int32_t *l, int32_t *r)
     *l = dc_block(*l, &dc_l, &dce_l);
     *r = dc_block(*r, &dc_r, &dce_r);
     if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
-        *l = lowcut1(*l, &lc_l1, &lce[0]);          /* rounded step stopped at |x - lc| < 32: an offset) */
-        *l = lowcut1(*l, &lc_l2, &lce[1]);
-        *r = lowcut1(*r, &lc_r1, &lce[2]);
-        *r = lowcut1(*r, &lc_r2, &lce[3]);
+        uint32_t sh = fx_lowcut == 2u ? 5u : 6u;    /* rounded step stopped at |x - lc| < 32: an offset) */
+        int32_t b = fx_lowcut == 2u ? spk_bass((*l + *r) >> 1) : 0;
+        *l = lowcut1(*l, &lc_l1, &lce[0], sh);
+        *l = lowcut1(*l, &lc_l2, &lce[1], sh) + b;
+        *r = lowcut1(*r, &lc_r1, &lce[2], sh);
+        *r = lowcut1(*r, &lc_r2, &lce[3], sh) + b;
     }
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
@@ -97,12 +165,21 @@ static inline void master_out(int32_t *l, int32_t *r)
     *r = softclip(*r);
 }
 
-/* length of one division (N_DIV order) in samples at the song tempo */
-static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* beats = 1 / DEN */
+static uint32_t midi_beat_samples;                    /* zero until an external clock has a measured tempo */
+static uint32_t beat_samples(void)                    /* a quarter note: the clock's tempo when following, else BPM */
+{
+    return song.g[G_CLOCK] && midi_beat_samples ? midi_beat_samples : (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM];
+}
+/* length of one division (N_DIV id) in samples at the song tempo: ids 0..5 a quarter / DEN, the slow ids 6..9
+ * (1/2 1/1 2BAR 4BAR) a quarter x 2, 4, 8, 16 (upstream 1.0.2) */
+static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* beats = 1 / DEN; original ids fixed, slow rates append */
 static uint32_t div_samples(uint32_t div)
 {
-    return (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM] / DIV_DEN[div % 6u];
+    uint32_t quarter = beat_samples();
+    return div < 6u ? quarter / DIV_DEN[div] : div < 10u ? quarter << (div - 5u) : quarter / DIV_DEN[div % 6u];
 }
+
+#include "perform.c"                                 /* the FX hold layer's effects (the master) */
 
 static uint32_t delay_samples(void)
 {
@@ -110,18 +187,108 @@ static uint32_t delay_samples(void)
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 
+/* ROOM (G_RTYPE 0): 4 damped combs + 2 allpasses (Freeverb-like, mono), added to out */
+static __attribute__((noinline)) void rev_room(const int32_t *rev_in, int32_t *out, uint32_t n)
+{
+    uint32_t i, k;
+    int32_t size = 25000 + song.g[G_RSIZE] * 50, damp = 32767 - song.g[G_RDAMP] * 200;
+    for (i = 0; i < n; i++) {
+        int32_t a = 0;
+        int16_t *c = rev_comb;
+        int32_t in = mulq15(rev_in[i], 2580);           /* 1/8 at -4 dB */
+        for (k = 0; k < 4u; k++) {
+            int32_t o = c[fx.comb_i[k]];
+            fx.comb_lp[k] = o + mulq15(fx.comb_lp[k] - o, 32767 - damp);
+            c[fx.comb_i[k]] = (int16_t)clamp(in + mulq15(fx.comb_lp[k], size), -32768, 32767);
+            if (++fx.comb_i[k] >= REV_COMB[k])
+                fx.comb_i[k] = 0;
+            a += o;
+            c += REV_COMB[k];
+        }
+        c = rev_ap;
+        for (k = 0; k < 2u; k++) {
+            int32_t o = c[fx.ap_i[k]];
+            int32_t v = a + (o >> 1);
+            c[fx.ap_i[k]] = (int16_t)clamp(v, -32768, 32767);
+            a = o - a;                                  /* Freeverb: out = buf - in (o - v would be a notch comb) */
+            if (++fx.ap_i[k] >= REV_AP[k])
+                fx.ap_i[k] = 0;
+            c += REV_AP[k];
+        }
+        out[i] += a;
+    }
+}
+
+/* SPRING (see the top), added to out */
+static __attribute__((noinline)) void rev_spring(const int32_t *rev_in, int32_t *out, uint32_t n)
+{
+    uint32_t i, k, s = (uint32_t)song.g[G_RSIZE];
+    int32_t g = 19661 + (int32_t)s * 85;                /* the loop's gain: 0.6 .. 0.93 */
+    int32_t kl = 26000 - song.g[G_RDAMP] * 160;         /* its low-pass: ~9 kHz .. ~1.3 kHz */
+    int32_t len = (int32_t)(1323u + ((s * 1323u) >> 7)) << 8, L, L2, L3, f, w;
+    int16_t *ln = rev_comb;
+    int32_t *ap = rev_u.sp;
+    if (!fx.sp_size)
+        fx.sp_size = len;
+    fx.sp_size += clamp(len - fx.sp_size, -256, 256);   /* SIZE glides (a sample a block at most) */
+    L = fx.sp_size >> 8;
+    fx.sp_ph += 2u * LFO_INC[24];                       /* the wobble: a slow sine, 1.5 samples deep */
+    w = (fx.sp_size >> 1) + ((osc_sine(fx.sp_ph) * 3) >> 8);   /* the far end, Q8 */
+    L2 = w >> 8;
+    f = w & 255;
+    L3 = (L * 3) >> 2;
+    for (i = 0; i < n; i++) {
+        uint32_t wp = fx.sp_w, j = (wp & 3u) * (SP_N + 1u);
+        int32_t x = mulq15(rev_in[i], 2580), r = ln[(wp - (uint32_t)L) & SP_MASK], p, o;
+        int32_t t0 = ln[(wp - (uint32_t)L2) & SP_MASK], t1 = ln[(wp - (uint32_t)L2 - 1u) & SP_MASK];
+        fx.sp_lp += mulq15(r - fx.sp_lp, kl);
+        o = fx.sp_lp * g;
+        x += (o + ((o >> 31) & 32767)) >> 15;           /* towards 0: a loop of floors would hold an offset */
+        o = x - fx.sp_hp + fx.sp_he;                    /* the low cut, its step's remainder kept (as */
+        fx.sp_he = o & 63;                              /* dc_block): no dead band to hold an offset in the loop */
+        fx.sp_hp += o >> 6;
+        x -= fx.sp_hp;
+        p = ap[j];                                      /* the chain: ap[j + k], stage k's output 4 samples ago */
+        ap[j] = x;
+        for (k = 1; k <= SP_N; k++) {                   /* (lossless: bounded by the loop's input, no clamp) */
+            int32_t v = (x - ap[j + k]) * SP_A;         /* towards 0, as the loop's gain: floors would feed */
+            o = ap[j + k];                              /* the loop a little offset and noise for ever */
+            x = ((v + ((v >> 31) & 4095)) >> 12) + p;
+            p = o;
+            ap[j + k] = x;
+        }
+        ln[wp & SP_MASK] = (int16_t)clamp(x, -32768, 32767);
+        fx.sp_w = (uint16_t)(wp + 1u);
+        out[i] += (t0 + (((t1 - t0) * f) >> 8)) * 4 + ln[(wp - (uint32_t)L3) & SP_MASK] * 2;
+    }
+}
+
+/* the reverb's buffers and states to silence (the model changed) */
+static void rev_clear(void)
+{
+    uint32_t i;
+    for (i = 0; i < sizeof rev_comb / 2u; i++)
+        rev_comb[i] = 0;
+    for (i = 0; i < sizeof rev_u.sp / 4u; i++)
+        rev_u.sp[i] = 0;
+    for (i = 0; i < 4u; i++)
+        fx.comb_lp[i] = 0;
+    fx.sp_lp = fx.sp_hp = fx.sp_he = 0;
+}
+
+static int32_t part_buf[CTL];                            /* a part's block (mix_part); the fade of a model change */
+
 /* process the three buses for one block; sends in, wet stereo-equal out */
 static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet,
                      uint32_t n)
 {
-    uint32_t i, k, dl = delay_samples();
+    uint32_t i, dl = delay_samples();
     int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240;
     int32_t dmix = song.g[G_DMIX] * 258;
-    int32_t size = 25000 + song.g[G_RSIZE] * 50, damp = 32767 - song.g[G_RDAMP] * 200;
-    int32_t cdepth = song.g[G_CDEPTH] * 6;
+    int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
     for (i = 0; i < n; i++) {
-        int32_t y = 0, x, r, a;
+        int32_t y = 0, x, r;
         /* chorus: modulated short delay, 5..15 ms */
         cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)clamp(cho_in[i] >> 1, -32768, 32767);
         fx.cho_ph += cinc;
@@ -140,41 +307,34 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
             (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
         fx.dly_w++;
         y += mulq15(x << 1, dmix);
-        /* reverb: 4 damped combs + 2 allpasses (Freeverb-like, mono) */
-        a = 0;
-        {
-            int16_t *c = rev_comb;
-            int32_t in = mulq15(rev_in[i], 2580);       /* 1/8 at -4 dB */
-            for (k = 0; k < 4u; k++) {
-                int32_t o = c[fx.comb_i[k]];
-                fx.comb_lp[k] = o + mulq15(fx.comb_lp[k] - o, 32767 - damp);
-                c[fx.comb_i[k]] = (int16_t)clamp(in + mulq15(fx.comb_lp[k], size), -32768, 32767);
-                if (++fx.comb_i[k] >= REV_COMB[k])
-                    fx.comb_i[k] = 0;
-                a += o;
-                c += REV_COMB[k];
-            }
-            c = rev_ap;
-            for (k = 0; k < 2u; k++) {
-                int32_t o = c[fx.ap_i[k]];
-                int32_t v = a + (o >> 1);
-                c[fx.ap_i[k]] = (int16_t)clamp(v, -32768, 32767);
-                a = o - a;                              /* Freeverb: out = buf - in (o - v would be a notch comb) */
-                if (++fx.ap_i[k] >= REV_AP[k])
-                    fx.ap_i[k] = 0;
-                c += REV_AP[k];
-            }
-        }
-        y += a;
         wet[i] = y;
     }
+    rt = song.g[G_RTYPE] == 1;
+    if (rt != fx.rtype) {                               /* the model changed: the old one's block fades out, */
+        int32_t *t = part_buf, g = 65536, d = 65536 / (int32_t)n;   /* its buffers are cleared, the new */
+        for (i = 0; i < n; i++)                                     /* one starts from silence */
+            t[i] = 0;
+        if (fx.rtype)
+            rev_spring(rev_in, t, n);
+        else
+            rev_room(rev_in, t, n);
+        for (i = 0; i < n; i++, g -= d)
+            wet[i] += mulq16(t[i], (uint32_t)g);
+        rev_clear();
+        fx.rtype = (uint8_t)rt;
+        return;
+    }
+    if (rt)
+        rev_spring(rev_in, wet, n);
+    else
+        rev_room(rev_in, wet, n);
 }
 
 /* one block of the whole mix (shared with the host tests): events -> each drum track -> dist -> SLICER
  * -> level / pan / sends -> buses -> master; out: stereo Q15 */
 static void events_block(uint32_t n);                    /* seq.c */
 static void midi_drop(void);                             /* seq.c */
-static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL];
+static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL];
 
 /* one track into the dry mix and the sends; a track with no voice sounding costs the LFO tick and a cleared
  * buffer only (after the DIST tail has run out). src: the COMP source (NTRK = off). The source's block (after
@@ -190,6 +350,8 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
+        if ((pf.mute >> (t - trk)) & 1u)
+            perf_mute_idle((uint32_t)(t - trk));        /* perform.c: a white key in the FX layer */
         if (is_src) {
             comp_block(0, n);                           /* silence: the detector decays */
             t->gfade = t->p[P_MUTE] || song.g[G_CGHOST] == CG_HIDE ? 32767u : 0u;   /* nothing sounds: at once */
@@ -204,6 +366,8 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
+        if ((pf.mute >> (t - trk)) & 1u)
+            perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a white key in the FX layer */
         if (is_src) {
             int hide = t->p[P_MUTE] || song.g[G_CGHOST] == CG_HIDE;
             comp_block(t->p[P_MUTE] && song.g[G_CGHOST] == CG_MUTE ? 0 : b, n);   /* GHOST MUTE: muted keys nothing */
@@ -246,6 +410,8 @@ static uint32_t comp_was = NTRK;                 /* the COMP source of the last 
 static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
+    int perf;
+    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB LEVEL FIXED: MASTER after) */
     if (safe_start) {                                 /* safe start: silence, no track / model / FX code */
         for (i = 0; i < n; i++)
             out[2u * i] = out[2u * i + 1u] = 0;
@@ -257,6 +423,7 @@ static void mix_block(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     lfo_apply(n);                                       /* LFOs: the modulated knobs for this block (lfo.c) */
     events_block(n);
+    perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
     drum_block_begin();
     {
         uint32_t src = comp_src();
@@ -272,10 +439,17 @@ static void mix_block(int32_t *out, uint32_t n)
                 mix_part(&trk[i], n, src);
     }
     lfo_restore();                                      /* the knobs as set again */
+    if (perf)
+        perf_pre(mix_l, mix_r, send_d, send_r, n);  /* THROW */
     fx_buses(send_c, send_d, send_r, wet, n);
+    for (i = 0; i < n; i++) {                           /* the master level */
+        mix_l[i] = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
+        mix_r[i] = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */
+    }
+    if (perf)
+        perf_block(mix_l, mix_r, n);                    /* the FX layer's effects (perform.c) */
     for (i = 0; i < n; i++) {
-        int32_t l = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * (int32_t)song.master_q12) >> 10;
-        int32_t r = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * (int32_t)song.master_q12) >> 10;   /* fits Q12 */
+        int32_t l = mix_l[i], r = mix_r[i];
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;

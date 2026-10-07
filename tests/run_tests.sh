@@ -24,6 +24,11 @@ $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
 $CC -o "$OUT/usb_midi_test" tests/usb_midi_test.c
 run "USB-MIDI driver (usb_app.c): back-pressure, packet checks, SysEx, realtime, overflow" "$OUT/usb_midi_test"
+HALF=$(sed -n 's/^#define HALF_FRAMES \([0-9]*\).*/\1/p' firmware/src/core.h)
+$CC -DT_CDC=1 -DHALF_FRAMES=$HALF -o "$OUT/uac_test" tests/uac_test.c
+run "USB audio input: descriptors (with CDC), ring and packets" "$OUT/uac_test"
+$CC -DT_CDC=0 -DHALF_FRAMES=$HALF -o "$OUT/uac_test_nocdc" tests/uac_test.c
+run "USB audio input: descriptors (without CDC), ring and packets" "$OUT/uac_test_nocdc"
 $CC -o "$OUT/input_test" tests/input_test.c
 run "keys and buttons: fast press, long release, bouncy contacts, glitches; encoders (#23)" "$OUT/input_test"
 $CC -o "$OUT/ota_test" tests/ota_test.c
@@ -41,6 +46,8 @@ run "storage erase: IRQs off before the audio is silenced (st_save)" python3 too
 run "erase-order self-test (the old order is caught)" python3 tools/check_erase_order.py --selftest
 run "version: the app and the installer carry VERSION.txt (docs/VERSIONING.md)" python3 tools/version.py check build
 run "version tool self-test (bump, the build check)" python3 tools/version.py --selftest
+run "TRS MIDI input on in the built app (FELUCCA_UART, console lines)" python3 tools/check_trs.py build
+run "USB audio input on in the built app (FELUCCA_UAC, console lines)" python3 tools/check_uac.py build
 if [ -f build/upstream/build/felucca.dis ]; then
     run "frozen code in the binary = upstream's (H2)" python3 tools/compare_upstream.py build build/upstream/build
     run "H2 self-test (changed effects are caught)" python3 tools/compare_upstream.py --selftest build build/upstream/build

@@ -15,6 +15,11 @@ static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
 static uint32_t fb_lit(uint32_t y0, uint32_t y1);
 static void tap(uint32_t b);
+static int led_on(uint32_t id)                       /* the LED of button / key id (ui_leds' last frame) */
+{
+    uint32_t q = led_pos[id];
+    return q != 0xFF && ((fm1_led[q >> 3] >> (q & 7u)) & 1u);
+}
 
 static void test_families(void)
 {
@@ -28,6 +33,7 @@ static void test_families(void)
         press(MAP[i].btn);
         ui_frame();
         release_all();
+        ui_frame();                                  /* (FX opens its pages on the release) */
         ok &= !ui.home && cur_page()->fam == MAP[i].fam;
     }
     check("buttons open their page families (EDIT SOUND, FX, SEQ, GLO, SAVE, ARP GRIDS, LFO LFO)", ok);
@@ -136,6 +142,7 @@ static void test_model_swap(void)
     press(B_FX);
     ui_frame();
     release_all();
+    ui_frame();
     turn(EN_PRESET, 1);
     ui_frame();
     check("PRESET elsewhere (FX page) leaves the model alone", (uint32_t)trk[0].p[P_MODEL] == m0);
@@ -475,6 +482,7 @@ static void test_comp_pages(void)
         press(B_FX);
         ui_frame();
         release_all();
+        ui_frame();
         fx_comp |= !ui.home && cur_page()->graph == GR_COMP;
     }
     check("FX no longer reaches COMP", !fx_comp);
@@ -1446,6 +1454,7 @@ static void test_screens(void)
             }
             ui_frame();
             release_all();
+            ui_frame();                              /* (FX opens its pages on the release) */
         }
         reach &= cur_page() == pg && !ui.home;
         snprintf(name, sizeof name, "%02u_", (unsigned)++n);
@@ -1874,6 +1883,507 @@ static void test_key_selects_track(void)
     check("HOME: a white key selects its track", song.sel == 2);
 }
 
+/* MENU > SPEAKER EQ (sound pack): KNOB 1 steps FLAT LOWCUT BASS+ and stops at the ends, OCT+ steps and wraps;
+ * the master follows (fx_lowcut); a stored value past BASS+ loads as FLAT */
+static void test_speaker_eq(void)
+{
+    static const int8_t TURN[6] = {1, 1, 1, -1, -1, -1};
+    static const uint8_t WANT[6] = {1, 2, 2, 1, 0, 0};
+    uint32_t ok = 1, i;
+    ui_host_init();
+    settings.lowcut = 0;
+    fx_lowcut = 0;
+    ui.menu = 1;
+    ui.menu_sel = MI_SPKEQ;
+    ui.force = 1;
+    for (i = 0; i < 6u; i++) {
+        turn(EN_K1, TURN[i]);
+        ui_frame();
+        ok &= settings.lowcut == WANT[i] && fx_lowcut == WANT[i];
+    }
+    check("SPEAKER EQ: KNOB 1 steps FLAT LOWCUT BASS+, stops at the ends; the master follows", ok);
+    ok = 1;
+    for (i = 0; i < 4u; i++) {
+        press(B_OCTUP);
+        ui_frame();
+        release_all();
+        ui_frame();
+        ok &= settings.lowcut == (i + 1u) % 3u && fx_lowcut == (i + 1u) % 3u;
+    }
+    check("SPEAKER EQ: OCT+ steps and wraps", ok);
+    settings.lowcut = 2;
+    fx_lowcut = 2;
+    ui.force = 1;
+    snap_page("menu_speaker_eq");
+    settings.lowcut = 3;
+    settings_init();
+    check("SPEAKER EQ: a stored value past BASS+ loads as FLAT", settings.lowcut == 0 && fx_lowcut == 0);
+    ui.menu = 0;
+    ui.force = 1;
+}
+
+
+/* sound pack: REV/CHO split into REVERB (TYPE SIZE DAMP) and CHORUS (RATE DEPTH); FX reaches both, TYPE turns
+ * ROOM / SPRING; screens for the user */
+static void fx_open(const char *title)              /* FX until the page shows */
+{
+    uint32_t k;
+    for (k = 0; k < NPAGES && (!str_eq(cur_page()->title, title) || ui.home); k++) {
+        press(B_FX);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+}
+static void test_reverb_pages(void)
+{
+    ui_host_init();
+    fx_open("REVERB");
+    check("FX reaches REVERB: TYPE SIZE DAMP", str_eq(cur_page()->title, "REVERB") && cur_page()->id[0] == G_RTYPE &&
+          cur_page()->id[1] == G_RSIZE && cur_page()->id[2] == G_RDAMP && cur_page()->id[3] == 0xFF);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("REVERB: KNOB 1 turns TYPE to SPRING", song.g[G_RTYPE] == 1);
+    check("REVERB: the TYPE names fit the 5-character value (ROOM, SPRNG)",
+          strlen(N_RTYPE[0]) <= 5u && strlen(N_RTYPE[1]) <= 5u && str_eq(N_RTYPE[1], "SPRNG"));
+    snap_page("fx_reverb_spring");
+    fx_open("CHORUS");
+    check("FX reaches CHORUS: RATE DEPTH", str_eq(cur_page()->title, "CHORUS") && cur_page()->id[0] == G_CRATE &&
+          cur_page()->id[1] == G_CDEPTH && cur_page()->id[2] == 0xFF && cur_page()->id[3] == 0xFF);
+    snap_page("fx_chorus");
+}
+
+/* sound pack: division knobs run by length (4BAR .. 1/32), the stored value stays the id; the gauge follows */
+static void test_div_order(void)
+{
+    static const int16_t WANT[10] = {9, 8, 7, 6, 0, 1, 4, 2, 5, 3};
+    const param_desc_t *d = &TP[P_SDIV];
+    uint32_t i, ok = 1;
+    for (i = 0; i + 1u < 10u; i++)
+        ok &= param_turn(d, WANT[i], 1) == WANT[i + 1] && param_turn(d, WANT[i + 1], -1) == WANT[i];
+    ok &= param_turn(d, 3, 1) == 3 && param_turn(d, 9, -1) == 9 && param_turn(d, 9, 20) == 3;
+    check("DIV: the knob steps 4BAR 2BAR 1/1 1/2 1/4 1/8 8T 1/16 16T 1/32, stopping at the ends", ok);
+    check("DLY TIME: the same order", param_turn(&GP[G_DTIME], 6, 1) == 0 && param_turn(&GP[G_DTIME], 0, -1) == 6);
+    check("DIV gauge: by length (4BAR empty, 1/32 full, 1/4 at 4/9)",
+          RATIO(d, 9) == 0 && RATIO(d, 3) == 1000 && RATIO(d, 0) == 444);
+    check("other knobs keep their order (SLICER RATE, ids as shown)", param_turn(&TP[P_SLRATE], 1, 1) == 2);
+    ui_host_init();
+    settings.accel = 0;
+    seq_open("PATTERN");
+    trk[song.sel].p[P_SDIV] = 9;
+    ok = 1;
+    for (i = 1; i < 10u; i++) {
+        turn(EN_K2, 1);
+        ui_frame();
+        ok &= trk[song.sel].p[P_SDIV] == WANT[i];
+    }
+    check("PATTERN DIV: turning right walks the length order", ok);
+    trk[song.sel].p[P_SDIV] = 8;
+    snap_page("seq/pattern_div_2bar");
+    settings.accel = 1;
+}
+
+/* MENU > USB LEVEL (USB audio): KNOB 1 right FIXED / left MASTER, OCT+ toggles; the mix follows (fx_usb_fixed); the
+ * menu's eight rows for the user's eye */
+static void test_usb_level(void)
+{
+    uint32_t ok = 1;
+    ui_host_init();
+    settings.usbfix = 0;
+    fx_usb_fixed = 0;
+    ui.menu = 1;
+    ui.menu_sel = MI_USB;
+    ui.force = 1;
+    turn(EN_K1, 1);
+    ui_frame();
+    ok &= settings.usbfix == 1 && fx_usb_fixed == 1;
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= settings.usbfix == 0 && fx_usb_fixed == 0;
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= settings.usbfix == 1 && fx_usb_fixed == 1;
+    check("USB LEVEL: KNOB 1 right FIXED / left MASTER, OCT+ toggles; the mix follows", ok);
+    ui.force = 1;
+    snap_page("menu_usb_level");
+    settings.usbfix = 0;
+    fx_usb_fixed = 0;
+    ui.menu = 0;
+    ui.force = 1;
+}
+
+/* MIDI clock: GLOBAL with CLK USB, and the BPM knob while following (a message, the tempo kept) */
+static void test_clock_screens(void)
+{
+    int16_t bpm;
+    ui_host_init();
+    while (!str_eq(cur_page()->title, "GLOBAL") || ui.home) {
+        press(B_GLO);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+    song.g[G_CLOCK] = 1;
+    ui.force = 1;
+    snap_page("global_clk_usb");
+    bpm = song.g[G_BPM];
+    turn(EN_SELECT, 3);
+    ui_frame();
+    check("CLK USB: the BPM knob keeps the tempo (the clock's) and says so", song.g[G_BPM] == bpm && ui.msg_t);
+    song.g[G_CLOCK] = 0;
+    render_mix(0, 0, CTL);
+}
+
+/* PERFORM: FX tapped opens its pages on the release; held, the layer (keys, knobs, LEDs) */
+static uint32_t fx_bit(void) { return 1u << panel.btn[B_FX]; }
+static void fx_hold_frames(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        fm1_in.buttons |= fx_bit();
+        ui_frame();
+    }
+}
+static void test_perform_gesture(void)
+{
+    uint32_t fam;
+    ui_host_init();
+    press(B_FX);
+    ui_frame();
+    check("FX pressed: nothing yet (the page waits for the release)", ui.home);
+    release_all();
+    ui_frame();
+    check("FX tapped: the FX pages on the release", !ui.home && cur_fam() == FAM_FX && !ui.layer);
+    fam = cur_page() - PAGES;
+    press(B_FX);
+    fx_hold_frames(500);                              /* well past 0.4 s (1 ms a frame) */
+    check("FX held alone: the layer's map", ui.layer == 1u);
+    release_all();
+    ui_frame();
+    check("FX let go after the hold: no page change, the map gone", (uint32_t)(cur_page() - PAGES) == fam && !ui.layer);
+    press(B_FX);
+    ui_frame();
+    turn(EN_K2, 5);
+    fx_hold_frames(1);
+    check("FX + KNOB 2: CRUSH, the layer open at once", perf_k[1] > 0 && ui.layer == 1u);
+    release_all();
+    ui_frame();
+    check("FX let go: the macros back to off, no page change", !perf_k[1] && (uint32_t)(cur_page() - PAGES) == fam);
+}
+
+static void test_perform_keys(void)
+{
+    uint32_t sel;
+    ui_host_init();
+    sel = song.sel;
+    press(B_FX);
+    ui_frame();
+    keys(1u << 4);                                    /* A3: track 3's key */
+    fx_hold_frames(2);                                /* (the render takes the key after the UI's pass) */
+    check("FX + a track key: no track select, the layer open, track 3 muted",
+          song.sel == sel && ui.layer == 1u && ((perf_held >> (PF_M1 + 2u)) & 1u));
+    check("LEDs: the muted track's key dark", !led_on(14u + 4u));
+    keys(0);
+    fx_hold_frames(1);
+    release_all();
+    ui_frame();
+    check("all let go: nothing held, the map gone", !perf_held && !ui.layer);
+    seq_open("STEP");                                 /* the STEP grid: FX + a white key toggles no step */
+    {
+        step_t s0 = TSEL->step[0];
+        press(B_FX);
+        ui_frame();
+        keys(1u << 0);
+        fx_hold_frames(1);
+        keys(0);
+        fx_hold_frames(1);
+        release_all();
+        ui_frame();
+        check("STEP grid: FX + a white key toggles no step", TSEL->step[0].on == s0.on);
+    }
+}
+
+/* Review Focus 3 */
+static void test_perform_menu_kills(void)
+{
+    uint32_t i;
+    ui_host_init();
+    press(B_FX);
+    ui_frame();
+    keys(1u << 3);                                    /* G#3: REPEAT 1/16 */
+    fx_hold_frames(1);
+    check("REPEAT held in the layer", (perf_held >> PF_R16) & 1u);
+    release_all();
+    for (i = 0; i < 1000u && !ui.menu; i++) {         /* HOME held: the menu */
+        fm1_in.buttons |= 1u << panel.btn[B_HOME];
+        ui_frame();
+    }
+    release_all();
+    ui_frame();                                       /* (the next pass sees the menu: 1 ms) */
+    check("the menu opened with an effect key held: effects off, the key still the layer's",
+          ui.menu && perf_kill && !perf_act && (kb_layer >> 3) & 1u);
+    keys(0);
+    ui_frame();
+    check("the key let go: nothing held", !perf_held && !kb_layer);
+    release_all();
+    ui_frame();
+    menu_close();
+    ui_frame();
+    ui_frame();
+    check("menu closed, no key held: effects allowed again", !perf_kill);
+}
+
+/* MENU > PERFORM: HOLD / PAGE; PAGE: the PERFORM screen stays after FX is let go, until the screen changes */
+static void test_perform_page(void)
+{
+    ui_host_init();
+    ui.menu = 1;
+    ui.menu_sel = MI_PERF;
+    ui.force = 1;
+    turn(EN_K1, 1);
+    ui_frame();
+    check("MENU PERFORM: KNOB 1 right = PAGE", settings.perfpage == 1u);
+    snap_page("perform/menu_page");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("MENU PERFORM: KNOB 1 left = HOLD", settings.perfpage == 0u);
+    menu_close();
+    ui_frame();
+    settings.perfpage = 1;
+    tap(B_SEQ);                                       /* a page under it */
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    check("PAGE: FX held then let go, the PERFORM screen stays", ui.layer && ui.pg_open);
+    keys(1u << 3);                                    /* G#3 without FX */
+    ui_frame();
+    check("PAGE: a black key plays its effect with no button held", ((perf_held >> PF_R16) & 1u) && (kb_layer >> 3) & 1u);
+    keys(0);
+    ui_frame();
+    turn(EN_K2, 10);
+    ui_frame();
+    check("PAGE: the knobs are the macros without FX, and keep their values", perf_k[1] > 0);
+    press(B_PLAY);
+    ui_frame();
+    release_all();
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("PAGE: PLAY and OCT+ leave it open", ui.pg_open && perf_k[1] > 0);
+    tap(B_GLO);
+    check("PAGE: another page button closes it, the macros off", !ui.pg_open && !ui.layer && !perf_k[1] &&
+          cur_fam() == FAM_GLO);
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    tap(B_FX);
+    ui_frame();
+    check("PAGE: an FX tap closes it and opens the FX pages", !ui.pg_open && cur_fam() == FAM_FX);
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    tap(B_HOME);
+    ui_frame();
+    check("PAGE: HOME closes it", !ui.pg_open && !ui.layer);
+    settings.perfpage = 0;
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    check("HOLD: the map goes with FX", !ui.layer && !ui.pg_open);
+    transport_req = 2;                                /* (PLAY above started the transport: stopped for the next test) */
+    render_mix(0, 0, CTL);
+}
+
+/* PERFORM screens: the map held alone, with keys held (REPEAT 1/16 running, track 2 muted), an unavailable REPEAT
+ * (40 BPM), OCT UP with the SHIMMER knob */
+static void test_perform_screens(void)
+{
+    ui_host_init();
+    press(B_FX);
+    fx_hold_frames(500);
+    snap_page("perform/map");
+    check("the map: the footer says [FX] HOLD", fb_lit(Y_FOOT, 240) > 0u && ui.layer);
+    keys(1u << 3 | 1u << 2);                          /* G#3 REPEAT 1/16, G3 track 2 */
+    fx_hold_frames(2);
+    snap_page("perform/keys");
+    keys(0);
+    fx_hold_frames(2);
+    song.g[G_BPM] = 40;
+    ui.force = 1;
+    snap_page("perform/bpm40");
+    song.g[G_BPM] = 120;
+    keys(1u << 20);                                   /* C#5 OCT UP */
+    turn(EN_K4, 40);
+    fx_hold_frames(2);
+    snap_page("perform/oct_shimmer");
+    check("OCT UP playing: KNOB 4 is SHIMMER", perf_harm_on() && perf_k[3] > 0);
+    keys(0);
+    release_all();
+    ui_frame();
+}
+
+/* review: FX pressed and a key at once, before the UI's pass has seen FX: still the layer's (no note) */
+static void test_perform_fast_key(void)
+{
+    uint32_t age;
+    ui_host_init();
+    ui_frame();
+    age = hit_age(&trk[0]);
+    fm1_in.buttons |= fx_bit();                       /* FX down, the UI has not run since */
+    keys(1u << 0);                                    /* F3 in the same moment */
+    render_mix(0, 0, CTL);                            /* the audio render first */
+    check("FX + a key before the UI's pass: the key is the layer's, no note",
+          (kb_layer & 1u) && hit_age(&trk[0]) == age);
+    keys(0);
+    release_all();
+    ui_frame();
+    ui_frame();
+}
+
+/* review: FX held into the menu and out again: the press is dead (no map, no layer, no PAGE), the macros off */
+static void test_perform_dead_hold(void)
+{
+    uint32_t p, i;
+    for (p = 0; p < 2u; p++) {
+        ui_host_init();
+        settings.perfpage = p;
+        press(B_FX);
+        turn(EN_K2, 10);                              /* CRUSH: the layer open at once */
+        fx_hold_frames(2);
+        for (i = 0; i < 1000u && !ui.menu; i++) {     /* HOME held too: the menu */
+            fm1_in.buttons |= 1u << panel.btn[B_HOME];
+            fx_hold_frames(1);
+        }
+        fm1_in.buttons &= ~(1u << panel.btn[B_HOME]);
+        fx_hold_frames(2);
+        check(p ? "PAGE: FX held into the menu: the CRUSH macro off there" : "HOLD: FX held into the menu: the CRUSH macro off there",
+              ui.menu && !perf_k[1]);
+        menu_close();
+        fx_hold_frames(3);                            /* FX still held, the menu gone */
+        check(p ? "PAGE: FX held out of the menu: dead (no PERFORM page, keys not the layer's)"
+                : "HOLD: FX held out of the menu: dead (no map, keys not the layer's)",
+              !ui.layer && !ui.pg_open && !perf_mask);
+        release_all();
+        ui_frame();
+        settings.perfpage = 0;
+    }
+}
+
+/* MOTION: knob turns of the armed, selected track record while playing (SOUND, HOME, TRACKS); clears */
+static void motion_armed_play(void)
+{
+    ui_host_init();
+    song.rec = 1u;                                    /* track 1 armed */
+    transport_req = 1;
+    ui_frame();
+    ui_frame();
+}
+static void test_motion_recording(void)
+{
+    uint32_t i;
+    motion_armed_play();
+    tap(B_EDIT);                                      /* SOUND 1: MODEL, the model's 1st, 2nd, 3rd knob */
+    turn(EN_K3, 4);
+    ui_frame();
+    check("MOTION: a SOUND knob of the armed track records while playing", motion_count(0) == 1u);
+    ui.home = 1;
+    ui.force = 1;
+    ui_frame();
+    turn(EN_K1, 3);
+    ui_frame();
+    check("MOTION: a HOME knob records", motion_count(0) == 2u);
+    open_family(FAM_MIX);
+    ui_frame();
+    turn(EN_K2, 3);                                   /* TRACKS: LEVEL */
+    ui_frame();
+    check("MOTION: TRACKS' LEVEL records", motion_count(0) >= 3u);
+    for (i = 0; mo.s.count < MOTION_MAX; i++)
+        motion_add(1, i % 64u, P_E0 + i / 64u, 1);    /* the store full with track 2's */
+    tap(B_EDIT);
+    turn(EN_K4, -4);                                  /* the model's 3rd knob: a new place (E1's is taken) */
+    ui_frame();
+    check("MOTION FULL: said when a turn finds no free place", str_eq(ui.msg, "MOTION FULL") && !mo.full);
+    track_clear(&trk[1]);
+    check("CLEAR TRACK (and CLR SEQ / CLR ALL): its motion cleared too", motion_count(1) == 0u && motion_count(0) >= 1u);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review Focus 4: a model change while motion plays re-takes the base */
+static void test_motion_model_change(void)
+{
+    int16_t def;
+    uint32_t i;
+    ui_host_init();
+    trk[0].p[P_E1] = 7;                               /* the old sound's DECAY, not a default */
+    trk[0].p[P_LEVEL] = 104;                          /* a knob the model change leaves alone */
+    motion_add(0, 0, P_E1, 120);                      /* plays at step 0: E1 moved off the base 7 */
+    motion_add(0, 0, P_LEVEL, 20);                    /* .. and LEVEL off 104 */
+    transport_req = 1;
+    for (i = 0; i < 4u; i++)
+        ui_frame();
+    tap(B_EDIT);
+    turn(EN_K1, 1);                                   /* SOUND 1 KNOB 1: the next model, its default sound */
+    ui_frame();
+    def = trk[0].p[P_E1];
+    check("MOTION: a model change while playing is the new base", mo.base[0][P_E1] == def && def != 7);
+    transport_req = 2;
+    ui_frame();
+    check("MOTION: STOP after a model change keeps the new model's values (not the old 7)", trk[0].p[P_E1] == def);
+    check("MOTION: STOP after a model change puts the other knobs' patch values back (LEVEL 104, not 20)",
+          trk[0].p[P_LEVEL] == 104);
+    init_all();
+    check("INIT ALL: no motion left", mo.s.count == 0u);
+}
+
+/* the MOTION page: PLAY, EVENTS, CLEAR with its dialog; screens */
+static void test_motion_page(void)
+{
+    ui_host_init();
+    seq_open("MOTION");
+    check("SEQ reaches the MOTION page", !ui.home && str_eq(cur_page()->title, "MOTION"));
+    snap_page("motion/empty");
+    motion_add(0, 0, P_E1, 20);
+    motion_add(0, 4, P_E1, 60);
+    motion_add(0, 9, P_PAN, -30);
+    transport_req = 1;
+    ui_frame();
+    ui.force = 1;
+    snap_page("motion/events");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("MOTION KNOB 1 left: PLAY OFF", !motion_on(0));
+    turn(EN_K1, 1);
+    ui_frame();
+    check("MOTION KNOB 1 right: PLAY ON", motion_on(0));
+    turn(EN_K4, 1);
+    ui_frame();
+    check("MOTION KNOB 4: asks before clearing", ui.confirm == 2u && motion_count(0) == 3u);
+    snap_page("motion/confirm");
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("the dialog: OCT- keeps the motion", !ui.confirm && motion_count(0) == 3u);
+    turn(EN_K4, 1);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("the dialog: OCT+ clears the track's motion", !ui.confirm && motion_count(0) == 0u);
+    transport_req = 2;
+    ui_frame();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -1916,6 +2426,21 @@ int main(void)
     test_project_roundtrip();
     test_project_rejects();
     test_ui_frame_cost();
+    test_speaker_eq();
+    test_reverb_pages();
+    test_div_order();
+    test_usb_level();
+    test_clock_screens();
+    test_perform_gesture();
+    test_perform_keys();
+    test_perform_menu_kills();
+    test_perform_page();
+    test_perform_screens();
+    test_perform_fast_key();
+    test_perform_dead_hold();
+    test_motion_recording();
+    test_motion_model_change();
+    test_motion_page();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

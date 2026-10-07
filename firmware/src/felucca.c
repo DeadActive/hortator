@@ -39,9 +39,12 @@
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC 1            /* USB CDC-ACM serial console */
 #endif
+#ifndef FELUCCA_UAC
+#define FELUCCA_UAC 1            /* USB audio input: the master output, 16-bit stereo 44.1 kHz (usb_app.c) */
+#endif
 #include "usb_app.c"         /* upstream 1.0's USB driver (the update loader keeps usb.c) */
 #ifndef FELUCCA_UART
-#define FELUCCA_UART 0           /* 1 = TRS MIDI IN on UART1 (untested) */
+#define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 (upstream 1.0: on, RX verified on hardware) */
 #endif
 #if FELUCCA_UART
 #include "midi_uart.c"

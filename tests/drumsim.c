@@ -266,6 +266,98 @@ static void reson_chord_bar(uint32_t b) { trk[1].p[P_RSTRCT] = (int16_t)((b % RS
 static void reson_dist_bar(uint32_t b) { trk[1].p[P_DIST] = trk[2].p[P_DIST] = (int16_t)(b & 1u ? 110 : 0); }
 static void reson_none_bar(uint32_t b) { (void)b; }
 
+/* sound pack demos (120 BPM, whole mix). sp_speaker_eq.wav: the 808 kit, 2 bars each FLAT, LOWCUT, BASS+;
+ * sp_reverb.wav: a snare on 2 and 4 into the reverb, 2 bars each ROOM, SPRING at SIZE 0 / 64 / 127 (DAMP 60), SPRING
+ * SIZE 127 DAMP 0 and DAMP 127; sp_slow_div.wav: a 1/16 kick with a hat on 2BAR (4 bars) then 4BAR (8 bars), the
+ * snare's delay at TIME 1/2 */
+static void sp_kit(void)
+{
+    static const char *const PAT[3] = {"X...x...x...x...", "....X.......X...", "x.x.x.x.x.x.x.x."};
+    static const uint32_t MODEL[3] = {DM_K808, DM_S808, DM_HATC};
+    uint32_t i, k;
+    host_init();
+    for (i = 0; i < 3u; i++) {
+        drum_set_model(&trk[i], MODEL[i]);
+        for (k = 0; k < 16u; k++) {
+            trk[i].step[k].on = PAT[i][k] != '.';
+            trk[i].step[k].acc = PAT[i][k] == 'X';
+        }
+    }
+}
+static void sp_eq_bar(uint32_t b) { fx_lowcut = (uint8_t)(b / 2u < 3u ? b / 2u : 2u); }
+static void sp_rev_bar(uint32_t b)
+{
+    static const int16_t TYPE[6] = {0, 1, 1, 1, 1, 1}, SIZE[6] = {90, 0, 64, 127, 127, 127}, DAMP[6] = {60, 60, 60, 60, 0, 127};
+    uint32_t s = b / 2u < 6u ? b / 2u : 5u;
+    song.g[G_RTYPE] = TYPE[s];
+    song.g[G_RSIZE] = SIZE[s];
+    song.g[G_RDAMP] = DAMP[s];
+}
+static void sp_div_bar(uint32_t b) { trk[2].p[P_SDIV] = b < 4u ? 8 : 9; }
+static void write_sound_pack(const char *dir)
+{
+    sp_kit();
+    write_demo(dir, "sp_speaker_eq.wav", 6, sp_eq_bar);
+    fx_lowcut = 0;
+    sp_kit();
+    drum_set_model(&trk[0], DM_K808);
+    memset(trk[0].step, 0, sizeof trk[0].step);      /* the snare alone */
+    memset(trk[2].step, 0, sizeof trk[2].step);
+    trk[1].p[P_REV] = 110;
+    write_demo(dir, "sp_reverb.wav", 12, sp_rev_bar);
+    song.g[G_RTYPE] = 0;
+    sp_kit();
+    trk[1].p[P_DLY] = 90;
+    song.g[G_DTIME] = 6;                             /* 1/2 */
+    for (uint32_t k = 0; k < 16u; k++)
+        trk[2].step[k].on = 1;
+    write_demo(dir, "sp_slow_div.wav", 12, sp_div_bar);
+}
+
+/* PERFORM demos (120 BPM, the sound pack's 808 kit with a reverb / delay send): 4 bars each, the effect (a key or a
+ * knob) held over bars 2 and 3: pf_<name>.wav */
+static const struct { const char *name; uint32_t held; int8_t k[4]; } PF_DEMO[] = {
+    {"pf_repeat_8.wav", 1u << PF_R8, {0}}, {"pf_repeat_16.wav", 1u << PF_R16, {0}},
+    {"pf_repeat_32.wav", 1u << PF_R32, {0}}, {"pf_reverse.wav", 1u << PF_REV, {0}},
+    {"pf_tape_stop.wav", 1u << PF_TAPE, {0}}, {"pf_lpf.wav", 1u << PF_LPF, {0}}, {"pf_hpf.wav", 1u << PF_HPF, {0}},
+    {"pf_freeze.wav", 1u << PF_FRZ, {0}}, {"pf_oct_up.wav", 1u << PF_OUP, {0}}, {"pf_oct_dn.wav", 1u << PF_ODN, {0}},
+    {"pf_oct_up_shimmer.wav", 1u << PF_OUP, {0, 0, 0, 60}}, {"pf_mute_kick.wav", 1u << PF_M1, {0}},
+    {"pf_crush.wav", 0, {0, 80, 0, 0}}, {"pf_throw.wav", 0, {0, 0, 100, 0}}, {"pf_filter_knob.wav", 0, {-70, 0, 0, 0}},
+};
+static uint32_t pf_cur;
+static void pf_bar(uint32_t b)
+{
+    uint32_t on = b == 1u || b == 2u, k;
+    perf_held = on ? PF_DEMO[pf_cur].held : 0u;
+    for (k = 0; k < 4u; k++)
+        perf_k[k] = on ? PF_DEMO[pf_cur].k[k] : 0;
+}
+static void write_perform(const char *dir)
+{
+    for (pf_cur = 0; pf_cur < sizeof PF_DEMO / sizeof PF_DEMO[0]; pf_cur++) {
+        sp_kit();
+        trk[1].p[P_REV] = 60;
+        trk[2].p[P_DLY] = 50;
+        write_demo(dir, PF_DEMO[pf_cur].name, 4, pf_bar);
+        perf_held = 0;
+    }
+}
+
+/* MOTION demo (120 BPM): the 808 kit, the kick's DECAY recorded as a sweep over a bar (step k: 10 + 7 k); bar 1
+ * PLAY OFF (the patch), bars 2..4 PLAY ON: motion_decay.wav */
+static void motion_bar(uint32_t b) { mo.s.on = b ? 1u : 0u; }
+static void write_motion(const char *dir)
+{
+    uint32_t k;
+    sp_kit();
+    for (k = 0; k < 16u; k++)
+        trk[0].step[k].on = (k & 1u) == 0u;           /* the kick on every 1/8: the sweep is heard */
+    for (k = 0; k < 16u; k++)
+        motion_add(0, k, P_E1, (int32_t)(10u + 7u * k));
+    write_demo(dir, "motion_decay.wav", 4, motion_bar);
+    memset(&mo, 0, sizeof mo);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -366,5 +458,8 @@ int main(int argc, char **argv)
     write_demo(dir, "reson_sweep.wav", 4, reson_none_bar);
     reson_kit(RS_PIPE);
     write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);      /* RESON into DIST, every other bar */
+    write_sound_pack(dir);
+    write_perform(dir);
+    write_motion(dir);
     return 0;
 }

@@ -3,6 +3,7 @@
 /* LFOs: two per track, each modulating one of its knobs (spec docs/superpowers/specs/2026-10-06-lfo-design.md).
  * Waveforms are functions of the phase (2^32 = one cycle) and MORPH; S&H / WANDER / RANDOM WALK keep state.
  * Output Q15, -32767 .. 32767. */
+static uint32_t beat_samples(void);               /* fx.c: a quarter note, the clock's when following */
 _Static_assert(FS == 44100, "lfo_tables.h is made for 44.1 kHz");
 
 /* SYNC: one cycle in ticks of a quarter note / 96: 8 bars .. 1/64 */
@@ -23,7 +24,7 @@ static uint32_t lfo_inc(const int16_t *q)
     if (mode == LM_TIME)
         return LR_TIME_INC[v];
     {
-        uint32_t spq = (uint32_t)FS * 60u / (uint32_t)clamp(song.g[G_BPM], 40, 240);   /* samples a quarter note */
+        uint32_t spq = beat_samples();                    /* samples a quarter note (the clock's when following) */
         return 0xFFFFFFFFu / (spq * LFO_SYNC_TICKS[v * 17u / 128u] / 96u);
     }
 }

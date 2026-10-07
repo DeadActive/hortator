@@ -17,6 +17,7 @@
  * in time), restarted with the transport (seq_start -> slicer_start: step 0 starts with the
  * sequencer's step 0), BPM and the track's + the global SWING as the sequencer has them (seq.c
  * step_samples); sample exact. With the SLICER OFF and no ramp left, the signal is not touched. */
+static uint32_t beat_samples(void);               /* fx.c: a quarter note, the clock's when following */
 #define SL_NPAT 16
 #define SL_LEN 4096u                    /* recording, 22.05 kHz samples a track: 186 ms, 8 KB */
 #define SL_RAMP_LOG2 7
@@ -57,8 +58,10 @@ typedef struct {
     uint8_t idx;                 /* step 0..15 */
     uint8_t bit;                 /* this step's pattern bit (latched at its start) */
     uint8_t rec_on;              /* recording this step */
+    uint8_t rem;                 /* the slice length's remainder carried to the next (as seq.c's steps) */
 } sl_t;
 static sl_t sl[NTRK];
+static uint8_t sl_lent;          /* perform.c has borrowed sl_buf: STUT plays live, records nothing */
 
 static void slicer_start(void)   /* seq_start: the next block starts step 0 of every track */
 {
@@ -66,6 +69,7 @@ static void slicer_start(void)   /* seq_start: the next block starts step 0 of e
     for (k = 0; k < NTRK; k++) {
         sl[k].idx = 15;
         sl[k].pos = sl[k].len = 0;
+        sl[k].rem = 0;
     }
 }
 
@@ -77,16 +81,20 @@ static void sl_enter(const track_t *t, sl_t *s)
     uint32_t mode = (uint32_t)t->p[P_SLCR];
     int32_t sw;
     s->idx = (uint8_t)((s->idx + 1u) & 15u);
-    s->base = (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM] / SL_DEN[(uint32_t)t->p[P_SLRATE] % 6u];
-    sw = track_swing(t) * (int32_t)s->base / 250;   /* as seq.c step_samples */
+    {   /* the slice carries its length's remainder, as the steps do (seq.c div_period): exact on the beat */
+        uint32_t den = SL_DEN[(uint32_t)t->p[P_SLRATE] % 6u], x = beat_samples() + s->rem;
+        s->base = x / den;
+        s->rem = (uint8_t)(x % den);
+        sw = track_swing(t) * (int32_t)(beat_samples() / den) / 250;   /* as seq.c step_samples: the plain length */
+    }
     s->len = s->base + (uint32_t)((s->idx & 1u) ? -sw : sw);
     s->pos = 0;
     s->bit = (uint8_t)((sl_pattern(t) >> s->idx) & 1u);
     s->rp = 0;
     s->loop = 0;
     s->rec_on = 0;
-    if (mode != SL_STUT) {
-        s->rec = 0;                                 /* nothing old to repeat when STUT comes on */
+    if (mode != SL_STUT + sl_lent) {               /* (lent: never STUT) */
+        s->rec = 0;                                 /* nothing old to repeat when STUT comes on (or the buffer is lent) */
     } else if (s->bit) {
         s->rec = 0;                                 /* a live step: record it */
         s->rec_on = 1;

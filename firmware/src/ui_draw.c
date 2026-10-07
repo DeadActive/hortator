@@ -723,12 +723,118 @@ static uint32_t graph_signature(void)
     return h;
 }
 
+/* PERFORM (perform.c), while FX is held: the black keys' effects in two rows of five (as on the keys: 1/8 1/16 1/32
+ * REV TAPE, LPF HPF FRZ OCT+ OCT-) and the white keys' tracks; held: lit, running: inverted, unavailable at the
+ * tempo: dim, a track muted (by its key or its MUTE): amber */
+static const char *const PF_NAME[PF_M1] = {"R1/8", "R1/16", "R1/32", "REV", "LPF", "HPF", "TAPE", "FRZ", "OCT+", "OCT-"};
+static void perf_cell(int32_t x, int32_t y, int32_t w, const char *s, uint32_t st)   /* st: 0 off 1 held 2 run 3 dim 4 mute */
+{
+    uint16_t fill = st == 2u ? C_HI : st == 1u ? C_LINE : st == 4u ? C_AMB : C_BLACK;
+    uint16_t ink = st == 2u || st == 4u ? C_BLACK : st == 3u ? C_DIM : st == 1u ? C_WHITE : C_GRAY;
+    cv_rect(x, y, w, 34, st == 3u ? C_BLACK : C_LINE);
+    cv_rect(x + 1, y + 1, w - 2, 32, fill);
+    cv_text(x + (w - text_w(&FONT_S, s)) / 2, y + 9, &FONT_S, s, ink);
+}
+static void graph_perf(void)
+{
+    uint32_t held = perf_kill ? 0u : perf_held, act = perf_act, ok = perf_avail(), i, sig = held * 31u + act * 7u + ok;
+    for (i = 0; i < NTRK; i++)
+        sig = sig * 3u + (uint32_t)(trk[i].p[P_MUTE] != 0);
+    if (!ui.force && sig == ui.graph_sig)
+        return;
+    ui.graph_sig = sig;
+    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_oy = 0;
+    for (i = 0; i < 10u; i++) {
+        uint32_t e = PF_BLACK[i];
+        perf_cell(4 + (int32_t)(i % 5u) * 47, i < 5u ? 4 : 44, 44, PF_NAME[e],
+                  !((ok >> e) & 1u) ? 3u : (act >> e) & 1u ? 2u : (held >> e) & 1u ? 1u : 0u);
+    }
+    for (i = 0; i < NTRK; i++) {
+        char n[2] = {(char)('1' + i), 0};
+        perf_cell(4 + (int32_t)i * 29, 84, 27, n,
+                  (held >> (PF_M1 + i)) & 1u || trk[i].p[P_MUTE] ? 4u : 0u);
+    }
+    cv_blit_from(0, Y_GRAPH, 0);
+}
+/* PERFORM: KNOB 1..4 FILTER CRUSH THROW DEPTH (SHIMMER while OCT UP / DN plays) */
+static void perf_columns(void)
+{
+    char val[12];
+    int32_t m = perf_k[0];
+    fmt_int(val, m < 0 ? -m : m);
+    draw_column(0, "FILT", m ? val : "OFF", m < 0 ? "LPF" : m > 0 ? "HPF" : "", m ? VAL(0u) : C_DIM, (m + 100) * 5,
+                ICON_AUTO);
+    fmt_int(val, perf_k[1]);
+    draw_column(1, "CRUSH", perf_k[1] ? val : "OFF", perf_k[1] ? "%" : "", perf_k[1] ? VAL(1u) : C_DIM,
+                perf_k[1] * 10, ICON_AUTO);
+    fmt_int(val, perf_k[2]);
+    draw_column(2, "THROW", perf_k[2] ? val : "OFF", perf_k[2] ? "%" : "", perf_k[2] ? VAL(2u) : C_DIM,
+                perf_k[2] * 10, ICON_AUTO);
+    if (perf_harm_on()) {
+        fmt_int(val, perf_k[3]);
+        draw_column(3, "SHIMR", perf_k[3] ? val : "OFF", perf_k[3] ? "%" : "", perf_k[3] ? VAL(3u) : C_DIM,
+                    perf_k[3] * 10, ICON_AUTO);
+    } else {
+        fmt_int(val, 100 - perf_k[3]);
+        draw_column(3, "DEPTH", val, "%", VAL(3u), (100 - perf_k[3]) * 10, ICON_AUTO);
+    }
+}
+
+/* MOTION: the selected track's LEN steps, 16 a row; a step holding events lit (grey with PLAY OFF), the
+ * playhead outlined */
+static void graph_motion(void)
+{
+    const track_t *t = TSEL;
+    uint32_t k = song.sel, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i, sig, n = 0;
+    uint32_t has[2] = {0, 0}, ph = song.playing ? t->seq_idx % len : 0xFFu;
+    for (i = 0; i < mo.s.count; i++)
+        if (mo.s.ev[i].trk == k) {
+            has[mo.s.ev[i].step >> 5] |= 1u << (mo.s.ev[i].step & 31u);
+            n++;
+        }
+    sig = has[0] * 31u + has[1] * 131u + len * 7u + ph * 1009u + k * 65537u + n * 3u + (uint32_t)motion_on(k);
+    if (!ui.force && sig == ui.graph_sig)
+        return;
+    ui.graph_sig = sig;
+    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_oy = 0;
+    for (i = 0; i < len; i++) {
+        int32_t x = 8 + (int32_t)(i & 15u) * 14, y = 8 + (int32_t)(i >> 4) * 28;
+        int ev = (int)((has[i >> 5] >> (i & 31u)) & 1u);
+        cv_rect(x, y, 12, 22, i == ph ? C_WHITE : C_LINE);
+        cv_rect(x + 1, y + 1, 10, 20, ev ? (motion_on(k) ? C_HI : C_GRAY) : C_BLACK);
+    }
+    cv_blit_from(0, Y_GRAPH, 0);
+}
+/* MOTION: KNOB 1 PLAY, 2 EVENT (the count), 4 CLEAR */
+static void motion_columns(void)
+{
+    char val[12];
+    uint32_t k = song.sel;
+    draw_column(0, "PLAY", motion_on(k) ? "ON" : "OFF", "", VAL(0u), -1, ICON_AUTO);
+    fmt_int(val, (int32_t)motion_count(k));
+    draw_column(1, "EVENT", val, "", C_HI, -1, ICON_AUTO);
+    draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+    draw_column(3, "CLEAR", "", "", C_HI, -1, ICON_AUTO);
+}
+
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
     const track_t *t = TSEL;
     uint16_t c = ACC;
     uint32_t sig, top = 0;
+    if (ui.layer) {                                     /* PERFORM: the map */
+        graph_perf();
+        ui.graph_top = 1;
+        return;
+    }
+    if (!ui.home && pg->graph == GR_MOTION) {          /* MOTION: the steps holding events */
+        graph_motion();
+        ui.graph_top = 1;
+        return;
+    }
     if (!ui.home && pg->graph == GR_MIX) {
         draw_mix();
         ui.graph_top = 1;
@@ -803,7 +909,9 @@ static void draw_foot(void)
     const page_t *pg = cur_page();
     const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];
     uint32_t sig, i;
-    if (ui.home) {
+    if (ui.layer) {
+        str_cpy(ti, "[FX] HOLD", sizeof ti);
+    } else if (ui.home) {
         str_cpy(ti, "HOME 1/3", sizeof ti);
     } else {
         uint32_t k, n = fam_pages(pg->fam, &k);
@@ -852,6 +960,14 @@ static void draw_columns(void)
     char val[12];
     const char *unit;
     const page_t *pg = cur_page();
+    if (ui.layer) {                                     /* PERFORM: the macros */
+        perf_columns();
+        return;
+    }
+    if (!ui.home && pg->graph == GR_MOTION) {          /* MOTION: PLAY EVENT - CLEAR */
+        motion_columns();
+        return;
+    }
     if (ui.home) {
         for (c = 0; c < 4u; c++) {
             int16_t *vp;
@@ -950,8 +1066,13 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     }
     if (ui.confirm) {
         if (ui.force) {
-            char b[16] = "CLEAR TRACK 1?";
-            b[12] = (char)('1' + ui.confirm_trk);
+            char b[20] = "CLEAR TRACK 1?";
+            if (ui.confirm == 2u) {
+                str_cpy(b, "CLEAR MOTION T1?", sizeof b);
+                b[14] = (char)('1' + ui.confirm_trk);
+            } else {
+                b[12] = (char)('1' + ui.confirm_trk);
+            }
             lcd_fill(0, 0, 240, 240, C_BLACK);
             draw_text_box(0, 84, 240, &FONT_S, b, C_WHITE, 1);
             draw_text_box(0, 132, 240, &FONT_S, "OCT- NO    OCT+ YES", C_GRAY, 1);

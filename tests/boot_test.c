@@ -173,6 +173,34 @@ static int mutebar_persists(void)
     return ok;
 }
 
+/* USB LEVEL (MENU): FIXED survives a power cycle in bit 3 of the stored zoom word; MASTER when it is clear (a 0.7.0
+ * save); the other settings read back unchanged */
+static int usb_level_persists(void)
+{
+    int ok = 1;
+    uint32_t u;
+    for (u = 0; u < 2u; u++) {
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = 2;
+        settings.lowcut = 2;
+        settings.zoom = 1;
+        settings.mutebar = 1;
+        settings.accel = 0;
+        settings.usbfix = u;
+        settings.perfpage = u;
+        settings_save();
+        rfill(&settings, sizeof settings);           /* power off: .noinit is anything */
+        persist_boot();
+        settings_init();
+        ok &= settings.usbfix == u && settings.perfpage == u && fx_usb_fixed == u && settings.palette == 2 && settings.lowcut == 2 &&
+              settings.zoom == 1 && settings.mutebar == 1 && settings.accel == 0;
+    }
+    return ok;
+}
+
 /* a settings record longer than ours (another firmware's, same marker): the defaults, not a half-read record */
 static int settings_oversize_refused(void)
 {
@@ -341,6 +369,124 @@ static int fdr5_converts(void)
     return song.g[G_CSRC] == 1 && song.g[G_CMKUP] == 77 && song.g[G_CGHOST] == CG_KEEP &&
            trk[2].p[P_RMODEL] == RS_PIPE && trk[2].step[5].on;
 }
+/* an FDR6 record (GHOST, no reverb TYPE; 3024 B like an FDR5 one) loads: its values; TYPE ROOM */
+static int fdr6_converts(void)
+{
+    project_v6_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V6;
+    v.size = sizeof v;
+    for (i = 0; i < G_RTYPE; i++)
+        v.g[i] = song.g[i];
+    v.g[G_CGHOST] = CG_HIDE;
+    v.g[G_RSIZE] = 33;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[4].step[7].on = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 3u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    song.g[G_RTYPE] = 1;                             /* SPRING running: the load sets ROOM */
+    project_load(3);
+    return song.g[G_CGHOST] == CG_HIDE && song.g[G_RSIZE] == 33 && song.g[G_RTYPE] == 0 && trk[4].step[7].on;
+}
+/* FDR7 keeps TYPE through a save and a load */
+static int fdr7_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    song.g[G_RTYPE] = 1;
+    project_save(2);
+    song.g[G_RTYPE] = 0;
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_load(2);
+    return song.g[G_RTYPE] == 1;
+}
+/* FDR8: the motion goes through a save and a load (flash) */
+static int fdr8_motion_round_trip(void)
+{
+    motion_store_t want;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    motion_add(0, 4, P_E1, 100);
+    motion_add(5, 63, P_PAN, -64);
+    motion_add(7, 0, P_LFO2 + LF_DEPTH, 127);
+    mo.s.on = 0xA1u;
+    want = mo.s;
+    project_save(2);
+    memset(&mo, 0, sizeof mo);
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_load(2);
+    return !memcmp(&mo.s, &want, sizeof want);
+}
+/* an FDR7 record (3028 B, no motion) loads: its values, no motion */
+static int fdr7_converts(void)
+{
+    project_v7_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V7;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    v.g[G_RTYPE] = 1;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].step[9].on = 1;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    motion_add(0, 1, P_E1, 5);                       /* motion in RAM before: the load replaces it */
+    project_load(1);
+    return song.g[G_RTYPE] == 1 && trk[2].step[9].on && mo.s.count == 0u && sizeof v == 3028u;
+}
+/* a broken motion block: the project loads, the motion dropped */
+static int fdr8_bad_motion_dropped(void)
+{
+    project_t *p = &proj_slot[0];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[3].step[5].on = 1;
+    motion_add(0, 4, P_E1, 100);
+    project_save(0);
+    p->motion.ev[0].trk = 9;                         /* out of range */
+    p->sum = proj_sum(p);
+    memset(&mo, 0, sizeof mo);
+    trk[3].step[5].on = 0;
+    project_load(0);
+    return trk[3].step[5].on && mo.s.count == 0u;
+}
+/* Review Focus 3: a load while motion plays: the stop after it puts nothing of the old project back */
+static int fdr8_load_while_playing(void)
+{
+    uint32_t b;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[0].p[P_E1] = 11;
+    project_save(1);                                 /* the project: E1 11 */
+    trk[0].p[P_E1] = 64;
+    motion_add(0, 0, P_E1, 100);
+    transport_req = 1;
+    for (b = 0; b < 8u; b++)
+        render_mix(L, R, CTL);                       /* motion plays: E1 100, the base 64 */
+    project_load(1);
+    for (b = 0; b < 8u; b++)
+        render_mix(L, R, CTL);                       /* the stop the load asked for */
+    return !song.playing && trk[0].p[P_E1] == 11;
+}
 /* review focus 1: RESON at every extreme (pitch with a chord's top note and the fine offset, STRCT, TONE, POS):
  * the lines stay inside rs_buf (ASan) and the output bounded */
 static int reson_extremes(void)
@@ -381,8 +527,15 @@ int main(void)
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
     check("project: an FDR5 record loads with GHOST KEEP", fdr5_converts());
+    check("project: an FDR6 record (same size as FDR5) loads with reverb TYPE ROOM", fdr6_converts());
+    check("project: the reverb TYPE survives a save and a load", fdr7_round_trip());
+    check("project: FDR8 keeps the motion through a save and a load", fdr8_motion_round_trip());
+    check("project: an FDR7 record (3028 B) loads with no motion", fdr7_converts());
+    check("project: a broken motion block is dropped, the project loads", fdr8_bad_motion_dropped());
+    check("project: a load while motion plays: the old base is not put back", fdr8_load_while_playing());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
+    check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());
     check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)

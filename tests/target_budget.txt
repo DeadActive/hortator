@@ -21,3 +21,10 @@ mix_part 687
 comp_block 133
 lfo_track 424
 reson_block 588
+rev_room 210
+rev_spring 126
+perf_begin 28
+perf_mute 19
+perf_pre 26
+perf_block 793
+perf_harm 0

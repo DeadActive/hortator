@@ -38,24 +38,33 @@ Needs a short spec first: the frozen-code check (H2, `tools/check_untouched.py`)
 - Storage hardening: sequence wrap, header slot check, oversize loads refused, full read-back compare —
   `storage.c` (not upstream's FM6 objects); with it the `st_erase` order (IRQs off before the silence).
 - TRS MIDI on by default, realtime bytes (clock) queued from TRS and USB.
-Skipped: the LED glow (1.0.1), USB audio, the minsize build marks on frozen functions.
+Skipped: the LED glow (1.0.1), the minsize build marks on frozen functions. (USB audio moved to §3, after the sound
+pack: user decision 2026-10-06.)
 
 ## 3. Features (each its own design / spec / plan)
 
 1. **Sound pack:** BASS+ speaker EQ (`fx.c spk_bass`, with 1.0.2's #42 fix), SPRING reverb (`rev_spring`, the room
    reverb's buffers), slower divisions 1/2, 1/1, 2BAR, 4BAR (appended IDs).
-2. **MIDI clock in** (`midi_clock.c`): INT / USB / TRS; Grids clock and the LFOs follow it.
-3. **PERFORM layer** (`perform.c`): hold-to-play master FX (REPEAT, REVERSE, TAPE STOP, FREEZE, filters, OCT,
-   THROW, CRUSH), using our SLICER buffers; 8 mute bits.
-4. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
-   the LFOs' modulated copy.
-5. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR6) for both.
-6. **PHYS percussion** (`eng_phys.c`, `phys_dsp.c`, MIT DaisySP / Rings): MEMB and MODAL, e.g. as RESON's modal
+2. **USB audio input** (user decision 2026-10-06, after the sound pack): the master output to the computer as a
+   class-compliant UAC1 input, 16-bit stereo 44.1 kHz (record the FM-1 over the cable; no playback into it). Done in
+   0.8.0 (frozen-base-6): upstream's code in the frozen `usb_app.c` switched on (`FELUCCA_UAC`), `hal/fm1_usb.h`'s
+   EP4 lines (the loader byte-identical), upstream's `audio.c` hooks, the console's UAC lines, MENU USB LEVEL
+   (MASTER / FIXED, 1.0.2 #42). Checked on the FM-1 (recording works).
+3. **MIDI clock in** (`midi_clock.c`): INT / USB / TRS; Grids clock and the LFOs follow it. Done in 0.9.0, with exact step
+   timing (and three fixes to upstream's clock: tempo over a beat, a rounded rescale incl. the advance in progress,
+   interpolation stopping short of the next pulse).
+4. **PERFORM layer** (`perform.c`): hold-to-play master FX (REPEAT, REVERSE, TAPE STOP, FREEZE, filters, OCT,
+   THROW, CRUSH), using our SLICER buffers; 8 mute bits. Done in 0.10.0 (keys: white = track mutes, black =
+   effects; REPEAT / REVERSE on the Grids clock's 1/16; MENU PERFORM HOLD / PAGE).
+5. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
+   the LFOs' modulated copy. Done in 0.11.0 (128 events, FDR8; parameter locks parked in IDEAS.md).
+6. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR9, after motion's FDR8) for both.
+7. **PHYS percussion** (`eng_phys.c`, `phys_dsp.c`, MIT DaisySP / Rings): MEMB and MODAL, e.g. as RESON's modal
    models; its 64/32 divisions replaced (integer target rule).
-7. **Anti-aliased UI** (`gfx.c`, Inter Tight OFL, themes, Fukiai icons, keycaps, render lint): last, after the
+8. **Anti-aliased UI** (`gfx.c`, Inter Tight OFL, themes, Fukiai icons, keycaps, render lint): last, after the
    screens settle; ~45 KB flash; `main.c`'s FONT_S / FONT_L / C_* kept by shims.
 
-Skipped: FM6, upstream's DRUM engine (duplicates ours), melodic / synth engines and editors, USB audio, quick
+Skipped: FM6, upstream's DRUM engine (duplicates ours), melodic / synth engines and editors, quick
 layers, LED glow. Parked separately: the 303 voice (`docs/IDEAS.md`).
 
 ## Frozen-file changes (by baseline tag)
@@ -74,3 +83,8 @@ The frozen-code baseline is named in `tools/frozen_base.txt` (with the pinned up
 | frozen-base-3 | 727f272 (1.0) | `firmware/src/felucca.c` (not frozen) | `#include "usb_app.c"` instead of `usb.c` | the app compiles upstream's driver |
 | frozen-base-4 | 727f272 (1.0) | `firmware/src/storage.c` | every hunk except the FM6 bank (`OBJ_FM6BANK`, its `st_sector` case, its comment line) | the newer save wins across the 32-bit seq wrap; a header must name its own copy; an invalid object is refused before any flash access; a record longer than the buffer is refused, not truncated; the read-back compares the whole header (a failing part does not report SAVED) |
 | frozen-base-4 | 727f272 (1.0) | `firmware/src/felucca.c` (not frozen) | `st_erase` = 727f272's `storage_hw.c` (IRQs off, `audio_silence`, the RAM erase, IRQs on) | no stale audio chunk looped during a save; inlined into the frozen `st_save`, so the reference build carries it |
+| frozen-base-5 | 727f272 (1.0) | `firmware/hal/fm1_uart.h` | the comment (RX verified on hardware) | the header says what upstream tested |
+| frozen-base-5 | 727f272 (1.0) | `firmware/src/felucca.c`, `firmware/src/midi_uart.c` (not frozen) | `FELUCCA_UART` 1; 727f272's `midi_uart.c` (through `midi_enqueue`: source TRS, timestamp, Clock / Start / Continue / Stop queued; a full ring or lost bytes mark the stream broken) | TRS MIDI IN on in every build; the frozen `main.c`'s UART poll compiles in both builds, so the reference build carries it |
+| frozen-base-6 | 727f272 (1.0) | `firmware/hal/fm1_usb.h` | the EP4 lines (its DMA address / count registers, `fm1_usb_ep4_txbuf`, `fm1_usb_ep4_send`) | the USB audio input's isochronous endpoint; the update loader includes the header but uses none of it (byte-identical) |
+| frozen-base-6 | 727f272 (1.0) | `firmware/src/felucca.c`, `firmware/src/audio.c` (not frozen) | `FELUCCA_UAC` 1; `uac_render_start` / `uac_tap` | `usb_app.c`'s audio code and the frozen `main.c`'s nested `uac_service` compile in both builds |
+| frozen-base-7 | — (user decision) | `firmware/src/seq.c` (not frozen) | the reference build reads each MIDI input packet's timestamp and source (`midi_in_ms`, `midi_in_source`) | the drum firmware's MIDI clock reads them, so the frozen `midi_enqueue` keeps its stores in both builds (the compiler dropped them where nothing read them) |

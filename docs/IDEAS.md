@@ -59,6 +59,50 @@ reference for the structure; it uses floating point, so this would be a port to 
 3. Whether to measure a throwaway prototype's cost first (recommended).
 4. How the STEP grid and the footer show notes and slides.
 
+## Heavy / distorted sound (parked 2026-10-07)
+
+Today DIST is a per-track insert (RESON → DIST → SLICER → level / pan → sends; drive only, no dry / wet), and the
+send buses are chorus, delay and reverb. The user asked to park these four, for a heavier sound:
+
+- **DIST modes:** a mode knob beside the drive: SOFT (today's asymmetric soft clip), HARD CLIP (harsher), FUZZ
+  (heavy asymmetric clip), RECTIFY (octave-up rip, gated feel), WAVEFOLD (metallic, synth-like grind). Cheap: one
+  per-sample shaper per mode, same tone low-pass and make-up after it. Optionally a MIX knob (parallel drive: the
+  grit on top, the attack and low end kept).
+- **BITCRUSH / DECIMATE:** per track, fewer bits and a sample-and-hold rate reduction: industrial, digitally
+  destroyed drums. Where in the chain (before / after DIST) is a design question.
+- **Master drive:** a saturation stage on the whole mix (tape-style soft saturation, maybe a crusher option) after
+  the buses, before the master limiter / soft clip: everything glued and dirty. One or two global knobs.
+- **Transient shaper:** per track, attack and sustain gain from two envelope followers (fast / slow), before DIST
+  so a heavy kick still clicks through the distortion.
+
+Open questions for when we return: which page holds the new knobs (FX has DIST CHO DLY REV); per-track parameters
+mean a project format step (FDR8 is planned for song chain + names: combine or follow); CPU on 8 tracks (all are
+small per-sample loops; the target budget check covers them); A/B WAVs for each before the design is fixed.
+
+## Parameter locks, Elektron style (parked 2026-10-07)
+
+The user chose upstream's live motion recording for §3.5 (0.11.0) and parked step entry.
+
+### How Elektron's work
+- The trig keys are always the 16 steps (grid recording mode); the page buttons (SRC FLTR AMP FX LFO) choose what
+  the knobs edit. Hold a trig and turn a knob: that value is stored for that step only (shown inverted, "locked");
+  several trigs held lock the same value on all of them.
+- A lock applies to its trig only: the next step without a lock plays the track's value again (upstream Felucca's
+  motion holds a value until the next event instead).
+- Hold the trig and press the knob: that lock is removed; removing the trig removes all its locks.
+- Trigless locks: a step that only changes knobs, no note (e.g. a filter move under a ringing note).
+- Live recording writes locks onto the steps passed while a knob is turned.
+
+### How it could fit the FM-1
+The keys are steps only on the STEP page, and the knobs have no push. Options discussed:
+1. Hold a step on the STEP grid, tap a page button (EDIT, FX, LFO …): that page shows "STEP n", its knobs set
+   values for that step; letting go of the step returns to the grid.
+2. Hold a step and turn PRESET to step through the sound pages in place.
+3. Grid mode as a latched mode (closest to Elektron): SEQ turns it on, the keys stay steps on every page, page
+   buttons choose the knobs, hold steps + turn knobs anywhere; SEQ / HOME turns it off.
+Clearing without a knob push: step held + OCT- clears that step's locks. Open: per-step locks (Elektron) or
+hold-until-next (motion); the events could share motion's 128-place store (FDR8) with a "lock" flag.
+
 ## Also parked
 
 - **FM drum engine:** Mutable Instruments Peaks' FM drum (integer maths, MIT) was the best fit found.

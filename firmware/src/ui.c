@@ -14,7 +14,7 @@ static void panel_setup(void);
 
 #define ACC C_HI
 #define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)
-#define RATIO(d, v) ((d)->max > (d)->min ? ((int32_t)(v) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
+#define RATIO(d, v) ((d)->max > (d)->min ? (enum_rank((d), (int32_t)(v)) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
 #define Y_HEAD 0
 #define H_HEAD 20
 #define Y_LABEL 26
@@ -57,6 +57,9 @@ static struct {
     uint8_t tr_h, tr_n;
     uint32_t tr_ph, tr_key, tr_frame;   /* the phase at the last point; what the trail is of; the frame it was fed */
     uint8_t persist_pending;     /* a settings save asked for while playing: written once stopped (project.c) */
+    uint32_t fx_t0;              /* PERFORM: FX's press time | FX_DOWN / FX_OPEN / FX_DEAD (ui_input.c fx_layer) */
+    uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
+    uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
@@ -256,7 +259,11 @@ static void step_hold(uint32_t k)
     s->acc = (uint8_t)!ui.step_prev[k].acc;
 }
 
-static void track_clear(track_t *t) { memset(t->step, 0, sizeof t->step); }
+static void track_clear(track_t *t)               /* its steps and its motion */
+{
+    memset(t->step, 0, sizeof t->step);
+    motion_clear((uint32_t)(t - trk));
+}
 
 /* TOOLS CLR*: every track's pattern cleared and its pattern settings (LEN DIV SWG SRC) at default; sounds, FX,
  * Grids, COMP and the globals untouched */
@@ -286,6 +293,7 @@ static void init_all(void)
     song.master_q12 = master;
     song.playing = 0;
     song.rec = 0;
+    memset(&mo, 0, sizeof mo);                     /* no motion */
     fm1_irq_on();
     ui.bank = 0;
     ui.force = 1;
@@ -354,6 +362,7 @@ static void model_step(int32_t dir)
     uint32_t m = ((uint32_t)TSEL->p[P_MODEL] + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
     fm1_irq_off();
     drum_set_model(TSEL, m);
+    motion_rebase(song.sel);                        /* motion.c: the new sound is the base */
     fm1_irq_on();
     ui_say("MODEL ", N_MODEL[m]);
     ui.force = 1;

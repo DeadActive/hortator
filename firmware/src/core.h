@@ -67,6 +67,7 @@ enum {                          /* global parameters */
     G_CSRC, G_CTHR, G_CRAT, G_CREL,                  /* COMP (comp.c): source track (0 off), threshold, ratio, release */
     G_CATK, G_CKNEE, G_CMKUP,                        /* attack, soft knee, makeup (127 = limiter) */
     G_CGHOST,                                        /* a muted / any source heard: CG_MUTE CG_KEEP CG_HIDE (fx.c) */
+    G_RTYPE,                                         /* REVERB TYPE (fx.c): 0 ROOM, 1 SPRING (sound pack, FDR7) */
     G_COUNT
 };
 enum { CG_MUTE, CG_KEEP, CG_HIDE };                 /* GHOST: muted = muted; muted still keys; never heard, keys */
@@ -141,6 +142,7 @@ typedef struct track {
     uint32_t seq_pos;            /* samples into the current step */
     uint16_t seq_idx;
     uint32_t seq_cnt;            /* steps played since PLAY: swing pairs follow it, so any length stays on the bar */
+    uint8_t seq_rem;             /* the step length's remainder carried to the next step (seq.c div_period) */
     uint8_t rskip, rskip_idx;    /* live recording put a hit into the step about to play: skip it once */
     uint32_t rng;                /* PROB: the track's random sequence (LCG), seeded at PLAY */
     uint32_t rat_len;            /* RATCH: the playing roll's step length (samples) */

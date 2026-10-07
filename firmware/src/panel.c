@@ -63,7 +63,7 @@ static int32_t panel_enc(uint32_t role)
 
 /* user settings that survive a reset */
 #define SETTINGS_MAGIC 0x53455433u              /* "SET3" */
-struct { uint32_t magic, palette, lowcut, zoom, mutebar, accel; } settings __attribute__((section(".noinit")));   /* mutebar:
+struct { uint32_t magic, palette, lowcut, zoom, mutebar, accel, usbfix, perfpage; } settings __attribute__((section(".noinit")));   /* mutebar:
                                                                                    * TRACKS mutes wait for the next bar */
 
 static void settings_save(void);
@@ -77,10 +77,17 @@ static void settings_init(void)
         settings.lowcut = 0;
         settings.zoom = 0;                     /* large readout of the touched value: off */
         settings.accel = 1;                    /* knob acceleration (calm, upstream 1.0): on */
+        settings.usbfix = 0;                   /* USB LEVEL MASTER */
+        settings.perfpage = 0;                 /* PERFORM HOLD */
     }
-    settings.mutebar &= 1u;                    /* .noinit: fields added after "SET3" */
+    settings.mutebar &= 1u;
+    settings.usbfix &= 1u;                    /* .noinit: fields added after "SET3" */
+    settings.perfpage &= 1u;
     if (settings.accel > 1u)
         settings.accel = 1u;
+    if (settings.lowcut > 2u)                  /* SPEAKER EQ: FLAT LOWCUT BASS+ */
+        settings.lowcut = 0;
     palette_set(settings.palette);
-    fx_lowcut = (uint8_t)(settings.lowcut != 0);
+    fx_lowcut = (uint8_t)settings.lowcut;
+    fx_usb_fixed = (uint8_t)settings.usbfix;
 }

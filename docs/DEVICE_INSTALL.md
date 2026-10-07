@@ -66,7 +66,7 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 For each: what you should see / hear. Note anything different (page, knob, what happened).
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
   then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
-  REV/CHO, COMP (HOME 2/3 and 3/3: HOME pressed on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
+  REVERB, CHORUS, COMP (HOME 2/3 and 3/3: HOME pressed on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
   GLOBAL 3/3 (MUTE NOW / BAR), LFO 1/2 and 2/2,
   PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
   `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
@@ -165,6 +165,80 @@ Report what you saw first; we'll go through it together.
 - Change a setting (palette or MUTE NEXT BAR) so the settings are saved: no buzz.
 - Power off and on: the saved project loads, the settings and the panel layout (OCT- + OCT+ at power-on) are kept;
   a project saved with the previous build still loads.
+
+### TRS MIDI (stage 2 step 4: check on the FM-1)
+
+- A keyboard or sequencer on the TRS MIDI input sending on the drum channel (GLOBAL page, CH; 10 by default):
+  every note plays the tracks whose NOTE matches, as over USB; a keyboard's note-off plays nothing.
+- USB MIDI from a DAW at the same time: both play.
+- Nothing plugged into TRS (also plugging / unplugging the cable while idle): no stray hits. Optional: right after
+  power-on with nothing ever plugged in, console `status` shows `uart_enabled 1` and `uart_rx_bytes 0`; with the
+  cable out it does not grow.
+- If a TRS keyboard plays nothing: check console `status` while you play. If `uart_rx_bytes` stays 0, try the other
+  TRS adapter type (A / B); if it grows but nothing plays, check the channel (GLOBAL page, CH).
+- A MIDI clock on TRS: nothing follows it yet (the MIDI clock feature comes later); notes still play while it runs,
+  the panel and audio behave as before.
+
+### Sound pack (check on the FM-1)
+
+- MENU (HOME held) > SPEAKER EQ: FLAT, LOWCUT, BASS+ (KNOB 1; OCT+ steps round). On the speaker, BASS+ makes the
+  kick's bass audible without the mids getting thinner; the choice survives a power cycle.
+- FX > REVERB: TYPE SPRNG (the spring) on a snare (send on the FX page, REV): the spring's chirp and drip; SIZE and
+  DAMP change it; switching TYPE while it rings: no click. FX > CHORUS: RATE and DEPTH as before.
+- PATTERN DIV on a hi-hat track: the knob runs 4BAR 2BAR 1/1 1/2 1/4 … 1/32; at 2BAR / 4BAR the hat plays once per
+  2 / 4 bars, in time with a 1/16 kick. DLY TIME at 1/2 and slower: long echoes (the longest cut to 1.49 s).
+- A project saved before this build loads with ROOM and sounds as before. With the heaviest kit and SPRNG, the
+  CPU meter stays close to where it was.
+- Listen first on the computer: build/drum_renders/sp_speaker_eq.wav (FLAT, LOWCUT, BASS+, 2 bars each),
+  sp_reverb.wav (ROOM, then SPRNG at SIZE 0 / 64 / 127, DAMP 0 / 127), sp_slow_div.wav (a hat on 2BAR then 4BAR,
+  the snare's delay at 1/2).
+
+### USB audio (check on the FM-1)
+
+- Audio MIDI Setup (Mac) lists an FM-1 audio input: 2 channels, 44.1 kHz. MIDI ports as before.
+- Record 5 minutes of a heavy kit (8 tracks, RESON, SPRNG, the compressor) into a DAW: no clicks or dropouts in the
+  recording; the speaker does not stutter; the CPU meter close to before. Optional: console `status` after it:
+  `uac_underruns 0` and `uac_missed 0`; note `uac_fill_lo` (the buffer's lowest fill: near 50 or below would mean
+  the band upstream tuned for shorter renders is tight here). `uac_overruns` may count when the DAW stops reading
+  without closing the input: harmless; what matters is no clicks while it records.
+- MIDI from the DAW plays while it records. The next firmware install finds the FM-1 as usual.
+- MENU > USB LEVEL: MASTER: turning MASTER down lowers the recording; FIXED: the recording stays at full level, only
+  the speaker / headphones follow the knob.
+- With nothing recording (DAW closed or another input chosen), the CPU meter is as without USB audio.
+
+### MIDI clock (check on the FM-1)
+
+- GLOBAL > CLK USB, a DAW sending MIDI clock to the FM-1: the DAW's Start / Stop / Continue start, stop and resume
+  the FM-1 (step 0 on the downbeat); a 1/16 hat stays tight against the DAW's metronome for 5+ minutes; a tempo
+  change in the DAW is followed within a beat; the header shows the DAW's BPM; the BPM knob says CLK USB.
+- Unplug the cable while it plays: the FM-1 stops within half a second.
+- CLK TRS with a hardware sequencer on the TRS input: the same.
+- CLK INT: as before; a 1/16 track and a 1/4 track never drift apart.
+- PLAY on the FM-1 while CLK USB: it waits for the DAW's clock (stops again after 0.5 s if none comes).
+
+### PERFORM (check on the FM-1)
+- MENU > PERFORM PAGE: hold FX, let go: the PERFORM screen stays; the keys and knobs work without FX; PLAY / OCT±
+  keep it; an FX tap, another page button or HOME leaves it (the knobs back to off). Set it back to HOLD after.
+- Hold FX alone: after a moment the map shows (two rows of effects, eight tracks); let go: back to the page.
+- Tap FX: the FX pages, as before.
+- Playing, FX held: each black key's effect while held — F#3 G#3 A#3 REPEAT 1/8 1/16 1/32 (starting on the next
+  1/16), C#4 REVERSE, D#4 TAPE STOP, F#4 LPF, G#4 HPF (sweeping over a bar), A#4 FREEZE, C#5 OCT UP, D#5 OCT DN;
+  let go: back to the dry sound without a click. Two buffer effects held: the last pressed plays, letting it go
+  returns to the other.
+- FX + a white track key (F3 .. F4): that track silent while held; no note plays, nothing is recorded.
+- FX + KNOB 1..4: FILTER (left LPF, right HPF), CRUSH, THROW (into the delay / reverb), DEPTH (SHIMMER while OCT
+  plays); let go of FX: all back to off.
+- A STUT slicer track keeps playing while a buffer effect plays and stutters again afterwards.
+- At 40 BPM REPEAT 1/8 and REVERSE are dimmed and do nothing.
+- With CLK USB from a DAW: REPEAT starts on the DAW's 1/16 grid.
+
+### MOTION (check on the FM-1)
+- TRACKS: select a track and arm it (REC); play; open SOUND and sweep DECAY over a bar: the sweep comes back every
+  bar. STOP: the knob back where it was before.
+- SEQ > MOTION: KNOB 1 PLAY OFF (the sweep stops, the events kept) / ON; EVENT shows how many; KNOB 4 CLEAR asks
+  (OCT- keeps, OCT+ clears).
+- Turn DECAY without REC while it plays: that is the new value the loop comes back to.
+- Save the project (stopped), power off and on, load it: the motion plays again.
 
 ### TOOLS (check on the FM-1)
 

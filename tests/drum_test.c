@@ -187,7 +187,7 @@ static void test_seq_timing(void)
     play();
     n = hits_at(0, 17 * p, at, 8);
     check("seq: steps 0 and 4 of 16 fire at 0 and 4 steps, then loop at 16",
-          n == 3 && at[0] == 0 && at[1] / CTL == CEILB(4 * p) && at[2] / CTL == CEILB(16 * p));
+          n == 3 && at[0] == 0 && at[1] / CTL == CEILB(4u * 11025u / 2u) && at[2] / CTL == CEILB(16u * 11025u / 2u));   /* exact 1/16s */
     host_init();
     trk[1].p[P_SLEN] = 3;
     trk[1].step[0].on = 1;
@@ -318,6 +318,82 @@ static void test_midi_safe_start(void)
     check("safe start: no hits, the MIDI ring emptied, USB SysEx (the UBOOT key) still taken",
           dvage == a0 && mi_r == mi_w && took == 1 && usb.uboot_req == 1);
     usb.uboot_req = 0;
+    safe_start = 0;
+}
+
+/* TRS MIDI (midi_uart.c, on by default since stage 2 step 4): bytes from the jack reach the same ring as USB
+ * (midi_enqueue, source TRS) and play exactly as USB's */
+static void trs(const char *p, uint32_t n)
+{
+    while (n--)
+        um_byte((uint8_t)*p++);
+}
+
+static void test_midi_trs(void)
+{
+    /* ch 10 note 60, a Clock and an Active Sensing inside the running status, note 61; ch 1 note 62; ch 10 note
+     * 63 at velocity 0 (a keyboard's note-off) */
+    static const char IN[] = "\x99\x3C\x5A\xF8\xFE\x3D\x64\x90\x3E\x5A\x99\x3F";
+    uint32_t i, a[NTRK], a0, ok;
+    host_init();
+    for (i = 0; i < NTRK; i++) {
+        trk[i].p[P_NOTE] = 60 + (int)i;
+        a[i] = hit_age(&trk[i]);
+    }
+    a0 = mi_w;
+    trs(IN, sizeof IN - 1u);
+    um_byte(0);                                      /* the velocity 0 (a NUL ends the string above) */
+    check("TRS MIDI: notes, the Clock between them, another channel and a velocity-0 note queued (source TRS)",
+          mi_w == a0 + 5u && (midi_in_q[(a0 + 1u) % MQ] & 0xFFFFu) == (0x0Fu | 0xF8u << 8) &&
+          midi_in_source[a0 % MQ] == 2u && midi_in_source[(a0 + 4u) % MQ] == 2u);
+    render_mix(0, 0, CTL);
+    ok = 1;
+    for (i = 2; i < NTRK; i++)
+        ok &= hit_age(&trk[i]) == a[i];
+    check("TRS MIDI: the drum channel's notes play at their velocity, also after a Clock / Active Sensing byte",
+          hit_age(&trk[0]) != a[0] && (trk[0].v[0].vel == 90 || trk[0].v[1].vel == 90) &&
+          hit_age(&trk[1]) != a[1] && (trk[1].v[0].vel == 100 || trk[1].v[1].vel == 100));
+    check("TRS MIDI: another channel and a velocity-0 note-on play nothing; the ring empties", ok && mi_r == mi_w);
+
+    a[4] = hit_age(&trk[4]);
+    a[5] = hit_age(&trk[5]);
+    a0 = mi_w;
+    midi_enqueue(0x09u | 0x99u << 8 | 64u << 16 | 90u << 24, 1u);       /* USB: note 64 */
+    trs("\x99\x41\x5A", 3);                                              /* TRS: note 65 */
+    render_mix(0, 0, CTL);
+    check("TRS + USB MIDI in one block: both notes play, each with its source (USB 1, TRS 2)",
+          hit_age(&trk[4]) != a[4] && hit_age(&trk[5]) != a[5] &&
+          midi_in_source[a0 % MQ] == 1u && midi_in_source[(a0 + 1u) % MQ] == 2u);
+
+    a[6] = hit_age(&trk[6]);
+    for (i = 0; i < 48u; i++) {                      /* 2 beats of Clock with a note in the middle */
+        um_byte(0xF8u);
+        if (i == 24u)
+            trs("\x99\x42\x5A", 3);                  /* note 66 */
+    }
+    render_mix(0, 0, CTL);
+    check("TRS MIDI: a dense Clock stream around a note: the note plays, the ring empties",
+          hit_age(&trk[6]) != a[6] && mi_r == mi_w);
+
+    memset((void *)um_ring, 0x40, UM_RING);          /* data bytes only, and more than the ring: bytes lost */
+    uart_midi_take(UM_RING + 10u);
+    ok = midi_in_overflow == 1;
+    a0 = dvage;
+    render_mix(0, 0, CTL);
+    check("TRS ring overflow: the stream marked broken, then the backlog dropped and the ring open again",
+          ok && midi_in_overflow == 0 && mi_r == mi_w && dvage == a0);
+    a[7] = hit_age(&trk[7]);
+    trs("\x99\x43\x5A", 3);                          /* note 67 */
+    render_mix(0, 0, CTL);
+    check("TRS after an overflow: a new note plays", hit_age(&trk[7]) != a[7]);
+
+    safe_start = 1;
+    for (i = 0; i < 48u; i++)
+        um_byte(0xF8u);
+    trs("\x99\x3C\x5A", 3);
+    a0 = dvage;
+    render_mix(0, 0, CTL);
+    check("safe start with a TRS Clock and notes: no hits, the ring emptied", dvage == a0 && mi_r == mi_w);
     safe_start = 0;
 }
 
@@ -2832,6 +2908,257 @@ static void test_cond_codes(void)
     check("PROB: shown as 100% / 75% / 0% / 1-SHOT / 3/5", ok);
 }
 
+/* sound pack: the slow divisions (ids 6..9: 1/2 1/1 2BAR 4BAR) */
+static void test_slow_divisions(void)
+{
+    static const uint32_t W120[10] = {22050, 11025, 5512, 2756, 7350, 3675, 44100, 88200, 176400, 352800};
+    static const uint32_t W40[10] = {66150, 33075, 16537, 8268, 22050, 11025, 132300, 264600, 529200, 1058400};
+    static const uint32_t W240[10] = {11025, 5512, 2756, 1378, 3675, 1837, 22050, 44100, 88200, 176400};
+    uint32_t d, ok = 1, n0 = 0, n1 = 0, f, bar = FS * 60 / 240 * 4, a0, a1, at0[12], at1[4];
+    host_init();
+    for (d = 0; d < 10u; d++) {
+        song.g[G_BPM] = 120;
+        ok &= div_samples(d) == W120[d];
+        song.g[G_BPM] = 40;
+        ok &= div_samples(d) == W40[d];
+        song.g[G_BPM] = 240;
+        ok &= div_samples(d) == W240[d];
+    }
+    check("divisions: all ten exact at 40, 120, 240 BPM (1/2 .. 4BAR = 2 .. 16 beats)", ok);
+
+    host_init();                                     /* 240 BPM: a bar is 44100 samples */
+    song.g[G_BPM] = 240;
+    trk[0].step[0].on = 1;                           /* 1/16, one hit a bar */
+    trk[1].p[P_SDIV] = 9;                            /* 4BAR, every step on: one hit every 4 bars */
+    for (d = 0; d < 16u; d++)
+        trk[1].step[d].on = 1;
+    play();
+    a0 = hit_age(&trk[0]);
+    a1 = hit_age(&trk[1]);
+    for (f = 0; f < 9u * bar; f += CTL) {
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a0 && n0 < 12u)
+            at0[n0++] = f, a0 = hit_age(&trk[0]);
+        if (hit_age(&trk[1]) != a1 && n1 < 4u)
+            at1[n1++] = f, a1 = hit_age(&trk[1]);
+    }
+    check("divisions: a 4BAR track fires once every 4 bars, on the 1/16 track's bar hits",
+          n0 >= 9u && n1 == 3u && at1[0] == at0[0] && at1[1] == at0[4] && at1[2] == at0[8]);
+
+    host_init();
+    song.g[G_BPM] = 40;
+    trk[0].p[P_SDIV] = 9;
+    trk[0].p[P_SSWING] = 100;
+    {
+        uint64_t p = 1058400u, sw = p * (uint64_t)track_swing(&trk[0]) / 250u;
+        check("divisions: swing on a 4BAR step at 40 BPM (no overflow)",
+              track_swing(&trk[0]) > 0 && step_samples(&trk[0], 1058400u, 0) == p + sw &&
+              step_samples(&trk[0], 1058400u, 1) == p - sw);
+    }
+
+    host_init();
+    song.g[G_BPM] = 240;
+    trk[0].p[P_SDIV] = 8;                            /* 2BAR: 88200 samples a step */
+    trk[0].step[0].on = 1;
+    trk[0].step[0].rat = 1;                          /* 2 hits */
+    play();
+    {
+        uint32_t at[4];
+        check("divisions: a ratchet on a 2BAR step rolls 2 hits inside the step", hits_at(0, 88200u, at, 4) == 2u);
+    }
+
+    host_init();
+    song.g[G_BPM] = 240;
+    trk[0].p[P_SDIV] = 8;
+    song.rec = 1u;
+    play();
+    render_mix(0, 0, 88200u + 88200u * 3u / 4u / CTL * CTL);   /* 3/4 into step 1 */
+    fm1_in.notes = 1u << KEY_TRK_KEY[0];
+    render_mix(0, 0, CTL);
+    fm1_in.notes = 0;
+    check("divisions: live record on a 2BAR step: a late hit goes into the next step",
+          trk[0].step[2].on && !trk[0].step[1].on);
+
+    host_init();
+    song.g[G_BPM] = 120;
+    song.g[G_DTIME] = 8;                             /* 2BAR = 4 s: longer than the delay line */
+    check("divisions: delay TIME 2BAR is cut to the delay line (1.49 s)", delay_samples() == DLY_LEN - 1u);
+    song.g[G_DTIME] = 6;                             /* 1/2 at 120 BPM = 1 s: fits */
+    check("divisions: delay TIME 1/2 at 120 BPM is 1 s", delay_samples() == 44100u);
+}
+
+/* review focus 3: DIV 1/16 -> 4BAR -> 1/16 while playing: the track keeps playing */
+static void test_div_change_while_playing(void)
+{
+    uint32_t at[8], d;
+    host_init();
+    song.g[G_BPM] = 240;
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = 1;
+    play();
+    render_mix(0, 0, 3u * 2756u);
+    trk[0].p[P_SDIV] = 9;
+    render_mix(0, 0, 2u * 2756u);
+    trk[0].p[P_SDIV] = 2;
+    check("divisions: 1/16 -> 4BAR -> 1/16 while playing: hits resume within two 1/16 steps",
+          hits_at(0, 2u * 2756u + CTL, at, 8) >= 1u);
+}
+
+/* review focus 4: a BPM change in the middle of a 4BAR step: the next step comes at the new length */
+static void test_bpm_change_in_slow_step(void)
+{
+    uint32_t at[4], d;
+    host_init();
+    song.g[G_BPM] = 120;
+    trk[0].p[P_SDIV] = 9;                            /* 4BAR at 120 BPM: 352800 samples */
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = 1;
+    play();
+    render_mix(0, 0, CTL);                           /* step 0 */
+    render_mix(0, 0, 100000u / CTL * CTL);
+    song.g[G_BPM] = 240;                             /* 4BAR now 176400 */
+    check("divisions: BPM doubled inside a 4BAR step: the next step within the new length",
+          hits_at(0, 176400u, at, 4) == 1u);
+}
+
+/* exact step timing: a division is num / den beats; each track carries its step-length remainder, so den steps last
+ * exactly num beats: no drift between divisions (or against an external clock) */
+static void test_exact_timing(void)
+{
+    static const int16_t BPMS[4] = {97, 120, 133, 171};
+    uint32_t b, d, ok = 1, f, a0, a1, n0 = 0, n1 = 0, bad = 0, h0[1100], h1[300];
+    for (b = 0; b < 4u; b++) {
+        host_init();
+        song.g[G_BPM] = BPMS[b];
+        for (d = 0; d < 10u; d++) {
+            static const uint32_t NUM[10] = {1, 1, 1, 1, 1, 1, 2, 4, 8, 16}, DEN[10] = {1, 2, 4, 8, 3, 6, 1, 1, 1, 1};
+            uint32_t k, rem = 0, sum = 0, beat = (uint32_t)FS * 60u / (uint32_t)BPMS[b];
+            for (k = 0; k < DEN[d]; k++) {
+                sum += div_period(d, rem);
+                rem = div_rem_next(d, rem);
+            }
+            ok &= sum == beat * NUM[d] && rem == 0u;
+        }
+    }
+    check("exact timing: den steps of every division last exactly num beats (97, 120, 133, 171 BPM)", ok);
+
+    host_init();                                     /* 120 BPM: a 1/16 and a 1/4 track over 256 beats */
+    trk[0].p[P_SDIV] = 2;
+    trk[1].p[P_SDIV] = 0;
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = trk[1].step[d].on = 1;
+    play();
+    a0 = hit_age(&trk[0]);
+    a1 = hit_age(&trk[1]);
+    for (f = 0; f < 256u * 22050u; f += CTL) {
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a0) {
+            a0 = hit_age(&trk[0]);
+            if (n0 < 1100u)
+                h0[n0] = f;
+            n0++;
+        }
+        if (hit_age(&trk[1]) != a1) {
+            a1 = hit_age(&trk[1]);
+            if (n1 < 300u)
+                h1[n1] = f;
+            n1++;
+        }
+    }
+    for (b = 0; b < 256u && 4u * b < 1100u; b++)
+        bad += h0[4u * b] != h1[b];
+    check("exact timing: a 1/16 and a 1/4 track at 120 BPM stay together for 256 beats (every 4th 1/16 on the 1/4)",
+          n1 >= 256u && n0 >= 1024u && bad == 0u);
+
+    host_init();                                     /* review focus 5: swing 60 on a 1/16 track: pairs keep their total */
+    trk[0].p[P_SDIV] = 2;
+    trk[0].p[P_SSWING] = 60;
+    for (d = 0; d < 16u; d++)
+        trk[1].step[d].on = trk[0].step[d].on = 1;
+    trk[1].p[P_SDIV] = 0;
+    play();
+    a0 = hit_age(&trk[0]);
+    a1 = hit_age(&trk[1]);
+    n0 = n1 = 0;
+    for (f = 0; f < 64u * 22050u; f += CTL) {
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a0) {
+            a0 = hit_age(&trk[0]);
+            if (n0 < 1100u)
+                h0[n0] = f;
+            n0++;
+        }
+        if (hit_age(&trk[1]) != a1) {
+            a1 = hit_age(&trk[1]);
+            if (n1 < 300u)
+                h1[n1] = f;
+            n1++;
+        }
+    }
+    bad = 0;
+    for (b = 0; b < 64u; b++)
+        bad += h0[4u * b] != h1[b];
+    check("exact timing: with swing, every 4th 1/16 still lands on the 1/4 (64 beats)", n1 >= 64u && bad == 0u);
+
+    host_init();                                     /* review focus 1: DIV 1/16 -> 8T -> 1/16 while playing */
+    trk[0].p[P_SDIV] = 2;
+    for (d = 0; d < 16u; d++)
+        trk[0].step[d].on = 1;
+    play();
+    render_mix(0, 0, 3u * 5512u);
+    trk[0].p[P_SDIV] = 4;
+    render_mix(0, 0, 3u * 7350u);
+    trk[0].p[P_SDIV] = 2;
+    {
+        uint32_t at[8];
+        check("exact timing: DIV changed while playing: the track keeps stepping", hits_at(0, 3u * 5513u, at, 8) >= 2u &&
+              trk[0].seq_rem < 4u);
+    }
+}
+
+/* final review: the SLICER keeps the steps' exact timing (its slices carry their remainder too): the k-th slice and
+ * the k-th step of the same division keep their offset within a block (the slice is seen about a block before its step) for
+ * 2 minutes at 120 BPM (1/8 1/16 1/32 8T 16T); before, the slices fell behind by ~240 samples a minute */
+static void test_slicer_exact(void)
+{
+    static const int16_t SLR[5] = {0, 1, 2, 3, 4}, DIV[5] = {1, 2, 3, 4, 5};   /* SLRATE -> the same step DIV */
+    static uint32_t st[4000], sv[4000];
+    uint32_t r, ok = 1;
+    for (r = 0; r < 5u; r++) {
+        uint32_t f, cnt, bad = 0, ns = 0, nv = 0, k;
+        uint8_t idx;
+        host_init();
+        song.g[G_BPM] = 120;
+        for (f = 0; f < 16u; f++)
+            trk[0].step[f].on = 1;
+        trk[0].p[P_SDIV] = DIV[r];
+        trk[0].p[P_SLCR] = 1;                        /* GATE */
+        trk[0].p[P_SLRATE] = SLR[r];
+        play();
+        cnt = trk[0].seq_cnt;
+        idx = sl[0].idx;
+        for (f = 0; f < 120u * FS; f += CTL) {
+            render_mix(0, 0, CTL);
+            if (trk[0].seq_cnt != cnt && ns < 4000u)
+                st[ns++] = f;
+            if (sl[0].idx != idx && nv < 4000u)
+                sv[nv++] = f;
+            cnt = trk[0].seq_cnt;
+            idx = sl[0].idx;
+        }
+        for (k = 1; k < ns && k < nv; k++)
+            {   /* within a block of the first offset (a boundary on a block edge is seen a block apart) */
+                int32_t d = (int32_t)(sv[k] - st[k]) - (int32_t)(sv[0] - st[0]);
+                bad += d > (int32_t)CTL || d < -(int32_t)CTL;
+            }
+        if (bad)
+            printf("     SLRATE %d: %u of %u slices off their step's offset (last %d samples, first %d)\n", SLR[r], bad, ns,
+                   (int32_t)(sv[ns < nv ? ns - 1u : nv - 1u] - st[ns < nv ? ns - 1u : nv - 1u]), (int32_t)(sv[0] - st[0]));
+        ok &= bad == 0u && ns > 400u && nv >= ns - 1u;
+    }
+    check("exact timing: SLICER slices keep their steps' timing for 2 minutes at 120 BPM (5 rates)", ok);
+}
+
 int main(void)
 {
     test_cond_codes();
@@ -2886,12 +3213,18 @@ int main(void)
     test_empty_slot();
     test_mix_health();
     test_seq_timing();
+    test_exact_timing();
+    test_slicer_exact();
     test_seq_edges();
     test_keys();
     test_midi();
     test_midi_ring();
     test_midi_safe_start();
+    test_midi_trs();
     test_live_record();
+    test_slow_divisions();
+    test_div_change_while_playing();
+    test_bpm_change_in_slow_step();
     test_len_change_sync();
     test_prob_chance();
     test_cond_loops();

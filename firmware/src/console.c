@@ -167,6 +167,26 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 }
 #endif
 
+#if FELUCCA_UAC
+static void con_uac(void)                              /* USB audio input: stream state and glitches */
+{
+    uint32_t p = uac.pkts;
+    con_kv("uac_alt", uac.alt);
+    con_kv("uac_starts", (int32_t)uac.starts);
+    con_kv("uac_pkts", (int32_t)p);
+    con_kv("uac_rate_hz", p ? 44000 + (int32_t)(uac.frames - 44u * p) * 1000 / (int32_t)p : 0);   /* < 5 h */
+    con_kv("uac_underruns", (int32_t)uac.underruns);
+    con_kv("uac_overruns", (int32_t)uac.overruns);
+    con_kv("uac_missed", (int32_t)uac.missed);
+    con_kv("uac_stalls", (int32_t)uac.stalls);
+    con_kv("uac_adj_up", (int32_t)uac.adj_up);
+    con_kv("uac_adj_down", (int32_t)uac.adj_down);
+    con_kv("uac_fill", (int32_t)uac.fill_min);
+    con_kv("uac_fill_lo", uac.fill_lo == 0xFFFFFFFFu ? -1 : (int32_t)uac.fill_lo);
+    con_kv("uac_fill_hi", (int32_t)uac.fill_hi);
+}
+#endif
+
 static void con_status(void)
 {
     con_puts("fm1-drums ");
@@ -193,6 +213,15 @@ static void con_status(void)
     con_kv("usb_max_gap_polls", (int32_t)usb.max_gap);
     con_kv("midi_rx_pkts", (int32_t)usb.rx_pkts);
     con_kv("midi_tx_pkts", (int32_t)usb.tx_pkts);
+    con_kv("uart_enabled", FELUCCA_UART);
+#if FELUCCA_UART
+    con_kv("uart_rx_bytes", (int32_t)um.bytes);
+    con_kv("uart_rx_msgs", (int32_t)um.msgs);
+    con_kv("uart_rx_drops", (int32_t)um.drops);
+#endif
+#if FELUCCA_UAC
+    con_uac();
+#endif
 #if FELUCCA_FLASH
     con_kv("flash", flash_ok);
 #endif
