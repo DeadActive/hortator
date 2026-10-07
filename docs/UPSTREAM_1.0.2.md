@@ -62,7 +62,8 @@ pack: user decision 2026-10-06.)
    Done in 0.12.0 (16 rows of A..D x1..16, LOOP, a row as long as its longest track and kept on the beat grid; names
    through PROJECT's NAME knob, SAVE unchanged).
 7. **PHYS percussion** (`eng_phys.c`, `phys_dsp.c`, MIT DaisySP / Rings): MEMB and MODAL, e.g. as RESON's modal
-   models; its 64/32 divisions replaced (integer target rule).
+   models; its 64/32 divisions replaced (integer target rule). Done in 0.13.0 (MEMB drum model, MODAL RESON model
+   on 2 tracks at most; upstream's 64 / 32 divisions kept by the user's decision; with BENCH, docs/PERFORMANCE.md).
 8. **Anti-aliased UI** (`gfx.c`, Inter Tight OFL, themes, Fukiai icons, keycaps, render lint): last, after the
    screens settle; ~45 KB flash; `main.c`'s FONT_S / FONT_L / C_* kept by shims.
 

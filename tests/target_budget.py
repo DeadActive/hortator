@@ -18,7 +18,8 @@ FUNCS = ["body_render", "snare_render", "clap_render", "hat_render", "cymb_rende
          "rim_render", "smp_render", "metal_make", "slicer_track", "fm1_alnk0_irq",
          "kboom_render", "kpunc_render", "ssnap_render", "scrak_render", "hh_render",
          "mix_part", "comp_block", "lfo_track", "reson_block", "rev_room", "rev_spring",
-         "perf_begin", "perf_mute", "perf_pre", "perf_block", "perf_harm", "chain_apply"]
+         "perf_begin", "perf_mute", "perf_pre", "perf_block", "perf_harm", "chain_apply",
+         "memb_render", "reson_modal", "px_memb_block", "px_modal_block_q"]
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...
