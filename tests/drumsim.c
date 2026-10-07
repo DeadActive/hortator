@@ -343,6 +343,21 @@ static void write_perform(const char *dir)
     }
 }
 
+/* MOTION demo (120 BPM): the 808 kit, the kick's DECAY recorded as a sweep over a bar (step k: 10 + 7 k); bar 1
+ * PLAY OFF (the patch), bars 2..4 PLAY ON: motion_decay.wav */
+static void motion_bar(uint32_t b) { mo.s.on = b ? 1u : 0u; }
+static void write_motion(const char *dir)
+{
+    uint32_t k;
+    sp_kit();
+    for (k = 0; k < 16u; k++)
+        trk[0].step[k].on = (k & 1u) == 0u;           /* the kick on every 1/8: the sweep is heard */
+    for (k = 0; k < 16u; k++)
+        motion_add(0, k, P_E1, (int32_t)(10u + 7u * k));
+    write_demo(dir, "motion_decay.wav", 4, motion_bar);
+    memset(&mo, 0, sizeof mo);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -445,5 +460,6 @@ int main(int argc, char **argv)
     write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);      /* RESON into DIST, every other bar */
     write_sound_pack(dir);
     write_perform(dir);
+    write_motion(dir);
     return 0;
 }

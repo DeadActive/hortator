@@ -252,6 +252,8 @@ static void midi_block(void)
     }
 }
 
+#include "motion.c"                 /* knob moves per step (upstream 1.0's motion recording) */
+
 static void seq_start(void)
 {
     uint32_t i;
@@ -273,9 +275,14 @@ static void seq_start(void)
     song.tick = 0;
     song.playing = 1;
     slicer_start();
+    motion_begin();
 }
 
-static void seq_stop(void) { song.playing = 0; }
+static void seq_stop(void)
+{
+    song.playing = 0;
+    motion_end();                                   /* motion.c: the patch back */
+}
 
 static void seq_tick(track_t *t, uint32_t n)
 {
@@ -299,6 +306,7 @@ static void seq_tick(track_t *t, uint32_t n)
         t->seq_cnt++;                               /* the step: steps since PLAY mod LEN, so a LEN change keeps
                                                      * the track on the shared clock (and LEN back = in sync) */
         t->seq_idx = (uint16_t)(t->seq_cnt % (len ? len : 1u));
+        motion_step(t, t->seq_idx);                 /* motion.c: its knobs at this step (before the hit) */
         if (t->rskip && t->rskip_idx == t->seq_idx) {
             t->rskip = 0;
             t->rat_n = 0;

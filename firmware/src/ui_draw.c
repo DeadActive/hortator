@@ -781,6 +781,44 @@ static void perf_columns(void)
     }
 }
 
+/* MOTION: the selected track's LEN steps, 16 a row; a step holding events lit (grey with PLAY OFF), the
+ * playhead outlined */
+static void graph_motion(void)
+{
+    const track_t *t = TSEL;
+    uint32_t k = song.sel, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i, sig, n = 0;
+    uint32_t has[2] = {0, 0}, ph = song.playing ? t->seq_idx % len : 0xFFu;
+    for (i = 0; i < mo.s.count; i++)
+        if (mo.s.ev[i].trk == k) {
+            has[mo.s.ev[i].step >> 5] |= 1u << (mo.s.ev[i].step & 31u);
+            n++;
+        }
+    sig = has[0] * 31u + has[1] * 131u + len * 7u + ph * 1009u + k * 65537u + n * 3u + (uint32_t)motion_on(k);
+    if (!ui.force && sig == ui.graph_sig)
+        return;
+    ui.graph_sig = sig;
+    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_oy = 0;
+    for (i = 0; i < len; i++) {
+        int32_t x = 8 + (int32_t)(i & 15u) * 14, y = 8 + (int32_t)(i >> 4) * 28;
+        int ev = (int)((has[i >> 5] >> (i & 31u)) & 1u);
+        cv_rect(x, y, 12, 22, i == ph ? C_WHITE : C_LINE);
+        cv_rect(x + 1, y + 1, 10, 20, ev ? (motion_on(k) ? C_HI : C_GRAY) : C_BLACK);
+    }
+    cv_blit_from(0, Y_GRAPH, 0);
+}
+/* MOTION: KNOB 1 PLAY, 2 EVENT (the count), 4 CLEAR */
+static void motion_columns(void)
+{
+    char val[12];
+    uint32_t k = song.sel;
+    draw_column(0, "PLAY", motion_on(k) ? "ON" : "OFF", "", VAL(0u), -1, ICON_AUTO);
+    fmt_int(val, (int32_t)motion_count(k));
+    draw_column(1, "EVENT", val, "", C_HI, -1, ICON_AUTO);
+    draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+    draw_column(3, "CLEAR", "", "", C_HI, -1, ICON_AUTO);
+}
+
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
@@ -789,6 +827,11 @@ static void draw_graph(void)
     uint32_t sig, top = 0;
     if (ui.layer) {                                     /* PERFORM: the map */
         graph_perf();
+        ui.graph_top = 1;
+        return;
+    }
+    if (!ui.home && pg->graph == GR_MOTION) {          /* MOTION: the steps holding events */
+        graph_motion();
         ui.graph_top = 1;
         return;
     }
@@ -921,6 +964,10 @@ static void draw_columns(void)
         perf_columns();
         return;
     }
+    if (!ui.home && pg->graph == GR_MOTION) {          /* MOTION: PLAY EVENT - CLEAR */
+        motion_columns();
+        return;
+    }
     if (ui.home) {
         for (c = 0; c < 4u; c++) {
             int16_t *vp;
@@ -1019,8 +1066,13 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     }
     if (ui.confirm) {
         if (ui.force) {
-            char b[16] = "CLEAR TRACK 1?";
-            b[12] = (char)('1' + ui.confirm_trk);
+            char b[20] = "CLEAR TRACK 1?";
+            if (ui.confirm == 2u) {
+                str_cpy(b, "CLEAR MOTION T1?", sizeof b);
+                b[14] = (char)('1' + ui.confirm_trk);
+            } else {
+                b[12] = (char)('1' + ui.confirm_trk);
+            }
             lcd_fill(0, 0, 240, 240, C_BLACK);
             draw_text_box(0, 84, 240, &FONT_S, b, C_WHITE, 1);
             draw_text_box(0, 132, 240, &FONT_S, "OCT- NO    OCT+ YES", C_GRAY, 1);

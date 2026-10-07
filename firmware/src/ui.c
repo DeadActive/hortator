@@ -259,7 +259,11 @@ static void step_hold(uint32_t k)
     s->acc = (uint8_t)!ui.step_prev[k].acc;
 }
 
-static void track_clear(track_t *t) { memset(t->step, 0, sizeof t->step); }
+static void track_clear(track_t *t)               /* its steps and its motion */
+{
+    memset(t->step, 0, sizeof t->step);
+    motion_clear((uint32_t)(t - trk));
+}
 
 /* TOOLS CLR*: every track's pattern cleared and its pattern settings (LEN DIV SWG SRC) at default; sounds, FX,
  * Grids, COMP and the globals untouched */
@@ -289,6 +293,7 @@ static void init_all(void)
     song.master_q12 = master;
     song.playing = 0;
     song.rec = 0;
+    memset(&mo, 0, sizeof mo);                     /* no motion */
     fm1_irq_on();
     ui.bank = 0;
     ui.force = 1;
@@ -357,6 +362,7 @@ static void model_step(int32_t dir)
     uint32_t m = ((uint32_t)TSEL->p[P_MODEL] + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
     fm1_irq_off();
     drum_set_model(TSEL, m);
+    motion_rebase(song.sel);                        /* motion.c: the new sound is the base */
     fm1_irq_on();
     ui_say("MODEL ", N_MODEL[m]);
     ui.force = 1;

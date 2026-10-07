@@ -2277,6 +2277,113 @@ static void test_perform_dead_hold(void)
     }
 }
 
+/* MOTION: knob turns of the armed, selected track record while playing (SOUND, HOME, TRACKS); clears */
+static void motion_armed_play(void)
+{
+    ui_host_init();
+    song.rec = 1u;                                    /* track 1 armed */
+    transport_req = 1;
+    ui_frame();
+    ui_frame();
+}
+static void test_motion_recording(void)
+{
+    uint32_t i;
+    motion_armed_play();
+    tap(B_EDIT);                                      /* SOUND 1: MODEL, the model's 1st, 2nd, 3rd knob */
+    turn(EN_K3, 4);
+    ui_frame();
+    check("MOTION: a SOUND knob of the armed track records while playing", motion_count(0) == 1u);
+    ui.home = 1;
+    ui.force = 1;
+    ui_frame();
+    turn(EN_K1, 3);
+    ui_frame();
+    check("MOTION: a HOME knob records", motion_count(0) == 2u);
+    open_family(FAM_MIX);
+    ui_frame();
+    turn(EN_K2, 3);                                   /* TRACKS: LEVEL */
+    ui_frame();
+    check("MOTION: TRACKS' LEVEL records", motion_count(0) >= 3u);
+    for (i = 0; mo.s.count < MOTION_MAX; i++)
+        motion_add(1, i % 64u, P_E0 + i / 64u, 1);    /* the store full with track 2's */
+    tap(B_EDIT);
+    turn(EN_K4, -4);                                  /* the model's 3rd knob: a new place (E1's is taken) */
+    ui_frame();
+    check("MOTION FULL: said when a turn finds no free place", str_eq(ui.msg, "MOTION FULL") && !mo.full);
+    track_clear(&trk[1]);
+    check("CLEAR TRACK (and CLR SEQ / CLR ALL): its motion cleared too", motion_count(1) == 0u && motion_count(0) >= 1u);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review Focus 4: a model change while motion plays re-takes the base */
+static void test_motion_model_change(void)
+{
+    int16_t def;
+    uint32_t i;
+    ui_host_init();
+    trk[0].p[P_E1] = 7;                               /* the old sound's DECAY, not a default */
+    trk[0].p[P_LEVEL] = 104;                          /* a knob the model change leaves alone */
+    motion_add(0, 0, P_E1, 120);                      /* plays at step 0: E1 moved off the base 7 */
+    motion_add(0, 0, P_LEVEL, 20);                    /* .. and LEVEL off 104 */
+    transport_req = 1;
+    for (i = 0; i < 4u; i++)
+        ui_frame();
+    tap(B_EDIT);
+    turn(EN_K1, 1);                                   /* SOUND 1 KNOB 1: the next model, its default sound */
+    ui_frame();
+    def = trk[0].p[P_E1];
+    check("MOTION: a model change while playing is the new base", mo.base[0][P_E1] == def && def != 7);
+    transport_req = 2;
+    ui_frame();
+    check("MOTION: STOP after a model change keeps the new model's values (not the old 7)", trk[0].p[P_E1] == def);
+    check("MOTION: STOP after a model change puts the other knobs' patch values back (LEVEL 104, not 20)",
+          trk[0].p[P_LEVEL] == 104);
+    init_all();
+    check("INIT ALL: no motion left", mo.s.count == 0u);
+}
+
+/* the MOTION page: PLAY, EVENTS, CLEAR with its dialog; screens */
+static void test_motion_page(void)
+{
+    ui_host_init();
+    seq_open("MOTION");
+    check("SEQ reaches the MOTION page", !ui.home && str_eq(cur_page()->title, "MOTION"));
+    snap_page("motion/empty");
+    motion_add(0, 0, P_E1, 20);
+    motion_add(0, 4, P_E1, 60);
+    motion_add(0, 9, P_PAN, -30);
+    transport_req = 1;
+    ui_frame();
+    ui.force = 1;
+    snap_page("motion/events");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("MOTION KNOB 1 left: PLAY OFF", !motion_on(0));
+    turn(EN_K1, 1);
+    ui_frame();
+    check("MOTION KNOB 1 right: PLAY ON", motion_on(0));
+    turn(EN_K4, 1);
+    ui_frame();
+    check("MOTION KNOB 4: asks before clearing", ui.confirm == 2u && motion_count(0) == 3u);
+    snap_page("motion/confirm");
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("the dialog: OCT- keeps the motion", !ui.confirm && motion_count(0) == 3u);
+    turn(EN_K4, 1);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("the dialog: OCT+ clears the track's motion", !ui.confirm && motion_count(0) == 0u);
+    transport_req = 2;
+    ui_frame();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2331,6 +2438,9 @@ int main(void)
     test_perform_screens();
     test_perform_fast_key();
     test_perform_dead_hold();
+    test_motion_recording();
+    test_motion_model_change();
+    test_motion_page();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

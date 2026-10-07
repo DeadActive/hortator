@@ -3,11 +3,13 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDR7": the globals (with the COMP's GHOST and the reverb TYPE), the selected track, and per track every parameter and its
- * 64 steps (with PROB / RATCH, DUCK, the COMP settings, the LFOs, RESON). M1's "FDR1", M2's "FDR2", M3's "FDR3",
- * the LFOs' "FDR4" RESON's "FDR5" and GHOST's "FDR6" records (in flash) are converted on load.
+ * Format "FDR8": the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every parameter and its
+ * 64 steps (with PROB / RATCH, DUCK, the COMP settings, the LFOs, RESON), and the motion (motion.c, 128 events).
+ * M1's "FDR1", M2's "FDR2", M3's "FDR3", the LFOs' "FDR4" RESON's "FDR5", GHOST's "FDR6" and the sound pack's
+ * "FDR7" records (in flash) are converted on load.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x37524446u                 /* "FDR7": + the reverb TYPE (sound pack) */
+#define PROJ_MAGIC 0x38524446u                 /* "FDR8": + the motion (motion.c) */
+#define PROJ_MAGIC_V7 0x37524446u              /* "FDR7": the reverb TYPE (sound pack), converted on load */
 #define PROJ_MAGIC_V6 0x36524446u              /* "FDR6": GHOST projects, converted on load */
 #define PROJ_MAGIC_V5 0x35524446u              /* "FDR5": RESON projects, converted on load */
 #define PROJ_MAGIC_V4 0x34524446u              /* "FDR4": LFO projects, converted on load */
@@ -23,6 +25,7 @@ typedef struct {
     int16_t g[G_COUNT];
     uint8_t sel, rsv[3];
     proj_trk_t t[NTRK];
+    motion_store_t motion;                      /* FDR8: the motion (motion.c) */
     uint32_t sum;
 } project_t;
 project_t proj_slot[4] __attribute__((section(".noinit")));
@@ -89,15 +92,26 @@ typedef struct {
     proj_trk_t t[NTRK];
     uint32_t sum;
 } project_v6_t;
-static union { project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; } proj_old;
+/* the sound pack's format: everything but the motion. 3028 B */
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_t t[NTRK];
+    uint32_t sum;
+} project_v7_t;
+static union {
+    project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
+} proj_old;
 
 /* an old record (proj_old, version ver) -> q: what it has; the rest at the defaults (v1: PROB 100 %, 1 hit,
- * SRC STEP, Grids; v1 / v2: COMP off, DUCK off; v1..v3: the LFOs off; v1..v4: RESON off; v1..v5: GHOST KEEP; all: reverb TYPE ROOM) */
+ * SRC STEP, Grids; v1 / v2: COMP off, DUCK off; v1..v3: the LFOs off; v1..v4: RESON off; v1..v5: GHOST KEEP;
+ * v1..v6: reverb TYPE ROOM; all: no motion) */
 static void proj_from_old(project_t *q, uint32_t ver)
 {
     uint32_t i, k;
     uint32_t ng = ver == 1u ? (uint32_t)G_GMODE : ver == 2u ? (uint32_t)G_CSRC : ver == 6u ? (uint32_t)G_RTYPE
-                : (uint32_t)G_CGHOST;
+                : ver == 7u ? (uint32_t)G_COUNT : (uint32_t)G_CGHOST;
     uint32_t np = ver == 1u ? (uint32_t)P_SRC : ver == 2u ? (uint32_t)P_DUCK : ver == 3u ? (uint32_t)P_LFO1
                 : ver == 4u ? (uint32_t)P_RMODEL : (uint32_t)P_COUNT;
     memset(q, 0, sizeof *q);
@@ -106,14 +120,15 @@ static void proj_from_old(project_t *q, uint32_t ver)
     for (i = 0; i < G_COUNT; i++)
         q->g[i] = i >= ng ? GP[i].def
                 : ver == 1u ? proj_old.v1.g[i] : ver == 2u ? proj_old.v2.g[i] : ver == 3u ? proj_old.v3.g[i]
-                : ver == 4u ? proj_old.v4.g[i] : ver == 5u ? proj_old.v5.g[i] : proj_old.v6.g[i];
+                : ver == 4u ? proj_old.v4.g[i] : ver == 5u ? proj_old.v5.g[i] : ver == 6u ? proj_old.v6.g[i] : proj_old.v7.g[i];
     q->sel = ver == 1u ? proj_old.v1.sel : ver == 2u ? proj_old.v2.sel : ver == 3u ? proj_old.v3.sel
-           : ver == 4u ? proj_old.v4.sel : ver == 5u ? proj_old.v5.sel : proj_old.v6.sel;
+           : ver == 4u ? proj_old.v4.sel : ver == 5u ? proj_old.v5.sel : ver == 6u ? proj_old.v6.sel : proj_old.v7.sel;
     for (k = 0; k < NTRK; k++) {
         for (i = 0; i < P_COUNT; i++)
             q->t[k].p[i] = i >= np ? TP[i].def
                          : ver == 1u ? proj_old.v1.t[k].p[i] : ver == 2u ? proj_old.v2.t[k].p[i]
-                         : ver == 3u ? proj_old.v3.t[k].p[i] : ver == 4u ? proj_old.v4.t[k].p[i] : ver == 5u ? proj_old.v5.t[k].p[i] : proj_old.v6.t[k].p[i];
+                         : ver == 3u ? proj_old.v3.t[k].p[i] : ver == 4u ? proj_old.v4.t[k].p[i] : ver == 5u ? proj_old.v5.t[k].p[i] : ver == 6u ? proj_old.v6.t[k].p[i]
+                         : proj_old.v7.t[k].p[i];
         for (i = 0; i < NSTEP; i++) {
             if (ver == 1u) {
                 q->t[k].step[i].on = proj_old.v1.t[k].step[i].on;
@@ -121,7 +136,8 @@ static void proj_from_old(project_t *q, uint32_t ver)
             } else {
                 q->t[k].step[i] = ver == 2u ? proj_old.v2.t[k].step[i]
                                 : ver == 3u ? proj_old.v3.t[k].step[i] : ver == 4u ? proj_old.v4.t[k].step[i]
-                                : ver == 5u ? proj_old.v5.t[k].step[i] : proj_old.v6.t[k].step[i];
+                                : ver == 5u ? proj_old.v5.t[k].step[i] : ver == 6u ? proj_old.v6.t[k].step[i]
+                                : proj_old.v7.t[k].step[i];
             }
         }
     }
@@ -133,15 +149,15 @@ static void proj_fetch(uint32_t slot)
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
     if (n > 8 && n <= (int)sizeof proj_old && n != (int)sizeof *q) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[7] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
-                                          PROJ_MAGIC_V5, PROJ_MAGIC_V6};
-        static const uint32_t SIZE[7] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
-                                         sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6};
+        static const uint32_t MAGIC[8] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
+                                          PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7};
+        static const uint32_t SIZE[8] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+                                         sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 7u; ver++)
+        for (ver = 1; ver < 8u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
                 proj_from_old(q, ver);
@@ -174,6 +190,7 @@ static void project_save(uint32_t slot)
         memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
     }
+    p->motion = mo.s;                                  /* (stopped: the base is in the knobs) */
     p->sum = proj_sum(p);
 #if FELUCCA_FLASH
     if (flash_ok) {
@@ -226,6 +243,11 @@ static void project_load(uint32_t slot)
     for (k = 0, i = 0; k < NTRK; k++)                   /* CHORD on 2 of them at most: the first two keep it */
         if (trk[k].p[P_RMODEL] == RS_CHORD && ++i > 2u)
             trk[k].p[P_RMODEL] = RS_STRNG;
+    if (motion_valid(&p->motion))                       /* the motion: a broken block is dropped, the rest loads */
+        mo.s = p->motion;
+    else
+        memset(&mo.s, 0, sizeof mo.s);
+    motion_forget();                                    /* the new knobs are the base: the stop puts nothing back */
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
     fm1_irq_on();
     ui.force = 1;
