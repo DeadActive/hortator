@@ -69,10 +69,10 @@ html { scroll-snap-type: y proximity; }
 }
 .hero-nav a { color: var(--hero-ink); text-decoration: none; font-size: 14px; border-bottom: 1px solid rgba(233,235,238,.4); }
 .scene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  padding: 56px 0 118px;                         /* the device lands between the nav and Switch on + its bar */
+  padding: 96px 0 118px;                         /* the device lands between the nav + power switch and the bar */
 }
-.scene::after {                                  /* the dimming: an overlay's opacity, not a filter */
-  content: ""; position: absolute; inset: 0; background: #101214; opacity: var(--dim, 0); pointer-events: none; }
+/* the dimming: an overlay's opacity, not a filter, and outside the blurred scene */
+.scene-dim { position: absolute; inset: 0; background: #101214; opacity: var(--dim, 0); pointer-events: none; }
 .tilt { position: relative; transform-style: preserve-3d; will-change: transform; }
 .tilt .fit { transform-style: preserve-3d; }
 .desk-shadow {
@@ -108,10 +108,10 @@ html { scroll-snap-type: y proximity; }
   align-items: center; white-space: nowrap; color: var(--hero-ink);
   opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none); transition: opacity 0.45s ease;
 }
-.power { display: flex; align-items: center; gap: 12px; margin-right: 6px; }
-.power span { font-size: 13px; color: #c5c9cf; }
-@media (max-width: 560px) {                       /* phones: the row stays one line */
-  .power span { display: none; }
+.power-note { font-size: 13px; color: #c5c9cf; margin-right: 6px; }
+@media (max-width: 560px) {                       /* phones: the caption above the row, the row one line */
+  .power-note { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+    width: max-content; max-width: calc(100vw - 32px); white-space: normal; text-align: center; margin: 0; }
   .play-bar { gap: 8px; }
   .bar-btn { padding: 6px 12px; font-size: 13px; }
 }
@@ -140,7 +140,21 @@ html { scroll-snap-type: y proximity; }
 .help ul { margin: 0; padding-left: 18px; color: #b8bdc4; }
 .note { min-height: 1.5em; margin: 6px 0 0; color: var(--ink-soft); }
 
-/* depth: the panel's parts stand off its face; the body is extruded behind it (app.js adds the .slab layers) */
+/* Controls beside the device on wide screens: the stage keeps the panel's width free, the device moves left and is
+   fitted to what is left (app.js HELP_W); the change eases, only while it happens (.easing), so scrolling never lags */
+@property --scale { syntax: '<number>'; inherits: true; initial-value: 1; }
+.hero-stage { --help-w: 320px; }
+.hero-stage.easing .device { transition: --scale .35s ease; }
+.hero-stage.easing .fit { transition: width .35s ease, height .35s ease; }
+.hero-stage.easing .scene { transition: padding .35s ease; }
+@media (min-width: 900px) {
+  .hero-stage.help-open .scene { padding-right: calc(var(--help-w) + 40px); }
+  .hero-stage.help-open .help { left: auto; right: 24px; top: 96px; bottom: auto; transform: none; width: var(--help-w);
+    grid-template-columns: 1fr; align-content: start; max-height: calc(100vh - 222px); }
+  .hero-stage.help-open .more-cue { opacity: 0; pointer-events: none; }
+}
+
+/* depth: the panel's parts stand off its face; walls around its outline give the body its depth (app.js) */
 .device { transform-style: preserve-3d; }
 .device > .tray { translate: 0 0 1px; }
 .device > .bezel { translate: 0 0 1px; }
@@ -150,7 +164,8 @@ html { scroll-snap-type: y proximity; }
 .device > .key { translate: 0 0 5px; }
 .device > .enc { translate: 0 0 9px; transform-style: preserve-3d; }
 .device > .enc .cap { translate: 0 0 8px; }
-.device > .slab { border-radius: 44px; pointer-events: none; }
+.device > .walls { left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
+.walls > div { position: absolute; left: 0; top: 0; transform-origin: 0 0; backface-visibility: visible; }
 .device > .glare {
   inset: 0; border-radius: 44px; pointer-events: none; translate: 0 0 12px; opacity: 0; overflow: hidden;
 }
@@ -296,7 +311,7 @@ html { scroll-behavior: smooth; }
   .install-steps { row-gap: 18px; }
   .install-grid { gap: 36px; }
 }
-@media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after, .more-cue span, .power-toggle.ready .knob { animation: none; } }
 
 .foot {                                          /* three parts: the name, the ways around, the credits */
   display: grid; grid-template-columns: 1.1fr 0.9fr 1.6fr; gap: 40px; margin-top: 96px; padding: 28px 0 8px;
@@ -381,12 +396,44 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 
 .device :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
-/* ---- power on */
-.power button {
-  font-size: 15px; font-weight: 600; padding: 8px 22px; border-radius: 999px; border: 0; cursor: pointer;
-  background: #e9ebee; color: #15171a; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+/* ---- power: page UI only, nothing on the device. The switch sits above it, a leader line down to the top edge where
+   the FM-1 has its switch. Until the first flip its knob nudges toward on. */
+.device.powered-off canvas.lcd { opacity: .12; transition: opacity .3s; }
+.device.powered-off .lit { color: inherit; text-shadow: none; }
+.device.powered-off .key.lit .stripe { background: #6c7077; box-shadow: none; }
+.power-ui { position: absolute; left: 0; top: 0; z-index: 7; opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none);
+  transition: opacity .45s ease; }
+.power-toggle, .power-label { position: absolute; left: 0; top: 0; }
+.power-toggle {
+  width: 46px; height: 26px; padding: 0; border-radius: 999px; cursor: pointer;
+  background: #24282d; border: 1.5px solid rgba(233,235,238,.75); transition: background .2s, border-color .2s;   /* opaque: the line ends under it */
 }
-.power button:disabled { opacity: 0.6; cursor: progress; }
+.power-toggle .knob { position: absolute; left: 3px; top: 3px; width: 17px; height: 17px; border-radius: 50%;
+  background: #e9ebee; transition: transform .2s cubic-bezier(.3,.7,.3,1), background .2s; }
+.power-toggle.on { background: #e9ebee; border-color: #e9ebee; }
+.power-toggle.on .knob { transform: translateX(20px); background: #15171a; }
+.power-toggle.ready .knob { animation: nudge 2.4s ease-in-out infinite; }
+@keyframes nudge {                                 /* a small push toward on, twice, then rest */
+  0%, 55%, 100% { transform: translateX(0); }
+  63% { transform: translateX(6px); } 70% { transform: translateX(0); } 76% { transform: translateX(4px); } 82% { transform: translateX(0); }
+}
+.power-toggle:disabled { cursor: progress; opacity: .6; }
+.power-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.power-label { font-size: 13px; color: #c5c9cf; white-space: nowrap; pointer-events: none; }
+.power-lead { position: absolute; width: 1px; margin-left: -0.5px; background: rgba(233,235,238,.5); pointer-events: none; }
+.power-lead::after { content: ""; position: absolute; left: -2.5px; bottom: -3px; width: 6px; height: 6px; border-radius: 50%;
+  background: #e9ebee; }                         /* the dot where the FM-1 has its switch */
+
+/* "more below": while the simulator holds the screen, a cue that the page goes on */
+.more-cue {
+  position: absolute; right: max(20px, 4vw); bottom: 26px; z-index: 6; display: flex; flex-direction: column;
+  align-items: center; gap: 2px; font-size: 13px; color: #c5c9cf; text-decoration: none;
+  opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none); transition: opacity .45s ease;
+}
+.more-cue span { font-size: 18px; line-height: 1; animation: bob 1.6s ease-in-out infinite; }
+.more-cue:hover { color: #fff; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+@media (max-width: 760px) { .more-cue { bottom: auto; top: 18px; right: 50%; transform: translateX(50%); flex-direction: row; gap: 6px; } }
 
 @media (max-height: 520px) {                          /* phones held sideways: smaller copy */
   .hero-copy h1 { font-size: 30px; }

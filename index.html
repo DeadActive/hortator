@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;125,700&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="sim.css?v=4e3e9c219d">
+<link rel="stylesheet" href="sim.css?v=f8e51fdd5f">
 </head>
 <body>
 <section id="hero" class="hero" aria-label="Hortator">
@@ -20,13 +20,20 @@
       <a href="webapp/installer/">Install</a>
     </nav>
 
+    <div class="desk-shadow" id="desk-shadow"></div>
     <div class="scene" id="scene">
-      <div class="desk-shadow" id="desk-shadow"></div>
       <div class="tilt" id="tilt">
         <div id="fit" class="fit">
           <div id="device" class="device" aria-label="FM-1 panel"></div>
         </div>
       </div>
+    </div>
+    <div class="scene-dim" aria-hidden="true"></div>
+    <div class="power-ui" id="power-ui">                <!-- placed by app.js: a line from the FM-1's own switch -->
+      <span class="power-lead" id="power-lead" aria-hidden="true"></span>
+      <button type="button" class="power-toggle" id="power-on" role="switch" aria-checked="false" aria-label="Power"
+        disabled><span class="knob"></span></button>
+      <span class="power-label" id="power-label">Power</span>
     </div>
 
     <div class="hero-copy" id="hero-copy">
@@ -42,10 +49,7 @@
 
     <div class="play-bar" id="play-bar">
       <p id="note" class="note" role="status"></p>
-      <div id="power" class="power">
-        <button type="button" id="power-on" disabled>Switch on</button>
-        <span id="power-note">Loading…</span>
-      </div>
+      <span class="power-note" id="power-note">Loading…</span>
       <button type="button" class="bar-btn" id="help-toggle" aria-expanded="false" aria-controls="help">Controls</button>
       <button type="button" class="bar-btn" id="reset" aria-haspopup="dialog">Reset to demos</button>
       <div id="reset-confirm" class="confirm" role="dialog" aria-label="Reset to demos" hidden>
@@ -54,6 +58,7 @@
         <button type="button" id="reset-no">Keep my saves</button>
       </div>
     </div>
+    <a class="more-cue" id="more-cue" href="#features">More below<span aria-hidden="true">↓</span></a>
     <div id="help" class="help" hidden>
       <div>
         <h2>Mouse and touch</h2>
@@ -195,7 +200,7 @@
     <a href="#play">Play it in the browser</a>
     <a href="webapp/installer/">Install on your FM-1</a>
     <a href="#install">What's new</a>
-    <a href="source.tar.gz?v=4e3e9c219d">Source code (GPL-3.0)</a>
+    <a href="source.tar.gz?v=f8e51fdd5f">Source code (GPL-3.0)</a>
   </nav>
   <div class="foot-credits">
     <p>Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
@@ -206,6 +211,6 @@
       M-VAVE.</p>
   </div>
 </footer>
-<script type="module" src="app.js?v=4e3e9c219d"></script>
+<script type="module" src="app.js?v=f8e51fdd5f"></script>
 </body>
 </html>

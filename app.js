@@ -3,17 +3,17 @@
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
 // frames it sends back, and keeps the flash it writes in IndexedDB (store.js).
-import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=4e3e9c219d';
-import { FlashStore, openFlashDb } from './store.js?v=4e3e9c219d';
-import { needsResume, playbackSession } from './audio.js?v=4e3e9c219d';
-import { parseReel, snapshots } from './reel.js?v=4e3e9c219d';
-import { LAYOUTS, DECO_CLASS, blend, heroPose } from './layout.js?v=4e3e9c219d';
+import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=f8e51fdd5f';
+import { FlashStore, openFlashDb } from './store.js?v=f8e51fdd5f';
+import { needsResume, playbackSession } from './audio.js?v=f8e51fdd5f';
+import { parseReel, snapshots } from './reel.js?v=f8e51fdd5f';
+import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=f8e51fdd5f';
 
 // ---- the panel's elements (built once, placed per layout)
 const device = document.getElementById('device');
 const fit = document.getElementById('fit');
 const note = document.getElementById('note');
-const els = { deco: {}, ctl: {}, enc: {}, lbl: {} };
+const els = { deco: {}, ctl: {}, enc: {}, lbl: {}, power: document.getElementById('power-on') };
 const lcd = document.createElement('canvas');
 lcd.width = lcd.height = 240;
 lcd.className = 'lcd';
@@ -26,16 +26,21 @@ function place(el, [x, y, w, h]) {
   el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.width = `${w}px`; el.style.height = `${h}px`;
 }
 
-const SLABS = 14;                                 // the body extruded behind the face, 1.6 px a layer
+const DEPTH = 14 * 3.2;                            // the body's depth (design px): walls stood on its outline
+let walls = null;
 function build() {
-  for (let i = SLABS; i >= 1; i--) {
-    const s = document.createElement('div'), t = i / SLABS;
-    s.className = 'slab';
-    s.style.inset = '0';
-    s.style.translate = `0 0 ${-i * 1.6}px`;
-    s.style.background = `rgb(${Math.round(78 - 40 * t)}, ${Math.round(82 - 41 * t)}, ${Math.round(88 - 43 * t)})`;
-    device.append(s);
+  walls = document.createElement('div');           // the edge: strips around the rounded outline, DEPTH deep, shaded
+  walls.className = 'walls';                       // by which way they face (light from above)
+  for (const st of outline(LAYOUTS.landscape.W, LAYOUTS.landscape.H, 44, 6)) {
+    const w = document.createElement('div'), dx = st.x1 - st.x0, dy = st.y1 - st.y0, ang = Math.atan2(dy, dx);
+    const up = -Math.cos(ang);                     // the outward normal's upward part: 1 top edge .. -1 bottom edge
+    const c = Math.round(66 + 14 * up);
+    w.style.cssText = `width:${Math.hypot(dx, dy) + 0.8}px;height:${DEPTH}px;`
+      + `transform:translate(${st.x0}px,${st.y0}px) rotateZ(${ang}rad) rotateX(-90deg);`
+      + `background:linear-gradient(rgb(${c},${c + 4},${c + 9}),rgb(${c - 30},${c - 28},${c - 25}))`;
+    walls.append(w);
   }
+  device.append(walls);
   for (const name of Object.keys(DECO_CLASS)) {
     const d = document.createElement('div');
     d.className = DECO_CLASS[name];
@@ -95,12 +100,14 @@ function addHint(el, ctl) {
 }
 
 // geometry: phones show the FM-1's own landscape form while it flies in, then morph into the portrait simulator
-let phone = false, availW = 1000, availH = 600, morphNow = -1;
+let phone = false, availW = 1000, availH = 600, morphNow = -1, powerAt = null, helpOpen = false;
+const HELP_W = 320 + 40;                           // Controls beside the device (wide screens): its width and a gap
 function fitScale(L) { return Math.max(0.2, Math.min(availW / L.W, availH / L.H, 1.2)); }
 function relayout() {
   phone = window.innerWidth < 700 && window.innerHeight > window.innerWidth;
-  availW = Math.min(document.documentElement.clientWidth - 32, 1000);
-  availH = window.innerHeight - 56 - 118 - 8;       // the hero scene's padding: nav above, Switch on and its bar below
+  const beside = helpOpen && window.innerWidth >= 900;
+  availW = Math.min(document.documentElement.clientWidth - 32 - (beside ? HELP_W : 0), 1000);
+  availH = window.innerHeight - 96 - 118 - 8;       // the hero scene's padding: nav and the power switch above, the bar below
   geometry(phone ? Math.max(0, morphNow) : 0, true);
 }
 function geometry(morph, force) {                  // place every part for this morph (0 landscape .. 1 portrait)
@@ -112,12 +119,14 @@ function geometry(morph, force) {                  // place every part for this 
     els.deco[name].style.opacity = d.opacity;
   }
   place(lcd, G.lcd);
+  powerAt = G.power;                                // where the FM-1 has its switch: the page's switch points there
   for (const [ctl, b] of Object.entries(G.ctl)) place(els.ctl[ctl], b);
   for (const [id, b] of Object.entries(G.enc)) {
     place(els.enc[id], b);
     place(els.lbl[id], [b[0] - 30, b[1] - 20, b[2] + 60, 14]);
   }
   const scale = fitScale(G);                        // fits at every step of the morph
+  if (walls) walls.hidden = morph > 0;              // the edge fits the FM-1's own outline; the phone layout lies flat
   device.style.width = `${G.W}px`;
   device.style.height = `${G.H}px`;
   device.style.setProperty('--scale', scale);
@@ -185,7 +194,7 @@ function bindControls() {
   for (const [id, el] of Object.entries(els.enc)) bindEncoder(id, el);
 
   window.addEventListener('keydown', e => {
-    if (!arrived || e.target.closest?.('.help, .confirm')) return;
+    if (!arrived || e.target.closest?.('.help, .confirm, #power-on')) return;
     if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && hovered) {
       e.preventDefault();
       turn(hovered, e.code === 'ArrowUp' ? 1 : -1);
@@ -277,27 +286,41 @@ function paint(now) {
 
 // ---- flash in IndexedDB (store.js), the audio clock (audio.js)
 const store = new FlashStore(openFlashDb, msg => { note.textContent = msg; });
-let ctx = null;
-function wake() {                                 // a tap or a key brings a stopped context back
-  if (!ctx || !needsResume(ctx.state)) return;
+let ctx = null, poweredOff = false;
+function wake() {                                 // a tap or a key brings a stopped context back (not one switched off)
+  if (!ctx || poweredOff || !needsResume(ctx.state)) return;
   ctx.resume().catch(() => {});
 }
 
 // ---- power on
-const wasmBytes = fetch('fm1sim.wasm?v=4e3e9c219d').then(r => {
+const wasmBytes = fetch('fm1sim.wasm?v=f8e51fdd5f').then(r => {
   if (!r.ok) throw new Error(`fm1sim.wasm: HTTP ${r.status}`);
   return r.arrayBuffer();
 });
+function setSwitch(on) {
+  els.power.setAttribute('aria-checked', String(on));
+  els.power.classList.toggle('on', on);
+  device.classList.toggle('powered-off', !on && !!node);
+}
+async function powerSwitch() {                     // the first flip starts the firmware; later ones pause / resume
+  if (!node) return powerOn();
+  poweredOff = !poweredOff;
+  setSwitch(!poweredOff);
+  if (poweredOff) { releaseAll(); await ctx.suspend(); }
+  else await ctx.resume();
+}
 async function powerOn() {
-  const btn = document.getElementById('power-on'), pnote = document.getElementById('power-note');
+  const btn = els.power, pnote = document.getElementById('power-note');
   btn.disabled = true;
+  btn.classList.remove('ready');
+  setSwitch(true);
   pnote.textContent = 'Starting…';
   try {
     if (!window.AudioWorkletNode) throw new Error('This browser has no AudioWorklet. Use a current Chrome, Firefox or Safari.');
     playbackSession(navigator);
     ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                         // inside the tap: browsers allow sound from here on
-    await ctx.audioWorklet.addModule('worklet.js?v=4e3e9c219d');
+    await ctx.audioWorklet.addModule('worklet.js?v=f8e51fdd5f');
     const [wasm, sectors] = await Promise.all([wasmBytes, store.load()]);
     node = new AudioWorkletNode(ctx, 'fm1', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm, sectors } });
     node.port.onmessage = e => {
@@ -312,12 +335,14 @@ async function powerOn() {
     for (const m of pending.splice(0)) node.port.postMessage(m);
     if (ctx.sampleRate !== 44100) note.textContent = `Audio runs at ${ctx.sampleRate} Hz here, not 44100 Hz: pitch and tempo are off.`;
     ctx.addEventListener('statechange', () => {
-      if (needsResume(ctx.state) && !document.hidden) note.textContent = 'Sound stopped. Tap the panel to start it again.';
+      if (needsResume(ctx.state) && !document.hidden && !poweredOff) note.textContent = 'Sound stopped. Tap the panel to start it again.';
       else if (ctx.state === 'running' && note.textContent.startsWith('Sound stopped')) note.textContent = '';
     });
-    document.getElementById('power').hidden = true;
+    pnote.hidden = true;
+    btn.disabled = false;
   } catch (err) {
     btn.disabled = false;
+    setSwitch(false);
     pnote.textContent = err.message || String(err);
   }
 }
@@ -330,6 +355,17 @@ function bindPage() {
     help.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     device.classList.toggle('show-hints', open);
+    helpOpen = open;                                // beside the device on wide screens: it moves left, refitted
+    stage.classList.add('easing');
+    stage.classList.toggle('help-open', open);
+    relayout();
+    const t0 = performance.now();
+    const follow = now => {                         // the power switch follows the device while it moves
+      if (arrived) placePower();
+      if (now - t0 < 450) requestAnimationFrame(follow);
+      else stage.classList.remove('easing');
+    };
+    requestAnimationFrame(follow);
   });
   const confirm = document.getElementById('reset-confirm');
   document.getElementById('reset').addEventListener('click', () => { confirm.hidden = !confirm.hidden; });
@@ -344,19 +380,19 @@ function bindPage() {
     await store.clear();
     location.reload();
   });
-  const on = document.getElementById('power-on');
-  on.addEventListener('click', powerOn);
-  on.disabled = false;
-  document.getElementById('power-note').textContent = 'Sound starts with this tap.';
+  els.power.addEventListener('click', powerSwitch);
+  els.power.disabled = false;
+  els.power.classList.add('ready');                 // nudges toward on until the first flip
+  document.getElementById('power-note').textContent = 'Turn on the power switch above the FM-1 to start the sound.';
 }
 
 // ---- the reel: recorded pages (tests/sim_record.c) on the screen, LEDs and knobs until the firmware is switched on
 let reel = null, reelPos = -1, reelT0 = 0, clips = null, snaps = null;
 const reelFb = new Uint16Array(240 * 240);
 if (window.DecompressionStream)
-  fetch('reel.bin.gz?v=4e3e9c219d')
+  fetch('reel.bin.gz?v=f8e51fdd5f')
     .then(r => r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : Promise.reject())
-    .then(b => { reel = parseReel(b); reelT0 = performance.now(); return fetch('reel.json?v=4e3e9c219d'); })
+    .then(b => { reel = parseReel(b); reelT0 = performance.now(); return fetch('reel.json?v=f8e51fdd5f'); })
     .then(r => r.json())
     .then(list => { clips = Object.fromEntries(list.map(c => [c.name, c])); snaps = snapshots(reel, list.map(c => c.from)); manualShow(); })
     .catch(() => { /* no reel: the screen stays dark until Switch on */ });
@@ -385,7 +421,8 @@ function heroFrame() {
   const p = still.matches || track <= 0 ? 1 : Math.min(1, Math.max(0, -r.top / track));
   const q = heroPose(p, phone);
   tilt.style.transform = q.transform;
-  const filter = q.blur > 0 ? `blur(${q.blur}px)` : 'none';   // no filter at all once sharp
+  const b = Math.round(q.blur * 2) / 2;              // half-pixel steps: the filter changes ~18 times, not every frame
+  const filter = b > 0 ? `blur(${b}px)` : 'none';   // no filter at all once sharp
   if (filter !== lastFilter) { scene.style.filter = filter; lastFilter = filter; }
   geometry(phone ? q.morph : 0, false);
   stage.style.setProperty('--dim', q.dim);
@@ -394,6 +431,7 @@ function heroFrame() {
   stage.style.setProperty('--shadow', q.shadow);
   els.glare.parentNode.style.opacity = q.glare;
   if (q.glare > 0) els.glare.style.transform = `translate3d(${-60 + q.sweep * 220}%, 0, 0) rotate(18deg)`;
+  if (q.arrived) placePower();
   if (q.arrived !== arrived) {
     arrived = q.arrived;
     stage.style.setProperty('--arrived', arrived ? 1 : 0);
@@ -401,6 +439,22 @@ function heroFrame() {
     device.classList.toggle('waiting', !arrived);
     if (!arrived) releaseAll();                     // nothing stays held while it flies away
   }
+}
+// the power switch is page UI: above the device, a leader line down to the mark where the FM-1 has its switch
+const powerUi = document.getElementById('power-ui'), powerLead = document.getElementById('power-lead');
+const powerLabel = document.getElementById('power-label');
+function placePower() {
+  const st = stage.getBoundingClientRect(), fr = fit.getBoundingClientRect();
+  const k = fr.width / parseFloat(device.style.width);                         // the device's scale on screen
+  const sx = fr.left + (powerAt[0] + powerAt[2] / 2) * k - st.left, sy = fr.top - st.top;   // the spot on its top edge
+  const tw = els.power.offsetWidth, th = els.power.offsetHeight, lw = powerLabel.offsetWidth;
+  const tx = sx - tw / 2;                                                     // straight above the spot
+  const right = tx + tw + 10 + lw <= st.width - 16;                            // the label right of it if it fits
+  const ty = Math.max(56, sy - 34 - th / 2), my = ty + th / 2;
+  els.power.style.transform = `translate(${tx}px, ${ty}px)`;
+  powerLabel.style.transform = `translate(${right ? tx + tw + 10 : tx - 10 - lw}px, ${my - powerLabel.offsetHeight / 2}px)`;
+  Object.assign(powerLead.style, {                  // a vertical line from the edge up to the switch's centre (it ends
+    left: `${sx}px`, top: `${my}px`, height: `${Math.max(0, sy - my)}px` });   // under the switch, which is opaque)
 }
 function queueHero() { if (!heroQueued) { heroQueued = true; requestAnimationFrame(heroFrame); } }
 
@@ -449,7 +503,7 @@ function plainNote(n) {                            // the changelog's line for p
   if (t.startsWith(n.title)) t = t.slice(n.title.length).replace(/^[\s:,]+/, '');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
-fetch('version.json?v=4e3e9c219d').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
+fetch('version.json?v=f8e51fdd5f').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
   const [y, m, d] = v.date.split('-').map(Number);
   const newer = v.since.length ? ` and ${v.since.length} newer change${v.since.length > 1 ? 's' : ''}` : '';
   document.getElementById('fw-version').textContent =

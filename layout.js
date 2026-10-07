@@ -3,7 +3,7 @@
 // The panel's geometry (no DOM): the FM-1's own landscape layout and the stacked portrait one phones play on,
 // the morph between them, and the hero's choreography (scroll progress -> pose). app.js applies them; node tests
 // them (tests/sim_site.mjs).
-import { B, KEYS } from './controls.js?v=4e3e9c219d';
+import { B, KEYS } from './controls.js?v=f8e51fdd5f';
 
 // ---- layouts: design-size boxes [x, y, w, h]; the device is scaled to fit the window
 const WHITE = KEYS.filter(k => !k.black), BLACK = KEYS.filter(k => k.black);
@@ -30,6 +30,7 @@ export const LAYOUTS = {
     W: 1000, H: 620,
     deco: { bezel: [270, 36, 268, 268], oct: [52, 262, 196, 64], buttons: [572, 158, 394, 156], keys: [40, 336, 920, 262] },
     lcd: [284, 50, 240, 240],
+    power: [478, -12, 56, 24],                      // the power switch: on the top edge, above the screen's right corner
     enc: { master: knob(95, 108), 0: knob(195, 108), 2: knob(95, 214), 1: knob(195, 214),
            3: knob(632, 108), 4: knob(731, 108), 5: knob(830, 108), 6: knob(929, 108) },
     ctl: { ...buttonRows(ROWS, 588, 174, 52, 62, 68),
@@ -40,6 +41,7 @@ export const LAYOUTS = {
     W: 420, H: 772,
     deco: { bezel: [76, 20, 268, 268], buttons: [14, 450, 392, 128], keys: [10, 590, 400, 172] },
     lcd: [90, 34, 240, 240],
+    power: [284, -12, 56, 24],
     enc: { master: knob(60, 340), 0: knob(160, 340), 1: knob(260, 340), 2: knob(360, 340),
            3: knob(60, 416), 4: knob(160, 416), 5: knob(260, 416), 6: knob(360, 416) },
     ctl: { ...buttonRows([[...ROWS[0], 'OCT-'], [...ROWS[1], 'OCT+']], 25, 462, 46, 54, 58),
@@ -65,7 +67,7 @@ export function blend(A, Bl, t) {
       : { box: box(a, Bl.deco.buttons, tb), opacity: Math.max(0, 1 - t * 2.5) };
   const ctl = {};
   for (const [k, a] of Object.entries(A.ctl)) ctl[k] = box(a, Bl.ctl[k], lag(t, k.startsWith('key') ? LAG.key : LAG.btn));
-  return { W: mix(A.W, Bl.W, tb), H: mix(A.H, Bl.H, tb), deco, lcd: box(A.lcd, Bl.lcd, tb),
+  return { W: mix(A.W, Bl.W, tb), H: mix(A.H, Bl.H, tb), deco, lcd: box(A.lcd, Bl.lcd, tb), power: box(A.power, Bl.power, tb),
            enc: boxes(A.enc, Bl.enc, lag(t, LAG.enc)), ctl };
 }
 
@@ -98,4 +100,26 @@ export function heroPose(p, phone) {               // holds the simulator flat, 
         + `rotateY(${mix(c.ry, 0, m)}deg) rotateZ(${mix(c.rz, 0, m)}deg)`,
     arrived: m >= 1 && (!phone || morph >= 1),
   };
+}
+
+// ---- the body's edge for the 3D hero: the rounded outline (W x H, corner radius R) as a closed loop of straight
+// strips, clockwise from the top edge: 4 sides and N chords per corner. app.js stands a wall on each strip, the
+// body's depth deep: the same thickness a stack of full-size layers gave, at a fraction of the pixels to draw.
+export function outline(W, H, R, N) {
+  const out = [], arc = (cx, cy, from) => {
+    for (let i = 0; i < N; i++) {
+      const a0 = (from + 90 * i / N) * Math.PI / 180, a1 = (from + 90 * (i + 1) / N) * Math.PI / 180;
+      out.push({ x0: cx + R * Math.cos(a0), y0: cy + R * Math.sin(a0), x1: cx + R * Math.cos(a1), y1: cy + R * Math.sin(a1) });
+    }
+  };
+  out.push({ x0: R, y0: 0, x1: W - R, y1: 0 });
+  arc(W - R, R, -90);
+  out.push({ x0: W, y0: R, x1: W, y1: H - R });
+  arc(W - R, H - R, 0);
+  out.push({ x0: W - R, y0: H, x1: R, y1: H });
+  arc(R, H - R, 90);
+  out.push({ x0: 0, y0: H - R, x1: 0, y1: R });
+  arc(R, R, 180);
+  for (const s of out) for (const k of ['x0', 'y0', 'x1', 'y1']) s[k] = Math.round(s[k] * 1e9) / 1e9;
+  return out;
 }
