@@ -1,0 +1,211 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Drum machine fork: 2026 DEADACTIVE -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hortator: drum-machine firmware for the M-VAVE FM-1</title>
+<meta name="description" content="Hortator turns the M-VAVE FM-1 into an eight-track drum machine. Play it in your browser, then install it over USB.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;125,700&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="sim.css?v=4e3e9c219d">
+</head>
+<body>
+<section id="hero" class="hero" aria-label="Hortator">
+  <div class="hero-stage" id="stage">
+    <nav class="hero-nav">
+      <span class="silk">HORTATOR</span>
+      <a href="webapp/installer/">Install</a>
+    </nav>
+
+    <div class="scene" id="scene">
+      <div class="desk-shadow" id="desk-shadow"></div>
+      <div class="tilt" id="tilt">
+        <div id="fit" class="fit">
+          <div id="device" class="device" aria-label="FM-1 panel"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-copy" id="hero-copy">
+      <h1>Eight tracks of drums, inside the M&#8209;VAVE&nbsp;FM&#8209;1.</h1>
+      <p>Hortator is custom firmware by DEADACTIVE, named after the drummer who kept a Roman galley's rowers in
+        time. Keep scrolling and the machine is yours to play: the real firmware, running in your browser.</p>
+      <p class="hero-actions">
+        <a class="cta" href="#play">Play it</a>
+        <a class="cta ghost" href="webapp/installer/">Install on your FM-1</a>
+      </p>
+    </div>
+    <p class="scroll-cue" id="scroll-cue" aria-hidden="true">Scroll</p>
+
+    <div class="play-bar" id="play-bar">
+      <p id="note" class="note" role="status"></p>
+      <div id="power" class="power">
+        <button type="button" id="power-on" disabled>Switch on</button>
+        <span id="power-note">Loading…</span>
+      </div>
+      <button type="button" class="bar-btn" id="help-toggle" aria-expanded="false" aria-controls="help">Controls</button>
+      <button type="button" class="bar-btn" id="reset" aria-haspopup="dialog">Reset to demos</button>
+      <div id="reset-confirm" class="confirm" role="dialog" aria-label="Reset to demos" hidden>
+        <p>Erase your saves in this browser and restore the four demos?</p>
+        <button type="button" id="reset-yes">Erase and restart</button>
+        <button type="button" id="reset-no">Keep my saves</button>
+      </div>
+    </div>
+    <div id="help" class="help" hidden>
+      <div>
+        <h2>Mouse and touch</h2>
+        <ul>
+          <li>Keys and buttons play while held. Several fingers work.</li>
+          <li>Turn a knob by dragging it up or down, with the mouse wheel, or by hovering it and pressing ↑ ↓.</li>
+          <li>To hold a button for a combination (SEQ held + a key), right-click it or long-press it. Tap it again to let go.</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Computer keyboard</h2>
+        <ul>
+          <li>Lower keys: Z X C V B N M , . / with S D F H J L ; ' for the raised ones.</li>
+          <li>Upper keys: Q W E R T Y with 3 4 6.</li>
+          <li>Space PLAY, Enter REC, Esc HOME, ← OCT−, → OCT+.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <span class="hero-end" id="play" aria-hidden="true"></span>
+</section>
+
+<section id="features" class="features" aria-labelledby="features-title">
+  <header class="features-head">
+    <h2 id="features-title">Everything is on the panel.</h2>
+    <p>No menus to dig through: every feature has its button, and the screen shows it at work. These are the
+      firmware's own screens, recorded from the same build you can play above.</p>
+  </header>
+  <div class="manual">
+    <aside class="manual-aside" aria-hidden="true">
+      <div class="manual-plate">
+        <canvas id="manual-screen" width="240" height="240"></canvas>
+      </div>
+      <div class="locator" id="locator"></div>
+      <p class="press" id="press"></p>
+    </aside>
+    <ol class="feats">
+      <li class="feat" data-clip="tracks" data-press="REC ALGORITHM">
+        <h3>Eight drum tracks</h3>
+        <p>Each track plays its own drum model and pattern. TRACKS shows all eight at once: level, length and pan,
+          with mutes that can wait for the next bar so a drop lands on the one.</p>
+        <p class="where"><b>REC</b> opens TRACKS; <b>ALGORITHM</b> picks a track anywhere.</p>
+      </li>
+      <li class="feat" data-clip="sound" data-press="EDIT KNOB1 KNOB2 KNOB3 KNOB4">
+        <h3>Shape every hit</h3>
+        <p>808 and 909 kicks, snares and claps, hats, toms, cowbell, cymbal, rim, clave, conga and Plaits-style
+          voices. Every model has TUNE, DECAY, TONE and a fourth knob of its own.</p>
+        <p class="where"><b>EDIT</b>, then the four knobs.</p>
+      </li>
+      <li class="feat" data-clip="seq" data-press="SEQ">
+        <h3>Step sequencer</h3>
+        <p>Up to 64 steps per track on the 16 white keys, each track with its own length. Accents, swing, PROB and
+          RATCH per step, fills that play every other bar, and live recording.</p>
+        <p class="where"><b>SEQ</b>; the white keys are the steps.</p>
+      </li>
+      <li class="feat" data-clip="grids" data-press="ARP">
+        <h3>Grids</h3>
+        <p>Mutable Instruments' pattern generator. Move through its map of drum patterns, add chaos, or switch to
+          Euclidean rhythms; any track can follow one of its three channels.</p>
+        <p class="where"><b>ARP</b>.</p>
+      </li>
+      <li class="feat" data-clip="comp" data-press="HOME PRESETS">
+        <h3>A compressor that pumps</h3>
+        <p>The Streams compressor, keyed by any track: duck the hats and the reverb under the kick. GHOST keeps the
+          pump going even with the key track muted.</p>
+        <p class="where"><b>HOME</b>, then <b>PRESETS</b> to the COMP pages.</p>
+      </li>
+      <li class="feat" data-clip="lfo" data-press="LFO">
+        <h3>Movement</h3>
+        <p>Two LFOs per track, ten waves with a morph between them, synced to the tempo, each on its own
+          destination: pitch, decay, tone, level, pan and more.</p>
+        <p class="where"><b>LFO</b>; press it again for the second one.</p>
+      </li>
+      <li class="feat" data-clip="fx" data-press="FX PRESETS">
+        <h3>Effects</h3>
+        <p>Distortion, the SLICER and RESON (string, pipe or chord) on every track; delay, ROOM or SPRING reverb
+          and chorus sends; a master limiter, and BASS+ for the small speaker.</p>
+        <p class="where"><b>FX</b>, <b>PRESETS</b> turns the pages.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="install" class="install" aria-labelledby="install-title">
+  <header class="install-head">
+    <h2 id="install-title">Put it on your FM-1.</h2>
+    <p>It installs from a web page over the FM-1's own USB cable, in a few minutes. Nothing to download, no
+      extra hardware.</p>
+  </header>
+
+  <div class="cable-diagram" id="cable" aria-hidden="true">
+    <div class="laptop">
+      <div class="lid"><span class="bar"></span><span class="ghost-btn">Install</span><span class="ghost-line"></span></div>
+      <div class="deck"></div>
+    </div>
+    <div class="usb"><span class="wire"></span><span class="pulse"></span><span class="pulse late"></span></div>
+    <div class="fm1-shot" id="install-mini"></div>
+  </div>
+  <ol class="install-steps">
+    <li><h3>Open the installer in Chrome or Edge</h3><p>On a computer: the installer talks to the FM-1 over USB MIDI,
+      which only these browsers allow.</p></li>
+    <li><h3>Plug in the FM-1</h3><p>With a USB data cable, straight into the computer. No probe or Transporter.</p></li>
+    <li><h3>Press Install and wait</h3><p>Keep the cable in until it says Done. The FM-1 restarts with
+      Hortator.</p></li>
+  </ol>
+
+  <div class="install-grid">
+    <div class="whats-new">
+      <p class="fw-version" id="fw-version">Hortator</p>
+      <h3>What's new</h3>
+      <ul id="whats-new"></ul>
+    </div>
+    <div class="install-go">
+      <a class="cta big" href="webapp/installer/">Open the installer</a>
+      <p class="beta">Hortator is beta firmware and may be unstable. You install it at your own risk: the author
+        accepts no responsibility if your FM-1 is damaged or misbehaves.</p>
+      <details>
+        <summary>Back to the official firmware</summary>
+        <p>M-VAVE's own updater, M-UPGRADE, puts the official firmware back: from
+          <a href="https://www.m-vave.com/download" target="_blank" rel="noopener">m-vave.com/download</a>, Downloads →
+          PC Software → M-UPGRADE, with PC Firmware → FM-1 V15.</p>
+      </details>
+      <details>
+        <summary>If an install fails</summary>
+        <p>Replug the cable and press Install again: the FM-1 stays in update mode until a write has finished. If it
+          no longer starts at all, recovering it needs a
+          <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">Transporter</a>.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="foot-brand">
+    <p class="silk foot-mark">HORTATOR</p>
+    <p>On a Roman galley, the hortator beat the drum that kept the rowers in time. This one keeps eight tracks.</p>
+  </div>
+  <nav class="foot-nav" aria-label="On this page">
+    <a href="#play">Play it in the browser</a>
+    <a href="webapp/installer/">Install on your FM-1</a>
+    <a href="#install">What's new</a>
+    <a href="source.tar.gz?v=4e3e9c219d">Source code (GPL-3.0)</a>
+  </nav>
+  <div class="foot-credits">
+    <p>Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
+      <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. Licensed GPL-3.0, no
+      warranty. Saves made here stay in this browser.</p>
+    <p>Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and
+      VCSL (CC0 1.0). M-VAVE and FM-1 are trademarks of their respective owners; this project is not affiliated with
+      M-VAVE.</p>
+  </div>
+</footer>
+<script type="module" src="app.js?v=4e3e9c219d"></script>
+</body>
+</html>
