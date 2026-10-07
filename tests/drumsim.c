@@ -395,6 +395,48 @@ static void write_song(const char *dir)
     memset(&chain, 0, sizeof chain);
 }
 
+/* PHYS: MEMB voicings and MODAL on RESON, 4 bars each of a 1/4 pattern on track 1 */
+static void phys_bar(uint32_t b) { (void)b; }
+static void phys_demo(const char *dir, const char *name, uint32_t model, const int16_t *e, int16_t rs, const int16_t *r)
+{
+    uint32_t k;
+    host_init();
+    drum_set_model(&trk[0], model);
+    for (k = 0; k < 7u && e; k++)
+        if (e[k] != -99)
+            trk[0].p[P_E0 + k] = e[k];
+    for (k = 0; k < 16u; k += 4u)
+        trk[0].step[k].on = 1;
+    trk[0].step[0].acc = 1;
+    if (rs) {
+        trk[0].p[P_RMODEL] = rs;
+        trk[0].p[P_RTUNE] = r[0];
+        trk[0].p[P_RDECAY] = r[1];
+        trk[0].p[P_RMIX] = r[2];
+        trk[0].p[P_RTONE] = r[3];
+        trk[0].p[P_RSTRCT] = r[4];
+        trk[0].p[P_RPOS] = r[5];
+    }
+    write_demo(dir, name, 4, phys_bar);
+    transport_req = 2;
+    render_mix(L, R, CTL);
+}
+static void write_phys(const char *dir)
+{
+    /* MEMB knobs: TUNE DECAY TONE HEAD POS BEND STICK (-99: the default) */
+    static const int16_t TOM[7] = {-99, -99, -99, 10, -99, 30, -99}, TIMP[7] = {-12, 110, -99, 0, 30, -99, -99};
+    static const int16_t TABLA[7] = {7, -99, -99, 120, -99, 60, 50}, RIM[7] = {-99, -99, -99, -99, 127, -99, 90};
+    /* RESON: TUNE DECAY MIX TONE STRCT POS */
+    static const int16_t PLATE[6] = {48, 90, 80, 80, 110, 20}, BELL[6] = {72, 100, 90, 100, 120, 10}, BAR[6] = {60, 80, 90, 70, 70, 20};
+    phys_demo(dir, "memb_tom.wav", DM_MEMB, TOM, 0, 0);
+    phys_demo(dir, "memb_timpani.wav", DM_MEMB, TIMP, 0, 0);
+    phys_demo(dir, "memb_tabla.wav", DM_MEMB, TABLA, 0, 0);
+    phys_demo(dir, "memb_rim.wav", DM_MEMB, RIM, 0, 0);
+    phys_demo(dir, "modal_kick_plate.wav", DM_K909, 0, RS_MODAL, PLATE);
+    phys_demo(dir, "modal_snare_bell.wav", DM_S909, 0, RS_MODAL, BELL);
+    phys_demo(dir, "modal_clap_bar.wav", DM_C909, 0, RS_MODAL, BAR);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -499,5 +541,6 @@ int main(int argc, char **argv)
     write_perform(dir);
     write_motion(dir);
     write_song(dir);
+    write_phys(dir);
     return 0;
 }

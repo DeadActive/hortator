@@ -2716,6 +2716,32 @@ static void test_modal_load_clamp(void)
     check("a project with 3 MODAL tracks loads with 2 (the 3rd STRNG)", n == 2u && trk[2].p[P_RMODEL] == RS_STRNG);
 }
 
+static void test_phys_screens(void)
+{
+    uint32_t k;
+    ui_host_init();
+    drum_set_model(TSEL, DM_MEMB);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    ui.force = 1;
+    snap_page("phys/memb_1");
+    page_turn(1);
+    ui.force = 1;
+    snap_page("phys/memb_2");
+    {
+        int16_t *vp;
+        const param_desc_t *h = page_desc(cur_page(), 0, &vp), *b = page_desc(cur_page(), 2, &vp);
+        check("MEMB: SOUND 2/3 holds HEAD .. BEND", h && b && str_eq(h->label, "HEAD") && str_eq(b->label, "BEND"));
+    }
+    TSEL->p[P_RMODEL] = RS_MODAL;
+    TSEL->p[P_RSTRCT] = 110;
+    for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "RESON")); k++)
+        tap(B_FX);
+    ui.force = 1;
+    snap_page("phys/reson_modal");
+    check("RESON with MODAL draws", !ui.home && str_eq(cur_page()->title, "RESON"));
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2784,6 +2810,7 @@ int main(void)
     test_name_message_ends();
     test_reson_model_skips_full();
     test_modal_load_clamp();
+    test_phys_screens();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

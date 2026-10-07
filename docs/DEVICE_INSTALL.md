@@ -254,6 +254,14 @@ Report what you saw first; we'll go through it together.
   DELETE ROW; on the `+` row: CLEAR SONG.
 - Save, power off and on, load: the song and the name are there.
 
+### PHYS (check on the FM-1)
+- A track to MEMB (SOUND, MODEL after HNOIS): TUNE / DECAY / TONE / HEAD on HOME. HEAD from a tom (0) to a tabla
+  (127); BEND drops the pitch after each hit; POS from the centre (round) to the rim; STICK the click of the strike.
+  Hit it fast: the head rings on, no clicks.
+- RESON MODAL (after CHORD) on a kick, a snare, a clap: STRCT from harmonic to bell, DECAY the ring time (as STRNG),
+  TONE, POS. A third MODAL track is refused ("MODAL: 2 TRACKS MAX"); with CHORD full the MODEL knob skips to MODAL.
+- Four MEMB tracks and two MODAL RESONs playing: no dropouts (CPU on SYSTEM INFO).
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second
