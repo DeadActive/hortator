@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Drum machine fork: 2026 DEADACTIVE */
-/* The TR-808 metal source: six square waves (205.3 .. 800 Hz), made once per block for every hat,
- * cymbal and cowbell voice; each model shapes it with its own band-passes and envelopes. */
+/* The TR-808 metal source: six square waves (205.3 .. 800 Hz), made once per block for every hat and cymbal
+ * voice; each model shapes it with its own band-passes and envelopes. The cowbell has its own two (tuned). */
 static uint32_t dblock;                              /* blocks rendered (drum_core.c drum_block_begin) */
 static const uint32_t METAL_INC[6] = {HZ(205.3), HZ(304.4), HZ(369.6), HZ(522.7), HZ(540.0), HZ(800.0)};
 static uint32_t metal_ph[6], metal_blk = 0xFFFFFFFFu;
-static int32_t metal_buf[CTL], cow_buf[CTL];
+static int32_t metal_buf[CTL];
 
 static void metal_make(uint32_t n)
 {
@@ -15,14 +15,12 @@ static void metal_make(uint32_t n)
         return;
     metal_blk = dblock;
     for (i = 0; i < n; i++) {
-        int32_t s = 0, c;
+        int32_t s = 0;
         for (k = 0; k < 6u; k++) {
             metal_ph[k] += METAL_INC[k];
             s += (int32_t)(metal_ph[k] >> 31);
         }
-        c = (int32_t)(metal_ph[4] >> 31) + (int32_t)(metal_ph[5] >> 31);
         metal_buf[i] = (2 * s - 6) * 5461;           /* -32766 .. 32766 */
-        cow_buf[i] = (2 * c - 2) * 16383;
     }
 }
 
@@ -89,15 +87,18 @@ static void cymb_trigger(track_t *t, dvoice_t *v)
     dsvf_coef(&v->c[1], CUT_7100 + sh, 20);
 }
 
-/* cowbell: 540 + 800 Hz squares -> band-pass ~880 Hz; a fast and a slow decay mixed (x[0], x[1]) */
+/* cowbell: its own 540 + 800 Hz squares (ph / inc 0, 1: TUNE moves them) -> band-pass ~880 Hz (follows TUNE);
+ * a fast and a slow decay mixed (x[0], x[1]) */
 static void cowb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 {
     uint32_t i;
     (void)t;
-    metal_make(n);
     for (i = 0; i < n; i++) {
-        int32_t bp, hp, e;
-        dsvf_tick(&v->c[0], cow_buf[i], &v->f[0], &v->f[1], &bp, &hp);
+        int32_t bp, hp, e, c;
+        v->ph[0] += v->inc[0];
+        v->ph[1] += v->inc[1];
+        c = (int32_t)(v->ph[0] >> 31) + (int32_t)(v->ph[1] >> 31);
+        dsvf_tick(&v->c[0], (2 * c - 2) * 16383, &v->f[0], &v->f[1], &bp, &hp);
         e = mulq15(env_q15(v->env[0]), v->x[0]) + mulq15(env_q15(v->env[1]), v->x[1]);
         dm_put(v, out, i, mulq15(bp, e));
         env_step(v, 0);
@@ -107,10 +108,13 @@ static void cowb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-/* COWBELL: TUNE (filter) DECAY TONE TAIL */
+/* COWBELL: TUNE (pitch and filter) DECAY TONE TAIL */
 static void cowb_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
+    v->ph[0] = v->ph[1] = 0;
+    v->inc[0] = inc_tune(HZ(540.0), p[0]);
+    v->inc[1] = inc_tune(HZ(800.0), p[0]);
     v->env[0] = v->env[1] = ENV1;
     v->k[0] = dk(14);
     v->k[1] = dk(40 + p[1] * 50 / 127);

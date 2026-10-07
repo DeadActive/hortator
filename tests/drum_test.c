@@ -2642,6 +2642,33 @@ static double rs_peak_near(const int32_t *x, uint32_t n, double f, double span) 
     return best;
 }
 
+/* COWB: TUNE moves the pitch (its own 540 / 800 Hz squares, 2^(TUNE / 12)), not only the band-pass: at TUNE -12 /
+ * +12 the partials sit at half / double, and the untuned 540 Hz is gone */
+static void test_cowb_tune(void)
+{
+    static const int32_t TUNES[3] = {-12, 0, 12};
+    uint32_t i, ok = 1;
+    for (i = 0; i < 3u; i++) {
+        double r = pow(2.0, TUNES[i] / 12.0), lo, hi, off;
+        host_init();
+        drum_set_model(&trk[0], DM_COWB);
+        trk[0].p[P_E0] = (int16_t)TUNES[i];
+        trk[0].p[P_E1] = 127;
+        drum_hit(&trk[0], 127);
+        render_track(&trk[0], wl, SECS(0.3));
+        lo = rs_goertzel(wl + SECS(0.02), 8192, 540.0 * r);
+        hi = rs_goertzel(wl + SECS(0.02), 8192, 800.0 * r);
+        off = TUNES[i] ? rs_goertzel(wl + SECS(0.02), 8192, 540.0) : 0;
+        if (lo < 4 * off || hi < 4 * off || lo < 20 || hi < 20 ||
+            fabs(rs_peak_near(wl + SECS(0.02), 8192, 540.0 * r, 0.03) / (540.0 * r) - 1) > 0.005) {
+            printf("     COWB TUNE %d: |%.0f Hz| %.1f, |%.0f Hz| %.1f, |540 Hz| %.1f, peak near %.0f: %.1f Hz\n",
+                   TUNES[i], 540 * r, lo, 800 * r, hi, off, 540 * r, rs_peak_near(wl + SECS(0.02), 8192, 540.0 * r, 0.03));
+            ok = 0;
+        }
+    }
+    check("COWB: TUNE moves its pitch (540 / 800 Hz x 2^(TUNE / 12)), not only its filter", ok);
+}
+
 static void test_reson_knobs(void)
 {
     double f0 = rs_note_hz(48), h1, h6, dark, bright, h4, h4pos, f4, stretch;
@@ -3247,6 +3274,7 @@ int main(void)
     test_model_change();
     test_snares_claps();
     test_metal();
+    test_cowb_tune();
     test_perc();
     test_layer();
     test_extremes();
