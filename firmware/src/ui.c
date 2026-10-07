@@ -10,6 +10,10 @@
 static void project_save(uint32_t slot);
 static void project_load(uint32_t slot);
 static int project_used(uint32_t slot);
+static uint32_t chain_prepare(void);
+static int project_name(uint32_t slot, char *b);
+static void project_rename(uint32_t slot, const char *name);
+static int transport_busy(void);
 static void panel_setup(void);
 
 #define ACC C_HI
