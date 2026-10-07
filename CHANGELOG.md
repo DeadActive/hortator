@@ -9,6 +9,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   TONE HEAD on HOME; POS, BEND, STICK; toms, timpani, tabla), and MODAL, a bell / bar / plate body as a RESON model
   (STRCT from harmonic to bell, DECAY its ring time as STRNG's; 2 tracks at most). The RESON MODEL knob now skips a
   model that is full. No project format change.
+- BENCH: the console's `bench yes` plays the performance cases on the FM-1; `tools/fm1_bench.py` compares them with
+  the host's (render time, CPU %, per case: every model, RESON model, the heavy kits and their FX).
 - The start screen and ABOUT show the HortatoR logo (UnifrakturCook Bold, SIL OFL); the "untested" labels are gone.
 
 ## 0.12.0 - 2026-10-07

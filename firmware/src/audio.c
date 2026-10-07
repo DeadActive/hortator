@@ -62,7 +62,8 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     fm1_audio_ack_aux(p);
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us;
-        int32_t *o = &abuf[half * HALF_WORDS];
+        int32_t *o = &abuf[half * HALF_WORDS], *r = bench.mode ? bench.out : o;   /* BENCH LIVE: not heard */
+        uint32_t rest = bench.mode && bench_rest();     /* BENCH (bench.c): HOLD, or a rest after a heavy half */
         if (shed_req) {
             shed_req = 0;
             shed_voice();
@@ -70,15 +71,22 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
 #if FELUCCA_UAC
         uac_render_start();
 #endif
-        for (b = 0; b < HALF_FRAMES; b += CTL)
-            audio_block(o + 2u * b, CTL);
+        if (!rest)
+            for (b = 0; b < HALF_FRAMES; b += CTL)
+                audio_block(r + 2u * b, CTL);
+        if (bench.mode)
+            bench_mute(o);                              /* the DAC: silence */
         fm1_audio_ack_half();
         audio_halves++;
         us = (fm1_ticks() - t0 - t5_nested_ticks) / FM1_TICKS_PER_US;   /* the render alone */
         if (us > audio_max_us)
             audio_max_us = us;
-        if (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u)
+        if (bench.mode) {                               /* BENCH: timed, never shed */
+            if (!rest)
+                bench_time(us, fm1_audio_free_half() != half);
+        } else if (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u) {
             shed_req = 1;
+        }
         {                                             /* (upstream 1.0) the IIR keeps its remainder: no low bias */
             uint32_t load = song.cpu_q8 * 15u + (us * 256u) / (HALF_FRAMES * 1000000u / FS) + song.cpu_rem;
             song.cpu_q8 = load / 16u;

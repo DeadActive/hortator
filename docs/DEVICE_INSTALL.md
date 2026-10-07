@@ -303,3 +303,13 @@ Report what you saw first; we'll go through it together.
 - Pads: presses respond at once; a held pad does not retrigger; fast repeats all play.
 - Safe start (SEQ held at power-on) still works; USB and the installer still work as before (the update loader is
   unchanged).
+
+### BENCH: the performance cases on the FM-1
+
+`tools/fm1_bench.py --yes` (FM-1 on USB, running a build of this tree) sends `bench yes` to the USB console: the
+FM-1 plays each case of `firmware/src/bench.c` for ~2.5 s with the speaker silent (~4 min, BENCH and the case's
+name in the top bar), then returns to its power-on state (the pattern in memory is lost; flash, saved projects
+untouched). The tool runs the same cases on the host and writes `build/bench/report.md` / `.csv`: host
+instructions per sample next to the FM-1's render time, average / worst CPU % (as SYSTEM CPU) and late halves.
+Voices are never shed during a run (overloaded cases show their true cost; a half above 80 % is followed by a
+silent one so the FM-1 stays responsive). `bench stop` on the console ends a run early.

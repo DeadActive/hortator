@@ -2,8 +2,9 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Serial console on the CDC-ACM function (FELUCCA_CDC=1): read-only
  * diagnostics. Runs in the main loop (cdc_task); usb_poll moves the bytes.
- * The baud rate is ignored. Nothing here writes memory or flash; `uboot`
- * does what the SysEx soft key does. */
+ * The baud rate is ignored. Nothing here writes flash; `uboot` does what
+ * the SysEx soft key does; `bench yes` (fork, bench.c) replaces the pattern
+ * in memory with its cases, the power-on state after. */
 #define CON_LINE 64u
 
 static struct {
@@ -267,10 +268,16 @@ static void con_params(void)
     }
 }
 
+static void con_bench_out(const char *s)            /* BENCH lines (bench.c), also between commands */
+{
+    con.stalled = 0;
+    con_puts(s);
+}
+
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  uboot yes\r\n");
+        con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  bench yes  uboot yes\r\n");
     else if (con_word(&p, "status"))
         con_status();
     else if (con_word(&p, "dbg"))
@@ -279,6 +286,15 @@ static void con_exec(const char *p)
         con_crash();
     else if (con_word(&p, "params"))
         con_params();
+    else if (con_word(&p, "bench")) {                   /* bench.c: the performance cases on this FM-1 */
+        if (con_word(&p, "yes") && !safe_start)
+            bench_start(con_bench_out);
+        else if (con_word(&p, "stop"))
+            bench_stop(fm1_ms);
+        else
+            con_puts("bench yes: the performance cases (tools/fm1_bench.py), ~4 min, the speaker silent; the "
+                     "pattern in memory is lost: power-on state after (bench stop: end now; not in safe start)\r\n");
+    }
     else if (con_word(&p, "memr"))
         con_memr(p);
 #if FELUCCA_FLASH
@@ -298,6 +314,8 @@ static void con_exec(const char *p)
 
 static void cdc_task(void)                              /* main loop */
 {
+    if (bench_task(fm1_ms, con_bench_out, ui_say))     /* a BENCH run is over: the power-on state */
+        ui.force = 1;
     if (cdc.dtr && !con.dtr_seen) {
         con_puts("\r\nFelucca ");
         con_puts(FELUCCA_VERSION);

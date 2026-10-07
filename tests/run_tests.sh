@@ -58,6 +58,7 @@ else
 fi
 run "H3 self-test (an unknown stack form is caught)" python3 tools/stack_depth.py --selftest
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
+run "BENCH report (fm1_bench.py): the FM-1's lines against the host's" python3 tools/fm1_bench.py --selftest
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
 else

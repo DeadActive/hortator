@@ -133,6 +133,7 @@ static void sim_mark(uint32_t off, uint32_t n)
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
+#include "../firmware/src/bench.c"
 #include "../firmware/src/audio.c"
 #include "../firmware/src/panel.c"
 #include "../firmware/src/pages.c"
