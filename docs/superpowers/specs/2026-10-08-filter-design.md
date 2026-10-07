@@ -47,8 +47,8 @@ A filter on every track: LP, BP, HP or NOTCH with resonance, swept by each hit (
 - Pages (FX family, first): **FILTER 1/2** TYPE CUT RESO ENV, **FILTER 2/2** DECAY. Each draws the filter's
   response (the curve of TYPE at CUT / RESO, log frequency) with the reach of ENV marked.
 - **LFO DEST** gains **F.CUT (17)** and **F.RES (18)** after R.POS (16); stored values 0..16 keep their meaning.
-- Motion recording records the five like any knob. The web editor's parameter list gains them (its test checks
-  every parameter).
+- Motion recording records the five like any knob. The web editor (upstream's synth editor; the drum firmware does
+  not serve it) is unchanged.
 
 ## 4. Storage
 

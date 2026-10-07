@@ -304,6 +304,19 @@ Report what you saw first; we'll go through it together.
 - Safe start (SEQ held at power-on) still works; USB and the installer still work as before (the update loader is
   unchanged).
 
+### FILTER (check on the FM-1)
+
+- FX opens on FILTER 1/2 (TYPE CUT RESO ENV), FILTER 2/2 has DECAY; the graph shows each TYPE's curve, the ENV
+  line where the hit sweeps to.
+- On a snare with a pattern: LP darkens as CUT goes down, HP thins it, BP narrows it, NOT takes out a band; RESO
+  high whistles at the cutoff; turning CUT with RESO high sweeps without clicks.
+- A kick with LP, CUT ~60, ENV -40, DECAY ~50: each hit thumps darker, then opens; accented steps further.
+- LFO 1 DEST F.CUT on a clap: the brightness wobbles; F.RES moves the resonance.
+- A project saved before this firmware loads unchanged (FILTER OFF everywhere); SAVE / power cycle / LOAD keeps the
+  FILTER settings.
+- `tools/fm1_bench.py --yes`: the five new cases (heavy+filter, heavy+comp, heavy-fx+comp, heavy+sidechain,
+  heavy-fx+sidechain).
+
 ### BENCH: the performance cases on the FM-1
 
 `tools/fm1_bench.py --yes` (FM-1 on USB, running a build of this tree) sends `bench yes` to the USB console: the

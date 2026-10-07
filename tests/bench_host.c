@@ -133,6 +133,25 @@ int main(int argc, char **argv)
         }
     }
     check("bench: every case has a unique one-word name", ok);
+    {
+        static const char *const WANT[5] = {"heavy+filter", "heavy+comp", "heavy-fx+comp", "heavy+sidechain",
+                                            "heavy-fx+sidechain"};
+        uint32_t w, okn = BENCH_N == BENCH_MORE + 5u;
+        for (w = 0; w < 5u && okn; w++) {
+            bench_name(BENCH_MORE + w, a);
+            okn &= !strcmp(a, WANT[w]);
+        }
+        host_init();
+        bench_setup(BENCH_MORE + 3u);                /* heavy+sidechain: SRC T1, DUCK on 2..8 */
+        okn &= song.g[G_CSRC] == 1 && !trk[0].p[P_DUCK] && trk[7].p[P_DUCK] && trk[3].p[P_DIST];
+        host_init();
+        bench_setup(BENCH_MORE + 2u);                /* heavy-fx+comp: no DIST / SLICER / sends, no ducking */
+        okn &= song.g[G_CSRC] == 1 && !trk[7].p[P_DUCK] && !trk[3].p[P_DIST] && !trk[3].p[P_REV];
+        host_init();
+        bench_setup(BENCH_MORE);
+        okn &= trk[5].p[P_FTYPE] == FT_LP && trk[5].p[P_FRESO] == 60;
+        check("bench: the filter, compressor and sidechain cases", okn);
+    }
     ok = 1;
     for (c = 0; c < BENCH_N; c++) {                  /* the FM-1's reset = the host tests' host_init */
         int32_t pa, pb;

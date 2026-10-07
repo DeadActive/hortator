@@ -437,6 +437,42 @@ static void write_phys(const char *dir)
     phys_demo(dir, "modal_clap_bar.wav", DM_C909, 0, RS_MODAL, BAR);
 }
 
+/* FILTER demos (filter.c), 120 BPM, 4 bars: one track on a pattern, its filter set; the LP sweep raises CUT
+ * bar by bar */
+static void filter_bar_none(uint32_t b) { (void)b; }
+static void filter_bar_sweep(uint32_t b) { trk[0].p[P_FCUT] = (int16_t)(20 + b * 33); }
+static void filter_one(const char *dir, const char *name, uint32_t mi, const char *pat, int ty, int cut, int reso,
+                       int env, int dec, void (*bar)(uint32_t b))
+{
+    uint32_t k;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    for (k = 0; k < 16u; k++)
+        trk[0].step[k].on = pat[k] == 'x';
+    trk[0].p[P_FTYPE] = (int16_t)ty;
+    trk[0].p[P_FCUT] = (int16_t)cut;
+    trk[0].p[P_FRESO] = (int16_t)reso;
+    trk[0].p[P_FENV] = (int16_t)env;
+    trk[0].p[P_FDEC] = (int16_t)dec;
+    if (mi == DM_C909) {                             /* the clap: LFO 1 on F.CUT, a sine at 1/4 */
+        trk[0].p[P_LFO1 + LF_WAVE] = LW_SINE;
+        trk[0].p[P_LFO1 + LF_MODE] = LM_SYNC;
+        trk[0].p[P_LFO1 + LF_RATE] = 48;
+        trk[0].p[P_LFO1 + LF_DEPTH] = 50;
+        trk[0].p[P_LFO1 + LF_DEST] = 17;
+    }
+    write_demo(dir, name, 4, bar);
+}
+
+static void write_filter(const char *dir)
+{
+    filter_one(dir, "filter_lp_sweep.wav", DM_S909, "x.x.x.x.x.x.x.x.", FT_LP, 20, 80, 0, 40, filter_bar_sweep);
+    filter_one(dir, "filter_hp_hats.wav", DM_HATC, "xxxxxxxxxxxxxxxx", FT_HP, 90, 100, 0, 40, filter_bar_none);
+    filter_one(dir, "filter_notch_cymb.wav", DM_CYMB, "x...............", FT_NOTCH, 85, 0, 0, 40, filter_bar_none);
+    filter_one(dir, "filter_kick_env.wav", DM_K808, "x...x...x...x...", FT_LP, 60, 40, -40, 50, filter_bar_none);
+    filter_one(dir, "filter_lfo_clap.wav", DM_C909, "....x.......x...", FT_BP, 60, 70, 0, 40, filter_bar_none);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -542,5 +578,6 @@ int main(int argc, char **argv)
     write_motion(dir);
     write_song(dir);
     write_phys(dir);
+    write_filter(dir);
     return 0;
 }

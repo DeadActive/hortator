@@ -14,3 +14,6 @@ upstream_idle 286
 #          sheds voices on the device; the realistic heavy kit with RESON on 2 tracks stays within ref.
 # 2026-10-07 (PHYS, user decision): 2 CHORD + 2 MODAL on the extreme kit = 3595 measured: the limit moves to it + 10 %.
 extreme_reson_max 3955
+# 2026-10-08 (FILTER, user decision): the extreme kit (8 x SMPL, every FX) with the FILTER on all 8 = 2813 measured: its
+#          own limit, + 10 % (extreme_max stays for the kit without it; the device sheds as for RESON).
+extreme_filter_max 3094

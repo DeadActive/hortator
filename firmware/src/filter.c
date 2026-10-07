@@ -10,18 +10,6 @@
 #define FLT_OMAX 524287                                  /* the track's range: mix_part's level product fits */
 #define FLT_ENV1 (1 << 24)
 
-static inline int32_t flt_tick(const dsvf_t *c, int32_t in, int32_t *s, int32_t *bp, int32_t *hp)
-{
-    int32_t v3 = in - s[1];
-    int32_t v1 = (int32_t)(((int64_t)c->a1 * s[0] + (int64_t)c->a2 * v3 + 4096) >> 13);   /* rounded: floors */
-    int32_t v2 = s[1] + (int32_t)(((int64_t)c->a2 * s[0] + (int64_t)c->a3 * v3 + 4096) >> 13);   /* hold an offset */
-    s[0] = clamp(2 * v1 - s[0], -FLT_SMAX, FLT_SMAX);
-    s[1] = clamp(2 * v2 - s[1], -FLT_SMAX, FLT_SMAX);
-    *bp = v1;
-    *hp = in - (int32_t)(((int64_t)c->k * v1) >> 12) - v2;
-    return v2;
-}
-
 /* the DECAY knob -> TIME_MS_X10 / ENV_EXP (1 ms .. 10 s over 0..127): 22..105 = 5 ms .. 2 s, ~99 % back to CUT */
 static uint32_t flt_dec_idx(int32_t v) { return 22u + (uint32_t)clamp(v, 0, 127) * 83u / 127u; }
 
@@ -55,13 +43,31 @@ static __attribute__((noinline)) uint32_t trk_filter(track_t *t, int32_t *b, uin
         return 0;
     }
     dsvf_coef(&c, flt_cut(t), clamp(t->p[P_FRESO], 0, 127));
-    for (i = 0; i < n; i++) {
-        int32_t bp, hp, lp = flt_tick(&c, b[i], t->fs, &bp, &hp);
-        int32_t y = ty == FT_LP ? lp : ty == FT_BP ? bp : ty == FT_HP ? hp : lp + hp;
-        y = clamp(y, -FLT_OMAX, FLT_OMAX);
-        b[i] = y;
-        lo = y < lo ? y : lo;
-        hi = y > hi ? y : hi;
+    {
+        int32_t s0 = t->fs[0], s1 = t->fs[1];
+#define FLT_LOOP(Y)                                                                                      \
+        for (i = 0; i < n; i++) {                                                                    \
+            int32_t x = b[i], v3 = x - s1, y;                                                        \
+            int32_t v1 = (int32_t)(((int64_t)c.a1 * s0 + (int64_t)c.a2 * v3 + 4096) >> 13);           \
+            int32_t v2 = s1 + (int32_t)(((int64_t)c.a2 * s0 + (int64_t)c.a3 * v3 + 4096) >> 13);      \
+            s0 = clamp(2 * v1 - s0, -FLT_SMAX, FLT_SMAX);                                            \
+            s1 = clamp(2 * v2 - s1, -FLT_SMAX, FLT_SMAX);                                            \
+            y = clamp((Y), -FLT_OMAX, FLT_OMAX);                                                     \
+            b[i] = y;                                                                                \
+            lo = y < lo ? y : lo;                                                                    \
+            hi = y > hi ? y : hi;                                                                    \
+        }
+        if (ty == FT_LP)                                 /* one loop per TYPE: the outputs it needs (rounded: */
+            FLT_LOOP(v2)                                 /* floors hold an offset) */
+        else if (ty == FT_BP)
+            FLT_LOOP(v1)
+        else if (ty == FT_HP)
+            FLT_LOOP(x - (int32_t)(((int64_t)c.k * v1) >> 12) - v2)
+        else
+            FLT_LOOP(x - (int32_t)(((int64_t)c.k * v1) >> 12))   /* NOTCH = LP + HP */
+#undef FLT_LOOP
+        t->fs[0] = s0;
+        t->fs[1] = s1;
     }
     ring = hi - lo > 2 || hi > 64 || lo < -64;       /* rung out: a whole block still (moving <= 2) and quiet */
     if (!ring)                                       /* (the integer filter can hold a small offset for ever, */
@@ -69,4 +75,17 @@ static __attribute__((noinline)) uint32_t trk_filter(track_t *t, int32_t *b, uin
     t->fenv -= (int32_t)(((int64_t)t->fenv * ENV_EXP[flt_dec_idx(t->p[P_FDEC])]) >> 16);
     t->fring = (uint8_t)ring;
     return ring;
+}
+
+/* the track's inserts before DIST (fx.c mix_part): RESON (reson.c) while it rings or the track sounds with a MODEL,
+ * then the FILTER while the track sounds or the filter rings (TYPE OFF: once more, to clear its state); both keep
+ * the track on. Out of line, so mix_part stays straight: a condition there was laid out as a cold block jumping
+ * back, which tests/target_budget.py reads as a loop around the whole mix */
+static __attribute__((noinline)) uint32_t trk_inserts(track_t *t, int32_t *b, uint32_t n, uint32_t snd)
+{
+    if (t->rs.ring || (snd && t->p[P_RMODEL]))
+        snd |= reson_block(t, b, n);
+    if (t->p[P_FTYPE] ? snd || t->fring : t->fmode)
+        snd |= trk_filter(t, b, n);
+    return snd;
 }

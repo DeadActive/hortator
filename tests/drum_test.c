@@ -693,6 +693,7 @@ static void test_stress(void)
     check("stress: double hits every block on 8 tracks: bounded, every voice ends", ok);
 }
 
+static int kit_filter;                               /* kit_cost: the FILTER on all 8 (test_cost) */
 /* the cost of 8 tracks of model mi kept busy (1/32 at 240 BPM, DECAY 127, every FX), with or without layers */
 static double kit_cost(uint32_t mi, int layers, int reson)
 {
@@ -717,6 +718,12 @@ static double kit_cost(uint32_t mi, int layers, int reson)
         t->p[P_RMODEL] = (int16_t)(!reson || i >= 4u ? RS_OFF : i < 2u ? RS_CHORD : reson == 2 ? RS_MODAL : RS_STRNG);
                                                      /* RESON at most: 4 tracks, 2 CHORD (+ 2 MODAL: reson 2) */
         t->p[P_RDECAY] = 127;
+        if (kit_filter) {
+            t->p[P_FTYPE] = FT_LP;
+            t->p[P_FCUT] = 70;
+            t->p[P_FRESO] = 60;
+            t->p[P_FENV] = 30;
+        }
         memset(t->step, 0, sizeof t->step);
         t->step[0].on = t->step[1].on = 1;
         t->p[P_SLEN] = 2;
@@ -787,6 +794,12 @@ static void test_cost(void)
     c = kit_cost(wm, (int)wl_, 2);                   /* the same, the other 2 MODAL (PHYS) */
     printf("     extreme kit with RESON on 4 tracks (2 CHORD + 2 MODAL): %.0f (its own limit %.0f)\n", c, rmax);
     check("cost: the extreme kit with RESON at most (2 CHORD + 2 MODAL) within its recorded limit", !i0 || rmax == 0 || c <= rmax);
+    kit_filter = 1;
+    c = kit_cost(wm, (int)wl_, 0);                   /* the same worst kit, the FILTER on all 8 */
+    kit_filter = 0;
+    printf("     extreme kit with the FILTER on 8: %.0f (its own limit %.0f)\n", c, cost_ref("extreme_filter_max"));
+    check("cost: the extreme kit with the FILTER on 8 within its recorded limit",
+          !i0 || cost_ref("extreme_filter_max") == 0 || c <= cost_ref("extreme_filter_max"));
     printf("     realistic heavy kit: %.0f host instructions / sample (reference %.0f)\n", real, ref);
     printf("     extreme kit: %.0f (8 x %s%s; limit %.0f, above the reference by design: device shedding)\n", worst,
            N_MODEL[wm], wl_ ? " + layers" : "", emax);

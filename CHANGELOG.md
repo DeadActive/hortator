@@ -5,6 +5,9 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- FILTER: a filter on every track (FX > FILTER: TYPE OFF LP BP HP NOT, CUT, RESO, ENV, DECAY), after RESON, before
+  DIST; each hit sweeps it by ENV (accents further); LFO DEST F.CUT / F.RES. Projects: format FDRA (older ones load
+  with the filter OFF). BENCH: filter, compressor and sidechain cases.
 - COWB: TUNE now moves its pitch (its own 540 / 800 Hz oscillators, the band-pass follows); before, it only moved
   the filter over fixed partials. At TUNE 0 it sounds as before.
 

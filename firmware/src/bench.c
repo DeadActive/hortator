@@ -54,6 +54,11 @@ static __attribute__((noinline)) void bench_time(uint32_t us, uint32_t late)   /
 /* the cases: idle; 8 tracks of each model without and with every FX; each RESON model on 8 x S909 (8 tracks
  * and the device's cap); the realistic heavy kit, then without one feature each; the PHYS-heavy kit */
 enum { BH_LAYER = 1, BH_DIST = 2, BH_SLCR = 4, BH_CHOR = 8, BH_DLY = 16, BH_REV = 32, BH_RESON = 64 };
+enum { BH_FILTER = 128, BH_COMP = 256, BH_SIDE = 512 };   /* the cases after the PHYS kits: added, not taken out */
+#define BH_FX (BH_DIST | BH_SLCR | BH_CHOR | BH_DLY | BH_REV)
+static const uint16_t BENCH_MORE_OFF[5] = {BH_FILTER, BH_COMP, BH_FX | BH_COMP, BH_COMP | BH_SIDE, BH_FX | BH_COMP | BH_SIDE};
+static const char *const BENCH_MORE_NAME[5] = {"heavy+filter", "heavy+comp", "heavy-fx+comp", "heavy+sidechain",
+                                               "heavy-fx+sidechain"};
 static const uint8_t BENCH_HEAVY_OFF[] = {0, BH_LAYER, BH_DIST, BH_SLCR, BH_CHOR, BH_DLY, BH_REV, BH_RESON};
 static const char *const BENCH_OFF_NAME[] = {"", "-layer", "-dist", "-slicer", "-chorus", "-delay", "-reverb",
                                              "-reson"};
@@ -63,7 +68,8 @@ static const uint8_t BENCH_RS_CAP[RS_NMODEL] = {0, 4, 4, 2, 2};   /* the UI's ca
 #define BENCH_RESON (BENCH_MODELS + 2u * NMODELS)        /* first RESON case */
 #define BENCH_HEAVY (BENCH_RESON + 2u * (RS_NMODEL - 1u))
 #define BENCH_PHYS (BENCH_HEAVY + sizeof BENCH_HEAVY_OFF)
-#define BENCH_N (BENCH_PHYS + 2u)                         /* + PHYS-heavy, PHYS-heavy -reson */
+#define BENCH_MORE (BENCH_PHYS + 2u)                      /* + PHYS-heavy, PHYS-heavy -reson */
+#define BENCH_N (BENCH_MORE + 5u)                         /* + the FILTER, COMP and sidechain cases */
 #define BENCH_BPM_FAST 240                               /* the model cases: 1/32 notes, as drum_test's kit_cost */
 
 static char *bench_cat(char *s, const char *a)
@@ -92,9 +98,11 @@ static void bench_name(uint32_t c, char *s)
     } else if (c < BENCH_PHYS) {
         s = bench_cat(s, "heavy");
         bench_cat(s, BENCH_OFF_NAME[c - BENCH_HEAVY]);
-    } else {
+    } else if (c < BENCH_MORE) {
         s = bench_cat(s, "phys-heavy");
         bench_cat(s, c == BENCH_PHYS ? "" : "-reson");
+    } else {
+        bench_cat(s, BENCH_MORE_NAME[c - BENCH_MORE]);
     }
 }
 
@@ -191,7 +199,7 @@ static void bench_kit(uint32_t mi, int fx_on, int32_t r, uint32_t nr)
 
 /* the realistic heavy kit (drum_test's test_cost: the demo with a layer, DIST, SLICER and sends on every track,
  * RESON CHORD on 2, STRNG on 4) at 120 BPM; phys: MEMB on 5 and 7, RESON 2 CHORD + 2 MODAL (DECAY 110);
- * off: the features taken out (BH_) */
+ * off: the features taken out (BH_), or added (BH_FILTER on all 8, BH_COMP keyed by T1, BH_SIDE: DUCK on 2..8) */
 static void bench_heavy(int phys, uint32_t off)
 {
     static const char *const PAT[NTRK] = {
@@ -220,7 +228,17 @@ static void bench_heavy(int phys, uint32_t off)
         }
         if (off & BH_RESON)
             t->p[P_RMODEL] = RS_OFF;
+        if (off & BH_FILTER) {
+            t->p[P_FTYPE] = FT_LP;
+            t->p[P_FCUT] = 70;
+            t->p[P_FRESO] = 60;
+            t->p[P_FENV] = 30;
+            t->p[P_FDEC] = 40;
+        }
+        t->p[P_DUCK] = (int16_t)((off & BH_SIDE) && i != 0u);
     }
+    if (off & BH_COMP)
+        song.g[G_CSRC] = 1;                              /* COMP keyed by T1 (the kick) */
     song.g[G_BPM] = 120;
 }
 
@@ -238,8 +256,10 @@ static void bench_setup(uint32_t c)
                   (c - BENCH_RESON) & 1u ? BENCH_RS_CAP[1u + (c - BENCH_RESON) / 2u] : NTRK);
     else if (c < BENCH_PHYS)
         bench_heavy(0, BENCH_HEAVY_OFF[c - BENCH_HEAVY]);
-    else
+    else if (c < BENCH_MORE)
         bench_heavy(1, c == BENCH_PHYS ? 0 : BH_RESON);
+    else
+        bench_heavy(0, BENCH_MORE_OFF[c - BENCH_MORE]);
     transport_req = 1;
 }
 
