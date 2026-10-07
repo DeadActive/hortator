@@ -166,3 +166,24 @@ test('the simulator bar: Switch on, Controls and Reset in one row; the reset con
   for (const id of ['power-on', 'help-toggle', 'reset', 'reset-confirm']) assert.match(bar, new RegExp(`id="${id}"`), id);
   assert.match(LANDING, /class="hero-end"[^>]*id="play"|id="play"[^>]*class="hero-end"/);
 });
+
+// ---- web/make_site.py: the site's front page is the landing page with the simulator (when build/sim is built)
+import { existsSync, rmSync } from 'node:fs';
+
+test('make_site: the front page is the landing page with the simulator beside it; the installer stays at webapp/installer', {
+  skip: !(existsSync('build/sim/package.fwsc') && existsSync('build/sim/fm1sim.wasm')) && 'needs a build_sim --package build',
+}, () => {
+  const out = 'build/sim/site-test';
+  rmSync(out, { recursive: true, force: true });
+  const py = process.env.PYTHON || 'python3';
+  execFileSync(py, ['-c', 'import sys; sys.path.insert(0, "web"); import make_site; make_site.main(*sys.argv[1:])',
+    'build/sim/package.fwsc', 'drum-0.0.0+test', out], { stdio: 'pipe' });
+  const front = readFileSync(`${out}/index.html`, 'utf8');
+  assert.match(front, /HORTATOR/, 'the landing page, not the old redirect');
+  assert.match(front, /app\.js\?v=[0-9a-f]+/, 'the stamped build');
+  for (const f of ['fm1sim.wasm', 'app.js', 'worklet.js', 'reel.bin.gz', 'reel.json', 'version.json', 'source.tar.gz'])
+    assert.ok(existsSync(`${out}/${f}`), f);
+  for (const f of ['reel.bin', 'reel.hash', 'package.fwsc']) assert.ok(!existsSync(`${out}/${f}`), `${f} is not published`);
+  assert.match(readFileSync(`${out}/webapp/installer/index.html`, 'utf8'), /Install Hortator/);
+  rmSync(out, { recursive: true, force: true });
+});

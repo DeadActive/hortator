@@ -140,57 +140,12 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
 
 ## Requests for the firmware session
 
-1. **Make the landing page the site's front page.** In `web/make_site.py`, replace the root `index.html` redirect
-   with the landing page when `build/sim/` has been built, and keep the installer at `webapp/installer/`; the landing
-   page links `webapp/installer/` and `source.tar.gz` relatively. Proposed diff (replaces the one below):
-
-   ```diff
-   @@
-   -  index.html                  redirect to the installer
-   +  index.html                  the Hortator landing page with the simulator (build/sim, docs/SIMULATOR.md);
-   +                              a redirect to the installer when the simulator was not built
-   @@
-   -    (out / "index.html").write_text(
-   -        '<!doctype html><meta charset="utf-8"><title>Felucca</title>'
-   -        '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
-   -        '<a href="webapp/installer/">Felucca installer</a>\n', encoding="utf-8")
-   +    sim = HERE.parent / "build" / "sim"
-   +    if (sim / "fm1sim.wasm").exists():
-   +        for f in sim.iterdir():
-   +            if f.is_file() and f.suffix in (".html", ".js", ".css", ".wasm", ".gz"):
-   +                shutil.copy(f, out / f.name)
-   +    else:
-   +        (out / "index.html").write_text(
-   +            '<!doctype html><meta charset="utf-8"><title>Hortator</title>'
-   +            '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
-   +            '<a href="webapp/installer/">Hortator installer</a>\n', encoding="utf-8")
-   ```
-
-   Build the simulator first (`tools/build_sim.sh --ref <the commit being published>`), so the page and the
-   package come from the same firmware.
-
-   Superseded, kept for reference: **Publish the simulator next to the installer** (optional). `web/make_site.py` could copy `build/sim/` to
-   `OUT/webapp/sim/` when it has been built, so GitHub Pages serves it beside the installer. Proposed diff:
-
-   ```diff
-   --- a/web/make_site.py
-   +++ b/web/make_site.py
-   @@
-      webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
-   +  webapp/sim/                 the web simulator, when tools/build_sim.sh has built build/sim (docs/SIMULATOR.md)
-      src/                        not touched
-   @@
-        for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
-            if (HERE / f).exists():
-                shutil.copy(HERE / f, ed / f)
-   +    sim = HERE.parent / "build" / "sim"
-   +    if (sim / "fm1sim.wasm").exists():
-   +        dst = out / "webapp" / "sim"
-   +        shutil.rmtree(dst, ignore_errors=True)
-   +        shutil.copytree(sim, dst, ignore=shutil.ignore_patterns("gen", "host", "emcache"))
-   ```
-
-   Why: one site, one URL family. Nothing breaks without it, because `build/sim/` can be hosted alone.
+1. **Done on `web-sim` (user-approved, 2026-10-07): the landing page is the site's front page.** `web/make_site.py`
+   copies the published files of `build/sim/` to the site's root when `tools/build_sim.sh` has built it (the landing
+   page, its scripts, `fm1sim.wasm`, the reel, `version.json`, `source.tar.gz`; never `reel.bin`, `reel.hash` or the
+   package copy), and keeps the redirect to the installer when it has not. It warns when `build/sim` was built from
+   another commit than the tree's. Order for a release: `tools/build_sim.sh`, then `DRUM_PACKAGE=1 ./build.sh` (whose
+   `make_site` call then publishes all of it).
 
 2. **The button printed SEL is named SCL in the firmware** (`panel.c`: `B_SCL`, `B_NAME[1] = "SCL"`, shown by HARDWARE
    CALIBRATION's "PRESS SCL"; `docs/panel.jpg`'s caption says "SCL: Scale"). The simulator's panel prints SEL, as the

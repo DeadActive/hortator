@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+# Drum machine fork: 2026 DEADACTIVE
 """Make the site (GitHub Pages):
 
-  index.html                  redirect to the installer
+  index.html                  the Hortator landing page with the simulator, when tools/build_sim.sh has built
+                              build/sim (docs/SIMULATOR.md; + its scripts, fm1sim.wasm, the reel, version.json,
+                              source.tar.gz); a redirect to the installer otherwise
   firmware/felucca-VER.fwsc   the package (+ LICENSE, LICENSING.md, LICENSES/: the package holds
                               JieLi SDK files under Apache-2.0, see LICENSING.md)
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
@@ -18,6 +21,7 @@ after the install.
 import json
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -76,11 +80,35 @@ def main(pkg, version, out):
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
-    (out / "index.html").write_text(
-        '<!doctype html><meta charset="utf-8"><title>Felucca</title>'
-        '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
-        '<a href="webapp/installer/">Felucca installer</a>\n', encoding="utf-8")
-    print(f"site: {out}: webapp/installer ({len(html)} B), webapp/editor, firmware/{name} ({len(raw)} B, {product})")
+    landing = sim_page(out)
+    if not landing:
+        (out / "index.html").write_text(
+            '<!doctype html><meta charset="utf-8"><title>Hortator</title>'
+            '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
+            '<a href="webapp/installer/">Hortator installer</a>\n', encoding="utf-8")
+    print(f"site: {out}: {landing or 'index.html (redirect)'}, webapp/installer ({len(html)} B), webapp/editor, "
+          f"firmware/{name} ({len(raw)} B, {product})")
+
+
+SIM = HERE.parent / "build" / "sim"
+SIM_PUBLISHED = (".html", ".js", ".css", ".wasm", ".gz", ".json")   # not reel.bin / reel.hash / package.fwsc / logs
+
+
+def sim_page(out):
+    """the landing page with the simulator at the site's root, from build/sim (tools/build_sim.sh); '' when not built"""
+    if not (SIM / "fm1sim.wasm").exists():
+        return ""
+    files = [f for f in SIM.iterdir() if f.is_file() and f.suffix in SIM_PUBLISHED]
+    for f in files:
+        shutil.copy(f, out / f.name)
+    try:                                           # the page shows the version it was built from: say if it is not this tree's
+        built = json.loads((SIM / "version.json").read_text(encoding="utf-8"))["commit"]
+        here = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=HERE, capture_output=True, text=True).stdout.strip()
+        if here and not here.startswith(built) and not built.startswith(here):
+            print(f"site: warning: build/sim was built from {built}, this tree is {here}: run tools/build_sim.sh first")
+    except (OSError, KeyError, ValueError):
+        pass
+    return f"index.html (landing page + simulator, {len(files)} files)"
 
 
 if __name__ == "__main__":
