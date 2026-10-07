@@ -210,16 +210,21 @@ test('sim.css parses: no comment left open, braces balanced (an open comment onc
   assert.equal((bare.match(/{/g) || []).length, (bare.match(/}/g) || []).length, 'braces');
 });
 
-test('the power switch sits on the top edge, above the screen\'s top-right corner, in both layouts', () => {
-  for (const [name, L] of Object.entries(LAYOUTS)) {
+test('the power switch is page UI over the stage, a leader line to where the FM-1 has it (the top edge, above the screen\'s right corner)', () => {
+  const stage = LANDING.slice(LANDING.indexOf('id="stage"'), LANDING.indexOf('id="play"'));
+  assert.match(stage, /<button[^>]*id="power-on"[^>]*role="switch"|<button[^>]*role="switch"[^>]*id="power-on"/, 'a switch in the page');
+  assert.match(stage, /id="power-lead"/, 'the leader line');
+  const app = readFileSync('web/sim/app.js', 'utf8');
+  assert.doesNotMatch(app, /sw\.id = 'power-on'/, 'no longer built into the device');
+  for (const [name, L] of Object.entries(LAYOUTS)) {                 // the mark on the device: where the real switch is
     const [x, y, w, h] = L.power;
     assert.equal(y + h / 2, 0, `${name}: centred on the top edge`);
     const bezelRight = L.deco.bezel[0] + L.deco.bezel[2];
     assert.ok(x + w <= bezelRight + 4 && x + w >= bezelRight - 60, `${name}: over the screen's right corner`);
   }
-  const app = readFileSync('web/sim/app.js', 'utf8');
-  assert.match(app, /'role', 'switch'/, 'a real switch for assistive tech');
   assert.deepEqual(blend(LAYOUTS.landscape, LAYOUTS.portrait, 1).power, LAYOUTS.portrait.power);
+  const css = readFileSync('web/sim/sim.css', 'utf8');
+  assert.match(css, /@keyframes nudge/, 'the knob nudges toward on to draw the eye');
 });
 
 test('while the simulator is on screen, a cue says the page goes on', () => {

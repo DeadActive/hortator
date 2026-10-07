@@ -13,7 +13,7 @@ import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js';
 const device = document.getElementById('device');
 const fit = document.getElementById('fit');
 const note = document.getElementById('note');
-const els = { deco: {}, ctl: {}, enc: {}, lbl: {} };
+const els = { deco: {}, ctl: {}, enc: {}, lbl: {}, power: document.getElementById('power-on') };
 const lcd = document.createElement('canvas');
 lcd.width = lcd.height = 240;
 lcd.className = 'lcd';
@@ -85,21 +85,9 @@ function build() {
     device.append(l);
     els.lbl[id] = l;
   });
-  const sw = document.createElement('button');           // the power switch, on the top edge as on the FM-1
-  sw.type = 'button';
-  sw.id = 'power-on';
-  sw.className = 'power-switch';
-  sw.setAttribute('role', 'switch');
-  sw.setAttribute('aria-checked', 'false');
-  sw.setAttribute('aria-label', 'Power');
-  sw.disabled = true;
-  sw.innerHTML = '<span class="led"></span><span class="knob"></span>';
-  device.append(sw);
-  els.power = sw;
-  els.powerLbl = document.createElement('div');
-  els.powerLbl.className = 'lbl';
-  els.powerLbl.textContent = 'POWER';
-  device.append(els.powerLbl);
+  els.powerMark = document.createElement('div');   // where the FM-1's own power switch is (the page's switch points here)
+  els.powerMark.className = 'power-mark';
+  device.append(els.powerMark);
   const glare = document.createElement('div');           // the shine: a fixed stripe moved by transform (no repaint)
   glare.className = 'glare';
   glare.innerHTML = '<span class="glare-band"></span>';
@@ -120,7 +108,7 @@ function fitScale(L) { return Math.max(0.2, Math.min(availW / L.W, availH / L.H,
 function relayout() {
   phone = window.innerWidth < 700 && window.innerHeight > window.innerWidth;
   availW = Math.min(document.documentElement.clientWidth - 32, 1000);
-  availH = window.innerHeight - 56 - 118 - 8;       // the hero scene's padding: nav above, Switch on and its bar below
+  availH = window.innerHeight - 96 - 118 - 8;       // the hero scene's padding: nav and the power switch above, the bar below
   geometry(phone ? Math.max(0, morphNow) : 0, true);
 }
 function geometry(morph, force) {                  // place every part for this morph (0 landscape .. 1 portrait)
@@ -132,8 +120,7 @@ function geometry(morph, force) {                  // place every part for this 
     els.deco[name].style.opacity = d.opacity;
   }
   place(lcd, G.lcd);
-  place(els.power, G.power);
-  place(els.powerLbl, [G.power[0] - 10, G.power[1] + G.power[3] + 6, G.power[2] + 20, 12]);
+  place(els.powerMark, G.power);
   for (const [ctl, b] of Object.entries(G.ctl)) place(els.ctl[ctl], b);
   for (const [id, b] of Object.entries(G.enc)) {
     place(els.enc[id], b);
@@ -385,8 +372,8 @@ function bindPage() {
   });
   els.power.addEventListener('click', powerSwitch);
   els.power.disabled = false;
-  els.power.classList.add('ready');                 // pulses until the first flip
-  document.getElementById('power-note').textContent = 'Flip the POWER switch on the top edge to start the sound.';
+  els.power.classList.add('ready');                 // nudges toward on until the first flip
+  document.getElementById('power-note').textContent = 'Turn on the power switch above the FM-1 to start the sound.';
 }
 
 // ---- the reel: recorded pages (tests/sim_record.c) on the screen, LEDs and knobs until the firmware is switched on
@@ -434,6 +421,7 @@ function heroFrame() {
   stage.style.setProperty('--shadow', q.shadow);
   els.glare.parentNode.style.opacity = q.glare;
   if (q.glare > 0) els.glare.style.transform = `translate3d(${-60 + q.sweep * 220}%, 0, 0) rotate(18deg)`;
+  if (q.arrived) placePower();
   if (q.arrived !== arrived) {
     arrived = q.arrived;
     stage.style.setProperty('--arrived', arrived ? 1 : 0);
@@ -441,6 +429,22 @@ function heroFrame() {
     device.classList.toggle('waiting', !arrived);
     if (!arrived) releaseAll();                     // nothing stays held while it flies away
   }
+}
+// the power switch is page UI: above the device, a leader line down to the mark where the FM-1 has its switch
+const powerUi = document.getElementById('power-ui'), powerLead = document.getElementById('power-lead');
+const powerLabel = document.getElementById('power-label');
+function placePower() {
+  const st = stage.getBoundingClientRect(), mk = els.powerMark.getBoundingClientRect();
+  const sx = mk.left + mk.width / 2 - st.left, sy = mk.top - st.top;           // the spot: the mark's top centre
+  const tw = els.power.offsetWidth, th = els.power.offsetHeight, lw = powerLabel.offsetWidth;
+  const right = sx + 56 + tw + 10 + lw <= st.width - 16;                       // to the right if it fits, else left
+  const ty = Math.max(56, sy - 34 - th / 2), my = ty + th / 2;
+  const tx = right ? sx + 56 : sx - 56 - tw;
+  els.power.style.transform = `translate(${tx}px, ${ty}px)`;
+  powerLabel.style.transform = `translate(${right ? tx + tw + 10 : tx - 10 - lw}px, ${my - powerLabel.offsetHeight / 2}px)`;
+  powerLead.classList.toggle('left', !right);
+  Object.assign(powerLead.style, { left: `${right ? sx : tx + tw}px`, top: `${my}px`,
+    width: `${Math.abs((right ? tx : tx + tw) - sx)}px`, height: `${Math.max(0, sy - my)}px` });
 }
 function queueHero() { if (!heroQueued) { heroQueued = true; requestAnimationFrame(heroFrame); } }
 

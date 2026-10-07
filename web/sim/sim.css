@@ -69,7 +69,7 @@ html { scroll-snap-type: y proximity; }
 }
 .hero-nav a { color: var(--hero-ink); text-decoration: none; font-size: 14px; border-bottom: 1px solid rgba(233,235,238,.4); }
 .scene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  padding: 56px 0 118px;                         /* the device lands between the nav and Switch on + its bar */
+  padding: 96px 0 118px;                         /* the device lands between the nav + power switch and the bar */
 }
 /* the dimming: an overlay's opacity, not a filter, and outside the blurred scene */
 .scene-dim { position: absolute; inset: 0; background: #101214; opacity: var(--dim, 0); pointer-events: none; }
@@ -297,7 +297,7 @@ html { scroll-behavior: smooth; }
   .install-steps { row-gap: 18px; }
   .install-grid { gap: 36px; }
 }
-@media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after, .more-cue span, .power-switch.ready { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after, .more-cue span, .power-toggle.ready .knob { animation: none; } }
 
 .foot {                                          /* three parts: the name, the ways around, the credits */
   display: grid; grid-template-columns: 1.1fr 0.9fr 1.6fr; gap: 40px; margin-top: 96px; padding: 28px 0 8px;
@@ -382,32 +382,38 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 
 .device :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
-/* ---- the power switch: on the FM-1's top edge, a black slide switch with a round knob; it pulses until the first
-   flip; off pauses the sound and dims the screen */
-.device > .power-switch {
-  translate: 0 0 6px; padding: 0; border-radius: 999px; cursor: pointer; border: 1px solid #000;
-  background: linear-gradient(#0b0c0d, #1a1b1d); box-shadow: 0 2px 0 #000, inset 0 2px 4px rgba(0,0,0,.8);
-}
-.power-switch .knob {
-  position: absolute; left: 3px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #5d6168, #2b2d31 75%); box-shadow: 0 1px 2px rgba(0,0,0,.8);
-  transition: transform .22s cubic-bezier(.3,.7,.3,1);
-}
-.power-switch.on .knob { transform: translateX(32px); }
-.power-switch .led {
-  position: absolute; left: 9px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
-  background: #2a2c2f; transition: background .2s, box-shadow .2s;
-}
-.power-switch.on .led { background: var(--led); box-shadow: 0 0 6px 2px rgba(215,232,255,.8); }
-.power-switch:disabled { cursor: progress; }
-.device:not(.waiting) > .power-switch.ready { animation: power-pulse 1.8s ease-in-out infinite; }   /* landed only */
-@keyframes power-pulse {
-  0%, 100% { box-shadow: 0 2px 0 #000, inset 0 2px 4px rgba(0,0,0,.8), 0 0 0 0 rgba(230,240,255,.0); }
-  50% { box-shadow: 0 2px 0 #000, inset 0 2px 4px rgba(0,0,0,.8), 0 0 0 8px rgba(230,240,255,.28); }
-}
+/* ---- power: the device shows where its switch is (a flat mark on the top edge); the page's switch sits above it,
+   a leader line down to the mark. Until the first flip its knob nudges toward on. */
+.device > .power-mark { translate: 0 0 2px; border-radius: 999px; background: #17181a; pointer-events: none;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.7); }
 .device.powered-off canvas.lcd { opacity: .12; transition: opacity .3s; }
 .device.powered-off .lit { color: inherit; text-shadow: none; }
 .device.powered-off .key.lit .stripe { background: #6c7077; box-shadow: none; }
+.power-ui { position: absolute; left: 0; top: 0; z-index: 7; opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none);
+  transition: opacity .45s ease; }
+.power-toggle, .power-label { position: absolute; left: 0; top: 0; }
+.power-toggle {
+  width: 46px; height: 26px; padding: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(233,235,238,.12); border: 1.5px solid rgba(233,235,238,.75); transition: background .2s, border-color .2s;
+}
+.power-toggle .knob { position: absolute; left: 3px; top: 3px; width: 17px; height: 17px; border-radius: 50%;
+  background: #e9ebee; transition: transform .2s cubic-bezier(.3,.7,.3,1), background .2s; }
+.power-toggle.on { background: #e9ebee; border-color: #e9ebee; }
+.power-toggle.on .knob { transform: translateX(20px); background: #15171a; }
+.power-toggle.ready .knob { animation: nudge 2.4s ease-in-out infinite; }
+@keyframes nudge {                                 /* a small push toward on, twice, then rest */
+  0%, 55%, 100% { transform: translateX(0); }
+  63% { transform: translateX(6px); } 70% { transform: translateX(0); } 76% { transform: translateX(4px); } 82% { transform: translateX(0); }
+}
+.power-toggle:disabled { cursor: progress; opacity: .6; }
+.power-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.power-label { font-size: 13px; color: #c5c9cf; white-space: nowrap; pointer-events: none; }
+.power-lead { position: absolute; border-top: 1px solid rgba(233,235,238,.5); border-left: 1px solid rgba(233,235,238,.5);
+  pointer-events: none; }
+.power-lead.left { border-left: 0; border-right: 1px solid rgba(233,235,238,.5); }
+.power-lead::after { content: ""; position: absolute; bottom: -3px; left: -3.5px; width: 6px; height: 6px; border-radius: 50%;
+  background: #e9ebee; }
+.power-lead.left::after { left: auto; right: -3.5px; }
 
 /* "more below": while the simulator holds the screen, a cue that the page goes on */
 .more-cue {
