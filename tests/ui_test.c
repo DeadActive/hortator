@@ -1245,9 +1245,12 @@ static void test_reson_pages(void)
     ui_frame();
     turn(EN_K1, 1);
     ui_frame();
-    check("RESON CHORD cap: a 3rd track's MODEL knob stays on PIPE, with the message",
-          song.sel == 2 && trk[2].p[P_RMODEL] == RS_PIPE && str_eq(ui.msg, "CHORD: 2 TRACKS MAX"));
+    check("RESON CHORD cap: a 3rd track's MODEL knob goes past CHORD (full) to MODAL",
+          song.sel == 2 && trk[2].p[P_RMODEL] == RS_MODAL);
     snap_page("reson/03_chord_cap");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("RESON CHORD cap: back down, past CHORD (full) to PIPE", trk[2].p[P_RMODEL] == RS_PIPE);
     trk[1].p[P_RMODEL] = RS_STRNG;                   /* a place frees */
     turn(EN_K1, 1);
     ui_frame();
@@ -1361,6 +1364,17 @@ static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows 
     for (i = y0 * 240u; i < y1 * 240u; i++)
         n += fb[i] != 0;
     return n;
+}
+
+/* the start screen (main.c fm1_main): the HortatoR logo and DRUM MACHINE, nothing above or below */
+static void test_boot_title(void)
+{
+    memset(fb, 0, sizeof fb);
+    draw_boot_title();
+    shot("build/ui_shots/00_boot.ppm");
+    check("boot: the logo", fb_lit(BOOT_Y, BOOT_Y + LOGO_H) > 3000);
+    check("boot: DRUM MACHINE under it", fb_lit(BOOT_Y + LOGO_H, BOOT_Y + LOGO_H + 24) > 100);
+    check("boot: nothing else", fb_lit(0, BOOT_Y) + fb_lit(BOOT_Y + LOGO_H + 24, 240) == 0);
 }
 
 static void snap_page(const char *name)
@@ -1490,6 +1504,7 @@ static void test_screens(void)
     release_all();
     snap_page("91_about");
     check("menu > ABOUT draws", ui.menu == 2 && fb_lit(20, 230) > 300);
+    check("ABOUT: the HortatoR logo on top", fb_lit(H_HEAD + 1, H_HEAD + 1 + LOGO_H) > 3000);
     press(B_OCTDN);
     ui_frame();
     release_all();
@@ -1750,7 +1765,7 @@ static void test_project_rejects(void)
               trk[3].p[P_SRC] == 3 && song.g[G_GLEN1] == 1 &&
               song.g[G_CSRC] == 8 && trk[3].p[P_DUCK] == 1 &&
               trk[3].p[P_LFO1 + LF_DEST] == TP[P_LFO1 + LF_DEST].max && trk[3].p[P_LFO1 + LF_WAVE] == 0 &&
-              trk[3].p[P_RMODEL] == RS_CHORD && trk[3].p[P_RTUNE] == 96 && trk[3].p[P_RDECAY] == 0);
+              trk[3].p[P_RMODEL] == RS_NMODEL - 1 && trk[3].p[P_RTUNE] == 96 && trk[3].p[P_RDECAY] == 0);
     proj_slot[1].magic = 0x46554E33u;                /* an old Felucca project ("FUN3") */
     check("project: Felucca projects are not used", !project_used(1));
     project_save(2);
@@ -2680,6 +2695,65 @@ static void test_name_message_ends(void)
     name_close();
 }
 
+static void test_reson_model_skips_full(void)
+{
+    uint32_t k;
+    ui_host_init();
+    trk[1].p[P_RMODEL] = RS_CHORD;
+    trk[2].p[P_RMODEL] = RS_CHORD;                    /* CHORD full (2) */
+    for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "RESON")); k++)
+        tap(B_FX);
+    TSEL->p[P_RMODEL] = RS_PIPE;
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON MODEL: past a full CHORD the knob reaches MODAL", TSEL->p[P_RMODEL] == RS_MODAL);
+    trk[3].p[P_RMODEL] = RS_MODAL;                    /* MODAL full too (tracks 1 and 4) */
+    song.sel = 4;
+    TSEL->p[P_RMODEL] = RS_PIPE;
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON MODEL: CHORD and MODAL full: stays, says why", TSEL->p[P_RMODEL] == RS_PIPE &&
+          (str_eq(ui.msg, "MODAL: 2 TRACKS MAX") || str_eq(ui.msg, "RESON: 4 TRACKS MAX")));
+}
+static void test_modal_load_clamp(void)
+{
+    uint32_t k, n = 0;
+    ui_host_init();
+    for (k = 0; k < 3u; k++)
+        trk[k].p[P_RMODEL] = RS_MODAL;
+    project_save(0);
+    project_load(0);
+    for (k = 0; k < NTRK; k++)
+        n += trk[k].p[P_RMODEL] == RS_MODAL;
+    check("a project with 3 MODAL tracks loads with 2 (the 3rd STRNG)", n == 2u && trk[2].p[P_RMODEL] == RS_STRNG);
+}
+
+static void test_phys_screens(void)
+{
+    uint32_t k;
+    ui_host_init();
+    drum_set_model(TSEL, DM_MEMB);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    ui.force = 1;
+    snap_page("phys/memb_1");
+    page_turn(1);
+    ui.force = 1;
+    snap_page("phys/memb_2");
+    {
+        int16_t *vp;
+        const param_desc_t *h = page_desc(cur_page(), 0, &vp), *b = page_desc(cur_page(), 2, &vp);
+        check("MEMB: SOUND 2/3 holds HEAD .. BEND", h && b && str_eq(h->label, "HEAD") && str_eq(b->label, "BEND"));
+    }
+    TSEL->p[P_RMODEL] = RS_MODAL;
+    TSEL->p[P_RSTRCT] = 110;
+    for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "RESON")); k++)
+        tap(B_FX);
+    ui.force = 1;
+    snap_page("phys/reson_modal");
+    check("RESON with MODAL draws", !ui.home && str_eq(cur_page()->title, "RESON"));
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2746,6 +2820,10 @@ int main(void)
     test_name_stop_to_save();
     test_song_row_after_load();
     test_name_message_ends();
+    test_reson_model_skips_full();
+    test_modal_load_clamp();
+    test_phys_screens();
+    test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

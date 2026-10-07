@@ -48,13 +48,13 @@ Both directions now work on your FM-1, with firmware many people run.
    noted in step 1.
 
 ## 4. First boot (in this order)
-1. The start screen reads **FM-1 DRUMS** / DRUM MACHINE (UNTESTED), then the HOME screen appears.
+1. The start screen shows the **HortatoR** logo / DRUM MACHINE, then the HOME screen appears.
 2. The 8 white keys F3..F4 play the 8 tracks (kick, snare, clap, hats, ...).
 3. **The update path from the drum firmware:** run the step-3 command again (the same file).
    Expected: it installs and the FM-1 restarts into the drum firmware.
    If this fails: go back to stock at once (step 6) while the drum firmware still runs.
 4. **Safe start:** power off; hold **SEQ** and power on, keep holding it until the screen shows
-   **SAFE START** ("NO AUDIO - USB UPDATE READY"); then let go. (SEQ is read once, right after the "FM-1 DRUMS"
+   **SAFE START** ("NO AUDIO - USB UPDATE READY"); then let go. (SEQ is read once, right after the HortatoR
    start screen appears.) While it shows SAFE START, check that USB answers:
    `~/fm1-venv/bin/python tools/fm1_install.py --info` prints the FM-1's identity (this only asks, it writes
    nothing). This rehearses the way out of a crash (step 7). Power off to leave safe start.
@@ -254,6 +254,14 @@ Report what you saw first; we'll go through it together.
   DELETE ROW; on the `+` row: CLEAR SONG.
 - Save, power off and on, load: the song and the name are there.
 
+### PHYS (check on the FM-1)
+- A track to MEMB (SOUND, MODEL after HNOIS): TUNE / DECAY / TONE / HEAD on HOME. HEAD from a tom (0) to a tabla
+  (127); BEND drops the pitch after each hit; POS from the centre (round) to the rim; STICK the click of the strike.
+  Hit it fast: the head rings on, no clicks.
+- RESON MODAL (after CHORD) on a kick, a snare, a clap: STRCT from harmonic to bell, DECAY the ring time (as STRNG),
+  TONE, POS. A third MODAL track is refused ("MODAL: 2 TRACKS MAX"); with CHORD full the MODEL knob skips to MODAL.
+- Four MEMB tracks and two MODAL RESONs playing: no dropouts (CPU on SYSTEM INFO).
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second
@@ -295,3 +303,13 @@ Report what you saw first; we'll go through it together.
 - Pads: presses respond at once; a held pad does not retrigger; fast repeats all play.
 - Safe start (SEQ held at power-on) still works; USB and the installer still work as before (the update loader is
   unchanged).
+
+### BENCH: the performance cases on the FM-1
+
+`tools/fm1_bench.py --yes` (FM-1 on USB, running a build of this tree) sends `bench yes` to the USB console: the
+FM-1 plays each case of `firmware/src/bench.c` for ~2.5 s with the speaker silent (~4 min, BENCH and the case's
+name in the top bar), then returns to its power-on state (the pattern in memory is lost; flash, saved projects
+untouched). The tool runs the same cases on the host and writes `build/bench/report.md` / `.csv`: host
+instructions per sample next to the FM-1's render time, average / worst CPU % (as SYSTEM CPU) and late halves.
+Voices are never shed during a run (overloaded cases show their true cost; a half above 80 % is followed by a
+silent one so the FM-1 stays responsive). `bench stop` on the console ends a run early.

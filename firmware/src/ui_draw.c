@@ -671,6 +671,19 @@ static void graph_reson(uint16_t c)
     }
     cv_text(4, 44, &FONT_S, b, C_GRAY);
     cv_rect(100, 74, 136, 1, C_LINE);
+    if (m == RS_MODAL) {
+        for (h = 0; h < PX_NMODE; h++) {
+            uint32_t r = px_modal_ratio(clamp(t->p[P_RSTRCT], 0, 127) * 516, h), lg = 0, x;
+            while (r >= (2u << 16)) {                 /* log2: whole octaves, then the linear rest */
+                r >>= 1;
+                lg += 256u;
+            }
+            lg += (r - 65536u) >> 8;
+            x = lg * 34u / 256u;
+            if (x < 136u)
+                cv_rect(100 + (int32_t)x, 74 - (int32_t)(56u - h * 4u), 2, (int32_t)(56u - h * 4u), c);
+        }
+    } else
     for (h = 0; h < (m == RS_CHORD ? 4u : 16u); h++) {
         uint32_t x = m == RS_CHORD ? (uint32_t)RS_CHORD_IV[rs_chord(t)][h] * 136u / 48u : HX[h];
         if (m == RS_PIPE && (h & 1u))

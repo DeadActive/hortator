@@ -29,3 +29,7 @@ perf_pre 26
 perf_block 793
 perf_harm 0
 chain_apply 174
+memb_render 290
+reson_modal 125
+px_memb_block 106
+px_modal_block_q 113

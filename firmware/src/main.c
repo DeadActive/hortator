@@ -110,8 +110,7 @@ static void fm1_main(void)
 #endif
     settings_init();
     lcd_init();
-    draw_text_box(0, 100, 240, &FONT_L, "FM-1 DRUMS", C_HI, 1);
-    draw_text_box(0, 130, 240, &FONT_S, "DRUM MACHINE (UNTESTED)", C_GRAY, 1);
+    draw_boot_title();                              /* ui_menu.c: the HortatoR logo */
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;

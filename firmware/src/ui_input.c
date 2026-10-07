@@ -291,14 +291,19 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
     v = param_turn(d, *vp, accel(EN_K1 + slot, steps, d->max - d->min));
-    if (pg->scope == SC_TRACK && id == P_RMODEL && v != RS_OFF && *vp == RS_OFF && reson_tracks(TSEL) >= RS_MAXTRK) {
-        ui_message("RESON: 4 TRACKS MAX");            /* RESON on 4 tracks at most (CPU) */
-        return;
+    if (pg->scope == SC_TRACK && id == P_RMODEL && v != *vp) {   /* a capped model full: the next one (or why not) */
+        int32_t dir = v > *vp ? 1 : -1;
+        const char *why = reson_refused(TSEL, *vp, v);
+        while (why && v + dir >= d->min && v + dir <= d->max) {
+            v += dir;
+            why = reson_refused(TSEL, *vp, v);
+        }
+        if (why) {
+            ui_message(why);
+            return;
+        }
     }
-    if (pg->scope == SC_TRACK && id == P_RMODEL && v == RS_CHORD && *vp != RS_CHORD && reson_chords(TSEL) >= 2u) {
-        ui_message("CHORD: 2 TRACKS MAX");            /* RESON CHORD on 2 tracks at most */
-        return;
-    }
+
     *vp = (int16_t)v;
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
         motion_capture(TSEL, (uint32_t)(vp - TSEL->p));   /* motion.c: recorded when armed and playing */

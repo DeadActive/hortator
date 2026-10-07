@@ -616,6 +616,25 @@ static int rename_slot(void)
     return project_name(3, b) && str_eq(b, "INTRO") && proj_slot[3].t[1].step[2].on && str_eq(chain.name, "INTRO") &&
            !project_name(2, b) && !b[0];
 }
+/* MEMB at every knob extreme (TUNE, DECAY, TONE, HEAD, POS, BEND, STICK) and both velocities: bounded, in memory */
+static int memb_extremes(void)
+{
+    static const int16_t LO[8] = {-24, 0, 0, 0, 0, 0, 0, 0}, HI[8] = {24, 127, 127, 127, 127, 127, 127, 0};
+    uint32_t c, k, i;
+    int ok = 1;
+    for (c = 0; c < 256u; c++) {
+        host_init();
+        drum_set_model(&trk[0], DM_MEMB);
+        for (k = 0; k < 7u; k++)
+            trk[0].p[P_E0 + k] = ((c >> k) & 1u) ? HI[k] : LO[k];
+        drum_hit(&trk[0], (c & 128u) ? 127u : 96u);
+        for (i = 0; i < 40u; i++) {
+            render_mix(L, R, CTL);
+            ok &= L[0] <= 32767 && L[0] >= -32768;
+        }
+    }
+    return ok;
+}
 /* review focus 1: RESON at every extreme (pitch with a chord's top note and the fine offset, STRCT, TONE, POS):
  * the lines stay inside rs_buf (ASan) and the output bounded */
 static int reson_extremes(void)
@@ -668,6 +687,7 @@ int main(void)
     check("song: an empty slot refused; a slot's garbage made safe (ASan)", song_garbage_slot());
     check("song: LOAD while a song plays: STOP TO LOAD", song_blocks_load());
     check("project: a rename writes the name only, the current project's too", rename_slot());
+    check("MEMB at every extreme: bounded (ASan)", memb_extremes());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());

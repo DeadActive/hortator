@@ -33,7 +33,7 @@ enum { LF_WAVE, LF_MODE, LF_RATE, LF_MORPH, LF_DEPTH, LF_DEST, LF_TRIG, LF_PHASE
 enum { LW_SQUARE, LW_SAW, LW_RSAW, LW_SINE, LW_TRI, LW_SH, LW_WANDER, LW_EXPUP, LW_EXPDN, LW_RWALK, LW_COUNT };   /* LFO waves (lfo.c) */
 enum { LM_SYNC, LM_HZ, LM_TIME };
 enum { LT_FREE, LT_HIT, LT_PLAY };
-enum { RS_OFF, RS_STRNG, RS_PIPE, RS_CHORD, RS_NMODEL };   /* RESON models (reson.c); modal models come after CHORD */
+enum { RS_OFF, RS_STRNG, RS_PIPE, RS_CHORD, RS_MODAL, RS_NMODEL };   /* RESON models (reson.c); MODAL: the modal core (phys_dsp.c) */
 #define RS_NCHORD 20                                 /* CHORD types (reson.c RS_CHORD_IV, params.c N_RCHORD) */
 
 enum {                          /* per-track parameters */

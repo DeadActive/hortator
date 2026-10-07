@@ -157,18 +157,8 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
    ```
 
 3. **The firmware's name is Hortator** (user decision, 2026-10-07). The landing page and the installer use it;
-   on the device it still reads FM-1 DRUMS. Proposed:
-
-   ```diff
-   --- a/firmware/src/main.c                        (boot screen)
-   -    draw_text_box(0, 100, 240, &FONT_L, "FM-1 DRUMS", C_HI, 1);
-   +    draw_text_box(0, 100, 240, &FONT_L, "HORTATOR", C_HI, 1);
-   --- a/firmware/src/ui_menu.c                     (ABOUT)
-   -            cv_text(4, 4, &FONT_L, "FM-1 DRUMS", C_HI);
-   +            cv_text(4, 4, &FONT_L, "HORTATOR", C_HI);
-   ```
-
-   "HORTATOR" is 8 characters, 128 px in FONT_L: it fits where "FM-1 DRUMS" (10) did. The version labels
+   the device shows it as the HortatoR logo (UnifrakturCook Bold) on the start screen and ABOUT (done: `ui_menu.c` `draw_boot_title`, `tools/gen_logo.py`).
+   The version labels
    (`DRUM-x.y.z` on the device, `drum-x.y.z+<commit>` in the installer and package names; `tools/build.py`
    `drum_label`, `tools/version.py` and its checks) can stay as they are or become `HORTATOR-` / `hortator-`. That is
    the firmware session's call: `tools/build_sim.sh --package` reads either form from the file name. README.md

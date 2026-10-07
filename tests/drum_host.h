@@ -12,6 +12,7 @@
 #define memset felucca_memset
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
+#define DRUM_HOST 1                                  /* (firmware: test hooks) */
 #include "felucca_tables.h"
 #include "../firmware/src/libc.c"
 #undef memset
@@ -36,6 +37,7 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
+#include "../firmware/src/bench.c"
 
 static void host_reset_fx(void)                     /* FX buses, master, slicer, metal: as at power-on */
 {

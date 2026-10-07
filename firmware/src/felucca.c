@@ -51,6 +51,7 @@
 #endif
 #include "grids.c"           /* Grids pattern engine (M2) */
 #include "seq.c"
+#include "bench.c"           /* BENCH: the performance cases (console `bench`) */
 #include "audio.c"
 #include "panel.c"
 #include "pages.c"
