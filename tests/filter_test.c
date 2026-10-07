@@ -239,6 +239,62 @@ static void test_decay_display(void)
     check("DECAY shows ms at 0, s at 127", str_eq(u0, "ms") && str_eq(u1, "s"));
 }
 
+/* LFO 1 on F.CUT: a slow square moves the cutoff: the noise's brightness alternates */
+static void test_lfo_fcut(void)
+{
+    double a, b;
+    host_init();
+    drum_set_model(&trk[0], DM_HNOIS);
+    trk[0].p[P_E1] = 127;
+    flt_set(&trk[0], FT_LP, 60, 20, 0, 40);
+    trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
+    trk[0].p[P_LFO1 + LF_MODE] = LM_HZ;
+    trk[0].p[P_LFO1 + LF_RATE] = 30;                  /* a slow rate: a half period well over 0.1 s */
+    trk[0].p[P_LFO1 + LF_DEPTH] = 64;
+    trk[0].p[P_LFO1 + LF_DEST] = 17;
+    trk[0].p[P_LFO1 + LF_TRIG] = LT_FREE;
+    drum_hit(&trk[0], 127);
+    render_mix(wl, wr, SECS(4));
+    a = b = 0;
+    {
+        uint32_t w, k;
+        double lo = 1e300, hi = 0;
+        for (w = 0; w < 30u; w++) {                  /* 30 windows of 0.1 s: the LFO's two levels */
+            double e = 0;
+            for (k = SECS(0.1) * w; k + 1 < SECS(0.1) * (w + 1); k++)
+                e += (double)(wl[k + 1] - wl[k]) * (wl[k + 1] - wl[k]);
+            lo = e < lo ? e : lo;
+            hi = e > hi ? e : hi;
+        }
+        a = lo;
+        b = hi;
+    }
+    check("LFO DEST 17 = F.CUT: the cutoff moves (brightness 3x between the LFO's levels)",
+          lfo_dest_param(17) == P_FCUT && lfo_dest_param(18) == P_FRESO && b > 3 * a);
+}
+
+/* Review Focus 3: CUT 127 + ENV +63 + F.CUT +64, and 0 / -64 / -64: the knob stays in range, bounded */
+static void test_lfo_extremes(void)
+{
+    static const int S[2] = {1, -1};
+    uint32_t k, ok = 1, i;
+    for (k = 0; k < 2u; k++) {
+        host_init();
+        drum_set_model(&trk[0], DM_HNOIS);
+        flt_set(&trk[0], FT_BP, S[k] > 0 ? 127 : 0, 127, S[k] > 0 ? 63 : -64, 127);
+        trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
+        trk[0].p[P_LFO1 + LF_DEPTH] = (int16_t)(64 * S[k]);
+        trk[0].p[P_LFO1 + LF_DEST] = 17;
+        drum_hit(&trk[0], 127);
+        for (i = 0; i < SECS(1) / CTL; i++) {
+            render_mix(wl, wr, CTL);
+            ok &= flt_cut(&trk[0]) >= 0 && flt_cut(&trk[0]) <= (127 << 8) && abs(wl[0]) <= 32767;
+            ok &= trk[0].p[P_FCUT] >= 0 && trk[0].p[P_FCUT] <= 127;
+        }
+    }
+    check("CUT / ENV / F.CUT at their extremes: the cutoff in range, bounded", ok);
+}
+
 int main(void)
 {
     test_response();
@@ -249,6 +305,8 @@ int main(void)
     test_choke_ring_ends();
     test_eight_resonant();
     test_decay_display();
+    test_lfo_fcut();
+    test_lfo_extremes();
     printf(fails ? "filter_test: %d FAILED\n" : "filter_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

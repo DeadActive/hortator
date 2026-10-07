@@ -28,12 +28,12 @@ static const char *const N_RMODEL[] = {"OFF", "STRNG", "PIPE", "CHORD", "MODAL"}
 static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", "MIN", "SUS2", "SUS4", "DIM", "AUG",
                                                    "MAJ6", "MIN6", "MAJ7", "MIN7", "DOM7", "M7b5", "DIM7", "7SUS4",
                                                    "ADD9", "QUART", "CLUST", 0};
-static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS"};   /* LFO DEST 11..16 */
+static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS", "F.CUT", "F.RES"};   /* LFO DEST 11..18 */
 static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
 #define LFO_TP(b, rf)                                                                                     \
     [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
     [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
-    [b + LF_DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0), [b + LF_DEST] = PD("DEST", F_LDEST, 0, 16, 0),        \
+    [b + LF_DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0), [b + LF_DEST] = PD("DEST", F_LDEST, 0, 18, 0),        \
     [b + LF_TRIG] = PE("TRIG", N_LTRIG, 2), [b + LF_PHASE] = PD("PHASE", F_LPHASE, 0, 127, 0)
 static const param_desc_t TP[P_COUNT] = {
     [P_MODEL] = PE("MODEL", N_MODEL, 0),
@@ -187,7 +187,7 @@ static const char *lfo_dest_label(const track_t *t, int32_t dest)
     if (dest <= 0)
         return "OFF";
     if (dest >= 11)
-        return N_RDEST[clamp(dest, 11, 16) - 11];
+        return N_RDEST[clamp(dest, 11, 18) - 11];
     d = track_desc(t, lfo_dest_param((uint32_t)clamp(dest, 1, 10)));
     return d->label && d->label[0] != '-' ? d->label : "--";
 }

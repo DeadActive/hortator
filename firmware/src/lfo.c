@@ -9,11 +9,13 @@ _Static_assert(FS == 44100, "lfo_tables.h is made for 44.1 kHz");
 /* SYNC: one cycle in ticks of a quarter note / 96: 8 bars .. 1/64 */
 static const uint16_t LFO_SYNC_TICKS[17] = {3072, 1536, 768, 384, 192, 144, 96, 64, 72, 48, 32, 36, 24, 16, 12, 8, 6};
 
-/* DEST -> the knob an LFO writes; R.TUN (11) writes no knob: the resonator's fine pitch (lfo_track) */
+/* DEST -> the knob an LFO writes; R.TUN (11) writes no knob: the resonator's fine pitch (lfo_track);
+ * F.CUT / F.RES (17, 18): FILTER's CUT / RESO (filter.c) */
 static uint32_t lfo_dest_param(uint32_t dest)
 {
     return dest >= 1u && dest <= 8u ? P_E0 + dest - 1u : dest == 9u ? (uint32_t)P_LEVEL : dest == 10u ? (uint32_t)P_PAN
-         : dest >= 12u && dest <= 16u ? P_RDECAY + dest - 12u : 0xFFu;
+         : dest >= 12u && dest <= 16u ? P_RDECAY + dest - 12u : dest == 17u ? (uint32_t)P_FCUT
+         : dest == 18u ? (uint32_t)P_FRESO : 0xFFu;
 }
 
 static uint32_t lfo_inc(const int16_t *q)
@@ -150,7 +152,7 @@ static void lfo_track(track_t *t, uint32_t n)
         s->out = lfo_value(t, l, (n && s->ph + off < old + off) | s->fresh);   /* a new cycle where PHASE puts it, or a
                                                                                  * restart */
         s->fresh = 0;
-        pid = lfo_dest_param((uint32_t)clamp(q[LF_DEST], 0, 16));
+        pid = lfo_dest_param((uint32_t)clamp(q[LF_DEST], 0, 18));
         if (pid == 0xFFu)
             continue;
         d = track_desc(t, pid);

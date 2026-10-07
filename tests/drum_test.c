@@ -2758,7 +2758,8 @@ static void test_reson_lfo(void)
     }
     param_format(&TP[P_LFO1 + LF_DEST], 0, v, &u);
     ok &= str_eq(v, "OFF");
-    check("LFO DEST 11..16: R.TUN R.DCY R.MIX R.TON R.STR R.POS; 0 OFF", ok && TP[P_LFO1 + LF_DEST].max == 16);
+    check("LFO DEST 11..16: R.TUN R.DCY R.MIX R.TON R.STR R.POS; 0 OFF (the knob runs on to F.CUT / F.RES, 18)",
+          ok && TP[P_LFO1 + LF_DEST].max == 18);
     rs_setup(RS_STRNG, 48);                           /* R.TUN: a slow sweep moves the line length smoothly */
     trk[0].p[P_RDECAY] = 127;
     trk[0].p[P_LFO1 + LF_WAVE] = LW_TRI;
