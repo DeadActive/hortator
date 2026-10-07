@@ -3,6 +3,7 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* The drum model table. New models are appended at the end (projects store model numbers), in the enum, DMODELS and N_MODEL (same order). */
 #include "dm_dsp.c"
+#include "phys_dsp.c"          /* PHYS: the modal core (upstream 1.0, MIT DaisySP) */
 #include "dm_sample.c"
 #include "dm_kick.c"
 #include "dm_snare.c"

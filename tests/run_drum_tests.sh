@@ -77,6 +77,17 @@ else
     echo "fidelity: SKIPPED (offline: tests/fetch_ref.sh could not fetch the reference)"
     FID=" (fidelity SKIPPED: offline)"
 fi
+if sh tests/fetch_daisysp.sh >/dev/null 2>&1; then
+    DS=build/drum_ref/DaisySP/Source
+    cc -O2 -w -c -o "$OUT/phys_fixed.o" tests/phys_fixed.c
+    c++ -O2 -std=c++14 -w -I"$DS" -I"$DS/Utility" -o "$OUT/phys_ref" tests/phys_ref.cpp \
+        "$DS/PhysicalModeling/modalvoice.cpp" "$DS/PhysicalModeling/resonator.cpp" "$DS/Filters/svf.cpp" \
+        "$DS/Dynamics/crossfade.cpp" "$OUT/phys_fixed.o"
+    "$OUT/phys_ref" | tail -1
+else
+    echo "phys_ref: SKIPPED (offline: tests/fetch_daisysp.sh could not fetch DaisySP)"
+    FID=" (fidelity SKIPPED: offline)"
+fi
 sh tests/guard_test.sh
 python3 tools/check_untouched.py
 echo "ALL DRUM HOST TESTS PASSED$FID"
