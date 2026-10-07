@@ -16,7 +16,7 @@
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
     F_ONOFF, F_OCT, F_STEPS, F_CTHR, F_CRAT, F_CATK, F_CREL, F_CMKUP, F_LRATE1, F_LRATE2, F_LDEST, F_LPHASE,
-    F_NOTEO, F_RDECAY
+    F_NOTEO, F_RDECAY, F_FDEC
 };
 
 typedef struct {
@@ -34,6 +34,7 @@ enum { LW_SQUARE, LW_SAW, LW_RSAW, LW_SINE, LW_TRI, LW_SH, LW_WANDER, LW_EXPUP, 
 enum { LM_SYNC, LM_HZ, LM_TIME };
 enum { LT_FREE, LT_HIT, LT_PLAY };
 enum { RS_OFF, RS_STRNG, RS_PIPE, RS_CHORD, RS_MODAL, RS_NMODEL };   /* RESON models (reson.c); MODAL: the modal core (phys_dsp.c) */
+enum { FT_OFF, FT_LP, FT_BP, FT_HP, FT_NOTCH, FT_N };   /* FILTER types (filter.c) */
 #define RS_NCHORD 20                                 /* CHORD types (reson.c RS_CHORD_IV, params.c N_RCHORD) */
 
 enum {                          /* per-track parameters */
@@ -50,6 +51,7 @@ enum {                          /* per-track parameters */
     P_LFO2 = P_LFO1 + LF_N,      /* LFO 2 */
     P_RMODEL = P_LFO2 + LF_N,    /* RESON (reson.c): MODEL TUNE DECAY MIX, TONE STRCT POS */
     P_RTUNE, P_RDECAY, P_RMIX, P_RTONE, P_RSTRCT, P_RPOS,
+    P_FTYPE, P_FCUT, P_FRESO, P_FENV, P_FDEC,   /* FILTER (filter.c): TYPE CUT RESO ENV DECAY */
     P_COUNT
 };
 
@@ -159,6 +161,9 @@ typedef struct track {
     int32_t peak;
     int32_t dist_hp, dist_lp1, dist_lp2;   /* DIST insert state */
     uint8_t tail;                /* blocks to mix after the last voice (the DIST tail) */
+    int32_t fs[2];               /* FILTER (filter.c): the SVF's states */
+    int32_t fenv;                /* its envelope, Q24 (a hit: 1 << 24) */
+    uint8_t fvel, fmode, fring;  /* the hit's velocity, the TYPE running (a change: from silence), ringing */
 } track_t;
 
 typedef struct {

@@ -125,6 +125,7 @@ static void sim_mark(uint32_t off, uint32_t n)
 #include "../firmware/src/dmodels.c"
 #include "../firmware/src/params.c"
 #include "../firmware/src/reson.c"
+#include "../firmware/src/filter.c"
 #include "../firmware/src/lfo.c"
 #include "../firmware/src/drum_core.c"
 #include "../firmware/src/slicer.c"

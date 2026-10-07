@@ -139,6 +139,7 @@ static void drum_hit(track_t *t, uint32_t vel)
     if (t->p[P_MUTE] && (uint32_t)(t - trk) != comp_ghost_src())   /* a muted COMP source still plays (GHOST KEEP /
                                                                        * HIDE, fx.c) */
         return;
+    trk_filter_hit(t, vel);                             /* FILTER: the hit's sweep (filter.c) */
     if (t->p[P_CHOKE])
         for (i = 0; i < NTRK; i++)
             if (&trk[i] != t && trk[i].p[P_CHOKE] == t->p[P_CHOKE])

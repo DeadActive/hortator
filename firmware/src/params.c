@@ -29,6 +29,7 @@ static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", 
                                                    "MAJ6", "MIN6", "MAJ7", "MIN7", "DOM7", "M7b5", "DIM7", "7SUS4",
                                                    "ADD9", "QUART", "CLUST", 0};
 static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS"};   /* LFO DEST 11..16 */
+static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
 #define LFO_TP(b, rf)                                                                                     \
     [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
     [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
@@ -68,6 +69,11 @@ static const param_desc_t TP[P_COUNT] = {
     [P_RTONE] = PD("TONE", F_PCT, 0, 127, 100),
     [P_RSTRCT] = PD("STRCT", F_INT, 0, 127, 0),
     [P_RPOS] = PD("POS", F_PCT, 0, 127, 64),
+    [P_FTYPE] = PE("TYPE", N_FTYPE, 0),
+    [P_FCUT] = PD("CUT", F_CUTOFF, 0, 127, 127),
+    [P_FRESO] = PD("RESO", F_INT, 0, 127, 0),
+    [P_FENV] = PD("ENV", F_INT, -64, 63, 0),
+    [P_FDEC] = PD("DECAY", F_FDEC, 0, 127, 40),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -173,6 +179,7 @@ static void fmt_ms10(char *val, const char **unit, uint32_t ms10)   /* a time in
 #include "lfo_tables.h"
 #include "reson_tables.h"
 static uint32_t lfo_dest_param(uint32_t dest);    /* lfo.c */
+static uint32_t flt_dec_idx(int32_t v);           /* filter.c */
 /* an LFO DEST by name: OFF, the track's knob by its label ("--" where its engine has none), R.TUN .. R.POS */
 static const char *lfo_dest_label(const track_t *t, int32_t dest)
 {
@@ -242,6 +249,9 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         break;
     case F_RDECAY:
         fmt_ms10(val, unit, RS_T60_MS10[clamp(v, 0, 127)]);
+        break;
+    case F_FDEC:                                      /* FILTER DECAY: 5 ms .. 2 s (filter.c flt_dec_idx) */
+        fmt_ms10(val, unit, TIME_MS_X10[flt_dec_idx(v)]);
         break;
     case F_CTHR: {                                    /* whole dB from -10 down (the column fits "-24 dB") */
         int32_t d = comp_thr_dbx10(v);
