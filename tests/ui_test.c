@@ -1496,9 +1496,7 @@ static void test_screens(void)
     press(B_OCTDN);
     ui_frame();
     release_all();
-    press(B_SEQ);
-    ui_frame();
-    release_all();
+    seq_open("STEP");                                /* (SEQ comes back to SONG, the last SEQ page: STEP) */
     hold(B_REC);                                     /* REC held on SEQ: the clear dialog */
     snap_page("92_clear_track");
     check("REC held on SEQ: the clear dialog draws", ui.confirm && fb_lit(80, 150) > 100);
@@ -2384,6 +2382,140 @@ static void test_motion_page(void)
     ui_frame();
 }
 
+static void rec_hold(void)                           /* REC held 0.8 s (1 ms per tick), then let go */
+{
+    uint32_t i;
+    fm1_in.buttons |= 1u << panel.btn[B_REC];
+    for (i = 0; i < 800; i++)
+        ui_input();
+    release_all();
+    ui_frame();
+}
+static void song_slot_saved(uint32_t s, const char *pat)   /* slot s: track 1 playing pat */
+{
+    uint32_t i;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    for (i = 0; pat[i]; i++)
+        trk[0].step[i].on = pat[i] != '.';
+    project_save(s);
+}
+static void test_song_page(void)
+{
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    seq_open("SONG");
+    check("SEQ reaches the SONG page", !ui.home && str_eq(cur_page()->title, "SONG"));
+    snap_page("song/empty");
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("SONG: KNOB 2 on the + row adds row 1 (A x1)", chain.cfg.count == 1u && chain.cfg.row[0].slot == 0u &&
+          chain.cfg.row[0].repeat == 1u);
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    turn(EN_K1 + 2, 3);
+    ui_frame();
+    check("SONG: KNOB 2 SLOT, KNOB 3 REPEAT", chain.cfg.row[0].slot == 1u && chain.cfg.row[0].repeat == 4u);
+    turn(EN_K1, 1);
+    ui_frame();
+    turn(EN_K1 + 2, 1);
+    ui_frame();
+    check("SONG: the next + row: a row from the previous slot (B x1)", chain.cfg.count == 2u &&
+          chain.cfg.row[1].slot == 1u && chain.cfg.row[1].repeat == 1u);
+    turn(EN_K1, 5);
+    ui_frame();
+    check("SONG: KNOB 1 stops at the + row", ui.song_row == 2u);
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    check("SONG: KNOB 4 LOOP ON", chain.cfg.loop == 1u);
+    snap_page("song/rows");
+}
+static void test_song_play_ui(void)
+{
+    uint32_t b;
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    song_slot_saved(0, "x...x...x...x...");
+    trk[0].p[P_SLEN] = 7;
+    seq_open("SONG");
+    tap(B_PLAY);
+    check("SONG: PLAY with no rows: ADD A SONG ROW", !song.playing && str_eq(ui.msg, "ADD A SONG ROW"));
+    chain.cfg.count = 2;
+    chain.cfg.row[0] = (chain_row_t){0, 2};
+    chain.cfg.row[1] = (chain_row_t){1, 1};
+    tap(B_PLAY);
+    check("SONG: PLAY with an empty slot: PATTERN B EMPTY", !song.playing && str_eq(ui.msg, "PATTERN B EMPTY"));
+    chain.cfg.row[1].slot = 0;
+    tap(B_PLAY);
+    for (b = 0; b < 4u; b++)
+        ui_frame();
+    check("SONG: PLAY starts the song", song.playing && chain.running && trk[0].p[P_SLEN] == 16);
+    ui.msg_t = 0;                                    /* (the header: the row playing) */
+    ui.force = 1;
+    snap_page("song/playing");
+    turn(EN_K1 + 2, 1);
+    ui_frame();
+    check("SONG: an edit while it plays: STOP TO EDIT", chain.cfg.row[0].repeat == 2u && str_eq(ui.msg, "STOP TO EDIT"));
+    seq_open("PATTERN");
+    turn(EN_K1, 1);
+    ui_frame();
+    check("PATTERN while a song plays: STOP TO EDIT", trk[0].p[P_SLEN] == 16 && str_eq(ui.msg, "STOP TO EDIT"));
+    seq_open("STEP");
+    keys(1u << 2);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("STEP grid while a song plays: STOP TO EDIT, the step unchanged", !trk[0].step[1].on &&
+          str_eq(ui.msg, "STOP TO EDIT"));
+    tap(B_PLAY);
+    ui_frame();
+    check("PLAY again: the song stops, LEN back", !song.playing && !chain.running && trk[0].p[P_SLEN] == 7);
+}
+static void test_song_play_twice(void)
+{
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    song_slot_saved(0, "x...............");
+    chain.cfg.count = 1;
+    chain.cfg.row[0] = (chain_row_t){0, 1};
+    seq_open("SONG");
+    press(B_PLAY);
+    ui_input();                                      /* armed, the ISR has not started it yet */
+    release_all();
+    press(B_PLAY);
+    ui_input();                                      /* stopped again before it began */
+    release_all();
+    render_mix(0, 0, CTL);
+    render_mix(0, 0, CTL);
+    check("SONG: PLAY twice before it began: nothing playing, nothing armed", !song.playing && !chain_busy());
+}
+static void test_song_delete(void)
+{
+    ui_host_init();
+    seq_open("SONG");
+    chain.cfg.count = 3;
+    chain.cfg.row[0] = (chain_row_t){0, 1};
+    chain.cfg.row[1] = (chain_row_t){1, 2};
+    chain.cfg.row[2] = (chain_row_t){2, 3};
+    ui.song_row = 1;
+    rec_hold();
+    check("SONG: REC held on a row asks DELETE ROW", ui.confirm == 3u);
+    snap_page("song/delete");
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("SONG: OCT+ deletes it, the later rows move up", chain.cfg.count == 2u && chain.cfg.row[1].slot == 2u &&
+          chain.cfg.row[1].repeat == 3u);
+    ui.song_row = 2;
+    rec_hold();
+    check("SONG: REC held on the + row asks CLEAR SONG", ui.confirm == 4u);
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("SONG: OCT+ clears the song", chain.cfg.count == 0u && ui.song_row == 0u);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2441,6 +2573,10 @@ int main(void)
     test_motion_recording();
     test_motion_model_change();
     test_motion_page();
+    test_song_page();
+    test_song_play_ui();
+    test_song_play_twice();
+    test_song_delete();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

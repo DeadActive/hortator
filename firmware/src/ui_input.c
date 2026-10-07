@@ -148,6 +148,8 @@ static void tracks_edit(uint32_t slot, int32_t steps)
         t->p[P_MUTE] = 0;
         return;
     }
+    if (slot == 2u && song_lock())                  /* LEN: a song's row */
+        return;
     id = slot == 1u ? P_LEVEL : slot == 2u ? P_SLEN : P_PAN;
     t->p[id] = (int16_t)clamp(t->p[id] + accel(EN_K1 + slot, steps, TP[id].max - TP[id].min), TP[id].min, TP[id].max);
     motion_capture(t, id);                          /* motion.c: LEVEL / PAN recorded (LEN never) */
@@ -181,6 +183,60 @@ static void motion_page_edit(uint32_t slot, int32_t steps)
     }
 }
 
+/* SONG page: KNOB 1 ROW (up to the + row), 2 SLOT, 3 REPEAT, 4 LOOP; on the + row a turn of 2 / 3 adds a row */
+static void song_edit(uint32_t slot, int32_t steps)
+{
+    chain_config_t *c = &chain.cfg;
+    uint32_t r = ui.song_row;
+    if (slot == 0u) {
+        ui.song_row = (uint8_t)clamp((int32_t)r + steps, 0, c->count < CHAIN_ROWS ? c->count : CHAIN_ROWS - 1u);
+        return;
+    }
+    if (song_lock())
+        return;
+    if (slot == 3u) {
+        c->loop = steps > 0;
+        return;
+    }
+    if (r >= c->count) {
+        c->row[r].slot = r ? c->row[r - 1u].slot : 0u;
+        c->row[r].repeat = 1;
+        c->count = (uint8_t)(r + 1u);
+        return;
+    }
+    if (slot == 1u)
+        c->row[r].slot = (uint8_t)clamp((int32_t)c->row[r].slot + steps, 0, 3);
+    else
+        c->row[r].repeat = (uint8_t)clamp((int32_t)c->row[r].repeat + steps, 1, 16);
+}
+static void song_play(void)                         /* PLAY on SONG */
+{
+    uint32_t rc = chain_prepare();
+    if (rc >= 3u) {
+        char b[16] = "PATTERN A EMPTY";
+        b[8] = (char)('A' + rc - 3u);
+        ui_message(b);
+    } else if (rc == 1u) {
+        ui_message("ADD A SONG ROW");
+    } else if (rc == 2u) {
+        ui_message("STOP FIRST");
+    }
+    ui.force = 1;
+}
+static void song_rec_hold(void)                     /* REC held on SONG: delete the row / clear the song */
+{
+    if (song_lock())
+        return;
+    if (ui.song_row < chain.cfg.count)
+        ui.confirm = 3;
+    else if (chain.cfg.count)
+        ui.confirm = 4;
+    else
+        return;
+    ui.confirm_trk = ui.song_row;
+    ui.force = 1;
+}
+
 static void edit_param(uint32_t slot, int32_t steps)
 {
     int16_t *vp;
@@ -194,7 +250,12 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
     if (pg->graph == GR_MOTION) {                     /* the MOTION page's own knobs */
-        motion_page_edit(slot, steps);
+        if (!song_lock())
+            motion_page_edit(slot, steps);
+        return;
+    }
+    if (pg->graph == GR_SONG) {
+        song_edit(slot, steps);
         return;
     }
     if (pg->scope == SC_MIX) {
@@ -205,6 +266,8 @@ static void edit_param(uint32_t slot, int32_t steps)
         model_step(steps);
         return;
     }
+    if (pg->graph == GR_STEPS && song_lock())         /* PATTERN: a song's row */
+        return;
     d = page_desc(pg, slot, &vp);
     if (!d || !vp || d->max == d->min)
         return;
@@ -230,6 +293,10 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
     if (!v || pg->scope != SC_GLOBAL)
         return;
+    if ((id == G_CLRSEQ || id == G_CLRALL || id == G_INITALL) && song_lock()) {
+        *vp = 0;
+        return;
+    }
     if ((id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_CLRALL || id == G_INITALL) &&
         ui.arm != id) {
         *vp = 0;                                      /* one detent arms, a second one within ~1.5 s acts */
@@ -394,21 +461,38 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
-    if (rec == BT_HOLD) {                               /* REC held on SEQ / TRACKS: "clear track n?" */
-        ui.confirm = 1;
-        ui.confirm_trk = song.sel;
-        ui.force = 1;
+    if (rec == BT_HOLD) {                               /* REC held on SEQ / TRACKS: "clear track n?"; SONG: its row */
+        if (!ui.home && cur_page()->graph == GR_SONG) {
+            song_rec_hold();
+        } else if (!song_lock()) {
+            ui.confirm = 1;
+            ui.confirm_trk = song.sel;
+            ui.force = 1;
+        }
     } else if (rec == BT_TAP && !ui.confirm) {
-        if (fam == FAM_MIX)
-            tracks_rec_tap();
-        else
+        if (fam == FAM_MIX) {
+            if (!song_lock())
+                tracks_rec_tap();
+        } else {
             open_family(FAM_MIX);                       /* arming is TRACKS' (a REC tap there) */
+        }
     }
     if (ui.confirm) {                                   /* OCT- cancels, OCT+ clears; nothing else reacts */
         if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
             char m[12] = "1 CLEARED";
             m[0] = (char)('1' + ui.confirm_trk);
-            if (ui.confirm == 2u) {                     /* the MOTION page's CLEAR */
+            if (ui.confirm == 3u) {                     /* SONG: the row out, the later ones up */
+                uint32_t r = ui.confirm_trk, j;
+                for (j = r; j + 1u < chain.cfg.count; j++)
+                    chain.cfg.row[j] = chain.cfg.row[j + 1u];
+                if (r < chain.cfg.count)
+                    chain.cfg.count--;
+                ui_message("ROW DELETED");
+            } else if (ui.confirm == 4u) {              /* SONG: no rows */
+                memset(&chain.cfg, 0, sizeof chain.cfg);
+                ui.song_row = 0;
+                ui_message("SONG CLEARED");
+            } else if (ui.confirm == 2u) {              /* the MOTION page's CLEAR */
                 motion_clear(ui.confirm_trk % NTRK);
                 ui_message("MOTION CLEARED");
             } else {
@@ -443,8 +527,13 @@ static void ui_input(void)
             continue;
         b = panel_btn_of(id);
         switch (b) {
-        case B_PLAY:
-            transport_req = song.playing ? 2 : 1;
+        case B_PLAY:                                    /* SONG: the song; PLAY / STOP during one stops it */
+            if (song.playing || chain_busy())
+                transport_req = 2;
+            else if (!ui.home && cur_page()->graph == GR_SONG)
+                song_play();
+            else
+                transport_req = 1;
             break;
         case B_REC:
         case B_HOME:                                    /* tap / hold: above */
@@ -531,7 +620,7 @@ static void ui_input(void)
             continue;
         if (grid_mode() && step_edit(k, s))
             continue;
-        if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || page_desc(pg, k, &hv)) {
+        if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || pg->graph == GR_SONG || page_desc(pg, k, &hv)) {
             ui.hot_col = (uint8_t)k;
             ui.hot_t = 40;
         }
