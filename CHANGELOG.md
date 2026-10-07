@@ -5,6 +5,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- SONG + NAME (upstream Felucca 1.0's song chain and naming): SEQ > SONG plays up to 16 rows of {project A..D,
+  repeat x1..x16} with the sounds loaded now (each row: that project's steps, LEN / DIV / SWING / SRC and motion; a
+  row lasts its longest track; LOOP ON / OFF; STOP brings the current pattern back). Projects get names (SAVE opens
+  the NAME screen: keys type phone-style, KNOB 1 / 2 cursor and character; the PROJECT page's NAME renames a slot);
+  slots shown as A..D. Saved with the project (format FDR9; older projects load with no song and no name).
+
 ## 0.11.0 - 2026-10-07
 
 - MOTION (upstream Felucca 1.0's motion recording): with a track armed (REC on TRACKS) and playing, its sound knobs
