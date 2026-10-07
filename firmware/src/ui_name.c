@@ -2,9 +2,9 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Drum machine fork: 2026 DEADACTIVE (projects only, the fork's keys and screen) */
 /* NAME (upstream Felucca 1.0's ui_name.c, adapted; included by ui_input.c): naming a project on the device.
- * SAVE (PROJECT, the second detent) opens it before anything is written, prefilled with the current name ("PROJECT A"
- * when there is none); the NAME knob renames the selected used slot. OCT+ writes (the transport stopped: else STOP
- * TO SAVE and the screen stays), OCT- or HOME cancels. The keys type and never sound, record, send MIDI or play
+ * PROJECT's NAME knob opens it for the selected used slot, prefilled with its name ("PROJECT A" when it has none);
+ * SAVE never asks (it keeps the current name). OCT+ writes the name only (the transport stopped: else STOP TO SAVE
+ * and the screen stays; the slot loaded or saved last: the current name too), OCT- or HOME cancels. The keys type and never sound, record, send MIDI or play
  * PERFORM (seq.c keyboard_block: song.seq_mode 1; fx_allowed). Upper case, at most 12:
  *   white keys (16, F3..G5)  ABC: AB CD EF GH IJK LM NO PQ RS TU VW XYZ 123 456 789 0-. ; a tap types the group's
  *                            first character, another tap of the same key within 0.8 s the next (cycling); another
@@ -13,7 +13,7 @@
  *                            D# ABC / 123.
  *   KNOB 1 the cursor; KNOB 2 the character at the cursor (NAME_SET; at the end: a new one).
  *   LEDs: every key that types or edits lit; the key being cycled blinks. Spaces at the ends are dropped. */
-enum { NK_NONE, NK_SAVE, NK_RENAME };
+enum { NK_NONE, NK_RENAME };
 #define NM_TAP_MS 800u
 #define NM_REP_MS 450u
 #define NM_RATE_MS 90u
@@ -68,10 +68,7 @@ static void name_open(uint32_t kind, uint32_t slot)
     nm.slot = (uint8_t)(slot & 3u);
     nm.num = nm.key = nm.rep = 0;
     nm.sig = 0;
-    if (kind == NK_RENAME)
-        project_name(slot, b);
-    else
-        name_set(b, chain.name);
+    project_name(slot, b);
     if (!b[0]) {
         name_set(b, "PROJECT A");
         b[8] = (char)('A' + (slot & 3u));
@@ -196,12 +193,7 @@ static void name_ok(void)                          /* OCT+: written (ends trimme
         ui_message("STOP TO SAVE");
         return;
     }
-    if (nm.kind == NK_SAVE) {
-        name_set(chain.name, b);
-        project_save(nm.slot);
-    } else {
-        project_rename(nm.slot, b);
-    }
+    project_rename(nm.slot, b);
     name_close();
 }
 /* one UI frame of NAME (ui_input.c): button edges, note edges, the HOME button's tap / hold */
@@ -272,7 +264,7 @@ static void draw_name(void)
     nm.sig = sig;
     ui.force = 0;
     lcd_fill(0, 0, 240, 240, C_BLACK);
-    str_cpy(b, nm.kind == NK_SAVE ? "SAVE PROJECT A" : "RENAME PROJECT A", sizeof b);
+    str_cpy(b, "NAME PROJECT A", sizeof b);
     b[str_len(b) - 1u] = (char)('A' + nm.slot);
     draw_text_box(4, 6, 180, &FONT_S, ui.msg_t ? ui.msg : b, ui.msg_t ? C_HI : C_GRAY, 0);
     fmt_int(b, nm.len);
@@ -311,6 +303,5 @@ static void draw_name(void)
     draw_text_box(0, 156, 240, &FONT_S, "F# LEFT   G# SPACE   A# RIGHT", C_GRAY, 1);
     draw_text_box(0, 174, 240, &FONT_S, nm.num ? "C# DELETE   D# ABC" : "C# DELETE   D# 123", C_GRAY, 1);
     draw_text_box(0, 200, 240, &FONT_S, "KNOB 1 MOVE   KNOB 2 CHAR", C_DIM, 1);
-    draw_text_box(0, 218, 240, &FONT_S, nm.kind == NK_SAVE ? "OCT- CANCEL   OCT+ SAVE" : "OCT- CANCEL   OCT+ RENAME",
-                  C_WHITE, 1);
+    draw_text_box(0, 218, 240, &FONT_S, "OCT- CANCEL   OCT+ RENAME", C_WHITE, 1);
 }

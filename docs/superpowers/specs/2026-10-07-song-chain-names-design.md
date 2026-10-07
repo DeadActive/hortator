@@ -62,11 +62,12 @@ User decisions (2026-10-07):
 
 - **PROJECT page:** the slots are shown as **A..D** (were 1..4). Each line: the slot's name, or USED (a project
   with no name), or EMPTY. The page header shows the current project's name (as loaded or last saved).
-- **SAVE** (two detents as now) opens the NAME screen, prefilled with the current name, or "PROJECT A" (the slot's
-  letter) when there is none. OCT+ writes, OCT- cancels (nothing written). Saving needs the transport stopped:
-  "STOP TO SAVE", the screen stays.
-- **KNOB 2 NAME** (one detent) on a used slot opens the NAME screen for a rename (only the name changes; written
-  to RAM and flash as a save); an empty slot: "EMPTY SLOT".
+- **SAVE** (two detents as now) saves at once with the current name (user decision 2026-10-07, after the first
+  build: no NAME screen on every save).
+- **KNOB 2 NAME** (one detent) on a used slot opens the NAME screen, prefilled with the slot's name, or "PROJECT A"
+  (the slot's letter) when it has none. OCT+ writes only the name (to RAM and flash; the slot loaded or saved last:
+  the current name too), OCT- cancels; the transport stopped, else "STOP TO SAVE" and the screen stays; an empty
+  slot: "EMPTY SLOT".
 - **The NAME screen** (upstream's `ui_name.c`): the name large with its cursor, the key map below.
   - White keys (ABC): AB CD EF GH IJK LM NO PQ RS TU VW XYZ, then 123 456 789 0-. ; a tap types the group's first
     character, another tap of the same key within 0.8 s the next (cycling); another key or 0.8 s keeps it.
@@ -99,8 +100,8 @@ User decisions (2026-10-07):
   change; an empty slot refused; an invalid order refused; MIDI Start while armed starts the song, Continue does not;
   step / pattern edits blocked during a song; the exact timing at a row change (no drift against a plain loop).
 - `ui_test`: SONG page knobs (add row on `+`, SLOT, REPEAT, LOOP), REC-hold DELETE ROW / CLEAR SONG, PLAY on SONG;
-  NAME: multi-tap and its timeout, 123 mode, cursor, DELETE (and its repeat), the knobs, trimming, cancel, save with
-  a name, rename, STOP TO SAVE, keys silent while open; PROJECT page names. Screens: SONG (empty, rows, playing),
+  NAME: multi-tap and its timeout, 123 mode, cursor, DELETE (and its repeat), the knobs, trimming, cancel, SAVE
+  without the screen, rename, STOP TO SAVE, keys silent while open; PROJECT page names. Screens: SONG (empty, rows, playing),
   NAME (ABC, 123), PROJECT with names.
 - `boot_test`: FDR9 round trip (song + name); FDR8 converts (empty song, no name); invalid song dropped; bad name
   dropped.
@@ -111,7 +112,7 @@ User decisions (2026-10-07):
 
 ## 7. On the device (the user)
 
-- Save two projects with different patterns (A, B), naming them; PROJECT shows the names.
+- Save two projects with different patterns (A, B), name them with the NAME knob; PROJECT shows the names.
 - SONG: rows A ×2, B ×1, LOOP ON; PLAY: the rows change on the bar, the header shows the row; LOOP OFF: stops after B.
 - A 16-step kick with 64-step hats in a slot: the row lasts the hats' 64 steps.
 - STOP: the current pattern (LEN etc.) as before. Rename a slot; save, power off, load: song and name are there.

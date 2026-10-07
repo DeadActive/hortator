@@ -1,5 +1,8 @@
 # SONG + NAME Implementation Plan
 
+> **Changed after the build (user, 2026-10-07):** SAVE saves at once; the NAME screen opens only from PROJECT's
+> NAME knob (rename). Task 4's SAVE-opens-NAME steps are superseded (spec §4).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A song (rows of {project slot, repeat}, LOOP) plays the four slots' patterns with the sounds loaded now, and

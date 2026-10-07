@@ -1001,10 +1001,6 @@ static void test_no_save_while_playing(void)
     ui_frame();
     turn(EN_K1 + 3, 1);
     ui_frame();
-    press(B_OCTUP);                                  /* NAME: OCT+ writes */
-    ui_frame();
-    release_all();
-    ui_frame();
     check("SAVE stopped: saved", project_used(0));
     memset(proj_slot, 0, sizeof proj_slot);
 }
@@ -2542,12 +2538,16 @@ static void save_knob(void)                          /* SAVE: GO, and GO again *
 }
 static void test_name_save(void)
 {
+    char b[NAME_LEN + 1u];
     ui_host_init();
     memset(proj_slot, 0, sizeof proj_slot);
     project_page();
     save_knob();
-    check("SAVE opens NAME, prefilled PROJECT A, nothing written yet", name_on() && str_eq(nm.s, "PROJECT A") &&
-          !project_used(0));
+    check("SAVE saves at once (no NAME screen), the project unnamed", !name_on() && project_used(0) &&
+          project_name(0, b) && !b[0]);
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME knob on an unnamed slot: NAME opens, prefilled PROJECT A", name_on() && str_eq(nm.s, "PROJECT A"));
     snap_page("name/abc");
     while (nm.len) {                                 /* C# (key 8): DELETE */
         nm.cur = nm.len;
@@ -2581,11 +2581,8 @@ static void test_name_save(void)
     ui_frame();
     release_all();
     ui_frame();
-    {
-        char b[NAME_LEN + 1u];
-        check("NAME OCT+: saved with the name (ends trimmed), the current name", !name_on() && project_used(0) &&
-              project_name(0, b) && str_eq(b, "CC 2") && str_eq(chain.name, "CC 2"));
-    }
+    check("NAME OCT+: the slot renamed (ends trimmed), the current project's name too", !name_on() &&
+          project_name(0, b) && str_eq(b, "CC 2") && str_eq(chain.name, "CC 2"));
     project_page();
     ui.force = 1;
     snap_page("name/project");
@@ -2608,10 +2605,11 @@ static void test_name_keys_silent(void)
     uint32_t a;
     ui_host_init();
     project_page();
+    project_save(0);
     transport_req = 1;
     ui_frame();
     transport_req = 0;
-    name_open(NK_SAVE, 0);
+    name_open(NK_RENAME, 0);
     song.rec = 1u;
     a = hit_age(&trk[0]);
     name_type(0);                                    /* F3: track 1's key */
@@ -2625,17 +2623,19 @@ static void test_name_keys_silent(void)
 }
 static void test_name_stop_to_save(void)
 {
+    char b[NAME_LEN + 1u];
     ui_host_init();
     memset(proj_slot, 0, sizeof proj_slot);
     project_page();
-    name_open(NK_SAVE, 0);
+    project_save(0);
+    name_open(NK_RENAME, 0);
     transport_req = 1;
     ui_frame();
     press(B_OCTUP);
     ui_frame();
     release_all();
     ui_frame();
-    check("NAME OCT+ while playing: STOP TO SAVE, the screen stays", name_on() && !project_used(0) &&
+    check("NAME OCT+ while playing: STOP TO SAVE, the screen stays", name_on() && project_name(0, b) && !b[0] &&
           str_eq(ui.msg, "STOP TO SAVE"));
     tap(B_PLAY);
     ui_frame();
@@ -2643,11 +2643,12 @@ static void test_name_stop_to_save(void)
     ui_frame();
     release_all();
     ui_frame();
-    check("... stopped (PLAY works in NAME): saved", !name_on() && project_used(0));
-    name_open(NK_SAVE, 1);
+    check("... stopped (PLAY works in NAME): renamed", !name_on() && project_name(0, b) && str_eq(b, "PROJECT A"));
+    name_open(NK_RENAME, 0);
+    name_type(0);
     tap(B_HOME);
     ui_frame();
-    check("NAME: HOME cancels", !name_on() && !project_used(1));
+    check("NAME: HOME cancels", !name_on() && project_name(0, b) && str_eq(b, "PROJECT A"));
 }
 
 static void test_song_row_after_load(void)
@@ -2670,7 +2671,8 @@ static void test_name_message_ends(void)
     uint32_t i;
     ui_host_init();
     project_page();
-    name_open(NK_SAVE, 0);
+    project_save(0);
+    name_open(NK_RENAME, 0);
     ui_message("STOP TO SAVE");
     for (i = 0; i < 60u; i++)
         ui_frame();

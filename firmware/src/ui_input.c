@@ -326,12 +326,9 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
         project_load((uint32_t)song.g[G_SLOT] - 1u);
         break;
-    case G_SAVE:                                      /* NAME first: OCT+ there writes */
+    case G_SAVE:                                      /* (with the current name; NAME renames: ui_name.c) */
         *vp = 0;
-        if (transport_busy())
-            ui_message("STOP TO SAVE");
-        else
-            name_open(NK_SAVE, (uint32_t)song.g[G_SLOT] - 1u);
+        project_save((uint32_t)song.g[G_SLOT] - 1u);
         break;
     case G_CLRSEQ:
         *vp = 0;
