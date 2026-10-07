@@ -26,13 +26,13 @@ function place(el, [x, y, w, h]) {
   el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.width = `${w}px`; el.style.height = `${h}px`;
 }
 
-const SLABS = 14;                                 // the body extruded behind the face, 1.6 px a layer
+const SLABS = 14;                                 // the body extruded behind the face, 3.2 px a layer
 function build() {
   for (let i = SLABS; i >= 1; i--) {
     const s = document.createElement('div'), t = i / SLABS;
     s.className = 'slab';
     s.style.inset = '0';
-    s.style.translate = `0 0 ${-i * 1.6}px`;
+    s.style.translate = `0 0 ${-i * 3.2}px`;
     s.style.background = `rgb(${Math.round(78 - 40 * t)}, ${Math.round(82 - 41 * t)}, ${Math.round(88 - 43 * t)})`;
     device.append(s);
   }
