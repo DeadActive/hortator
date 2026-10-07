@@ -695,6 +695,48 @@ static void graph_reson(uint16_t c)
     cv_rect(4, 82, (int32_t)((uint32_t)t->rs.peak * 92u / 32767u), 5, C_AMB);
 }
 
+/* FILTER: TYPE's response at CUT / RESO (an approximation: flat, the RESO peak, 12 dB / octave; BP 6 dB; the
+ * notch's width by RESO), 30 Hz .. 16 kHz across x 100..235 (15 px an octave), +18 .. -36 dB; ENV's reach a
+ * dotted line at CUT + ENV */
+static int32_t flt_resp_db(uint32_t ty, int32_t dx, int32_t reso)   /* dx: px from the cutoff (15 an octave) */
+{
+    int32_t pk = -6 + reso * 24 / 127, ad = dx < 0 ? -dx : dx, w = 4 + (127 - reso) / 8;
+    if (ty == FT_HP)
+        dx = -dx;
+    if (ty == FT_LP || ty == FT_HP)
+        return dx <= -15 ? 0 : dx <= 0 ? pk * (15 + dx) / 15 : pk - dx * 12 / 15;
+    if (ty == FT_BP)
+        return pk - ad * 6 / 15;
+    return ad >= w ? 0 : -36 + ad * 36 / w;                    /* NOTCH */
+}
+
+static void graph_filter(uint16_t c)
+{
+    const track_t *t = TSEL;
+    uint32_t ty = (uint32_t)clamp(t->p[P_FTYPE], 0, FT_N - 1);
+    int32_t cx = clamp(t->p[P_FCUT], 0, 127) * 135 / 127, x, py = 0, ex;
+    char b[16];
+    const char *u;
+    cv_text(4, 2, &FONT_L, N_FTYPE[ty], ty ? C_WHITE : C_GRAY);
+    if (!ty)
+        return;
+    param_format(&TP[P_FCUT], t->p[P_FCUT], b, &u);
+    str_cpy(b + str_len(b), u, sizeof b - str_len(b));    /* "1.0kHz" */
+    cv_text(4, 44, &FONT_S, b, C_GRAY);
+    cv_rect(100, 28, 136, 1, C_LINE);                          /* 0 dB */
+    for (x = 0; x < 136; x++) {
+        int32_t db = clamp(flt_resp_db(ty, x - cx, clamp(t->p[P_FRESO], 0, 127)), -36, 18);
+        int32_t y = 28 - db * 3 / 2;
+        if (x)
+            cv_line(99 + x, py, 100 + x, y, c);
+        py = y;
+    }
+    ex = clamp(t->p[P_FCUT] + t->p[P_FENV], 0, 127) * 135 / 127;   /* ENV: the cutoff at the hit */
+    if (t->p[P_FENV])
+        for (x = 10; x < 84; x += 4)
+            cv_rect(100 + ex, x, 1, 2, C_AMB);
+}
+
 static uint32_t graph_signature(void)
 {
     const page_t *pg = cur_page();
@@ -994,6 +1036,9 @@ static void draw_graph(void)
             break;
         case GR_RESON:
             graph_reson(c);
+            break;
+        case GR_FILTER:
+            graph_filter(c);
             break;
         case GR_SLOTS:
             cv_oy = 0;

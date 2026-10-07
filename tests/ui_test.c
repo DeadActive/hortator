@@ -174,6 +174,9 @@ static void test_preset_pages(void)
     preset(-1);
     check("PRESET back on HOME 1/3: stays, the engine unchanged", ui.home && (uint32_t)TSEL->p[P_MODEL] == m0);
     tap(B_FX);
+    check("FX opens on FILTER 1/2", str_eq(cur_page()->title, "FILTER") && page_id(cur_page(), 0) == P_FTYPE);
+    preset(1);                                       /* FILTER 2/2 */
+    preset(1);                                       /* FX */
     preset(1);
     check("PRESET on FX: SLICER", str_eq(cur_page()->title, "SLICER"));
     preset(1);
@@ -1878,7 +1881,8 @@ static void test_key_selects_track(void)
 {
     static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
         {"SOUND", B_EDIT, 1, 1},
-        {"FX", B_FX, 1, 1}, {"SLICER", B_FX, 2, 1}, {"RESON", B_FX, 3, 1}, {"DLY", B_FX, 5, 0}, {"PATTERN", B_SEQ, 2, 0},
+        {"FILTER", B_FX, 1, 1}, {"FX", B_FX, 3, 1}, {"SLICER", B_FX, 4, 1}, {"RESON", B_FX, 5, 1}, {"DLY", B_FX, 7, 0},
+        {"PATTERN", B_SEQ, 2, 0},
     };
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof C / sizeof C[0]; i++) {
@@ -2754,6 +2758,44 @@ static void test_phys_screens(void)
     check("RESON with MODAL draws", !ui.home && str_eq(cur_page()->title, "RESON"));
 }
 
+/* FILTER: two pages first in FX (TYPE CUT RESO ENV, DECAY), the graph per TYPE */
+static void test_filter_screens(void)
+{
+    static const char *const SHOT[FT_N] = {"filter/off", "filter/lp", "filter/bp", "filter/hp", "filter/notch"};
+    uint32_t k, ty;
+    int16_t *vp;
+    ui_host_init();
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_FX); k++)
+        tap(B_FX);
+    check("FX: the first page is FILTER 1/2 (TYPE CUT RESO ENV)",
+          str_eq(cur_page()->title, "FILTER") && str_eq(page_desc(cur_page(), 0, &vp)->label, "TYPE") &&
+          str_eq(page_desc(cur_page(), 3, &vp)->label, "ENV"));
+    TSEL->p[P_FCUT] = 70;
+    TSEL->p[P_FRESO] = 90;
+    TSEL->p[P_FENV] = 30;
+    for (ty = 0; ty < FT_N; ty++) {
+        TSEL->p[P_FTYPE] = (int16_t)ty;
+        ui.force = 1;
+        snap_page(SHOT[ty]);
+    }
+    page_turn(1);
+    ui.force = 1;
+    snap_page("filter/decay");
+    check("FILTER 2/2 holds DECAY", str_eq(cur_page()->title, "FILTER") && str_eq(page_desc(cur_page(), 0, &vp)->label, "DECAY"));
+    TSEL->p[P_LFO1 + LF_DEST] = 17;
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_LFO); k++)
+        tap(B_LFO);
+    page_turn(1);
+    ui.force = 1;
+    snap_page("filter/lfo_fcut");
+    {
+        char v[8];
+        const char *u;
+        param_format(&TP[P_LFO1 + LF_DEST], 17, v, &u);
+        check("LFO DEST 17 reads F.CUT", str_eq(v, "F.CUT"));
+    }
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2823,6 +2865,7 @@ int main(void)
     test_reson_model_skips_full();
     test_modal_load_clamp();
     test_phys_screens();
+    test_filter_screens();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
