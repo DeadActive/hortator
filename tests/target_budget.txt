@@ -6,7 +6,7 @@ snare_render 170
 clap_render 92
 hat_render 87
 cymb_render 108
-cowb_render 71
+cowb_render 82
 rim_render 113
 smp_render 296
 metal_make 55
