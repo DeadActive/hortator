@@ -4,7 +4,8 @@
 /* RESON: a per-track resonator insert, before DIST (spec 2026-10-06-resonator-design.md). The track's sound
  * excites a comb: STRNG (Karplus-Strong: a delay line with a damping low-pass and a stiffness all-pass in the
  * loop; the all-pass' coefficient per note, RS_AP_MAX, so STRCT stretches the overtones alike at every pitch), PIPE (the same with inverted feedback: odd harmonics), CHORD (four STRNG lines tuned to a chord). One
- * fixed line per track (1352 samples), split into four for CHORD. Integer only. */
+ * fixed line per track (1352 samples), split into four for CHORD. MODAL (the modal core of upstream 1.0's PHYS,
+ * phys_dsp.c): 12 band-pass modes fed by the sound, their states in the track's line. Integer only. */
 #define RS_LEN 1352u                                  /* STRNG down to C1 (1348.6 samples) */
 #define RS_SEG 338u                                   /* CHORD: 4 lines, the lowest string C3 (337.2) */
 #define RS_GMAX 32700                                 /* the loop gain's cap (0.998): never self-oscillating */
@@ -13,7 +14,9 @@
                                                          * the block's OR of |v| is under it exactly when every |v| is) */
 #define RS_FINE 6144                                  /* R.TUN at full DEPTH: 2 octaves, in 1/256 semitone */
 #define RS_MAXTRK 4u                                  /* RESON on 4 tracks at most (CPU; 2 of them CHORD), by user decision */
-static int16_t rs_buf[NTRK][RS_LEN] __attribute__((section(".pool")));
+static int16_t rs_buf[NTRK][RS_LEN] __attribute__((section(".pool"), aligned(4)));   /* MODAL: its mode states */
+#define RS_MAXMODAL 2u                                /* MODAL on 2 tracks at most (its 12 modes: CPU) */
+#define RS_MODAL_IN 6                                 /* MODAL: the track's scale -> the modes' Q22 (<< this) */
 
 static const int8_t RS_CHORD_IV[RS_NCHORD][4] = {   /* semitones above TUNE, one note per line (N_RCHORD) */
     {0, 12, 24, 36}, {0, 7, 12, 19}, {0, 5, 12, 17}, {0, 4, 7, 12}, {0, 3, 7, 12}, {0, 2, 7, 12}, {0, 5, 7, 12},
@@ -41,6 +44,57 @@ static uint32_t reson_tracks(const track_t *except)   /* tracks with RESON on (a
     for (i = 0; i < NTRK; i++)
         n += &trk[i] != except && trk[i].p[P_RMODEL] != RS_OFF;
     return n;
+}
+
+static uint32_t reson_modals(const track_t *except)  /* tracks with MODEL MODAL, other than except */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NTRK; i++)
+        n += &trk[i] != except && trk[i].p[P_RMODEL] == RS_MODAL;
+    return n;
+}
+/* the MODEL knob from -> to on t: 0 allowed, else why not (the caps: 4 tracks, 2 CHORD, 2 MODAL) */
+static const char *reson_refused(const track_t *t, int32_t from, int32_t to)
+{
+    if (to != RS_OFF && from == RS_OFF && reson_tracks(t) >= RS_MAXTRK)
+        return "RESON: 4 TRACKS MAX";
+    if (to == RS_CHORD && from != RS_CHORD && reson_chords(t) >= 2u)
+        return "CHORD: 2 TRACKS MAX";
+    if (to == RS_MODAL && from != RS_MODAL && reson_modals(t) >= RS_MAXMODAL)
+        return "MODAL: 2 TRACKS MAX";
+    return 0;
+}
+#ifdef DRUM_HOST
+static px_modal_blk_t trk_modal_blk;                  /* (host tests: the last MODAL block) */
+#endif
+/* MODAL: the track's sound b (before DIST) into the 12 modes (their states in the track's rs_buf line); ring in the
+ * track's scale; returns the block's peak (|ring| OR'd) */
+static __attribute__((noinline)) uint32_t reson_modal(track_t *t, const int32_t *b, int32_t *ring, uint32_t n)
+{
+    reson_t *r = &t->rs;
+    px_modal_t *M = (px_modal_t *)(void *)rs_buf[t - trk];
+    px_modal_blk_t K;
+    int32_t x[CTL], y[CTL], base = (clamp(t->p[P_RTUNE], 24, 96) << 8) + t->rfine, ink = r->kill || r->hold ? 0 : -1;
+    uint32_t i, peak = 0, f0;
+    base = clamp(base, 0, 127 * 256);
+    f0 = (uint32_t)(((uint64_t)qnote_inc(base >> 8) * px_exp2(((base & 255) << 16) / (12 * 256))) >> 16);
+    px_modal_block_q(&K, M, f0, clamp(t->p[P_RSTRCT], 0, 127) * 516, clamp(t->p[P_RTONE], 0, 127) * 516,
+                     clamp(t->p[P_RDECAY], 0, 127) * 516, RS_T60_MS10[clamp(t->p[P_RDECAY], 0, 127)],
+                     clamp(t->p[P_RPOS], 0, 127) * 129);   /* DECAY: the ring time as STRNG's */
+#ifdef DRUM_HOST
+    trk_modal_blk = K;
+#endif
+    for (i = 0; i < n; i++)
+        x[i] = (b[i] & ink) * (1 << RS_MODAL_IN);     /* the track's scale -> Q22 */
+    px_modal_run_in(&K, M, x, y, n);
+    for (i = 0; i < n; i++) {
+        int32_t v = clamp(y[i] >> 4, -131071, 131071);   /* Q20 -> the track's scale */
+        ring[i] = v;
+        peak |= (uint32_t)(v ^ (v >> 31));
+    }
+    r->ns = 0;
+    r->seg = RS_LEN;
+    return peak;
 }
 
 static int32_t rs_period(int32_t nq)                  /* note in 1/256 semitone -> the loop period, Q8 samples */
@@ -115,10 +169,13 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
         r->model = (uint8_t)m;
         return 0;
     }
-    reson_setup(t, r->model);
     fstep = r->kill ? 32767 / (int32_t)n + 1 : 0;
     for (i = 0; i < n; i++)
         ring[i] = 0;
+    if (r->model == RS_MODAL)
+        peak = reson_modal(t, b, ring, n);
+    else
+        reson_setup(t, r->model);
     for (s = 0; s < r->ns; s++) {
         int16_t *ln = buf + s * r->seg;
         uint32_t li = r->len[s] >> 8, w = r->w, seg = r->seg, tap = r->tap[s];
@@ -162,7 +219,8 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
     }
     r->w = (uint16_t)((r->w + n) % r->seg);
     for (i = 0; i < n; i++) {
-        int32_t o = r->ns == 4u ? ring[i] : ring[i] << 2;   /* back to the track's scale (CHORD: 4 lines summed) */
+        int32_t o = r->ns == 4u ? ring[i] : r->ns ? ring[i] << 2 : ring[i];   /* back to the track's scale (CHORD: 4
+                                                         * lines summed; MODAL: already) */
         if (r->kill) {
             o = (int32_t)(((int64_t)o * fade) >> 15);
             fade = fade > fstep ? fade - fstep : 0;
@@ -171,7 +229,7 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
     }
     r->peak = (uint16_t)peak;
     r->quiet = (uint16_t)(peak < RS_FLOOR ? r->quiet + 1u : 0u);
-    r->ring = (uint8_t)(r->quiet <= r->seg / n + 2u);
+    r->ring = (uint8_t)(r->quiet <= (r->ns ? r->seg / n : 64u) + 2u);   /* (MODAL: 64 quiet blocks) */
     if (!r->ring && !r->kill) {                       /* quiet for a whole loop: fade the rest out next block (a residue
                                                          * of the loop's rounding must not end as a step) */
         r->ring = r->kill = 1;

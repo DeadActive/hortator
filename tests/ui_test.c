@@ -1245,9 +1245,12 @@ static void test_reson_pages(void)
     ui_frame();
     turn(EN_K1, 1);
     ui_frame();
-    check("RESON CHORD cap: a 3rd track's MODEL knob stays on PIPE, with the message",
-          song.sel == 2 && trk[2].p[P_RMODEL] == RS_PIPE && str_eq(ui.msg, "CHORD: 2 TRACKS MAX"));
+    check("RESON CHORD cap: a 3rd track's MODEL knob goes past CHORD (full) to MODAL",
+          song.sel == 2 && trk[2].p[P_RMODEL] == RS_MODAL);
     snap_page("reson/03_chord_cap");
+    turn(EN_K1, -1);
+    ui_frame();
+    check("RESON CHORD cap: back down, past CHORD (full) to PIPE", trk[2].p[P_RMODEL] == RS_PIPE);
     trk[1].p[P_RMODEL] = RS_STRNG;                   /* a place frees */
     turn(EN_K1, 1);
     ui_frame();
@@ -1750,7 +1753,7 @@ static void test_project_rejects(void)
               trk[3].p[P_SRC] == 3 && song.g[G_GLEN1] == 1 &&
               song.g[G_CSRC] == 8 && trk[3].p[P_DUCK] == 1 &&
               trk[3].p[P_LFO1 + LF_DEST] == TP[P_LFO1 + LF_DEST].max && trk[3].p[P_LFO1 + LF_WAVE] == 0 &&
-              trk[3].p[P_RMODEL] == RS_CHORD && trk[3].p[P_RTUNE] == 96 && trk[3].p[P_RDECAY] == 0);
+              trk[3].p[P_RMODEL] == RS_NMODEL - 1 && trk[3].p[P_RTUNE] == 96 && trk[3].p[P_RDECAY] == 0);
     proj_slot[1].magic = 0x46554E33u;                /* an old Felucca project ("FUN3") */
     check("project: Felucca projects are not used", !project_used(1));
     project_save(2);
@@ -2680,6 +2683,39 @@ static void test_name_message_ends(void)
     name_close();
 }
 
+static void test_reson_model_skips_full(void)
+{
+    uint32_t k;
+    ui_host_init();
+    trk[1].p[P_RMODEL] = RS_CHORD;
+    trk[2].p[P_RMODEL] = RS_CHORD;                    /* CHORD full (2) */
+    for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "RESON")); k++)
+        tap(B_FX);
+    TSEL->p[P_RMODEL] = RS_PIPE;
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON MODEL: past a full CHORD the knob reaches MODAL", TSEL->p[P_RMODEL] == RS_MODAL);
+    trk[3].p[P_RMODEL] = RS_MODAL;                    /* MODAL full too (tracks 1 and 4) */
+    song.sel = 4;
+    TSEL->p[P_RMODEL] = RS_PIPE;
+    turn(EN_K1, 1);
+    ui_frame();
+    check("RESON MODEL: CHORD and MODAL full: stays, says why", TSEL->p[P_RMODEL] == RS_PIPE &&
+          (str_eq(ui.msg, "MODAL: 2 TRACKS MAX") || str_eq(ui.msg, "RESON: 4 TRACKS MAX")));
+}
+static void test_modal_load_clamp(void)
+{
+    uint32_t k, n = 0;
+    ui_host_init();
+    for (k = 0; k < 3u; k++)
+        trk[k].p[P_RMODEL] = RS_MODAL;
+    project_save(0);
+    project_load(0);
+    for (k = 0; k < NTRK; k++)
+        n += trk[k].p[P_RMODEL] == RS_MODAL;
+    check("a project with 3 MODAL tracks loads with 2 (the 3rd STRNG)", n == 2u && trk[2].p[P_RMODEL] == RS_STRNG);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2746,6 +2782,8 @@ int main(void)
     test_name_stop_to_save();
     test_song_row_after_load();
     test_name_message_ends();
+    test_reson_model_skips_full();
+    test_modal_load_clamp();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

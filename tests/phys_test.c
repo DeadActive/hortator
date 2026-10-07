@@ -124,12 +124,90 @@ static void test_memb_accent(void)
     check("MEMB accent: a harder, brighter strike", b.ex.g > a.ex.g);
 }
 
+static void modal_kick(track_t *t)                    /* a kick through RESON MODAL at full MIX */
+{
+    drum_set_model(t, DM_K909);
+    t->p[P_RMODEL] = RS_MODAL;
+    t->p[P_RTUNE] = 60;
+    t->p[P_RDECAY] = 64;
+    t->p[P_RMIX] = 127;
+    t->p[P_RSTRCT] = 70;
+    t->p[P_RTONE] = 80;
+}
+static void test_modal_ring(void)
+{
+    uint32_t b, i, z = 1;
+    int32_t pk = 0;
+    host_init();
+    modal_kick(&trk[0]);
+    trk[0].p[P_RDECAY] = 100;                         /* (RESON's DECAY: a ring time, here ~2.3 s) */
+    drum_hit(&trk[0], 127);
+    for (b = 0; b < 44100u / 2u / CTL; b++)
+        render_mix(0, 0, CTL);
+    check("MODAL: the ring is on half a second after a hit (DECAY 100)", trk[0].rs.ring);
+    trk[0].p[P_RDECAY] = 64;
+    for (b = 0; b < 44100u * 20u / CTL && trk[0].rs.ring; b++)
+        render_mix(0, 0, CTL);
+    for (i = 0; i < sizeof rs_buf[0] / 2u; i++)
+        z &= rs_buf[0][i] == 0;
+    check("MODAL: rings out to off, its states all zero (DECAY 64)", !trk[0].rs.ring && z);
+    host_init();
+    modal_kick(&trk[0]);
+    drum_hit(&trk[0], 127);
+    render_mix(0, 0, 44100 / 2);
+    drum_cut(&trk[0]);
+    render_mix(0, 0, 2 * CTL);
+    for (i = 0, z = 1; i < sizeof rs_buf[0] / 2u; i++)
+        z &= rs_buf[0][i] == 0;
+    (void)pk;
+    check("MODAL: a cut ends the ring (off, its states cleared)", !trk[0].rs.ring && z);
+}
+static void test_modal_tune(void)
+{
+    px_modal_blk_t K0, K1;
+    int32_t in[CTL] = {0}, ring[CTL];
+    host_init();
+    modal_kick(&trk[0]);
+    reson_modal(&trk[0], in, ring, CTL);              /* (called directly: the LFOs rewrite rfine every block) */
+    K0 = trk_modal_blk;                               /* reson_modal's last block (a test hook, see Step 3) */
+    trk[0].rfine = 12 * 256;                          /* R.TUN: an octave up */
+    reson_modal(&trk[0], in, ring, CTL);
+    K1 = trk_modal_blk;
+    check("MODAL: R.TUN moves the modes (an octave: twice the frequency, 1 %)",
+          fabs(mode_hz(&K1.m[0]) / mode_hz(&K0.m[0]) - 2.0) < 0.02);
+}
+static void test_modal_sustained(void)
+{
+    uint32_t i, k;
+    int32_t pk = 0;
+    host_init();
+    drum_set_model(&trk[0], DM_S909);                 /* (broadband: body and noise ring the modes) */
+    trk[0].p[P_RMODEL] = RS_MODAL;
+    trk[0].p[P_RDECAY] = 127;
+    trk[0].p[P_RMIX] = 127;
+    for (k = 0; k < 16u; k++)
+        trk[0].step[k].on = 1;
+    trk[0].p[P_SDIV] = 3;                            /* 1/32 */
+    song.g[G_BPM] = 240;
+    transport_req = 1;
+    for (k = 0; k < 44100u * 10u / CTL; k++) {        /* 10 s of hats into a ringing body */
+        render_mix(0, 0, CTL);
+        for (i = 0; i < CTL; i++)
+            pk = mixo[2 * i] > pk ? mixo[2 * i] : -mixo[2 * i] > pk ? -mixo[2 * i] : pk;
+    }
+    printf("     MODAL sustained by 1/32 snares, DECAY 127: master peak %d\n", pk);
+    check("MODAL fed for 10 s at DECAY 127: bounded (the master never clips past full scale)", pk > 1000 && pk <= 32767);
+}
+
 int main(void)
 {
     test_memb_modes();
     test_memb_bend_pos();
     test_memb_voice();
     test_memb_accent();
+    test_modal_ring();
+    test_modal_tune();
+    test_modal_sustained();
     printf(fails ? "phys_test: %d FAILED\n" : "phys_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

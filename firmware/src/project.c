@@ -289,6 +289,9 @@ static void project_load(uint32_t slot)
     for (k = 0, i = 0; k < NTRK; k++)                   /* CHORD on 2 of them at most: the first two keep it */
         if (trk[k].p[P_RMODEL] == RS_CHORD && ++i > 2u)
             trk[k].p[P_RMODEL] = RS_STRNG;
+    for (k = 0, i = 0; k < NTRK; k++)                   /* MODAL on 2 of them at most: the first two keep it */
+        if (trk[k].p[P_RMODEL] == RS_MODAL && ++i > RS_MAXMODAL)
+            trk[k].p[P_RMODEL] = RS_STRNG;
     if (motion_valid(&p->motion))                       /* the motion: a broken block is dropped, the rest loads */
         mo.s = p->motion;
     else

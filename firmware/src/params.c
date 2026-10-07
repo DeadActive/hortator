@@ -24,7 +24,7 @@ static const char *const N_LTRIG[] = {"FREE", "HIT", "PLAY"};
 static const char *const N_LSYNC[17] = {"8BAR", "4BAR", "2BAR", "1BAR", "1/2", "1/4.", "1/4", "1/4T", "1/8.", "1/8",
                                         "1/8T", "1/16.", "1/16", "1/16T", "1/32", "1/32T", "1/64"};
 
-static const char *const N_RMODEL[] = {"OFF", "STRNG", "PIPE", "CHORD"};
+static const char *const N_RMODEL[] = {"OFF", "STRNG", "PIPE", "CHORD", "MODAL"};
 static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", "MIN", "SUS2", "SUS4", "DIM", "AUG",
                                                    "MAJ6", "MIN6", "MAJ7", "MIN7", "DOM7", "M7b5", "DIM7", "7SUS4",
                                                    "ADD9", "QUART", "CLUST", 0};

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2020 Electrosmith, Corp, Emilie Gillet
  * Ported to fixed-point C for Felucca, 2026: Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 DEADACTIVE (the modal and membrane parts; px_modal_run_in, px_modal_ratio)
+ * Drum machine fork: 2026 DEADACTIVE (the modal and membrane parts; px_modal_block_q, px_modal_run_in, px_modal_ratio)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -445,4 +445,49 @@ static uint32_t px_modal_ratio(int32_t structure, uint32_t i)
         st2 = px_m(st2, st2 < 0 ? 60948 : 64225, 16);
     }
     return (uint32_t)(((uint64_t)(i + 1u) * (uint32_t)stretch));
+}
+
+/* RESON's MODAL (reson.c): px_modal_block's modes with the first mode's ring time given (t60, 0.1 ms) instead of
+ * DAMPING's curve (DaisySP's starts at Q 500: a ring of ~30 s at C1 even at its shortest): its Q = pi f T60 / ln 1000
+ * of the first mode as it sounds (after the compensation of the stretched partials), the higher modes' Q from it as
+ * upstream (ql: BRIGHTNESS, STRUCTURE, damping); no exciter (the modes take the track's sound) */
+static __attribute__((noinline)) void px_modal_block_q(px_modal_blk_t *B, px_modal_t *M, uint32_t f0, int32_t structure,
+                                                       int32_t brightness, int32_t damping, uint32_t t60, int32_t pos)
+{
+    int32_t stiff = px_stiff(structure), st2 = stiff, stretch = 65536, ql;
+    uint32_t i, phs = 0;
+    uint64_t harm, q8;
+    (void)px_modal_q(structure, brightness, damping, &ql);
+    f0 = (uint32_t)(((uint64_t)f0 * (uint32_t)(((uint64_t)1 << 32) /   /* NthHarmonicCompensation(3) */
+                     (uint32_t)(65536 + stiff + px_m(stiff, stiff < 0 ? 60948 : 64225, 16)))) >> 16);
+    q8 = ((((uint64_t)f0 * 33648942u) >> 32) * t60) >> 16;   /* pi FS 256 / (ln 1000 10000), Q32: Q8 per Hz . 0.1 ms */
+    harm = f0;
+    for (i = 0; i < PX_NMODE; i++) {
+        uint64_t mf = (harm * (uint32_t)stretch) >> 16;
+        int32_t att, amp;
+        if (mf >= 2143260078u)
+            break;
+        att = 65536 - (int32_t)(mf >> 15);               /* 1 - 2 f */
+        amp = px_m(px_sin(phs + 0x40000000u), 16384, 16);   /* cos(2 pi pos i) / 4 */
+        {
+            px_svf_t c;
+            px_svf_coef(&c, (uint32_t)mf, (uint32_t)(q8 > 0xFFFFFF00u ? 0xFFFFFF00u : q8 < 64u ? 64u : q8));
+            B->m[i].g = c.g;
+            B->m[i].rpg = c.rpg;
+            B->m[i].gh = c.gh;
+            B->m[i].a = px_m(amp, att, 18);
+        }
+        stretch += st2;
+        st2 = px_m(st2, st2 < 0 ? 60948 : 64225, 16);
+        harm += f0;
+        q8 = (q8 * (uint32_t)ql) >> 16;
+        phs += (uint32_t)pos << 16;
+    }
+    B->n = i;
+    for (; i < PX_NMODE; i++)
+        M->s[i][0] = M->s[i][1] = 0;
+    for (i = 0; i < B->n; i++) {
+        M->s[i][0] = px_clamp(M->s[i][0], -(1 << 28), 1 << 28);
+        M->s[i][1] = px_clamp(M->s[i][1], -(1 << 28), 1 << 28);
+    }
 }

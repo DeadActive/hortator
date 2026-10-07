@@ -12,6 +12,7 @@
 #define memset felucca_memset
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
+#define DRUM_HOST 1                                  /* (firmware: test hooks) */
 #include "felucca_tables.h"
 #include "../firmware/src/libc.c"
 #undef memset
