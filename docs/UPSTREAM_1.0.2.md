@@ -59,6 +59,8 @@ pack: user decision 2026-10-06.)
 5. **Motion recording** (`motion.c`): knob moves recorded per step; places widened for 8 tracks; coexists with
    the LFOs' modulated copy. Done in 0.11.0 (128 events, FDR8; parameter locks parked in IDEAS.md).
 6. **Song chain + project names** (`song_chain.c`, `ui_name.c`): one project format step (FDR9, after motion's FDR8) for both.
+   Done in 0.12.0 (16 rows of A..D x1..16, LOOP, a row as long as its longest track and kept on the beat grid; names
+   through PROJECT's NAME knob, SAVE unchanged).
 7. **PHYS percussion** (`eng_phys.c`, `phys_dsp.c`, MIT DaisySP / Rings): MEMB and MODAL, e.g. as RESON's modal
    models; its 64/32 divisions replaced (integer target rule).
 8. **Anti-aliased UI** (`gfx.c`, Inter Tight OFL, themes, Fukiai icons, keycaps, render lint): last, after the
