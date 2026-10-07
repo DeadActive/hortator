@@ -13,6 +13,7 @@ typedef struct {               /* proportional, see tools/gen_font.py */
     const uint8_t *data;
 } felucca_font_t;
 #include "felucca_font.h"
+#include "felucca_logo.h"         /* the HortatoR logo (tools/gen_logo.py) */
 
 #define CV_MAX (240u * 124u)      /* the graph strip is 240 x 124 */
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
@@ -154,6 +155,22 @@ static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char
         x += f->adv[gi];
     }
     return x;
+}
+
+/* the HortatoR logo (LOGO_W x LOGO_H), alpha-blended onto black with colour c, top left at x, y */
+static void cv_logo(int32_t x, int32_t y, uint16_t c)
+{
+    uint16_t ramp[16];
+    uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u, a, gx, gy;
+    for (a = 0; a < 16u; a++)
+        ramp[a] = (uint16_t)(((r * a / 15u) << 11) | ((g * a / 15u) << 5) | (b * a / 15u));
+    for (gy = 0; gy < LOGO_H; gy++)
+        for (gx = 0; gx < LOGO_W; gx++) {
+            uint32_t v = LOGO_DATA[gy * ((LOGO_W + 1u) / 2u) + gx / 2u];
+            v = (gx & 1u) ? (v & 15u) : (v >> 4);
+            if (v)
+                cv_pset(x + (int32_t)gx, y + (int32_t)gy, ramp[v]);
+        }
 }
 
 static int32_t text_w(const felucca_font_t *f, const char *s)

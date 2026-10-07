@@ -29,19 +29,19 @@ static void draw_menu(void)
         cv_begin(240, pass ? 85u : 124u, C_BLACK);
         cv_oy = pass ? -124 : 0;
         if (ui.menu == 2) {
-            cv_text(4, 4, &FONT_L, "FM-1 DRUMS", C_HI);
-            cv_text(4, 36, &FONT_S, "DRUM MACHINE ON FELUCCA", C_AMB);
-            cv_text(4, 54, &FONT_S, FELUCCA_VERSION, C_HI);
-            cv_text(236 - text_w(&FONT_S, __DATE__), 54, &FONT_S, __DATE__, C_GRAY);   /* build date */
-            cv_text(4, 72, &FONT_S, "FORK: DEADACTIVE", C_HI);
-            cv_text(4, 88, &FONT_S, "FELUCCA: LEO KUROSHITA", C_HI);
-            cv_text(4, 104, &FONT_S, "H\xDCGELTON INSTRUMENTS", C_AMB);
-            cv_text(4, 119, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
-            cv_text(4, 132, &FONT_S, "GITHUB.COM/HUGELTON/FELUCCA", C_AMB);
-            cv_text(4, 146, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
-            cv_text(4, 159, &FONT_S, "SAMPLES: VERSILIAN (CC0)", C_DIM);
-            cv_text(4, 172, &FONT_S, "+ H\xDCGELTON SAMPLE PACK", C_DIM);
-            cv_text(4, 185, &FONT_S, "UNTESTED ON HARDWARE", C_DIM);
+            cv_logo((240 - LOGO_W) / 2, 2, C_HI);
+            cv_text(4, 58, &FONT_S, "DRUM MACHINE ON FELUCCA", C_AMB);
+            cv_text(4, 74, &FONT_S, FELUCCA_VERSION, C_HI);
+            cv_text(236 - text_w(&FONT_S, __DATE__), 74, &FONT_S, __DATE__, C_GRAY);   /* build date */
+            cv_text(4, 90, &FONT_S, "FORK: DEADACTIVE", C_HI);
+            cv_text(4, 103, &FONT_S, "FELUCCA: LEO KUROSHITA", C_HI);
+            cv_text(4, 116, &FONT_S, "H\xDCGELTON INSTRUMENTS", C_AMB);
+            cv_text(4, 129, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
+            cv_text(4, 142, &FONT_S, "GITHUB.COM/HUGELTON/FELUCCA", C_AMB);
+            cv_text(4, 155, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
+            cv_text(4, 168, &FONT_S, "LOGO: UNIFRAKTURCOOK (OFL)", C_DIM);
+            cv_text(4, 181, &FONT_S, "SAMPLES: VERSILIAN (CC0)", C_DIM);
+            cv_text(4, 194, &FONT_S, "+ H\xDCGELTON SAMPLE PACK", C_DIM);
         } else {
             for (i = 0; i < MI_COUNT; i++) {
                 int32_t y = 4 + (int32_t)i * 18;   /* nine rows above the hints */
@@ -81,6 +81,16 @@ static void menu_close(void)
     ui.menu = 0;
     ui.force = 1;
     go_home();
+}
+
+/* the start screen (main.c fm1_main, right after lcd_init): the logo, DRUM MACHINE under it */
+#define BOOT_Y 80u
+static void draw_boot_title(void)
+{
+    cv_begin(240, LOGO_H, C_BLACK);
+    cv_logo((240 - LOGO_W) / 2, 0, C_HI);
+    cv_blit(0, BOOT_Y);
+    draw_text_box(0, BOOT_Y + LOGO_H + 6u, 240, &FONT_S, "DRUM MACHINE", C_GRAY, 1);
 }
 
 /* menu: PRESETS moves, OCT+ confirms, OCT- cancels (ABOUT -> list -> close) */

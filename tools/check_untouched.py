@@ -8,7 +8,7 @@ upstream Felucca 1e838e1, or a fork baseline tag = 1e838e1 + cited upstream hunk
   tools/check_untouched.py [--tree DIR]     DIR: a copy of the repo root (default: the repo)
 
 Frozen: hal/, loader/, ota.c, usb.c (the loader's), usb_app.c (the app's), crt0.S, app.ld byte for byte; storage.c except the ST_MAGIC
-line; main.c except felucca_init() and the two boot-title lines; the boot-guard tail of core.h."""
+line; main.c except felucca_init() and the boot titles (two lines, or the draw_boot_title() call); the boot-guard tail of core.h."""
 import argparse
 import os
 import re
@@ -40,7 +40,7 @@ BASE = frozen_base()
 FROZEN_DIRS = ["firmware/hal", "firmware/loader"]
 FROZEN_FILES = ["firmware/src/ota.c", "firmware/src/usb.c", "firmware/src/usb_app.c", "firmware/crt0.S", "firmware/app.ld"]
 MAGIC = re.compile(r"^#define ST_MAGIC 0x[0-9A-Fa-f]{8}u\b")
-TITLE = re.compile(r"draw_text_box\(0, 1[03]0, 240, &FONT_[LS], \"")
+TITLE = re.compile(r"draw_text_box\(0, 1[03]0, 240, &FONT_[LS], \"|^    draw_boot_title\(\);")   # (the logo)
 
 
 def upstream(path):

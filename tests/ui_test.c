@@ -1366,6 +1366,17 @@ static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows 
     return n;
 }
 
+/* the start screen (main.c fm1_main): the HortatoR logo and DRUM MACHINE, nothing above or below */
+static void test_boot_title(void)
+{
+    memset(fb, 0, sizeof fb);
+    draw_boot_title();
+    shot("build/ui_shots/00_boot.ppm");
+    check("boot: the logo", fb_lit(BOOT_Y, BOOT_Y + LOGO_H) > 3000);
+    check("boot: DRUM MACHINE under it", fb_lit(BOOT_Y + LOGO_H, BOOT_Y + LOGO_H + 24) > 100);
+    check("boot: nothing else", fb_lit(0, BOOT_Y) + fb_lit(BOOT_Y + LOGO_H + 24, 240) == 0);
+}
+
 static void snap_page(const char *name)
 {
     char path[96];
@@ -1493,6 +1504,7 @@ static void test_screens(void)
     release_all();
     snap_page("91_about");
     check("menu > ABOUT draws", ui.menu == 2 && fb_lit(20, 230) > 300);
+    check("ABOUT: the HortatoR logo on top", fb_lit(H_HEAD + 1, H_HEAD + 1 + LOGO_H) > 3000);
     press(B_OCTDN);
     ui_frame();
     release_all();
@@ -2811,6 +2823,7 @@ int main(void)
     test_reson_model_skips_full();
     test_modal_load_clamp();
     test_phys_screens();
+    test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

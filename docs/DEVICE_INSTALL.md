@@ -48,13 +48,13 @@ Both directions now work on your FM-1, with firmware many people run.
    noted in step 1.
 
 ## 4. First boot (in this order)
-1. The start screen reads **FM-1 DRUMS** / DRUM MACHINE (UNTESTED), then the HOME screen appears.
+1. The start screen shows the **HortatoR** logo / DRUM MACHINE, then the HOME screen appears.
 2. The 8 white keys F3..F4 play the 8 tracks (kick, snare, clap, hats, ...).
 3. **The update path from the drum firmware:** run the step-3 command again (the same file).
    Expected: it installs and the FM-1 restarts into the drum firmware.
    If this fails: go back to stock at once (step 6) while the drum firmware still runs.
 4. **Safe start:** power off; hold **SEQ** and power on, keep holding it until the screen shows
-   **SAFE START** ("NO AUDIO - USB UPDATE READY"); then let go. (SEQ is read once, right after the "FM-1 DRUMS"
+   **SAFE START** ("NO AUDIO - USB UPDATE READY"); then let go. (SEQ is read once, right after the HortatoR
    start screen appears.) While it shows SAFE START, check that USB answers:
    `~/fm1-venv/bin/python tools/fm1_install.py --info` prints the FM-1's identity (this only asks, it writes
    nothing). This rehearses the way out of a crash (step 7). Power off to leave safe start.

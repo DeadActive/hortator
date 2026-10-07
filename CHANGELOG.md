@@ -9,6 +9,7 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   TONE HEAD on HOME; POS, BEND, STICK; toms, timpani, tabla), and MODAL, a bell / bar / plate body as a RESON model
   (STRCT from harmonic to bell, DECAY its ring time as STRNG's; 2 tracks at most). The RESON MODEL knob now skips a
   model that is full. No project format change.
+- The start screen and ABOUT show the HortatoR logo (UnifrakturCook Bold, SIL OFL); the "untested" labels are gone.
 
 ## 0.12.0 - 2026-10-07
 
