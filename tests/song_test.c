@@ -180,11 +180,12 @@ static void test_song_motion(void)
 
 static void test_song_model_skip_per_row(void)
 {
-    static const uint8_t SL[2] = {0, 1}, RP[2] = {1, 1};
-    uint32_t i;
+    static const uint8_t SL[2] = {0, 1}, RP[2] = {2, 1};
+    uint32_t i, other;
     fresh();
     trk[0].p[P_E1] = 40;
     trk[0].p[P_LEVEL] = 100;
+    other = (uint32_t)((trk[0].p[P_MODEL] + 1) % NMODELS);
     slot_set(0, 0, 16, 2, "x...............");
     slot_set(1, 0, 16, 2, "x...............");
     for (i = 0; i < 2u; i++) {                       /* both slots: E1 99 and LEVEL 50 at step 0 */
@@ -193,15 +194,20 @@ static void test_song_model_skip_per_row(void)
         MS[i].ev[0] = (motion_event_t){0, 0, P_E1, 99};
         MS[i].ev[1] = (motion_event_t){0, 0, P_LEVEL, 50};
     }
-    chain.src[0].model[0] = (uint8_t)((trk[0].p[P_MODEL] + 1) % NMODELS);   /* A was saved with another model */
+    chain.src[0].model[0] = (uint8_t)other;          /* A was saved with another model */
     rows(2, SL, RP, 0);
-    now_s = 0;
     play_song();
     run_to(BAR / 2u);
     check("song: another model in the slot: its E events skipped, LEVEL plays",
           trk[0].p[P_E1] == 40 && trk[0].p[P_LEVEL] == 50);
+    drum_set_model(&trk[0], other);                  /* the track takes A's model mid-row */
+    trk[0].p[P_E1] = 40;
     run_to(BAR + BAR / 2u);
-    check("song: the next row (same model) plays its E events", chain.row == 1u && trk[0].p[P_E1] == 99);
+    check("song: the model compared as it is now: A's second pass plays its E events", chain.row == 0u &&
+          trk[0].p[P_E1] == 99);
+    run_to(2u * BAR + BAR / 2u);
+    check("song: row B (saved with the first model): its E events skipped now", chain.row == 1u &&
+          trk[0].p[P_E1] != 99 && trk[0].p[P_LEVEL] == 50);
     transport_req = 2;
     render_mix(0, 0, CTL);
 }
@@ -231,6 +237,50 @@ static void test_song_no_drift(void)
           chain.row == 1u && trk[0].seq_pos == pos && trk[0].seq_idx == idx && trk[0].seq_cnt % 16u == cnt);
     transport_req = 2;
     render_mix(0, 0, CTL);
+}
+
+/* review: rows of odd lengths, 1/32, swing (the track's or the global one) stay on the plain loop's grid: one row of
+ * slot A (LEN len, DIV div) over and over (LOOP) against the same pattern played plainly, `secs` seconds in */
+static int same_as_plain(int16_t len, int16_t div, int16_t sw, int16_t gsw, uint32_t secs)
+{
+    static const uint8_t SL[1] = {0}, RP[1] = {1};
+    uint32_t pos, idx, rem, k, t = secs * 44100u + 777u;
+    fresh();
+    song.g[G_BPM] = 133;
+    song.g[G_SWING] = gsw;
+    trk[0].p[P_SLEN] = len;
+    trk[0].p[P_SDIV] = div;
+    trk[0].p[P_SSWING] = sw;
+    transport_req = 1;
+    run_to(t);
+    pos = trk[0].seq_pos;
+    idx = trk[0].seq_idx;
+    rem = trk[0].seq_rem;
+    transport_req = 2;
+    render_mix(0, 0, CTL);
+    fresh();
+    song.g[G_BPM] = 133;
+    song.g[G_SWING] = gsw;
+    trk[0].p[P_SSWING] = 0;                          /* (the current pattern: the song's row replaces it) */
+    for (k = 0; k < NTRK; k++) {                     /* every track of A the same: track 1 is the reference */
+        chain.src[0].timing[k][0] = len;
+        chain.src[0].timing[k][1] = div;
+        chain.src[0].timing[k][2] = sw;
+    }
+    rows(1, SL, RP, 1);
+    play_song();
+    run_to(t);
+    pos = pos == trk[0].seq_pos && idx == trk[0].seq_idx && rem == trk[0].seq_rem && chain.running;
+    transport_req = 2;
+    render_mix(0, 0, CTL);
+    return (int)pos;
+}
+static void test_song_grid_kept(void)
+{
+    check("song: LEN 5 1/16 rows stay on the plain loop's grid (60 s)", same_as_plain(5, 2, 0, 0, 60));
+    check("song: LEN 2 1/32 rows stay on the grid (60 s)", same_as_plain(2, 3, 0, 0, 60));
+    check("song: LEN 15 rows with the track's SWING 30 keep the swing on the grid (30 s)", same_as_plain(15, 2, 30, 0, 30));
+    check("song: LEN 7 16T rows with the global swing keep the grid (30 s)", same_as_plain(7, 5, 0, 40, 30));
 }
 
 static void test_song_clock_start(void)
@@ -288,6 +338,7 @@ int main(void)
     test_song_motion();
     test_song_model_skip_per_row();
     test_song_no_drift();
+    test_song_grid_kept();
     test_song_clock_start();
     test_song_valid();
     printf(fails ? "song_test: %d FAILED\n" : "song_test: all passed\n", fails);

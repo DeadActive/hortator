@@ -838,7 +838,8 @@ static void motion_columns(void)
 static void graph_song(void)
 {
     const chain_config_t *c = &chain.cfg;
-    uint32_t sel = ui.song_row, first = sel > 2u ? sel - 2u : 0u, i, sig = 2166136261u, last;
+    uint32_t sel = ui.song_row < c->count ? ui.song_row : c->count, first = sel > 2u ? sel - 2u : 0u, i,
+             sig = 2166136261u, last;
     char b[16], nm[NAME_LEN + 1u];
     for (i = 0; i < c->count; i++)
         sig = (sig ^ (c->row[i].slot | (uint32_t)c->row[i].repeat << 2)) * 16777619u;
@@ -895,7 +896,7 @@ static void graph_song(void)
 static void song_columns(void)
 {
     const chain_config_t *c = &chain.cfg;
-    uint32_t r = ui.song_row;
+    uint32_t r = ui.song_row < c->count ? ui.song_row : c->count;
     char v[12], u[8];
     if (r >= c->count) {
         draw_column(0, "ROW", "+", "", VAL(0u), -1, ICON_AUTO);

@@ -23,7 +23,7 @@ static struct {
     uint32_t act[NTRK][2];           /* the knobs motion moved off the base (bit = id) */
     uint8_t base_ok, full;           /* tracks whose base is taken; a turn found no free place (the UI says so) */
     const motion_store_t *src;       /* a song's row: its slot's motion (song.c), 0 = mo.s */
-    uint8_t skip;                    /* .. tracks whose P_E events it skips (the slot had another model) */
+    const uint8_t *model;            /* .. its slot's models: a track's model now another one skips its P_E events */
 } mo;
 
 /* the knobs motion records: the sound (not the model, mute, choke, note, routing, timing, the LFOs' shapes) */
@@ -107,7 +107,7 @@ static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
     for (i = 0; i < m->count; i++) {
         const motion_event_t *e = &m->ev[i];
         if (e->trk == k && e->step == s &&
-            !(((mo.skip >> k) & 1u) && e->param >= P_E0 && e->param <= P_E7)) {
+            !(mo.model && mo.model[k] != t->p[P_MODEL] && e->param >= P_E0 && e->param <= P_E7)) {
             const param_desc_t *d = track_desc(t, e->param);
             *motion_slot(t, e->param) = (int16_t)clamp(e->value, d->min, d->max);
             motion_mark(k, e->param);

@@ -193,7 +193,10 @@ static void motion_page_edit(uint32_t slot, int32_t steps)
 static void song_edit(uint32_t slot, int32_t steps)
 {
     chain_config_t *c = &chain.cfg;
-    uint32_t r = ui.song_row;
+    uint32_t r;
+    if (ui.song_row > c->count)                       /* (a LOAD brought a shorter song) */
+        ui.song_row = c->count;
+    r = ui.song_row;
     if (slot == 0u) {
         ui.song_row = (uint8_t)clamp((int32_t)r + steps, 0, c->count < CHAIN_ROWS ? c->count : CHAIN_ROWS - 1u);
         return;
@@ -204,7 +207,8 @@ static void song_edit(uint32_t slot, int32_t steps)
         c->loop = steps > 0;
         return;
     }
-    if (r >= c->count) {
+    if (r >= c->count) {                              /* the + row: a row at the end */
+        r = c->count;
         c->row[r].slot = r ? c->row[r - 1u].slot : 0u;
         c->row[r].repeat = 1;
         c->count = (uint8_t)(r + 1u);

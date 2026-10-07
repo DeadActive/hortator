@@ -46,7 +46,7 @@ static uint32_t div_rem_next(uint32_t div, uint32_t rem)
 static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
 {
     int32_t sw = track_swing(t) * (int32_t)div_samples((uint32_t)t->p[P_SDIV]) / 250;
-    return period + (uint32_t)((cnt & 1u) ? -sw : sw);
+    return period + (uint32_t)(((cnt ^ t->seq_par) & 1u) ? -sw : sw);
 }
 
 /* Grids' clock: one Grids step per 1/32, counted on the 1/16 grid exactly as a 1/16 step track (no track swing)
@@ -267,6 +267,7 @@ static void seq_start(void)
         t->seq_pos = 0x7FFFFFFF;                    /* step 0 fires on the first block */
         t->seq_cnt = 0xFFFFFFFFu;                   /* step 0 is count 0 */
         t->seq_rem = 0;
+        t->seq_par = 0;
         t->rskip = 0;
         t->rat_n = 0;
         t->rng = 0x9E3779B9u * (i + 1u);           /* PROB: the same variations after every PLAY */

@@ -265,12 +265,12 @@ static void draw_name(void)
     uint32_t i, sig = 2166136261u;
     sig = str_hash(sig, nm.s) + nm.cur * 7u + nm.key * 131u + nm.tap * 977u + nm.num * 3u + nm.kind * 11u +
           (uint32_t)transport_busy() * 29u + (ui.msg_t ? str_hash(5u, ui.msg) : 0u);
+    if (ui.msg_t)                                  /* the title shows a message for a while */
+        ui.msg_t--;
     if (!ui.force && sig == nm.sig)
         return;
     nm.sig = sig;
     ui.force = 0;
-    if (ui.msg_t)                                  /* (the title shows a message for a while) */
-        ui.msg_t--;
     lcd_fill(0, 0, 240, 240, C_BLACK);
     str_cpy(b, nm.kind == NK_SAVE ? "SAVE PROJECT A" : "RENAME PROJECT A", sizeof b);
     b[str_len(b) - 1u] = (char)('A' + nm.slot);

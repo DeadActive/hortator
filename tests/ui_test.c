@@ -2650,6 +2650,34 @@ static void test_name_stop_to_save(void)
     check("NAME: HOME cancels", !name_on() && !project_used(1));
 }
 
+static void test_song_row_after_load(void)
+{
+    uint32_t i;
+    ui_host_init();
+    seq_open("SONG");
+    chain.cfg.count = 10;
+    for (i = 0; i < 10u; i++)
+        chain.cfg.row[i] = (chain_row_t){1, 2};
+    ui.song_row = 10;                                /* the + row of a 10-row song */
+    chain.cfg.count = 1;                             /* a LOAD brings a 1-row song */
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("SONG after a LOAD of a shorter song: a turn on + adds row 2, the song valid",
+          chain.cfg.count == 2u && chain_valid(&chain.cfg) && chain.cfg.row[1].repeat == 1u && ui.song_row <= 2u);
+}
+static void test_name_message_ends(void)
+{
+    uint32_t i;
+    ui_host_init();
+    project_page();
+    name_open(NK_SAVE, 0);
+    ui_message("STOP TO SAVE");
+    for (i = 0; i < 60u; i++)
+        ui_frame();
+    check("NAME: a message in its title goes after a while", ui.msg_t == 0u);
+    name_close();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2714,6 +2742,8 @@ int main(void)
     test_name_save();
     test_name_keys_silent();
     test_name_stop_to_save();
+    test_song_row_after_load();
+    test_name_message_ends();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

@@ -143,6 +143,7 @@ typedef struct track {
     uint16_t seq_idx;
     uint32_t seq_cnt;            /* steps played since PLAY: swing pairs follow it, so any length stays on the bar */
     uint8_t seq_rem;             /* the step length's remainder carried to the next step (seq.c div_period) */
+    uint8_t seq_par;             /* the swing pairs' phase: a song's row keeps them on the bar (song.c) */
     uint8_t rskip, rskip_idx;    /* live recording put a hit into the step about to play: skip it once */
     uint32_t rng;                /* PROB: the track's random sequence (LCG), seeded at PLAY */
     uint32_t rat_len;            /* RATCH: the playing roll's step length (samples) */
