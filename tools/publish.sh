@@ -88,7 +88,8 @@ touch "$W/.nojekyll"                                  # served as they are
 git -C "$W" add -A
 git -C "$W" commit -qm "Hortator $V ($SHA): landing page, installer, editor" || echo "publish: the site is unchanged"
 git -C "$W" push -q "$REMOTE" HEAD:refs/heads/gh-pages
-gh api "repos/$REPO/pages" >/dev/null 2>&1 ||
-    gh api -X POST "repos/$REPO/pages" -f "source[branch]=gh-pages" -f "source[path]=/" >/dev/null
+gh api "repos/$REPO/pages" >/dev/null 2>&1 ||                 # (a first gh-pages push can turn Pages on itself)
+    gh api -X POST "repos/$REPO/pages" -f "source[branch]=gh-pages" -f "source[path]=/" >/dev/null 2>&1 ||
+    gh api "repos/$REPO/pages" >/dev/null
 echo "publish: release https://github.com/$REPO/releases/tag/$TAG"
 echo "publish: site    $(gh api "repos/$REPO/pages" --jq .html_url)"
