@@ -1,99 +1,126 @@
-# Felucca
+# Hortator
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/Sponsor-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/hugelton)
 
-**TL;DR:** connect your FM-1 to a computer by USB, open the
-[web installer](https://hugelton.github.io/Felucca/) in Chrome or Edge, and press Install.
-No extra hardware is needed. Beta: use at your own risk; M-VAVE's own updater takes you back
-to the official firmware.
+**Drum-machine firmware for the M-VAVE FM-1.** Eight tracks of drums, a step sequencer, Grids, a pumping
+compressor, LFOs, resonators and live effects, all on the FM-1's own keys, knobs and screen. By DEADACTIVE, built
+on [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita.
 
-Multi-engine synthesizer firmware for the M-VAVE FM-1.
+On a Roman galley, the *hortator* beat the drum that kept the rowers in time. Felucca is a Nile sailing boat; this
+is its drummer.
 
-![FM-1 controls with Felucca](docs/panel.jpg)
+- **Play it in your browser:** <https://deadactive.github.io/hortator/>. The page runs the real firmware, compiled
+  to WebAssembly, on a 3D FM-1 you can play with the mouse, a touch screen or the computer keyboard.
+- **Install it on your FM-1:** <https://deadactive.github.io/hortator/webapp/installer/>, in Chrome or Edge, over
+  the FM-1's USB cable.
 
-## Features
+**Beta.** Hortator is untested on most hardware and may be unstable. You install it at your own risk: the author
+accepts no responsibility if your FM-1 is damaged or misbehaves. M-VAVE's own updater takes you back to the official
+firmware ([below](#back-to-the-official-firmware)).
 
-- **Nine engines** (below), each with its own factory presets
-- **Four tracks:** three synth parts, each with its own engine and sound, plus a GM drum track;
-  8 voices shared between the parts. ALGORITHM selects the track on every page
-- **Sequencer:** 64 steps per track with chords, ties, accent and slide; live loop recording
-  with overdub and held notes; each track loops on its own length
-- **Arpeggiator**, scales and quantize, glide, MONO / LEGATO / UNISON voice modes
-- **Effects:** distortion and the SLICER per track; chorus, delay and reverb sends; master limiter
-- **Presets:** factory presets with their own patterns, 32 user preset slots, 4 project slots
-- **Web editor:** every parameter of every track, step grid, track mixer, preset library, sample upload
-- **USB:** class-compliant MIDI in and out (channels 1–3 for the parts, 10 for drums);
-  updates over the same USB cable
+![FM-1 controls](docs/panel.jpg)
 
-## Engines
+## What it does
 
-- **ANALOG**: virtual analog; two oscillators (saw, square, triangle, sine, PWM), noise, drive, resonant low-pass filter
-- **DIGITAL**: 4-operator FM, 8 algorithms, feedback
-- **PHASE**: phase distortion (ported from CrispyZebra)
-- **LOFI**: chiptune; pulse, triangle, saw, noise and a 4-bit wave RAM, stepped envelope, sweep, arpeggio
-- **SAMPLE**: multisampled instruments and 3 user sample slots
-- **VOICE**: formant oscillator, sung vowels
-- **TRIO**: 3 oscillators with ring modulation and sync, multimode filter (LP / BP / HP / notch)
-- **WHEEL**: tonewheel-style organ; drawbar registrations, percussion, key click, drive, rotary speaker
-- **GRAIN**: granular textures from the built-in samples or a user slot
+- **Eight drum tracks.** Each plays a drum model: 808 and 909 kicks, snares and claps, hats, toms, cowbell, cymbal,
+  rim, clave, conga, ports of Plaits' drum algorithms, and samples. Every model has TUNE, DECAY, TONE and a fourth
+  knob of its own.
+- **Step sequencer.** Up to 64 steps per track on the 16 white keys, each track with its own length, division and
+  swing. Accents, PROB and RATCH per step, fills that play every other bar, live recording, mutes that wait for the
+  next bar.
+- **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.
+- **SONG and names.** Chain up to 16 rows of projects with repeats; name projects on the device.
+- **Grids.** Mutable Instruments' pattern generator: a map of drum patterns, chaos, or Euclidean rhythms. Any track
+  can follow one of its three channels.
+- **Compressor.** The Streams compressor keyed by any track, for ducking and pumping; GHOST keeps the pump with the
+  key track muted.
+- **Movement.** Two LFOs per track, ten waves with a morph between them, synced to the tempo.
+- **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM or SPRING reverb
+  and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker.
+- **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
+  octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH.
+- **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
+  into a DAW over its USB cable.
+- **Projects.** Four slots, A to D, saved in the FM-1's flash.
 
-**SLICER** (FX page, every track including drums): a tempo-synced 16-step gate or stutter, with 16 patterns.
+### On the panel
 
-- Install: [web installer](https://hugelton.github.io/Felucca/) (Chrome or Edge, USB), or `tools/fm1_install.py` from a terminal
-- Editor: [web editor](https://hugelton.github.io/Felucca/webapp/editor/)
-- Build: [BUILDING.md](BUILDING.md)
+| Button | Opens |
+| --- | --- |
+| **HOME** | the main screen and the compressor (PRESETS turns the pages); hold it for the menu |
+| **EDIT** | the selected track's sound: its model and knobs |
+| **SEQ** | the steps on the white keys, then PATTERN, MOTION and SONG |
+| **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
+| **ARP** | Grids |
+| **LFO** | the track's two LFOs |
+| **REC** | TRACKS (levels, lengths, pans, mutes) and recording |
+| **GLO** | global and system settings |
+| **SAVE** | projects (save, load, name) and tools |
 
-## Scale keyboard
+ALGORITHM picks the track anywhere; PRESETS turns the pages of a section; KNOB 1 to 4 edit what the screen shows.
+SELECT sets the tempo.
 
-On the **SCL** page, set **QNT** to WHITE to play the selected scale using only the
-white keys (SNAP keeps every key and rounds it down to the scale). C4 plays **ROOT**; consecutive white keys play consecutive scale notes
-above and below it. Black keys are silent, including during live recording and
-step entry. **TRN** transposes the resulting notes; the octave buttons shift them
-by full octaves. Set QNT to OFF for the normal chromatic keyboard.
+## Install
 
-Available scales: chromatic (CHR), major (MAJ), natural minor (MIN), Dorian (DOR),
-Mixolydian (MIX), major pentatonic (PEN), minor pentatonic (MPEN), harmonic minor
-(HARM), Phrygian (PHRY), Lydian (LYD), Locrian (LOC), ascending melodic minor (MEL),
-minor blues (BLUES), whole tone (WHOLE), half-whole diminished (DIMHW), and
-whole-half diminished (DIMWH). Scales with other than seven notes continue across
-the white keys without repeating notes; their roots need not fall on every C key.
-The drum track, GM sample kit and incoming MIDI retain their existing note mapping.
+1. Open the [installer](https://deadactive.github.io/hortator/webapp/installer/) in Chrome or Edge on a computer.
+2. Connect the FM-1 straight to the computer with a USB data cable. No probe or Transporter is needed.
+3. Press Install and keep the cable in until it says Done. The FM-1 restarts with Hortator.
+
+Releases are also on [GitHub](https://github.com/DeadActive/hortator/releases) as `hortator-<version>.fwsc`, with
+what changed in each ([CHANGELOG.md](CHANGELOG.md)). `tools/fm1_install.py` installs a package from a terminal.
+
+### Back to the official firmware
+
+Use M-VAVE's updater, M-UPGRADE, from <https://www.m-vave.com/download> (Downloads → PC Software → M-UPGRADE), with
+the official firmware (PC Firmware → FM-1 V15). If an install fails and the FM-1 no longer starts, recovering it
+needs a [Transporter](https://github.com/kurogedelic/FM-1-transporter).
+
+## Build
+
+- The firmware and its package: [BUILDING.md](BUILDING.md) (`./build.sh`; `DRUM_PACKAGE=1 ./build.sh` for an
+  installable package and the site).
+- The web simulator and the landing page: [docs/SIMULATOR.md](docs/SIMULATOR.md) (`tools/build_sim.sh`; build it
+  before the package, so the site carries both).
+- Tests: `tests/run_tests.sh` and `tests/run_drum_tests.sh` (firmware), `tools/build_sim.sh` (simulator and site).
+- Versions and publishing: [docs/VERSIONING.md](docs/VERSIONING.md), `tools/publish.sh`.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
 | `firmware/` | firmware sources: `src/` app, `hal/` hardware layer, `loader/` update loader |
-| `tools/` | build script, generators, package maker, installer and sample uploader |
-| `assets/` | icon atlas, font, CC0 instrument samples |
-| `web/` | web installer and editor sources |
-| `tests/` | tests that run on the build machine |
-
-## Support
-
-If Felucca is useful to you, [sponsoring on GitHub](https://github.com/sponsors/hugelton) or a donation
-on [itch.io](https://hugelton.itch.io/felucca) helps keep its development going.
-
-Pull requests are welcome, and so are ideas and requests: post them in
-[Discussions](https://github.com/hugelton/Felucca/discussions) or on X ([@kurogedelic](https://x.com/kurogedelic)).
+| `tools/` | build scripts, generators, package maker, installer, publishing |
+| `assets/` | icon atlas, font, CC0 samples |
+| `web/` | web installer and editor; `web/sim/` the landing page and simulator |
+| `tests/` | tests that run on the build machine; `tests/sim_*` the simulator's |
+| `docs/` | device install notes, versioning, the simulator, design specs and plans |
 
 ## Credits
 
-- Felucca by Leo Kuroshita ([@kurogedelic](https://github.com/kurogedelic)), [Hügelton Instruments](https://hugelton.com)
-- Font: [Terminus](https://terminus-font.sourceforge.net/) by Dimitar Toshkov Zhekov, [SIL OFL 1.1](assets/fonts/Terminus-LICENSE.txt)
-- Samples: [Versilian Studios](https://versilian-studios.com/) [VSCO-2 Community Edition](https://github.com/sgossner/VSCO-2-CE) and [VCSL](https://github.com/sgossner/VCSL), CC0 1.0 ([attribution](assets/samples-cc0/ATTRIBUTION.txt))
-- PHASE engine: oscillator ported from [CrispyZebra](https://github.com/hugelton/CrispyZebra) by Leo Kuroshita (GPL-3.0)
-- VOICE engine: after [klattsch](https://github.com/tgies/klattsch) by Tony Gies (MIT); formant data from Klatt (1980) and Hillenbrand et al. (1995)
-- GRIDS pattern engine: C port of [Grids](https://github.com/pichenettes/eurorack/tree/master/grids) by Emilie Gillet, Mutable Instruments (GPL-3.0-or-later)
-- COMP sidechain compressor: C port of [Streams](https://github.com/pichenettes/eurorack/tree/master/streams)' compressor by Emilie Gillet, Mutable Instruments (MIT)
-- Web editor icons: Fukiai by [Hügelton Instruments](https://hugelton.com), [MIT](web/FUKIAI-LICENSE.txt)
-- Package format and boot files: [JieLi AC79 SDK](https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK) (Apache-2.0, not included)
+- Hortator by DEADACTIVE.
+- [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita ([@kurogedelic](https://github.com/kurogedelic)),
+  [Hügelton Instruments](https://hugelton.com): the firmware Hortator is built on, its hardware layer, update
+  loader, installer, UI and engines.
+- [Grids](https://github.com/pichenettes/eurorack/tree/master/grids) by Emilie Gillet, Mutable Instruments: the GRIDS
+  pattern engine is a C port (GPL-3.0-or-later).
+- [Streams](https://github.com/pichenettes/eurorack/tree/master/streams) by Emilie Gillet, Mutable Instruments: the
+  compressor is a C port (MIT).
+- [Plaits](https://github.com/pichenettes/eurorack/tree/master/plaits) by Emilie Gillet, Mutable Instruments: integer
+  ports of its drum algorithms (MIT).
+- Font: [Terminus](https://terminus-font.sourceforge.net/) by Dimitar Toshkov Zhekov,
+  [SIL OFL 1.1](assets/fonts/Terminus-LICENSE.txt).
+- Samples: [Versilian Studios](https://versilian-studios.com/) VSCO-2 Community Edition and VCSL, CC0 1.0
+  ([attribution](assets/samples-cc0/ATTRIBUTION.txt)); the Hügelton Sample Pack (© Hügelton Instruments, not CC0).
+- Web editor icons: Fukiai by Hügelton Instruments, [MIT](web/FUKIAI-LICENSE.txt).
+- Package format and boot files: [JieLi AC79 SDK](https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK) (Apache-2.0, not
+  included).
 
 ## Licence
 
-Code: [GPL-3.0-only](LICENSE). Third-party material: [LICENSING.md](LICENSING.md).
+Code: [GPL-3.0-only](LICENSE). Assets and third-party material: [LICENSING.md](LICENSING.md).
 
-M-VAVE and FM-1 are trademarks of their respective owners. Felucca is not affiliated with or endorsed by them.
+M-VAVE and FM-1 are trademarks of their respective owners. Hortator is independent firmware that runs on FM-1
+hardware; it is not affiliated with, endorsed by or supported by them. It never enables the hardware's Bluetooth /
+Wi-Fi radio.
 
-Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; drum machine fork: 2026 DEADACTIVE.
