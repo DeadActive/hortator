@@ -487,6 +487,135 @@ static int fdr8_load_while_playing(void)
         render_mix(L, R, CTL);                       /* the stop the load asked for */
     return !song.playing && trk[0].p[P_E1] == 11;
 }
+/* FDR9: the song and the name go through a save and a load (flash) */
+static int fdr9_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    chain.cfg.count = 2;
+    chain.cfg.loop = 1;
+    chain.cfg.row[0] = (chain_row_t){1, 4};
+    chain.cfg.row[1] = (chain_row_t){3, 16};
+    name_set(chain.name, "BREAK 2");
+    project_save(2);
+    memset(&chain, 0, sizeof chain);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(2);
+    return chain.cfg.count == 2u && chain.cfg.loop == 1u && chain.cfg.row[0].slot == 1u &&
+           chain.cfg.row[0].repeat == 4u && chain.cfg.row[1].slot == 3u && chain.cfg.row[1].repeat == 16u &&
+           str_eq(chain.name, "BREAK 2") && chain.from == 3u && sizeof(project_t) == 3592u;
+}
+/* an FDR8 record (3544 B): its motion, an empty song, no name */
+static int fdr8_converts(void)
+{
+    project_v8_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V8;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].step[9].on = 1;
+    v.motion.count = 1;
+    v.motion.on = 1;
+    v.motion.ev[0] = (motion_event_t){0, 4, P_E1, 77};
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    chain.cfg.count = 3;                             /* a song and a name in RAM before: the load replaces them */
+    name_set(chain.name, "OLD");
+    project_load(1);
+    return trk[2].step[9].on && mo.s.count == 1u && mo.s.ev[0].value == 77 && chain.cfg.count == 0u &&
+           !chain.name[0] && sizeof v == 3544u;
+}
+/* a broken song or name: the project loads, they are dropped */
+static int fdr9_bad_song_name_dropped(void)
+{
+    project_t *p = &proj_slot[0];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[3].step[5].on = 1;
+    chain.cfg.count = 1;
+    chain.cfg.row[0] = (chain_row_t){0, 1};
+    name_set(chain.name, "OK");
+    project_save(0);
+    p->song.row[0].repeat = 0;                       /* invalid */
+    p->name[0] = 'a';                                /* outside the NAME set */
+    p->sum = proj_sum(p);
+    memset(&chain, 0, sizeof chain);
+    trk[3].step[5].on = 0;
+    project_load(0);
+    return trk[3].step[5].on && chain.cfg.count == 0u && !chain.name[0];
+}
+/* chain_prepare: rows need used slots; the slots' garbage (cond, rat, timing, motion) is made safe */
+static int song_garbage_slot(void)
+{
+    project_t *p = &proj_slot[1];
+    uint32_t b, rc_empty, rc;
+    memset(hflash, 0xFF, sizeof hflash);
+    memset(proj_slot, 0, sizeof proj_slot);          /* (no slot left in RAM by the tests before) */
+    host_init();
+    persist_boot();
+    chain.cfg.count = 1;
+    chain.cfg.row[0] = (chain_row_t){1, 1};
+    rc_empty = chain_prepare();
+    project_save(1);
+    memset(p->t[0].step, 0xFF, sizeof p->t[0].step);  /* cond 255, rat 255, on 255 */
+    p->t[0].p[P_SLEN] = 999;
+    p->t[0].p[P_SDIV] = -7;
+    p->motion.count = 200;                           /* broken */
+    p->sum = proj_sum(p);
+    rc = chain_prepare();
+    for (b = 0; b < 400u; b++)
+        render_mix(L, R, CTL);
+    transport_req = 2;
+    render_mix(L, R, CTL);
+    return rc_empty == 4u && rc == 0u && chain.src[1].timing[0][0] == NSTEP && chain.src[1].timing[0][1] == 0 &&
+           chain.src[1].m == &MOTION_NONE && !song.playing;
+}
+/* LOAD while a song plays: refused */
+static int song_blocks_load(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[0].p[P_E1] = 11;
+    project_save(0);
+    trk[0].p[P_E1] = 64;
+    chain.cfg.count = 1;
+    chain.cfg.row[0] = (chain_row_t){0, 1};
+    chain_prepare();
+    render_mix(L, R, CTL);
+    project_load(0);
+    transport_req = 2;
+    render_mix(L, R, CTL);
+    return trk[0].p[P_E1] == 64 && str_eq(ui.msg, "STOP TO LOAD");
+}
+/* a rename writes only the name (flash), and renames the current project when it is that slot */
+static int rename_slot(void)
+{
+    char b[NAME_LEN + 1u];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[1].step[2].on = 1;
+    name_set(chain.name, "A NAME");
+    project_save(3);
+    project_rename(3, "INTRO");
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    return project_name(3, b) && str_eq(b, "INTRO") && proj_slot[3].t[1].step[2].on && str_eq(chain.name, "INTRO") &&
+           !project_name(2, b) && !b[0];
+}
 /* review focus 1: RESON at every extreme (pitch with a chord's top note and the fine offset, STRCT, TONE, POS):
  * the lines stay inside rs_buf (ASan) and the output bounded */
 static int reson_extremes(void)
@@ -533,6 +662,12 @@ int main(void)
     check("project: an FDR7 record (3028 B) loads with no motion", fdr7_converts());
     check("project: a broken motion block is dropped, the project loads", fdr8_bad_motion_dropped());
     check("project: a load while motion plays: the old base is not put back", fdr8_load_while_playing());
+    check("project: FDR9 keeps the song and the name through a save and a load", fdr9_round_trip());
+    check("project: an FDR8 record (3544 B) loads with its motion, no song, no name", fdr8_converts());
+    check("project: a broken song or name is dropped, the project loads", fdr9_bad_song_name_dropped());
+    check("song: an empty slot refused; a slot's garbage made safe (ASan)", song_garbage_slot());
+    check("song: LOAD while a song plays: STOP TO LOAD", song_blocks_load());
+    check("project: a rename writes the name only, the current project's too", rename_slot());
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());

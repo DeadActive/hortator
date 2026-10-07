@@ -7,6 +7,7 @@ static const char *const N_ONOFF[] = {"OFF", "ON"};
 static const char *const N_CLOCK[] = {"INT", "USB", "TRS"};   /* G_CLOCK: = the input ring's source (1 USB, 2 TRS) */
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
+static const char *const N_SLOT[] = {"-", "A", "B", "C", "D"};   /* G_SLOT 1..4: the project slots A..D */
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
@@ -85,7 +86,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_SYNC] = PE("SYNC", N_DASH, 0),
     [G_ROUTE] = PE("ROUT", N_DASH, 0),
     [G_INFO] = PD("CPU", F_INT, 0, 0, 0),
-    [G_SLOT] = PD("SLOT", F_INT, 1, 4, 1),
+    [G_SLOT] = {"SLOT", F_ENUM, 1, 4, 1, N_SLOT, 0},
     [G_NAME] = PE("NAME", N_DASH, 0),
     [G_LOAD] = PE("LOAD", N_GO, 0),
     [G_SAVE] = PE("SAVE", N_GO, 0),

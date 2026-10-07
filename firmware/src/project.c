@@ -3,12 +3,14 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDR8": the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every parameter and its
- * 64 steps (with PROB / RATCH, DUCK, the COMP settings, the LFOs, RESON), and the motion (motion.c, 128 events).
- * M1's "FDR1", M2's "FDR2", M3's "FDR3", the LFOs' "FDR4" RESON's "FDR5", GHOST's "FDR6" and the sound pack's
- * "FDR7" records (in flash) are converted on load.
+ * Format "FDR9": the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every parameter and its
+ * 64 steps (with PROB / RATCH, DUCK, the COMP settings, the LFOs, RESON), the motion (motion.c, 128 events), the song
+ * and the project's name (song.c).
+ * M1's "FDR1", M2's "FDR2", M3's "FDR3", the LFOs' "FDR4" RESON's "FDR5", GHOST's "FDR6", the sound pack's
+ * "FDR7" and motion's "FDR8" records (in flash) are converted on load.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x38524446u                 /* "FDR8": + the motion (motion.c) */
+#define PROJ_MAGIC 0x39524446u                 /* "FDR9": + the song and the name (song.c) */
+#define PROJ_MAGIC_V8 0x38524446u              /* "FDR8": the motion, converted on load */
 #define PROJ_MAGIC_V7 0x37524446u              /* "FDR7": the reverb TYPE (sound pack), converted on load */
 #define PROJ_MAGIC_V6 0x36524446u              /* "FDR6": GHOST projects, converted on load */
 #define PROJ_MAGIC_V5 0x35524446u              /* "FDR5": RESON projects, converted on load */
@@ -26,8 +28,11 @@ typedef struct {
     uint8_t sel, rsv[3];
     proj_trk_t t[NTRK];
     motion_store_t motion;                      /* FDR8: the motion (motion.c) */
+    chain_config_t song;                        /* FDR9: the song (song.c) */
+    char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint32_t sum;
 } project_t;
+typedef char project_size[sizeof(project_t) == 3592u ? 1 : -1];
 project_t proj_slot[4] __attribute__((section(".noinit")));
 
 static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
@@ -100,19 +105,38 @@ typedef struct {
     proj_trk_t t[NTRK];
     uint32_t sum;
 } project_v7_t;
+/* motion's format: everything but the song and the name. 3544 B */
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_t t[NTRK];
+    motion_store_t motion;
+    uint32_t sum;
+} project_v8_t;
 static union {
     project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
+    project_v8_t v8;
 } proj_old;
 
 /* an old record (proj_old, version ver) -> q: what it has; the rest at the defaults (v1: PROB 100 %, 1 hit,
  * SRC STEP, Grids; v1 / v2: COMP off, DUCK off; v1..v3: the LFOs off; v1..v4: RESON off; v1..v5: GHOST KEEP;
- * v1..v6: reverb TYPE ROOM; all: no motion) */
+ * v1..v6: reverb TYPE ROOM; v1..v7: no motion; all: no song, no name) */
 static void proj_from_old(project_t *q, uint32_t ver)
 {
     uint32_t i, k;
-    uint32_t ng = ver == 1u ? (uint32_t)G_GMODE : ver == 2u ? (uint32_t)G_CSRC : ver == 6u ? (uint32_t)G_RTYPE
+    uint32_t ng, np;
+    if (ver == 8u) {                                 /* the same up to the motion: no song, no name */
+        memset(q, 0, sizeof *q);
+        memcpy(q, &proj_old.v8, sizeof proj_old.v8 - 4u);
+        q->magic = PROJ_MAGIC;
+        q->size = sizeof *q;
+        q->sum = proj_sum(q);
+        return;
+    }
+    ng = ver == 1u ? (uint32_t)G_GMODE : ver == 2u ? (uint32_t)G_CSRC : ver == 6u ? (uint32_t)G_RTYPE
                 : ver == 7u ? (uint32_t)G_COUNT : (uint32_t)G_CGHOST;
-    uint32_t np = ver == 1u ? (uint32_t)P_SRC : ver == 2u ? (uint32_t)P_DUCK : ver == 3u ? (uint32_t)P_LFO1
+    np = ver == 1u ? (uint32_t)P_SRC : ver == 2u ? (uint32_t)P_DUCK : ver == 3u ? (uint32_t)P_LFO1
                 : ver == 4u ? (uint32_t)P_RMODEL : (uint32_t)P_COUNT;
     memset(q, 0, sizeof *q);
     q->magic = PROJ_MAGIC;
@@ -149,15 +173,16 @@ static void proj_fetch(uint32_t slot)
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
     if (n > 8 && n <= (int)sizeof proj_old && n != (int)sizeof *q) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[8] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
-                                          PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7};
-        static const uint32_t SIZE[8] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
-                                         sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7};
+        static const uint32_t MAGIC[9] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
+                                          PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8};
+        static const uint32_t SIZE[9] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+                                         sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
+                                         sizeof proj_old.v8};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 8u; ver++)
+        for (ver = 1; ver < 9u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
                 proj_from_old(q, ver);
@@ -171,6 +196,20 @@ static void proj_fetch(uint32_t slot)
 
 /* the sequencer runs (or starts this block): a flash erase silences the audio and stalls it, so no saving now */
 static int transport_busy(void) { return song.playing || transport_req == 1u; }
+
+/* 12 stored name bytes -> d (NAME_LEN + 1): up to the first 0; a byte outside NAME_SET: no name */
+static void proj_name_get(char *d, const char *s)
+{
+    uint32_t i;
+    name_set(d, "");
+    for (i = 0; i < NAME_LEN && s[i]; i++) {
+        if (!name_char_ok(s[i])) {
+            name_set(d, "");
+            return;
+        }
+        d[i] = s[i];
+    }
+}
 
 static void project_save(uint32_t slot)
 {
@@ -191,7 +230,10 @@ static void project_save(uint32_t slot)
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
     }
     p->motion = mo.s;                                  /* (stopped: the base is in the knobs) */
+    p->song = chain.cfg;
+    memcpy(p->name, chain.name, NAME_LEN);
     p->sum = proj_sum(p);
+    chain.from = (uint8_t)((slot & 3u) + 1u);
 #if FELUCCA_FLASH
     if (flash_ok) {
         ui_message(st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p) ? "SAVE ERROR" : "SAVED");
@@ -205,6 +247,10 @@ static void project_load(uint32_t slot)
 {
     project_t *p = &proj_slot[slot & 3u];
     uint32_t i, k;
+    if (chain_busy()) {                                 /* a song reads the slots */
+        ui_message("STOP TO LOAD");
+        return;
+    }
 #if FELUCCA_FLASH
     if (flash_ok && !proj_ok(p))
         proj_fetch(slot);
@@ -248,6 +294,12 @@ static void project_load(uint32_t slot)
     else
         memset(&mo.s, 0, sizeof mo.s);
     motion_forget();                                    /* the new knobs are the base: the stop puts nothing back */
+    if (chain_valid(&p->song))                          /* the song and the name: broken ones dropped */
+        chain.cfg = p->song;
+    else
+        memset(&chain.cfg, 0, sizeof chain.cfg);
+    proj_name_get(chain.name, p->name);
+    chain.from = (uint8_t)((slot & 3u) + 1u);
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
     fm1_irq_on();
     ui.force = 1;
@@ -303,6 +355,76 @@ static void persist_boot(void)                    /* before settings_init / pane
 }
 
 static int project_used(uint32_t slot) { return proj_ok(&proj_slot[slot & 3u]); }
+static int project_name(uint32_t slot, char *b)   /* slot's name -> b (NAME_LEN + 1, "" none); 0 = an empty slot */
+{
+    const project_t *p = &proj_slot[slot & 3u];
+    name_set(b, "");
+    if (!proj_ok(p))
+        return 0;
+    proj_name_get(b, p->name);
+    return 1;
+}
+static void project_rename(uint32_t slot, const char *name)   /* only the name; the current one too if it is that slot */
+{
+    project_t *p = &proj_slot[slot & 3u];
+    char n[NAME_LEN + 1u];
+    if (transport_busy()) {
+        ui_message("STOP TO SAVE");
+        return;
+    }
+    if (!proj_ok(p)) {
+        ui_message("EMPTY SLOT");
+        return;
+    }
+    name_set(n, name);
+    memcpy(p->name, n, NAME_LEN);
+    p->sum = proj_sum(p);
+    if (chain.from == (slot & 3u) + 1u)
+        name_set(chain.name, n);
+#if FELUCCA_FLASH
+    if (flash_ok) {
+        ui_message(st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p) ? "SAVE ERROR" : "RENAMED");
+        return;
+    }
+#endif
+    ui_message("RENAMED (RAM)");
+}
+/* PLAY on SONG (main loop): the rows' slots -> chain.src, armed; the ISR starts it (seq_start). 0 armed, 1 no rows,
+ * 2 busy, 3 + s slot s empty. A slot's steps are safe as stored (step_fire bounds PROB and RATCH); its timing is put
+ * inside the ranges, a broken motion plays none */
+static uint32_t chain_prepare(void)
+{
+    uint32_t i, k, j, used = 0;
+    if (transport_busy() || chain_busy())
+        return 2;
+    if (!chain.cfg.count || !chain_valid(&chain.cfg))
+        return 1;
+    for (i = 0; i < chain.cfg.count; i++) {
+        uint32_t s = chain.cfg.row[i].slot;
+        if (!project_used(s))
+            return 3u + s;
+        used |= 1u << s;
+    }
+    fm1_irq_off();
+    for (i = 0; i < 4u; i++)
+        if ((used >> i) & 1u) {
+            const project_t *p = &proj_slot[i];
+            chain_src_t *d = &chain.src[i];
+            d->m = motion_valid(&p->motion) ? &p->motion : &MOTION_NONE;
+            for (k = 0; k < NTRK; k++) {
+                d->step[k] = p->t[k].step;
+                d->model[k] = (uint8_t)p->t[k].p[P_MODEL];
+                for (j = 0; j < 4u; j++) {
+                    uint32_t id = CHAIN_TIMING[j];
+                    d->timing[k][j] = (int16_t)clamp(p->t[k].p[id], TP[id].min, TP[id].max);
+                }
+            }
+        }
+    chain.armed = 1;
+    fm1_irq_on();
+    transport_req = 1;
+    return 0;
+}
 
 static void settings_save(void)                    /* asked for while playing: written once stopped (settings_poll) */
 {

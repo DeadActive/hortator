@@ -40,7 +40,8 @@ static void draw_head(void)
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
-                   (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u;
+                   (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
+                   (chain.running ? (chain.row + 1u) * 104729u : 0u);
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -65,6 +66,11 @@ static void draw_head(void)
         x += 14;
     }
     cv_text(x, 1, &FONT_S, b, ui.bpm_t ? C_WHITE : C_HI);
+    if (chain.running) {                              /* a song: its row */
+        str_cpy(b, "SONG ", sizeof b);
+        fmt_int(b + 5, (int32_t)chain.row + 1);
+        cv_text(84, 1, &FONT_S, b, C_HI);
+    }
     b[0] = 'T';
     b[1] = (char)('1' + song.sel);
     b[2] = 0;
@@ -400,16 +406,20 @@ static void graph_scope(uint16_t c)
 static void graph_slots(void)
 {
     uint32_t i;
+    char nb[NAME_LEN + 1u], f[NAME_LEN + 1u];
     for (i = 0; i < 4u; i++) {
-        int32_t y = 8 + (int32_t)i * 26;
-        char b[4];
-        int sel = (int32_t)i + 1 == song.g[G_SLOT];
-        b[0] = (char)('1' + i);
-        b[1] = 0;
+        int32_t y = 4 + (int32_t)i * 24;
+        char b[2] = {(char)('A' + i), 0};
+        int sel = (int32_t)i + 1 == song.g[G_SLOT], used = project_name(i, nb);
         if (sel)
             cv_rect(4, y + 6, 3, 3, C_WHITE);
         cv_text(14, y, &FONT_S, b, sel ? C_WHITE : C_GRAY);
-        cv_text(40, y, &FONT_S, project_used(i) ? "USED" : "EMPTY", project_used(i) ? (sel ? C_WHITE : C_HI) : C_DIM);
+        fit(f, used ? (nb[0] ? nb : "USED") : "EMPTY", &FONT_S, 190);
+        cv_text(40, y, &FONT_S, f, used ? (sel ? C_WHITE : C_HI) : C_DIM);
+    }
+    if (chain.name[0]) {
+        cv_text(14, 102, &FONT_S, "NOW", C_DIM);
+        cv_text(52, 102, &FONT_S, chain.name, C_GRAY);
     }
 }
 
@@ -687,9 +697,14 @@ static uint32_t graph_signature(void)
     h ^= (uint32_t)song.g[G_SLOT] * 13u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
-    if (pg->graph == GR_SLOTS)
-        for (i = 0; i < 4u; i++)
-            h ^= (uint32_t)project_used(i) << (20u + i);
+    if (pg->graph == GR_SLOTS) {
+        char nb[NAME_LEN + 1u];
+        for (i = 0; i < 4u; i++) {
+            h ^= (uint32_t)project_name(i, nb) << (20u + i);
+            h = str_hash(h, nb);
+        }
+        h = str_hash(h, chain.name);
+    }
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
         h ^= steps_hash(t) + (song.playing ? view_idx(t) + 1u : 0u) * 31u;
         h ^= (ui.held < 16u && ui.step_t0[ui.held] ? ui.held + 1u : 0u) * 977u;
@@ -819,6 +834,89 @@ static void motion_columns(void)
     draw_column(3, "CLEAR", "", "", C_HI, -1, ICON_AUTO);
 }
 
+/* SONG: 4 rows of the list ("2  B  x4  BREAK"), the + row after the last; the playing row marked, its repeats left */
+static void graph_song(void)
+{
+    const chain_config_t *c = &chain.cfg;
+    uint32_t sel = ui.song_row < c->count ? ui.song_row : c->count, first = sel > 2u ? sel - 2u : 0u, i,
+             sig = 2166136261u, last;
+    char b[16], nm[NAME_LEN + 1u];
+    for (i = 0; i < c->count; i++)
+        sig = (sig ^ (c->row[i].slot | (uint32_t)c->row[i].repeat << 2)) * 16777619u;
+    for (i = 0; i < 4u; i++) {
+        project_name(i, nm);
+        sig = str_hash(sig, nm) + (uint32_t)project_used(i) * (i + 3u);
+    }
+    sig += c->count * 7u + sel * 1009u + c->loop * 13u +
+           (chain.running ? (chain.row + 1u) * 104729u + chain.left * 65537u : 0u);
+    if (!ui.force && sig == ui.graph_sig)
+        return;
+    ui.graph_sig = sig;
+    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_oy = 0;
+    last = c->count < CHAIN_ROWS ? c->count : CHAIN_ROWS - 1u;
+    for (i = first; i <= last && i < first + 4u; i++) {
+        int32_t y = 6 + (int32_t)(i - first) * 28;
+        int s = i == sel, play = chain.running && i == chain.row;
+        uint16_t col = s ? C_WHITE : C_GRAY;
+        if (s)
+            cv_rect(0, y - 3, 240, 24, C_LINE);
+        if (play) {
+            uint32_t j;
+            for (j = 0; j < 5u; j++)                  /* the play mark */
+                cv_rect(4 + (int32_t)j, y + 2 + (int32_t)j, 1, 14 - 2 * (int32_t)j, C_WHITE);
+        }
+        if (i >= c->count) {
+            cv_text(16, y, &FONT_S, "+", col);
+            if (!c->count)
+                cv_text(44, y, &FONT_S, "KNOB 2: ADD A ROW", C_DIM);
+            continue;
+        }
+        fmt_int(b, (int32_t)i + 1);
+        cv_text(16, y, &FONT_S, b, col);
+        b[0] = (char)('A' + c->row[i].slot);
+        b[1] = 0;
+        cv_text(48, y, &FONT_S, b, s ? C_WHITE : C_HI);
+        b[0] = 'x';
+        fmt_int(b + 1, c->row[i].repeat);
+        cv_text(70, y, &FONT_S, b, col);
+        if (play) {
+            fmt_int(b, chain.left);
+            str_cpy(b + str_len(b), " LEFT", 8);
+            cv_text(236 - text_w(&FONT_S, b), y, &FONT_S, b, C_AMB);
+        } else if (project_name(c->row[i].slot, nm) && nm[0]) {
+            char f[NAME_LEN + 1u];
+            fit(f, nm, &FONT_S, 124);
+            cv_text(108, y, &FONT_S, f, C_DIM);
+        }
+    }
+    cv_blit_from(0, Y_GRAPH, 0);
+}
+/* SONG: KNOB 1 ROW, 2 SLOT, 3 REPS, 4 LOOP */
+static void song_columns(void)
+{
+    const chain_config_t *c = &chain.cfg;
+    uint32_t r = ui.song_row < c->count ? ui.song_row : c->count;
+    char v[12], u[8];
+    if (r >= c->count) {
+        draw_column(0, "ROW", "+", "", VAL(0u), -1, ICON_AUTO);
+        draw_column(1, "SLOT", "--", "", C_DIM, -1, ICON_AUTO);
+        draw_column(2, "REPS", "--", "", C_DIM, -1, ICON_AUTO);
+    } else {
+        fmt_int(v, (int32_t)r + 1);
+        u[0] = '/';
+        fmt_int(u + 1, c->count);
+        draw_column(0, "ROW", v, u, VAL(0u), -1, ICON_AUTO);
+        v[0] = (char)('A' + c->row[r].slot);
+        v[1] = 0;
+        draw_column(1, "SLOT", v, "", VAL(1u), c->row[r].slot * 1000 / 3, ICON_AUTO);
+        v[0] = 'x';
+        fmt_int(v + 1, c->row[r].repeat);
+        draw_column(2, "REPS", v, "", VAL(2u), (c->row[r].repeat - 1) * 1000 / 15, ICON_AUTO);
+    }
+    draw_column(3, "LOOP", c->loop ? "ON" : "OFF", "", VAL(3u), -1, ICON_AUTO);
+}
+
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
@@ -832,6 +930,11 @@ static void draw_graph(void)
     }
     if (!ui.home && pg->graph == GR_MOTION) {          /* MOTION: the steps holding events */
         graph_motion();
+        ui.graph_top = 1;
+        return;
+    }
+    if (!ui.home && pg->graph == GR_SONG) {            /* SONG: the rows */
+        graph_song();
         ui.graph_top = 1;
         return;
     }
@@ -968,6 +1071,10 @@ static void draw_columns(void)
         motion_columns();
         return;
     }
+    if (!ui.home && pg->graph == GR_SONG) {            /* SONG: ROW SLOT REPS LOOP */
+        song_columns();
+        return;
+    }
     if (ui.home) {
         for (c = 0; c < 4u; c++) {
             int16_t *vp;
@@ -1026,6 +1133,10 @@ static void draw_columns(void)
             draw_column(c, "USB", val, "USB", C_HI, -1, ICON_AUTO);
             continue;
         }
+        if (pg->id[c] == G_NAME && pg->scope == SC_GLOBAL) {
+            draw_column(c, "NAME", "EDIT", "", C_HI, -1, ICON_AUTO);
+            continue;
+        }
         if (pg->id[c] == G_INFO && pg->scope == SC_GLOBAL) {
             fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
             unit = "%";
@@ -1070,6 +1181,12 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             if (ui.confirm == 2u) {
                 str_cpy(b, "CLEAR MOTION T1?", sizeof b);
                 b[14] = (char)('1' + ui.confirm_trk);
+            } else if (ui.confirm == 3u) {
+                str_cpy(b, "DELETE ROW ", sizeof b);
+                fmt_int(b + 11, (int32_t)ui.confirm_trk + 1);
+                str_cpy(b + str_len(b), "?", 4);
+            } else if (ui.confirm == 4u) {
+                str_cpy(b, "CLEAR SONG?", sizeof b);
             } else {
                 b[12] = (char)('1' + ui.confirm_trk);
             }
@@ -1078,6 +1195,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             draw_text_box(0, 132, 240, &FONT_S, "OCT- NO    OCT+ YES", C_GRAY, 1);
             ui.force = 0;
         }
+        return;
+    }
+    if (name_on()) {                                  /* NAME: its own screen */
+        draw_name();
         return;
     }
     bank_fix();

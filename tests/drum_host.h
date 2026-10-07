@@ -72,6 +72,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     memset(perf_ord, 0, sizeof perf_ord);
     sl_lent = 0;
     memset(&mo, 0, sizeof mo);                     /* MOTION: no events, nothing held */
+    memset(&chain, 0, sizeof chain);               /* SONG: none */
     comp_reset();
     comp_was = NTRK;
 }

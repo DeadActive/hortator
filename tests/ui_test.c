@@ -1496,9 +1496,7 @@ static void test_screens(void)
     press(B_OCTDN);
     ui_frame();
     release_all();
-    press(B_SEQ);
-    ui_frame();
-    release_all();
+    seq_open("STEP");                                /* (SEQ comes back to SONG, the last SEQ page: STEP) */
     hold(B_REC);                                     /* REC held on SEQ: the clear dialog */
     snap_page("92_clear_track");
     check("REC held on SEQ: the clear dialog draws", ui.confirm && fb_lit(80, 150) > 100);
@@ -2384,6 +2382,304 @@ static void test_motion_page(void)
     ui_frame();
 }
 
+static void rec_hold(void)                           /* REC held 0.8 s (1 ms per tick), then let go */
+{
+    uint32_t i;
+    fm1_in.buttons |= 1u << panel.btn[B_REC];
+    for (i = 0; i < 800; i++)
+        ui_input();
+    release_all();
+    ui_frame();
+}
+static void song_slot_saved(uint32_t s, const char *pat)   /* slot s: track 1 playing pat */
+{
+    uint32_t i;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    for (i = 0; pat[i]; i++)
+        trk[0].step[i].on = pat[i] != '.';
+    project_save(s);
+}
+static void test_song_page(void)
+{
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    seq_open("SONG");
+    check("SEQ reaches the SONG page", !ui.home && str_eq(cur_page()->title, "SONG"));
+    snap_page("song/empty");
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("SONG: KNOB 2 on the + row adds row 1 (A x1)", chain.cfg.count == 1u && chain.cfg.row[0].slot == 0u &&
+          chain.cfg.row[0].repeat == 1u);
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    turn(EN_K1 + 2, 3);
+    ui_frame();
+    check("SONG: KNOB 2 SLOT, KNOB 3 REPEAT", chain.cfg.row[0].slot == 1u && chain.cfg.row[0].repeat == 4u);
+    turn(EN_K1, 1);
+    ui_frame();
+    turn(EN_K1 + 2, 1);
+    ui_frame();
+    check("SONG: the next + row: a row from the previous slot (B x1)", chain.cfg.count == 2u &&
+          chain.cfg.row[1].slot == 1u && chain.cfg.row[1].repeat == 1u);
+    turn(EN_K1, 5);
+    ui_frame();
+    check("SONG: KNOB 1 stops at the + row", ui.song_row == 2u);
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    check("SONG: KNOB 4 LOOP ON", chain.cfg.loop == 1u);
+    snap_page("song/rows");
+}
+static void test_song_play_ui(void)
+{
+    uint32_t b;
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    song_slot_saved(0, "x...x...x...x...");
+    trk[0].p[P_SLEN] = 7;
+    seq_open("SONG");
+    tap(B_PLAY);
+    check("SONG: PLAY with no rows: ADD A SONG ROW", !song.playing && str_eq(ui.msg, "ADD A SONG ROW"));
+    chain.cfg.count = 2;
+    chain.cfg.row[0] = (chain_row_t){0, 2};
+    chain.cfg.row[1] = (chain_row_t){1, 1};
+    tap(B_PLAY);
+    check("SONG: PLAY with an empty slot: PATTERN B EMPTY", !song.playing && str_eq(ui.msg, "PATTERN B EMPTY"));
+    chain.cfg.row[1].slot = 0;
+    tap(B_PLAY);
+    for (b = 0; b < 4u; b++)
+        ui_frame();
+    check("SONG: PLAY starts the song", song.playing && chain.running && trk[0].p[P_SLEN] == 16);
+    ui.msg_t = 0;                                    /* (the header: the row playing) */
+    ui.force = 1;
+    snap_page("song/playing");
+    turn(EN_K1 + 2, 1);
+    ui_frame();
+    check("SONG: an edit while it plays: STOP TO EDIT", chain.cfg.row[0].repeat == 2u && str_eq(ui.msg, "STOP TO EDIT"));
+    seq_open("PATTERN");
+    turn(EN_K1, 1);
+    ui_frame();
+    check("PATTERN while a song plays: STOP TO EDIT", trk[0].p[P_SLEN] == 16 && str_eq(ui.msg, "STOP TO EDIT"));
+    seq_open("STEP");
+    keys(1u << 2);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("STEP grid while a song plays: STOP TO EDIT, the step unchanged", !trk[0].step[1].on &&
+          str_eq(ui.msg, "STOP TO EDIT"));
+    tap(B_PLAY);
+    ui_frame();
+    check("PLAY again: the song stops, LEN back", !song.playing && !chain.running && trk[0].p[P_SLEN] == 7);
+}
+static void test_song_play_twice(void)
+{
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    song_slot_saved(0, "x...............");
+    chain.cfg.count = 1;
+    chain.cfg.row[0] = (chain_row_t){0, 1};
+    seq_open("SONG");
+    press(B_PLAY);
+    ui_input();                                      /* armed, the ISR has not started it yet */
+    release_all();
+    press(B_PLAY);
+    ui_input();                                      /* stopped again before it began */
+    release_all();
+    render_mix(0, 0, CTL);
+    render_mix(0, 0, CTL);
+    check("SONG: PLAY twice before it began: nothing playing, nothing armed", !song.playing && !chain_busy());
+}
+static void test_song_delete(void)
+{
+    ui_host_init();
+    seq_open("SONG");
+    chain.cfg.count = 3;
+    chain.cfg.row[0] = (chain_row_t){0, 1};
+    chain.cfg.row[1] = (chain_row_t){1, 2};
+    chain.cfg.row[2] = (chain_row_t){2, 3};
+    ui.song_row = 1;
+    rec_hold();
+    check("SONG: REC held on a row asks DELETE ROW", ui.confirm == 3u);
+    snap_page("song/delete");
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("SONG: OCT+ deletes it, the later rows move up", chain.cfg.count == 2u && chain.cfg.row[1].slot == 2u &&
+          chain.cfg.row[1].repeat == 3u);
+    ui.song_row = 2;
+    rec_hold();
+    check("SONG: REC held on the + row asks CLEAR SONG", ui.confirm == 4u);
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("SONG: OCT+ clears the song", chain.cfg.count == 0u && ui.song_row == 0u);
+}
+
+static void name_type(uint32_t key)                  /* one key tap (key index from F3) */
+{
+    keys(1u << key);
+    ui_frame();
+    keys(0);
+    ui_frame();
+}
+static void project_page(void)
+{
+    uint32_t k;
+    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != G_SLOT); k++)
+        tap(B_SAVE);
+}
+static void save_knob(void)                          /* SAVE: GO, and GO again */
+{
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+    turn(EN_K1 + 3, 1);
+    ui_frame();
+}
+static void test_name_save(void)
+{
+    char b[NAME_LEN + 1u];
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_page();
+    save_knob();
+    check("SAVE saves at once (no NAME screen), the project unnamed", !name_on() && project_used(0) &&
+          project_name(0, b) && !b[0]);
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME knob on an unnamed slot: NAME opens, prefilled PROJECT A", name_on() && str_eq(nm.s, "PROJECT A"));
+    snap_page("name/abc");
+    while (nm.len) {                                 /* C# (key 8): DELETE */
+        nm.cur = nm.len;
+        name_type(8);
+    }
+    name_type(0);                                    /* F3: AB -> A */
+    name_type(0);                                    /* again within 0.8 s: B */
+    host_ticks += 900u * 1000u * FM1_TICKS_PER_US;   /* 0.9 s: kept */
+    ui_frame();
+    name_type(2);                                    /* G3: CD -> C */
+    host_ticks += 900u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    name_type(3);                                    /* G#3: SPACE */
+    name_type(10);                                   /* D#4: 123 */
+    snap_page("name/123");
+    name_type(0);                                    /* 1 */
+    name_type(2);                                    /* 2 */
+    check("NAME: multi-tap, the timeout, SPACE, 123", str_eq(nm.s, "BC 12") && nm.cur == 5u);
+    name_type(1);                                    /* F#3: left */
+    name_type(8);                                    /* DELETE: the 1 */
+    check("NAME: cursor left, DELETE", str_eq(nm.s, "BC 2") && nm.cur == 3u);
+    turn(EN_K1, -3);
+    ui_frame();
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME: KNOB 1 the cursor, KNOB 2 the character", nm.cur == 0u && nm.s[0] == 'C');
+    turn(EN_K1, 10);
+    ui_frame();
+    name_type(3);                                    /* a trailing space: dropped when written */
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("NAME OCT+: the slot renamed (ends trimmed), the current project's name too", !name_on() &&
+          project_name(0, b) && str_eq(b, "CC 2") && str_eq(chain.name, "CC 2"));
+    project_page();
+    ui.force = 1;
+    snap_page("name/project");
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME knob: renames the selected slot, prefilled with its name", name_on() && str_eq(nm.s, "CC 2"));
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("NAME OCT-: cancelled, nothing written", !name_on() && str_eq(chain.name, "CC 2"));
+    turn(EN_K1, 1);                                  /* slot B: empty */
+    ui_frame();
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("NAME knob on an empty slot: EMPTY SLOT", !name_on() && str_eq(ui.msg, "EMPTY SLOT"));
+}
+static void test_name_keys_silent(void)
+{
+    uint32_t a;
+    ui_host_init();
+    project_page();
+    project_save(0);
+    transport_req = 1;
+    ui_frame();
+    transport_req = 0;
+    name_open(NK_RENAME, 0);
+    song.rec = 1u;
+    a = hit_age(&trk[0]);
+    name_type(0);                                    /* F3: track 1's key */
+    press(B_FX);
+    ui_frame();
+    name_type(1);                                    /* F#3 with FX held: not PERFORM */
+    release_all();
+    ui_frame();
+    check("NAME: the keys never sound, record or start PERFORM", hit_age(&trk[0]) == a && !perf_held &&
+          !trk[0].step[0].on && !trk[0].step[1].on && str_eq(nm.s, "PROJECT AA"));
+}
+static void test_name_stop_to_save(void)
+{
+    char b[NAME_LEN + 1u];
+    ui_host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_page();
+    project_save(0);
+    name_open(NK_RENAME, 0);
+    transport_req = 1;
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("NAME OCT+ while playing: STOP TO SAVE, the screen stays", name_on() && project_name(0, b) && !b[0] &&
+          str_eq(ui.msg, "STOP TO SAVE"));
+    tap(B_PLAY);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("... stopped (PLAY works in NAME): renamed", !name_on() && project_name(0, b) && str_eq(b, "PROJECT A"));
+    name_open(NK_RENAME, 0);
+    name_type(0);
+    tap(B_HOME);
+    ui_frame();
+    check("NAME: HOME cancels", !name_on() && project_name(0, b) && str_eq(b, "PROJECT A"));
+}
+
+static void test_song_row_after_load(void)
+{
+    uint32_t i;
+    ui_host_init();
+    seq_open("SONG");
+    chain.cfg.count = 10;
+    for (i = 0; i < 10u; i++)
+        chain.cfg.row[i] = (chain_row_t){1, 2};
+    ui.song_row = 10;                                /* the + row of a 10-row song */
+    chain.cfg.count = 1;                             /* a LOAD brings a 1-row song */
+    turn(EN_K1 + 1, 1);
+    ui_frame();
+    check("SONG after a LOAD of a shorter song: a turn on + adds row 2, the song valid",
+          chain.cfg.count == 2u && chain_valid(&chain.cfg) && chain.cfg.row[1].repeat == 1u && ui.song_row <= 2u);
+}
+static void test_name_message_ends(void)
+{
+    uint32_t i;
+    ui_host_init();
+    project_page();
+    project_save(0);
+    name_open(NK_RENAME, 0);
+    ui_message("STOP TO SAVE");
+    for (i = 0; i < 60u; i++)
+        ui_frame();
+    check("NAME: a message in its title goes after a while", ui.msg_t == 0u);
+    name_close();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2441,6 +2737,15 @@ int main(void)
     test_motion_recording();
     test_motion_model_change();
     test_motion_page();
+    test_song_page();
+    test_song_play_ui();
+    test_song_play_twice();
+    test_song_delete();
+    test_name_save();
+    test_name_keys_silent();
+    test_name_stop_to_save();
+    test_song_row_after_load();
+    test_name_message_ends();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
