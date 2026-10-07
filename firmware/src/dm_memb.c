@@ -13,6 +13,7 @@ typedef struct {
     px_modal_t m;                                     /* the head */
     px_modal_blk_t k;                                 /* the last block's modes (the tests read them) */
     int32_t last;                                     /* the last sample out (taken back from a retrigger's declick) */
+    int32_t gain;                                     /* the velocity gain now (a retrigger's new one: ramped over a block) */
     uint32_t blk;                                     /* dblock of the last block rendered */
 } memb_body_t;
 static memb_body_t memb_body[NTRK] __attribute__((section(".pool")));
@@ -25,6 +26,7 @@ static void memb_trigger(track_t *t, dvoice_t *v)
     } else {
         memset(&B->m, 0, sizeof B->m);
         B->m.rng = 0x9E3779B9u ^ v->age;
+        B->gain = vel_gain(v);                        /* (a fresh head: no ramp) */
     }
     B->m.trig = 1;
 }
@@ -33,7 +35,7 @@ static void memb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 {
     memb_body_t *B = &memb_body[t - trk];
     const int16_t *p = &t->p[P_E0];
-    int32_t y[CTL], ax[CTL], pk = 0, exc = p[6] * 258;
+    int32_t y[CTL], ax[CTL], pk = 0, exc = p[6] * 258, g = B->gain, dg;
     int32_t acc = clamp(MEMB_ACC * v->vel * 4, 0, 65536);
     uint32_t i;
     if (n > CTL)
@@ -41,6 +43,7 @@ static void memb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     px_memb_block(&B->k, &B->m, qnote_inc(MEMB_NOTE + p[0]), p[3] * 516, p[2] * 516, p[1] * 516, acc, p[4] * 516,
                   p[5] * 6192);
     px_modal_run(&B->k, &B->m, y, ax, n);
+    dg = (vel_gain(v) - g) / (int32_t)n;              /* a re-strike's velocity: the ringing head follows over the block */
     for (i = 0; i < n; i++) {
         int32_t s = px_m(y[i] + px_m(ax[i], exc, 15), MEMB_GAIN, 20), a = s < 0 ? -s : s;
         uint32_t tt = v->t + i;
@@ -50,12 +53,14 @@ static void memb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         }
         if (tt >= LIFE_A)
             s = tt >= LIFE_B ? 0 : (int32_t)((int64_t)s * (int32_t)(LIFE_B - tt) / (int32_t)(LIFE_B - LIFE_A));
-        s = mulq15(s, vel_gain(v));
+        g = i + 1u < n ? g + dg : vel_gain(v);
+        s = mulq15(s, g);
         out[i] += s;
         v->last = s;
         pk = (s < 0 ? -s : s) > pk ? (s < 0 ? -s : s) : pk;
     }
     B->last = v->last;
+    B->gain = g;
     B->blk = dblock;
     v->t += n;
     v->x[0] = pk < 2 ? v->x[0] + 1 : 0;              /* quiet blocks (as dm_qend) */

@@ -68,7 +68,8 @@ static const char *reson_refused(const track_t *t, int32_t from, int32_t to)
 static px_modal_blk_t trk_modal_blk;                  /* (host tests: the last MODAL block) */
 #endif
 /* MODAL: the track's sound b (before DIST) into the 12 modes (their states in the track's rs_buf line); ring in the
- * track's scale; returns the block's peak (|ring| OR'd) */
+ * track's scale; returns the block's peak in the lines' scale (|ring| OR'd, >> 2: the RS_FLOOR test and the meter as
+ * STRNG's) */
 static __attribute__((noinline)) uint32_t reson_modal(track_t *t, const int32_t *b, int32_t *ring, uint32_t n)
 {
     reson_t *r = &t->rs;
@@ -94,7 +95,7 @@ static __attribute__((noinline)) uint32_t reson_modal(track_t *t, const int32_t 
     }
     r->ns = 0;
     r->seg = RS_LEN;
-    return peak;
+    return peak >> 2;
 }
 
 static int32_t rs_period(int32_t nq)                  /* note in 1/256 semitone -> the loop period, Q8 samples */

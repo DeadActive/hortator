@@ -199,6 +199,122 @@ static void test_modal_sustained(void)
     check("MODAL fed for 10 s at DECAY 127: bounded (the master never clips past full scale)", pk > 1000 && pk <= 32767);
 }
 
+/* final review: MODAL's modes keep a positive damping (r = rpg - g > 0) over the whole knob range with the fine pitch
+ * at its ends (a wrapped rpg fed itself: an endless near-Nyquist tone) */
+static void test_modal_stable(void)
+{
+    static const int16_t TUNE[7] = {24, 48, 60, 69, 72, 84, 96}, ST[7] = {0, 34, 70, 94, 116, 124, 127};
+    static const int16_t DEC[5] = {0, 32, 64, 100, 127}, TON[4] = {0, 32, 64, 127};
+    static const int32_t FINE[3] = {-RS_FINE, 0, RS_FINE};
+    int32_t in[CTL] = {0}, ring[CTL];
+    uint32_t a, b, c, d, e, k, bad = 0, runs = 0;
+    for (a = 0; a < 7u; a++)
+        for (b = 0; b < 3u; b++)
+            for (c = 0; c < 7u; c++)
+                for (d = 0; d < 5u; d++)
+                    for (e = 0; e < 4u; e++) {
+                        host_init();
+                        modal_kick(&trk[0]);
+                        trk[0].p[P_RTUNE] = TUNE[a];
+                        trk[0].rfine = FINE[b];
+                        trk[0].p[P_RSTRCT] = ST[c];
+                        trk[0].p[P_RDECAY] = DEC[d];
+                        trk[0].p[P_RTONE] = TON[e];
+                        reson_modal(&trk[0], in, ring, CTL);
+                        for (k = 0; k < trk_modal_blk.n; k++)
+                            bad += trk_modal_blk.m[k].rpg <= trk_modal_blk.m[k].g || trk_modal_blk.m[k].rpg <= 0;
+                        runs++;
+                    }
+    printf("     MODAL stability: %u unstable modes over %u settings\n", bad, runs);
+    check("MODAL: every mode damped (rpg > g) at every TUNE / R.TUN / STRCT / DECAY / TONE", bad == 0);
+}
+static void test_modal_decay0_ends(void)
+{
+    uint32_t b;
+    host_init();
+    drum_set_model(&trk[0], DM_S909);
+    trk[0].p[P_RMODEL] = RS_MODAL;
+    trk[0].p[P_RTUNE] = 69;
+    trk[0].p[P_RSTRCT] = 124;
+    trk[0].p[P_RDECAY] = 0;
+    trk[0].p[P_RTONE] = 0;
+    trk[0].p[P_RMIX] = 127;
+    drum_hit(&trk[0], 127);
+    for (b = 0; b < 44100u / CTL; b++)
+        render_mix(0, 0, CTL);
+    check("MODAL DECAY 0 (STRCT 124, TONE 0, TUNE A4): one hit rings out within 1 s", !trk[0].rs.ring);
+}
+static double mode_t60(const px_mode_t *m)           /* the mode's ring time (s): Q = 1 / r, T60 = Q ln 1000 / (pi f) */
+{
+    double r = (double)((int64_t)m->rpg - m->g) / (1 << 28), f = mode_hz(m);
+    return r > 0 && f > 0 ? log(1000.0) / (r * M_PI * f) : 1e9;
+}
+static void test_modal_upper_modes(void)
+{
+    int32_t in[CTL] = {0}, ring[CTL];
+    double t1, t2;
+    host_init();
+    modal_kick(&trk[0]);
+    trk[0].p[P_RTUNE] = 60;
+    trk[0].p[P_RDECAY] = 100;                        /* 2.30 s */
+    trk[0].p[P_RTONE] = 127;
+    trk[0].p[P_RSTRCT] = 34;
+    reson_modal(&trk[0], in, ring, CTL);
+    t1 = mode_t60(&trk_modal_blk.m[0]);
+    t2 = mode_t60(&trk_modal_blk.m[1]);
+    printf("     MODAL DECAY 100 TONE 127: mode 1 %.2f s, mode 2 %.2f s\n", t1, t2);
+    check("MODAL: the first mode rings DECAY's time (2.30 s, 15 %)", fabs(t1 / 2.30 - 1) < 0.15);
+    check("MODAL TONE 127: the 2nd mode rings nearly as long (upstream's Q per cycle)", t2 >= 0.8 * t1);
+}
+/* final review: a ringing MEMB re-struck at another velocity: no jump in the ringing body's level */
+static void test_memb_retrigger_vel(void)
+{
+    static const uint8_t V[2][2] = {{127, 96}, {96, 127}};
+    uint32_t c, i;
+    for (c = 0; c < 2u; c++) {
+        int32_t nat = 0, step;
+        host_init();
+        memb_on(&trk[0]);
+        trk[0].p[P_E1] = 100;
+        trk[0].p[P_E2] = 0;
+        trk[0].p[P_E6] = 0;
+        drum_hit(&trk[0], V[c][0]);
+        render_track(&trk[0], buf, 13216);           /* 0.3 s (whole blocks) */
+        for (i = 13216u - 64u; i < 13216u; i++)
+            nat = abs(buf[i] - buf[i - 1]) > nat ? abs(buf[i] - buf[i - 1]) : nat;
+        drum_hit(&trk[0], V[c][1]);
+        render_track(&trk[0], buf + 13216, CTL);
+        step = abs(buf[13216] - buf[13215]);
+        printf("     MEMB re-struck %u -> %u: step %d (natural %d)\n", V[c][0], V[c][1], step, nat);
+        check(c ? "MEMB re-struck 96 -> 127: no level jump" : "MEMB re-struck 127 -> 96: no level jump", step <= 2 * nat + 64);
+    }
+}
+
+/* final review: MEMB's modes damped at every knob extreme, and a hit at DECAY 127 ends by the 6 s lifetime */
+static void test_memb_stable(void)
+{
+    static const int16_t LO[7] = {-24, 0, 0, 0, 0, 0, 0}, HI[7] = {24, 127, 127, 127, 127, 127, 127};
+    uint32_t c, k, b, bad = 0;
+    for (c = 0; c < 128u; c++) {
+        host_init();
+        memb_on(&trk[0]);
+        for (k = 0; k < 7u; k++)
+            trk[0].p[P_E0 + k] = ((c >> k) & 1u) ? HI[k] : LO[k];
+        drum_hit(&trk[0], 127);
+        render_track(&trk[0], buf, CTL);
+        for (k = 0; k < memb_body[0].k.n; k++)
+            bad += memb_body[0].k.m[k].rpg <= memb_body[0].k.m[k].g;
+    }
+    check("MEMB: every mode damped at every knob extreme", bad == 0);
+    host_init();
+    memb_on(&trk[0]);
+    trk[0].p[P_E1] = 127;
+    drum_hit(&trk[0], 127);
+    for (b = 0; b < 44100u * 7u / CTL && trk[0].v[0].active; b++)
+        render_track(&trk[0], buf, CTL);
+    check("MEMB DECAY 127: the voice ends by its 6 s lifetime", !trk[0].v[0].active);
+}
+
 int main(void)
 {
     test_memb_modes();
@@ -208,6 +324,11 @@ int main(void)
     test_modal_ring();
     test_modal_tune();
     test_modal_sustained();
+    test_modal_stable();
+    test_modal_decay0_ends();
+    test_modal_upper_modes();
+    test_memb_retrigger_vel();
+    test_memb_stable();
     printf(fails ? "phys_test: %d FAILED\n" : "phys_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

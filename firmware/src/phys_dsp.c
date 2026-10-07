@@ -447,20 +447,20 @@ static uint32_t px_modal_ratio(int32_t structure, uint32_t i)
     return (uint32_t)(((uint64_t)(i + 1u) * (uint32_t)stretch));
 }
 
-/* RESON's MODAL (reson.c): px_modal_block's modes with the first mode's ring time given (t60, 0.1 ms) instead of
- * DAMPING's curve (DaisySP's starts at Q 500: a ring of ~30 s at C1 even at its shortest): its Q = pi f T60 / ln 1000
- * of the first mode as it sounds (after the compensation of the stretched partials), the higher modes' Q from it as
- * upstream (ql: BRIGHTNESS, STRUCTURE, damping); no exciter (the modes take the track's sound) */
+/* RESON's MODAL (reson.c): px_modal_block's modes with the ring time given (t60, 0.1 ms) instead of DAMPING's curve
+ * (DaisySP's starts at Q 500: a ring of ~30 s at C1 even at its shortest). Upstream's form kept: a mode's Q =
+ * 1 + f q, q per cycle falling by ql from one mode to the next (BRIGHTNESS, STRUCTURE, damping), so mode i rings
+ * T60 ql^i (Q >= 1: r = 1 / Q fits the SVF's coefficients); q from T60 = Q ln 1000 / (pi f): q = pi T60 / ln 1000 per
+ * cycle. No exciter (the modes take the track's sound) */
 static __attribute__((noinline)) void px_modal_block_q(px_modal_blk_t *B, px_modal_t *M, uint32_t f0, int32_t structure,
                                                        int32_t brightness, int32_t damping, uint32_t t60, int32_t pos)
 {
     int32_t stiff = px_stiff(structure), st2 = stiff, stretch = 65536, ql;
     uint32_t i, phs = 0;
-    uint64_t harm, q8;
+    uint64_t harm, q8 = ((uint64_t)33648942u * t60) >> 16;   /* Q8 per cycle (Q32): pi FS 256 / (ln 1000 10000) . T60 */
     (void)px_modal_q(structure, brightness, damping, &ql);
     f0 = (uint32_t)(((uint64_t)f0 * (uint32_t)(((uint64_t)1 << 32) /   /* NthHarmonicCompensation(3) */
                      (uint32_t)(65536 + stiff + px_m(stiff, stiff < 0 ? 60948 : 64225, 16)))) >> 16);
-    q8 = ((((uint64_t)f0 * 33648942u) >> 32) * t60) >> 16;   /* pi FS 256 / (ln 1000 10000), Q32: Q8 per Hz . 0.1 ms */
     harm = f0;
     for (i = 0; i < PX_NMODE; i++) {
         uint64_t mf = (harm * (uint32_t)stretch) >> 16;
@@ -471,7 +471,7 @@ static __attribute__((noinline)) void px_modal_block_q(px_modal_blk_t *B, px_mod
         amp = px_m(px_sin(phs + 0x40000000u), 16384, 16);   /* cos(2 pi pos i) / 4 */
         {
             px_svf_t c;
-            px_svf_coef(&c, (uint32_t)mf, (uint32_t)(q8 > 0xFFFFFF00u ? 0xFFFFFF00u : q8 < 64u ? 64u : q8));
+            px_svf_coef(&c, (uint32_t)mf, (uint32_t)(256u + ((mf * q8) >> 32)));   /* (as px_modal_block) */
             B->m[i].g = c.g;
             B->m[i].rpg = c.rpg;
             B->m[i].gh = c.gh;
