@@ -240,6 +240,20 @@ Report what you saw first; we'll go through it together.
 - Turn DECAY without REC while it plays: that is the new value the loop comes back to.
 - Save the project (stopped), power off and on, load it: the motion plays again.
 
+### SONG / NAME (check on the FM-1)
+- SAVE > PROJECT, slot A, SAVE twice: saved at once (USED). KNOB 2 NAME: the NAME screen opens ("PROJECT A"). Type
+  a name on the keys (a white key again within 0.8 s: its next letter; F# / A# move, G# space, C# deletes, D#
+  digits); KNOB 1 / 2 move and change a character; OCT+ writes it, OCT- cancels. The keys make no sound while it is
+  open. PROJECT shows the name next to A; SAVE again keeps it.
+- Make another pattern, save it to B and name it the same way.
+- SEQ > SONG: KNOB 2 on the `+` row adds a row; rows A x2, B x1; KNOB 4 LOOP ON. PLAY: A twice, then B, then A
+  again; the rows change on the bar, the header shows SONG and the row, the playing row "n LEFT".
+- LOOP OFF: it stops after B. STOP during a song: the current pattern (LEN etc.) is as before.
+- In a slot, a 16-step kick with a 64-step hats track: the row lasts the hats' 4 bars.
+- While a song plays: STEP / PATTERN edits say STOP TO EDIT; LOAD says STOP TO LOAD. REC held on a SONG row:
+  DELETE ROW; on the `+` row: CLEAR SONG.
+- Save, power off and on, load: the song and the name are there.
+
 ### TOOLS (check on the FM-1)
 
 - SAVE twice: TOOLS `CLRSQ` `INIT` (the selected track) and `CLR*` `INIT*` (everything). Each acts on a second

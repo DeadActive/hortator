@@ -10,6 +10,12 @@
 static void project_save(uint32_t slot);
 static void project_load(uint32_t slot);
 static int project_used(uint32_t slot);
+static uint32_t chain_prepare(void);
+static int project_name(uint32_t slot, char *b);
+static void project_rename(uint32_t slot, const char *name);
+static int transport_busy(void);
+static int name_on(void);                  /* ui_name.c (NAME) */
+static void draw_name(void);
 static void panel_setup(void);
 
 #define ACC C_HI
@@ -60,6 +66,7 @@ static struct {
     uint32_t fx_t0;              /* PERFORM: FX's press time | FX_DOWN / FX_OPEN / FX_DEAD (ui_input.c fx_layer) */
     uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
     uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
+    uint8_t song_row;            /* SONG: the row selected (count = the + row) */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
@@ -83,6 +90,14 @@ static void ui_say(const char *a, const char *b)     /* transient message in the
 }
 
 static void ui_message(const char *s) { ui_say(s, ""); }
+
+static int song_lock(void)                          /* a song plays (or is armed): its patterns stay as they are */
+{
+    if (!chain_busy())
+        return 0;
+    ui_message("STOP TO EDIT");
+    return 1;
+}
 
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
 static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
@@ -210,7 +225,7 @@ static step_t view_step(const track_t *t, uint32_t si)
     uint32_t s = view_src(t), b;
     step_t r = {0, 0, 0, 0};
     if (!s)
-        return t->step[si % NSTEP];
+        return seq_steps(t)[si % NSTEP];             /* (a song: its row's) */
     b = grids_preview(s - 1u, si);
     r.on = (uint8_t)(b & 1u);
     r.acc = (uint8_t)((b >> 1) & 1u);
@@ -234,6 +249,8 @@ static void step_press(uint32_t k)
     uint32_t si = ui.bank * 16u + k;
     step_t *s;
     ui.step_si[k] = 0xFFFFu;
+    if (song_lock())
+        return;
     if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
         return;
     s = &TSEL->step[si];
@@ -278,6 +295,8 @@ static void seq_clear_all(void)
         t->p[P_SSWING] = TP[P_SSWING].def;
         t->p[P_SRC] = TP[P_SRC].def;
     }
+    memset(&chain.cfg, 0, sizeof chain.cfg);           /* the song too */
+    ui.song_row = 0;
     ui.bank = 0;
     ui.force = 1;
 }
@@ -294,8 +313,10 @@ static void init_all(void)
     song.playing = 0;
     song.rec = 0;
     memset(&mo, 0, sizeof mo);                     /* no motion */
+    memset(&chain, 0, sizeof chain);               /* no song, no name */
     fm1_irq_on();
     ui.bank = 0;
+    ui.song_row = 0;
     ui.force = 1;
 }
 

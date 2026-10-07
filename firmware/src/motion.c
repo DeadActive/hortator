@@ -22,6 +22,8 @@ static struct {
     int16_t base[NTRK][P_COUNT];     /* every knob as set, while motion plays */
     uint32_t act[NTRK][2];           /* the knobs motion moved off the base (bit = id) */
     uint8_t base_ok, full;           /* tracks whose base is taken; a turn found no free place (the UI says so) */
+    const motion_store_t *src;       /* a song's row: its slot's motion (song.c), 0 = mo.s */
+    const uint8_t *model;            /* .. its slot's models: a track's model now another one skips its P_E events */
 } mo;
 
 /* the knobs motion records: the sound (not the model, mute, choke, note, routing, timing, the LFOs' shapes) */
@@ -93,7 +95,8 @@ static void motion_end(void)                      /* seq_stop: the patch back */
 static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
 {
     uint32_t k = (uint32_t)(t - trk), i, moved = 0;
-    if (!motion_on(k))
+    const motion_store_t *m = mo.src ? mo.src : &mo.s;
+    if (!((m->on >> k) & 1u))
         return;
     if (!((mo.base_ok >> k) & 1u))
         motion_take_base(k);
@@ -101,9 +104,10 @@ static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
         moved = mo.act[k][0] | mo.act[k][1];
         motion_restore(k);
     }
-    for (i = 0; i < mo.s.count; i++) {
-        const motion_event_t *e = &mo.s.ev[i];
-        if (e->trk == k && e->step == s) {
+    for (i = 0; i < m->count; i++) {
+        const motion_event_t *e = &m->ev[i];
+        if (e->trk == k && e->step == s &&
+            !(mo.model && mo.model[k] != t->p[P_MODEL] && e->param >= P_E0 && e->param <= P_E7)) {
             const param_desc_t *d = track_desc(t, e->param);
             *motion_slot(t, e->param) = (int16_t)clamp(e->value, d->min, d->max);
             motion_mark(k, e->param);
