@@ -108,10 +108,10 @@ html { scroll-snap-type: y proximity; }
   align-items: center; white-space: nowrap; color: var(--hero-ink);
   opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none); transition: opacity 0.45s ease;
 }
-.power { display: flex; align-items: center; gap: 12px; margin-right: 6px; }
-.power span { font-size: 13px; color: #c5c9cf; }
-@media (max-width: 560px) {                       /* phones: the row stays one line */
-  .power span { display: none; }
+.power-note { font-size: 13px; color: #c5c9cf; margin-right: 6px; }
+@media (max-width: 560px) {                       /* phones: the caption above the row, the row one line */
+  .power-note { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+    width: max-content; max-width: calc(100vw - 32px); white-space: normal; text-align: center; margin: 0; }
   .play-bar { gap: 8px; }
   .bar-btn { padding: 6px 12px; font-size: 13px; }
 }
@@ -297,7 +297,7 @@ html { scroll-behavior: smooth; }
   .install-steps { row-gap: 18px; }
   .install-grid { gap: 36px; }
 }
-@media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .usb .pulse, .laptop .ghost-line::after, .more-cue span, .power-switch.ready { animation: none; } }
 
 .foot {                                          /* three parts: the name, the ways around, the credits */
   display: grid; grid-template-columns: 1.1fr 0.9fr 1.6fr; gap: 40px; margin-top: 96px; padding: 28px 0 8px;
@@ -382,12 +382,43 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 
 .device :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
-/* ---- power on */
-.power button {
-  font-size: 15px; font-weight: 600; padding: 8px 22px; border-radius: 999px; border: 0; cursor: pointer;
-  background: #e9ebee; color: #15171a; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+/* ---- the power switch: on the FM-1's top edge, a black slide switch with a round knob; it pulses until the first
+   flip; off pauses the sound and dims the screen */
+.device > .power-switch {
+  translate: 0 0 6px; padding: 0; border-radius: 999px; cursor: pointer; border: 1px solid #000;
+  background: linear-gradient(#0b0c0d, #1a1b1d); box-shadow: 0 2px 0 #000, inset 0 2px 4px rgba(0,0,0,.8);
 }
-.power button:disabled { opacity: 0.6; cursor: progress; }
+.power-switch .knob {
+  position: absolute; left: 3px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #5d6168, #2b2d31 75%); box-shadow: 0 1px 2px rgba(0,0,0,.8);
+  transition: transform .22s cubic-bezier(.3,.7,.3,1);
+}
+.power-switch.on .knob { transform: translateX(32px); }
+.power-switch .led {
+  position: absolute; left: 9px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
+  background: #2a2c2f; transition: background .2s, box-shadow .2s;
+}
+.power-switch.on .led { background: var(--led); box-shadow: 0 0 6px 2px rgba(215,232,255,.8); }
+.power-switch:disabled { cursor: progress; }
+.device:not(.waiting) > .power-switch.ready { animation: power-pulse 1.8s ease-in-out infinite; }   /* landed only */
+@keyframes power-pulse {
+  0%, 100% { box-shadow: 0 2px 0 #000, inset 0 2px 4px rgba(0,0,0,.8), 0 0 0 0 rgba(230,240,255,.0); }
+  50% { box-shadow: 0 2px 0 #000, inset 0 2px 4px rgba(0,0,0,.8), 0 0 0 8px rgba(230,240,255,.28); }
+}
+.device.powered-off canvas.lcd { opacity: .12; transition: opacity .3s; }
+.device.powered-off .lit { color: inherit; text-shadow: none; }
+.device.powered-off .key.lit .stripe { background: #6c7077; box-shadow: none; }
+
+/* "more below": while the simulator holds the screen, a cue that the page goes on */
+.more-cue {
+  position: absolute; right: max(20px, 4vw); bottom: 26px; z-index: 6; display: flex; flex-direction: column;
+  align-items: center; gap: 2px; font-size: 13px; color: #c5c9cf; text-decoration: none;
+  opacity: var(--arrived, 0); pointer-events: var(--arrived-events, none); transition: opacity .45s ease;
+}
+.more-cue span { font-size: 18px; line-height: 1; animation: bob 1.6s ease-in-out infinite; }
+.more-cue:hover { color: #fff; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+@media (max-width: 760px) { .more-cue { bottom: auto; top: 18px; right: 50%; transform: translateX(50%); flex-direction: row; gap: 6px; } }
 
 @media (max-height: 520px) {                          /* phones held sideways: smaller copy */
   .hero-copy h1 { font-size: 30px; }

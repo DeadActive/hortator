@@ -161,9 +161,10 @@ test('hero pose: the device lands early and holds: the last 40 % of the scroll t
     }
 });
 
-test('the simulator bar: Switch on, Controls and Reset in one row; the reset confirm is a pop-over in it', () => {
+test('the simulator bar: the power caption, Controls and Reset in one row; the reset confirm is a pop-over in it', () => {
   const bar = LANDING.slice(LANDING.indexOf('id="play-bar"'), LANDING.indexOf('id="help"'));
-  for (const id of ['power-on', 'help-toggle', 'reset', 'reset-confirm']) assert.match(bar, new RegExp(`id="${id}"`), id);
+  for (const id of ['power-note', 'help-toggle', 'reset', 'reset-confirm']) assert.match(bar, new RegExp(`id="${id}"`), id);
+  assert.doesNotMatch(bar, /id="power-on"/, 'the power switch is on the device now');
   assert.match(LANDING, /class="hero-end"[^>]*id="play"|id="play"[^>]*class="hero-end"/);
 });
 
@@ -207,4 +208,21 @@ test('sim.css parses: no comment left open, braces balanced (an open comment onc
   const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(!bare.includes('/*'), 'a comment is never closed');
   assert.equal((bare.match(/{/g) || []).length, (bare.match(/}/g) || []).length, 'braces');
+});
+
+test('the power switch sits on the top edge, above the screen\'s top-right corner, in both layouts', () => {
+  for (const [name, L] of Object.entries(LAYOUTS)) {
+    const [x, y, w, h] = L.power;
+    assert.equal(y + h / 2, 0, `${name}: centred on the top edge`);
+    const bezelRight = L.deco.bezel[0] + L.deco.bezel[2];
+    assert.ok(x + w <= bezelRight + 4 && x + w >= bezelRight - 60, `${name}: over the screen's right corner`);
+  }
+  const app = readFileSync('web/sim/app.js', 'utf8');
+  assert.match(app, /'role', 'switch'/, 'a real switch for assistive tech');
+  assert.deepEqual(blend(LAYOUTS.landscape, LAYOUTS.portrait, 1).power, LAYOUTS.portrait.power);
+});
+
+test('while the simulator is on screen, a cue says the page goes on', () => {
+  const stage = LANDING.slice(LANDING.indexOf('id="stage"'), LANDING.indexOf('id="play"'));
+  assert.match(stage, /<a [^>]*class="more-cue"[^>]*href="#features"|<a [^>]*href="#features"[^>]*class="more-cue"/);
 });

@@ -43,10 +43,7 @@
 
     <div class="play-bar" id="play-bar">
       <p id="note" class="note" role="status"></p>
-      <div id="power" class="power">
-        <button type="button" id="power-on" disabled>Switch on</button>
-        <span id="power-note">Loading…</span>
-      </div>
+      <span class="power-note" id="power-note">Loading…</span>
       <button type="button" class="bar-btn" id="help-toggle" aria-expanded="false" aria-controls="help">Controls</button>
       <button type="button" class="bar-btn" id="reset" aria-haspopup="dialog">Reset to demos</button>
       <div id="reset-confirm" class="confirm" role="dialog" aria-label="Reset to demos" hidden>
@@ -55,6 +52,7 @@
         <button type="button" id="reset-no">Keep my saves</button>
       </div>
     </div>
+    <a class="more-cue" id="more-cue" href="#features">More below<span aria-hidden="true">↓</span></a>
     <div id="help" class="help" hidden>
       <div>
         <h2>Mouse and touch</h2>

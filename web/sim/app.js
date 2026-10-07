@@ -85,6 +85,21 @@ function build() {
     device.append(l);
     els.lbl[id] = l;
   });
+  const sw = document.createElement('button');           // the power switch, on the top edge as on the FM-1
+  sw.type = 'button';
+  sw.id = 'power-on';
+  sw.className = 'power-switch';
+  sw.setAttribute('role', 'switch');
+  sw.setAttribute('aria-checked', 'false');
+  sw.setAttribute('aria-label', 'Power');
+  sw.disabled = true;
+  sw.innerHTML = '<span class="led"></span><span class="knob"></span>';
+  device.append(sw);
+  els.power = sw;
+  els.powerLbl = document.createElement('div');
+  els.powerLbl.className = 'lbl';
+  els.powerLbl.textContent = 'POWER';
+  device.append(els.powerLbl);
   const glare = document.createElement('div');           // the shine: a fixed stripe moved by transform (no repaint)
   glare.className = 'glare';
   glare.innerHTML = '<span class="glare-band"></span>';
@@ -117,6 +132,8 @@ function geometry(morph, force) {                  // place every part for this 
     els.deco[name].style.opacity = d.opacity;
   }
   place(lcd, G.lcd);
+  place(els.power, G.power);
+  place(els.powerLbl, [G.power[0] - 10, G.power[1] + G.power[3] + 6, G.power[2] + 20, 12]);
   for (const [ctl, b] of Object.entries(G.ctl)) place(els.ctl[ctl], b);
   for (const [id, b] of Object.entries(G.enc)) {
     place(els.enc[id], b);
@@ -191,7 +208,7 @@ function bindControls() {
   for (const [id, el] of Object.entries(els.enc)) bindEncoder(id, el);
 
   window.addEventListener('keydown', e => {
-    if (!arrived || e.target.closest?.('.help, .confirm')) return;
+    if (!arrived || e.target.closest?.('.help, .confirm, #power-on')) return;
     if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && hovered) {
       e.preventDefault();
       turn(hovered, e.code === 'ArrowUp' ? 1 : -1);
@@ -283,9 +300,9 @@ function paint(now) {
 
 // ---- flash in IndexedDB (store.js), the audio clock (audio.js)
 const store = new FlashStore(openFlashDb, msg => { note.textContent = msg; });
-let ctx = null;
-function wake() {                                 // a tap or a key brings a stopped context back
-  if (!ctx || !needsResume(ctx.state)) return;
+let ctx = null, poweredOff = false;
+function wake() {                                 // a tap or a key brings a stopped context back (not one switched off)
+  if (!ctx || poweredOff || !needsResume(ctx.state)) return;
   ctx.resume().catch(() => {});
 }
 
@@ -294,9 +311,23 @@ const wasmBytes = fetch('fm1sim.wasm').then(r => {
   if (!r.ok) throw new Error(`fm1sim.wasm: HTTP ${r.status}`);
   return r.arrayBuffer();
 });
+function setSwitch(on) {
+  els.power.setAttribute('aria-checked', String(on));
+  els.power.classList.toggle('on', on);
+  device.classList.toggle('powered-off', !on && !!node);
+}
+async function powerSwitch() {                     // the first flip starts the firmware; later ones pause / resume
+  if (!node) return powerOn();
+  poweredOff = !poweredOff;
+  setSwitch(!poweredOff);
+  if (poweredOff) { releaseAll(); await ctx.suspend(); }
+  else await ctx.resume();
+}
 async function powerOn() {
-  const btn = document.getElementById('power-on'), pnote = document.getElementById('power-note');
+  const btn = els.power, pnote = document.getElementById('power-note');
   btn.disabled = true;
+  btn.classList.remove('ready');
+  setSwitch(true);
   pnote.textContent = 'Starting…';
   try {
     if (!window.AudioWorkletNode) throw new Error('This browser has no AudioWorklet. Use a current Chrome, Firefox or Safari.');
@@ -318,12 +349,14 @@ async function powerOn() {
     for (const m of pending.splice(0)) node.port.postMessage(m);
     if (ctx.sampleRate !== 44100) note.textContent = `Audio runs at ${ctx.sampleRate} Hz here, not 44100 Hz: pitch and tempo are off.`;
     ctx.addEventListener('statechange', () => {
-      if (needsResume(ctx.state) && !document.hidden) note.textContent = 'Sound stopped. Tap the panel to start it again.';
+      if (needsResume(ctx.state) && !document.hidden && !poweredOff) note.textContent = 'Sound stopped. Tap the panel to start it again.';
       else if (ctx.state === 'running' && note.textContent.startsWith('Sound stopped')) note.textContent = '';
     });
-    document.getElementById('power').hidden = true;
+    pnote.hidden = true;
+    btn.disabled = false;
   } catch (err) {
     btn.disabled = false;
+    setSwitch(false);
     pnote.textContent = err.message || String(err);
   }
 }
@@ -350,10 +383,10 @@ function bindPage() {
     await store.clear();
     location.reload();
   });
-  const on = document.getElementById('power-on');
-  on.addEventListener('click', powerOn);
-  on.disabled = false;
-  document.getElementById('power-note').textContent = 'Sound starts with this tap.';
+  els.power.addEventListener('click', powerSwitch);
+  els.power.disabled = false;
+  els.power.classList.add('ready');                 // pulses until the first flip
+  document.getElementById('power-note').textContent = 'Flip the POWER switch on the top edge to start the sound.';
 }
 
 // ---- the reel: recorded pages (tests/sim_record.c) on the screen, LEDs and knobs until the firmware is switched on

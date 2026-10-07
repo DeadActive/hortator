@@ -30,6 +30,7 @@ export const LAYOUTS = {
     W: 1000, H: 620,
     deco: { bezel: [270, 36, 268, 268], oct: [52, 262, 196, 64], buttons: [572, 158, 394, 156], keys: [40, 336, 920, 262] },
     lcd: [284, 50, 240, 240],
+    power: [478, -12, 56, 24],                      // the power switch: on the top edge, above the screen's right corner
     enc: { master: knob(95, 108), 0: knob(195, 108), 2: knob(95, 214), 1: knob(195, 214),
            3: knob(632, 108), 4: knob(731, 108), 5: knob(830, 108), 6: knob(929, 108) },
     ctl: { ...buttonRows(ROWS, 588, 174, 52, 62, 68),
@@ -40,6 +41,7 @@ export const LAYOUTS = {
     W: 420, H: 772,
     deco: { bezel: [76, 20, 268, 268], buttons: [14, 450, 392, 128], keys: [10, 590, 400, 172] },
     lcd: [90, 34, 240, 240],
+    power: [284, -12, 56, 24],
     enc: { master: knob(60, 340), 0: knob(160, 340), 1: knob(260, 340), 2: knob(360, 340),
            3: knob(60, 416), 4: knob(160, 416), 5: knob(260, 416), 6: knob(360, 416) },
     ctl: { ...buttonRows([[...ROWS[0], 'OCT-'], [...ROWS[1], 'OCT+']], 25, 462, 46, 54, 58),
@@ -65,7 +67,7 @@ export function blend(A, Bl, t) {
       : { box: box(a, Bl.deco.buttons, tb), opacity: Math.max(0, 1 - t * 2.5) };
   const ctl = {};
   for (const [k, a] of Object.entries(A.ctl)) ctl[k] = box(a, Bl.ctl[k], lag(t, k.startsWith('key') ? LAG.key : LAG.btn));
-  return { W: mix(A.W, Bl.W, tb), H: mix(A.H, Bl.H, tb), deco, lcd: box(A.lcd, Bl.lcd, tb),
+  return { W: mix(A.W, Bl.W, tb), H: mix(A.H, Bl.H, tb), deco, lcd: box(A.lcd, Bl.lcd, tb), power: box(A.power, Bl.power, tb),
            enc: boxes(A.enc, Bl.enc, lag(t, LAG.enc)), ctl };
 }
 
