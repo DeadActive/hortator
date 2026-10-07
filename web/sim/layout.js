@@ -99,3 +99,25 @@ export function heroPose(p, phone) {               // holds the simulator flat, 
     arrived: m >= 1 && (!phone || morph >= 1),
   };
 }
+
+// ---- the body's edge for the 3D hero: the rounded outline (W x H, corner radius R) as a closed loop of straight
+// strips, clockwise from the top edge: 4 sides and N chords per corner. app.js stands a wall on each strip, the
+// body's depth deep: the same thickness a stack of full-size layers gave, at a fraction of the pixels to draw.
+export function outline(W, H, R, N) {
+  const out = [], arc = (cx, cy, from) => {
+    for (let i = 0; i < N; i++) {
+      const a0 = (from + 90 * i / N) * Math.PI / 180, a1 = (from + 90 * (i + 1) / N) * Math.PI / 180;
+      out.push({ x0: cx + R * Math.cos(a0), y0: cy + R * Math.sin(a0), x1: cx + R * Math.cos(a1), y1: cy + R * Math.sin(a1) });
+    }
+  };
+  out.push({ x0: R, y0: 0, x1: W - R, y1: 0 });
+  arc(W - R, R, -90);
+  out.push({ x0: W, y0: R, x1: W, y1: H - R });
+  arc(W - R, H - R, 0);
+  out.push({ x0: W - R, y0: H, x1: R, y1: H });
+  arc(R, H - R, 90);
+  out.push({ x0: 0, y0: H - R, x1: 0, y1: R });
+  arc(R, R, 180);
+  for (const s of out) for (const k of ['x0', 'y0', 'x1', 'y1']) s[k] = Math.round(s[k] * 1e9) / 1e9;
+  return out;
+}

@@ -71,8 +71,8 @@ html { scroll-snap-type: y proximity; }
 .scene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   padding: 56px 0 118px;                         /* the device lands between the nav and Switch on + its bar */
 }
-.scene::after {                                  /* the dimming: an overlay's opacity, not a filter */
-  content: ""; position: absolute; inset: 0; background: #101214; opacity: var(--dim, 0); pointer-events: none; }
+/* the dimming: an overlay's opacity, not a filter, and outside the blurred scene */
+.scene-dim { position: absolute; inset: 0; background: #101214; opacity: var(--dim, 0); pointer-events: none; }
 .tilt { position: relative; transform-style: preserve-3d; will-change: transform; }
 .tilt .fit { transform-style: preserve-3d; }
 .desk-shadow {
@@ -140,7 +140,7 @@ html { scroll-snap-type: y proximity; }
 .help ul { margin: 0; padding-left: 18px; color: #b8bdc4; }
 .note { min-height: 1.5em; margin: 6px 0 0; color: var(--ink-soft); }
 
-/* depth: the panel's parts stand off its face; the body is extruded behind it (app.js adds the .slab layers) */
+/* depth: the panel's parts stand off its face; walls around its outline give the body its depth (app.js) */
 .device { transform-style: preserve-3d; }
 .device > .tray { translate: 0 0 1px; }
 .device > .bezel { translate: 0 0 1px; }
@@ -150,7 +150,8 @@ html { scroll-snap-type: y proximity; }
 .device > .key { translate: 0 0 5px; }
 .device > .enc { translate: 0 0 9px; transform-style: preserve-3d; }
 .device > .enc .cap { translate: 0 0 8px; }
-.device > .slab { border-radius: 44px; pointer-events: none; }
+.device > .walls { left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
+.walls > div { position: absolute; left: 0; top: 0; transform-origin: 0 0; backface-visibility: visible; }
 .device > .glare {
   inset: 0; border-radius: 44px; pointer-events: none; translate: 0 0 12px; opacity: 0; overflow: hidden;
 }

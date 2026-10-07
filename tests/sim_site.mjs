@@ -72,7 +72,7 @@ test('landing: hero (with the device and the #play end), features, install; inst
 });
 
 // ---- layout.js: the panel's two layouts, the morph between them, the hero's choreography (pure, no DOM)
-import { LAYOUTS, blend, heroPose } from '../web/sim/layout.js';
+import { LAYOUTS, blend, heroPose, outline } from '../web/sim/layout.js';
 
 test('layouts: both have every control, a 240 px LCD, the same knobs', () => {
   const { landscape: L, portrait: P } = LAYOUTS;
@@ -186,4 +186,25 @@ test('make_site: the front page is the landing page with the simulator beside it
   for (const f of ['reel.bin', 'reel.hash', 'package.fwsc']) assert.ok(!existsSync(`${out}/${f}`), `${f} is not published`);
   assert.match(readFileSync(`${out}/webapp/installer/index.html`, 'utf8'), /Install Hortator/);
   rmSync(out, { recursive: true, force: true });
+});
+
+test('outline: the body\'s edge as wall strips, 4 sides and N per corner, following the rounded outline', () => {
+  const W = 1000, H = 620, R = 44, N = 6;
+  const strips = outline(W, H, R, N);
+  assert.equal(strips.length, 4 + 4 * N);
+  const len = strips.reduce((a, s) => a + Math.hypot(s.x1 - s.x0, s.y1 - s.y0), 0);
+  const perimeter = 2 * (W + H) - 8 * R + 2 * Math.PI * R;
+  assert.ok(Math.abs(len - perimeter) / perimeter < 0.01, `${len} vs ${perimeter}`);
+  for (let i = 0; i < strips.length; i++) {          // a closed loop: each strip starts where the last one ended
+    const a = strips[i], b = strips[(i + 1) % strips.length];
+    assert.ok(Math.hypot(a.x1 - b.x0, a.y1 - b.y0) < 1e-6, `gap after strip ${i}`);
+  }
+  for (const s of strips) assert.ok(s.x0 >= -1e-9 && s.x0 <= W + 1e-9 && s.y0 >= -1e-9 && s.y0 <= H + 1e-9);
+});
+
+test('sim.css parses: no comment left open, braces balanced (an open comment once swallowed half the page\'s styles)', () => {
+  const css = readFileSync('web/sim/sim.css', 'utf8');
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!bare.includes('/*'), 'a comment is never closed');
+  assert.equal((bare.match(/{/g) || []).length, (bare.match(/}/g) || []).length, 'braces');
 });

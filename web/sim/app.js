@@ -7,7 +7,7 @@ import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from '
 import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
 import { parseReel, snapshots } from './reel.js';
-import { LAYOUTS, DECO_CLASS, blend, heroPose } from './layout.js';
+import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js';
 
 // ---- the panel's elements (built once, placed per layout)
 const device = document.getElementById('device');
@@ -26,16 +26,21 @@ function place(el, [x, y, w, h]) {
   el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.width = `${w}px`; el.style.height = `${h}px`;
 }
 
-const SLABS = 14;                                 // the body extruded behind the face, 3.2 px a layer
+const DEPTH = 14 * 3.2;                            // the body's depth (design px): walls stood on its outline
+let walls = null;
 function build() {
-  for (let i = SLABS; i >= 1; i--) {
-    const s = document.createElement('div'), t = i / SLABS;
-    s.className = 'slab';
-    s.style.inset = '0';
-    s.style.translate = `0 0 ${-i * 3.2}px`;
-    s.style.background = `rgb(${Math.round(78 - 40 * t)}, ${Math.round(82 - 41 * t)}, ${Math.round(88 - 43 * t)})`;
-    device.append(s);
+  walls = document.createElement('div');           // the edge: strips around the rounded outline, DEPTH deep, shaded
+  walls.className = 'walls';                       // by which way they face (light from above)
+  for (const st of outline(LAYOUTS.landscape.W, LAYOUTS.landscape.H, 44, 6)) {
+    const w = document.createElement('div'), dx = st.x1 - st.x0, dy = st.y1 - st.y0, ang = Math.atan2(dy, dx);
+    const up = -Math.cos(ang);                     // the outward normal's upward part: 1 top edge .. -1 bottom edge
+    const c = Math.round(66 + 14 * up);
+    w.style.cssText = `width:${Math.hypot(dx, dy) + 0.8}px;height:${DEPTH}px;`
+      + `transform:translate(${st.x0}px,${st.y0}px) rotateZ(${ang}rad) rotateX(-90deg);`
+      + `background:linear-gradient(rgb(${c},${c + 4},${c + 9}),rgb(${c - 30},${c - 28},${c - 25}))`;
+    walls.append(w);
   }
+  device.append(walls);
   for (const name of Object.keys(DECO_CLASS)) {
     const d = document.createElement('div');
     d.className = DECO_CLASS[name];
@@ -118,6 +123,7 @@ function geometry(morph, force) {                  // place every part for this 
     place(els.lbl[id], [b[0] - 30, b[1] - 20, b[2] + 60, 14]);
   }
   const scale = fitScale(G);                        // fits at every step of the morph
+  if (walls) walls.hidden = morph > 0;              // the edge fits the FM-1's own outline; the phone layout lies flat
   device.style.width = `${G.W}px`;
   device.style.height = `${G.H}px`;
   device.style.setProperty('--scale', scale);
@@ -385,7 +391,8 @@ function heroFrame() {
   const p = still.matches || track <= 0 ? 1 : Math.min(1, Math.max(0, -r.top / track));
   const q = heroPose(p, phone);
   tilt.style.transform = q.transform;
-  const filter = q.blur > 0 ? `blur(${q.blur}px)` : 'none';   // no filter at all once sharp
+  const b = Math.round(q.blur * 2) / 2;              // half-pixel steps: the filter changes ~18 times, not every frame
+  const filter = b > 0 ? `blur(${b}px)` : 'none';   // no filter at all once sharp
   if (filter !== lastFilter) { scene.style.filter = filter; lastFilter = filter; }
   geometry(phone ? q.morph : 0, false);
   stage.style.setProperty('--dim', q.dim);
