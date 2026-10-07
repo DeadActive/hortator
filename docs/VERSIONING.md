@@ -29,3 +29,16 @@ X.Y` builds) are separate and unchanged.
 3. Commit `VERSION.txt` and `CHANGELOG.md`, then `git tag drum-v<version>`.
 4. `DRUM_PACKAGE=1 ./build.sh`: the package and `build/site` carry the new number; the host suite checks it
    (`tools/version.py check build`).
+
+## Publishing (github.com/DeadActive/hortator)
+
+`tools/publish.sh [drum-vX.Y.Z]` (default: the tag of `VERSION.txt`), run here after the tag is made; nothing is
+built in the cloud:
+
+1. builds exactly the tag in its own checkout (`build/publish/src`): the simulator (`tools/build_sim.sh`, Docker) and
+   the package with the site (`DRUM_PACKAGE=1 ./build.sh`);
+2. pushes `main` and the tag to `origin`;
+3. makes the GitHub release "Hortator X.Y.Z": `hortator-X.Y.Z.fwsc`, `LICENSE`, `LICENSING.md`, `LICENSES.zip`, the
+   version's notes from `CHANGELOG.md` (run again: the files are replaced);
+4. puts that build's site (landing page with the simulator, the web installer, the editor) on the `gh-pages` branch:
+   GitHub Pages, https://deadactive.github.io/hortator/.
