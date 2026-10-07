@@ -80,6 +80,7 @@ static void test_extremes(void)
     static const int CUTS[3] = {0, 64, 127}, RES[3] = {0, 64, 127};
     static int32_t b[CTL];
     uint32_t ok = 1, ty, c, r, blk, i, rng = 1;
+    int32_t smax = 0;
     for (ty = FT_LP; ty < FT_N; ty++)
         for (c = 0; c < 3u; c++)
             for (r = 0; r < 3u; r++) {
@@ -96,10 +97,13 @@ static void test_extremes(void)
                     trk_filter(t, b, CTL);
                     for (i = 0; i < CTL; i++)
                         ok &= b[i] >= -524287 && b[i] <= 524287;
-                    ok &= abs(t->fs[0]) < (1 << 26) && abs(t->fs[1]) < (1 << 26);
+                    ok &= abs(t->fs[0]) < FLT_SMAX / 2 && abs(t->fs[1]) < FLT_SMAX / 2;
+                    smax = abs(t->fs[0]) > smax ? abs(t->fs[0]) : smax;
+                    smax = abs(t->fs[1]) > smax ? abs(t->fs[1]) : smax;
                 }
             }
-    check("extremes: every TYPE x CUT x RESO bounded, the states far from their clamp", ok);
+    printf("     extremes: the largest state %d (clamp %d)\n", smax, FLT_SMAX);
+    check("extremes: every TYPE x CUT x RESO bounded, the states below half their clamp", ok);
 }
 
 /* a track with a sustained noise source: HATO's noise at DECAY 127, hit once */
@@ -179,7 +183,7 @@ static void test_tail(void)
 /* Review Focus 1: TYPE changed while ringing; from OFF the filter starts from silence */
 static void test_type_switch(void)
 {
-    uint32_t blk, ok = 1;
+    uint32_t blk, ok = 1, b2;
     host_init();
     drum_set_model(&trk[0], DM_RIM);
     flt_set(&trk[0], FT_LP, 40, 127, 0, 40);
@@ -194,7 +198,11 @@ static void test_type_switch(void)
     render_mix(wl, wr, CTL);
     ok &= trk[0].fs[0] == 0 && trk[0].fs[1] == 0 && !trk[0].fring;
     trk[0].p[P_FTYPE] = FT_LP;
-    render_mix(wl, wr, SECS(0.5));
+    for (blk = 0; blk < SECS(0.5) / CTL && !trk[0].v[0].active; blk++) {
+        render_mix(wl, wr, CTL);                     /* no new hit: LP again starts from silence */
+        for (b2 = 0; b2 < CTL; b2++)
+            ok &= wl[b2] == 0 || trk[0].v[0].active || trk[0].dtail;
+    }
     check("TYPE switched while ringing: bounded; OFF clears it, LP again starts from silence", ok);
 }
 
@@ -295,6 +303,64 @@ static void test_lfo_extremes(void)
     check("CUT / ENV / F.CUT at their extremes: the cutoff in range, bounded", ok);
 }
 
+/* Review fix 2: after a noise burst every TYPE x CUT x RESO rings out and ends within 3 s (the track idle);
+ * Review fix 1: never while the input sounds */
+static void test_ring_ends_sweep(void)
+{
+    static const int CUTS[9] = {0, 10, 20, 40, 60, 80, 100, 120, 127}, RES[4] = {0, 40, 80, 127};
+    static int32_t b[CTL];
+    uint32_t ty, c, r, blk, i, rng = 7, stuck = 0, early = 0;
+    for (ty = FT_LP; ty < FT_N; ty++)
+        for (c = 0; c < 9u; c++)
+            for (r = 0; r < 4u; r++) {
+                uint32_t ended = 0;
+                host_init();
+                flt_set(&trk[0], (int)ty, CUTS[c], RES[r], 0, 40);
+                for (blk = 0; blk < SECS(3.1) / CTL && !ended; blk++) {
+                    uint32_t loud = blk < SECS(0.1) / CTL, on;
+                    for (i = 0; i < CTL; i++) {
+                        rng = rng * 1664525u + 1013904223u;
+                        b[i] = loud ? (int32_t)(rng >> 14) - 131072 : 0;
+                    }
+                    on = trk_filter(&trk[0], b, CTL);
+                    early += loud && !on;
+                    ended = !loud && !on;
+                }
+                if (!ended) {
+                    if (stuck++ < 4)
+                        printf("     TYPE %u CUT %d RESO %d: still ringing after 3 s (fs %d %d)\n", ty, CUTS[c], RES[r],
+                               trk[0].fs[0], trk[0].fs[1]);
+                }
+            }
+    check("ring-out: every TYPE x CUT x RESO ends within 3 s after its input stops, never while it sounds",
+          !stuck && !early);
+}
+
+/* Review fix 1: a held kick (K808 DECAY 127) through HP: no clicks (the filter never cleared mid-sound) */
+static void test_hp_kick_no_clicks(void)
+{
+    uint32_t i, ty;
+    int32_t worst = 0;
+    for (ty = FT_BP; ty <= FT_HP; ty++) {
+        host_init();
+        drum_set_model(&trk[0], DM_K808);
+        trk[0].p[P_E1] = 127;
+        flt_set(&trk[0], (int)ty, ty == FT_HP ? 90 : 110, 0, 0, 40);
+        drum_hit(&trk[0], 127);
+        render_mix(wl, wr, SECS(2));
+        for (i = SECS(0.2); i + 1 < SECS(2); i++)
+            worst = abs(wl[i + 1] - wl[i]) > worst ? abs(wl[i + 1] - wl[i]) : worst;
+    }
+    check("K808 held through HP / BP: no clicks (sample steps < 64 after the attack)", worst < 64);
+}
+
+/* the knobs motion records: CUT RESO ENV DECAY (not TYPE, as RESON's MODEL); INIT SOUND: ui_test */
+static void test_motion_params(void)
+{
+    check("motion records CUT, RESO, ENV, DECAY (not TYPE)", motion_param(P_FCUT) && motion_param(P_FRESO) &&
+          motion_param(P_FENV) && motion_param(P_FDEC) && !motion_param(P_FTYPE));
+}
+
 int main(void)
 {
     test_response();
@@ -307,6 +373,9 @@ int main(void)
     test_decay_display();
     test_lfo_fcut();
     test_lfo_extremes();
+    test_ring_ends_sweep();
+    test_hp_kick_no_clicks();
+    test_motion_params();
     printf(fails ? "filter_test: %d FAILED\n" : "filter_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

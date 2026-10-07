@@ -354,6 +354,8 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
         fm1_irq_off();
         drum_set_model(TSEL, (uint32_t)TSEL->p[P_MODEL]);
+        for (id = P_FTYPE; id <= P_FDEC; id++)
+            TSEL->p[id] = TP[id].def;                   /* the FILTER too (spec 2026-10-08 §3) */
         motion_rebase(song.sel);
         fm1_irq_on();
         ui_message("SOUND INIT");

@@ -2796,6 +2796,29 @@ static void test_filter_screens(void)
     }
 }
 
+/* INIT SOUND resets the FILTER (spec §3); a model change keeps it (as DIST and RESON) */
+static void test_initsnd_filter(void)
+{
+    uint32_t k;
+    ui_host_init();
+    TSEL->p[P_FTYPE] = FT_HP;
+    TSEL->p[P_FCUT] = 40;
+    TSEL->p[P_FENV] = -20;
+    model_step(1);
+    check("a model change keeps the FILTER", TSEL->p[P_FTYPE] == FT_HP && TSEL->p[P_FCUT] == 40);
+    for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "TOOLS")); k++) {
+        press(B_SAVE);
+        ui_frame();
+        release_all();
+    }
+    turn(EN_K1 + 1, 1);                              /* INIT SOUND: one detent arms, */
+    ui_frame();
+    turn(EN_K1 + 1, 1);                              /* a second acts */
+    ui_frame();
+    check("INIT SOUND resets the FILTER (TYPE OFF, CUT 127, ENV 0)",
+          TSEL->p[P_FTYPE] == FT_OFF && TSEL->p[P_FCUT] == 127 && TSEL->p[P_FENV] == 0 && TSEL->p[P_FDEC] == 40);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2866,6 +2889,7 @@ int main(void)
     test_modal_load_clamp();
     test_phys_screens();
     test_filter_screens();
+    test_initsnd_filter();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

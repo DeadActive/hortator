@@ -50,6 +50,8 @@ def main(path):
     L += arr("CUTOFF_HZ", "uint16_t", [int(round(f)) for f in fc])
     # trapezoidal (Simper) SVF: g = tan(pi fc / FS), Q12; stable at any cutoff/resonance
     L += arr("SVF_G", "uint16_t", [int(4096 * math.tan(math.pi * min(f, 0.45 * FS) / FS)) for f in fc])
+    # the same, Q24: the FILTER's coefficients (filter.c; Q12 rounds the low cutoffs' g^2 away)
+    L += arr("SVF_G24", "uint32_t", [int(round((1 << 24) * math.tan(math.pi * min(f, 0.45 * FS) / FS))) for f in fc], 8)
     # level: 0 = off, else dB = (v - 112) / 2  (112 = 0 dB, 127 = +7.5 dB)
     db = [None] + [(v - 112) / 2 for v in range(1, 128)]
     L += arr("LEVEL_Q12", "uint16_t", [0] + [int(round(4096 * 10 ** (d / 20))) for d in db[1:]])

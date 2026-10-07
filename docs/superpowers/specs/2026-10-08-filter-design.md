@@ -42,12 +42,12 @@ A filter on every track: LP, BP, HP or NOTCH with resonance, swept by each hit (
 | ENV (`P_FENV`) | −64..+63 | 0 | signed |
 | DECAY (`P_FDEC`) | 0..127 | 40 | ms / s |
 
-- Appended after RESON's parameters (`P_COUNT` 55 → 60). INIT SOUND, a model change's defaults, the power-on kit:
-  TYPE OFF.
+- Appended after RESON's parameters (`P_COUNT` 55 → 60). INIT SOUND and the power-on kit: the five at their
+  defaults (TYPE OFF); a model change keeps them (as DIST and RESON).
 - Pages (FX family, first): **FILTER 1/2** TYPE CUT RESO ENV, **FILTER 2/2** DECAY. Each draws the filter's
   response (the curve of TYPE at CUT / RESO, log frequency) with the reach of ENV marked.
 - **LFO DEST** gains **F.CUT (17)** and **F.RES (18)** after R.POS (16); stored values 0..16 keep their meaning.
-- Motion recording records the five like any knob. The web editor (upstream's synth editor; the drum firmware does
+- Motion recording records CUT, RESO, ENV and DECAY like any knob (not TYPE, as RESON's MODEL). The web editor (upstream's synth editor; the drum firmware does
   not serve it) is unchanged.
 
 ## 4. Storage
