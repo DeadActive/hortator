@@ -714,8 +714,8 @@ static double kit_cost(uint32_t mi, int layers, int reson)
         t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 60;
         t->p[P_SLCR] = 1;
         t->p[P_SDIV] = 3;
-        t->p[P_RMODEL] = (int16_t)(!reson || i >= 4u ? RS_OFF : i < 2u ? RS_CHORD : RS_STRNG);   /* RESON at most:
-                                                         * 4 tracks, 2 of them CHORD */
+        t->p[P_RMODEL] = (int16_t)(!reson || i >= 4u ? RS_OFF : i < 2u ? RS_CHORD : reson == 2 ? RS_MODAL : RS_STRNG);
+                                                     /* RESON at most: 4 tracks, 2 CHORD (+ 2 MODAL: reson 2) */
         t->p[P_RDECAY] = 127;
         memset(t->step, 0, sizeof t->step);
         t->step[0].on = t->step[1].on = 1;
@@ -784,6 +784,9 @@ static void test_cost(void)
     c = kit_cost(wm, (int)wl_, 1);                   /* the same worst kit, every track ringing (2 CHORD) */
     printf("     extreme kit with RESON on 4 tracks (2 CHORD): %.0f (its own limit %.0f)\n", c, rmax);
     check("cost: the extreme kit with RESON at most (4 tracks, 2 CHORD) within its recorded limit", !i0 || rmax == 0 || c <= rmax);
+    c = kit_cost(wm, (int)wl_, 2);                   /* the same, the other 2 MODAL (PHYS) */
+    printf("     extreme kit with RESON on 4 tracks (2 CHORD + 2 MODAL): %.0f (its own limit %.0f)\n", c, rmax);
+    check("cost: the extreme kit with RESON at most (2 CHORD + 2 MODAL) within its recorded limit", !i0 || rmax == 0 || c <= rmax);
     printf("     realistic heavy kit: %.0f host instructions / sample (reference %.0f)\n", real, ref);
     printf("     extreme kit: %.0f (8 x %s%s; limit %.0f, above the reference by design: device shedding)\n", worst,
            N_MODEL[wm], wl_ ? " + layers" : "", emax);
