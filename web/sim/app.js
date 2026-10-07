@@ -100,11 +100,13 @@ function addHint(el, ctl) {
 }
 
 // geometry: phones show the FM-1's own landscape form while it flies in, then morph into the portrait simulator
-let phone = false, availW = 1000, availH = 600, morphNow = -1, powerAt = null;
+let phone = false, availW = 1000, availH = 600, morphNow = -1, powerAt = null, helpOpen = false;
+const HELP_W = 320 + 40;                           // Controls beside the device (wide screens): its width and a gap
 function fitScale(L) { return Math.max(0.2, Math.min(availW / L.W, availH / L.H, 1.2)); }
 function relayout() {
   phone = window.innerWidth < 700 && window.innerHeight > window.innerWidth;
-  availW = Math.min(document.documentElement.clientWidth - 32, 1000);
+  const beside = helpOpen && window.innerWidth >= 900;
+  availW = Math.min(document.documentElement.clientWidth - 32 - (beside ? HELP_W : 0), 1000);
   availH = window.innerHeight - 96 - 118 - 8;       // the hero scene's padding: nav and the power switch above, the bar below
   geometry(phone ? Math.max(0, morphNow) : 0, true);
 }
@@ -353,6 +355,17 @@ function bindPage() {
     help.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     device.classList.toggle('show-hints', open);
+    helpOpen = open;                                // beside the device on wide screens: it moves left, refitted
+    stage.classList.add('easing');
+    stage.classList.toggle('help-open', open);
+    relayout();
+    const t0 = performance.now();
+    const follow = now => {                         // the power switch follows the device while it moves
+      if (arrived) placePower();
+      if (now - t0 < 450) requestAnimationFrame(follow);
+      else stage.classList.remove('easing');
+    };
+    requestAnimationFrame(follow);
   });
   const confirm = document.getElementById('reset-confirm');
   document.getElementById('reset').addEventListener('click', () => { confirm.hidden = !confirm.hidden; });

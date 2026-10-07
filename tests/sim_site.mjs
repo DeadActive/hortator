@@ -233,3 +233,10 @@ test('while the simulator is on screen, a cue says the page goes on', () => {
   const stage = LANDING.slice(LANDING.indexOf('id="stage"'), LANDING.indexOf('id="play"'));
   assert.match(stage, /<a [^>]*class="more-cue"[^>]*href="#features"|<a [^>]*href="#features"[^>]*class="more-cue"/);
 });
+
+test('Controls opens beside the device on wide screens: the stage gives the panel its width and the device moves left', () => {
+  const css = readFileSync('web/sim/sim.css', 'utf8'), app = readFileSync('web/sim/app.js', 'utf8');
+  assert.match(css, /\.hero-stage\.help-open \.help\s*{[^}]*right:/, 'the panel on the right');
+  assert.match(css, /\.hero-stage\.help-open \.scene\s*{[^}]*padding-right:/, 'the device keeps out of its way');
+  assert.match(app, /HELP_W/, 'the device is fitted to the width left beside the panel');
+});
