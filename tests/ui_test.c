@@ -2819,6 +2819,46 @@ static void test_initsnd_filter(void)
           TSEL->p[P_FTYPE] == FT_OFF && TSEL->p[P_FCUT] == 127 && TSEL->p[P_FENV] == 0 && TSEL->p[P_FDEC] == 40);
 }
 
+/* the knobs follow the screen: while the PERFORM screen shows (FX held, a layer key held, or the PAGE), they are
+ * its macros, never the page under it; when it goes, the macros snap back (user report 2026-10-08, PAGE mode) */
+static void test_perform_knobs_follow_screen(void)
+{
+    uint32_t f, i, ch = 0, mode;
+    for (mode = 0; mode < 2u; mode++) {              /* 0: HOLD, 1: PAGE */
+        int16_t tb[P_COUNT];
+        ui_host_init();
+        settings.perfpage = (uint32_t)mode;
+        tap(B_EDIT);                                 /* SOUND under it */
+        for (f = 0; f < 600u; f++) {                 /* FX held past the hold time: the PERFORM screen */
+            press(B_FX);
+            ui_frame();
+        }
+        keys(1u << 1);                               /* a black key: the layer's (REPEAT 1/8) */
+        press(B_FX);
+        ui_frame();
+        release_all();                               /* FX let go, the key still held */
+        keys(1u << 1);
+        ui_frame();
+        if (mode) {
+            turn(EN_PRESET, 1);                      /* PAGE: another page under it closes the PAGE */
+            keys(1u << 1);
+            ui_frame();
+        }
+        memcpy(tb, TSEL->p, sizeof tb);
+        turn(EN_K1, 3);
+        turn(EN_K1 + 2, 3);
+        keys(1u << 1);
+        ui_frame();
+        for (i = 0; i < P_COUNT; i++)
+            ch |= TSEL->p[i] != tb[i] && ui.layer;
+        keys(0);                                     /* the key let go: the screen goes, the macros snap back */
+        ui_frame();
+        ui_frame();
+        ch |= !ui.layer && (perf_k[0] || perf_k[2]);
+    }
+    check("PERFORM shown (FX or a layer key held, or PAGE): the knobs are its macros, not the page under it", !ch);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2890,6 +2930,7 @@ int main(void)
     test_phys_screens();
     test_filter_screens();
     test_initsnd_filter();
+    test_perform_knobs_follow_screen();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

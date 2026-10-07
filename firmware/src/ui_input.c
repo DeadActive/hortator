@@ -431,8 +431,8 @@ static void fx_layer(uint32_t now, int home_tap)
         if (!ui.pg_open)
             perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* HOLD: the macros snap back */
     }
-    if ((down && !(*t0 & FX_DEAD)) || ui.pg_open)
-        for (k = 0; k < 4u; k++)                        /* the macros: FILTER CRUSH THROW DEPTH */
+    if ((down && !(*t0 & FX_DEAD)) || ui.pg_open || (kb_layer && fx_allowed()))   /* the knobs follow the screen: */
+        for (k = 0; k < 4u; k++)                        /* the macros (FILTER CRUSH THROW DEPTH) while it is PERFORM's */
             if ((s = panel_enc(EN_K1 + k)) != 0) {
                 perf_k[k] = (int8_t)clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
                 if (down)
@@ -447,6 +447,8 @@ static void fx_layer(uint32_t now, int home_tap)
                                                          * is pressed: a key struck with it is the layer's even before
                                                          * this pass has seen FX (keyboard_block tests the button) */
     show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer || ui.pg_open);
+    if (!show)
+        perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* the screen gone: the macros snap back */
     if (show != ui.layer) {
         ui.layer = (uint8_t)show;
         ui.force = 1;
