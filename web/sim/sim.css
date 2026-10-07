@@ -382,10 +382,8 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 
 .device :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 
-/* ---- power: the device shows where its switch is (a flat mark on the top edge); the page's switch sits above it,
-   a leader line down to the mark. Until the first flip its knob nudges toward on. */
-.device > .power-mark { translate: 0 0 2px; border-radius: 999px; background: #17181a; pointer-events: none;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,.7); }
+/* ---- power: page UI only, nothing on the device. The switch sits above it, a leader line down to the top edge where
+   the FM-1 has its switch. Until the first flip its knob nudges toward on. */
 .device.powered-off canvas.lcd { opacity: .12; transition: opacity .3s; }
 .device.powered-off .lit { color: inherit; text-shadow: none; }
 .device.powered-off .key.lit .stripe { background: #6c7077; box-shadow: none; }

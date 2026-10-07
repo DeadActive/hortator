@@ -216,6 +216,8 @@ test('the power switch is page UI over the stage, a leader line to where the FM-
   assert.match(stage, /id="power-lead"/, 'the leader line');
   const app = readFileSync('web/sim/app.js', 'utf8');
   assert.doesNotMatch(app, /sw\.id = 'power-on'/, 'no longer built into the device');
+  assert.doesNotMatch(app, /power-mark|powerMark/, 'nothing on the device: no mark either');
+  assert.doesNotMatch(readFileSync('web/sim/sim.css', 'utf8'), /power-mark/);
   for (const [name, L] of Object.entries(LAYOUTS)) {                 // the mark on the device: where the real switch is
     const [x, y, w, h] = L.power;
     assert.equal(y + h / 2, 0, `${name}: centred on the top edge`);

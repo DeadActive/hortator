@@ -85,9 +85,6 @@ function build() {
     device.append(l);
     els.lbl[id] = l;
   });
-  els.powerMark = document.createElement('div');   // where the FM-1's own power switch is (the page's switch points here)
-  els.powerMark.className = 'power-mark';
-  device.append(els.powerMark);
   const glare = document.createElement('div');           // the shine: a fixed stripe moved by transform (no repaint)
   glare.className = 'glare';
   glare.innerHTML = '<span class="glare-band"></span>';
@@ -103,7 +100,7 @@ function addHint(el, ctl) {
 }
 
 // geometry: phones show the FM-1's own landscape form while it flies in, then morph into the portrait simulator
-let phone = false, availW = 1000, availH = 600, morphNow = -1;
+let phone = false, availW = 1000, availH = 600, morphNow = -1, powerAt = null;
 function fitScale(L) { return Math.max(0.2, Math.min(availW / L.W, availH / L.H, 1.2)); }
 function relayout() {
   phone = window.innerWidth < 700 && window.innerHeight > window.innerWidth;
@@ -120,7 +117,7 @@ function geometry(morph, force) {                  // place every part for this 
     els.deco[name].style.opacity = d.opacity;
   }
   place(lcd, G.lcd);
-  place(els.powerMark, G.power);
+  powerAt = G.power;                                // where the FM-1 has its switch: the page's switch points there
   for (const [ctl, b] of Object.entries(G.ctl)) place(els.ctl[ctl], b);
   for (const [id, b] of Object.entries(G.enc)) {
     place(els.enc[id], b);
@@ -434,8 +431,9 @@ function heroFrame() {
 const powerUi = document.getElementById('power-ui'), powerLead = document.getElementById('power-lead');
 const powerLabel = document.getElementById('power-label');
 function placePower() {
-  const st = stage.getBoundingClientRect(), mk = els.powerMark.getBoundingClientRect();
-  const sx = mk.left + mk.width / 2 - st.left, sy = mk.top - st.top;           // the spot: the mark's top centre
+  const st = stage.getBoundingClientRect(), fr = fit.getBoundingClientRect();
+  const k = fr.width / parseFloat(device.style.width);                         // the device's scale on screen
+  const sx = fr.left + (powerAt[0] + powerAt[2] / 2) * k - st.left, sy = fr.top - st.top;   // the spot on its top edge
   const tw = els.power.offsetWidth, th = els.power.offsetHeight, lw = powerLabel.offsetWidth;
   const right = sx + 56 + tw + 10 + lw <= st.width - 16;                       // to the right if it fits, else left
   const ty = Math.max(56, sy - 34 - th / 2), my = ty + th / 2;
