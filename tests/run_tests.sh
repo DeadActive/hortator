@@ -67,6 +67,7 @@ run "BLE scan table" "$OUT/ble_scan_test"
 run "BLE central state machine, UUID match, monitor text" "$OUT/ble_central_test"
 run "BLE stored RF calibration (config store)" "$OUT/ble_vm_test"
 run "BLE OS layer (host back end)" "$OUT/ble_os_test"
+run "BLE fault path: records and reboots, never waits on interrupts" python3 tests/ble/check_ble_fatal.py
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
 else

@@ -133,19 +133,17 @@ void low_power_hw_unsleep_unlock(void) {}
 int32_t low_power_trace_drift(uint32_t usec) { (void)usec; return 0; }
 int power_is_poweroff_post(void) { return 0; }
 
-/* ---- faults: a library assert or reset request is kept (.noinit ble_diag.fatal, the console's `ble` after the
- * restart), said on the console, then a clean reboot (Hortator: no BLE screen) ---- */
-static void ble_fatal(uint32_t why, const char *what)
+/* ---- faults: a library assert or reset request is kept (.noinit ble_diag.fatal: 1 assert, 2 reset request; the
+ * console's `ble` after the restart), then a clean reboot. Nothing else: this often runs with interrupts off, where
+ * the console would never drain (and its full-ring wait would hang; tests/ble/check_ble_fatal.py). ---- */
+static void ble_fatal(uint32_t why)
 {
     ble_diag.fatal = why;
     core_audio_stop();
-    core_con_puts("ble: fatal: ");
-    core_con_puts(what);
-    core_con_puts("\r\n");
     core_reboot();                                        /* (uptime > 30 s: not counted by the boot guard) */
 }
-void cpu_assert_debug(void) { ble_fatal(1, "library assert"); }
-void P33_SYSTEM_RESET(void) { ble_fatal(2, "library reset request"); }
+void cpu_assert_debug(void) { ble_fatal(1); }
+void P33_SYSTEM_RESET(void) { ble_fatal(2); }
 const int config_asser = 1;                              /* the libraries' asserts on: a fault shows, not corrupts */
 
 /* ---- CRC and chip id (software; the same results as the SDK's cpu.a crc16.c: CRC-16/XMODEM, init 0) ---- */

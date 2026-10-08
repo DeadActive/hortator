@@ -116,13 +116,14 @@ blocks and headers), and 1b sizes the heap from the device's number. The task st
 - The BLE build: `.ram_text` (the radio calibration) reaches nothing outside itself; no BT library RAM-code section
   lands in XIP; register access only in `hal/` (`src/ble/` scanned, except the SDK's radio tables); `divdi` 0. The
   libraries bring their own soft double (`libcompiler_rt.a`: `divdf3`, `adddf3`, `muldf3`, … 2700 B), vendor code.
+- A BLE build is never packaged in part 1a (`FELUCCA_BLE=1 DRUM_PACKAGE=1` stops: gates 2–4 come with 1b).
 - H2 / H3 and the cost budgets run on the default build (byte-identical to 0.14.0's, so unchanged).
 
 ## Verdict: GO for part 1b
 
 | | |
 |---|---|
-| BLE image | **422268 B**, the slot 581564 B: **159296 B free** (goal ≥ 32768, aim 65536: both met) |
+| BLE image | **422180 B** (after the review's fault-path fix), the slot 581564 B: **159384 B free** (goal ≥ 32768, aim 65536: both met) |
 | pool | 335200 of 344064 B (8864 spare, ≥ 8192) |
 | `.data + .bss` | 63028 of 98304 B |
 | heap / task stacks | 26624 B (to be sized from the device's high-water + 25 %) / 4 × 2 KB |

@@ -443,6 +443,12 @@ def main():
     if a.gen_only:
         generate()
         return 0
+    ble = os.environ.get("FELUCCA_BLE") == "1"
+    measure = ble and os.environ.get("BLE_MEASURE") == "1"
+    if ble and os.environ.get("DRUM_PACKAGE") == "1":   # (BLE_MEASURE included)
+        # gates 2-4 (the update path's machine code, no BT at boot) come with BLE part 1b: until then a BLE image is
+        # built and checked, never packaged (nothing installable)
+        raise SystemExit("build: FELUCCA_BLE=1 builds are not packaged yet (gates 2-4: BLE part 1b)")
     name = "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
@@ -460,10 +466,6 @@ def main():
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
-    ble = os.environ.get("FELUCCA_BLE") == "1"
-    measure = ble and os.environ.get("BLE_MEASURE") == "1"
-    if measure and os.environ.get("DRUM_PACKAGE") == "1":
-        raise SystemExit("build: BLE_MEASURE=1 only measures; no package with it")
     img, syms, dis, rt = build_app()
     errors, notes = check(img, syms, dis, rt, ble, measure)
     hal_err = mmio_check()
