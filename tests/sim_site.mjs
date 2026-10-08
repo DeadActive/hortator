@@ -113,21 +113,25 @@ test('hero pose: the shine never plays while the scene is blurred (a blur filter
     }
 });
 
-// ---- the features: a sticky screen plays each feature's clip; the panel locator lights the controls to press
+// ---- the features: eight chapters, each a piece on the firmware's own DSP (features.js), each telling where it is on
+// the panel (Bluetooth, a separate test build, has no panel control yet)
 import { BTN, ENC } from '../web/sim/controls.js';
 
-test('features: each names a recorded clip and real panel controls', () => {
+test('features: eight chapters with a plate each; every panel hint names real controls', () => {
   const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
-  const feats = [...sec.matchAll(/<li class="feat"[^>]*data-clip="(\w+)"[^>]*data-press="([^"]+)"/g)];
-  assert.ok(feats.length >= 6, `${feats.length} features`);
-  const clips = new Set(['home', 'seq', 'sound', 'fx', 'grids', 'comp', 'tracks', 'lfo', 'end']);   // tests/sim_record.c
+  const ids = [...sec.matchAll(/<article class="chapter" id="f-(\w+)"/g)].map(m => m[1]);
+  assert.deepEqual(ids, ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
   const labels = new Set([...BTN.map(b => b.label), ...ENC.map(e => e.label)]);
-  for (const [, clip, press] of feats) {
-    assert.ok(clips.has(clip), `clip ${clip}`);
-    for (const l of press.split(' ')) assert.ok(labels.has(l), `${clip}: ${l} is not on the panel`);
+  for (const ch of sec.split('<article').slice(1)) {
+    const id = ch.match(/id="f-(\w+)"/)[1];
+    assert.match(ch, new RegExp(`<div class="plate" data-piece="${id}">`), `${id}: its plate`);
+    const where = ch.match(/<p class="where">([\s\S]*?)<\/p>/)?.[1];
+    assert.ok(where, `${id}: where it is on the panel`);
+    const keys = [...where.matchAll(/<b>([^<]+)<\/b>/g)].map(m => m[1]);
+    if (id !== 'ble') assert.ok(keys.length, `${id}: names a control`);
+    for (const k of keys) assert.ok(labels.has(k), `${id}: ${k} is not on the panel`);
   }
-  assert.match(sec, /id="manual-screen"/, 'the sticky screen');
-  assert.match(sec, /id="locator"/, 'the panel locator');
+  assert.doesNotMatch(LANDING, /manual-screen|id="locator"/, 'the old sticky screen is gone');
 });
 
 test('install: the version and what is new, the connection diagram, the installer, the way back and the recovery', () => {

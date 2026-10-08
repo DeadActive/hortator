@@ -6,7 +6,8 @@
 import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js';
 import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
-import { parseReel, snapshots } from './reel.js';
+import { parseReel } from './reel.js';
+import { initFeatures } from './features.js';
 import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js';
 
 // ---- the panel's elements (built once, placed per layout)
@@ -272,7 +273,6 @@ function rgb565(fb, out) {                         // the LCD's RGB565 -> canvas
 }
 function paint(now) {
   reelTick(now);
-  manualTick(now);
   if (frame) {
     const { fb, leds, keyLeds } = frame;
     frame = null;
@@ -387,14 +387,12 @@ function bindPage() {
 }
 
 // ---- the reel: recorded pages (tests/sim_record.c) on the screen, LEDs and knobs until the firmware is switched on
-let reel = null, reelPos = -1, reelT0 = 0, clips = null, snaps = null;
+let reel = null, reelPos = -1, reelT0 = 0;
 const reelFb = new Uint16Array(240 * 240);
 if (window.DecompressionStream)
   fetch('reel.bin.gz')
     .then(r => r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : Promise.reject())
-    .then(b => { reel = parseReel(b); reelT0 = performance.now(); return fetch('reel.json'); })
-    .then(r => r.json())
-    .then(list => { clips = Object.fromEntries(list.map(c => [c.name, c])); snaps = snapshots(reel, list.map(c => c.from)); manualShow(); })
+    .then(b => { reel = parseReel(b); reelT0 = performance.now(); })
     .catch(() => { /* no reel: the screen stays dark until Switch on */ });
 function reelTick(now) {
   if (!reel || node) return;
@@ -458,19 +456,7 @@ function placePower() {
 }
 function queueHero() { if (!heroQueued) { heroQueued = true; requestAnimationFrame(heroFrame); } }
 
-// ---- the features: a sticky screen plays the clip of the feature in the middle of the window; a small FM-1 lights
-// the controls to press (the same layout table as the simulator)
-const manualCanvas = document.getElementById('manual-screen');
-const manualCtx = manualCanvas?.getContext('2d');
-const manualImg = manualCtx?.createImageData(240, 240);
-const manualPx = manualImg && new Uint32Array(manualImg.data.buffer);
-const manualFb = new Uint16Array(240 * 240);
-const mini = {};
-let manualOn = false, manualClip = null, manualPos = -1, manualT0 = 0, manualFeat = null;
-function buildLocator() {                          // the features' locator: its parts by label, to light
-  Object.assign(mini, buildMini(document.getElementById('locator')));
-  BTN.forEach((b, id) => { if (mini[`btn:${id}`]) mini[b.label] = mini[`btn:${id}`]; });
-}
+// ---- a small FM-1 from the layout table (the install diagram)
 function buildMini(host) {                         // a small FM-1 from the layout table, scaled to its host
   const parts = {};
   if (!host) return parts;
@@ -517,52 +503,9 @@ fetch('version.json').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
     ul.append(li);
   }
 }).catch(() => { document.querySelector('.whats-new')?.remove(); });
-function manualShow() {                            // the feature now in the middle of the window
-  if (!manualFeat || !clips || !manualCtx) return;
-  const c = clips[manualFeat.dataset.clip];
-  if (!c) return;
-  manualClip = c;
-  manualFb.set(snaps.get(c.from).fb);
-  manualPos = c.from;
-  manualT0 = performance.now();
-  rgb565(manualFb, manualPx);
-  manualCtx.putImageData(manualImg, 0, 0);
-  const press = manualFeat.dataset.press.split(' ');
-  for (const el of Object.values(mini)) el.classList.remove('lit');
-  for (const l of press) mini[l]?.classList.add('lit');
-  document.getElementById('press').textContent = `PRESS ${press[0]}`;
-}
-function manualTick(now) {
-  if (!manualOn || !manualClip) return;
-  const len = manualClip.to - manualClip.from;
-  const target = manualClip.from + Math.floor((now - manualT0) / 1000 * reel.fps) % len;
-  if (target === manualPos) return;
-  if (target < manualPos) { manualFb.set(snaps.get(manualClip.from).fb); manualPos = manualClip.from; }   // looped
-  while (manualPos < target) reel.apply(++manualPos, manualFb);
-  rgb565(manualFb, manualPx);
-  manualCtx.putImageData(manualImg, 0, 0);
-}
-
 build();
 relayout();
-buildLocator();
 buildMini(document.getElementById('install-mini'));
-const manualObserver = new IntersectionObserver(entries => {
-  for (const e of entries) if (e.isIntersecting && e.target !== manualFeat) {
-    manualFeat?.classList.remove('active');
-    manualFeat = e.target;
-    manualFeat.classList.add('active');
-    manualShow();
-  }
-}, { rootMargin: '-45% 0px -45% 0px' });
-{
-  const feats = [...document.querySelectorAll('.feat')];
-  manualFeat = feats[0] ?? null;
-  manualFeat?.classList.add('active');
-  feats.forEach(f => manualObserver.observe(f));
-  const manual = document.querySelector('.manual');
-  if (manual) new IntersectionObserver(([e]) => { manualOn = e.isIntersecting; }).observe(manual);
-}
 device.classList.add('waiting');
 heroFrame();
 window.addEventListener('scroll', queueHero, { passive: true });
@@ -574,3 +517,4 @@ bindPage();
 window.addEventListener('resize', relayout);
 document.fonts?.ready.then(relayout);
 requestAnimationFrame(paint);
+initFeatures();

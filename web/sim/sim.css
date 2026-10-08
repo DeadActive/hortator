@@ -179,27 +179,66 @@ html { scroll-behavior: smooth; }
 
 .install { padding: 72px 0 0; }
 .install > h2 { font-size: 26px; font-weight: 600; margin: 0 0 20px; letter-spacing: -0.01em; }
-/* the features: the hero's dark stage goes on; a sticky screen plays the clip of the feature in the middle of the
-   window, a small FM-1 under it lights the controls to press */
+/* the features: the hero's dark stage goes on; eight chapters, each a piece computed by the firmware's own sound
+   code (features.js), on a plate of the FM-1's black with knobs and chips labelled like its silkscreen */
 .features {
   width: 100%; color: #e9ebee; padding: 96px max(16px, 5vw) 120px;
   background: linear-gradient(#15171a, #1b1e22 30%, #1b1e22 80%, var(--backdrop));
 }
-.features-head { max-width: 1120px; margin: 0 auto 56px; }
+.features-head { max-width: 1180px; margin: 0 auto 24px; }
 .features-head h2 {
   font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; font-stretch: 112%; font-weight: 600;
   font-size: clamp(32px, 4.6vw, 64px); line-height: 1; letter-spacing: -0.02em; margin: 0; max-width: 16ch;
 }
 .features-head p { color: #b8bdc4; font-size: 17px; max-width: 54ch; margin: 18px 0 0; }
-.manual { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: minmax(280px, 460px) 1fr; gap: 72px; }
-.manual-aside { position: sticky; top: 8vh; align-self: start; width: min(100%, 47vh); }   /* screen, panel and caption fit the window */
-.manual-plate {
+.chapter { max-width: 1180px; margin: 0 auto; padding: 88px 0; display: grid; align-items: start;
+  grid-template-columns: minmax(240px, 34ch) minmax(0, 1fr); gap: 56px; border-top: 1px solid #2a2e33; }
+.features-head + .chapter { border-top: 0; }
+.ch-text { position: sticky; top: 12vh; }
+.ch-text h3 { font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; font-stretch: 112%; font-weight: 600;
+  font-size: clamp(24px, 2.6vw, 36px); letter-spacing: -0.01em; margin: 0 0 14px; line-height: 1.05; }
+.ch-text p { margin: 0 0 10px; color: #b8bdc4; font-size: 16px; line-height: 1.55; }
+.ch-text p.where { margin-top: 20px; font-size: 15px; color: #e9ebee; }
+.plate { position: relative; min-height: 340px; display: grid; gap: 20px; align-content: start;
   background: #0d0f11; border-radius: 28px; padding: 22px;
-  box-shadow: 0 0 0 3px #3a3d42, 0 0 0 9px #4c5057, 0 30px 70px rgba(0,0,0,.55), 0 0 90px rgba(190,210,255,.06);
+  box-shadow: 0 0 0 3px #3a3d42, 0 0 0 9px #4c5057, 0 30px 70px rgba(0,0,0,.55), 0 0 90px rgba(190,210,255,.06); }
+.features.lab-failed .plate[data-piece]:not([data-piece="ble"]):empty::after {
+  content: "These pictures need WebAssembly, which this browser has turned off."; color: #9ea4ac; font-size: 15px; }
+.scope { display: block; width: 100%; height: 220px; }
+.lab-play { justify-self: end; display: inline-flex; align-items: center; gap: 10px; min-height: 40px;
+  padding: 0 18px 0 14px; border-radius: 999px; border: 1px solid #3a3d42; background: #1a1d21; color: #e9ebee;
+  font: 500 15px/1 "IBM Plex Sans", system-ui, sans-serif; cursor: pointer; }
+.lab-play::before { content: ""; width: 0; height: 0; border-style: solid; border-width: 6px 0 6px 10px;
+  border-color: transparent transparent transparent currentColor; }
+.lab-play[aria-pressed="true"] { color: var(--led); border-color: #6c7480; box-shadow: 0 0 18px rgba(215,232,255,.25); }
+.lab-play[aria-pressed="true"]::before { width: 10px; height: 10px; border: 0; background: currentColor; border-radius: 2px; }
+.lab-play:disabled { cursor: default; opacity: .6; }
+.knobs { display: flex; flex-wrap: wrap; gap: 18px 26px; }
+.knob { display: grid; justify-items: center; gap: 6px; min-width: 64px; }
+.knob .dial { position: relative; width: 56px; height: 56px; border-radius: 50%; cursor: grab; touch-action: none;
+  background: conic-gradient(from -135deg, var(--led) calc(var(--f, 0) * 270deg), #2c3036 0 270deg, transparent 0); }
+.knob .dial:active { cursor: grabbing; }
+.knob .cap { position: absolute; inset: 5px; border-radius: 50%; background: radial-gradient(circle at 40% 30%, #3a3e44, #1d1f23);
+  box-shadow: 0 2px 6px rgba(0,0,0,.6); }
+.knob .cap::after { content: ""; position: absolute; left: 50%; top: 5px; width: 3px; height: 13px; margin-left: -1.5px;
+  border-radius: 2px; background: #e9ebee; }
+.knob .name, .chip { font: 11px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: .06em; }
+.knob .name { color: var(--silk); }
+.knob .val { color: #9ea4ac; font-size: 13px; line-height: 1; font-variant-numeric: tabular-nums; min-height: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #2c3035; background: #1a1d21;
+  color: #b8bdc4; cursor: pointer; }
+.chip[aria-checked="true"] { background: var(--led); border-color: var(--led); color: #0d0f11;
+  box-shadow: 0 0 14px rgba(215,232,255,.4); }
+.plate :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+@media (max-width: 860px) {                       /* phones: the text, then its plate */
+  .features { padding-top: 72px; }
+  .chapter { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 56px 0; }
+  .ch-text { position: static; }
+  .plate { padding: 14px; border-radius: 18px; min-height: 260px;
+    box-shadow: 0 0 0 2px #3a3d42, 0 0 0 6px #4c5057, 0 20px 40px rgba(0,0,0,.5); }
+  .knobs { gap: 14px 18px; }
 }
-#manual-screen { display: block; width: 100%; aspect-ratio: 1; image-rendering: pixelated; image-rendering: crisp-edges;
-  border-radius: 6px; background: #000; }
-.locator { position: relative; width: 100%; aspect-ratio: 1000 / 620; margin-top: 28px; }
 .mini { position: absolute; left: 0; top: 0; width: 1000px; height: 620px; transform-origin: 0 0; border-radius: 44px;
   background: linear-gradient(170deg, #4d5157, #3e4147); }
 .mini > div { position: absolute; }
@@ -211,26 +250,6 @@ html { scroll-behavior: smooth; }
 .mini .m-enc { background: #26282c; border-radius: 50%; box-shadow: 0 0 0 5px #34373c; transition: background .25s, box-shadow .25s; }
 .mini .lit { background: #f2f7ff; box-shadow: 0 0 18px 6px rgba(215,232,255,.55); }
 .mini .m-enc.lit { box-shadow: 0 0 0 5px #f2f7ff, 0 0 22px 8px rgba(215,232,255,.5); }
-.press { font: 15px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: .06em; color: #f2f7ff; margin: 18px 0 0;
-  text-shadow: 0 0 10px rgba(215,232,255,.6); }
-.feats { list-style: none; margin: 0; padding: 0; }
-.feat { min-height: 64vh; display: flex; flex-direction: column; justify-content: center; opacity: .3;
-  transition: opacity .35s ease; }
-.feat.active { opacity: 1; }
-.feat h3 { font-family: "Archivo", "IBM Plex Sans", system-ui, sans-serif; font-stretch: 112%; font-weight: 600;
-  font-size: clamp(24px, 2.6vw, 36px); letter-spacing: -0.01em; margin: 0 0 12px; line-height: 1.05; }
-.feat p { margin: 0; color: #b8bdc4; font-size: 17px; max-width: 46ch; }
-.feat p.where { margin-top: 14px; font-size: 15px; color: #e9ebee; }
-@media (max-width: 860px) {                       /* phones: the screen pinned on top, the text scrolls under it */
-  .features { padding-top: 72px; }
-  .manual { grid-template-columns: 1fr; gap: 0; }
-  .manual-aside { top: 0; width: 100%; z-index: 3; display: grid; grid-template-columns: 42% 1fr; gap: 14px; align-items: center;
-    padding: 12px 0; background: #1b1e22; box-shadow: 0 16px 24px -12px #1b1e22; }
-  .manual-plate { padding: 10px; border-radius: 16px; }
-  .locator { margin-top: 0; }
-  .press { grid-column: 2; margin: -6px 0 0; font-size: 12px; }
-  .feat { min-height: 58vh; }
-}
 .where b { font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.04em; padding: 3px 6px 2px;
   border-radius: 5px; background: var(--body); color: var(--silk); vertical-align: 1px; }
 
