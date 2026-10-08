@@ -514,3 +514,36 @@ test('lab: the dice over 8 bars: 1/2 plays on bars 1, 3, 5, 7; 1-SHOT on bar 1; 
   assert.ok(half.some(Boolean) && !half.every(Boolean), `50%: ${half}`);
   assert.deepEqual(run(), d, 'the same 8 bars after every PLAY');
 });
+
+test('lab: tracks following Grids play what its lanes show (no chaos); FILL 0 empties a lane', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const { G, P, DM } = ids;
+  lab.reset();
+  [DM.K909, DM.S909, DM.HATC].forEach((m, t) => { lab.model(t, m); lab.param(t, P.SRC, t + 1); });
+  lab.global(G.GX, 40);
+  lab.global(G.GY, 90);
+  for (const f of [G.GFILL1, G.GFILL2, G.GFILL3]) lab.global(f, 90);
+  const lanes = lab.grids();
+  lab.play(true);
+  const played = [0, 1, 2].map(() => []);
+  lab.probeClear();
+  lab.renderMono(ids.fs * 2);                         // a bar = Grids' 32 steps (32nds, seq.c grids_tick)
+  const pr = lab.probes();
+  for (const t of [0, 1, 2]) {                        // the 32nd of each hit (the first half that fired)
+    let prev = false;
+    pr.forEach((p, i) => {
+      const f = !!((p.fired >> t) & 1);
+      const at = Math.floor(((i + 1) * 256 + 128) / (ids.fs / 16));   // a hit is set up a block ahead of its sound
+      if (f && !prev && at < 32) played[t].push(at);
+      prev = f;
+    });
+  }
+  for (const t of [0, 1, 2]) {
+    const want = [...Array(32).keys()].filter(i => lanes[t * 32 + i] & 1);
+    assert.ok(want.length > 0, `lane ${t} has hits`);
+    assert.deepEqual(played[t], want, `lane ${t}`);
+  }
+  lab.global(G.GFILL2, 0);
+  assert.equal(lab.grids().slice(32, 64).filter(b => b & 1).length, 0, 'FILL 0: no snare');
+});

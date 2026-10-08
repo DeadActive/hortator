@@ -288,6 +288,9 @@ html { scroll-behavior: smooth; }
 .motion-row { display: flex; align-items: center; gap: 16px; }
 .scope.motion { width: min(320px, 50vw); height: 56px; }
 .motion-btns { display: flex; gap: 8px; }
+.grids-stage { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: center; }
+.scope.xy { width: 200px; height: 200px; border-radius: 12px; cursor: crosshair; touch-action: none; }
+.scope.lanes { height: 168px; }
 .plate :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 @media (max-width: 860px) {                       /* phones: the text, then its plate */
   .features { padding-top: 72px; }
@@ -297,6 +300,8 @@ html { scroll-behavior: smooth; }
     box-shadow: 0 0 0 2px #3a3d42, 0 0 0 6px #4c5057, 0 20px 40px rgba(0,0,0,.5); }
   .knobs { gap: 14px 18px; }
   .lane { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .grids-stage { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .scope.lanes { width: 100%; }
   .scopes.two { grid-template-columns: minmax(0, 1fr); }
   .scope { height: 170px; }
   .scope.spec { height: 140px; }
