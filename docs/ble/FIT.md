@@ -12,6 +12,7 @@ a package.
 | 1: the port, as fm1-lsdj 548ce73 (48 KB heap, 4 KB task stacks) | 737680 | −156116 | −188884 | 68784 | 365920 (−21856 headroom) |
 | 2: the SDK config sources and the log stubs as bitcode (LTO) | 422096 | 159468 | 126700 | 63020 | 365920 (−21856 headroom) |
 | 3: RAM fit (2 KB task stacks, a 26 KB heap; Task 4), every check on (no `BLE_MEASURE`) | 422268 | 159296 | 126528 | 63028 | 335200 (8864 headroom) |
+| 4: part 1b (the console, the service hook, gates 2–3, the stack and IRQ guards) | 424012 | 157552 | 124784 | 63056 | 335200 (8864 headroom) |
 
 ## Step 1: where the XIP bytes are (build/felucca.map)
 
