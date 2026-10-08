@@ -40,7 +40,7 @@ static void memb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     uint32_t i;
     if (n > CTL)
         n = CTL;
-    px_memb_block(&B->k, &B->m, qnote_inc(MEMB_NOTE + p[0]), p[3] * 516, p[2] * 516, p[1] * 516, acc, p[4] * 516,
+    px_memb_block(&B->k, &B->m, qnote_inc(MEMB_NOTE + dm_tune(t)), p[3] * 516, p[2] * 516, p[1] * 516, acc, p[4] * 516,
                   p[5] * 6192);
     px_modal_run(&B->k, &B->m, y, ax, n);
     dg = (vel_gain(v) - g) / (int32_t)n;              /* a re-strike's velocity: the ringing head follows over the block */

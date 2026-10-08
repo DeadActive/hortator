@@ -31,6 +31,9 @@ static uint32_t inc_tune(uint32_t inc, int32_t semis)
     return (uint32_t)(((uint64_t)inc * pow2_q16(clamp(semis, -48, 48) * 16)) >> 16);
 }
 
+/* TUNE as the models read it: the knob plus the playing step's note offset (a drum: +-24 semitones) */
+static inline int32_t dm_tune(const struct track *t) { return t->p[P_E0] + clamp(t->nt, -24, 24); }
+
 /* Simper SVF as tsvf (dsp.c), with the band-pass and high-pass outputs */
 static void dsvf_coef(dsvf_t *c, int32_t cut, int32_t reso)       /* cut 0..127 << 8, reso 0..127 */
 {

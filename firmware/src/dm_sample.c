@@ -88,7 +88,7 @@ static void smpl_trigger(track_t *t, dvoice_t *v)
         dm_end(v);
         return;
     }
-    smp_start(v, zi, (uint32_t)p[5], p[0]);
+    smp_start(v, zi, (uint32_t)p[5], dm_tune(t));
     v->env[0] = ENV1;
     v->k[0] = dk(p[1]);
     v->x[0] = 4000 + p[2] * 28767 / 127;        /* tone lp coefficient */

@@ -7,7 +7,7 @@
 static void tom_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(120), p[0]);
+    v->inc[0] = inc_tune(HZ(120), dm_tune(t));
     v->x[0] = (int32_t)(v->inc[0] / 256u * (uint32_t)p[3]);      /* starts up to ~50 % higher */
     v->env[0] = v->env[1] = v->env[2] = ENV1;
     v->k[0] = dk(40 + p[1] * 50 / 127);
@@ -23,7 +23,7 @@ static void tom_trigger(track_t *t, dvoice_t *v)
 static void conga_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(310), p[0]);
+    v->inc[0] = inc_tune(HZ(310), dm_tune(t));
     v->x[0] = (int32_t)(v->inc[0] / 512u * (uint32_t)p[3]);
     v->inc[1] = v->inc[0] * 2u;
     v->env[0] = v->env[1] = v->env[2] = ENV1;
@@ -39,7 +39,7 @@ static void conga_trigger(track_t *t, dvoice_t *v)
 static void clave_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(2500), p[0]);
+    v->inc[0] = inc_tune(HZ(2500), dm_tune(t));
     v->x[0] = (int32_t)(v->inc[0] / 256u * (uint32_t)p[3]);
     v->inc[1] = v->inc[0] * 2u;
     v->env[0] = v->env[1] = v->env[2] = ENV1;
@@ -75,8 +75,8 @@ static void rim_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 static void rim_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(1667), p[0]);
-    v->inc[1] = inc_tune(HZ(455), p[0]);
+    v->inc[0] = inc_tune(HZ(1667), dm_tune(t));
+    v->inc[1] = inc_tune(HZ(455), dm_tune(t));
     v->env[0] = ENV1;
     v->k[0] = dk(13 + p[1] * 20 / 127);
     v->x[0] = 32767 - p[2] * 150;

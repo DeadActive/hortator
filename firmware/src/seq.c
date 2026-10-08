@@ -135,7 +135,7 @@ static void step_fire(track_t *t, uint32_t len_s)
     if (t->p[P_SRC] || !s->on || !step_plays(t, s, len))
         return;
     t->rat_vel = (uint8_t)(s->acc ? 127u : 96u);
-    drum_hit(t, t->rat_vel);
+    drum_play(t, t->rat_vel, s->nt);
     t->rat_n = (uint8_t)(s->rat < 3u ? s->rat + 1u : 4u);
     t->rat_k = 1;
     t->rat_len = len_s;
@@ -148,7 +148,7 @@ static void rat_due(track_t *t, uint32_t cur_len)
         uint32_t at = t->rat_k * t->rat_len / t->rat_n;
         if (at > t->seq_pos || at >= cur_len)
             break;
-        drum_hit(t, t->rat_vel);
+        drum_play(t, t->rat_vel, t->nt);
         t->rat_k++;
     }
 }

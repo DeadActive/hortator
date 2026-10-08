@@ -147,6 +147,7 @@ typedef struct track {
     int32_t dtail;               /* declick: last output of cut voices, decaying */
     /* sequencer */
     step_t step[NSTEP];
+    int8_t nt;                   /* the playing note's offset from C4 (the step's, 0 for MIDI, keys): models read TUNE through dm_tune */
     uint32_t seq_pos;            /* samples into the current step */
     uint16_t seq_idx;
     uint32_t seq_cnt;            /* steps played since PLAY: swing pairs follow it, so any length stays on the bar */

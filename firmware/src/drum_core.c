@@ -127,12 +127,13 @@ static void dv_init(dvoice_t *v, uint32_t vel)
     v->rng = (int32_t)(dvage * 2654435761u) | 1;
 }
 
-/* one hit of track t at velocity vel (1..127) */
-static void drum_hit(track_t *t, uint32_t vel)
+/* one hit of track t at velocity vel (1..127), playing note nt (an offset from C4) */
+static void drum_play(track_t *t, uint32_t vel, int32_t nt)
 {
     const dmodel_t *m = trk_model(t);
     uint32_t i, nv = m->voices < NDV ? m->voices : NDV;
     dvoice_t *v;
+    t->nt = (int8_t)clamp(nt, NT_MIN, NT_MAX);
     if (safe_start)
         return;
     lfo_hit(t);                                     /* HIT LFOs restart, the trigger reads their values */
@@ -162,6 +163,9 @@ static void drum_hit(track_t *t, uint32_t vel)
         }
     }
 }
+
+/* MIDI, the keys, BENCH: C4 */
+static void drum_hit(track_t *t, uint32_t vel) { drum_play(t, vel, 0); }
 
 /* track t's voices and tail into out (cleared first); returns non-zero while anything sounds */
 static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)

@@ -815,6 +815,38 @@ static uint32_t fnv(const int32_t *x, uint32_t n)
     return h;
 }
 
+/* ACID spec §3: a drum step's note transposes the model as TUNE does: nt = +7 with TUNE 0 renders exactly as nt 0
+ * with TUNE 7 (every model), and the transpose is clamped to +-24 */
+static void test_drum_transpose(void)
+{
+    static int32_t a[SECS(0.5)];
+    uint32_t mi, ok = 1, clamp_ok = 1;
+    for (mi = 0; mi < NMODELS; mi++) {
+        if (0)
+            continue;
+        host_init();
+        drum_set_model(&trk[0], mi);
+        trk[0].p[P_E0] = 0;
+        drum_play(&trk[0], 96, 7);
+        render_track(&trk[0], a, SECS(0.5));
+        host_init();
+        drum_set_model(&trk[0], mi);
+        trk[0].p[P_E0] = 7;
+        drum_play(&trk[0], 96, 0);
+        render_track(&trk[0], wl, SECS(0.5));
+        if (memcmp(a, wl, sizeof a)) {
+            printf("     %s: nt +7 != TUNE +7\n", N_MODEL[mi]);
+            ok = 0;
+        }
+    }
+    trk[0].nt = 40;
+    clamp_ok = dm_tune(&trk[0]) == trk[0].p[P_E0] + 24;
+    trk[0].nt = -40;
+    clamp_ok &= dm_tune(&trk[0]) == trk[0].p[P_E0] - 24;
+    check("drum transpose: a step's note = TUNE by as many semitones, every model", ok);
+    check("drum transpose: clamped to +-24 semitones", clamp_ok);
+}
+
 static void test_golden(void)
 {
     FILE *f;
@@ -3296,6 +3328,7 @@ int main(void)
     test_cost();
     test_boot_cost();
     test_golden();
+    test_drum_transpose();
     test_voice_cap();
     test_heavy_cap();
     test_swing_grid();
