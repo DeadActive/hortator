@@ -110,8 +110,10 @@ blocks and headers), and 1b sizes the heap from the device's number. The task st
 - Library pins: a changed pin in a copy of `tools/ble_libs.py` → `ble_libs: cpu/wl82/liba/btctrler.a sha256 … is
   not the pinned …`, exit 1; a missing SDK (`AC79_BT_SDK=/nonexistent`) stops the build before any compile:
   `ble_libs: /nonexistent/cpu/wl82/liba/btctrler.a missing`.
-- Gate 5: the default build stays byte-identical to `drum-v0.14.0` (`tools/check_default_build.sh`, in
-  `tests/run_tests.sh`).
+- Gate 5: the default build does not depend on the Bluetooth code (`tools/check_default_build.sh`, in
+  `tests/run_tests.sh`): it is byte-identical to the same tree's with every Bluetooth file deleted. Until the merge
+  (2026-10-09) it compared with `drum-v0.14.0`'s build; that form cannot outlive a release (the user chose this one).
+  A Bluetooth header included outside the `#if FELUCCA_BLE` guards was caught (the build without the files fails).
 - Gate 1: every build (default and BLE) stops unless the update loader's `ota.bin` has
   `tools/frozen_base.txt`'s `LOADER_SHA256` (a changed pin through `FROZEN_BASE_FILE`: `loader: ota.bin cc98eed2… is
   not the pinned loader`, exit 1).

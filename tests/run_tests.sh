@@ -82,5 +82,5 @@ else
     echo "== skip web tests (no node)"
 fi
 # last: it rebuilds build/ (the default build, the same bytes as the packaged one when it passes)
-run "gate 5: the default build byte-identical to drum-v0.14.0" sh tools/check_default_build.sh
+run "gate 5: the default build byte-identical without the Bluetooth files" sh tools/check_default_build.sh
 [ $fail -eq 0 ] && echo "ALL HOST TESTS PASSED$UPSKIP" || { echo "HOST TESTS FAILED"; exit 1; }
