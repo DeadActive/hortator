@@ -175,4 +175,5 @@ static void chain_tick(uint32_t n)
     }
     chain.cut = 1;
     chain_apply(cur - t->seq_pos);
+    acid_gates_close();                            /* seq.c: every track restarts, no ACID gate held into the row */
 }

@@ -41,6 +41,8 @@ static void drum_cut(track_t *t)                         /* every voice of t, wi
         dv_cut(t, &t->v[i]);
         dv_cut(t, &t->lv[i]);
     }
+    t->gate_n = 0;                                       /* ACID: no gate left to close, nothing slides on */
+    t->slide_in = 0;
 }
 
 static void model_follow(track_t *t)                     /* the model changed: the old voices stop */
@@ -164,8 +166,18 @@ static void drum_play(track_t *t, uint32_t vel, int32_t nt)
     }
 }
 
-/* MIDI, the keys, BENCH: C4 */
-static void drum_hit(track_t *t, uint32_t vel) { drum_play(t, vel, 0); }
+static uint32_t hit_gate_len(const track_t *t);          /* seq.c */
+
+/* MIDI, the keys, Grids: C4. A gated model's (ACID) note no step drives ends as a step's: its gate closes after
+ * GATE of the track's step (seq.c seq_tick counts it, stopped too) */
+static void drum_hit(track_t *t, uint32_t vel)
+{
+    drum_play(t, vel, 0);
+    if (trk_model(t)->gate) {
+        t->gate_n = hit_gate_len(t);
+        t->slide_in = 0;
+    }
+}
 
 /* track t's voices and tail into out (cleared first); returns non-zero while anything sounds */
 static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)

@@ -125,14 +125,116 @@ static int step_plays(track_t *t, const step_t *s, uint32_t len)
 
 static const step_t *seq_steps(const track_t *t);   /* song.c: a song's row, else the track's own */
 
+/* ACID's GATE knob: 10..100 % of len (samples) */
+static uint32_t acid_gate_len(const track_t *t, uint32_t len)
+{
+    return len / 100u * (10u + (uint32_t)clamp(t->p[P_E0 + 7], 0, 127) * 90u / 127u);
+}
+
+/* drum_core.c drum_hit: a hit no step drives (MIDI, the keys, Grids) of a gated model closes its gate after GATE of
+ * the track's step at the tempo now, as a step's note does (ACID_LIFE stays the backstop) */
+static uint32_t hit_gate_len(const track_t *t)
+{
+    return acid_gate_len(t, div_period((uint32_t)t->p[P_SDIV], 0));
+}
+
+/* the gate of the voice the track's model started closes now (its release); gate_n 0 */
+static void acid_gate_off(track_t *t)
+{
+    const dmodel_t *m = &DMODELS[t->model % NMODELS];
+    t->gate_n = 0;
+    if (m->gate && t->v[0].active)
+        m->gate(t, &t->v[0], 0);
+}
+
+/* STOP, PLAY again, a song's row change: every gated track's note ends, nothing slides into the next step */
+static __attribute__((noinline)) void acid_gates_close(void)
+{
+    uint32_t i;
+    for (i = 0; i < NTRK; i++) {
+        acid_gate_off(&trk[i]);
+        trk[i].slide_in = 0;
+    }
+}
+
+/* the step after the playing one (LEN wraps) */
+static const step_t *seq_next(const track_t *t)
+{
+    uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
+    return &seq_steps(t)[(t->seq_idx + 1u) % len];
+}
+
+/* the gate of the ACID note just started (hit rat_k of the step's rat_n): GATE of a hit's length, held into the next
+ * step (GATE_HELD) by the step's last hit when the step slides or the next is a TIE */
+static __attribute__((noinline)) void acid_gate_set(track_t *t, const step_t *next)
+{
+    if (t->rat_k >= t->rat_n && (t->slide_in || next->tie))
+        t->gate_n = GATE_HELD;
+    else
+        t->gate_n = acid_gate_len(t, t->rat_len / t->rat_n);
+}
+
+/* a gated model's step (spec §3): TIE holds the sounding note, its gate open through the whole step (the next step
+ * decides: a rest closes it, an ON step restarts or glides, a TIE goes on); a slid-into ON step glides, any other ON
+ * step restarts; the gate stays open into the next step when this one slides or the next is a TIE. Following Grids,
+ * the steps play nothing (its hits close their own gates, drum_hit): a gate a step held closes. */
+static __attribute__((noinline)) void acid_step(track_t *t, const step_t *s, const step_t *next, uint32_t len_s)
+{
+    const dmodel_t *m = trk_model(t);
+    dvoice_t *v = &t->v[0];
+    uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, held;
+    int plays;
+    model_follow(t);                                   /* a model changed this block: not its old voice's gate */
+    held = v->active && (v->x[2] & 1);
+    t->rat_n = 0;
+    if (t->p[P_SRC]) {
+        if (t->gate_n == GATE_HELD)
+            acid_gate_off(t);
+        t->slide_in = 0;
+        return;
+    }
+    plays = s->on && !s->tie && step_plays(t, s, len);
+    if (s->tie) {                                      /* PROB, RATCH, ACC ignored; after a rest: nothing */
+        if (!held)
+            return;
+        t->slide_in = s->slide;                        /* a TIE with SLIDE glides into the next ON step */
+        t->gate_n = GATE_HELD;
+        return;
+    }
+    if (!plays) {                                      /* a rest, or PROB skipped it */
+        if (held)
+            m->gate(t, v, 0);
+        t->gate_n = 0;
+        t->slide_in = 0;
+        return;
+    }
+    t->rat_vel = (uint8_t)(s->acc ? 127u : 96u);
+    if (held && t->slide_in) {
+        t->nt = (int8_t)clamp(s->nt, NT_MIN, NT_MAX);
+        v->vel = t->rat_vel;                           /* glide reads it: the slid-to step's accent */
+        m->glide(t, v);
+    } else {
+        drum_play(t, t->rat_vel, s->nt);
+    }
+    t->slide_in = s->slide;
+    t->rat_n = (uint8_t)(s->rat < 3u ? s->rat + 1u : 4u);
+    t->rat_k = 1;
+    t->rat_len = len_s;
+    acid_gate_set(t, next);
+}
+
 /* the step that came up: decided once (step_plays), then RATCH hits spread over its length len_s, the first
- * now (rat_due plays the others). A track following Grids plays nothing from its steps. */
+ * now (rat_due plays the others). A track following Grids plays nothing from its steps; a drum's TIE step nothing. */
 static void step_fire(track_t *t, uint32_t len_s)
 {
     const step_t *s = &seq_steps(t)[t->seq_idx];
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
+    if (trk_model(t)->gate) {
+        acid_step(t, s, seq_next(t), len_s);
+        return;
+    }
     t->rat_n = 0;
-    if (t->p[P_SRC] || !s->on || !step_plays(t, s, len))
+    if (t->p[P_SRC] || !s->on || s->tie || !step_plays(t, s, len))
         return;
     t->rat_vel = (uint8_t)(s->acc ? 127u : 96u);
     drum_play(t, t->rat_vel, s->nt);
@@ -150,6 +252,8 @@ static void rat_due(track_t *t, uint32_t cur_len)
             break;
         drum_play(t, t->rat_vel, t->nt);
         t->rat_k++;
+        if (trk_model(t)->gate)
+            acid_gate_set(t, seq_next(t));          /* ACID: each hit its gate, the last one held when it slides */
     }
 }
 
@@ -261,6 +365,7 @@ static void seq_stop(void);
 static void seq_start(void)
 {
     uint32_t i;
+    acid_gates_close();                             /* (PLAY while playing: nothing slides into step 0) */
     for (i = 0; i < NTRK; i++) {                    /* every track from its step 0, together */
         track_t *t = &trk[i];
         t->seq_idx = (uint16_t)(t->p[P_SLEN] - 1);
@@ -287,6 +392,7 @@ static void seq_start(void)
 static void seq_stop(void)
 {
     song.playing = 0;
+    acid_gates_close();                             /* ACID: no note drones on */
     motion_end();                                   /* motion.c: the patch back */
     chain_stop();                                   /* song.c: the timing and REC back */
 }
@@ -294,6 +400,12 @@ static void seq_stop(void)
 static void seq_tick(track_t *t, uint32_t n)
 {
     uint32_t div = (uint32_t)t->p[P_SDIV], len = (uint32_t)t->p[P_SLEN];
+    if (t->gate_n && t->gate_n != GATE_HELD) {        /* ACID: the gate closes this block (stopped too: a hit's) */
+        if (t->gate_n <= n)
+            acid_gate_off(t);
+        else
+            t->gate_n -= n;
+    }
     if (!song.playing)
         return;
     t->seq_pos += n;
@@ -378,7 +490,7 @@ static void events_block(uint32_t n)
     keyboard_block();
     midi_block();
     if (clock_mode) {                                /* following: the steps move with the clock (after its packets */
-        seq_n = 0;                                   /* of this block are read, as upstream: a tempo change rescales */
+        seq_n = song.playing ? 0u : n;               /* of this block are read, as upstream: a tempo change rescales */
         if (song.playing) {                          /* first, then this block's advance is in the new units) */
             uint32_t last = midi_clock.have_pulse ? midi_clock.last_ms : midi_clock.start_ms;
             if (fm1_ms - last > 500u) {
@@ -389,7 +501,8 @@ static void events_block(uint32_t n)
             }
         }
     }
-    run = !clock_mode || midi_clock.have_pulse;     /* following: step 0 / the resumed step on the first pulse */
+    run = !clock_mode || midi_clock.have_pulse || !song.playing;   /* following: step 0 / the resumed step on the first
+                                                     * pulse; stopped, seq_tick counts ACID's gates in real time */
     if (run) {
         if (chain.running)
             chain_tick(seq_n);                       /* song.c: a row ends in this block -> the next one */

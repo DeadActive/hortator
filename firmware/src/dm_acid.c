@@ -6,9 +6,10 @@
  * block's end and the ladder's coefficients ramp to it sample by sample (no zipper). The amp opens fast, holds while
  * the gate is open, releases in ~8 ms. ACC: more level and filter envelope (ACCNT), a shorter filter decay, and a
  * slow smoother per track (track_t.wow) that consecutive accents charge (the 303's "wow"). Slide (glide hook): the
- * pitch moves in the log domain over ~60 ms, nothing restarts. The sequencer drives the gate (seq.c acid_step); a hit
- * nothing closes (MIDI, the pads) closes its own gate after ACID_LIFE, as the M1-C voices' lifetime: no note drones
- * on. One voice per track. Voice fields: ph[0] phase; x[0] pitch now, x[1] its target (1/16 semitone); x[2] flags
+ * pitch moves in the log domain over ~60 ms, nothing restarts. The sequencer drives the gate (seq.c acid_step, the
+ * countdown in seq_tick); a hit no step drives (MIDI, the keys, Grids: drum_core.c drum_hit) closes after GATE of the
+ * track's step; ACID_LIFE closes any gate still open, a backstop as the M1-C voices' lifetime: no note drones on.
+ * One voice per track. Voice fields: ph[0] phase; x[0] pitch now, x[1] its target (1/16 semitone); x[2] flags
  * (bit 0 gate open, 1 attack done, 2 SQR, 3 the ramps below started); x[3] accent (Q15); env[0] amp, env[1] filter
  * envelope (Q24), k[1] its DECAY; f[0..3] the ladder; c[0].a1 / a2 / a3: G, 1 / (1 + k G^4) and the output gain the
  * last block ended on. */

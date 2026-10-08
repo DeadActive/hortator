@@ -284,6 +284,194 @@ static void test_level_ramp(void)                    /* a slide into an accent: 
     check("acid: a slide into an accent ramps the level (no sample step > 5 % of the peak)", mx < pk / 20);
 }
 
+/* the sequencer on track 0 (ACID), 16th steps at 120 BPM: run n steps, render the track's voices */
+static void seq_run(track_t *t, uint32_t steps, int32_t *out)
+{
+    uint32_t i, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0) * steps;
+    memset(out, 0, len * sizeof *out);
+    for (i = 0; i + CTL <= len; i += CTL) {
+        seq_tick(t, CTL);
+        dm_render_n(t, out + i, CTL);
+    }
+}
+static track_t *acid_seq(void)
+{
+    track_t *t = acid();
+    memset(buf, 0, sizeof buf);                       /* (the checks read a little past seq_run's steps) */
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 16;
+    t->p[P_SRC] = 0;
+    song.playing = 1;
+    t->seq_pos = 0x7FFFFFFFu;                         /* PLAY: step 0 next block */
+    t->seq_cnt = (uint32_t)-1;
+    t->gate_n = 0;
+    t->slide_in = 0;
+    return t;
+}
+
+static void test_seq_gate(void)                      /* a plain note: the gate closes at GATE (50 %) of the step */
+{
+    track_t *t = acid_seq();
+    uint32_t len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    t->step[0].on = 1;
+    seq_run(t, 1, buf);
+    check("acid seq: the gate closes at GATE of the step, the note ends in that step",
+          rms(buf + len * 3 / 4, len / 8) < 20.0 && rms(buf + len / 8, len / 4) > 200.0);
+}
+
+static void test_seq_slide(void)                     /* SLIDE on step 0: step 1 glides, the envelopes not restarted */
+{
+    track_t *t = acid_seq();
+    int32_t fe;
+    uint32_t age, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    t->step[0].on = 1;
+    t->step[0].slide = 1;
+    t->step[0].nt = -12;
+    t->step[1].on = 1;
+    t->step[1].nt = 0;
+    seq_run(t, 1, buf);
+    fe = t->v[0].env[1];
+    age = t->v[0].age;
+    seq_run(t, 1, buf);
+    check("acid seq: a slide keeps the note sounding into the next step (no restart, the gate held)",
+          rms(buf + len / 8, len / 4) > 200.0 && t->v[0].age == age && t->v[0].env[1] < fe &&
+          t->v[0].x[1] == 60 * 16);   /* (step 1 itself does not slide: its gate closes at GATE, the note ends in it) */
+}
+
+static void test_seq_tie(void)                       /* TIE: no restart, the same pitch, the gate held through it */
+{
+    track_t *t = acid_seq();
+    int32_t fe, p;
+    uint32_t len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    t->step[0].on = 1;
+    t->step[1].tie = 1;
+    t->step[1].nt = 12;                                /* a TIE's own note is ignored */
+    seq_run(t, 1, buf);
+    fe = t->v[0].env[1];
+    p = t->v[0].x[1];
+    seq_run(t, 1, buf);
+    check("acid seq: a TIE holds the note (no restart, the same pitch, sounding at its end)",
+          t->v[0].env[1] < fe && t->v[0].x[1] == p && rms(buf + len * 3 / 4, len / 8) > 200.0);
+}
+
+static void test_seq_rest(void)                      /* a rest after a held gate closes it */
+{
+    track_t *t = acid_seq();
+    t->step[0].on = 1;
+    t->step[0].slide = 1;                              /* held into step 1 */
+    seq_run(t, 2, buf);
+    check("acid seq: a rest after a slide closes the gate", !(t->v[0].x[2] & 1) && t->gate_n == 0u);
+}
+
+static void test_seq_prob_tie(void)                  /* Review Focus 4 */
+{
+    track_t *t = acid_seq();
+    t->step[0].on = 1;
+    t->step[0].cond = 1;                               /* PROB 0 %: never plays */
+    t->step[1].tie = 1;
+    seq_run(t, 2, buf);
+    check("acid seq: a TIE after a skipped step plays nothing", !t->v[0].active && peak(buf, FS / 4) == 0);
+    t = acid_seq();
+    t->step[0].on = 1;
+    t->step[0].slide = 1;
+    t->step[1].on = 1;
+    t->step[1].cond = 1;                               /* the slid-to step skipped */
+    seq_run(t, 2, buf);
+    check("acid seq: a slide into a skipped step closes the gate", !(t->v[0].x[2] & 1));
+    t = acid_seq();
+    t->step[0].on = 1;
+    t->step[0].rat = 1;                                /* 2 hits */
+    seq_run(t, 1, buf);
+    check("acid seq: a ratcheted step restarts the note", t->rat_k == 2u);
+}
+
+static void test_seq_stop_closes(void)              /* Review Focus 1: STOP / a model change: no hanging note */
+{
+    track_t *t = acid_seq();
+    t->step[0].on = 1;
+    t->step[0].slide = 1;
+    seq_run(t, 1, buf);
+    seq_stop();                                        /* the transport stops (seq.c: every stop path calls it) */
+    memset(buf, 0, FS / 10 * sizeof *buf);
+    dm_render_n(t, buf, FS / 10);
+    check("acid seq: STOP closes an open gate (the note ends)", rms(buf + FS / 20, FS / 20) < 20.0);
+    t = acid_seq();
+    t->step[0].on = 1;
+    t->step[0].slide = 1;
+    seq_run(t, 1, buf);
+    t->p[P_MODEL] = DM_K808;
+    model_follow(t);                                   /* a model change cuts the voices */
+    check("acid seq: a model change cuts the note and clears the gate", !t->v[0].active && t->gate_n == 0u &&
+          !t->slide_in);
+}
+
+static void test_seq_drum_tie(void)                  /* a drum track: a TIE step plays nothing */
+{
+    track_t *t = acid_seq();
+    t->p[P_MODEL] = DM_K808;
+    t->model = DM_K808;
+    t->step[0].tie = 1;
+    seq_run(t, 1, buf);
+    check("seq: a TIE step on a drum track plays nothing", !t->v[0].active && !t->v[1].active);
+}
+
+/* a hit no step drives (MIDI, the keys, Grids: drum_hit) closes its own gate after GATE of the track's step, the
+ * transport stopped: the gate counts in seq_tick, which runs every block */
+static void test_hit_gate(void)
+{
+    track_t *t = acid();
+    uint32_t i, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    song.playing = 0;
+    drum_hit(t, 100);                                  /* as midi_block / keyboard_block (input_hit) */
+    memset(buf, 0, len * sizeof *buf);
+    for (i = 0; i + CTL <= len; i += CTL) {
+        seq_tick(t, CTL);
+        dm_render_n(t, buf + i, CTL);
+    }
+    check("acid: a MIDI / key hit ends within one step, no sequencer step (its gate closes at GATE)",
+          rms(buf + len / 8, len / 4) > 200.0 && rms(buf + len * 3 / 4, len / 8) < 20.0 && !t->v[0].active &&
+          t->gate_n == 0u);
+}
+
+/* Review Focus 1: a song's row change restarts every track: an ACID gate held into it closes (a TIE at the new row's
+ * step 0 holds nothing) */
+static step_t ROW[2][NSTEP], NONE[NSTEP];
+static void test_row_change(void)
+{
+    track_t *t = acid();
+    uint32_t s, k, i;
+    memset(ROW, 0, sizeof ROW);
+    memset(NONE, 0, sizeof NONE);
+    ROW[0][15].on = 1;
+    ROW[0][15].slide = 1;                              /* row 1's last step slides into row 2 */
+    ROW[1][0].tie = 1;
+    song.g[G_BPM] = 120;
+    for (s = 0; s < 2u; s++)
+        for (k = 0; k < NTRK; k++) {
+            chain.src[s].step[k] = k ? NONE : ROW[s];   /* track 0 only */
+            chain.src[s].m = &MOTION_NONE;
+            chain.src[s].timing[k][0] = 16;
+            chain.src[s].timing[k][1] = 2;
+            chain.src[s].model[k] = (uint8_t)trk[k].p[P_MODEL];
+        }
+    chain.cfg.count = 2;
+    chain.cfg.row[0].slot = 0;
+    chain.cfg.row[0].repeat = 1;
+    chain.cfg.row[1].slot = 1;
+    chain.cfg.row[1].repeat = 1;
+    chain.armed = 1;
+    transport_req = 1;
+    for (i = 0; i < 4u * 22050u - 2000u; i += CTL) /* just before row 2 */
+        render_mix(0, 0, CTL);
+    check("acid: row 1's last step slides (its gate held)", t->v[0].active && (t->v[0].x[2] & 1) &&
+          t->gate_n == GATE_HELD);
+    for (; i < 4u * 22050u + 2000u; i += CTL)          /* into row 2's step 0 (a TIE) */
+        render_mix(0, 0, CTL);
+    check("acid: a song's row change closes the held gate (the next row's TIE holds nothing)",
+          chain.row == 1u && !(t->v[0].x[2] & 1) && t->gate_n == 0u);
+    seq_stop();
+}
+
 int main(void)
 {
     test_pitch();
@@ -300,6 +488,15 @@ int main(void)
     test_self_osc_far();
     test_cutoff_smooth();
     test_level_ramp();
+    test_seq_gate();
+    test_seq_slide();
+    test_seq_tie();
+    test_seq_rest();
+    test_seq_prob_tie();
+    test_seq_stop_closes();
+    test_seq_drum_tie();
+    test_hit_gate();
+    test_row_change();
     printf(fails ? "acid: %d FAILED\n" : "acid: all checks passed\n", fails);
     return fails != 0;
 }
