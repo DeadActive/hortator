@@ -465,6 +465,18 @@ def main():
         name = f"felucca-{a.release}.fwsc"
     if ble:                         # a gated BLE build (gates 1-5) may be packaged, named as one
         name = name.replace("felucca", "felucca-ble", 1)
+    ble_pkg = None
+    if os.environ.get("DRUM_BUNDLE") == "1" and os.environ.get("DRUM_PACKAGE") == "1":
+        # one release, two versions (2026-10-09): the Bluetooth package first, in its own run (every BLE check and
+        # gate), then this default build; the site offers both
+        if ble:
+            raise SystemExit("build: DRUM_BUNDLE=1 makes the Bluetooth package itself; leave FELUCCA_BLE unset")
+        ble_pkg = OUT / name.replace("felucca", "felucca-ble", 1).replace(".fwsc", "-UNTESTED.fwsc")
+        ble_pkg.unlink(missing_ok=True)             # never a stale one
+        env = {k: v for k, v in os.environ.items() if k not in ("DRUM_BUNDLE", "FELUCCA_CORE_REF", "BLE_MEASURE")}
+        env.update(FELUCCA_BLE="1", DRUM_SITE="0")
+        if subprocess.run([sys.executable, __file__, *sys.argv[1:]], env=env).returncode or not ble_pkg.exists():
+            raise SystemExit("build: DRUM_BUNDLE: the Bluetooth build failed")
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -516,8 +528,10 @@ def main():
     print(f"app      {OUT / 'felucca.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
+    if os.environ.get("DRUM_SITE") == "0":        # (DRUM_BUNDLE's Bluetooth run: the default run makes the site)
+        return 0
     label = (VERSION or drum_label()) + ("+ble" if ble else "")    # the installer shows which build it ships
-    make_site.main(OUT / name, label, OUT / "site")   # the local web installer: always this package
+    make_site.main(OUT / name, label, OUT / "site", ble_pkg)   # the local web installer: this package (+ BLE's)
     return 0
 
 

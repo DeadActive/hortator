@@ -65,6 +65,7 @@ fi
 run "H3 self-test (an unknown stack form is caught)" python3 tools/stack_depth.py --selftest
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 run "BENCH report (fm1_bench.py): the FM-1's lines against the host's" python3 tools/fm1_bench.py --selftest
+run "site: one release, two versions (make_site.py with the Bluetooth package)" python3 tests/make_site_test.py
 for t in ble_midi ble_scan ble_central ble_vm; do $CC -o "$OUT/${t}_test" "tests/ble/${t}_test.c"; done
 $CC -Wno-deprecated-declarations -Ifirmware/src/ble -o "$OUT/ble_os_test" tests/ble/ble_os_test.c
 run "BLE-MIDI parser" "$OUT/ble_midi_test"
