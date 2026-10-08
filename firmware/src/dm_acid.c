@@ -2,18 +2,25 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* ACID (spec docs/superpowers/specs/2026-10-09-acid-design.md §4): a 303-style mono bass voice. A band-limited saw or
  * square (polyBLEP) into a 24 dB 4-pole ladder (zero-delay feedback, Q24, a cubic soft clip in the feedback path)
- * whose cutoff follows CUTOF + ENVMD x the filter envelope + the accent; the amp opens fast, holds while the gate is
- * open, releases in ~8 ms. ACC: more level and filter envelope (ACCNT), a shorter filter decay, and a slow smoother
- * that charges on accents (the 303's "wow"; it lives in the voice, so it builds up over slid-into accents: a new
- * note starts a new voice). Slide (glide hook): the pitch moves in the log domain over ~60 ms, nothing restarts.
- * The sequencer drives the gate (seq.c acid_step); a hit nothing closes (MIDI, the pads) closes its own gate after
- * ACID_LIFE, as the M1-C voices' lifetime: no note drones on. One voice per track. */
+ * whose cutoff follows CUTOF + ENVMD x the filter envelope + the accent; the cutoff is computed per block at the
+ * block's end and the ladder's coefficients ramp to it sample by sample (no zipper). The amp opens fast, holds while
+ * the gate is open, releases in ~8 ms. ACC: more level and filter envelope (ACCNT), a shorter filter decay, and a
+ * slow smoother per track (track_t.wow) that consecutive accents charge (the 303's "wow"). Slide (glide hook): the
+ * pitch moves in the log domain over ~60 ms, nothing restarts. The sequencer drives the gate (seq.c acid_step); a hit
+ * nothing closes (MIDI, the pads) closes its own gate after ACID_LIFE, as the M1-C voices' lifetime: no note drones
+ * on. One voice per track. Voice fields: ph[0] phase; x[0] pitch now, x[1] its target (1/16 semitone); x[2] flags
+ * (bit 0 gate open, 1 attack done, 2 SQR, 3 the ramps below started); x[3] accent (Q15); env[0] amp, env[1] filter
+ * envelope (Q24), k[1] its DECAY; f[0..3] the ladder; c[0].a1 / a2 / a3: G, 1 / (1 + k G^4) and the output gain the
+ * last block ended on. */
 #define ACID_ATT (QONE / 132)                           /* the amp's attack: ~3 ms linear to full */
 #define ACID_REL 64268u                                 /* the amp's release per sample, Q16: ~8 ms to -60 dB */
 #define ACID_GLIDE Q24(0.03)                            /* per block: a 12-semitone slide within 1/16 in ~60 ms */
-#define ACID_WOW 65300u                                 /* the accent smoother's decay per block, Q16: ~200 ms */
+#define ACID_WOW 65300u                                 /* track_t.wow's decay per block, Q16: ~200 ms */
 #define ACID_LIFE LIFE_A                                /* the gate closes 5.5 s after the note (or its slide) */
-#define ACID_GAIN 500                                   /* the output gain, Q8 (x1.95): the defaults level with TOM's */
+#define ACID_KMAX Q24(4.4)                              /* RESO 127: the ladder's feedback past 4: it oscillates at
+                                                         * every CUTOF (but the lowest, under a far higher note), the
+                                                         * soft clip holds the amplitude */
+#define ACID_GAIN 870                                   /* the output gain, Q8 (x3.4): the defaults level with TOM's */
 
 static inline int32_t acid_clip(int32_t x)              /* x - 4/27 x^3, x held to +-1.5 (Q24): out +-1, smooth */
 {
@@ -61,7 +68,8 @@ static void acid_trigger(track_t *t, dvoice_t *v)
     v->ph[0] = 0;
     v->env[0] = 0;
     v->env[1] = ENV1;
-    v->env[2] = (acc << 9) / 2;                           /* the "wow" (dv_init cleared it: a new voice) */
+    if (acc)
+        t->wow = qmin(t->wow + (acc << 9) / 2, ENV1);      /* the wow charges on accents, across notes */
     v->k[1] = acid_decay(acc ? clamp(p[1], 0, 127) / 3 : p[1]);   /* DECAY; an accent: shorter */
     v->f[0] = v->f[1] = v->f[2] = v->f[3] = 0;
 }
@@ -71,10 +79,9 @@ static void acid_glide(track_t *t, dvoice_t *v)          /* slide: a new target,
     const int16_t *p = &t->p[P_E0];
     v->x[1] = acid_pitch(t);
     v->t = 0;                                            /* a new note: its lifetime starts */
-    if (v->vel > 110u) {                                 /* the slid-to note's accent still counts */
-        v->x[3] = clamp(p[5], 0, 127) * 258;
-        v->env[2] = qmin(v->env[2] + (v->x[3] << 9) / 2, ENV1);   /* the wow charges on slid-into accents */
-    }
+    v->x[3] = v->vel > 110u ? clamp(p[5], 0, 127) * 258 : 0;   /* the slid-to step's accent, or none */
+    if (v->x[3])
+        t->wow = qmin(t->wow + (v->x[3] << 9) / 2, ENV1);
 }
 
 static void acid_gate(track_t *t, dvoice_t *v, int open)  /* open: the attack resumes from where the amp is */
@@ -83,14 +90,31 @@ static void acid_gate(track_t *t, dvoice_t *v, int open)  /* open: the attack re
     v->x[2] = open ? ((v->x[2] | 1) & ~2) : (v->x[2] & ~1);
 }
 
-static void acid_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
+/* the ladder's coefficients at filter envelope e: G = g / (1 + g), g = tan(pi fc / fs); *inv = 1 / (1 + k G^4) */
+static int32_t acid_coef(const track_t *t, const dvoice_t *v, int32_t e, int32_t k, int32_t *inv)
 {
     const int16_t *p = &t->p[P_E0];
-    uint32_t i, inc;
-    int32_t d, cut, g, G, G2, G3, G4, k, inv, s0 = v->f[0], s1 = v->f[1], s2 = v->f[2], s3 = v->f[3];
+    int32_t cut, g, G, G2;
+    /* cutoff in 1/16 semitones over MIDI 16 (~20 Hz): CUTOF (0..103 semitones: ~20 Hz .. ~8 kHz) + ENVMD x env (up
+     * to 48) + the accent (env x ACCNT, up to 36; the track's wow, up to 12) */
+    cut = clamp(p[2], 0, 127) * 103 * 16 / 127 +
+          (int32_t)(((int64_t)clamp(p[4], 0, 127) * 16 * 48 / 127 * env_q15(e)) >> 15) +
+          (int32_t)(((int64_t)v->x[3] * 16 * 36 / 32767 * env_q15(e)) >> 15) +
+          (env_q15(t->wow) * 16 * 12 >> 15);
+    cut = qlim(cut, 0, 111 * 16);                          /* ~20 Hz .. ~12.5 kHz (MIDI 127) */
+    g = qtan_acc((int32_t)(acid_inc(cut + 16 * 16) >> 8)); /* tan(pi fc / fs): fc / fs is inc / 2^32, Q24 */
+    G = qdiv(g, QONE + g);
+    G2 = qm(G, G);
+    *inv = qdiv(QONE, QONE + qm(k, qm(G2, G2)));
+    return G;
+}
+
+static void acid_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
+{
+    uint32_t i, j, inc, kn = v->k[1];
+    int32_t d, G, inv, G1, inv1, dG, dinv, k, gain, gain1, dgain, s0 = v->f[0], s1 = v->f[1], s2 = v->f[2],
+                                                                        s3 = v->f[3];
     int32_t sq = v->x[2] & 4, amp = v->env[0];
-    int32_t lvl = mulq15(mulq15(vel_gain(v), VOICE_FS), ACID_GAIN * 128);   /* velocity x voice level x gain: <= 46875 */
-    int32_t acl = ENV1 + (v->x[3] << 9) / 2;               /* the accent's level: up to x1.5 (Q24) */
     /* pitch: toward the target in the log domain, at least 1/16 semitone a block (no stall short of it) */
     d = v->x[1] - v->x[0];
     if (d) {
@@ -98,22 +122,27 @@ static void acid_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         v->x[0] += s ? s : d > 0 ? 1 : -1;
     }
     inc = acid_inc(v->x[0]);
-    /* cutoff in 1/16 semitones over MIDI 16 (~20 Hz): CUTOF (0..103 semitones: ~20 Hz .. ~8 kHz) + ENVMD x env (up
-     * to 48) + the accent (env x ACCNT, up to 36; the wow, up to 12), then the ladder's coefficients */
-    cut = clamp(p[2], 0, 127) * 103 * 16 / 127 +
-          (int32_t)(((int64_t)clamp(p[4], 0, 127) * 16 * 48 / 127 * env_q15(v->env[1])) >> 15) +
-          (int32_t)(((int64_t)v->x[3] * 16 * 36 / 32767 * env_q15(v->env[1])) >> 15) +
-          (env_q15(v->env[2]) * 16 * 12 >> 15);
-    cut = qlim(cut, 0, 111 * 16);                          /* ~20 Hz .. ~12.5 kHz (MIDI 127) */
-    g = qtan_acc((int32_t)(acid_inc(cut + 16 * 16) >> 8)); /* tan(pi fc / fs): fc / fs is inc / 2^32, Q24 */
-    G = qdiv(g, QONE + g);                                 /* the one-poles' gain g / (1 + g) */
-    G2 = qm(G, G);
-    G3 = qm(G2, G);
-    G4 = qm(G3, G);
-    k = clamp(p[3], 0, 127) * (int32_t)(Q24(4.0) / 127);  /* RESO: 0 .. 4 (self-oscillation near 4) */
-    inv = qdiv(QONE, QONE + qm(k, G4));
+    /* the ladder's coefficients at the block's end (the filter envelope n samples on: DECAY^n, n a power of two as
+     * CTL) and the output gain (velocity x voice level x gain x the accent, <= 122332); each ramps from where the
+     * last block ended (a new voice: from its value now) */
+    for (j = n; j > 1u; j >>= 1)
+        kn = (uint32_t)(((uint64_t)kn * kn) >> 16);
+    k = clamp(t->p[P_E0 + 3], 0, 127) * (ACID_KMAX / 127);  /* RESO: 0 .. 4.4 (self-oscillation from ~4, 116) */
+    G1 = acid_coef(t, v, mulq16(v->env[1], kn), k, &inv1);
+    gain1 = (int32_t)(((int64_t)mulq15(vel_gain(v), VOICE_FS) * ACID_GAIN * (ENV1 + (v->x[3] << 9) / 2)) >> 32);
+    if (!(v->x[2] & 8)) {
+        v->x[2] |= 8;
+        v->c[0].a1 = acid_coef(t, v, v->env[1], k, &v->c[0].a2);
+        v->c[0].a3 = gain1;
+    }
+    G = v->c[0].a1;
+    inv = v->c[0].a2;
+    gain = v->c[0].a3;
+    dG = (G1 - G) / (int32_t)n;                            /* per block: three 32-bit divides */
+    dinv = (inv1 - inv) / (int32_t)n;
+    dgain = (gain1 - gain) / (int32_t)n;
     for (i = 0; i < n; i++) {
-        int32_t x, S, y, u, a;
+        int32_t x, S, y, u, a, G2, G3;
         uint32_t ph = v->ph[0];
         if (sq) {                                        /* square +-1: two saws half a cycle apart */
             x = (int32_t)(ph >> 7) - (int32_t)((ph + 0x80000000u) >> 7);
@@ -123,10 +152,17 @@ static void acid_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
             x -= acid_blep(ph, inc);
         }
         v->ph[0] = ph + inc;
+        x >>= 1;                                         /* into the ladder at half: the soft clip stays near
+                                                          * linear for the oscillator, the feedback can saturate */
+        G += dG;
+        inv += dinv;
+        gain += dgain;
+        G2 = qm(G, G);
+        G3 = qm(G2, G);
         /* the ladder (TPT): y4 = (G^4 x + S) / (1 + k G^4), S = (1 - G)(G^3 s0 + G^2 s1 + G s2 + s3); the feedback
          * through the soft clip; each one-pole: v = (u - s) G, y = v + s, s = y + v */
         S = qm(QONE - G, qm(G3, s0) + qm(G2, s1) + qm(G, s2) + s3);
-        y = qm(qm(G4, x) + S, inv);
+        y = qm(qm(qm(G3, G), x) + S, inv);
         u = acid_clip(x - qm(k, y));
         a = qm(u - s0, G); u = a + s0; s0 = u + a;
         a = qm(u - s1, G); u = a + s1; s1 = u + a;
@@ -144,15 +180,16 @@ static void acid_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         } else {
             amp = mulq16(amp, ACID_REL);
         }
-        /* out: u (+-1) x the accent x amp x lvl, <= 70313 (as dm_put, the gain folded in before the velocity) */
-        a = (int32_t)(((int64_t)qm(qm(u, acl), amp) * lvl) >> 24);
+        a = (int32_t)(((int64_t)qm(u, amp) * gain) >> 24);   /* as dm_put, the gain folded in */
         out[i] += a;
         v->last = a;
         env_step(v, 1);                                  /* the filter envelope: DECAY */
     }
     v->f[0] = s0; v->f[1] = s1; v->f[2] = s2; v->f[3] = s3;
+    v->c[0].a1 = G1;                                     /* the next block ramps from these */
+    v->c[0].a2 = inv1;
+    v->c[0].a3 = gain1;
     v->env[0] = amp;
-    v->env[2] = mulq16(v->env[2], ACID_WOW);
     v->t += n;
     if (v->t >= ACID_LIFE)
         v->x[2] &= ~1;

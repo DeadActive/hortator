@@ -174,6 +174,8 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     uint32_t i, nr = 0;
     for (i = 0; i < n; i++)
         out[i] = 0;
+    if (t->wow)
+        t->wow = mulq16(t->wow, ACID_WOW);              /* ACID's accent smoother falls every block, sounding or not */
     model_follow(t);
     for (i = 0; i < NDV; i++)
         if (t->v[i].active) {

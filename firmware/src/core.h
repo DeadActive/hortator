@@ -173,6 +173,8 @@ typedef struct track {
     int32_t fs[2];               /* FILTER (filter.c): the SVF's states */
     int32_t fenv;                /* its envelope, Q24 (a hit: 1 << 24) */
     uint8_t fvel, fmode, fring;  /* the hit's velocity, the TYPE running (a change: from silence), ringing */
+    int32_t wow;                 /* ACID: the accent smoother, Q24 (accented notes charge it, track_render decays it
+                                  * every block: it carries over consecutive accents, as the 303's) */
 } track_t;
 
 typedef struct {

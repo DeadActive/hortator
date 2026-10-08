@@ -92,7 +92,7 @@ static void test_slide(void)                         /* a glide from C3 to C4 re
     check("acid: a slide does not restart the filter envelope", t->v[0].env[1] <= fe);
     for (i = 0; i < FS / 5 / CTL; i++) {
         dm_render_n(t, buf, CTL);
-        if (!at && abs(t->v[0].x[0] - t->v[0].x[1]) < 16)   /* within 1/16 semitone of C4 */
+        if (!at && abs(t->v[0].x[0] - t->v[0].x[1]) < 16)   /* within 1 semitone (16 sixteenths) of C4 */
             at = (i + 1u) * CTL;
     }
     check("acid: a slide reaches the next note in 40..90 ms", at >= FS * 40 / 1000 && at <= FS * 90 / 1000);
@@ -172,6 +172,118 @@ static void test_level(void)                         /* the defaults' peak withi
     check("acid: the defaults' level is within +-3 dB of TOM's", pa > pt * 0.708 && pa < pt * 1.413);
 }
 
+/* review round 1 (spec §4): the slope, the wow, a slide out of an accent, self-oscillation, the cutoff's and the
+ * level's smoothness. Thresholds from the measured voice, with margins (task-3-report.md, fix round 1) */
+static double fc_of(int32_t cutof)                   /* CUTOF's cutoff (ENVMD 0, no accent): MIDI 16 + 0..103 st */
+{
+    return 440.0 * pow(2, ((cutof * 103 * 16 / 127) / 16.0 + 16 - 69) / 12);
+}
+
+static void test_slope(void)                         /* 24 dB/oct: the saw's partials from 2x to 8x the cutoff */
+{
+    track_t *t = acid();
+    double f0 = 32.703, fc = fc_of(40), a2, a8;
+    int32_t h;
+    t->p[P_E0 + 3] = 0;
+    t->p[P_E0 + 4] = 0;
+    play(t, 96, -36, buf, FS);                       /* C1 */
+    h = (int32_t)(2 * fc / f0 + 0.5);
+    a2 = goertzel(buf + FS / 4, FS * 3 / 4, h * f0) * h;   /* x h: the saw's 1 / n undone */
+    h = (int32_t)(8 * fc / f0 + 0.5);
+    a8 = goertzel(buf + FS / 4, FS * 3 / 4, h * f0) * h;
+    check("acid: the ladder falls 24 dB/oct (-20 dB/oct or more from 2x to 8x the cutoff)",
+          20 * log10(a8 / a2) / 2 <= -20.0);
+}
+
+static void test_wow(void)                           /* four accented 1/16s at 120 BPM: the 4th opens further */
+{
+    track_t *t = acid();
+    uint32_t k, L = FS / 8 / CTL * CTL;
+    double m[4];
+    for (k = 0; k < 4u; k++) {
+        drum_play(t, 127, -24);
+        render_track(t, buf, L);                     /* track_render: the wow falls every block */
+        m[k] = goertzel(buf, L, 65.406 * 8);
+    }
+    check("acid: consecutive accents charge the wow (the 4th note's 8th harmonic > +2 dB over the 1st's)",
+          m[3] > m[0] * 1.259);
+}
+
+static void test_slide_unaccent(void)                /* a slide from an accented step into a plain one */
+{
+    track_t *t = acid();
+    double r1, r2;
+    play(t, 127, -24, buf, FS / 4);
+    r1 = rms(buf + FS / 8, FS / 8);
+    t->v[0].vel = 96;                                /* as acid_step: the slid-to step's velocity, then glide */
+    DMODELS[DM_ACID].glide(t, &t->v[0]);
+    memset(buf, 0, FS / 4 * sizeof *buf);
+    dm_render_n(t, buf, FS / 4);
+    r2 = rms(buf + FS / 8, FS / 8);
+    check("acid: a slide into a plain step drops the accent (x[3] 0, the level down > 3.5 dB)",
+          t->v[0].x[3] == 0 && r2 < r1 * 0.668);
+}
+
+static void test_self_osc_far(void)                  /* RESO 127, the note 7 octaves under the cutoff: a sine there */
+{
+    track_t *t = acid();
+    double fc = fc_of(100), best = 0, g;
+    t->p[P_E0 + 2] = 100;
+    t->p[P_E0 + 3] = 127;
+    t->p[P_E0 + 4] = 0;
+    play(t, 96, -60, buf, N / 2);                    /* C-1 (8 Hz) under ~2.2 kHz */
+    for (g = fc * 0.85; g < fc * 1.15; g += fc / 2000)
+        best = fmax(best, goertzel(buf + FS / 2, FS / 2, g));
+    check("acid: RESO 127 oscillates by itself far from the note (a sine near the cutoff, magnitude > 1000)",
+          best > 1000.0);
+}
+
+static void test_cutoff_smooth(void)                 /* blocks vs the cutoff computed every sample: no zipper */
+{
+    static int32_t ref[8192];
+    track_t *t;
+    uint32_t i, mode;
+    double e = 0, s = 0;
+    for (mode = 0; mode < 2u; mode++) {
+        int32_t *o = mode ? ref : buf;
+        t = acid();
+        t->p[P_E0 + 1] = 0;                          /* DECAY 0, ENVMD 127, RESO 100: the fastest sweep, ringing */
+        t->p[P_E0 + 3] = 100;
+        t->p[P_E0 + 4] = 127;
+        memset(o, 0, 8192 * sizeof *o);
+        drum_play(t, 96, -24);
+        if (mode)
+            for (i = 0; i < 8192u; i++)
+                DMODELS[DM_ACID].render(t, &t->v[0], o + i, 1);
+        else
+            dm_render_n(t, o, 8192);
+    }
+    for (i = 0; i < 8192u; i++) {
+        e += (double)(buf[i] - ref[i]) * (buf[i] - ref[i]);
+        s += (double)ref[i] * ref[i];
+    }
+    check("acid: the cutoff moves smoothly (CTL blocks within -30 dB of a per-sample cutoff)", 10 * log10(e / s) < -30.0);
+}
+
+static void test_level_ramp(void)                    /* a slide into an accent: the level ramps, no step */
+{
+    track_t *t = acid();
+    int32_t prev, mx, pk;
+    uint32_t i;
+    t->p[P_E0 + 3] = 0;
+    play(t, 96, -60, buf, FS / 10);                  /* C-1: the output moves slowly, a level step shows */
+    prev = t->v[0].last;
+    t->v[0].vel = 127;
+    DMODELS[DM_ACID].glide(t, &t->v[0]);
+    memset(buf, 0, 8 * CTL * sizeof *buf);
+    dm_render_n(t, buf, 8 * CTL);
+    pk = peak(buf, 8 * CTL);
+    mx = abs(buf[0] - prev);
+    for (i = 1; i < 8u * CTL; i++)
+        mx = abs(buf[i] - buf[i - 1]) > mx ? abs(buf[i] - buf[i - 1]) : mx;
+    check("acid: a slide into an accent ramps the level (no sample step > 5 % of the peak)", mx < pk / 20);
+}
+
 int main(void)
 {
     test_pitch();
@@ -182,6 +294,12 @@ int main(void)
     test_alias();
     test_extremes();
     test_level();
+    test_slope();
+    test_wow();
+    test_slide_unaccent();
+    test_self_osc_far();
+    test_cutoff_smooth();
+    test_level_ramp();
     printf(fails ? "acid: %d FAILED\n" : "acid: all checks passed\n", fails);
     return fails != 0;
 }
