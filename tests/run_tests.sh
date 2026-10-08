@@ -40,6 +40,7 @@ $CC -o "$OUT/ldr_test" tests/ldr_test.c
 run "update loader: other app -> this build" "$OUT/ldr_test" "$OUT/old.fwsc" "$PKG"
 run "drum suite (models, mix, sequencer, UI, guards)" sh tests/run_drum_tests.sh
 run "target cost of the render loops" python3 tests/target_budget.py build/felucca.dis tests/target_budget.txt
+run "Mac recovery tool against a simulated FM-1 in boot mode (docs/RECOVERY.md)" python3 tests/fm1_uboot_test.py
 run "update loader = the pinned one (tools/frozen_base.txt)" python3 tools/check_loader.py build
 run "loader pin self-test (a changed loader is caught)" python3 tools/check_loader.py --selftest build
 run "storage erase: IRQs off before the audio is silenced (st_save)" python3 tools/check_erase_order.py build/felucca.dis

@@ -72,8 +72,10 @@ what changed in each ([CHANGELOG.md](CHANGELOG.md)). `tools/fm1_install.py` inst
 ### Back to the official firmware
 
 Use M-VAVE's updater, M-UPGRADE, from <https://www.m-vave.com/download> (Downloads → PC Software → M-UPGRADE), with
-the official firmware (PC Firmware → FM-1 V15). If an install fails and the FM-1 no longer starts, recovering it
-needs a [Transporter](https://github.com/kurogedelic/FM-1-transporter).
+the official firmware (PC Firmware → FM-1 V15). If the FM-1 stops answering both the installer and M-UPGRADE, a Mac
+can put the official firmware back through the chip's boot mode, with no extra hardware: [docs/RECOVERY.md](docs/RECOVERY.md).
+If it does not start at all and never reaches boot mode, recovering it needs a
+[Transporter](https://github.com/kurogedelic/FM-1-transporter).
 
 ## Build
 
