@@ -2,7 +2,7 @@
 // Drum machine fork: 2026 DEADACTIVE
 // Piece 1, the drum voices: a model, its four HOME knobs; one hit rendered by the firmware (lab_voice) drawn as its
 // waveform (the window fits the hit's length) and its spectrum. Play loops the hit on the quarters; the pad hits it.
-import { el, knob, chips, scope } from './lab_ui.js';
+import { el, knob, chips, scope, hitPad } from './lab_ui.js';
 import { tailLength, spectrum } from './lab_dsp.js';
 import * as draw from './lab_draw.js';
 
@@ -77,20 +77,7 @@ export default function voices(plate, { lab, ids, audition }) {
     queue();
   }
 
-  const pad = el('button', 'pad', 'Hit');
-  pad.type = 'button';
-  pad.addEventListener('pointerdown', async e => {
-    e.preventDefault();
-    pad.classList.add('down');
-    const p = await audition();
-    p?.call('hit', 0, 127);
-  });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pad.addEventListener(ev, () => pad.classList.remove('down'));
-  pad.addEventListener('keydown', async e => {
-    if (e.repeat || (e.key !== ' ' && e.key !== 'Enter')) return;
-    e.preventDefault();
-    (await audition())?.call('hit', 0, 127);
-  });
+  const pad = hitPad(audition);
 
   const scopes = el('div', 'scopes two');
   scopes.append(waveScope.canvas, specScope.canvas);

@@ -9,6 +9,7 @@ import { el } from './lab_ui.js';
 
 const PIECES = {                                     // data-piece -> its module, loaded once the analyser runs
   voices: () => import('./lab_voices.js'),
+  reson: () => import('./lab_reson.js'),
 };
 
 let lab = null, ids = null, wasm = null, player = null, starting = null, playing = null;

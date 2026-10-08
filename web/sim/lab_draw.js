@@ -55,8 +55,14 @@ export function timeAxis(g, w, h, seconds, note) {
 }
 
 // a spectrum (dB per bin of an fs / n grid) on a log frequency axis, 30 Hz to 16 kHz, -84 .. 0 dB
-export function spectrum(g, w, h, db, fs, { color = INK.led, glow = INK.glow, fill = true } = {}) {
+// norm: drawn to its own peak (two spectra compared by shape, not level)
+export function spectrum(g, w, h, db, fs, { color = INK.led, glow = INK.glow, fill = true, norm = false } = {}) {
   const lo = Math.log(30), hi = Math.log(16000), bins = db.length, hz = fs / 2 / bins, top = 4, bot = h - 16;
+  if (norm) {
+    let pk = -200;
+    for (let k = 1; k < bins; k++) pk = Math.max(pk, db[k]);
+    db = db.map(d => d - pk);
+  }
   const x = f => (Math.log(f) - lo) / (hi - lo) * w;
   const y = d => top + Math.min(1, Math.max(0, -d / 84)) * (bot - top);
   g.save();
@@ -95,5 +101,22 @@ export function spectrum(g, w, h, db, fs, { color = INK.led, glow = INK.glow, fi
   g.shadowColor = glow;
   g.shadowBlur = glow ? 8 : 0;
   g.stroke();
+  g.restore();
+}
+
+// a marker at frame i of a waveform's window of n frames: a dashed line and a label beside it
+export function marker(g, w, h, i, n, text) {
+  const x = Math.round(Math.min(1, i / n) * w) + 0.5;
+  g.save();
+  g.strokeStyle = INK.dry;
+  g.setLineDash([3, 4]);
+  g.beginPath();
+  g.moveTo(x, 0);
+  g.lineTo(x, h);
+  g.stroke();
+  g.font = LABEL;
+  g.fillStyle = INK.dry;
+  g.textBaseline = 'top';
+  g.fillText(text, x + 6, 2);
   g.restore();
 }

@@ -234,6 +234,7 @@ html { scroll-behavior: smooth; }
 .scopes.two { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .controls-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .families { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 14px 22px; }
+.families.inline { display: flex; flex-wrap: wrap; gap: 14px 32px; }
 .family { display: grid; gap: 8px; align-content: start; }
 .family-name { color: #8a9098; font-size: 13px; }
 .play-slot { display: flex; align-items: center; gap: 18px; margin-left: auto; }
@@ -244,6 +245,11 @@ html { scroll-behavior: smooth; }
   transition: transform .04s, box-shadow .04s; }
 .pad.down, .pad:active { transform: translateY(3px); color: var(--led); text-shadow: 0 0 8px var(--led);
   box-shadow: 0 0 0 3px #26282c, 0 1px 0 #26282c, 0 0 26px rgba(215,232,255,.35); }
+.legend { display: flex; gap: 18px; margin: 0; font-size: 13px; color: #8a9098; }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 7px;
+  vertical-align: middle; background: #8a9098; }
+.legend .key-led::before { background: var(--led); box-shadow: 0 0 6px rgba(215,232,255,.7); }
+.legend .key-warm::before { background: #ffb347; box-shadow: 0 0 6px rgba(255,179,71,.6); }
 .plate :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 @media (max-width: 860px) {                       /* phones: the text, then its plate */
   .features { padding-top: 72px; }

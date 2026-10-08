@@ -106,4 +106,23 @@ export function scope(cls, draw) {
   return { canvas: c, redraw() { if (!queued) { queued = true; requestAnimationFrame(paint); } } };
 }
 
-export const INK = { led: '#f2f7ff', glow: 'rgba(215,232,255,.55)', dim: '#5d636b', grid: '#22262b', warm: '#ffb347' };
+// the FM-1's pad: hits track t on the player (started for it if silent), at the press (pointer, Space, Enter)
+export function hitPad(audition, t = 0, label = 'Hit') {
+  const pad = el('button', 'pad', label);
+  pad.type = 'button';
+  const hit = async () => (await audition())?.call('hit', t, 127);
+  pad.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    pad.classList.add('down');
+    hit();
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pad.addEventListener(ev, () => pad.classList.remove('down'));
+  pad.addEventListener('keydown', e => {
+    if (e.repeat || (e.key !== ' ' && e.key !== 'Enter')) return;
+    e.preventDefault();
+    hit();
+  });
+  return pad;
+}
+
+export const INK = { led: '#f2f7ff', glow: 'rgba(215,232,255,.55)', dim: '#5d636b', dry: '#8a9098', grid: '#22262b', warm: '#ffb347' };

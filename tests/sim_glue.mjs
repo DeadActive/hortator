@@ -418,3 +418,27 @@ test('lab_dsp: the FFT finds a sine at its bin; a 909 kick is low, a closed hat 
   lab.param(0, ids.P.E1, 120);
   assert.ok(tailLength(lab.voice(ids.fs, false)) > short * 1.5);
 });
+
+test('lab: a string tuned to A3 rings on the harmonics of 220 Hz; MIX 0 leaves the dry hit', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  assert.ok(ids.tp.RSTRCT, 'STRCT from the firmware');
+  const hit = (model, mix) => {
+    lab.reset();
+    lab.model(0, ids.DM.RIM);
+    lab.param(0, ids.P.RMODEL, model);
+    lab.param(0, ids.P.RTUNE, 57);
+    lab.param(0, ids.P.RDECAY, 100);
+    lab.param(0, ids.P.RMIX, mix);
+    return lab.voice(ids.fs, true);
+  };
+  const db = spectrum(hit(ids.RS.STRNG, 127).subarray(4096), 16384);   // the ring, after the attack
+  const hz = k => k * ids.fs / 16384;
+  let best = 0;
+  for (let k = 1; k < db.length; k++) if (hz(k) > 100 && hz(k) < 3000 && db[k] > db[best]) best = k;
+  const ratio = hz(best) / 220;
+  assert.ok(Math.abs(ratio - Math.round(ratio)) < 0.04, `the loudest partial at ${hz(best).toFixed(1)} Hz`);
+  const dry = hit(ids.RS.OFF, 127), none = hit(ids.RS.STRNG, 0);
+  assert.ok(tailLength(none) < tailLength(hit(ids.RS.STRNG, 127)) / 2, 'MIX 0: no ring');
+  assert.ok(Math.abs(tailLength(none) - tailLength(dry)) < ids.fs / 20, 'MIX 0 is the dry hit');
+});
