@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Drum machine fork: 2026 DEADACTIVE
-"""Boot screen study: ten 240 x 240 HortatoR start screens, each built from glitch, pixel sort
+"""Boot screen study: twenty 240 x 240 HortatoR start screens, each built from glitch, pixel sort
 and dither.
 
-  boot_variants.py OUTDIR
+  boot_variants.py OUTDIR [N ...]        (N: only these screens, 1..20)
 
-The word is UnifrakturMaguntia (assets/fonts/, SIL OFL 1.1) stretched tall and emboldened. Every
+Screens 1-10 set the word in UnifrakturMaguntia (assets/fonts/, SIL OFL 1.1) stretched tall and
+emboldened. Screens 11-20 use one gothic or horror face each (FONTS: SIL OFL 1.1, fetched from
+Google Fonts into build/fonts-cache on first use) and do not care whether the word reads. Every
 screen uses the screen's seven levels only: 0 black, 1..5 the COLOR palette's five steps (gfx.c
 PALETTES), 6 white, so it recolours with the palette like the rest of the UI. OUTDIR gets vNN.png
 (the level 0..6 per pixel, 8-bit grey) and a preview vNN_<palette>.png per palette, through RGB565.
@@ -36,23 +38,57 @@ OUT = None
 
 # ---------------------------------------------------------------- type
 
-def logo(w, h, bold=3):
+# the second set's faces, all SIL OFL 1.1 from github.com/google/fonts, fetched once into
+# build/fonts-cache (UnifrakturMaguntia ships in assets/fonts)
+GF = "https://raw.githubusercontent.com/google/fonts/main/ofl/"
+FONTS = {
+    "maguntia": (None, FONT, None),
+    "cook": (None, ROOT / "assets" / "fonts" / "UnifrakturCook-Bold.ttf", None),
+    "metalmania": (GF + "metalmania/MetalMania-Regular.ttf", "MetalMania-Regular.ttf", None),
+    "blakaink": (GF + "blakaink/BlakaInk-Regular.ttf", "BlakaInk-Regular.ttf", None),
+    "blakahollow": (GF + "blakahollow/BlakaHollow-Regular.ttf", "BlakaHollow-Regular.ttf", None),
+    "texturina": (GF + "texturina/Texturina%5Bopsz,wght%5D.ttf", "Texturina.ttf", {"Weight": 900, "Optical size": 72}),
+    "fruktur": (GF + "fruktur/Fruktur-Regular.ttf", "Fruktur-Regular.ttf", None),
+    "eater": (GF + "eater/Eater-Regular.ttf", "Eater-Regular.ttf", None),
+    "bastarda": (GF + "jacquardabastarda9/JacquardaBastarda9-Regular.ttf", "JacquardaBastarda9-Regular.ttf", None),
+    "nosifer": (GF + "nosifer/Nosifer-Regular.ttf", "Nosifer-Regular.ttf", None),
+    "pirata": (GF + "pirataone/PirataOne-Regular.ttf", "PirataOne-Regular.ttf", None),
+}
+
+
+def font_file(key):
+    url, name, var = FONTS[key]
+    if url is None:
+        return name, var
+    path = ROOT / "build" / "fonts-cache" / name
+    if not path.exists():
+        import urllib.request
+        path.parent.mkdir(parents=True, exist_ok=True)
+        urllib.request.urlretrieve(url, path)
+    return path, var
+
+
+def logo(w, h, bold=3, font="maguntia", text=TEXT, aa=True):
     """the word as a 0..1 alpha field stretched to exactly w x h (ink box), emboldened by bold px
     at double size"""
-    f = ImageFont.truetype(str(FONT), 200)
-    l, t, r, b = f.getbbox(TEXT)
+    path, var = font_file(font)
+    f = ImageFont.truetype(str(path), 200)
+    if var:
+        f.set_variation_by_axes([var.get(a["name"].decode() if isinstance(a["name"], bytes) else a["name"],
+                                         a["default"]) for a in f.get_variation_axes()])
+    l, t, r, b = f.getbbox(text)
     im = Image.new("L", (r - l + 8, b - t + 8), 0)
-    ImageDraw.Draw(im).text((4 - l, 4 - t), TEXT, font=f, fill=255)
+    ImageDraw.Draw(im).text((4 - l, 4 - t), text, font=f, fill=255)
     im = im.crop(im.getbbox()).resize((2 * w, 2 * h), Image.LANCZOS)
     if bold > 1:
         im = im.filter(ImageFilter.MaxFilter(bold))
-    return np.asarray(im.resize((w, h), Image.LANCZOS), np.float32) / 255.0
+    return np.asarray(im.resize((w, h), Image.LANCZOS if aa else Image.NEAREST), np.float32) / 255.0
 
 
-def word(w, h, x, y, bold=3):
+def word(w, h, x, y, bold=3, font="maguntia"):
     """the word placed on an empty screen-sized field"""
     f = np.zeros((H, W), np.float32)
-    paste(f, logo(w, h, bold), x, y)
+    paste(f, logo(w, h, bold, font), x, y)
     return f
 
 
@@ -397,8 +433,298 @@ def v10_cathedral(rng):
     return scr
 
 
+# ---------------------------------------------------------------- the second ten: legibility optional
+
+def tag_mask(text, x=None):
+    f = small_font()
+    l, t, r, b = f.getbbox(text)
+    im = Image.new("L", (W, 16), 0)
+    ImageDraw.Draw(im).text(((W - (r - l)) // 2 if x is None else x, 0), text, font=f, fill=255)
+    return np.asarray(im, np.float32) / 255.0
+
+
+def wrecked_tag(scr, text, y, level, rng, shift=10, sort=True, mirror=False):
+    """the label torn into slices and sorted along its rows (it may stop reading; fine)"""
+    m = tag_mask(text)
+    if mirror:
+        m = m[:, ::-1]
+    m = tear(np.pad(m, ((0, H - 16), (0, 0))), rng, 5, shift, 1, 4, (0, 16))[:16]
+    if sort:
+        m = row_smear(np.pad(m * (0.5 + 0.5 * rng.random(m.shape)), ((0, H - 16), (0, 0))), rng, 6, (0, 16),
+                      20, 90)[:16]
+    sl = scr[y:y + 16]
+    sl[m > 0.45] = level
+    return scr
+
+
+def thorns(m, rng, n, maxlen, up=True, down=True):
+    """black-metal spikes: from random ink-edge pixels, tapering single-pixel spikes up/down,
+    leaning a little"""
+    out = m.copy()
+    edge_up = m & ~np.roll(m, 1, 0)
+    edge_dn = m & ~np.roll(m, -1, 0)
+    for e, d, on in ((edge_up, -1, up), (edge_dn, 1, down)):
+        if not on:
+            continue
+        ys, xs = np.where(e)
+        if not len(ys):
+            continue
+        for k in rng.choice(len(ys), min(n, len(ys)), replace=False):
+            y, x = ys[k], xs[k]
+            ln = int(maxlen * rng.random() ** 1.5) + 3
+            lean = rng.uniform(-0.35, 0.35)
+            for s in range(ln):
+                yy, xx = y + d * s, int(round(x + lean * s))
+                if not (0 <= yy < H and 0 <= xx < W):
+                    break
+                wdt = max(0, int(2 * (1 - s / ln)))
+                out[yy, max(0, xx - wdt):xx + wdt + 1] = True
+    return out
+
+
+def v11_thorns(rng):
+    """THORNS (Metal Mania). The word grown into a black-metal logo: hundreds of tapering spikes,
+    folded into perfect left-right symmetry, sorted drips under a Bayer fog; the label mirrored."""
+    f = word(228, 70, 6, 82, 3, "metalmania") > 0.5
+    t = thorns(f, rng, 260, 70)
+    t = t | t[:, ::-1]
+    sym = t.astype(np.float32)
+    fog = np.clip(1 - np.abs(YY - 118) / 110.0, 0, 1) * 0.35 * (0.6 + 0.4 * smooth_noise(rng, W, 9)[None, :])
+    fog = sort_runs(fog + 0.15 * rng.random((H, W)), rng.random((H, W)) < 0.97, axis=0, desc=True) * 0.6
+    scr = q_ordered(fog, BAYER8, 0, 2)
+    d = streaks(sym, rng, 10, 90, cells=50, gain=0.8)
+    over(scr, q_ordered(d, BAYER4, 0, 4), d > 0.05)
+    scr[t] = 5
+    scr[f | f[:, ::-1]] = 6
+    wrecked_tag(scr, "DRUM MACHINE", 222, 2, rng, mirror=True)
+    return scr
+
+
+def polar(strip, r0, r1, cx=120, cy=120, turns=1.0, phase=0.0):
+    """wrap a (h, w) strip around a ring: strip top at r1 (outside), bottom at r0"""
+    h, w = strip.shape
+    dx, dy = XX - cx + 0.5, YY - cy + 0.5
+    r = np.sqrt(dx * dx + dy * dy)
+    th = (np.arctan2(dx, -dy) / (2 * np.pi) + 1 + phase) % 1.0
+    sx = (th * turns * w).astype(int) % w
+    sy = ((r1 - r) / (r1 - r0) * h).astype(int)
+    ok = (sy >= 0) & (sy < h)
+    out = np.zeros((H, W), np.float32)
+    out[ok] = strip[sy[ok], sx[ok]]
+    return out
+
+
+def v12_sigil(rng):
+    """SIGIL (UnifrakturCook). The word twice round a ring, its letters sorted outward into a
+    corona of rays; a Bayer black sun in the middle; the ring torn."""
+    s = logo(300, 46, 3, "cook")
+    strip = np.zeros((150, 640), np.float32)
+    strip[104:150, 10:310] = s
+    strip[104:150, 330:630] = s
+    rays = np.zeros_like(strip)
+    ink = strip > 0.5
+    for x in range(strip.shape[1]):
+        ys = np.where(ink[:, x])[0]
+        if len(ys) and rng.random() < 0.8:
+            n = int(min(ys[0], 10 + 94 * rng.random() ** 1.3))
+            rays[ys[0] - n:ys[0], x] = np.sort(rng.random(n)) * np.linspace(0.1, 1, n)
+    ph = rng.random()
+    ring = polar(strip, 52, 118, phase=ph)
+    cor = polar(rays, 52, 118, phase=ph)
+    r = np.sqrt((XX - 120) ** 2 + (YY - 120) ** 2)
+    sun = np.clip(1 - r / 52.0, 0, 1) ** 0.7 * 0.55
+    scr = q_ordered(sun, BAYER8, 0, 3)
+    over(scr, q_ordered(cor * 0.9, BAYER4, 0, 4), cor > 0.05)
+    k = tear(ring, rng, 6, 8, 1, 4) > 0.5
+    scr[k] = 6
+    scr[(np.abs(r - 50) < 1.0)] = 5
+    scr[(np.abs(r - 119) < 0.7)] = 2
+    return scr
+
+
+def v13_slitscan(rng):
+    """SLIT-SCAN (Blaka Ink). The word sampled through moving slits: every column slides on its
+    own sine, every row on another; then the whole screen column-sorted; Floyd-Steinberg."""
+    a = logo(236, 110, 3, "blakaink")
+    big = np.zeros((H, W), np.float32)
+    paste(big, a, 2, 65)
+    yoff = (26 * np.sin(XX[0] / 13.0) + 14 * np.sin(XX[0] / 4.1 + 1) * (rng.random(W) < 0.3)).astype(int)
+    xoff = (12 * np.sin(YY[:, 0] / 9.0 + 2)).astype(int)
+    warped = big[(YY - yoff[None, :]) % H, (XX - xoff[:, None]) % W]
+    fld = warped * 0.9 + 0.12 * rng.random((H, W))
+    m = (fld > 0.3 + 0.5 * smooth_noise(rng, W, 30)[None, :]) | (rng.random((H, W)) < 0.0)
+    m = np.maximum.accumulate(m[::-1], axis=0)[::-1] & (rng.random((1, W)) < 0.55)
+    fld = sort_runs(fld, m, axis=0, desc=False)
+    scr = q_diffuse(fld, "fs", 0, 6)
+    wrecked_tag(scr, "DRUM MACHINE", 6, 4, rng, shift=30)
+    return scr
+
+
+def v14_collapse(rng):
+    """CRT COLLAPSE (Texturina Black). The picture caving in: the word squashed through five
+    frames down to one white scan line that explodes sideways in sorted streaks."""
+    scr = np.zeros((H, W), np.uint8)
+    frames = [(150, 1), (90, 2), (48, 3), (22, 4), (8, 5)]
+    for hgt, lv in frames:
+        f = word(232, hgt, 4, 120 - hgt // 2, 3, "texturina")
+        f = tear(f, rng, 3, 4 + 30 // lv, 1, 3)
+        q = q_ordered(f * (0.3 + 0.14 * lv), BAYER4 if lv % 2 else BAYER8, 0, lv)
+        over(scr, q, q > 0)
+    line = np.zeros((H, W), np.float32)
+    line[117:123] = np.clip(1 - np.abs(XX[117:123] - 120) / 125.0, 0, 1) ** 0.4
+    line = row_smear(line + 0.3 * rng.random((H, W)) * (np.abs(YY - 120) < 4), rng, 16, (114, 126), 60, 240)
+    over(scr, q_ordered(line, BAYER4, 0, 6), line > 0.4)
+    scr[119:121, 40:200] = 6
+    scr[118:122, 112:128] = 6
+    wrecked_tag(scr, "DRUM MACHINE", 212, 1, rng, shift=4)
+    return scr
+
+
+def v15_tunnel(rng):
+    """FEEDBACK TUNNEL (Fruktur). Camera pointed at its own monitor: the word nested inside itself
+    nine times, each copy turned, smaller, brighter, Bayer-screened; the outer copies torn."""
+    scr = np.zeros((H, W), np.uint8)
+    base = Image.fromarray((logo(236, 100, 3, "fruktur") * 255).astype(np.uint8))
+    for k in range(9):
+        s = 2.4 * 0.72 ** k
+        w, h = int(236 * s), int(100 * s)
+        if w < 12:
+            break
+        im = base.resize((w, h), Image.LANCZOS).rotate(k * 7 - 20, Image.BICUBIC, expand=True)
+        a = np.asarray(im, np.float32) / 255.0
+        f = np.zeros((H, W), np.float32)
+        paste(f, a, 120 - a.shape[1] // 2 + int(4 * k), 120 - a.shape[0] // 2 - int(3 * k))
+        if k < 3:
+            f = tear(f, rng, 8, 18, 2, 8)
+        lv = min(5, 1 + k)
+        q = q_ordered(f * (0.45 + 0.07 * k), BAYER8 if k % 2 else BAYER4, 0, lv)
+        scr[f > 0.35] = 0
+        over(scr, q, q > 0)
+        if k == 4:                                            # the copy in focus: solid white, black rim
+            core = f > 0.5
+            scr[outline(core, 1)] = 0
+            scr[core] = 6
+    return scr
+
+
+def v16_kick(rng):
+    """KICK (Eater). Every row of the word pushed sideways by a kick drum: a sine whose pitch and
+    level fall down the screen; the hard-pushed rows sorted into smears; the waveform itself
+    drawn down the edge."""
+    f = word(220, 150, 10, 46, 3, "eater")
+    y = np.arange(H)
+    env = np.exp(-np.clip(y - 30, 0, None) / 70.0) * (y > 30)
+    phase = np.cumsum(2 * np.pi * (0.02 + 0.10 * np.exp(-np.clip(y - 30, 0, None) / 30.0)))
+    wave = env * np.sin(phase)
+    off = (60 * wave).astype(int)
+    out = np.stack([np.roll(f[r], off[r]) for r in range(H)])
+    hard = np.abs(wave) > 0.45
+    m = np.zeros((H, W), bool)
+    m[hard] = True
+    out = sort_runs(out * (0.55 + 0.45 * rng.random((H, W))), m & (rng.random((H, 1)) < 0.7), axis=1,
+                    desc=bool(rng.random() < 0.5))
+    scr = q_ordered(out, BAYER4, 0, 6)
+    scr[(out > 0.5) & ~hard[:, None]] = 6
+    for r in range(H):                                      # the waveform, down the right edge
+        x = int(226 + 12 * wave[r])
+        scr[r, min(x, 238):min(x, 238) + 2] = 4
+    wrecked_tag(scr, "DRUM MACHINE", 222, 3, rng)
+    return scr
+
+
+def v17_macro(rng):
+    """MACRO (Jacquarda Bastarda 9). The pixel blackletter blown up until its pixels are bricks,
+    cropped to the middle of the word, every brick filled with its own Bayer level, then the
+    whole thing sorted along the diagonals."""
+    a = logo(600, 300, 1, "bastarda", aa=False)
+    f = (a[30:270, 170:410] > 0.5).astype(np.float32)
+    blk = 6
+    lvl = rng.random((H // blk + 1, W // blk + 1))
+    fill = np.kron(lvl, np.ones((blk, blk)))[:H, :W]
+    fld = f * (0.35 + 0.65 * fill)
+    sh = np.stack([np.roll(fld[r], r) for r in range(H)])             # shear: diagonals become columns
+    m = (sh > 0.1) & (rng.random((1, W)) < 0.5)
+    m = np.maximum.accumulate(m, axis=0) & (rng.random((1, W)) < 0.6)
+    sh = sort_runs(sh, m, axis=0, desc=True)
+    fld = np.stack([np.roll(sh[r], -r) for r in range(H)])
+    scr = q_ordered(fld, BAYER4, 0, 6)
+    scr[(f > 0.5) & (fill > 0.85)] = 6
+    return scr
+
+
+def v18_xor(rng):
+    """XOR (Blaka Hollow). The outline word XORed with a shifted copy of itself and with
+    concentric rings, so it dissolves into moire; a Bayer glow under it; torn."""
+    a = word(232, 120, 4, 60, 1, "blakahollow") > 0.5
+    b = np.roll(np.roll(a, 7, 1), 5, 0)
+    r = np.sqrt((XX - 120) ** 2 + (YY - 132) ** 2)
+    rings = ((r // 5) % 2).astype(bool) & (r < 118)
+    x = a ^ b ^ (rings & (np.abs(YY - 120) < 64))
+    x = tear(x.astype(np.float32), rng, 9, 14, 2, 8) > 0.5
+    glow = np.clip(1 - r / 120.0, 0, 1) ** 1.2
+    scr = np.where(x, q_ordered(glow, BAYER8, 2, 6), q_ordered(glow * 0.35, BAYER4, 0, 2)).astype(np.uint8)
+    scr[a & ~b] = 6
+    wrecked_tag(scr, "DRUM MACHINE", 216, 5, rng, shift=20)
+    return scr
+
+
+def v19_waterfall(rng):
+    """WATERFALL (Nosifer). The dripping word at the top and the whole screen below it column-
+    sorted into a falling sheet, broken by datamosh blocks; Floyd-Steinberg."""
+    f = word(232, 64, 4, 18, 3, "nosifer")
+    sheet = 0.5 * rng.random((H, W)) * np.clip((YY - 40) / 60.0, 0, 1)
+    m = np.maximum.accumulate(f > 0.5, axis=0) & (rng.random((1, W)) < 0.75)
+    sheet = sort_runs(sheet, m, axis=0, desc=True)              # each column's noise falls in order
+    d = streaks(f, rng, 60, 230, cells=70, gain=1.0)
+    fld = np.maximum(np.maximum(f, d), sheet * 0.8)
+    for _ in range(26):
+        by, bx = int(rng.integers(10, 29)) * 8, int(rng.integers(0, 30)) * 8
+        sy, sx = int(rng.integers(2, 10)) * 8, int(rng.integers(0, 30)) * 8
+        fld[by:by + 8, bx:bx + 8] = fld[sy:sy + 8, sx:sx + 8] * rng.uniform(0.6, 1.3)
+    fld = tear(fld, rng, 12, 24, 1, 6, (90, 240))
+    scr = q_diffuse(fld, "fs", 0, 6)
+    scr[f > 0.5] = 6
+    return scr
+
+
+def v20_wall(rng):
+    """WALL (Pirata One). The word tiled down the screen like fly-posters, every row broken a
+    different way: torn, sorted, inverted, dithered, dripping; one row left whole and white."""
+    scr = np.zeros((H, W), np.uint8)
+    rows = 7
+    hgt = H // rows
+    a = logo(150, hgt - 4, 3, "pirata")
+    keep = 3
+    for i in range(rows):
+        f = np.zeros((H, W), np.float32)
+        x0 = -((i * 53) % 150)
+        for k in range(3):
+            paste(f, a, x0 + k * 154, i * hgt + 2)
+        band = (YY >= i * hgt) & (YY < (i + 1) * hgt)
+        mode = (i * 3 + 1) % 5 if i != keep else -1
+        if mode == 0:
+            q = q_ordered(tear(f, rng, 6, 30, 1, 4, (i * hgt, (i + 1) * hgt)) * 0.7, BAYER4, 0, 4)
+        elif mode == 1:
+            s = row_smear(f * (0.4 + 0.6 * rng.random((H, W))), rng, 14, (i * hgt, (i + 1) * hgt), 40, 200)
+            q = q_ordered(s, BAYER8, 0, 5)
+        elif mode == 2:
+            q = np.where(f > 0.5, 0, q_ordered(np.full((H, W), 0.55), BAYER8, 0, 3)).astype(np.uint8)
+        elif mode == 3:
+            q = q_diffuse(f * 0.6, "atkinson", 0, 4)
+        elif mode == 4:
+            d = streaks(f, rng, 4, hgt, cells=60, gain=0.7) * band
+            q = q_ordered(np.maximum(f * 0.5, d), BAYER4, 0, 3)
+        else:
+            q = (f > 0.5).astype(np.uint8) * 6
+        scr[band] = q[band]
+    wrecked_tag(scr, "DRUM MACHINE DRUM MACHINE", keep * hgt + hgt - 2, 0, rng, shift=2, sort=False)
+    return scr
+
+
 SCREENS = [v01_melt, v02_tear, v03_halo, v04_sorted_field, v05_reflection,
-           v06_datamosh, v07_band, v08_static, v09_echo, v10_cathedral]
+           v06_datamosh, v07_band, v08_static, v09_echo, v10_cathedral,
+           v11_thorns, v12_sigil, v13_slitscan, v14_collapse, v15_tunnel,
+           v16_kick, v17_macro, v18_xor, v19_waterfall, v20_wall]
 
 
 def colourise(scr, pal):
