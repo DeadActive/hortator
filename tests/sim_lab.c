@@ -133,10 +133,12 @@ void lab_voice(uint32_t frames, int inserts)
     }
 }
 
-void lab_grids(uint8_t *out)                           /* 3 lanes x 32 steps: bit 0 a hit, bit 1 an accent */
+uint8_t *lab_grids(void)                               /* 3 lanes x 32 steps: bit 0 a hit, bit 1 an accent */
 {
+    static uint8_t out[96];
     uint32_t ch, i;
     for (ch = 0; ch < 3u; ch++)
         for (i = 0; i < 32u; i++)
             out[ch * 32u + i] = (uint8_t)grids_preview(ch, i);
+    return out;
 }

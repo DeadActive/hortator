@@ -360,3 +360,32 @@ test('published page: every local file it loads carries the build stamp (?v=), s
   }
   assert.ok(js.includes(`worklet.js?v=${stamp}`) && js.includes(`fm1sim.wasm?v=${stamp}`));
 });
+
+// ---- lab.js: the feature pieces' engine (the analyser in the page; the player is the same calls in a worklet)
+import { Lab } from '../web/sim/lab.js';
+
+test('lab: ids from the firmware, a voice rendered, the Grids lanes, the probes parsed', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  assert.equal(ids.models.length > 20, true);
+  lab.reset();
+  lab.model(0, ids.DM.K808);
+  const hit = lab.voice(ids.fs / 2, false);
+  assert.equal(hit.length, ids.fs / 2);
+  assert.ok(Math.max(...hit.map(Math.abs)) > 0.01, 'the 808 kick is heard');
+  lab.global(ids.G.GX, 0);
+  const a = lab.grids();
+  lab.global(ids.G.GX, 127);
+  const b = lab.grids();
+  assert.equal(a.length, 96);
+  assert.notDeepEqual(Array.from(a), Array.from(b));
+  lab.model(0, ids.DM.K909);
+  for (let s = 0; s < 16; s += 4) lab.step(0, s, true);
+  lab.play(true);
+  lab.probeClear();
+  lab.renderMono(ids.fs);
+  const probes = lab.probes();
+  assert.ok(probes.length > 100);
+  assert.ok(probes.some(p => p.fired & 1), 'the kick fired');
+  assert.equal(probes[0].lfo.length, 8);
+});

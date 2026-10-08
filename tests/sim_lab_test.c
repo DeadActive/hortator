@@ -85,10 +85,10 @@ static void test_grids(void)
     lab_reset();
     lab_global(G_GX, 0);
     lab_global(G_GY, 0);
-    lab_grids(a);
+    memcpy(a, lab_grids(), sizeof a);
     lab_global(G_GX, 127);
     lab_global(G_GY, 127);
-    lab_grids(b);
+    memcpy(b, lab_grids(), sizeof b);
     check("grids: the lanes differ between two corners of the map", memcmp(a, b, sizeof a) != 0);
 }
 
