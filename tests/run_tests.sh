@@ -17,6 +17,11 @@ UPSKIP=""
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
 [ -f "$PKG" ] || { echo "run DRUM_PACKAGE=1 ./build.sh first"; exit 1; }
+if grep -q "^ble_service:" build/felucca.dis 2>/dev/null; then
+    echo "build/ holds a BLE build: H2 / H3, the budgets and the package tests are for the default build."
+    echo "Run DRUM_PACKAGE=1 ./build.sh first."
+    exit 1
+fi
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
@@ -68,6 +73,9 @@ run "BLE central state machine, UUID match, monitor text" "$OUT/ble_central_test
 run "BLE stored RF calibration (config store)" "$OUT/ble_vm_test"
 run "BLE OS layer (host back end)" "$OUT/ble_os_test"
 run "BLE fault path: records and reboots, never waits on interrupts" python3 tests/ble/check_ble_fatal.py
+run "gate 2 tool self-test (update path: machine code, sources)" python3 tools/check_update_path.py --selftest
+run "gate 2a: the update path's sources = the last release's" python3 tools/check_update_path.py --sources
+run "gate 3 tool self-test (BT start-up reachable at boot)" python3 tools/check_ble_boot.py --selftest
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
 else
