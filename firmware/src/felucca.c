@@ -47,6 +47,9 @@
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 (upstream 1.0: on, RX verified on hardware) */
 #endif
+#ifndef FELUCCA_BLE
+#define FELUCCA_BLE 0            /* BLE MIDI (firmware/src/ble/, its own unit ble.o): the JieLi BT libraries */
+#endif
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif
@@ -165,12 +168,27 @@ static void ota_commit(const uint8_t *parm)
     fm1_enter_update(parm);                             /* record into RAM, core reset (fm1_sys.h) */
 }
 #endif
+#if FELUCCA_BLE
+#if !FELUCCA_OTA
+#error "FELUCCA_BLE needs FELUCCA_OTA (ed_service, the main loop's hook)"
+#endif
+#include "ble/ble_core.h"            /* the BLE unit's entry points (ble.c) */
+#endif
 #if FELUCCA_OTA
 /* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)
- * frees every SysEx frame, so editor frames cannot block the update handshake. */
-static void ed_service(void) {}
+ * frees every SysEx frame, so editor frames cannot block the update handshake. FELUCCA_BLE: the BT stack's slice,
+ * every main-loop pass and in its 15 ms wait (spec amendment 3) */
+static void ed_service(void)
+{
+#if FELUCCA_BLE
+    ble_service();
+#endif
+}
 #endif
 #if FELUCCA_CDC
 #include "console.c"
+#endif
+#if FELUCCA_BLE
+#include "core_ble_api.c"            /* the BLE unit calls these */
 #endif
 #include "main.c"

@@ -276,8 +276,12 @@ static void con_bench_out(const char *s)            /* BENCH lines (bench.c), al
 
 static void con_exec(const char *p)
 {
-    if (con_word(&p, "help") || con_word(&p, "?"))
+    if (con_word(&p, "help") || con_word(&p, "?")) {
         con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  bench yes  uboot yes\r\n");
+#if FELUCCA_BLE
+        con_puts("ble [start | scan | list | connect N | stop]: Bluetooth MIDI (part 1: the console only)\r\n");
+#endif
+    }
     else if (con_word(&p, "status"))
         con_status();
     else if (con_word(&p, "dbg"))
@@ -308,7 +312,12 @@ static void con_exec(const char *p)
         } else {
             con_puts("type 'uboot yes'\r\n");
         }
-    } else if (*p)
+    }
+#if FELUCCA_BLE
+    else if (con_word(&p, "ble"))
+        ble_console(p);
+#endif
+    else if (*p)
         con_puts("? (help)\r\n");
 }
 

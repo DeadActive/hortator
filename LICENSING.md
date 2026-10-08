@@ -50,6 +50,8 @@ assets, is entirely governed by the GPL.
 | Plaits and stmlib by Emilie Gillet / Mutable Instruments (<https://github.com/pichenettes/eurorack>): integer ports of its drum algorithms | MIT | `firmware/src/dm_kick.c`, `dm_snare.c`, `dm_metal.c`, `dm_dsp.c`; `LICENSES/MIT-Mutable-Instruments.txt` |
 | jl-uboot-tool by Andrey Grigoryev (kagaimiq) (<https://github.com/kagaimiq/jl-uboot-tool>): the boot-mode cipher and command framing in the Mac recovery tool. Its `wl82loader.bin` is not in this tree; users fetch it (docs/RECOVERY.md) | MIT | `tools/rescue/fm1_uboot.py`; `LICENSES/MIT-jl-uboot-tool.txt` |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK>; `LICENSES/Apache-2.0.txt` |
+| JieLi AC79 SDK BT libraries (btctrler, btstack, wl_rf_common, crypto_toolbox, lib_ccm_aes, compiler_rt; members of system.a, cpu.a) and its BT config sources (`lib_btctrler_config.c`, `bt_profile_config.c`), linked into BLE builds only (`FELUCCA_BLE=1`): read from your SDK V1.2.0 copy at build time, none in this tree | Apache-2.0 | SDK V1.2.0, pinned in `tools/ble_libs.py`; `LICENSES/Apache-2.0.txt` |
+| JieLi AC79 SDK `apps/common/net/wifi_conf.c`: the radio's RX thresholds and RF look-up table, BLE builds only | Apache-2.0 | `firmware/src/ble/ble_rf_tables.c`; `LICENSES/Apache-2.0.txt` |
 
 The licence texts in `LICENSES/` travel with every published package (`web/make_site.py`).
 
