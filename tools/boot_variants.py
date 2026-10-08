@@ -5,6 +5,7 @@
 and dither.
 
   boot_variants.py OUTDIR [N ...]        (N: only these screens, 1..20)
+  boot_variants.py OUTDIR collapse       (screen 14 in ten faces: c01..c10)
 
 Screens 1-10 set the word in UnifrakturMaguntia (assets/fonts/, SIL OFL 1.1) stretched tall and
 emboldened. Screens 11-20 use one gothic or horror face each (FONTS: SIL OFL 1.1, fetched from
@@ -53,6 +54,10 @@ FONTS = {
     "bastarda": (GF + "jacquardabastarda9/JacquardaBastarda9-Regular.ttf", "JacquardaBastarda9-Regular.ttf", None),
     "nosifer": (GF + "nosifer/Nosifer-Regular.ttf", "Nosifer-Regular.ttf", None),
     "pirata": (GF + "pirataone/PirataOne-Regular.ttf", "PirataOne-Regular.ttf", None),
+    "grenze": (GF + "grenzegotisch/GrenzeGotisch%5Bwght%5D.ttf", "GrenzeGotisch.ttf", {"Weight": 900}),
+    "blaka": (GF + "blaka/Blaka-Regular.ttf", "Blaka-Regular.ttf", None),
+    "newrocker": (GF + "newrocker/NewRocker-Regular.ttf", "NewRocker-Regular.ttf", None),
+    "jacquard12": (GF + "jacquard12/Jacquard12-Regular.ttf", "Jacquard12-Regular.ttf", None),
 }
 
 
@@ -563,10 +568,14 @@ def v13_slitscan(rng):
 def v14_collapse(rng):
     """CRT COLLAPSE (Texturina Black). The picture caving in: the word squashed through five
     frames down to one white scan line that explodes sideways in sorted streaks."""
+    return collapse(rng, "texturina")
+
+
+def collapse(rng, font, bold=3):
     scr = np.zeros((H, W), np.uint8)
     frames = [(150, 1), (90, 2), (48, 3), (22, 4), (8, 5)]
     for hgt, lv in frames:
-        f = word(232, hgt, 4, 120 - hgt // 2, 3, "texturina")
+        f = word(232, hgt, 4, 120 - hgt // 2, bold, font)
         f = tear(f, rng, 3, 4 + 30 // lv, 1, 3)
         q = q_ordered(f * (0.3 + 0.14 * lv), BAYER4 if lv % 2 else BAYER8, 0, lv)
         over(scr, q, q > 0)
@@ -736,10 +745,27 @@ def colourise(scr, pal):
     return Image.fromarray(rgb.astype(np.uint8))
 
 
+# CRT COLLAPSE (screen 14) in ten faces, on screen 14's seed so only the face changes
+COLLAPSE = ["texturina", "maguntia", "cook", "grenze", "pirata", "metalmania", "fruktur", "blaka",
+            "newrocker", "jacquard12"]
+
+
+def save(scr, name):
+    assert scr.shape == (H, W) and scr.max() <= 6
+    Image.fromarray(scr).save(OUT / f"{name}.png")
+    for p in PALETTES:
+        colourise(scr, p).save(OUT / f"{name}_{p}.png")
+    print(f"{name}: levels {np.unique(scr).tolist()}")
+
+
 def main():
     global OUT
     OUT = Path(sys.argv[1])
     OUT.mkdir(parents=True, exist_ok=True)
+    if sys.argv[2:3] == ["collapse"]:
+        for i, font in enumerate(COLLAPSE, 1):
+            save(collapse(np.random.default_rng(1014), font), f"c{i:02d}")
+        return
     only = {int(a) for a in sys.argv[2:]}
     for i, fn in enumerate(SCREENS, 1):
         if only and i not in only:
