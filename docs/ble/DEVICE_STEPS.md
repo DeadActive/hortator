@@ -79,9 +79,9 @@ Copy the console text of each step back (the whole `ble` output where asked).
 | Step | Date | Result | Notes |
 | --- | --- | --- | --- |
 | 1 install | 2026-10-09 | ok | drum-0.14.0+45df60a+ble installed over 0.14.0 |
-| 2 UBOOT, BT off | | | |
+| 2 UBOOT, BT off | 2026-10-09 | ok | user: "uboot works" |
 | 3 start | 2026-10-09 | ok | IDLE, rf trim stored (block 0x0E7E68), stage 7, fatal 0, irq_leaks 0, irq_lowered 0; longest BT task run 18745 us (start / connect) |
 | 4 scan / connect | 2026-10-09 | ok | SMC-Mixer listed with MIDI (-59 dBm); connect → SUBSCRIBED, then RECEIVING once the controls moved: msgs 422, pkts 236, errs 0, lost 0 |
-| 5 under load | 2026-10-09 | audio_late 0 | receiving: loop last 15 ms, max 23 ms (BT on); longest BT task run 1018 us; heap high 10824 of 26624, 0 failed; stack free app_core 1832, btctrler 1080, btstack 416 (of 2048) |
-| 6 update, BT on | | | |
-| 7 UBOOT, BT on | | | |
+| 5 under load | 2026-10-09 | ok: no glitches, audio_late 0 | receiving: loop last 15 ms, max 23 ms (BT on); longest BT task run 1018 us; heap high 10824 of 26624, 0 failed; stack free app_core 1832, btctrler 1080, btstack 416 (of 2048) |
+| 6 update, BT on | 2026-10-09 | ok | drum-0.14.0+02c3fee+ble installed from +45df60a+ble, connected to the SMC-Mixer |
+| 7 UBOOT, BT on | 2026-10-09 | ok | user: "uboot works" |
