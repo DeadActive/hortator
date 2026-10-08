@@ -15,7 +15,10 @@ const PIECES = {                                     // data-piece -> its module
   seq: () => import('./lab_seq.js'),
   grids: () => import('./lab_grids.js'),
   fx: () => import('./lab_fx.js'),
+  ble: () => import('./lab_ble.js'),
 };
+
+const DIAGRAMS = new Set(['ble']);                   // no firmware to run: mounted without the analyser
 
 let lab = null, ids = null, wasm = null, player = null, starting = null, playing = null;
 
@@ -97,7 +100,9 @@ export function initFeatures() {
   new IntersectionObserver(([e], obs) => {
     if (!e.isIntersecting) return;
     obs.disconnect();
-    boot().then(() => Promise.all(chapters.map(mount))).catch(err => {
+    const needsLab = c => !DIAGRAMS.has(c.querySelector('.plate')?.dataset.piece);
+    chapters.filter(c => !needsLab(c)).forEach(mount);
+    boot().then(() => Promise.all(chapters.filter(needsLab).map(mount))).catch(err => {
       section.classList.add('lab-failed');
       console.error(err);
     });
