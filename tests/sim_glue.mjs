@@ -442,3 +442,31 @@ test('lab: a string tuned to A3 rings on the harmonics of 220 Hz; MIX 0 leaves t
   assert.ok(tailLength(none) < tailLength(hit(ids.RS.STRNG, 127)) / 2, 'MIX 0: no ring');
   assert.ok(Math.abs(tailLength(none) - tailLength(dry)) < ids.fs / 20, 'MIX 0 is the dry hit');
 });
+
+test('lab: the pump: keyed by the kick it ducks; the kick muted, GHOST MUTE stops it, KEEP keeps it', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const { P, G, DM } = ids, bar = ids.fs * 2;
+  const run = (src, muted, ghost) => {
+    lab.reset();
+    lab.model(0, DM.K909);
+    lab.model(1, DM.HATO);
+    for (let s = 0; s < 16; s++) { lab.step(0, s, s % 4 === 0); lab.step(1, s, true); }
+    lab.param(1, P.DUCK, 1);
+    lab.global(G.CSRC, src);
+    lab.global(G.CTHR, 20);
+    lab.global(G.CRAT, 90);
+    lab.global(G.CGHOST, ghost);
+    lab.param(0, P.MUTE, muted ? 1 : 0);
+    lab.play(true);
+    lab.renderMono(bar);
+    lab.probeClear();
+    lab.renderMono(bar);
+    return Math.min(...lab.probes().map(p => p.gr)) * 241 / 327680;
+  };
+  const [MUTE, KEEP] = [ids.names.ghost.indexOf('MUTE'), ids.names.ghost.indexOf('KEEP')];
+  assert.ok(run(1, false, KEEP) < -3, 'keyed: it ducks');
+  assert.equal(run(0, false, KEEP), 0, 'SRC OFF: nothing');
+  assert.ok(run(1, true, MUTE) > -0.5, 'the kick muted, GHOST MUTE: no pump');
+  assert.ok(run(1, true, KEEP) < -3, 'the kick muted, GHOST KEEP: the pump goes on');
+});
