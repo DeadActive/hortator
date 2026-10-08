@@ -111,12 +111,15 @@ Report what you saw first; we'll go through it together.
   step rolls three hits.
 - ARP: GRIDS 1/2 (MODE X Y CHAOS; MODE EUCL: LEN K S H) and 2/2 (FIL K S H, routing line). PATTERN KNOB 4 SRC
   `G-KCK` / `G-SNR` / `G-HAT` makes a track follow Grids; its STEP grid shows the pattern, keys do nothing.
-- TRACKS (REC tap from HOME or SEQ): a white key selects its track (no sound). With a track armed (REC tap on
-  TRACKS) the white keys play their tracks instead and record into the armed one, the selection stays. Hold OCT-: the keys light for the
-  playing tracks, dark for the muted; a white key mutes / unmutes its track (a muted track stops at once), the
-  row shows MUTE. Release OCT-: the mute lights go.
-- Mute on the next bar: hold OCT- on TRACKS + the top D# (POLY): "MUTE: NEXT BAR"; while playing, a mute waits
-  for the next bar (its key blinks) and lands on the downbeat. OCT- + the top C# (MONO): "MUTE: NOW". The same
+- Every SEQ page (STEP, PATTERN, MOTION, SONG): the white keys are the selected track's steps (tap: on / off, hold:
+  accent), OCT+ / OCT- the bank; the footer strip shows them; ALGO picks the track (no sound).
+- TRACKS (REC tap from HOME or SEQ): the white keys are the selected track's steps (as on STEP: tap on / off, hold:
+  accent; OCT+ / OCT- the bank; no sound); KNOB 1 or ALGO picks the track. With a track armed (REC tap on TRACKS) the
+  white keys play their tracks instead and record into the armed one, the selection stays. Hold REC: the keys light
+  for the playing tracks, dark for the muted; a white key mutes / unmutes its track (a muted track stops at once), the
+  row shows MUTE; that REC press neither arms nor asks to clear. Release REC: the mute lights go.
+- Mute on the next bar: hold REC on TRACKS + the top D# (POLY): "MUTE: NEXT BAR"; while playing, a mute waits
+  for the next bar (its key blinks) and lands on the downbeat. REC + the top C# (MONO): "MUTE: NOW". The same
   setting is GLOBAL 3/3 MUTE NOW / BAR; it survives a power cycle.
 - CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
   stays well under 100 % and the sound does not crackle.
@@ -130,7 +133,7 @@ Report what you saw first; we'll go through it together.
   white keys 2-8 light for the ducked tracks (key 1, the source, does not toggle). PLAY: the ducked tracks pump
   with the kick, the GR meter moves; REL longer = slower recovery; RATIO higher = deeper duck; MKUP raises the
   ducked tracks (at the end LIMIT).
-- Mute T1 (TRACKS, OCT- held + key 1): the kick is silent, the others still pump (ghost key, GHOST KEEP).
+- Mute T1 (TRACKS, REC held + key 1): the kick is silent, the others still pump (ghost key, GHOST KEEP).
 - SRC OFF: the mix sounds exactly as before M3.
 - SAVE / power cycle / LOAD: SRC, the COMP knobs and DUCK come back; an M2 project loads with COMP off.
 
@@ -138,7 +141,7 @@ Report what you saw first; we'll go through it together.
 
 - HOME 3/3, KNOB 4 GHOST: KEEP at start; MUTE, KEEP, HIDE. The COMP picture shows the source HEARD / GHOST / MUTED
   next to its IN level.
-- KEEP: T1 muted (TRACKS, OCT- held + key 1) is silent and the others pump (as before), GHOST shown.
+- KEEP: T1 muted (TRACKS, REC held + key 1) is silent and the others pump (as before), GHOST shown.
 - MUTE: T1 muted is silent and nothing pumps (MUTED); unmuted it is heard and pumps (HEARD).
 - HIDE: T1 is never heard, muted or not, and the others pump (GHOST).
 - Turning GHOST while the kick plays: no click. Mute on the next bar (GLOBAL 3/3 MUTE NEXT BAR) in each mode:

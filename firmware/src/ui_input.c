@@ -28,7 +28,7 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
 
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 
-static int octdn_held(void) { return (int)((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u); }
+static int rec_held(void) { return (int)((fm1_in.buttons >> panel.btn[B_REC]) & 1u); }   /* TRACKS: the mute key */
 
 #include "ui_name.c"                               /* NAME: naming a project */
 
@@ -64,7 +64,12 @@ static void ui_leds(void)
             led_put(nl, 14u + k, e < PF_M1 ? (int)(((ok >> e) & 1u) && (((held >> e) & 1u) || blink))
                                : e < PF_N ? (int)(!((held >> e) & 1u) && !trk[e - PF_M1].p[P_MUTE]) : 0);
         }
-    } else if (grid_mode()) {                         /* the bank's steps; the playhead inverted */
+    } else if (mix_mode() && rec_held()) {            /* TRACKS, REC held: the playing tracks' keys; a mute waiting
+                                                         * for the bar blinks */
+        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
+        for (k = 0; k < NTRK; k++)
+            led_put(nl, 14u + KEY_TRK_KEY[k], ((song.mute_q >> k) & 1u) ? blink : trk[k].p[P_MUTE] == 0);
+    } else if (step_keys()) {                         /* the bank's steps; the playhead inverted */
         const track_t *t = TSEL;
         led_put(nl, panel.btn[B_OCTDN], ui.bank > 0u);
         led_put(nl, panel.btn[B_OCTUP], ui.bank + 1u < bank_count());
@@ -75,11 +80,6 @@ static void ui_leds(void)
                 on = !on;
             led_put(nl, 14u + STEP_KEY[k], on);
         }
-    } else if (mix_mode() && octdn_held()) {          /* TRACKS, OCT- held: the playing tracks' keys; a mute waiting
-                                                         * for the bar blinks */
-        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
-        for (k = 0; k < NTRK; k++)
-            led_put(nl, 14u + KEY_TRK_KEY[k], ((song.mute_q >> k) & 1u) ? blink : trk[k].p[P_MUTE] == 0);
     } else if (comp_mode()) {                         /* COMP: the ducked tracks' keys */
         for (k = 0; k < NTRK; k++)
             led_put(nl, 14u + KEY_TRK_KEY[k], trk[k].p[P_DUCK] && k != comp_src());
@@ -489,8 +489,10 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
-    if (rec == BT_HOLD) {                               /* REC held on SEQ / TRACKS: "clear track n?"; SONG: its row */
-        if (!ui.home && cur_page()->graph == GR_SONG) {
+    if (rec == BT_HOLD) {                               /* REC held on SEQ: "clear track n?"; SONG: its row; TRACKS:
+                                                         * nothing (REC is the mute key there; the press is used) */
+        if (fam == FAM_MIX) {
+        } else if (!ui.home && cur_page()->graph == GR_SONG) {
             song_rec_hold();
         } else if (!song_lock()) {
             ui.confirm = 1;
@@ -539,7 +541,7 @@ static void ui_input(void)
     if (home == BT_TAP)
         home_step();
     settings_poll();
-    song.octdn = panel.btn[B_OCTDN];
+    song.octdn = panel.btn[B_REC];                     /* seq.c: TRACKS armed, REC held: the keys mute */
     if (mix_mode())                                     /* REC on TRACKS arms / disarms: the keys play / select */
         song.seq_mode = song.rec ? 2u : 1u;
     song.act[2] = (int16_t)settings.mutebar;
@@ -568,7 +570,7 @@ static void ui_input(void)
             break;
         case B_OCTDN:
         case B_OCTUP:                                   /* the STEP grid's bank; EDIT: into / out of the layer */
-            if (grid_mode()) {
+            if (step_keys()) {
                 bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
             } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_SND) {
                 ui.fam_last[FAM_LAY] = 0;               /* LAYER 1/2 */
@@ -593,7 +595,19 @@ static void ui_input(void)
         }
         }
     }
-    if (grid_mode()) {
+    if (mix_mode() && rec_held()) {                     /* TRACKS, REC held: a white key mutes its track, top C# / D#
+                                                         * (MONO / POLY): mutes at once / next bar; the REC press is then
+                                                         * used (no arm, no hold) */
+        if ((notes >> 20) & 1u)
+            mute_bar_set(0);
+        if ((notes >> 22) & 1u)
+            mute_bar_set(1);
+        for (k = 0; k < NTRK; k++)
+            if ((notes >> KEY_TRK_KEY[k]) & 1u)
+                track_mute_toggle(k);
+        if (notes && ui.rec_t0)
+            ui.rec_t0 |= 2u;
+    } else if (step_keys()) {
         for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a press */
             uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off, a hold flips its accent */
             if ((notes >> STEP_KEY[k]) & 1u) {
@@ -607,19 +621,6 @@ static void ui_input(void)
                 step_hold(k);
             }
         }
-    } else if (mix_mode()) {                            /* TRACKS: a white key selects its track; OCT- held: mutes
-                                                         * it, top C# / D# (MONO / POLY): mutes at once / next bar */
-        if (octdn_held() && ((notes >> 20) & 1u))
-            mute_bar_set(0);
-        if (octdn_held() && ((notes >> 22) & 1u))
-            mute_bar_set(1);
-        for (k = 0; k < NTRK; k++)
-            if ((notes >> KEY_TRK_KEY[k]) & 1u) {
-                if (octdn_held())
-                    track_mute_toggle(k);
-                else if (!song.rec)                     /* armed: the key plays and records (seq.c) */
-                    track_select(k);
-            }
     } else if (comp_mode()) {
         for (k = 0; k < NTRK; k++)                      /* COMP: a white key ducks / unducks its track */
             if ((notes >> KEY_TRK_KEY[k]) & 1u)

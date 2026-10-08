@@ -169,8 +169,8 @@ typedef struct track {
 typedef struct {
     int16_t g[G_COUNT];
     uint8_t playing, seq_mode;
-    uint8_t octdn;               /* seq_mode 2 (TRACKS, armed): the keys are the UI's only while this button (OCT-) is
-                                  * held */
+    uint8_t octdn;               /* seq_mode 2 (TRACKS, armed): the keys are the UI's only while this button (REC since
+                                  * 2026-10-08, the mute key) is held */
     uint8_t rec;                 /* live recording armed: bit per track */
     uint8_t sel;                 /* selected track 0..NTRK-1: keys, pages, editor */
     int8_t octave;

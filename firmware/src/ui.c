@@ -102,6 +102,12 @@ static int song_lock(void)                          /* a song plays (or is armed
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
 static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
 static int comp_mode(void) { return !ui.home && !ui.menu && cur_page()->graph == GR_COMP; }   /* COMP: keys DUCK */
+/* the white keys are the selected track's steps (the bank's 16): every SEQ page, and TRACKS while nothing is armed
+ * (user, 2026-10-08) */
+static int step_keys(void)
+{
+    return !ui.home && !ui.menu && (cur_page()->fam == FAM_SEQ || (cur_page()->scope == SC_MIX && !song.rec));
+}
 
 /* a held grid key lets go of its step (another track or page): keys still held edit nothing, flip no accent */
 static void grid_drop_holds(void)
@@ -117,8 +123,8 @@ static void grid_drop_holds(void)
 static void page_entered(void)
 {
     grid_drop_holds();
-    song.seq_mode = (uint8_t)(grid_mode() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);   /* seq.c: the keys
-                                                     * belong to the grid / the ducks / TRACKS (armed: play, OCT-: mute) */
+    song.seq_mode = (uint8_t)(step_keys() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);   /* seq.c: the keys
+                                                     * belong to the steps / the ducks / TRACKS (armed: play, REC held: mute) */
     ui.hot_t = 0;
     ui.force = 1;
 }

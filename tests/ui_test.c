@@ -918,10 +918,10 @@ static void test_grid_keys(void)
     keys(0);
     ui_frame();
     check("grid: the 16th white key (G5) is step 16 of the bank", trk[0].step[31].on);
-    press(B_SEQ);                                    /* PATTERN page: keys play drums again */
+    press(B_SEQ);                                    /* PATTERN page: the keys stay the steps (user, 2026-10-08) */
     ui_frame();
     release_all();
-    check("PATTERN page: the grid lets go of the keys", !song.seq_mode);
+    check("PATTERN page: the keys stay the steps", song.seq_mode == 1u);
 }
 
 static void test_bank_follows_len(void)
@@ -974,8 +974,8 @@ static void test_mixer_and_rec(void)
     check("SEQ: REC tap opens TRACKS and arms nothing", !ui.home && cur_page()->fam == FAM_MIX && song.rec == 0u);
 }
 
-/* TRACKS: a white key selects its track; with OCT- held the keys show the playing tracks (lit) and mute / unmute
- * them (a mute also cuts what is ringing); OCT- + top C# / D# (MONO / POLY): mutes at once / on the next bar;
+/* TRACKS: a white key is a step of the selected track; with REC held the keys show the playing tracks (lit) and mute /
+ * unmute them (a mute also cuts what is ringing); REC + top C# / D# (MONO / POLY): mutes at once / on the next bar;
  * elsewhere the keys play again and the mutes stay */
 /* upstream 1.0 (project.c "STOP TO SAVE"): a flash erase silences the audio and stalls the sequencer, so no project
  * is saved while playing, and a settings save waits until the transport stops */
@@ -1068,16 +1068,16 @@ static void test_quick_mute(void)
     ui_frame();
     keys(0);
     ui_frame();
-    check("TRACKS: white key 3 (no OCT-) selects track 3, does not mute or play it",
-          song.sel == 2 && trk[2].p[P_MUTE] == 0 && hit_age(&trk[2]) == a);
+    check("TRACKS: white key 3 (no REC) is step 3 of the selected track: no select, no mute, no sound",
+          song.sel == 0 && trk[2].p[P_MUTE] == 0 && hit_age(&trk[2]) == a && trk[0].step[2].on);
     for (k = 0; k < NTRK; k++)
-        ok &= !led_lit(14u + KEY_TRK_KEY[k]);
-    check("TRACKS without OCT-: the keys show no mutes", ok);
-    press(B_OCTDN);                                  /* OCT- held from here */
+        ok &= led_lit(14u + KEY_TRK_KEY[k]) == trk[0].step[k].on;
+    check("TRACKS without REC: the keys show the steps, not the mutes", ok);
+    press(B_REC);                                    /* REC held from here */
     ui_frame();
     for (k = 0, ok = 1; k < NTRK; k++)
         ok &= led_lit(14u + KEY_TRK_KEY[k]) == (k != 5u);
-    check("TRACKS, OCT- held: the keys light for the playing tracks, dark for the muted one", ok);
+    check("TRACKS, REC held: the keys light for the playing tracks, dark for the muted one", ok);
     snap_page("seq/23_tracks_mute_hold");
     drum_hit(&trk[2], 127);                          /* track 3 ringing */
     a = hit_age(&trk[2]);
@@ -1086,26 +1086,26 @@ static void test_quick_mute(void)
     keys(0);
     for (k = 0; k < 5u; k++)
         ui_frame();
-    check("OCT- + key 3 mutes track 3 (LED dark), does not play it, cuts its ringing voice",
+    check("REC + key 3 mutes track 3 (LED dark), does not play it, cuts its ringing voice",
           trk[2].p[P_MUTE] == 1 && hit_age(&trk[2]) == a && !trk[2].v[0].active && !trk[2].v[1].active &&
               !led_lit(14u + KEY_TRK_KEY[2]));
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("OCT- + key 3 again unmutes it (LED lit)", trk[2].p[P_MUTE] == 0 && led_lit(14u + KEY_TRK_KEY[2]));
+    check("REC + key 3 again unmutes it (LED lit)", trk[2].p[P_MUTE] == 0 && led_lit(14u + KEY_TRK_KEY[2]));
     keys(1u << 22);                                  /* top D# (POLY) */
     ui_frame();
     keys(0);
     ui_frame();
-    check("OCT- + top D#: mutes on the next bar", settings.mutebar == 1u && str_eq(ui.msg, "MUTE: NEXT BAR"));
+    check("REC + top D#: mutes on the next bar", settings.mutebar == 1u && str_eq(ui.msg, "MUTE: NEXT BAR"));
     transport_req = 1;
     seq_play_to(0, 2);
     keys(1u << KEY_TRK_KEY[0]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("next bar: OCT- + key 1 while playing waits (track 1 not muted yet)", trk[0].p[P_MUTE] == 0);
+    check("next bar: REC + key 1 while playing waits (track 1 not muted yet)", trk[0].p[P_MUTE] == 0);
     for (k = 0; k < 40u; k++) {                      /* 2 s, 50 ms frames */
         host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
         ui_frame();
@@ -1123,12 +1123,12 @@ static void test_quick_mute(void)
     ui_frame();
     keys(0);
     ui_frame();
-    check("OCT- + top C#: mutes at once", settings.mutebar == 0u && str_eq(ui.msg, "MUTE: NOW"));
+    check("REC + top C#: mutes at once", settings.mutebar == 0u && str_eq(ui.msg, "MUTE: NOW"));
     keys(1u << KEY_TRK_KEY[0]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("NOW: OCT- + key 1 while playing unmutes at once", trk[0].p[P_MUTE] == 0);
+    check("NOW: REC + key 1 while playing unmutes at once", trk[0].p[P_MUTE] == 0);
     transport_req = 2;
     ui_frame();
     settings.mutebar = 1;
@@ -1153,7 +1153,7 @@ static void test_quick_mute(void)
                                                                  trk[0].p[P_MUTE] == 0);
 }
 
-/* TRACKS while a track is armed: the white keys play (and record) their tracks instead of selecting; OCT- held:
+/* TRACKS while a track is armed: the white keys play (and record) their tracks instead of the steps; REC held:
  * they still mute; disarmed: they select again */
 static void test_tracks_rec_keys(void)
 {
@@ -1187,14 +1187,14 @@ static void test_tracks_rec_keys(void)
     keys(0);
     ui_frame();
     check("TRACKS, armed: key 4 plays track 4, the selection stays", song.sel == 1 && hit_age(&trk[3]) != a);
-    press(B_OCTDN);                                  /* OCT- held */
+    press(B_REC);                                    /* REC held (the mute key) */
     ui_frame();
     a = hit_age(&trk[3]);
     keys(1u << KEY_TRK_KEY[3]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("TRACKS, armed, OCT- held: key 4 mutes track 4, no sound", trk[3].p[P_MUTE] == 1 && hit_age(&trk[3]) == a);
+    check("TRACKS, armed, REC held: key 4 mutes track 4, no sound, still armed", trk[3].p[P_MUTE] == 1 && hit_age(&trk[3]) == a && (song.rec & 2u));
     release_all();
     ui_frame();
     press(B_REC);                                    /* disarm */
@@ -1206,7 +1206,8 @@ static void test_tracks_rec_keys(void)
     ui_frame();
     keys(0);
     ui_frame();
-    check("TRACKS, disarmed: key 6 selects track 6, no sound", song.rec == 0 && song.sel == 5 && hit_age(&trk[5]) == a);
+    check("TRACKS, disarmed: key 6 is step 6 of track 2, no select, no sound",
+          song.rec == 0 && song.sel == 1 && hit_age(&trk[5]) == a && song.seq_mode == 1u);
 }
 
 /* FX: RESON 1/2 and 2/2 after SLICER; STRCT is CHORD on CHORD; CHORD on 2 tracks at most (knob and load) */
@@ -1313,7 +1314,7 @@ static void test_home_keys_and_lfo(void)
     snap_page("lfo/91_home_marker");
 }
 
-/* GLOBAL 3/3: MUTE NOW / BAR, the same device setting as OCT- + C# / D# on TRACKS */
+/* GLOBAL 3/3: MUTE NOW / BAR, the same device setting as REC + C# / D# on TRACKS */
 static void test_global_mute_setting(void)
 {
     uint32_t k;
@@ -2859,6 +2860,95 @@ static void test_perform_knobs_follow_screen(void)
     check("PERFORM shown (FX or a layer key held, or PAGE): the knobs are its macros, not the page under it", !ch);
 }
 
+/* user 2026-10-08: on every SEQ page (STEP PATTERN MOTION SONG) and on TRACKS (not armed) the 16 white keys are the
+ * selected track's steps in the bank (a tap: on / off, a hold: accent); they play nothing and select nothing;
+ * OCT+ / OCT- change the bank; the key LEDs show the steps. The track: ALGO (or TRACKS' KNOB 1) */
+static void test_step_keys_everywhere(void)
+{
+    static const char *const SEQ[4] = {"STEP", "PATTERN", "MOTION", "SONG"};
+    uint32_t p, k;
+    for (p = 0; p < 5u; p++) {
+        uint32_t a2, a3, was;
+        const char *name = p < 4u ? SEQ[p] : "TRACKS";
+        char what[96];
+        ui_host_init();
+        for (k = 0; k < NSTEP; k++)
+            trk[1].step[k].on = trk[1].step[k].acc = 0;
+        trk[1].p[P_SLEN] = 32;
+        if (p < 4u) {
+            seq_open(SEQ[p]);
+        } else {
+            press(B_REC);                            /* HOME: a REC tap opens TRACKS */
+            ui_frame();
+            release_all();
+            ui_frame();
+        }
+        turn(EN_ALGO, 1);                            /* track 2, nothing played */
+        ui_frame();
+        a2 = hit_age(&trk[1]);
+        a3 = hit_age(&trk[2]);
+        was = trk[1].step[2].on;
+        keys(1u << STEP_KEY[2]);                     /* the third white key: step 3 */
+        ui_frame();
+        keys(0);
+        ui_frame();
+        snprintf(what, sizeof what, "%s: white key 3 toggles step 3 of the selected track, plays / selects nothing", name);
+        check(what, trk[1].step[2].on == !was && song.sel == 1 && hit_age(&trk[1]) == a2 && hit_age(&trk[2]) == a3 &&
+              song.seq_mode == 1u && led_lit(14u + STEP_KEY[2]));
+        tap(B_OCTUP);                                /* bank 2: steps 17..32 */
+        keys(1u << STEP_KEY[0]);
+        ui_frame();
+        for (k = 0; k < 30u; k++) {                  /* held 0.6 s: accent */
+            host_ticks += 20u * 1000u * FM1_TICKS_PER_US;
+            keys(1u << STEP_KEY[0]);
+            ui_frame();
+        }
+        keys(0);
+        ui_frame();
+        snprintf(what, sizeof what, "%s: OCT+ is the bank; a held key flips the step's accent", name);
+        check(what, ui.bank == 1u && trk[1].step[16].on && trk[1].step[16].acc);
+    }
+}
+
+/* TRACKS: REC held + a white key mutes / unmutes its track (no arm, no "clear?"); REC held + top D#: mutes on the
+ * next bar; a long REC hold there asks nothing (clearing stays the SEQ pages') */
+static void test_tracks_rec_mutes(void)
+{
+    uint32_t k;
+    ui_host_init();
+    settings.mutebar = 0;
+    press(B_REC);
+    ui_frame();
+    release_all();
+    ui_frame();
+    press(B_REC);
+    ui_frame();
+    keys(1u << KEY_TRK_KEY[3]);
+    press(B_REC);
+    ui_frame();
+    keys(0);
+    press(B_REC);
+    ui_frame();
+    check("TRACKS: REC held, LEDs: the playing tracks lit", led_lit(14u + KEY_TRK_KEY[0]) && !led_lit(14u + KEY_TRK_KEY[3]));
+    keys(1u << 22);                                  /* top D# */
+    press(B_REC);
+    ui_frame();
+    keys(0);
+    release_all();
+    ui_frame();
+    check("TRACKS: REC held + key 4 mutes track 4, REC + top D# mutes on the next bar; no arm, no clear, no step",
+          trk[3].p[P_MUTE] == 1 && settings.mutebar == 1u && song.rec == 0u && !ui.confirm && !trk[0].step[6].on &&
+              str_eq(cur_page()->title, "TRACKS"));
+    for (k = 0; k < 60u; k++) {                      /* REC held 1.2 s alone */
+        host_ticks += 20u * 1000u * FM1_TICKS_PER_US;
+        press(B_REC);
+        ui_frame();
+    }
+    release_all();
+    ui_frame();
+    check("TRACKS: a long REC hold asks nothing", !ui.confirm);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -2931,6 +3021,8 @@ int main(void)
     test_filter_screens();
     test_initsnd_filter();
     test_perform_knobs_follow_screen();
+    test_step_keys_everywhere();
+    test_tracks_rec_mutes();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

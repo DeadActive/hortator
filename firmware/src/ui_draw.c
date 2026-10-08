@@ -1105,7 +1105,8 @@ static void draw_foot(void)
         if (st->on)
             cv_rect(sx, st->acc ? 1 : 3, 2, st->acc ? 10 : 8, st->acc ? C_WHITE : C_HI);
         else
-            cv_rect(sx, 10, 2, 1, C_DIM);
+            cv_rect(sx, step_keys() ? 8 : 10, 2, step_keys() ? 3 : 1, step_keys() ? C_GRAY : C_DIM);   /* the keys
+                                                         * are the steps here: the empty ones marked a little more */
         if (song.playing && si == view_idx(t))
             cv_rect(sx - 1, 13, 4, 3, C_WHITE);
     }
