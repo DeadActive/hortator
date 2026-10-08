@@ -134,10 +134,10 @@ int main(int argc, char **argv)
     }
     check("bench: every case has a unique one-word name", ok);
     {
-        static const char *const WANT[5] = {"heavy+filter", "heavy+comp", "heavy-fx+comp", "heavy+sidechain",
-                                            "heavy-fx+sidechain"};
-        uint32_t w, okn = BENCH_N == BENCH_MORE + 5u;
-        for (w = 0; w < 5u && okn; w++) {
+        static const char *const WANT[6] = {"heavy+filter", "heavy+comp", "heavy-fx+comp", "heavy+sidechain",
+                                            "heavy-fx+sidechain", "heavy+2acid"};
+        uint32_t w, okn = BENCH_N == BENCH_MORE + 6u;
+        for (w = 0; w < 6u && okn; w++) {
             bench_name(BENCH_MORE + w, a);
             okn &= !strcmp(a, WANT[w]);
         }
@@ -147,6 +147,10 @@ int main(int argc, char **argv)
         host_init();
         bench_setup(BENCH_MORE + 2u);                /* heavy-fx+comp: no DIST / SLICER / sends, no ducking */
         okn &= song.g[G_CSRC] == 1 && !trk[7].p[P_DUCK] && !trk[3].p[P_DIST] && !trk[3].p[P_REV];
+        host_init();
+        bench_setup(BENCH_MORE + 5u);                /* heavy+2acid: tracks 7 and 8 ACID, the rest the heavy kit */
+        okn &= trk[6].p[P_MODEL] == DM_ACID && trk[7].p[P_MODEL] == DM_ACID && trk[5].p[P_MODEL] != DM_ACID &&
+               trk[6].step[3].tie && !trk[6].step[3].on && trk[7].step[0].nt == -24 && trk[6].step[1].slide;
         host_init();
         bench_setup(BENCH_MORE);
         okn &= trk[5].p[P_FTYPE] == FT_LP && trk[5].p[P_FRESO] == 60;

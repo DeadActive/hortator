@@ -54,11 +54,12 @@ static __attribute__((noinline)) void bench_time(uint32_t us, uint32_t late)   /
 /* the cases: idle; 8 tracks of each model without and with every FX; each RESON model on 8 x S909 (8 tracks
  * and the device's cap); the realistic heavy kit, then without one feature each; the PHYS-heavy kit */
 enum { BH_LAYER = 1, BH_DIST = 2, BH_SLCR = 4, BH_CHOR = 8, BH_DLY = 16, BH_REV = 32, BH_RESON = 64 };
-enum { BH_FILTER = 128, BH_COMP = 256, BH_SIDE = 512 };   /* the cases after the PHYS kits: added, not taken out */
+enum { BH_FILTER = 128, BH_COMP = 256, BH_SIDE = 512, BH_ACID = 1024 };   /* the cases after the PHYS kits: added, not taken out */
 #define BH_FX (BH_DIST | BH_SLCR | BH_CHOR | BH_DLY | BH_REV)
-static const uint16_t BENCH_MORE_OFF[5] = {BH_FILTER, BH_COMP, BH_FX | BH_COMP, BH_COMP | BH_SIDE, BH_FX | BH_COMP | BH_SIDE};
-static const char *const BENCH_MORE_NAME[5] = {"heavy+filter", "heavy+comp", "heavy-fx+comp", "heavy+sidechain",
-                                               "heavy-fx+sidechain"};
+static const uint16_t BENCH_MORE_OFF[6] = {BH_FILTER, BH_COMP, BH_FX | BH_COMP, BH_COMP | BH_SIDE, BH_FX | BH_COMP | BH_SIDE,
+                                            BH_ACID};
+static const char *const BENCH_MORE_NAME[6] = {"heavy+filter", "heavy+comp", "heavy-fx+comp", "heavy+sidechain",
+                                               "heavy-fx+sidechain", "heavy+2acid"};
 static const uint8_t BENCH_HEAVY_OFF[] = {0, BH_LAYER, BH_DIST, BH_SLCR, BH_CHOR, BH_DLY, BH_REV, BH_RESON};
 static const char *const BENCH_OFF_NAME[] = {"", "-layer", "-dist", "-slicer", "-chorus", "-delay", "-reverb",
                                              "-reson"};
@@ -69,7 +70,7 @@ static const uint8_t BENCH_RS_CAP[RS_NMODEL] = {0, 4, 4, 2, 2};   /* the UI's ca
 #define BENCH_HEAVY (BENCH_RESON + 2u * (RS_NMODEL - 1u))
 #define BENCH_PHYS (BENCH_HEAVY + sizeof BENCH_HEAVY_OFF)
 #define BENCH_MORE (BENCH_PHYS + 2u)                      /* + PHYS-heavy, PHYS-heavy -reson */
-#define BENCH_N (BENCH_MORE + 5u)                         /* + the FILTER, COMP and sidechain cases */
+#define BENCH_N (BENCH_MORE + 6u)                         /* + the FILTER, COMP, sidechain and ACID cases */
 #define BENCH_BPM_FAST 240                               /* the model cases: 1/32 notes, as drum_test's kit_cost */
 
 static char *bench_cat(char *s, const char *a)
@@ -197,9 +198,14 @@ static void bench_kit(uint32_t mi, int fx_on, int32_t r, uint32_t nr)
     song.g[G_BPM] = BENCH_BPM_FAST;
 }
 
+/* the ACID line of heavy+2acid (BH_ACID), 16 steps: nt (C4 = 0), flags 1 ACC, 2 SLIDE, 4 TIE (a tie step is not on),
+ * 8 rest; tracks 7 and 8 play it an octave apart */
+static const int8_t BENCH_ACID_NT[16] = {-36, -24, -22, -24, 0, -29, -27, -24, -36, -34, 0, -24, -19, -24, -22, -31};
+static const uint8_t BENCH_ACID_FL[16] = {1, 2, 0, 4, 8, 0, 3, 0, 0, 1, 8, 2, 0, 1, 4, 2};
+
 /* the realistic heavy kit (drum_test's test_cost: the demo with a layer, DIST, SLICER and sends on every track,
  * RESON CHORD on 2, STRNG on 4) at 120 BPM; phys: MEMB on 5 and 7, RESON 2 CHORD + 2 MODAL (DECAY 110);
- * off: the features taken out (BH_), or added (BH_FILTER on all 8, BH_COMP keyed by T1, BH_SIDE: DUCK on 2..8) */
+ * off: the features taken out (BH_), or added (BH_FILTER on all 8, BH_COMP keyed by T1, BH_SIDE: DUCK on 2..8, BH_ACID: tracks 7 and 8 ACID) */
 static void bench_heavy(int phys, uint32_t off)
 {
     static const char *const PAT[NTRK] = {
@@ -213,6 +219,17 @@ static void bench_heavy(int phys, uint32_t off)
             drum_set_model(t, DM_MEMB);
         for (k = 0; k < 16; k++)
             t->step[k].on = PAT[i][k] == 'x';
+        if ((off & BH_ACID) && i >= 6u) {
+            drum_set_model(t, DM_ACID);
+            for (k = 0; k < 16; k++) {
+                uint8_t f = BENCH_ACID_FL[k];
+                t->step[k].on = !(f & 12u);
+                t->step[k].acc = f & 1u;
+                t->step[k].slide = (f >> 1) & 1u;
+                t->step[k].tie = (f >> 2) & 1u;
+                t->step[k].nt = (int8_t)(BENCH_ACID_NT[k] + (i == 7u ? 12 : 0));
+            }
+        }
         t->p[P_LLEVEL] = (int16_t)(off & BH_LAYER ? 0 : 100);
         t->p[P_LKEY] = 38;
         t->p[P_DIST] = (int16_t)(off & BH_DIST ? 0 : 40);
