@@ -118,6 +118,7 @@ int main(void)
     names("ftype", N_FTYPE, FT_N);
     names("rtype", N_RTYPE, 2);
     names("ghost", N_GHOST, 3);
+    names("lsync", N_LSYNC, 17);                       /* an LFO's RATE in SYNC: N_LSYNC[k * 17 / 128] */
     printf("},\n\"probe_size\": %u, \"max_frames\": %u, \"fs\": %u\n}\n", (unsigned)sizeof(lab_probe_t),
            (unsigned)LAB_MAX_FRAMES, (unsigned)FS);
     return 0;

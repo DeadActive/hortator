@@ -470,3 +470,24 @@ test('lab: the pump: keyed by the kick it ducks; the kick muted, GHOST MUTE stop
   assert.ok(run(1, true, MUTE) > -0.5, 'the kick muted, GHOST MUTE: no pump');
   assert.ok(run(1, true, KEEP) < -3, 'the kick muted, GHOST KEEP: the pump goes on');
 });
+
+test('lab: an LFO on the hats\' DECAY: the tails differ hit to hit; at DEPTH 0 they do not', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  assert.equal(ids.names.lsync[3], '1BAR');
+  const tails = depth => {
+    lab.reset();
+    lab.model(0, ids.DM.HATC);
+    for (let s = 0; s < 16; s++) lab.step(0, s, s % 4 === 0);   // quarters: room for each tail
+    lab.param(0, ids.P.LFO1 + ids.LF.DEST, 2);                   // DECAY
+    lab.param(0, ids.P.LFO1 + ids.LF.WAVE, ids.names.lwave.indexOf('SAW'));
+    lab.param(0, ids.P.LFO1 + ids.LF.RATE, 23);                  // 1 bar
+    lab.param(0, ids.P.LFO1 + ids.LF.DEPTH, depth);
+    lab.play(true);
+    const a = lab.renderMono(ids.fs * 2), q = ids.fs / 2;
+    return [0, 1, 2, 3].map(b => tailLength(a.subarray(b * q + 64, (b + 1) * q)));
+  };
+  const flat = tails(0), moved = tails(60);
+  assert.ok(Math.max(...flat) - Math.min(...flat) < ids.fs / 200, `DEPTH 0: ${flat}`);
+  assert.ok(Math.max(...moved) - Math.min(...moved) > ids.fs / 50, `DEPTH 60: ${moved}`);
+});

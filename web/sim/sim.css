@@ -232,6 +232,14 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 0 14px rgba(215,232,255,.4); }
 .scopes { display: grid; gap: 18px; }
 .scope.gr { height: 110px; }
+.scope.per-step { height: 96px; }
+.lfo-groups { display: flex; flex-wrap: wrap; gap: 18px 40px; }
+.lfo-group { display: grid; gap: 12px; }
+.lfo-head { margin: 0; font-size: 13px; color: #b8bdc4; }
+.lfo-head::before { content: ""; display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 8px;
+  vertical-align: middle; }
+.lfo-head.key-led::before { background: var(--led); box-shadow: 0 0 6px rgba(215,232,255,.7); }
+.lfo-head.key-warm::before { background: #ffb347; box-shadow: 0 0 6px rgba(255,179,71,.6); }
 .scopes.two { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .controls-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .families { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 14px 22px; }
