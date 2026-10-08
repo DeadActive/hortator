@@ -322,7 +322,8 @@ Report what you saw first; we'll go through it together.
 
 ### FM (check on the FM-1)
 
-- A track to MODEL FM: SOUND 1/3 TUNE DECAY INDEX, 2/3 RATIO MDEC SWEEP FBK, 3/3 VEL; the graph shows RATIO and
+- A track to MODEL FM: SOUND 1/4 MODEL TUNE DECAY INDEX, 2/4 RATIO MDEC SWEEP FBK, 3/4 VEL LVL PAN NOTE, 4/4
+  CHOKE; the graph shows RATIO and
   the carrier with its sidebands (they move with RATIO and INDEX).
 - The five sounds of the WAVs (TUNE DECAY INDEX RATIO MDEC SWEEP FBK VEL; RATIO as shown):
   bell 19 110 70 3.5 90 0 0 64; metallic tom -10 80 50 1.41 30 20 20 64; woodblock 12 25 40 2.76 10 0 0 64;

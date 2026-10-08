@@ -178,22 +178,25 @@ static void graph_model(const track_t *t, uint16_t c)
     cv_text(6, 10, &FONT_L, m->name, c);
     str_cpy(b, m->voices > 1 ? "2 VOICES" : "1 VOICE", sizeof b);
     cv_text(6, 52, &FONT_S, b, C_GRAY);
-    if (t->p[P_CHOKE]) {
-        str_cpy(b, "CHOKE 1", sizeof b);
-        b[6] = (char)('0' + t->p[P_CHOKE]);
-        cv_text(100, 52, &FONT_S, b, C_AMB);
+    {
+        int fm = (uint32_t)t->p[P_MODEL] % NMODELS == DM_FM;   /* FM: its sidebands right: the labels go left */
+        if (t->p[P_CHOKE]) {
+            str_cpy(b, "CHOKE 1", sizeof b);
+            b[6] = (char)('0' + t->p[P_CHOKE]);
+            cv_text(fm ? 6 : 100, fm ? 70 : 52, &FONT_S, b, C_AMB);
+        }
+        if (t->p[P_LLEVEL])
+            cv_text(6, fm ? 86 : 70, &FONT_S, fm ? "+ LAYER" : "+ SAMPLE LAYER", C_AMB);
     }
-    if (t->p[P_LLEVEL])
-        cv_text(6, 70, &FONT_S, "+ SAMPLE LAYER", C_AMB);
     if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_FM) {   /* FM: the ratio, the carrier and its sidebands f +- k r f */
         uint32_t r8 = FM_RATIO_Q8[(uint32_t)clamp(t->p[P_E3], 0, 15)], k;
-        int32_t h0 = 8 + clamp(t->p[P_E2], 0, 127) * 40 / 127;
+        int32_t h0 = clamp(t->p[P_E2], 0, 127) * 48 / 127;   /* INDEX 0: a pure sine, no sidebands */
         str_cpy(b, "RATIO ", sizeof b);
         str_cpy(b + 6, N_FMRATIO[(uint32_t)clamp(t->p[P_E3], 0, 15)], sizeof b - 6);
         cv_text(100, 10, &FONT_S, b, C_HI);
         cv_rect(100, 84, 136, 1, C_LINE);
         cv_rect(100 + 17, 84 - 50, 2, 50, c);            /* the carrier (x: 17 px per f, 0 .. 8 f) */
-        for (k = 1; k <= 3u; k++) {
+        for (k = 1; k <= 3u && h0 > 0; k++) {
             int32_t up = (int32_t)(256u + k * r8), dn = (int32_t)(256u) - (int32_t)(k * r8), hk = h0 / (int32_t)k;
             if (up * 17 / 256 < 136)
                 cv_rect(100 + up * 17 / 256, 84 - hk, 2, hk, c);

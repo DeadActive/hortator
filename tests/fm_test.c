@@ -175,16 +175,21 @@ static void test_fm_combined_extreme(void)
 static void test_fm_rehits(void)
 {
     static const int16_t BELL[8] = {12, 110, 70, 7, 90, -99, -99, -99};
-    uint32_t i, ok = 1, h;
+    uint32_t i, ok = 1, h, first;
     fm_hit(BELL, 127, 0);
+    first = trk[0].v[0].active ? trk[0].v[0].age : trk[0].v[1].age;
     for (h = 0; h < 2u; h++) {
         render_track(&trk[0], wl, SECS(0.01));
         drum_hit(&trk[0], 127);
+        ok &= (uint32_t)trk[0].v[0].active + trk[0].v[1].active <= 2u;
+        if (h == 1u)                                 /* the third hit: the first voice stolen, its declick tail */
+            ok &= trk[0].v[0].age != first && trk[0].v[1].age != first && trk[0].dtail != 0 &&
+                  trk[0].v[0].active && trk[0].v[1].active;
     }
     render_track(&trk[0], wl, SECS(1));
     for (i = 0; i < SECS(1); i++)
         ok &= abs(wl[i]) <= 4 * VOICE_FS;
-    check("FM: 3 hits in 20 ms: bounded (2 voices, the oldest stolen)", ok && DMODELS[DM_FM].voices == 2u);
+    check("FM: 3 hits in 20 ms: 2 voices sounding, the first stolen with its declick, bounded", ok);
 }
 
 /* Review Focus 3: MIDI velocity 1, INDEX 0, VEL 127: the index stays >= 0 */
@@ -220,9 +225,11 @@ static void test_fm_model_switch(void)
 /* Review Focus 5: an LFO on RATIO (DEST 4) at full depth: bounded */
 static void test_fm_lfo_ratio(void)
 {
-    uint32_t i, k, ok = 1;
+    uint32_t i, k, ok = 1, seen = 0, hits = 0, last_age = 0;
     host_init();
     drum_set_model(&trk[0], DM_FM);
+    trk[0].p[P_LFO1 + LF_MODE] = LM_HZ;
+    trk[0].p[P_LFO1 + LF_RATE] = 90;                  /* a few Hz: the hits land on both of its levels */
     trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
     trk[0].p[P_LFO1 + LF_DEPTH] = 64;
     trk[0].p[P_LFO1 + LF_DEST] = 4;
@@ -235,9 +242,23 @@ static void test_fm_lfo_ratio(void)
         render_mix(l, r, CTL);
         for (k = 0; k < CTL; k++)
             ok &= abs(l[k]) <= 32767;
-        ok &= trk[0].p[P_E3] >= 0 && trk[0].p[P_E3] <= 15;
+        for (k = 0; k < NDV; k++) {                  /* each new hit: its ratio, one of the table's */
+            const dvoice_t *v = &trk[0].v[k];
+            if (v->active && v->age > last_age) {
+                uint32_t r8 = (uint32_t)(((uint64_t)v->inc[1] << 8) / v->inc[0] + 0), j, in = 0;
+                for (j = 0; j < 16u; j++)
+                    if (r8 + 1u >= FM_RATIO_Q8[j] && r8 <= FM_RATIO_Q8[j] + 1u) {
+                        in = 1;
+                        seen |= 1u << j;
+                    }
+                ok &= in;
+                last_age = v->age;
+                hits++;
+            }
+        }
     }
-    check("FM: an LFO on RATIO at full depth: bounded, RATIO in range", ok);
+    check("FM: an LFO on RATIO at full depth: bounded; each hit takes the ratio of its moment (2+ table values)",
+          ok && hits >= 8u && __builtin_popcount(seen) >= 2);
 }
 
 /* the level at the defaults within +-3 dB of TOM's */
@@ -259,6 +280,36 @@ static void test_fm_level(void)
     check("FM: the level at the defaults within +-3 dB of TOM's", fabs(10 * log10(a / b)) <= 3);
 }
 
+/* review fix: FBK grows across the knob (no plateau of flat noise from ~34 up, no whine near Nyquist ~20) */
+static double nyq_ratio(const int32_t *x, uint32_t n)   /* energy of 18..22 kHz over all */
+{
+    double t = 1e-9, h = 0, f;
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        t += (double)x[i] * x[i] / n;
+    for (f = 18000; f < 22000; f += 500)
+        h += goertzel(x, n, f) * goertzel(x, n, f);
+    return h / t;
+}
+
+static void test_fm_fbk_range(void)
+{
+    static const int FB[5] = {16, 32, 64, 96, 127};
+    double hf[5], ny = 0;
+    uint32_t i, ok = 1;
+    for (i = 0; i < 5u; i++) {
+        int16_t k[8] = {0, 127, 60, 2, 127, 0, 0, 64};
+        k[6] = (int16_t)FB[i];
+        fm_hit(k, 96, SECS(0.25));
+        hf[i] = hf_ratio(wl, SECS(0.03), SECS(0.23));
+        ny = nyq_ratio(wl + SECS(0.03), 8192) > ny ? nyq_ratio(wl + SECS(0.03), 8192) : ny;
+        ok &= !i || hf[i] > 1.15 * hf[i - 1];
+    }
+    printf("     FBK 16 32 64 96 127: brightness %.3f %.3f %.3f %.3f %.3f, worst 18-22 kHz share %.3f\n", hf[0], hf[1],
+           hf[2], hf[3], hf[4], ny);
+    check("FM: FBK grows across the knob (each step brighter), no whine near Nyquist (< 5 %)", ok && ny < 0.05);
+}
+
 int main(void)
 {
     test_fm_pitch();
@@ -273,6 +324,7 @@ int main(void)
     test_fm_model_switch();
     test_fm_lfo_ratio();
     test_fm_level();
+    test_fm_fbk_range();
     printf(fails ? "fm_test: %d FAILED\n" : "fm_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

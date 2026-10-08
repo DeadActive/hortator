@@ -2949,8 +2949,8 @@ static void test_tracks_rec_mutes(void)
     check("TRACKS: a long REC hold asks nothing", !ui.confirm);
 }
 
-/* FM: SOUND 1/3 MODEL TUNE DECAY INDEX, 2/3 RATIO MDEC SWEEP FBK, 3/3 VEL ...; the graph shows the ratio and its
- * sidebands */
+/* FM: SOUND 1/4 MODEL TUNE DECAY INDEX, 2/4 RATIO MDEC SWEEP FBK, 3/4 VEL LVL PAN NOTE, 4/4 CHOKE; the graph shows the
+ * ratio and its sidebands */
 static uint32_t fm_graph_lit(void)               /* lit pixels right of the model's name: the sideband bars */
 {
     uint32_t n = 0, x, y;
@@ -2958,6 +2958,63 @@ static uint32_t fm_graph_lit(void)               /* lit pixels right of the mode
         for (x = 100u; x < 236u; x++)
             n += fb[y * 240u + x] != 0;
     return n;
+}
+
+/* review fix: the FM graph keeps clear of CHOKE / SAMPLE LAYER, and INDEX 0 (a pure sine) shows no sidebands */
+static uint32_t fm_graph_area(uint32_t y0, uint32_t y1)   /* lit pixels at x 100..235 of rows y0..y1 (graph rows) */
+{
+    uint32_t n = 0, x, y;
+    for (y = Y_GRAPH + y0; y < Y_GRAPH + y1; y++)
+        for (x = 100u; x < 236u; x++)
+            n += fb[y * 240u + x] != 0;
+    return n;
+}
+
+static uint32_t fm_sidebands_lit(void)               /* lit pixels above the graph's baseline, outside the carrier */
+{
+    uint32_t y, x, yb = 0, n = 0;
+    for (y = Y_GRAPH; y < 240u && !yb; y++) {         /* the baseline: a row lit across x 100..235 */
+        uint32_t c = 0;
+        for (x = 100u; x < 236u; x++)
+            c += fb[y * 240u + x] != 0;
+        if (c >= 130u)
+            yb = y;
+    }
+    for (y = yb > 60u ? yb - 60u : 0u; y < yb; y++)
+        for (x = 100u; x < 236u; x++)
+            if (x != 117u && x != 118u)
+                n += fb[y * 240u + x] != 0;
+    return yb ? n : 0xFFFFFFFFu;
+}
+
+static void test_fm_graph_clear(void)
+{
+    uint32_t plain, labels;
+    ui_host_init();
+    drum_set_model(TSEL, DM_FM);
+    for (plain = 0; plain < NPAGES && (ui.home || cur_page()->fam != FAM_SND); plain++)
+        tap(B_EDIT);
+    ui.force = 1;
+    ui_frame();
+    plain = fm_graph_area(0u, 110u);
+    TSEL->p[P_CHOKE] = 2;
+    TSEL->p[P_LLEVEL] = 100;
+    ui.force = 1;
+    ui_frame();
+    labels = fm_graph_area(0u, 110u);
+    snap_page("fm/choke_layer");
+    check("FM graph: CHOKE and the sample layer's label stay out of the sideband area", labels == plain);
+    TSEL->p[P_CHOKE] = 0;
+    TSEL->p[P_LLEVEL] = 0;
+    ui.force = 1;
+    ui_frame();
+    labels = fm_sidebands_lit();
+    TSEL->p[P_E2] = 0;
+    ui.force = 1;
+    ui_frame();
+    snap_page("fm/index0");
+    check("FM graph: INDEX 0 (a pure sine) shows the carrier only; INDEX 60 its sidebands",
+          fm_sidebands_lit() == 0u && labels > 40u && labels != 0xFFFFFFFFu);
 }
 
 static void test_fm_screens(void)
@@ -2970,13 +3027,13 @@ static void test_fm_screens(void)
         tap(B_EDIT);
     ui.force = 1;
     snap_page("fm/sound_1");
-    check("FM: SOUND 1/3 holds MODEL TUNE DECAY INDEX; the graph draws the sidebands",
+    check("FM: SOUND 1/4 holds MODEL TUNE DECAY INDEX; the graph draws the sidebands",
           str_eq(page_desc(cur_page(), 1, &vp)->label, "TUNE") && str_eq(page_desc(cur_page(), 3, &vp)->label, "INDEX") &&
           str_eq(N_FMRATIO[TSEL->p[P_E3]], "1.41") && fm_graph_lit() > 150u);
     page_turn(1);
     ui.force = 1;
     snap_page("fm/sound_2");
-    check("FM: SOUND 2/3 holds RATIO MDEC SWEEP FBK",
+    check("FM: SOUND 2/4 holds RATIO MDEC SWEEP FBK",
           str_eq(page_desc(cur_page(), 0, &vp)->label, "RATIO") && str_eq(page_desc(cur_page(), 3, &vp)->label, "FBK"));
 }
 
@@ -3055,6 +3112,7 @@ int main(void)
     test_step_keys_everywhere();
     test_tracks_rec_mutes();
     test_fm_screens();
+    test_fm_graph_clear();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
