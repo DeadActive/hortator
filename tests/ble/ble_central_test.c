@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * BLE MIDI test: 2026 DEADACTIVE */
+ * BLE MIDI test: 2026 DEADACTIVE
+ * Drum machine fork: 2026 DEADACTIVE */
 #include <stdio.h>
 #include <stdint.h>
 #define BLE_CENTRAL_STATE_ONLY 1
@@ -78,6 +79,46 @@ int main(void)
         memset(b, 'X', sizeof b);
         put_dev(b, &d);
         CHECK(!strcmp(b, "5E:00:00:00:00:10"), "no name: the address, most significant byte first");
+    }
+    {   /* the console's words (part 1b) */
+        uint32_t n = 0;
+        CHECK(ble_cmd_parse("", &n) == BLE_CMD_STATUS && ble_cmd_parse("  ", &n) == BLE_CMD_STATUS, "ble: status");
+        CHECK(ble_cmd_parse("start", &n) == BLE_CMD_START && ble_cmd_parse(" scan ", &n) == BLE_CMD_SCAN &&
+              ble_cmd_parse("list", &n) == BLE_CMD_LIST && ble_cmd_parse("stop", &n) == BLE_CMD_STOP, "ble: words");
+        CHECK(ble_cmd_parse("connect 3", &n) == BLE_CMD_CONNECT && n == 3u, "ble: connect N");
+        CHECK(ble_cmd_parse("connect 16", &n) == BLE_CMD_CONNECT && n == 16u, "ble: connect the last slot");
+        CHECK(ble_cmd_parse("connect", &n) == BLE_CMD_BAD && ble_cmd_parse("connect 0", &n) == BLE_CMD_BAD &&
+              ble_cmd_parse("connect 17", &n) == BLE_CMD_BAD && ble_cmd_parse("connect x", &n) == BLE_CMD_BAD &&
+              ble_cmd_parse("connect 1x", &n) == BLE_CMD_BAD, "ble: bad connect numbers");
+        CHECK(ble_cmd_parse("starts", &n) == BLE_CMD_BAD && ble_cmd_parse("start now", &n) == BLE_CMD_BAD &&
+              ble_cmd_parse("blah", &n) == BLE_CMD_BAD, "ble: unknown words");
+    }
+    {   /* which state each command needs (Review Focus 1) */
+        CHECK(!ble_cmd_refuse(BLE_CMD_START, BLE_OFF, 0, 0), "start from OFF");
+        CHECK(ble_cmd_refuse(BLE_CMD_START, BLE_IDLE, 0, 0) && ble_cmd_refuse(BLE_CMD_START, BLE_FAILED, 0, 0),
+              "start twice / after a failure refused");
+        CHECK(ble_cmd_refuse(BLE_CMD_SCAN, BLE_OFF, 0, 0) && ble_cmd_refuse(BLE_CMD_SCAN, BLE_STARTING, 0, 0) &&
+              ble_cmd_refuse(BLE_CMD_SCAN, BLE_RECEIVING, 0, 0) && !ble_cmd_refuse(BLE_CMD_SCAN, BLE_IDLE, 0, 0),
+              "scan only from IDLE");
+        CHECK(!ble_cmd_refuse(BLE_CMD_CONNECT, BLE_IDLE, 3, 3) && ble_cmd_refuse(BLE_CMD_CONNECT, BLE_IDLE, 3, 4) &&
+              ble_cmd_refuse(BLE_CMD_CONNECT, BLE_OFF, 3, 1) && ble_cmd_refuse(BLE_CMD_CONNECT, BLE_SCANNING, 3, 1),
+              "connect: IDLE and a listed device");
+        CHECK(!ble_cmd_refuse(BLE_CMD_STOP, BLE_CONNECTING, 0, 0) && !ble_cmd_refuse(BLE_CMD_STOP, BLE_RECEIVING, 0, 0)
+              && ble_cmd_refuse(BLE_CMD_STOP, BLE_OFF, 0, 0) && ble_cmd_refuse(BLE_CMD_STOP, BLE_IDLE, 0, 0),
+              "stop: only while connecting or connected");
+        CHECK(!ble_cmd_refuse(BLE_CMD_LIST, BLE_OFF, 0, 0) && !ble_cmd_refuse(BLE_CMD_STATUS, BLE_OFF, 0, 0),
+              "list / status in any state");
+    }
+    {   /* the main loop's period, from the UI frame counter (BT off and on) */
+        ble_loop_t l = {0};
+        ble_loop_note(&l, 5, 100);
+        CHECK(l.last_ms == 0 && l.max_ms == 0, "loop: the first note is the start");
+        ble_loop_note(&l, 5, 110);
+        ble_loop_note(&l, 6, 116);
+        CHECK(l.last_ms == 16u && l.max_ms == 16u, "loop: one pass");
+        ble_loop_note(&l, 7, 136);
+        ble_loop_note(&l, 8, 151);
+        CHECK(l.last_ms == 15u && l.max_ms == 20u, "loop: last and max");
     }
     printf(fails ? "ble_central: %d FAILED\n" : "ble_central: all checks passed\n", fails);
     return fails != 0;

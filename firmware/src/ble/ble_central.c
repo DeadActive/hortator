@@ -115,6 +115,75 @@ int ble_midi_text(uint32_t pkt, uint32_t *sx, char out[32])
     return 1;
 }
 
+/* ---- the console's `ble` words and the states they need (part 1b; pure, host-tested) ---- */
+enum { BLE_CMD_STATUS, BLE_CMD_START, BLE_CMD_SCAN, BLE_CMD_LIST, BLE_CMD_CONNECT, BLE_CMD_STOP, BLE_CMD_BAD };
+
+uint32_t ble_cmd_parse(const char *s, uint32_t *n)   /* the words after `ble`; *n = connect's device (1-based) */
+{
+    static const char *const W[] = {"start", "scan", "list", "connect", "stop"};
+    uint32_t i, k;
+    while (*s == ' ')
+        s++;
+    if (!*s)
+        return BLE_CMD_STATUS;
+    for (i = 0; i < 5u; i++) {
+        for (k = 0; W[i][k] && s[k] == W[i][k]; k++)
+            ;
+        if (W[i][k] || (s[k] && s[k] != ' '))
+            continue;
+        s += k;
+        while (*s == ' ')
+            s++;
+        if (i != 3u)
+            return *s ? BLE_CMD_BAD : BLE_CMD_START + i;
+        for (*n = 0, k = 0; k < 3u && s[k] >= '0' && s[k] <= '9'; k++)
+            *n = *n * 10u + (uint32_t)(s[k] - '0');
+        if (!k)
+            return BLE_CMD_BAD;
+        for (s += k; *s == ' '; s++)
+            ;
+        return *s || *n < 1u || *n > BLE_SCAN_MAX ? BLE_CMD_BAD : BLE_CMD_CONNECT;
+    }
+    return BLE_CMD_BAD;
+}
+
+/* 0: the command may run in this state; else why not (one console line). listed = the devices `ble list` shows */
+const char *ble_cmd_refuse(uint32_t cmd, uint32_t state, uint32_t listed, uint32_t n)
+{
+    switch (cmd) {
+    case BLE_CMD_START:
+        return state == BLE_OFF ? 0 : state == BLE_FAILED ? "ble: the start failed; power off and on to retry"
+                                                          : "ble: already started";
+    case BLE_CMD_SCAN:
+    case BLE_CMD_CONNECT:
+        if (state == BLE_OFF)
+            return "ble: not started (ble start)";
+        if (state != BLE_IDLE)
+            return "ble: busy (this needs IDLE)";
+        return cmd == BLE_CMD_CONNECT && n > listed ? "ble: no such device (ble list)" : 0;
+    case BLE_CMD_STOP:
+        return state >= BLE_CONNECTING && state <= BLE_RECEIVING ? 0 : "ble: not connected";
+    default:
+        return 0;
+    }
+}
+
+/* the main loop's period: the core's UI frame counter changes once per pass (main.c), ble_service sees it */
+typedef struct { uint32_t frames, at_ms, last_ms, max_ms, seen; } ble_loop_t;
+void ble_loop_note(ble_loop_t *l, uint32_t frames, uint32_t now_ms)
+{
+    if (l->seen && frames == l->frames)
+        return;
+    if (l->seen) {
+        l->last_ms = now_ms - l->at_ms;
+        if (l->last_ms > l->max_ms)
+            l->max_ms = l->last_ms;
+    }
+    l->seen = 1;
+    l->frames = frames;
+    l->at_ms = now_ms;
+}
+
 #ifndef BLE_CENTRAL_STATE_ONLY
 /* ---- the SDK glue: in ble.c's unit, after ble_heap / ble_on / ble_mac. The stack calls ble_profile_init and the
  * three handlers below from its own task (ble_os.c); the main loop calls ble_start / ble_scan / ble_connect /
@@ -367,11 +436,34 @@ static void ble_tick(void)                         /* the deadlines of the waiti
 static const char *const STATE_NAME[] = {"OFF", "STARTING", "IDLE", "SCANNING", "CONNECTING", "DISCOVERING",
                                          "SUBSCRIBED", "RECEIVING", "FAILED"};
 static char *put_i(char *o, int32_t v) { if (v < 0) { *o++ = '-'; v = -v; } return put_u(o, (uint32_t)v); }
+static ble_loop_t loop;                             /* ble_service (ble.c): the main loop's period */
+void ble_list(void)                                /* console `ble list`: numbered as `ble connect N` takes them */
+{
+    char b[96], *o;
+    uint32_t i, n;
+    uint8_t idx[BLE_SCAN_MAX];
+    n = ble_scan_sorted(&scan, idx);
+    if (!n)
+        core_con_puts("  (no devices: ble scan)\r\n");
+    for (i = 0; i < n; i++) {
+        const ble_dev_t *d = &scan.dev[idx[i]];
+        uint32_t k;
+        o = put_s(put_u(put_s(b, "  "), i + 1u), "  ");
+        for (k = 6; k--;)
+            o = put_x(o, d->addr[k]);
+        o = put_u(put_s(o, " t"), d->addr_type);
+        o = put_i(put_s(o, " "), d->rssi);
+        o = put_s(o, d->midi ? " MIDI " : " ");
+        o = put_s(o, d->name);
+        o = put_s(o, "\r\n");
+        *o = 0;
+        core_con_puts(b);
+    }
+}
 void ble_status(void)                              /* console `ble` */
 {
     char b[224], *o;
-    uint32_t code, i, n;
-    uint8_t idx[BLE_SCAN_MAX];
+    uint32_t code, i;
     const char *err = ble_err(&code);
     o = put_s(put_s(b, "ble: state "), STATE_NAME[st]);
     o = put_u(put_s(o, " reports "), scan.reports);
@@ -433,6 +525,13 @@ void ble_status(void)                              /* console `ble` */
     o = put_s(o, "\r\n");
     *o = 0;
     core_con_puts(b);
+    o = put_u(put_s(b, "  loop last "), loop.last_ms);
+    o = put_u(put_s(o, " ms, max "), loop.max_ms);
+    o = put_u(put_s(o, " ms; longest BT task run "), ble_os_run_max_us(1));
+    o = put_s(o, " us (both since the last `ble`)\r\n");
+    *o = 0;
+    core_con_puts(b);
+    loop.max_ms = 0;
     for (i = 0; i < 4u; i++) {                     /* the task stacks' unused bytes */
         const char *name;
         uint32_t f = ble_os_stack_free(i, &name);
@@ -443,20 +542,49 @@ void ble_status(void)                              /* console `ble` */
         *o = 0;
         core_con_puts(b);
     }
-    n = ble_scan_sorted(&scan, idx);
-    for (i = 0; i < n; i++) {
-        const ble_dev_t *d = &scan.dev[idx[i]];
-        uint32_t k;
-        o = put_s(b, "  ");
-        for (k = 6; k--;)
-            o = put_x(o, d->addr[k]);
-        o = put_u(put_s(o, " t"), d->addr_type);
-        o = put_i(put_s(o, " "), d->rssi);
-        o = put_s(o, d->midi ? " MIDI " : " ");
-        o = put_s(o, d->name);
-        o = put_s(o, "\r\n");
-        *o = 0;
-        core_con_puts(b);
+    ble_list();
+}
+
+/* ---- the console (part 1b): the core's `ble …` line comes here (ble_core.h ble_console) ---- */
+static uint32_t ble_listed(void)
+{
+    uint8_t idx[BLE_SCAN_MAX];
+    return ble_scan_sorted(&scan, idx);
+}
+/* the user's trigger, the only way to ble_start (gate 3: tools/check_ble_boot.py); not inlined, so the gate sees it */
+__attribute__((noinline)) void ble_user_start(void) { ble_start(); }
+static void say_state(void)
+{
+    char b[96], *o;
+    uint32_t code;
+    const char *err = ble_err(&code);
+    o = put_s(put_s(b, "ble: "), STATE_NAME[st]);
+    if (err[0])
+        o = put_x(put_s(put_s(put_s(o, "  error "), err), " 0x"), code);
+    o = put_s(o, "\r\n");
+    *o = 0;
+    core_con_puts(b);
+}
+void ble_console(const char *args)
+{
+    uint32_t n = 0, cmd = ble_cmd_parse(args, &n);
+    const char *no = ble_cmd_refuse(cmd, st, ble_listed(), n);
+    if (no) {
+        core_con_puts(no);
+        core_con_puts("\r\n");
+        return;
     }
+    switch (cmd) {
+    case BLE_CMD_STATUS: ble_status(); return;
+    case BLE_CMD_LIST: ble_list(); return;
+    case BLE_CMD_START: ble_user_start(); break;
+    case BLE_CMD_SCAN: ble_scan(); break;
+    case BLE_CMD_CONNECT: ble_connect(n - 1u); break;
+    case BLE_CMD_STOP: ble_disconnect(); break;
+    default:
+        core_con_puts("ble [start | scan | list | connect N | stop]\r\n");
+        return;
+    }
+    say_state();
 }
 #endif

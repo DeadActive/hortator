@@ -26,6 +26,8 @@ void core_midi_out(uint32_t pkt);
 int core_flash_read(uint32_t off, void *buf, uint32_t n);
 /* audio: render blocks that missed the DMA since power-on (audio.c felucca_dbg.late), for the console's `ble` */
 uint32_t core_audio_late(void);
+/* the core's UI frame counter (felucca_dbg.ui_frames: once per main-loop pass), for the loop period */
+uint32_t core_ui_frames(void);
 /* the core's crash record (fm1_irq.h fm1_crash_t, .noinit, same layout): read only, for the console's `ble`
  * (the core's unit has the real declaration) */
 #ifndef FM1_CRASH_MAGIC
@@ -42,8 +44,12 @@ void *memset(void *d, int c, unsigned n);
 void *memcpy(void *d, const void *s, unsigned n);
 int memcmp(const void *a, const void *b, unsigned n);
 
-/* the BLE unit's entry points (ble.c) */
+/* the BLE unit's entry points (ble.c): the core calls ble_service (ed_service) and ble_console (the console's
+ * "ble ..." line); ble_user_start is the user's trigger (gate 3: the only way to ble_start) */
 void ble_service(void);
+void ble_console(const char *args);
+void ble_user_start(void);
+void ble_list(void);
 void ble_status(void);
 int ble_started(void);
 #endif

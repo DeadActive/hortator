@@ -40,6 +40,7 @@ typedef struct { int16_t count; uint8_t magic, owner; } sem_t;   /* lives inside
 static task_t tasks[NTASK] BLE_POOL __attribute__((aligned(8)));
 static tmr_t timers[NTIMER];
 static int cur = -1;                               /* running task, -1 = the core */
+static uint32_t run_max;                           /* the longest single task run, ticks (ble_os_run_max_us) */
 #ifdef BLE_OS_HOST
 static ucontext_t core_ctx;
 #else
@@ -270,7 +271,7 @@ int os_taskq_post_type(const char *name, int type, int argc, int *argv)
     return BLE_SDK_OS_NO_ERR;
 }
 
-/* Q_CALLBACK (docs/ble/LINK_NOTES.md): w[0] func, w[1] flags F, w[2..] the arguments; F & 0xFF arity
+/* Q_CALLBACK (fm1-lsdj docs/ble/LINK_NOTES.md): w[0] func, w[1] flags F, w[2..] the arguments; F & 0xFF arity
  * (1: f(a), 2: f(a, b) unless F & 0x400, else f(a, arity - 1, &rest)); F & 0x100: *(int *)next = ret;
  * F & 0x200: os_sem_post(next). Run here, never returned to the caller, as the SDK's pend does. */
 #ifdef BLE_OS_HOST
@@ -508,7 +509,17 @@ uint32_t ble_os_service(uint32_t budget_us)
             }
             if (!t->ready && !(t->waiting_q && q_used(t)))
                 continue;
+#ifdef BLE_OS_HOST
             run(i);
+#else
+            {
+                uint32_t t1 = fm1_ticks();
+                run(i);
+                t1 = fm1_ticks() - t1;
+                if (t1 > run_max)
+                    run_max = t1;
+            }
+#endif
             ran++;
             progress = 1;
 #ifdef BLE_OS_HOST
@@ -521,6 +532,19 @@ uint32_t ble_os_service(uint32_t budget_us)
         }
     }
     return ran;
+}
+
+uint32_t ble_os_run_max_us(uint32_t reset)        /* the longest single task run since the last reset, us */
+{
+#ifdef BLE_OS_HOST
+    (void)reset;
+    return 0;
+#else
+    uint32_t us = run_max / FM1_TICKS_PER_US;
+    if (reset)
+        run_max = 0;
+    return us;
+#endif
 }
 
 #ifndef BLE_OS_HOST

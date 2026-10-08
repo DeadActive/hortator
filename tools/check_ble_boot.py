@@ -23,7 +23,7 @@ def graph(text):
     g, name = {}, None
     for line in text.splitlines():
         m = LABEL.match(line)
-        if m:
+        if m and not m.group(1).startswith("."):  # (a local label, e.g. a jump table's .GJTIS…, stays in its function)
             name = m.group(1)
             g[name] = set()
         elif name:
@@ -62,6 +62,11 @@ def selftest():
     assert reachable_starts(isr + fn("btstack_init", "rts")) == ["btstack_init"], "an ISR path not caught"
     data = boot + fn("ed_service", "r1 = 29411328 <ble_heap : 1c0c800 >") + fn("ble_start", "rts")
     assert reachable_starts(data) == [], "a data symbol followed as a call"
+    # a jump table's local labels (.GJTIS…, .GJTIE…) are inside the function: its calls after them count
+    jt = boot + fn("ed_service", "call -4 <ble_console : 2000030 >") + fn("ble_console", "goto 8 <.GJTIE1_0_0_+0x8 : "
+                                                                          "2000048 >") + \
+        fn(".GJTIS1_0_0_", "call -4 <ble_start : 2000060 >") + fn("ble_start", "rts")
+    assert reachable_starts(jt) == ["ble_start"], "a call after a jump table's label not caught"
     print("check_ble_boot: selftest ok")
 
 

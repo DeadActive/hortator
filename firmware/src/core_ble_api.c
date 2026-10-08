@@ -38,6 +38,7 @@ int core_flash_read(uint32_t off, void *buf, uint32_t n)    /* plain flash only 
 #endif
 }
 uint32_t core_audio_late(void) { return felucca_dbg.late; }
+uint32_t core_ui_frames(void) { return felucca_dbg.ui_frames; }
 void core_con_puts(const char *s)
 {
 #if FELUCCA_CDC

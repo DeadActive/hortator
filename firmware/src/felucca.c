@@ -168,13 +168,22 @@ static void ota_commit(const uint8_t *parm)
     fm1_enter_update(parm);                             /* record into RAM, core reset (fm1_sys.h) */
 }
 #endif
+#if FELUCCA_BLE
+#if !FELUCCA_OTA
+#error "FELUCCA_BLE needs FELUCCA_OTA (ed_service, the main loop's hook)"
+#endif
+#include "ble/ble_core.h"            /* the BLE unit's entry points (ble.c) */
+#endif
 #if FELUCCA_OTA
 /* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)
- * frees every SysEx frame, so editor frames cannot block the update handshake. */
-static void ed_service(void) {}
-#endif
+ * frees every SysEx frame, so editor frames cannot block the update handshake. FELUCCA_BLE: the BT stack's slice,
+ * every main-loop pass and in its 15 ms wait (spec amendment 3) */
+static void ed_service(void)
+{
 #if FELUCCA_BLE
-#include "ble/ble_core.h"            /* the BLE unit's entry points (ble.c) */
+    ble_service();
+#endif
+}
 #endif
 #if FELUCCA_CDC
 #include "console.c"

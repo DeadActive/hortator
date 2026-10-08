@@ -22,6 +22,7 @@ PATTERNS = [r"^usb_", r"^ep[0-4]_", r"^e0_", r"^sie_", r"^sysex_byte$", r"^midi_
 LABEL = re.compile(r"^([A-Za-z_.$][\w.$]*):\s*$")
 INSN = re.compile(r"^\s*[0-9a-f]+:\s+(?:[0-9a-f]{2} )+\s*\t(.*)$")
 COMMENT = re.compile(r"\s*#\s*<[^>]*>")          # objdump's "# <sym : addr>" notes after a constant
+BARE = re.compile(r"(?<![\w<+-])(\d{8})(?![\w>])")   # an 8-digit decimal constant (RAM / XIP addresses have 8)
 ANNOT = re.compile(r"(-?\d+) <([^:>]+?)\s*:\s*([0-9a-f]+)\s*>", re.I)
 
 
@@ -40,13 +41,18 @@ def normalise(text, fn):
         if sym == fn or sym.startswith(fn + "+"):
             return f"<{sym[len(fn):] or '+0'}>"
         return "<addr>"
-    return ANNOT.sub(one, COMMENT.sub("", text)).strip()
+
+    def bare(m):                    # an unannotated constant in the RAM / XIP range: an address (it moves)
+        return "<addr>" if 0x01C00000 <= int(m.group(1)) < 0x02100000 else m.group(0)
+    return BARE.sub(bare, ANNOT.sub(one, COMMENT.sub("", text))).strip()
 
 
 def functions(text):
     out, name = {}, None
     for line in text.splitlines():
         m = LABEL.match(line)
+        if m and m.group(1).startswith("."):  # a local label (a jump table's .GJTIS…): inside the function
+            continue
         if m:
             name = m.group(1)
             out[name] = []
@@ -124,6 +130,19 @@ def selftest():
     assert compare(f1.replace("<ota_prog", "<ota_show"), ref6), "a changed call in fm1_main not caught"
     for fn in ("enter_uboot", "fm1_enter_uboot", "fm1_wdt_feed"):
         assert selected({fn: ["rts"]}), f"{fn} not compared"
+    # a jump table's local labels (.GJTIS…) are inside the function: a change after them is caught
+    g1 = ("usb_j:\n  2000000:    00 49    \tr0 = 1\n.GJTIS7_0_0_:\n  2000002:    00 49    \tr1 = 2\n"
+          "  2000004:    80 00    \trts\n")
+    ref7 = render(selected(functions(g1)))
+    assert compare(g1.replace("r1 = 2", "r1 = 3"), ref7), "a change after a jump table's label not caught"
+    assert compare(g1.replace(".GJTIS7_0_0_", ".GJTIS9_0_0_"), ref7) == [], "a renumbered local label flagged"
+    # a bare constant in the RAM / XIP range (objdump leaves some address loads unannotated, e.g. inside `if (...)
+    # {` forms) is an address: it moves with the layout; a constant outside the range is compared
+    h1 = "usb_k:\n  2000000:    00 49    \tif (r0 != 7) {\n  2000002:    00 49    \tr1 = 33848701\n"
+    ref8 = render(selected(functions(h1)))
+    assert compare(h1.replace("33848701", "33884012"), ref8) == [], "a moved unannotated address flagged"
+    h2 = "usb_k:\n  2000000:    00 49    \tr1 = 4096\n"
+    assert compare(h2.replace("4096", "4097"), render(selected(functions(h2)))), "a changed small constant not caught"
     real = globals()["git"]          # gate 2a's rule for added files, with a fake git
     try:
         globals()["git"] = lambda *a: "A\tfirmware/hal/fm1_ble_hal.h\n"

@@ -46,8 +46,12 @@ int ble_started(void) { return ble_on; }
 #include "ble/ble_central.c"
 void ble_service(void)                             /* the main loop (ed_service): a 5 ms slice for the BT tasks */
 {
+    uint32_t pkt;
+    ble_loop_note(&loop, core_ui_frames(), core_ms());   /* BT off too: the period to compare with */
     if (!ble_on)
         return;
     ble_os_service(5000);
     ble_tick();                                    /* deadlines: scan end, start / connect / discovery timeouts */
+    while (ble_midi_take(&pkt))                    /* counted and parsed (`msgs`), not played yet: part 2 */
+        ;
 }

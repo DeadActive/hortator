@@ -4,7 +4,8 @@
 /* What the JieLi BT libraries (AC79 SDK V1.2.0, pinned in tools/ble_libs.py) call besides the OS (ble_os.c) and
  * the SDK members linked from their archives (system.a lbuf / circular_buf, cpu.a wlc / encryption, lib_ccm_aes,
  * newlib libcompiler_rt). Each group says why its definitions are safe; signatures are the SDK's (its headers, or
- * the libraries' own IR declarations where no header has them: docs/ble/LINK_NOTES.md, docs/ble/undefined-step0.txt).
+ * the libraries' own IR declarations where no header has them: fm1-lsdj 548ce73 docs/ble/LINK_NOTES.md,
+ * docs/ble/undefined-step0.txt).
  * Rules: no flash writes anywhere (config writes are refused); no register access here (hal/fm1_ble_hal.h). */
 
 /* ---- libc pieces the libraries call (ours: libc.c has memset / memcpy / memcmp only) ---- */
@@ -54,7 +55,7 @@ void request_irq(unsigned char index, unsigned char priority, void (*handler)(vo
     (void)cpu_id;                                        /* one core runs everything here */
     fm1_ble_irq_off();
     core_irq_attach(index, handler, priority);           /* the SDK's handlers are interrupt functions (rti):
-                                                          * checked in the link (docs/ble/LINK_NOTES.md) */
+                                                          * checked in the link (fm1-lsdj docs/ble/LINK_NOTES.md) */
     fm1_ble_irq_on();
     if (index < 64u)
         ble_irqs_requested[index >> 5] |= 1u << (index & 31u);
@@ -204,7 +205,7 @@ BLE_RAM void exit_wifi_rf_trim_region(uint32_t **start_of_region, uint8_t *rf_tr
 }
 const uint8_t WIFI_PA_ENABLE = 0, wifi_temperature_drift_trim_on = 0;
 /* the radio calibration the stock firmware stored (ble_vm.c) is used instead of running the trim, which hangs or
- * crashes here (docs/ble/DEVICE_STEPS.md, round 4): with a valid record, wf_rf_common_init skips wf_rf_trim */
+ * crashes here (fm1-lsdj docs/ble/DEVICE_STEPS.md, round 4): with a valid record, wf_rf_common_init skips wf_rf_trim */
 const uint8_t RFIinitUseTrimValue = 1;
 static uint8_t ble_rf_trim[BLE_VM_RF_TRIM_LEN];
 static uint32_t ble_rf_trim_at;                          /* flash offset of the record used, 0 = none */
