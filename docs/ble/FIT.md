@@ -108,4 +108,27 @@ blocks and headers), and 1b sizes the heap from the device's number. The task st
 - Library pins: a changed pin in a copy of `tools/ble_libs.py` → `ble_libs: cpu/wl82/liba/btctrler.a sha256 … is
   not the pinned …`, exit 1; a missing SDK (`AC79_BT_SDK=/nonexistent`) stops the build before any compile:
   `ble_libs: /nonexistent/cpu/wl82/liba/btctrler.a missing`.
-- Gate 5: the default build stays byte-identical to `drum-v0.14.0` (`tools/check_default_build.sh`).
+- Gate 5: the default build stays byte-identical to `drum-v0.14.0` (`tools/check_default_build.sh`, in
+  `tests/run_tests.sh`).
+- Gate 1: every build (default and BLE) stops unless the update loader's `ota.bin` has
+  `tools/frozen_base.txt`'s `LOADER_SHA256` (a changed pin through `FROZEN_BASE_FILE`: `loader: ota.bin cc98eed2… is
+  not the pinned loader`, exit 1).
+- The BLE build: `.ram_text` (the radio calibration) reaches nothing outside itself; no BT library RAM-code section
+  lands in XIP; register access only in `hal/` (`src/ble/` scanned, except the SDK's radio tables); `divdi` 0. The
+  libraries bring their own soft double (`libcompiler_rt.a`: `divdf3`, `adddf3`, `muldf3`, … 2700 B), vendor code.
+- H2 / H3 and the cost budgets run on the default build (byte-identical to 0.14.0's, so unchanged).
+
+## Verdict: GO for part 1b
+
+| | |
+|---|---|
+| BLE image | **422268 B**, the slot 581564 B: **159296 B free** (goal ≥ 32768, aim 65536: both met) |
+| pool | 335200 of 344064 B (8864 spare, ≥ 8192) |
+| `.data + .bss` | 63028 of 98304 B |
+| heap / task stacks | 26624 B (to be sized from the device's high-water + 25 %) / 4 × 2 KB |
+| default build | byte-identical to `drum-v0.14.0` |
+
+For 1b's device test: the sections LTO dropped in step 2 (above: `.link_task_code`, `.hci_interface_code`, the
+ECDH / HMAC / crypto code, `.vendor_manager_code`, most of the link layer's and the HCI's code) are where a failed
+start, scan, connect, discovery or pairing looks first; `ble` prints the heap high-water, each task's unused stack,
+the start-up stage and a library fault (`fatal`).

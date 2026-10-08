@@ -170,7 +170,20 @@ def build_loader():
     bss = [int(ln.split()[0], 16) for ln in syms.splitlines() if ln.rstrip().endswith("_bss_end")]
     print(f"loader: image {len(image)} B at {LOADER_LOAD:#x}" + (f", bss end {bss[0]:#x}" if bss else ""))
     print(f"loader: ota.bin {len(ota)} B")
+    pin = loader_pin()
+    got = hashlib.sha256(ota).hexdigest()
+    if got != pin:                  # gate 1: the update loader the FM-1 runs must not change, whatever else does
+        raise SystemExit(f"loader: ota.bin {got} is not the pinned loader (tools/frozen_base.txt)")
     return ota
+
+
+def loader_pin():
+    """LOADER_SHA256 from tools/frozen_base.txt (FROZEN_BASE_FILE: another copy, for the check's own test)"""
+    f = Path(os.environ.get("FROZEN_BASE_FILE") or SRC / "tools" / "frozen_base.txt")
+    for ln in f.read_text().splitlines():
+        if ln.startswith("LOADER_SHA256 "):
+            return ln.split()[1]
+    raise SystemExit(f"loader: {f} has no LOADER_SHA256")
 
 
 # ---- app
