@@ -4,7 +4,7 @@
  * HAL replaced by state the simulator drives: the audio sample count as the clock, input levels and latched
  * edges, the LCD as a framebuffer, the audio ISR run on demand, the flash in RAM with dirty sectors.
  * Built with cc (tests/sim_test.c) and emcc (the browser). Left out: lcd.c (fb), main.c (sim_core.c runs its
- * boot and loop body), ota.c, console.c. tests/sim_test.c checks this list against felucca.c. */
+ * boot and loop body), ota.c, console.c, core_ble_api.c (FELUCCA_BLE builds: the radio stack). tests/sim_test.c checks this list against felucca.c. */
 #include <stdint.h>
 #include <stddef.h>
 #define __attribute__(x)
