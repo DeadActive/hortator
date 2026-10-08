@@ -259,6 +259,35 @@ html { scroll-behavior: smooth; }
   vertical-align: middle; background: #8a9098; }
 .legend .key-led::before { background: var(--led); box-shadow: 0 0 6px rgba(215,232,255,.7); }
 .legend .key-warm::before { background: #ffb347; box-shadow: 0 0 6px rgba(255,179,71,.6); }
+.lane { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 6px 4px; }
+.lane-step { display: grid; gap: 5px; justify-items: stretch; padding: 4px 0; border-radius: 8px; }
+.lane-step.now { background: rgba(242,247,255,.07); }
+.step-pad { height: 34px; border-radius: 7px; border: 1px solid #2c3035; background: #1a1d21; cursor: pointer; padding: 0;
+  transition: background .06s, box-shadow .06s; }
+.lane-step.beat .step-pad { border-color: #3a3f46; }
+.step-pad[aria-pressed="true"] { background: #4a4e55; }
+.step-pad.fired { background: var(--led); box-shadow: 0 0 14px rgba(215,232,255,.6); }
+.step-tag { min-height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: #9ea4ac; cursor: pointer;
+  font: 9px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: .02em; white-space: nowrap; overflow: hidden; }
+.step-tag[aria-pressed="true"] { background: #2a2e33; color: var(--led); }
+.step-tag:disabled { cursor: default; }
+.sel-name { align-self: center; margin: 0 6px 0 0; min-width: 4.5em; color: #e9ebee; font-weight: 500; }
+.scope.dice { height: 168px; }
+.dice-caption { margin-top: -8px; }
+.live-row { display: flex; flex-wrap: wrap; gap: 20px 40px; padding-top: 16px; border-top: 1px solid #22262b; }
+.live-group { display: grid; gap: 10px; align-content: start; justify-items: start; }
+.live-group .family-name { margin: 0; }
+.live-btn { min-height: 38px; padding: 0 16px; border-radius: 999px; border: 1px solid #3a3d42; background: #1a1d21;
+  color: #e9ebee; font: 500 14px/1 "IBM Plex Sans", system-ui, sans-serif; cursor: pointer; }
+.live-btn.quiet { border-color: transparent; color: #9ea4ac; }
+.live-btn.rec[aria-pressed="true"] { color: #ff6b5e; border-color: #ff6b5e; box-shadow: 0 0 14px rgba(255,107,94,.3); }
+.live-state { min-height: 1.4em; color: #b8bdc4; font-size: 13px; }
+.live-state.waiting { color: var(--led); animation: wait-blink .5s steps(2, jump-none) infinite; }
+@keyframes wait-blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .live-state.waiting { animation: none; } }
+.motion-row { display: flex; align-items: center; gap: 16px; }
+.scope.motion { width: min(320px, 50vw); height: 56px; }
+.motion-btns { display: flex; gap: 8px; }
 .plate :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 @media (max-width: 860px) {                       /* phones: the text, then its plate */
   .features { padding-top: 72px; }
@@ -267,6 +296,7 @@ html { scroll-behavior: smooth; }
   .plate { padding: 14px; border-radius: 18px; min-height: 260px;
     box-shadow: 0 0 0 2px #3a3d42, 0 0 0 6px #4c5057, 0 20px 40px rgba(0,0,0,.5); }
   .knobs { gap: 14px 18px; }
+  .lane { grid-template-columns: repeat(8, minmax(0, 1fr)); }
   .scopes.two { grid-template-columns: minmax(0, 1fr); }
   .scope { height: 170px; }
   .scope.spec { height: 140px; }

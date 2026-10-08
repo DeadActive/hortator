@@ -111,7 +111,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 EXPORTS=_sim_init,_sim_render,_sim_frame,_sim_btn,_sim_key,_sim_enc,_sim_master,_sim_leds,_sim_key_leds,_sim_fb,_sim_audio,_sim_flash
 EXPORTS=$EXPORTS,_sim_flash_reset,_sim_flash_dirty,_sim_flash_clean,_sim_playing
-EXPORTS=$EXPORTS,_lab_reset,_lab_model,_lab_param,_lab_global,_lab_step,_lab_play,_lab_hit,_lab_perf,_lab_render_mono
+EXPORTS=$EXPORTS,_lab_reset,_lab_model,_lab_param,_lab_global,_lab_step,_lab_play,_lab_hit,_lab_perf,_lab_watch,_lab_mute,_lab_motion,_lab_knob,_lab_motion_clear,_lab_render_mono
 EXPORTS=$EXPORTS,_lab_voice,_lab_grids,_lab_buf,_lab_probes,_lab_probe_count,_lab_probe_clear,_lab_probe_size
 docker run --rm -v "$PWD":/src -w /src -u "$(id -u):$(id -g)" -e EM_CACHE=/src/$OUT/emcache "$IMG" \
     emcc -O2 -sSTANDALONE_WASM --no-entry -sINITIAL_MEMORY=8MB -sSTACK_SIZE=256KB -sEXPORTED_FUNCTIONS="$EXPORTS" \

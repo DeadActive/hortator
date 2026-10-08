@@ -188,6 +188,61 @@ static void test_perform(void)
     check("perform: REVERSE held changes the output", memcmp(buf_a, lab_buf(), (FS / 2u) * sizeof(float)) != 0);
 }
 
+static uint32_t step_now(void) { return lab_probes()[lab_probe_count() - 1u].idx[1]; }
+
+static void test_mute_bar(void)
+{
+    uint32_t i, early = 0, late = 0, waited = 0;
+    loop_kit();
+    lab_play(1);
+    run_bars(1);
+    while (step_now() != 5u) {                        /* mid-bar */
+        lab_probe_clear();
+        sim_render(256);
+    }
+    lab_mute(1, 1);                                   /* hats: mute on the next bar */
+    lab_probe_clear();
+    run_bars(1);
+    for (i = 0; i < lab_probe_count(); i++) {
+        const lab_probe_t *p = &lab_probes()[i];
+        waited |= p->mute_q & 2u;
+        if (!(p->muted & 2u))
+            early += (p->fired >> 1) & 1u;
+        else
+            late += (p->fired >> 1) & 1u;
+    }
+    check("mute at the next bar: queued, the hats play on to the bar line, then not", waited && early > 0u && late == 0u &&
+          (lab_probes()[lab_probe_count() - 1u].muted & 2u));
+}
+
+static void test_motion(void)
+{
+    uint32_t i, at4 = 0, off = 0;
+    loop_kit();
+    lab_watch(1, P_E2);
+    lab_motion(1, 1);                                 /* hats armed */
+    lab_play(1);
+    run_bars(1);
+    while (step_now() != 4u) {
+        lab_probe_clear();
+        sim_render(256);
+    }
+    lab_knob(1, P_E2, 7);                             /* TONE turned at step 4: recorded */
+    lab_motion(1, 0);
+    lab_knob(1, P_E2, 100);                           /* not recording: the new base */
+    run_bars(1);
+    lab_probe_clear();
+    run_bars(1);
+    for (i = 0; i < lab_probe_count(); i++) {
+        const lab_probe_t *p = &lab_probes()[i];
+        if (p->idx[1] == 4u && p->watch == 7)
+            at4++;
+        if (p->idx[1] == 1u && p->watch == 100)
+            off++;
+    }
+    check("motion: the knob recorded at step 4 plays back there; the base elsewhere", at4 > 0u && off > 0u);
+}
+
 int main(void)
 {
     test_voices();
@@ -197,6 +252,8 @@ int main(void)
     test_lfo();
     test_dice();
     test_perform();
+    test_mute_bar();
+    test_motion();
     printf(fails ? "sim_lab_test: %d FAILED\n" : "sim_lab_test: all ok\n", fails);
     return fails != 0;
 }

@@ -13,11 +13,13 @@ typedef struct {
     int32_t lfo[NTRK][2];                              /* t->lfo[l].out, Q15 */
     uint32_t fired;                                    /* bit k: track k started a voice in this half */
     uint16_t idx[NTRK];                                /* t->seq_idx */
-} lab_probe_t;                                         /* 88 bytes; lab.js reads it by these offsets */
+    uint8_t mute_q, muted;                             /* bit k: a mute / unmute waiting for the bar; track k muted */
+    int16_t watch;                                     /* the knob lab_watch names (its value now: LFO, MOTION) */
+} lab_probe_t;                                         /* 92 bytes; lab.js reads it by these offsets */
 
 static float lab_out[LAB_MAX_FRAMES];
 static lab_probe_t lab_ring[LAB_PROBES];
-static uint32_t lab_np, lab_age[NTRK];
+static uint32_t lab_np, lab_age[NTRK], lab_wt, lab_wid;
 
 static uint32_t lab_newest(const track_t *t)           /* the age of the track's newest voice */
 {
@@ -36,6 +38,9 @@ static void lab_half(void)                             /* after each audio half 
     p = &lab_ring[lab_np++];
     p->gr = comp.gr;
     p->fired = 0;
+    p->mute_q = song.mute_q;
+    p->muted = 0;
+    p->watch = trk[lab_wt].p[lab_wid];
     for (k = 0; k < NTRK; k++) {
         uint32_t a = lab_newest(&trk[k]);
         p->lfo[k][0] = trk[k].lfo[0].out;
@@ -44,6 +49,7 @@ static void lab_half(void)                             /* after each audio half 
             p->fired |= 1u << k;
         lab_age[k] = a;
         p->idx[k] = trk[k].seq_idx;
+        p->muted |= (uint8_t)((trk[k].p[P_MUTE] != 0) << k);
     }
 }
 
@@ -64,8 +70,16 @@ void lab_reset(void)                                   /* a blank project at 120
     sim_init(0);
     song.g[G_BPM] = 120;
     song.g[G_CLOCK] = 0;
-    for (k = 0; k < NTRK; k++)
+    song.rec = 0;
+    song.mute_q = 0;
+    settings.mutebar = 0;
+    for (k = 0; k < NTRK; k++) {
+        motion_clear(k);
+        motion_set_play(k, 0);
         lab_age[k] = lab_newest(&trk[k]);
+    }
+    lab_wt = 0;
+    lab_wid = P_MODEL;
     lab_np = 0;
     sim_half_hook = lab_half;
 }
@@ -87,6 +101,28 @@ void lab_step(uint32_t t, uint32_t s, uint32_t on, uint32_t acc, uint32_t cond, 
 void lab_play(int on) { transport_req = on ? 1u : 2u; }   /* taken at the next block, as the UI does */
 void lab_hit(uint32_t t, uint32_t vel) { if (t < NTRK) drum_hit(&trk[t], vel); }
 void lab_perf(uint32_t e, int down) { if (e < PF_N) perf_press(e, down); }
+void lab_watch(uint32_t t, uint32_t id) { if (t < NTRK && id < P_COUNT) lab_wt = t, lab_wid = id; }
+void lab_mute(uint32_t t, int at_bar)                  /* TRACKS' mute: now, or on the next bar (GLO MUTE BAR) */
+{
+    settings.mutebar = at_bar ? 1u : 0u;
+    track_mute_toggle(t);
+}
+void lab_motion(uint32_t t, int rec)                   /* REC on TRACKS: track t armed (selected), its motion played */
+{
+    if (t >= NTRK)
+        return;
+    song.sel = (uint8_t)t;
+    song.rec = rec ? (uint8_t)(1u << t) : 0u;
+    motion_set_play(t, 1);
+}
+void lab_knob(uint32_t t, uint32_t id, int32_t v)      /* a knob turned on the panel: recorded while armed and playing */
+{
+    if (t >= NTRK || id >= P_COUNT)
+        return;
+    trk[t].p[id] = (int16_t)v;
+    motion_capture(&trk[t], id);
+}
+void lab_motion_clear(uint32_t t) { if (t < NTRK) motion_clear(t); }
 
 void lab_render_mono(uint32_t frames)                  /* the whole mix, (L + R) / 2 into lab_buf() */
 {

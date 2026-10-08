@@ -119,7 +119,15 @@ int main(void)
     names("rtype", N_RTYPE, 2);
     names("ghost", N_GHOST, 3);
     names("lsync", N_LSYNC, 17);                       /* an LFO's RATE in SYNC: N_LSYNC[k * 17 / 128] */
-    printf("},\n\"probe_size\": %u, \"max_frames\": %u, \"fs\": %u\n}\n", (unsigned)sizeof(lab_probe_t),
+    printf("},\n\"conds\": [");                       /* a step's PROB knob, position by position: stored code, name */
+    for (e = 0; e <= COND_MAX; e++) {
+        char s[8];
+        cond_format(cond_store(e), s);
+        printf("%s{\"store\": %u, \"name\": ", e ? ", " : "", (unsigned)cond_store(e));
+        str(s);
+        printf("}");
+    }
+    printf("],\n\"probe_size\": %u, \"max_frames\": %u, \"fs\": %u\n}\n", (unsigned)sizeof(lab_probe_t),
            (unsigned)LAB_MAX_FRAMES, (unsigned)FS);
     return 0;
 }

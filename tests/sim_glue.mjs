@@ -491,3 +491,26 @@ test('lab: an LFO on the hats\' DECAY: the tails differ hit to hit; at DEPTH 0 t
   assert.ok(Math.max(...flat) - Math.min(...flat) < ids.fs / 200, `DEPTH 0: ${flat}`);
   assert.ok(Math.max(...moved) - Math.min(...moved) > ids.fs / 50, `DEPTH 60: ${moved}`);
 });
+
+test('lab: the dice over 8 bars: 1/2 plays on bars 1, 3, 5, 7; 1-SHOT on bar 1; RATCH 4 hits; 100% always; the same after PLAY', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const c = name => ids.conds.find(x => x.name === name).store;
+  const run = () => {
+    lab.reset();
+    lab.model(1, ids.DM.HATC);
+    lab.step(1, 0, true, false, c('100%'), 3);
+    lab.step(1, 4, true, false, c('1/2'));
+    lab.step(1, 8, true, false, c('1-SHOT'));
+    lab.step(1, 12, true, false, c('50%'));
+    lab.play(true);
+    return lab.dice(1, 8);
+  };
+  const d = run();
+  assert.deepEqual(d.map(b => b[0]), [4, 4, 4, 4, 4, 4, 4, 4], 'RATCH 4 at 100%');
+  assert.deepEqual(d.map(b => b[4]), [1, 0, 1, 0, 1, 0, 1, 0], '1/2');
+  assert.deepEqual(d.map(b => b[8]), [1, 0, 0, 0, 0, 0, 0, 0], '1-SHOT');
+  const half = d.map(b => b[12]);
+  assert.ok(half.some(Boolean) && !half.every(Boolean), `50%: ${half}`);
+  assert.deepEqual(run(), d, 'the same 8 bars after every PLAY');
+});

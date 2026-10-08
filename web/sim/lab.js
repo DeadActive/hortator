@@ -6,7 +6,7 @@
 // (worklet.js 'fm1lab': the same calls, heard live). Ids come from lab_ids.json, made from the firmware's enums.
 import { Fm1Sim } from './engine.js';
 
-const PROBE = { gr: 0, lfo: 4, fired: 68, idx: 72 };    // tests/sim_lab.c lab_probe_t (probe_size 88)
+const PROBE = { gr: 0, lfo: 4, fired: 68, idx: 72, muteQ: 88, muted: 89, watch: 90 };   // sim_lab.c lab_probe_t (92 B)
 
 export class Lab {
   static async create(bytes, ids) { return new Lab(await Fm1Sim.create(bytes), ids); }
@@ -25,6 +25,11 @@ export class Lab {
   play(on) { this.x.lab_play(on ? 1 : 0); }
   hit(t, vel = 127) { this.x.lab_hit(t, vel); }
   perf(e, down) { this.x.lab_perf(e, down ? 1 : 0); }
+  watch(t, id) { this.x.lab_watch(t, id); }           // the probes' watch: track t's knob id
+  mute(t, atBar) { this.x.lab_mute(t, atBar ? 1 : 0); }
+  motion(t, rec) { this.x.lab_motion(t, rec ? 1 : 0); }
+  knob(t, id, v) { this.x.lab_knob(t, id, Math.round(v)); }   // a turn on the panel (MOTION records it when armed)
+  motionClear(t) { this.x.lab_motion_clear(t); }
 
   // track 1's hit alone from silence (inserts: through its RESON and FILTER), mono, -> a Float32Array copy
   voice(frames, inserts) {
@@ -41,8 +46,26 @@ export class Lab {
   // the Grids lanes for the globals now: 3 x 32 bytes, bit 0 a hit, bit 1 an accent
   grids() { return this.sim.view(Uint8Array, this.x.lab_grids(), 96).slice(); }
 
+  // the transport running: what track t played on each of 16 steps for the next `bars` bars (hits per step; a ratchet
+  // counts each), from the probes
+  dice(t, bars) {
+    const out = Array.from({ length: bars }, () => new Array(16).fill(0)), fs = this.ids.fs;
+    let bar = 0, last = -1;
+    for (let chunk = 0; bar < bars && chunk < bars; chunk++) {   // 2 bars at 120 a chunk; a stalled transport ends it
+      this.probeClear();
+      this.renderMono(fs * 4);
+      for (const p of this.probes()) {
+        const i = p.idx[t] % 16;
+        if (i < last && ++bar >= bars) break;
+        last = i;
+        if ((p.fired >> t) & 1) out[bar][i]++;
+      }
+    }
+    return out;
+  }
+
   probeClear() { this.x.lab_probe_clear(); }
-  // per audio half (256 frames): { gr, lfo[track][2], fired (bit per track), idx[track] }
+  // per audio half (256 frames): { gr, lfo[track][2], fired (bit per track), idx[track], muteQ, muted (bits), watch }
   probes() {
     const n = this.x.lab_probe_count(), size = this.x.lab_probe_size(), base = this.x.lab_probes();
     const v = new DataView(this.x.memory.buffer, base, n * size), out = [];
@@ -52,7 +75,8 @@ export class Lab {
         lfo.push([v.getInt32(o + PROBE.lfo + 8 * k, true), v.getInt32(o + PROBE.lfo + 8 * k + 4, true)]);
         idx.push(v.getUint16(o + PROBE.idx + 2 * k, true));
       }
-      out.push({ gr: v.getInt32(o + PROBE.gr, true), lfo, fired: v.getUint32(o + PROBE.fired, true), idx });
+      out.push({ gr: v.getInt32(o + PROBE.gr, true), lfo, fired: v.getUint32(o + PROBE.fired, true), idx,
+        muteQ: v.getUint8(o + PROBE.muteQ), muted: v.getUint8(o + PROBE.muted), watch: v.getInt16(o + PROBE.watch, true) });
     }
     return out;
   }

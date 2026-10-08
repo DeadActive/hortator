@@ -12,6 +12,7 @@ const PIECES = {                                     // data-piece -> its module
   reson: () => import('./lab_reson.js'),
   comp: () => import('./lab_comp.js'),
   lfo: () => import('./lab_lfo.js'),
+  seq: () => import('./lab_seq.js'),
 };
 
 let lab = null, ids = null, wasm = null, player = null, starting = null, playing = null;
