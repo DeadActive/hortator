@@ -5,6 +5,16 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.15.0 - 2026-10-09
+
+- Bluetooth MIDI, part 1 (a separate build, `FELUCCA_BLE=1`; the normal firmware does not contain it, gate 5): the
+  JieLi BLE stack fits the app slot (424 KB, 157 KB free), runs in the main loop in 5 ms slices, and is driven from
+  the USB console: `ble start / scan / list / connect N / stop`, `ble` for its status. Off at every power-on. Tested
+  on the FM-1 with the M-VAVE SMC-Mixer: connected and receiving, no audio glitches, an update and UBOOT with
+  Bluetooth on. Received MIDI is counted, not played yet (part 2). Docs: `docs/ble/FIT.md`, `docs/ble/DEVICE_STEPS.md`.
+- Build: every build stops unless the update loader is the pinned one (`tools/frozen_base.txt`); a Bluetooth build
+  also stops on its update-path and no-BT-at-boot gates.
+
 ## 0.14.0 - 2026-10-08
 
 - FM: a 2-operator FM percussion model (TUNE DECAY INDEX RATIO, MDEC SWEEP FBK VEL): bells, metallic toms,
