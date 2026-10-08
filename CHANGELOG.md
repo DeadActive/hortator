@@ -5,6 +5,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Releases can carry two versions: the plain firmware and the same build with Bluetooth MIDI. The web installer
+  offers a choice (the plain one by default), the release a second file `hortator-X.Y.Z-bluetooth.fwsc`
+  (`BLE=1 tools/publish.sh`; first used for Bluetooth part 2).
+
 ## 0.15.0 - 2026-10-09
 
 - Bluetooth MIDI, part 1 (a separate build, `FELUCCA_BLE=1`; the normal firmware does not contain it, gate 5): the
