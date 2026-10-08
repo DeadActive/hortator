@@ -268,7 +268,7 @@ html { scroll-behavior: smooth; }
 .step-pad[aria-pressed="true"] { background: #4a4e55; }
 .step-pad.fired { background: var(--led); box-shadow: 0 0 14px rgba(215,232,255,.6); }
 .step-tag { min-height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: #9ea4ac; cursor: pointer;
-  font: 9px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: .02em; white-space: nowrap; overflow: hidden; }
+  font: 9px/1.3 "Silkscreen", ui-monospace, monospace; letter-spacing: .02em; white-space: pre; overflow: hidden; }
 .step-tag[aria-pressed="true"] { background: #2a2e33; color: var(--led); }
 .step-tag:disabled { cursor: default; }
 .sel-name { align-self: center; margin: 0 6px 0 0; min-width: 4.5em; color: #e9ebee; font-weight: 500; }
@@ -389,8 +389,6 @@ html { scroll-behavior: smooth; }
 .mini .m-btn { background: #565a61; border-radius: 9px; transition: background .25s, box-shadow .25s; }
 .mini .m-key { background: #4a4e55; border-radius: 999px; }
 .mini .m-enc { background: #26282c; border-radius: 50%; box-shadow: 0 0 0 5px #34373c; transition: background .25s, box-shadow .25s; }
-.mini .lit { background: #f2f7ff; box-shadow: 0 0 18px 6px rgba(215,232,255,.55); }
-.mini .m-enc.lit { box-shadow: 0 0 0 5px #f2f7ff, 0 0 22px 8px rgba(215,232,255,.5); }
 .where b { font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.04em; padding: 3px 6px 2px;
   border-radius: 5px; background: var(--body); color: var(--silk); vertical-align: 1px; }
 

@@ -1,6 +1,6 @@
 # Features lab plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
+> **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Steps use checkbox (`- [x]`) syntax.
 
 **Goal:** the eight interactive feature pieces of `2026-10-09-websim-features-lab-design.md`, on the firmware's own
 DSP.
@@ -27,32 +27,32 @@ AudioWorklet.
 
 ### Task 1: Lab C exports and ids
 
-- [ ] Test (`tests/sim_lab_test.c`, built and run by `tools/build_sim.sh`): `lab_reset`; every model's single hit via
+- [x] Test (`tests/sim_lab_test.c`, built and run by `tools/build_sim.sh`): `lab_reset`; every model's single hit via
       `lab_voice` is non-silent and the 909 kick differs from the 808 kick; RESON STRNG rings longer than dry;
       `lab_grids` lanes differ between two X / Y points; a loop with the compressor keyed by track 1 shows `gr < 0`
       in the probes; LFO probe values move over a bar; PROB 50 % hats fire on some bars, not all (8 bars);
       `perf_press(PF_R16)` changes the rendered output. Run: FAIL (no sim_lab.c).
-- [ ] `tests/sim_lab.c` (included by `sim_core.c`): `lab_reset()` (a blank project, demos off, tempo 120, clock INT),
+- [x] `tests/sim_lab.c` (included by `sim_core.c`): `lab_reset()` (a blank project, demos off, tempo 120, clock INT),
       `lab_model(t,m)`, `lab_param(t,p,v)`, `lab_global(g,v)`, `lab_step(t,s,on,acc,cond,rat)`, `lab_play(on)`,
       `lab_hit(t,vel)`, `lab_perf(e,down)`, `lab_voice(frames, inserts)` (track 0 alone, raw or with RESON + FILTER),
       `lab_grids(out)` (3 x 32 bytes via `grids_preview`), the probe ring: per audio half `{comp.gr, lfo out x 2 x 8,
       fired bits, seq_idx x 8}` read by `lab_probes()` / `lab_probe_count()`.
-- [ ] `tests/sim_ids.c`: prints `lab_ids.json` (P_*, G_*, DM_*, PF_*, RS_*, LW_*, FT_* with values; TP / GP labels, min,
+- [x] `tests/sim_ids.c`: prints `lab_ids.json` (P_*, G_*, DM_*, PF_*, RS_*, LW_*, FT_* with values; TP / GP labels, min,
       max, def; each model's edit labels / min / max / def; the name tables). `tools/build_sim.sh` builds and runs it;
       exports added to the emcc list. Run: PASS. Commit.
 
 ### Task 2: lab.js (analyser and player)
 
-- [ ] Node test: the analyser on the built wasm: `voice()` returns a non-silent buffer, `grids(x, y, fills)` 3 lanes,
+- [x] Node test: the analyser on the built wasm: `voice()` returns a non-silent buffer, `grids(x, y, fills)` 3 lanes,
       ids load. Run: FAIL.
-- [ ] `web/sim/lab.js`: `Analyser` (an `Fm1Sim`-like instance in the page: lab calls, `voice`, `grids`, `dice(bars)`),
+- [x] `web/sim/lab.js`: `Analyser` (an `Fm1Sim`-like instance in the page: lab calls, `voice`, `grids`, `dice(bars)`),
       `Player` (an AudioWorklet `fm1lab` in `worklet.js`: messages for the lab calls, probes posted per frame), one
       AudioContext started on the first gesture, `stopAll()`. Run: PASS. Commit.
 
 ### Task 3: The chapters' frame
 
-- [ ] Site test: eight chapters `#f-voices … #f-ble`, each with its panel hint. Run: FAIL.
-- [ ] Replace the features section: chapter markup and CSS (title, two lines, the stage, "on the panel"), a
+- [x] Site test: eight chapters `#f-voices … #f-ble`, each with its panel hint. Run: FAIL.
+- [x] Replace the features section: chapter markup and CSS (title, two lines, the stage, "on the panel"), a
       play / stop button per chapter, lazy start of the analyser when the section nears the screen, the player stopped
       when a chapter leaves it. Remove the sticky-screen player and its CSS. Run: PASS. Commit.
 
@@ -74,4 +74,4 @@ eye in Chrome (desktop and phone); a commit; shown to the user.
 
 ### Task 12: Docs and review
 
-- [ ] `docs/SIMULATOR.md` (the lab), full build and tests, the whole page on desktop and phone. Commit.
+- [x] `docs/SIMULATOR.md` (the lab), full build and tests, the whole page on desktop and phone. Commit.

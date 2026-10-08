@@ -108,15 +108,25 @@ export class LabPlayer {
     this.gain = gain;
     this.analyser = analyser;
     this.listener = null;
+    this.live = false;
+    this.sleep = 0;
     node.port.onmessage = e => { if (e.data.t === 'probes' && this.listener) this.listener(e.data.p); };
   }
 
   call(fn, ...args) { this.node.port.postMessage({ fn, args }); }
   onProbes(fn) { this.listener = fn; }
-  async on() { this.gain.gain.setTargetAtTime(1, this.ctx.currentTime, 0.01); await this.ctx.resume(); }
-  off() {                                             // a short fade, the transport stopped
+  async on() {
+    this.live = true;
+    clearTimeout(this.sleep);
+    this.gain.gain.setTargetAtTime(1, this.ctx.currentTime, 0.01);
+    await this.ctx.resume();
+  }
+  off() {                                             // a short fade, the transport stopped, then the context asleep:
+    this.live = false;                                // the worklet renders nothing until the next piece plays
     this.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.02);
     this.call('play', false);
     this.listener = null;
+    clearTimeout(this.sleep);
+    this.sleep = setTimeout(() => { if (!this.live) this.ctx.suspend().catch(() => {}); }, 200);
   }
 }

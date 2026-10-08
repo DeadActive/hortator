@@ -63,7 +63,7 @@ export default function seq(plate, { lab, ids, audition }) {
   const paint = () => cells.forEach(({ col, pad, tag }, s) => {
     const st = steps[s];
     pad.setAttribute('aria-pressed', String(st.on));
-    tag.textContent = st.on ? conds[st.pos].name + (st.rat ? ` ×${st.rat + 1}` : '') : '';
+    tag.textContent = st.on ? conds[st.pos].name + (st.rat ? `\n\u00d7${st.rat + 1}` : '') : '';   // RATCH: a 2nd line
     tag.disabled = !st.on;
     tag.setAttribute('aria-pressed', String(s === sel));
     col.classList.toggle('now', s === now);
