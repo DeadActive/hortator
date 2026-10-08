@@ -37,15 +37,7 @@ int strcmp(const char *a, const char *b)
     }
     return (int)(uint8_t)*a - (int)(uint8_t)*b;
 }
-/* logging: off (the libraries' log tags are 0 too: sdkcfg/app_config.h LIB_DEBUG) */
-int printf(const char *fmt, ...) { (void)fmt; return 0; }
-int puts(const char *s) { (void)s; return 0; }
-int putchar(int c) { return c; }
-void put_buf(const unsigned char *buf, int len) { (void)buf; (void)len; }
-void printf_buf(uint8_t *buf, uint32_t len) { (void)buf; (void)len; }
-void log_print(int level, const char *tag, const char *fmt, ...) { (void)level; (void)tag; (void)fmt; }
-const char log_tag_const_d_TWS = 0, log_tag_const_i_TWS = 0, log_tag_const_e_LBUF = 0, log_tag_const_i_LBUF = 0,
-           log_tag_const_i_WLC = 0;
+/* logging: off, in ble_lto_stubs.c (bitcode: LTO sees the empty functions and drops the calls and their text) */
 
 /* ---- interrupts: the libraries' critical sections nest; their radio IRQs go into our vector table ---- */
 void local_irq_disable(void) { fm1_ble_irq_off(); }

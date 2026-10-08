@@ -210,6 +210,9 @@ def build_app():
             obj = OUT / "blecfg" / (Path(src).stem + ".o")
             asm.append(("cc", *ble_libs.SDK_CFLAGS, "-c", f"/sdk/{src}", "-o", obj))
             cfg_objs.append(obj)
+        asm.append(("cc", "-mcpu=r3", "-Os", "-flto", "-Wall", "-c", SRC / ble_libs.LTO_STUBS, "-o",
+                    OUT / "blecfg" / "ble_lto_stubs.o"))
+        cfg_objs.append(OUT / "blecfg" / "ble_lto_stubs.o")
     tc_all(*asm, ("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o"))
     elf = OUT / "felucca.elf"
     extra = []
@@ -242,6 +245,7 @@ def build_app():
         gold = "/opt/jieli/pi32v2/bin/LLVMgold.so"
         ld = (*ld, "--plugin", gold, "--plugin-opt=mcpu=r3", "--plugin-opt=-pi32v2-large-program=true",
               "--plugin-opt=-pi32v2-always-use-itblock=false",
+              "--plugin-opt=-dont-used-symbol-list=" + ",".join(ble_libs.LOG_FUNCS),
               "--orphan-handling=error", "-Map", "build/felucca.map")   # every library section placed on purpose
         # the libraries' (and the BLE unit's) memcpy calls go to ble_port.c's RAM copy, __wrap_memcpy: the radio
         # calibration calls memcpy while the flash must not be read. --wrap redirects undefined references only, so

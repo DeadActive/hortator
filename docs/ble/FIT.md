@@ -10,6 +10,7 @@ a package.
 |------|--------:|------------:|--------------:|---------------:|-------------------:|
 | drum-v0.14.0, no BLE | 296948 | 284616 | — | 51048 | 298656 |
 | 1: the port, as fm1-lsdj 548ce73 (48 KB heap, 4 KB task stacks) | 737680 | −156116 | −188884 | 68784 | 365920 (−21856 headroom) |
+| 2: the SDK config sources and the log stubs as bitcode (LTO) | 422096 | 159468 | 126700 | 63020 | 365920 (−21856 headroom) |
 
 ## Step 1: where the XIP bytes are (build/felucca.map)
 
@@ -34,6 +35,51 @@ Inside the LTO object, by section:
 | `.ble_hci_code`, `.ble_sm_code`, `.hci_controller_code`, `.ble_gatt_code` | 35274 | |
 
 `.ram_text` (the radio calibration, in RAM): 2287 instructions, 211 calls, all inside `.ram_text`, no XIP address.
+
+## Step 2: the config and the log stubs visible to LTO
+
+The SDK's config sources (`lib_btctrler_config.c`, `bt_profile_config.c`, compiled against
+`firmware/src/ble/sdkcfg/app_config.h`) and the libraries' log functions (now `firmware/src/ble/ble_lto_stubs.c`:
+`printf`, `puts`, `putchar`, `put_buf`, `printf_buf`, `log_print`, empty; the `log_tag_const_*` of lbuf / wlc / TWS,
+0) are compiled with `-flto`, as the SDK builds them, and the link passes the SDK demo's
+`--plugin-opt=-dont-used-symbol-list=` with that list. The libraries were already linked through LTO; now the
+optimizer also sees the `const` configuration (`config_btctler_modules` = LE only, no TWS, the log tags 0) and the
+empty log functions, folds them and drops what they switch off. Nothing is stubbed by hand in this step.
+
+XIP by input (step 1 → step 2): the libraries (LTO) 418303 → 103665 B; `felucca.o` 293237 → 293259; `ble.o`
+12791 → 12772; `lib_btctrler_config.o` 371 → 0 (now inside LTO).
+
+Inside the LTO object (B, step 1 → step 2):
+
+| section | step 1 | step 2 | |
+|---------|-------:|-------:|---|
+| `.rodata` (with `.rodata.str1.*`) | 82537 | 3788 | the log text |
+| `.bt_stack_code` | 56666 | 24862 | |
+| `.classic_lmp_code` | 49024 | 624 | classic BR/EDR |
+| `.ble_ll_code` | 45438 | 14504 | link layer: the roles and features not configured |
+| `.ble_rf_code` | 36356 | 15818 | |
+| `.classic_rf_code` | 33834 | 2656 | classic BR/EDR |
+| `.text` | 32718 | 17646 | |
+| `.classic_tws_code` | 20216 | 4 | TWS |
+| `.ble_hci_code` | 12204 | 2622 | |
+| `.ble_sm_code` | 9366 | 9110 | |
+| `.hci_controller_code` | 7610 | 1160 | |
+| `.ble_gatt_code` | 6094 | 5914 | |
+| `.uECC_code` | 3110 | 0 | ECDH (LE Secure Connections / classic SSP) |
+| `.bt_stack_const` | 2428 | 915 | |
+| `.link_task_code` | 2204 | 0 | |
+| `.bt_rf_code` | 2158 | 758 | |
+| `.classic_lmp_auth_code`, `_const` | 3272 | 0 | classic BR/EDR |
+| `.classic_rf_const` | 1885 | 54 | classic BR/EDR |
+| `.hmac_code`, `.crypto_code`, `.crypto_bigint_code` | 3822 | 0 | |
+| `.link_bulk_code` | 1478 | 312 | |
+| `.hci_interface_code` | 1106 | 0 | |
+| `.vendor_manager_code` | 526 | 0 | |
+
+For the 1b device test (the ones a BLE-MIDI central might still need, if the folding were wrong): `.link_task_code`,
+`.hci_interface_code`, `.uECC_code` / `.hmac_code` / `.crypto*` (pairing with LE Secure Connections: a device that
+asks for it), `.vendor_manager_code`, and the link layer's 31 KB. Start, scan, connect, discover and notify each have
+a console step in 1b; a failure there points here first.
 
 ## Checks
 

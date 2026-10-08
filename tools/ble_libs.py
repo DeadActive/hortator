@@ -24,9 +24,12 @@ MEMBERS = {"cpu/wl82/liba/system.a": ["lbuf.c.o", "circular_buf.c.o"],
            "cpu/wl82/liba/cpu.a": ["wlc.c.o", "encryption.c.o"]}
 # The SDK's BT config sources (Apache-2.0), compiled from the SDK (mounted at /sdk) against our
 # firmware/src/ble/sdkcfg/app_config.h (BLE central only): the libraries' config_* / CONFIG_* / log_tag_const_*
-# constants with the SDK's own types and values.
+# constants with the SDK's own types and values. As bitcode (-flto, as the SDK builds them): LTO folds the constants
+# into the libraries (BLE only, logs off) and drops what they switch off.
+LTO_STUBS = "firmware/src/ble/ble_lto_stubs.c"     # the log functions, empty, also bitcode
+LOG_FUNCS = ["printf", "puts", "putchar", "put_buf", "printf_buf", "log_print"]   # -dont-used-symbol-list
 SDK_CONFIG_SOURCES = ["apps/common/config/log_config/lib_btctrler_config.c", "apps/common/config/bt_profile_config.c"]
-SDK_CFLAGS = ["-mcpu=r3", "-Os", "-DSUPPORT_MS_EXTENSIONS", "-DCONFIG_CPU_WL82", "-DCONFIG_FREE_RTOS_ENABLE",
+SDK_CFLAGS = ["-mcpu=r3", "-Os", "-flto", "-DSUPPORT_MS_EXTENSIONS", "-DCONFIG_CPU_WL82", "-DCONFIG_FREE_RTOS_ENABLE",
               "-DCONFIG_THREAD_ENABLE", "-D__GCC_PI32V2__", "-DCONFIG_NO_SDRAM_ENABLE", "-DCONFIG_BT_ENABLE=1",
               "-Ifirmware/src/ble/sdkcfg",
               # demo_ble's include list (apps/demo/demo_ble/board/wl82/Makefile INCLUDES), minus its app_config.h dir
