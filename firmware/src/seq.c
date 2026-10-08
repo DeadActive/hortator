@@ -194,17 +194,18 @@ static __attribute__((noinline)) void acid_step(track_t *t, const step_t *s, con
         return;
     }
     plays = s->on && !s->tie && step_plays(t, s, len);
-    if (s->tie) {                                      /* PROB, RATCH, ACC ignored; after a rest: nothing */
-        if (!held)
+    if (s->tie) {                                      /* PROB, RATCH, ACC ignored; after a rest: nothing; a live
+                                                        * hit's gate (drum_hit) is not the sequencer's: not extended */
+        if (!held || t->gate_n != GATE_HELD)
             return;
         t->slide_in = s->slide;                        /* a TIE with SLIDE glides into the next ON step */
         t->gate_n = GATE_HELD;
         return;
     }
-    if (!plays) {                                      /* a rest, or PROB skipped it */
-        if (held)
-            m->gate(t, v, 0);
-        t->gate_n = 0;
+    if (!plays) {                                      /* a rest, or PROB skipped it: a gate the sequencer holds
+                                                        * closes; a counting one (a live hit's) ends by itself */
+        if (t->gate_n == GATE_HELD)
+            acid_gate_off(t);
         t->slide_in = 0;
         return;
     }

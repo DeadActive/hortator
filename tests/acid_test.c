@@ -294,6 +294,7 @@ static void seq_run(track_t *t, uint32_t steps, int32_t *out)
         dm_render_n(t, out + i, CTL);
     }
 }
+static uint32_t seq_at;                              /* seq_to: samples since acid_seq */
 static track_t *acid_seq(void)
 {
     track_t *t = acid();
@@ -306,7 +307,17 @@ static track_t *acid_seq(void)
     t->seq_cnt = (uint32_t)-1;
     t->gate_n = 0;
     t->slide_in = 0;
+    seq_at = 0;
     return t;
+}
+
+static void seq_to(track_t *t, uint32_t until)      /* the sequencer and the track's voices up to sample `until` */
+{
+    static int32_t scratch[CTL];
+    for (; seq_at + CTL <= until; seq_at += CTL) {
+        seq_tick(t, CTL);
+        dm_render_n(t, scratch, CTL);
+    }
 }
 
 static void test_seq_gate(void)                      /* a plain note: the gate closes at GATE (50 %) of the step */
@@ -381,8 +392,16 @@ static void test_seq_prob_tie(void)                  /* Review Focus 4 */
     t = acid_seq();
     t->step[0].on = 1;
     t->step[0].rat = 1;                                /* 2 hits */
-    seq_run(t, 1, buf);
-    check("acid seq: a ratcheted step restarts the note", t->rat_k == 2u);
+    seq_to(t, CTL);                                    /* hit 1 */
+    {
+        uint32_t age = t->v[0].age, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+        int32_t fe;
+        seq_to(t, len / 2u - CTL);                     /* just before hit 2 (at half the step) */
+        fe = t->v[0].env[1];
+        seq_to(t, len / 2u + 3u * CTL);                /* just after it (hit 2 lands in the block holding len / 2) */
+        check("acid seq: a ratcheted step restarts the note (hit 2: a new voice, the filter envelope from the top)",
+              t->rat_k == 2u && t->v[0].active && t->v[0].age != age && t->v[0].env[1] > fe);
+    }
 }
 
 static void test_seq_stop_closes(void)              /* Review Focus 1: STOP / a model change: no hanging note */
@@ -417,6 +436,30 @@ static void test_seq_drum_tie(void)                  /* a drum track: a TIE step
 
 /* a hit no step drives (MIDI, the keys, Grids: drum_hit) closes its own gate after GATE of the track's step, the
  * transport stopped: the gate counts in seq_tick, which runs every block */
+/* ruling 1 with the transport running: a live hit (drum_hit) late in a step keeps its own GATE through the next
+ * step's start (a rest closes only a gate the sequencer holds), and a TIE does not extend it */
+static void test_live_hit_playing(void)
+{
+    track_t *t = acid_seq();
+    uint32_t len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0), at = len * 4u / 5u / CTL * CTL,
+             g;
+    seq_to(t, at);                                     /* an empty pattern, playing: 80 % into step 0 */
+    drum_hit(t, 100);
+    g = t->gate_n;
+    seq_to(t, len + 8u * CTL);                         /* just past step 1's start (a rest) */
+    check("acid seq: a rest leaves a live hit's gate open (it closes by its own GATE)",
+          (t->v[0].x[2] & 1) && t->gate_n != 0u && t->gate_n != GATE_HELD);
+    seq_to(t, at + g + 2u * CTL);
+    check("acid seq: ... and the live hit's gate closes at its GATE", !(t->v[0].x[2] & 1) && t->gate_n == 0u);
+    t = acid_seq();
+    t->step[1].tie = 1;                                /* a TIE after an empty step: it plays nothing */
+    seq_to(t, at);
+    drum_hit(t, 100);
+    seq_to(t, at + g + 2u * CTL);
+    check("acid seq: a TIE does not extend a live hit (its gate closes at GATE, inside the TIE step)",
+          !(t->v[0].x[2] & 1) && t->gate_n == 0u);
+}
+
 static void test_hit_gate(void)
 {
     track_t *t = acid();
@@ -496,6 +539,7 @@ int main(void)
     test_seq_stop_closes();
     test_seq_drum_tie();
     test_hit_gate();
+    test_live_hit_playing();
     test_row_change();
     printf(fails ? "acid: %d FAILED\n" : "acid: all checks passed\n", fails);
     return fails != 0;
