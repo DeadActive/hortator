@@ -110,6 +110,8 @@ typedef struct {
     void (*trigger)(struct track *t, dvoice_t *v);
     void (*render)(struct track *t, dvoice_t *v, int32_t *out, uint32_t n);
     uint8_t weight;              /* what a voice counts toward DRUM_MAXV: 0 / 1 = 1, 2 = a heavy model (M1-C) */
+    void (*glide)(struct track *t, dvoice_t *v);         /* ACID: the voice moves to the track's note, no restart */
+    void (*gate)(struct track *t, dvoice_t *v, int open); /* ACID: 0 = the gate closes (release) */
 } dmodel_t;
 
 /* ------------------------------------------------------------ track --- */

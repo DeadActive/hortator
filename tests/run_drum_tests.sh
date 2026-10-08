@@ -26,6 +26,8 @@ cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wn
 "$OUT/filter_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/fm_test" tests/fm_test.c -lm
 "$OUT/fm_test"
+cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/acid_test" tests/acid_test.c -lm   # (UBSan: Review Focus 3)
+"$OUT/acid_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/bench_host" tests/bench_host.c -lm
 "$OUT/bench_host"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DDM_QCHECK -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test_q" tests/drum_test.c -lm

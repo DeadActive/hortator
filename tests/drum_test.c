@@ -822,7 +822,7 @@ static void test_drum_transpose(void)
     static int32_t a[SECS(0.5)];
     uint32_t mi, ok = 1, clamp_ok = 1;
     for (mi = 0; mi < NMODELS; mi++) {
-        if (0)
+        if (mi == DM_ACID)                           /* ACID plays the note itself, unclamped (acid_test) */
             continue;
         host_init();
         drum_set_model(&trk[0], mi);
