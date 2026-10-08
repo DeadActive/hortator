@@ -157,7 +157,10 @@ def selftest():
 # gate 2a: the update path's sources are the last release's (spec amendment 8). Modified or deleted files fail;
 # added files only as listed (the BLE build's new HAL header and context switch: spec amendment 2)
 SOURCES = ["firmware/src/usb.c", "firmware/src/usb_app.c", "firmware/src/ota.c", "firmware/src/storage.c",
-           "firmware/src/libc.c", "firmware/hal", "firmware/loader"]
+           "firmware/src/libc.c", "firmware/hal", "firmware/loader",
+           # the main loop, the start-up and the memory map (frozen): gate 2b links the same core object twice, so a
+           # change here would otherwise reach a BLE device build unseen (review 1b, I3)
+           "firmware/src/main.c", "firmware/crt0.S", "firmware/app.ld"]
 NEW_OK = {"firmware/hal/fm1_ble_hal.h", "firmware/hal/fm1_ctx.h", "firmware/hal/fm1_ctx.S"}
 
 

@@ -524,12 +524,16 @@ void ble_status(void)                              /* console `ble` */
         }
         core_con_puts("\r\n");
     }
-    o = put_u(put_s(b, "  heap high "), ble_diag.heap_high);
-    o = put_u(put_s(o, " of "), sizeof ble_heap);
-    o = put_u(put_s(o, ", failed allocations "), ble_diag.alloc_fails);
-    o = put_s(o, " (kept over a reboot)\r\n");
-    *o = 0;
-    core_con_puts(b);
+    if (ble_diag.magic == BLE_DIAG_MAGIC) {     /* (.noinit: nothing to show before the first start) */
+        o = put_u(put_s(b, "  heap high "), ble_diag.heap_high);
+        o = put_u(put_s(o, " of "), sizeof ble_heap);
+        o = put_u(put_s(o, ", failed allocations "), ble_diag.alloc_fails);
+        o = put_s(o, " (kept over a reboot)\r\n");
+        *o = 0;
+        core_con_puts(b);
+    } else {
+        core_con_puts("  heap: no record yet (ble start)\r\n");
+    }
     o = put_u(put_s(b, "  loop last "), loop.last_ms);
     o = put_u(put_s(o, " ms, max "), loop.max_ms);
     o = put_u(put_s(o, " ms; longest BT task run "), ble_os_run_max_us(1));

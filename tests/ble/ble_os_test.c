@@ -42,7 +42,8 @@ static uint8_t mtx[BLE_SDK_OS_SEM_SIZE], core_sem[BLE_SDK_OS_SEM_SIZE];
 static int mtx_got;
 static void mtx_user(void *p) { (void)p; for (;;) { if (os_mutex_pend(mtx, 0) == BLE_SDK_OS_NO_ERR) mtx_got++; os_time_dly(1000); } }
 static int after_runs, after_last = -1;
-static void after_run(int i) { after_runs++; after_last = i; }
+static volatile uint32_t trace_word, trace_at_hook = 99;
+static void after_run(int i) { after_runs++; after_last = i; trace_at_hook = trace_word; }
 
 
 static int cb_sum;
@@ -181,9 +182,13 @@ int main(void)
         ble_os_init(heap, sizeof heap);
         task_create(consumer, 0, "btstack");
         ble_os_after_run = after_run;
+        ble_os_trace = &trace_word;
         ble_os_service(1000);
         CHECK(after_runs == 1 && after_last == 0, "the after-run hook runs when a task hands back");
+        CHECK(trace_at_hook == 1u, "the after-run hook still sees the task in the trace (fatal 3 names it)");
+        CHECK(trace_word == 0u, "the trace is the core's again after the hook");
         ble_os_after_run = 0;
+        ble_os_trace = 0;
     }
     {   /* the heap high-water (part 1a: the heap is sized from it): the peak in-use bytes, headers included */
         uint32_t h = sizeof(blk_t), peak = (104u + h) + (200u + h) + (304u + h);

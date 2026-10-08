@@ -5,7 +5,7 @@
 function named in an instruction's `<name[+off] : addr>` operand (calls, tail gotos, and the address loads of the
 BLE unit's long calls, `rN = … <fn : …>` then `call rN`). Walked from fm1_cstart, every isr_* entry and the fault
 handlers; reaching a START function is an error, except through ALLOWED (the user's trigger: the console's
-`ble start`, part 2's Bluetooth page).
+`ble start`, part 2's Bluetooth page), and ALLOWED itself may be referenced only from TRIGGERS.
 
   check_ble_boot.py build/felucca.dis
   check_ble_boot.py --selftest"""
@@ -14,6 +14,7 @@ import sys
 
 START = {"ble_start", "btstack_init", "btctrler_task_init", "bt_ble_init", "bt_master_ble_init"}
 ALLOWED = {"ble_user_start"}
+TRIGGERS = {"ble_console"}             # the only functions that may reference ALLOWED (the user's commands)
 ROOTS = ("fm1_cstart", "fm1_fatal_common", "fm1_fault_c")
 LABEL = re.compile(r"^([A-Za-z_.$][\w.$]*):\s*$")
 REF = re.compile(r"<([A-Za-z_.$][\w.$]*)(?:\+[^:>]*)?\s*:\s*[0-9a-f]+\s*>", re.I)
@@ -43,6 +44,9 @@ def reachable_starts(text):
         if f in START:
             bad.add(f)
         todo.extend(g.get(f, ()))
+    for f, refs in g.items():           # the trigger from anywhere but the user's command is a start at boot
+        if f not in TRIGGERS and f not in ALLOWED:
+            bad.update(f"{a} (from {f})" for a in refs & ALLOWED)
     return sorted(bad)
 
 
@@ -52,9 +56,15 @@ def selftest():
     boot = fn("fm1_cstart", "call -4 <fm1_main : 2000010 >") + fn("fm1_main", "call -8 <ed_service : 2000020 >")
     assert reachable_starts(boot + fn("ed_service", "call -4 <ble_start : 2000030 >") + fn("ble_start", "rts")) == \
         ["ble_start"], "a direct call to ble_start not caught"
-    ok = boot + fn("ed_service", "call -4 <ble_user_start : 2000030 >") + fn("ble_user_start",
-                                                                              "call -4 <ble_start : 2000040 >")
+    ok = boot + fn("ed_service", "call -4 <ble_console : 2000030 >") + \
+        fn("ble_console", "call -4 <ble_user_start : 2000038 >") + fn("ble_user_start", "call -4 <ble_start : 2000040 >")
     assert reachable_starts(ok + fn("ble_start", "rts")) == [], "the allowed trigger flagged"
+    # the trigger itself is allowed only from the user's command (the console; part 2: the Bluetooth page): the
+    # service hook calling it at boot (a saved "on") must stop the build
+    hook = boot + fn("ed_service", "call -4 <ble_user_start : 2000030 >") + fn("ble_user_start",
+                                                                                "call -4 <ble_start : 2000040 >")
+    assert reachable_starts(hook + fn("ble_start", "rts")) == ["ble_user_start (from ed_service)"], \
+        "the trigger called from outside the console not caught"
     lng = boot + fn("ed_service", "r0 = 33554496 <ble_start : 2000040 >", "call r0") + fn("ble_start", "rts")
     assert reachable_starts(lng) == ["ble_start"], "a long call (address load) not caught"
     isr = fn("isr_timer5", "call -4 <fm1_timer5_irq : 2000050 >") + fn("fm1_timer5_irq",

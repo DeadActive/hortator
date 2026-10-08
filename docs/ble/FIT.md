@@ -12,7 +12,7 @@ a package.
 | 1: the port, as fm1-lsdj 548ce73 (48 KB heap, 4 KB task stacks) | 737680 | −156116 | −188884 | 68784 | 365920 (−21856 headroom) |
 | 2: the SDK config sources and the log stubs as bitcode (LTO) | 422096 | 159468 | 126700 | 63020 | 365920 (−21856 headroom) |
 | 3: RAM fit (2 KB task stacks, a 26 KB heap; Task 4), every check on (no `BLE_MEASURE`) | 422268 | 159296 | 126528 | 63028 | 335200 (8864 headroom) |
-| 4: part 1b (the console, the service hook, gates 2–3, the stack and IRQ guards) | 424012 | 157552 | 124784 | 63056 | 335200 (8864 headroom) |
+| 4: part 1b (the console, the service hook, gates 2–3, the stack and IRQ guards) | 424068 | 157496 | 124728 | 63056 | 335200 (8864 headroom) |
 
 ## Step 1: where the XIP bytes are (build/felucca.map)
 
@@ -118,13 +118,18 @@ blocks and headers), and 1b sizes the heap from the device's number. The task st
   lands in XIP; register access only in `hal/` (`src/ble/` scanned, except the SDK's radio tables); `divdi` 0. The
   libraries bring their own soft double (`libcompiler_rt.a`: `divdf3`, `adddf3`, `muldf3`, … 2700 B), vendor code.
 - Gates 2a, 2b and 3 (part 1b) run in every BLE build, which stops on any of them:
-  - 2a: the update path's sources (`usb.c`, `usb_app.c`, `ota.c`, `storage.c`, `libc.c`, `firmware/hal`,
-    `firmware/loader`) equal the last `drum-v*` release's; only the new BLE HAL files may be added;
+  - 2a: the update path's sources (`usb.c`, `usb_app.c`, `ota.c`, `storage.c`, `libc.c`, `main.c`, `crt0.S`,
+    `app.ld`, `firmware/hal`, `firmware/loader`) equal the last `drum-v*` release's; only the new BLE HAL files may be
+    added;
   - 2b: the update path's machine code (45 functions: the main loop, USB, OTA, flash, storage, the timer IRQ,
-    `fm1_cstart`, UBOOT, the watchdog) equals the reference core's: the same core object linked with empty BLE entry
-    points (`build/felucca_ref.dis`);
+    `fm1_cstart`, UBOOT, the watchdog) in the BLE link equals the same core object's linked with empty BLE entry
+    points (`build/felucca_ref.dis`). It sees what the link does to the core (library symbols, `--wrap`, placement),
+    not what the compiler does with BLE on: those differences against the default build (in `fm1_main`: the
+    `ble_service` call, the console's `ble` word, `fm1_guard_lock_top` no longer inlined) are the source changes
+    under `FELUCCA_BLE`, and 2a keeps the update path's own sources at the release's;
   - 3: no BT start-up (`ble_start`, `btstack_init`, …) is reachable from `fm1_cstart`, the ISRs or the fault handlers,
-    except through `ble_user_start` (the console's `ble start`).
+    except through `ble_user_start` (the console's `ble start`), and `ble_user_start` is referenced only from
+    `ble_console`.
   Each was broken on purpose once: a comment appended to `ota.c` → `gate 2a: … ota.c differs from drum-v0.14.0 (M)`;
   a `ble_start()` call in `ble_service` → `gate 3: … ble_start, btctrler_task_init, btstack_init`; the BLE listing
   against the default build's → `changed: fm1_main`.

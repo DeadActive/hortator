@@ -244,10 +244,10 @@ static void run(int i)                             /* from the scheduler into ta
     }
 #endif
     cur = -1;
+    if (ble_os_after_run)                          /* (before the trace is cleared: a fatal there names task i) */
+        ble_os_after_run(i);
     if (ble_os_trace)
         *ble_os_trace = 0;
-    if (ble_os_after_run)
-        ble_os_after_run(i);
 }
 
 void os_time_dly(int ticks)
