@@ -569,6 +569,38 @@ static void test_comp_ghost_knob(void)
     memset(&proj_slot[0], 0, sizeof proj_slot[0]);  /* the slot empty again for the project tests */
 }
 
+/* ACID on 2 tracks at most (like RESON's cap): a 3rd track's MODEL knob skips ACID with the message; a project
+ * with 4 ACID tracks loads with the first 2, the others back to their power-on kit model */
+static void test_acid_cap(void)
+{
+    uint32_t k, n;
+    ui_host_init();
+    drum_set_model(&trk[0], DM_ACID);
+    drum_set_model(&trk[1], DM_ACID);
+    song.sel = 2;
+    drum_set_model(&trk[2], DM_FM);
+    model_step(1);
+    check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the first model",
+          trk[2].p[P_MODEL] == DM_K808 && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
+    model_step(-1);
+    check("ACID cap: back down, past ACID (full) to FM", trk[2].p[P_MODEL] == DM_FM);
+    drum_set_model(&trk[1], DM_K808);                /* a place frees */
+    model_step(1);
+    check("ACID cap: once a place frees, the 3rd track gets ACID", trk[2].p[P_MODEL] == DM_ACID);
+    ui_host_init();
+    for (k = 0; k < 4u; k++)
+        drum_set_model(&trk[k], DM_ACID);
+    project_save(0);
+    project_load(0);
+    for (k = 0, n = 0; k < NTRK; k++)
+        n += trk[k].p[P_MODEL] == DM_ACID;
+    check("ACID cap on load: the first two ACID tracks keep it, the others fall back to their kit model",
+          n == 2u && trk[0].p[P_MODEL] == DM_ACID && trk[1].p[P_MODEL] == DM_ACID &&
+              trk[2].p[P_MODEL] == KIT_DEF[2][0] && trk[3].p[P_MODEL] == KIT_DEF[3][0] &&
+              trk[2].model == KIT_DEF[2][0] && trk[2].p[P_E0] == DMODELS[KIT_DEF[2][0]].edit[0].def);
+    memset(&proj_slot[0], 0, sizeof proj_slot[0]);
+}
+
 /* COMP pages: white keys toggle DUCK (lit = ducked), not on the source; with SRC OFF too; elsewhere they play */
 static void test_comp_keys(void)
 {
@@ -3062,6 +3094,7 @@ int main(void)
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
     test_reson_pages();
+    test_acid_cap();
     test_preset_pages();
     test_global_mute_setting();
     test_comp_pages();

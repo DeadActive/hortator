@@ -80,3 +80,19 @@ matches the FM-1 on heavy DSP, so the gain looks small; BENCH would show it if t
   build/bench/device.log`.
 - Case list: `firmware/src/bench.c` (shared by both sides; `tests/bench_host.c` proves the FM-1's reset equals the
   host tests' `host_init`). Adding a case changes the firmware: install before comparing.
+
+## 4. ACID (the 303-style model)
+
+Costs, measured:
+
+- Target (`tests/target_budget.txt`): `acid_render` 326 loop instructions per sample step; `mix_part` 687 -> 731
+  (ACID's branch in the mix).
+- Host (instructions per sample, `tests/bench_host.c`): one sounding ACID track costs ~170 over idle; 8 sustained
+  ACID tracks ~1690, which is over the limit of 1566 (idle 324.8, heavy 1338.9). That is why ACID is the model of
+  at most 2 tracks.
+- BENCH cases: heavy+2acid 1500.0 (the heavy case with 2 ACID tracks: under the limit); 8 x ACID, one hit each
+  1487.6 (the worst case as a hit decays; it sets the models directly, over the cap, to measure).
+
+The cap, by user decision (2026-10-09): the MODEL knob of a 3rd track skips ACID (`ACID: 2 TRACKS MAX`); a loaded
+project keeps ACID on its first 2 ACID tracks and the others return to their power-on kit model. Neither a song row
+nor the motion nor the LFOs change a track's model, so only the knob and the load need the cap.

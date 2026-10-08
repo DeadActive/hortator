@@ -847,6 +847,48 @@ static void test_drum_transpose(void)
     check("drum transpose: clamped to +-24 semitones", clamp_ok);
 }
 
+/* a transposed step moves the sample layer as it moves the model: nt +7 = LTUNE + 7 (and TUNE + 7) at nt 0 */
+static void test_layer_transpose(void)
+{
+    static int32_t a[SECS(0.5)];
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_E0] = 0;
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    trk[0].p[P_LTUNE] = 0;
+    drum_play(&trk[0], 96, 7);
+    render_track(&trk[0], a, SECS(0.5));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_E0] = 7;
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    trk[0].p[P_LTUNE] = 7;
+    drum_play(&trk[0], 96, 0);
+    render_track(&trk[0], wl, SECS(0.5));
+    check("layer transpose: a step's note moves the layer as LTUNE + 7 (bit-identical)", !memcmp(a, wl, sizeof a));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    drum_play(&trk[0], 96, 40);
+    render_track(&trk[0], a, SECS(0.5));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_E0] = 24;
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    trk[0].p[P_LTUNE] = 24;
+    drum_play(&trk[0], 96, 0);
+    render_track(&trk[0], wl, SECS(0.5));
+    check("layer transpose: clamped to +-24 as the model", !memcmp(a, wl, sizeof a));
+}
+
 static void test_golden(void)
 {
     FILE *f;
@@ -3329,6 +3371,7 @@ int main(void)
     test_boot_cost();
     test_golden();
     test_drum_transpose();
+    test_layer_transpose();
     test_voice_cap();
     test_heavy_cap();
     test_swing_grid();

@@ -387,11 +387,17 @@ static void drum_boot_init(void)
 static void model_step(int32_t dir)
 {
     uint32_t m = ((uint32_t)TSEL->p[P_MODEL] + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
+    int capped = m == DM_ACID && acid_tracks(TSEL) >= ACID_MAXTRK;   /* ACID on 2 tracks at most: the list skips it */
+    if (capped)
+        m = (m + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
     fm1_irq_off();
     drum_set_model(TSEL, m);
     motion_rebase(song.sel);                        /* motion.c: the new sound is the base */
     fm1_irq_on();
-    ui_say("MODEL ", N_MODEL[m]);
+    if (capped)
+        ui_message("ACID: 2 TRACKS MAX");
+    else
+        ui_say("MODEL ", N_MODEL[m]);
     ui.force = 1;
 }
 

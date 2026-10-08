@@ -159,7 +159,7 @@ static void drum_play(track_t *t, uint32_t vel, int32_t nt)
         if (zi != 0xFFFFu && smp_zone(zi)->n) {
             v = dv_alloc(t, t->lv, nv, 1u);
             dv_init(v, vel);
-            smp_start(v, zi, (uint32_t)t->p[P_LKEY], t->p[P_LTUNE]);
+            smp_start(v, zi, (uint32_t)t->p[P_LKEY], t->p[P_LTUNE] + clamp(t->nt, -24, 24));   /* as dm_tune */
             v->env[0] = ENV1;
             v->k[0] = dk(t->p[P_LDEC]);
         }
@@ -223,6 +223,16 @@ static void drum_set_model(track_t *t, uint32_t mi)
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = m->edit[i].def;
     t->p[P_CHOKE] = m->choke;
+}
+
+#define ACID_MAXTRK 2u                                /* ACID is the model of 2 tracks at most (CPU), by user decision */
+
+static uint32_t acid_tracks(const track_t *except)   /* tracks with MODEL ACID, other than except */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NTRK; i++)
+        n += &trk[i] != except && (uint32_t)trk[i].p[P_MODEL] % NMODELS == DM_ACID;
+    return n;
 }
 
 static void drum_tracks_init(void)
