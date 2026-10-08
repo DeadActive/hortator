@@ -11,7 +11,7 @@ const BARS = 8;
 const PATTERN = ['100%', '30%', '100%', '60%', '100%', '30%', '1/2', '60%',   // the hats' PROB per step
   '100%', '30%', '100%', '60%', '100%', '1-SHOT', '100%', '50%'];
 
-export default function seq(plate, { lab, ids, audition }) {
+export default function seq(plate, { lab, ids, audition, screen }) {
   const { fs, P, DM, conds, models } = ids;
   const posOf = name => conds.findIndex(c => c.name === name);
   const steps = PATTERN.map((n, s) => ({ on: true, pos: posOf(n), rat: s === 14 ? 3 : 0 }));
@@ -40,6 +40,7 @@ export default function seq(plate, { lab, ids, audition }) {
     lab.play(true);
     dice = lab.dice(1, BARS);
     diceScope.redraw();
+    screen();
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(render); } };
 

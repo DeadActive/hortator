@@ -243,6 +243,15 @@ static void test_motion(void)
     check("motion: the knob recorded at step 4 plays back there; the base elsewhere", at4 > 0u && off > 0u);
 }
 
+static void test_reset_stops(void)
+{
+    loop_kit();
+    lab_play(1);
+    run_bars(1);
+    lab_reset();
+    check("reset: a playing transport stops (each piece starts from its own PLAY)", !song.playing && !transport_req);
+}
+
 int main(void)
 {
     test_voices();
@@ -254,6 +263,7 @@ int main(void)
     test_perform();
     test_mute_bar();
     test_motion();
+    test_reset_stops();
     printf(fails ? "sim_lab_test: %d FAILED\n" : "sim_lab_test: all ok\n", fails);
     return fails != 0;
 }

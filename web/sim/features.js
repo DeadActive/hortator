@@ -6,6 +6,7 @@
 // at a time. A piece that leaves the screen, or a hidden tab, stops.
 import { Lab, LabPlayer } from './lab.js';
 import { el } from './lab_ui.js';
+import { B } from './controls.js';
 
 const PIECES = {                                     // data-piece -> its module, loaded once the analyser runs
   voices: () => import('./lab_voices.js'),
@@ -17,6 +18,31 @@ const PIECES = {                                     // data-piece -> its module
   fx: () => import('./lab_fx.js'),
   ble: () => import('./lab_ble.js'),
 };
+
+// each chapter's page on the FM-1's own screen: the panel moves that open it from HOME (as the chapter's "On the panel")
+const PAGES = {
+  voices: [{ sel: 0 }, { tap: 'EDIT' }],                       // SOUND 1/3
+  reson: [{ sel: 0 }, ...Array(5).fill({ tap: 'FX' })],       // FILTER 1, 2, FX, SLICER, RESON 1
+  comp: [{ tap: 'HOME' }],                                      // HOME again: COMP 2/3
+  lfo: [{ sel: 0 }, { tap: 'LFO' }],                           // LFO 1
+  seq: [{ sel: 1 }, { tap: 'SEQ' }],                           // STEP 1/4
+  grids: [{ tap: 'ARP' }],                                      // GRIDS 1/2
+  fx: [{ sel: 1 }, { hold: 'FX' }],                            // the PERFORM layer, FX held
+  ble: [],                                                      // no page: HOME, as it stays
+};
+const panel = ops => ops.map(o => ('tap' in o ? { tap: B[o.tap] } : 'hold' in o ? { hold: B[o.hold] } : o));
+
+function paint(canvas, fb) {                          // RGB565 -> the canvas, 1:1
+  const g = canvas.getContext('2d'), img = g.createImageData(240, 240), px = img.data;
+  for (let i = 0; i < fb.length; i++) {
+    const v = fb[i];
+    px[4 * i] = (v >> 11) << 3;
+    px[4 * i + 1] = ((v >> 5) & 63) << 2;
+    px[4 * i + 2] = (v & 31) << 3;
+    px[4 * i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+}
 
 const DIAGRAMS = new Set(['ble']);                   // no firmware to run: mounted without the analyser
 
@@ -79,9 +105,12 @@ async function mount(chapter) {
   if (!load) return;
   const { default: make } = await load();
   const button = el('button', 'lab-play', 'Play');
+  const lcd = chapter.querySelector('.device-screen canvas'), page = PAGES[stage.dataset.piece] ?? [];
+  // screen(more): the FM-1's screen for the analyser's state now (a piece calls it at the end of a render)
+  const screen = (more = []) => { if (lab && lcd) paint(lcd, lab.screen(panel([...page, ...more]))); };
   let piece = null;
   // audition(): the piece's sound, started if it is not on (a pad, a held key); -> the player or null
-  piece = make(stage, { lab, ids, audition: () => play(chapter, piece, button, false) });
+  piece = make(stage, { lab, ids, screen, audition: () => play(chapter, piece, button, false) });
   if (!piece.start) return;                           // a diagram: nothing to hear
   button.type = 'button';
   button.setAttribute('aria-pressed', 'false');
@@ -102,7 +131,14 @@ export function initFeatures() {
     obs.disconnect();
     const needsLab = c => !DIAGRAMS.has(c.querySelector('.plate')?.dataset.piece);
     chapters.filter(c => !needsLab(c)).forEach(mount);
-    boot().then(() => Promise.all(chapters.filter(needsLab).map(mount))).catch(err => {
+    boot().then(() => {
+      for (const c of chapters.filter(c => !needsLab(c))) {   // a diagram's screen: the page it leaves as it is
+        const lcd = c.querySelector('.device-screen canvas');
+        lab.reset();
+        if (lcd) paint(lcd, lab.screen(panel(PAGES[c.querySelector('.plate').dataset.piece] ?? [])));
+      }
+      return Promise.all(chapters.filter(needsLab).map(mount));
+    }).catch(err => {
       section.classList.add('lab-failed');
       console.error(err);
     });

@@ -14,7 +14,7 @@ const FAMILIES = [                                    // the chips, grouped as a
   ['FM and samples', ['FM', 'SMPL']],
 ];
 
-export default function voices(plate, { lab, ids, audition }) {
+export default function voices(plate, { lab, ids, audition, screen }) {
   const fs = ids.fs, models = ids.models, byName = Object.fromEntries(models.map(m => [m.name, m]));
   const P = ids.P;
   const state = { model: ids.DM.K909, e: models[ids.DM.K909].edit.slice(0, 4).map(d => d.def) };
@@ -35,6 +35,7 @@ export default function voices(plate, { lab, ids, audition }) {
     db = spectrum(buf);
     waveScope.redraw();
     specScope.redraw();
+    screen();
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(render); } };
 

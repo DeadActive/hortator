@@ -244,3 +244,16 @@ test('Controls opens beside the device on wide screens: the stage gives the pane
   assert.match(css, /\.hero-stage\.help-open \.scene\s*{[^}]*padding-right:/, 'the device keeps out of its way');
   assert.match(app, /HELP_W/, 'the device is fitted to the width left beside the panel');
 });
+
+test('every chapter shows the FM-1\'s own screen (a 240 x 240 LCD the firmware draws)', () => {
+  const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
+  for (const ch of sec.split('<article').slice(1))
+    assert.match(ch, /<figure class="device-screen">\s*<canvas width="240" height="240"/, ch.match(/id="f-(\w+)"/)[1]);
+});
+
+test('the lab\'s styles stay in its plates: the power switch\'s knob is styled by the switch alone', () => {
+  const css = readFileSync('web/sim/sim.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const [, sel] of css.matchAll(/([^{}]+)\{/g))
+    for (const part of sel.split(','))
+      if (/\.knob\b/.test(part)) assert.match(part.trim(), /^(\.plate|\.power-toggle|@)/, part.trim());
+});

@@ -10,7 +10,7 @@ import * as draw from './lab_draw.js';
 const DB = gr => gr * 241 / 327680;                  // comp.gr -> dB, as the FM-1's COMP page (ui_draw.c)
 const FLOOR = -24;                                   // the trace's bottom, dB
 
-export default function comp(plate, { lab, ids }) {
+export default function comp(plate, { lab, ids, screen }) {
   const { fs, P, G, DM, RS, gp, names } = ids;
   const state = { on: true, kickMuted: false, ghost: gp.CGHOST.def, thr: 20, rat: 90, rel: 20 };
   const bar = Math.round(fs * 60 / 120 * 4);         // 120 BPM (lab_reset)
@@ -63,10 +63,15 @@ export default function comp(plate, { lab, ids }) {
     }
     let probes;
     if (state.on) [comp, probes] = take(true);
-    else { comp = dry; probes = []; }
+    else {
+      take(false);                                   // (the state the screen shows)
+      comp = dry;
+      probes = [];
+    }
     gr = probes.map(p => DB(p.gr));
     waveScope.redraw();
     grScope.redraw();
+    screen();
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(render); } };
 

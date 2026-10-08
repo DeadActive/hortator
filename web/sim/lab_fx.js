@@ -14,7 +14,7 @@ const KEYS = [                                       // perform.c PF_BLACK: the 
 const GROUPS = [3, 2, 3, 2];
 const RIM = [0, 3, 6, 10, 11, 14];                   // the rimshot's figure
 
-export default function fx(plate, { lab, ids, audition }) {
+export default function fx(plate, { lab, ids, audition, screen }) {
   const { fs, P, DM, RS, tp, names } = ids;
   const ft = n => names.ftype.indexOf(n), sl = n => tp.SLCR.names.indexOf(n);
   const STAGES = [                                   // [name, on, the knob's descriptor, value, its parameters on / off]
@@ -55,6 +55,7 @@ export default function fx(plate, { lab, ids, audition }) {
     lab.renderMono(bar);
     buf = lab.renderMono(bar);
     waveScope.redraw();
+    screen([...held].map(e => ({ perf: ids.PF[e] })));   // the PERFORM map, the keys held lit
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(render); } };
   const changed = () => {
@@ -143,6 +144,7 @@ export default function fx(plate, { lab, ids, audition }) {
     if (down === held.has(e)) return;
     if (down) held.add(e); else held.delete(e);
     btn.classList.toggle('down', down);
+    queue();
     const p = down ? await startLoop() : player;
     p?.call('perf', ids.PF[e], down);
   };

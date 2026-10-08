@@ -64,6 +64,30 @@ export class Lab {
     return out;
   }
 
+  // the FM-1's own screen for the state now, after the panel moves that open a page: ops [{ sel: track }, { tap:
+  // button }, { hold: button }, { perf: PF id }] (button ids: panel.c's labels). -> RGB565, 240 x 240 (a copy)
+  screen(ops) {
+    const run = ms => this.renderMono(Math.round(this.ids.fs * ms / 1000));
+    for (const op of ops) {
+      if ('sel' in op) this.x.lab_select(op.sel);
+      if ('perf' in op) this.perf(op.perf, true);
+      if ('tap' in op) {                               // short: under the firmware's 0.4 s hold
+        this.sim.btn(op.tap, true);
+        run(40);
+        this.sim.btn(op.tap, false);
+        run(60);
+      }
+      if ('hold' in op) {
+        this.sim.btn(op.hold, true);
+        run(600);
+      }
+    }
+    run(40);
+    const fb = this.sim.fb();
+    this.sim.releaseAll();
+    return fb;
+  }
+
   probeClear() { this.x.lab_probe_clear(); }
   // per audio half (256 frames): { gr, lfo[track][2], fired (bit per track), idx[track], muteQ, muted (bits), watch }
   probes() {

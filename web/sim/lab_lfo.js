@@ -9,7 +9,7 @@ import * as draw from './lab_draw.js';
 const DEST = { TONE: 3, DECAY: 2 };                  // lfo.c: DEST 1 .. 8 = the model's knobs E0 .. E7
 const STEPS = 32;                                    // two bars of 16ths
 
-export default function lfo(plate, { lab, ids }) {
+export default function lfo(plate, { lab, ids, screen }) {
   const { fs, P, LF, DM, tp, names, models } = ids;
   const edit = models[DM.HATC].edit;
   const base = { TONE: edit[2].def, DECAY: edit[1].def };
@@ -60,6 +60,7 @@ export default function lfo(plate, { lab, ids }) {
     }
     waveScope.redraw();
     stepScope.redraw();
+    screen();
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(render); } };
 

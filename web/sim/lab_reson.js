@@ -12,7 +12,7 @@ const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const note = n => `${NOTES[n % 12]}${Math.floor(n / 12) - 1}`;   // params.c F_NOTEO: 60 = C4
 const FIGURE = [0, 3, 6, 10, 12];                    // the loop's hits in a 16-step bar
 
-export default function reson(plate, { lab, ids, audition }) {
+export default function reson(plate, { lab, ids, audition, screen }) {
   const { fs, P, RS, DM, tp, names } = ids;
   const state = { ex: DM.RIM, model: RS.STRNG, tune: 52, decay: 96, mix: 100, strct: 40 };
   let player = null, dry = new Float32Array(0), wet = dry, view = 0, ddb = new Float32Array(1), wdb = ddb, queued = false;
@@ -39,6 +39,7 @@ export default function reson(plate, { lab, ids, audition }) {
     wdb = spectrum(wet);
     waveScope.redraw();
     specScope.redraw();
+    screen();
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(render); } };
 

@@ -62,6 +62,9 @@ float *lab_buf(void) { return lab_out; }
 void lab_reset(void)                                   /* a blank project at 120 BPM on the internal clock */
 {
     uint32_t e, k;
+    if (song.playing)
+        seq_stop();                                    /* another piece's transport: each starts from its own PLAY */
+    transport_req = 0;
     for (e = 0; e < PF_N; e++)
         perf_press(e, 0);
     perf_mask = 0;
@@ -123,6 +126,7 @@ void lab_knob(uint32_t t, uint32_t id, int32_t v)      /* a knob turned on the p
     motion_capture(&trk[t], id);
 }
 void lab_motion_clear(uint32_t t) { if (t < NTRK) motion_clear(t); }
+void lab_select(uint32_t t) { if (t < NTRK) song.sel = (uint8_t)t; }   /* the track the pages show (ALGORITHM) */
 
 void lab_render_mono(uint32_t frames)                  /* the whole mix, (L + R) / 2 into lab_buf() */
 {

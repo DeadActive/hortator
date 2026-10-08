@@ -7,7 +7,7 @@ import { el, knob, scope, INK } from './lab_ui.js';
 
 const LANES = ['Kick', 'Snare', 'Hats'];
 
-export default function grids(plate, { lab, ids }) {
+export default function grids(plate, { lab, ids, screen }) {
   const { fs, G, P, DM, gp } = ids;
   const state = { x: 40, y: 90, chaos: 0, fill: [90, 90, 90] };
   let player = null, lanes = new Uint8Array(96), queued = false, now = -1, played = [[], [], []];
@@ -31,6 +31,7 @@ export default function grids(plate, { lab, ids }) {
     lanes = lab.grids();
     laneScope.redraw();
     padScope.redraw();
+    screen();
   };
   const queue = () => { if (!queued) { queued = true; requestAnimationFrame(render); } };
   const changed = () => {
