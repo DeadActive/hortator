@@ -204,6 +204,26 @@ int main(void)
         ble_os_init(heap, sizeof heap);
         CHECK(ble_os_heap_high() == 0, "heap high-water: reset by ble_os_init");
     }
+    {   /* a task's stack overflow is seen (its lowest words lose their paint): Review Focus 2 */
+        uint32_t i, slot = 99;
+        const char *name = 0;
+        ble_os_init(heap, sizeof heap);
+        task_create(consumer, 0, "deep");
+        for (i = 0; i < 4u; i++)
+            if (ble_os_stack_free(i, &name) && name && !strcmp(name, "deep"))
+                slot = i;
+        CHECK(slot < 4u && ble_os_stack_intact(slot), "stack: a new task is intact");
+        if (slot < 4u)
+            tasks[slot].stack[1] = 0;
+        CHECK(slot < 4u && !ble_os_stack_intact(slot), "stack: an overflow into the lowest words is seen");
+        CHECK(ble_os_stack_intact(3u) || tasks[3].name, "stack: an empty slot counts as intact");
+    }
+    {   /* failed allocations are counted (heap sizing from the device) */
+        ble_os_init(heap, sizeof heap);
+        CHECK(ble_os_alloc_fails() == 0, "heap: no failures on a fresh heap");
+        CHECK(!ble_malloc(sizeof heap) && ble_os_alloc_fails() == 1, "heap: a refused request is counted");
+        CHECK(ble_malloc(64) && ble_os_alloc_fails() == 1, "heap: a served request is not");
+    }
     printf(fails ? "ble_os: %d FAILED\n" : "ble_os: all checks passed\n", fails);
     return fails != 0;
 }

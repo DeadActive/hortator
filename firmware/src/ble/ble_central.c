@@ -498,11 +498,15 @@ void ble_status(void)                              /* console `ble` */
         o = put_u(put_s(o, " last_us "), ble_diag.last_us);
         o = put_u(put_s(o, " t4_stalls "), ble_diag.t4_stalls);
         o = put_u(put_s(o, " irq_leaks "), ble_diag.irq_leaks);
-        o = put_u(put_s(o, " fatal "), ble_diag.fatal);
         o = put_u(put_s(o, " loops/us "), ble_loops_per_us);
         o = put_x(put_x(put_x(put_x(put_s(o, " irqs 0x"), ble_irqs_requested[1] >> 8), ble_irqs_requested[1]),
                         ble_irqs_requested[0] >> 24), ble_irqs_requested[0] >> 16);
         o = put_x(put_x(o, ble_irqs_requested[0] >> 8), ble_irqs_requested[0]);
+        o = put_s(o, "\r\n");
+        *o = 0;
+        core_con_puts(b);
+        o = put_u(put_s(b, "  fatal "), ble_diag.fatal);   /* 1 assert, 2 reset request, 3 a stack overflow */
+        o = put_u(put_s(o, " irq_lowered "), ble_diag.irq_lowered);
         o = put_s(o, "\r\n");
         *o = 0;
         core_con_puts(b);
@@ -520,9 +524,10 @@ void ble_status(void)                              /* console `ble` */
         }
         core_con_puts("\r\n");
     }
-    o = put_u(put_s(b, "  heap high "), ble_os_heap_high());
+    o = put_u(put_s(b, "  heap high "), ble_diag.heap_high);
     o = put_u(put_s(o, " of "), sizeof ble_heap);
-    o = put_s(o, "\r\n");
+    o = put_u(put_s(o, ", failed allocations "), ble_diag.alloc_fails);
+    o = put_s(o, " (kept over a reboot)\r\n");
     *o = 0;
     core_con_puts(b);
     o = put_u(put_s(b, "  loop last "), loop.last_ms);

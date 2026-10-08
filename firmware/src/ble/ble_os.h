@@ -48,5 +48,7 @@ extern volatile uint32_t *ble_os_trace;          /* diagnostics: the running tas
 uint32_t ble_os_stack_free(uint32_t i, const char **name);   /* console: a task's unused stack, bytes */
 uint32_t ble_os_heap_high(void);                  /* console: the most heap in use (blocks + headers), bytes */
 uint32_t ble_os_run_max_us(uint32_t reset);       /* console: the longest task run (the slice is checked between runs) */
+uint32_t ble_os_alloc_fails(void);                /* console: heap requests refused */
+int ble_os_stack_intact(uint32_t i);              /* 0: task i overflowed its stack (its lowest words) */
 uint32_t ble_os_now_ms(void);
 #endif

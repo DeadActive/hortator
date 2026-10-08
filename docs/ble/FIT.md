@@ -127,6 +127,9 @@ blocks and headers), and 1b sizes the heap from the device's number. The task st
   Each was broken on purpose once: a comment appended to `ota.c` → `gate 2a: … ota.c differs from drum-v0.14.0 (M)`;
   a `ble_start()` call in `ble_service` → `gate 3: … ble_start, btctrler_task_init, btstack_init`; the BLE listing
   against the default build's → `changed: fm1_main`.
+- While BT runs (part 1b): a task that reaches the lowest words of its 2 KB stack stops the FM-1 with `fatal 3` (the
+  task named), kept over the reboot with the heap's high-water and its failed allocations (`ble`); a BT interrupt
+  asked above priority 2 is attached at 2, below the audio (3) and the timer (4), and counted (`irq_lowered`).
 - The SDK config sources are pinned too (`tools/ble_libs.py` `SOURCE_PINS`).
 - A gated BLE build may be packaged: `FELUCCA_BLE=1 DRUM_PACKAGE=1 ./build.sh` → `build/felucca-ble-UNTESTED.fwsc`,
   and the local installer is labelled `…+ble`. `BLE_MEASURE=1` builds are never packaged.

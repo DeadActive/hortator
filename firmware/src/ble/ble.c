@@ -12,7 +12,10 @@
 #include "ble/ble_sdk.h"
 uint32_t ble_os_now_ms(void) { return core_ms(); }
 #define BLE_DIAG_MAGIC 0xB1E0D1A6u
-static struct { uint32_t magic, stage, task, starts, trim, delays, last_us, t4_stalls, irq_leaks, fatal; } ble_diag __attribute__((section(".noinit"), unused));
+static struct {
+    uint32_t magic, stage, task, starts, trim, delays, last_us, t4_stalls, irq_leaks, fatal;
+    uint32_t heap_high, alloc_fails, irq_lowered;
+} ble_diag __attribute__((section(".noinit"), unused));
 static __attribute__((unused)) void ble_stage(uint32_t s)
 {
     if (ble_diag.magic != BLE_DIAG_MAGIC) {
@@ -22,6 +25,7 @@ static __attribute__((unused)) void ble_stage(uint32_t s)
     if (s == 1u) {
         ble_diag.starts++;
         ble_diag.trim = ble_diag.delays = ble_diag.last_us = ble_diag.t4_stalls = ble_diag.irq_leaks = ble_diag.fatal = 0;
+        ble_diag.heap_high = ble_diag.alloc_fails = ble_diag.irq_lowered = 0;
     }
     ble_diag.stage = s;
 }
@@ -41,7 +45,9 @@ int ble_started(void) { return ble_on; }
  * the radio calibration, 2 after it (ble_port.c's RAM hooks); task = the BT task running (+1), 0 = the core;
  * delays / last_us = delay_us calls and the last one's length; t4_stalls = delays during which TIMER4 did not move;
  * irq_leaks = times a BT task handed back with interrupts still off (ble_port.c re-enables them); fatal = 1 a
- * library assert, 2 a library reset request (ble_port.c ble_fatal) */
+ * library assert, 2 a library reset request, 3 a task's stack overflow (`task` names it) (ble_port.c ble_fatal);
+ * heap_high / alloc_fails = the heap's most in use and its refused requests; irq_lowered = BT IRQ requests above
+ * priority 2, attached at 2 (ble_port.c request_irq) */
 
 #include "ble/ble_central.c"
 void ble_service(void)                             /* the main loop (ed_service): a 5 ms slice for the BT tasks */
@@ -51,6 +57,8 @@ void ble_service(void)                             /* the main loop (ed_service)
     if (!ble_on)
         return;
     ble_os_service(5000);
+    ble_diag.heap_high = ble_os_heap_high();       /* (.noinit: kept over a crash reboot, for the heap's size) */
+    ble_diag.alloc_fails = ble_os_alloc_fails();
     ble_tick();                                    /* deadlines: scan end, start / connect / discovery timeouts */
     while (ble_midi_take(&pkt))                    /* counted and parsed (`msgs`), not played yet: part 2 */
         ;

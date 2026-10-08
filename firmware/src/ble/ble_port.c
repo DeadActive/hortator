@@ -53,6 +53,11 @@ static uint32_t ble_irqs_requested[2];                   /* bit per index < 64, 
 void request_irq(unsigned char index, unsigned char priority, void (*handler)(void), unsigned char cpu_id)
 {
     (void)cpu_id;                                        /* one core runs everything here */
+    if (priority > 2u) {                                 /* BT stays below the audio (3) and the timer (4) (spec);
+                                                          * the libraries ask for 2 (fm1-lsdj docs/ble/LINK_NOTES.md) */
+        priority = 2u;
+        ble_diag.irq_lowered++;
+    }
     fm1_ble_irq_off();
     core_irq_attach(index, handler, priority);           /* the SDK's handlers are interrupt functions (rti):
                                                           * checked in the link (fm1-lsdj docs/ble/LINK_NOTES.md) */
@@ -271,7 +276,8 @@ int task_kill(const char *name) { (void)name; return 0; }
  * interrupts off (TIMER5, USB, the UBOOT key all dead until the watchdog). Count it and turn interrupts back on. */
 static void ble_irq_check(int task)
 {
-    (void)task;
+    if (!ble_os_stack_intact((uint32_t)task))     /* its 2 KB stack overflowed: stop before the neighbour breaks */
+        ble_fatal(3);
     if (fm1_ble_irq_depth) {
         ble_diag.irq_leaks++;
         fm1_ble_irq_depth = 1;

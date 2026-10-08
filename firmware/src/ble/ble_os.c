@@ -52,6 +52,7 @@ _Static_assert(sizeof(sem_t) <= BLE_SDK_OS_SEM_SIZE, "sem_t fits in OS_SEM");
 typedef struct blk { uint32_t size, used, guard; struct blk *next; } blk_t;
 static blk_t *heap0;
 static uint32_t heap_use, heap_high;              /* bytes in use (blocks + headers), the most seen */
+static uint32_t alloc_fails;                       /* requests refused (ble_os_alloc_fails) */
 #define GUARD 0xB1E0B1E0u
 
 void ble_os_init(uint8_t *heap, uint32_t heap_len)
@@ -62,7 +63,7 @@ void ble_os_init(uint8_t *heap, uint32_t heap_len)
     heap0->used = 0;
     heap0->guard = GUARD;
     heap0->next = 0;
-    heap_use = heap_high = 0;
+    heap_use = heap_high = alloc_fails = 0;
     for (i = 0; i < NTASK; i++)
         tasks[i].name = 0;
     for (i = 0; i < NTIMER; i++)
@@ -75,8 +76,10 @@ void *ble_malloc(unsigned int n)
     blk_t *b;
     n = (n + 7u) & ~7u;
     for (b = heap0; b; b = b->next) {
-        if (b->guard != GUARD)
+        if (b->guard != GUARD) {
+            alloc_fails++;
             return 0;                              /* heap overrun detected: refuse, never crash */
+        }
         if (!b->used && b->size >= n) {
             if (b->size >= n + sizeof(blk_t) + 16u) {
                 blk_t *r = (blk_t *)(void *)((uint8_t *)(b + 1) + n);
@@ -94,10 +97,12 @@ void *ble_malloc(unsigned int n)
             return b + 1;
         }
     }
+    alloc_fails++;
     return 0;
 }
 
 uint32_t ble_os_heap_high(void) { return heap_high; }
+uint32_t ble_os_alloc_fails(void) { return alloc_fails; }
 
 void *ble_zalloc(unsigned int n)
 {
@@ -159,6 +164,12 @@ static void host_entry(void) { trampoline(&tasks[cur]); }
 #endif
 
 #define STACK_PAINT 0xA5A5A5A5u
+int ble_os_stack_intact(uint32_t i)               /* 0: task i's stack reached its lowest words (an overflow) */
+{
+    if (i >= NTASK || !tasks[i].name)
+        return 1;
+    return tasks[i].stack[0] == STACK_PAINT && tasks[i].stack[1] == STACK_PAINT;
+}
 int task_create(void (*task)(void *p), void *p, const char *name)
 {
     int i;
