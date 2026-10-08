@@ -28,11 +28,13 @@ The keyboard can play and record any track chromatically. User decisions (2026-1
 |---|---|
 | 0 | flags: bit 0 ON, bit 1 ACC, bit 2 SLIDE, bit 3 TIE, bits 4..5 RATCH (hits − 1) |
 | 1 | COND (PROB), unchanged |
-| 2 | NOTE, MIDI 0..127 (C4 = 60) |
+| 2 | NOTE − 60, signed (−60 .. +67; 0 = C4), so an all-zero step is still a plain step at C4 |
 | 3 | spare (0) |
 
-- A new format **FDRB**. FDR1 .. FDRA projects convert on load: ON, ACC and RATCH move into the flags, NOTE = 60,
-  SLIDE = TIE = 0, COND as it was. Such a project plays exactly as before (the golden kit hashes do not change).
+- A new format **FDRB**. FDR1 .. FDRA projects convert on load: ON, ACC and RATCH move into the flags, NOTE = C4
+  (byte 2 = 0), SLIDE = TIE = 0, COND as it was. Such a project plays exactly as before (the golden kit hashes do not
+  change). FDRA records are the same size as FDRB ones: they are told apart by their marker, in flash and in the RAM
+  slots (.noinit) left by the previous firmware.
 - A plain step (ON only) written by the step keys gets NOTE = the track's last played or recorded note (60 at first).
 - Every place that reads or writes `on`, `acc` or `rat` (sequencer, step keys, UI, conversion, tests) moves to the
   flag accessors; nothing else changes meaning.
