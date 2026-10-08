@@ -310,6 +310,21 @@ static void test_fm_fbk_range(void)
     check("FM: FBK grows across the knob (each step brighter), no whine near Nyquist (< 5 %)", ok && ny < 0.05);
 }
 
+/* user 2026-10-08: VEL centred at velocity 96: a plain step plays the INDEX shown, an accent more, a softer note less */
+static void test_fm_vel_centre(void)
+{
+    static const int16_t K[8] = {0, 60, 60, 2, 60, 0, 0, 64};
+    int32_t plain, acc, soft;
+    fm_hit(K, 96, 0);
+    plain = trk[0].v[0].active ? trk[0].v[0].x[0] : trk[0].v[1].x[0];
+    fm_hit(K, 127, 0);
+    acc = trk[0].v[0].active ? trk[0].v[0].x[0] : trk[0].v[1].x[0];
+    fm_hit(K, 40, 0);
+    soft = trk[0].v[0].active ? trk[0].v[0].x[0] : trk[0].v[1].x[0];
+    check("FM: VEL centred at 96: a plain step plays INDEX (60), an accent more, a soft note less",
+          plain == 60 && acc > 60 && soft < 60);
+}
+
 int main(void)
 {
     test_fm_pitch();
@@ -325,6 +340,7 @@ int main(void)
     test_fm_lfo_ratio();
     test_fm_level();
     test_fm_fbk_range();
+    test_fm_vel_centre();
     printf(fails ? "fm_test: %d FAILED\n" : "fm_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

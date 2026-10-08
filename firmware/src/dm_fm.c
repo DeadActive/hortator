@@ -24,7 +24,8 @@ static void fm_trigger(track_t *t, dvoice_t *v)
     v->env[0] = v->env[1] = ENV1;
     v->k[0] = dk(p[1]);                                 /* DECAY: 5 ms .. 4 s */
     v->k[1] = dk(clamp(p[4], 0, 127) * 114 / 127);      /* MDEC: 5 ms .. 2 s */
-    v->x[0] = clamp(p[2] + p[7] * ((int32_t)v->vel - 64) / 127, 0, 127);   /* INDEX + VEL x the velocity */
+    v->x[0] = clamp(p[2] + p[7] * ((int32_t)v->vel - 96) / 127, 0, 127);   /* INDEX + VEL x the velocity over a plain
+                                                         * step (96): a plain step plays INDEX (user) */
     v->x[1] = clamp(p[5], 0, 127) * 768 / 127;          /* SWEEP: up to 48 semitones, in 1/16 semitone */
     v->x[2] = clamp(p[6], 0, 127) * 38 / 127;           /* FBK: a depth up to ~2.4 rad (measured: the grit grows to
                                                          * ~2.2 rad, past it only the same noise) */
