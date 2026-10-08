@@ -91,6 +91,11 @@ CFLAGS=(-O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redef
 cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_test" "$ROOT/tests/sim_test.c" -lm
 TEST_BIN=$PWD/$OUT/host/sim_test
 (cd "$ROOT" && "$TEST_BIN")
+# the landing page's lab (the feature pieces): what each computes, on the firmware's own DSP
+cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_lab_test" "$ROOT/tests/sim_lab_test.c" -lm
+"$OUT/host/sim_lab_test"
+cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_ids" "$ROOT/tests/sim_ids.c" -lm
+"$OUT/host/sim_ids" > "$OUT/lab_ids.json"                 # the firmware's ids for web/sim/lab.js
 # the landing page's reel: the same core, a scripted performance recorded (tests/sim_record.c)
 cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_record" "$ROOT/tests/sim_record.c" -lm
 "$OUT/host/sim_record" "$OUT/reel.bin" "$OUT/reel.hash" "$OUT/reel.json"
@@ -106,6 +111,8 @@ if ! docker info >/dev/null 2>&1; then
 fi
 EXPORTS=_sim_init,_sim_render,_sim_frame,_sim_btn,_sim_key,_sim_enc,_sim_master,_sim_leds,_sim_key_leds,_sim_fb,_sim_audio,_sim_flash
 EXPORTS=$EXPORTS,_sim_flash_reset,_sim_flash_dirty,_sim_flash_clean,_sim_playing
+EXPORTS=$EXPORTS,_lab_reset,_lab_model,_lab_param,_lab_global,_lab_step,_lab_play,_lab_hit,_lab_perf,_lab_render_mono
+EXPORTS=$EXPORTS,_lab_voice,_lab_grids,_lab_buf,_lab_probes,_lab_probe_count,_lab_probe_clear,_lab_probe_size,_malloc
 docker run --rm -v "$PWD":/src -w /src -u "$(id -u):$(id -g)" -e EM_CACHE=/src/$OUT/emcache "$IMG" \
     emcc -O2 -sSTANDALONE_WASM --no-entry -sINITIAL_MEMORY=8MB -sSTACK_SIZE=256KB -sEXPORTED_FUNCTIONS="$EXPORTS" \
     -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined "${DEFS[@]}" \
@@ -124,7 +131,7 @@ fi
     echo "build_sim: uncommitted changes: source.tar.gz is HEAD, not this build (commit before publishing)" >&2
 # stamp every local reference with a hash of what is published (?v=): after an update, browsers never mix cached old
 # files with new ones (app.js of one build, layout.js of another)
-"$PY" - "$OUT" $PAGE fm1sim.wasm reel.bin.gz reel.json version.json source.tar.gz <<'PY'
+"$PY" - "$OUT" $PAGE fm1sim.wasm reel.bin.gz reel.json version.json lab_ids.json source.tar.gz <<'PY'
 import hashlib, sys
 from pathlib import Path
 out, names = Path(sys.argv[1]), sys.argv[2:]
@@ -163,9 +170,9 @@ sys.path.insert(0, sys.argv[1])
 import make_site                                     # the site exactly as web/make_site.py makes it
 make_site.main(sys.argv[2], sys.argv[3], sys.argv[4])
 PY
-        for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json version.json; do cp "$OUT/$f" "$P/"; done   # the landing page at /
+        for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json version.json lab_ids.json; do cp "$OUT/$f" "$P/"; done   # the landing page at /
     else
-    for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json version.json; do cp "$OUT/$f" "$P/"; done
+    for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json version.json lab_ids.json; do cp "$OUT/$f" "$P/"; done
     "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
 import json, sys
 from pathlib import Path
