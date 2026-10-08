@@ -230,6 +230,20 @@ html { scroll-behavior: smooth; }
   color: #b8bdc4; cursor: pointer; }
 .chip[aria-checked="true"] { background: var(--led); border-color: var(--led); color: #0d0f11;
   box-shadow: 0 0 14px rgba(215,232,255,.4); }
+.scopes { display: grid; gap: 18px; }
+.scopes.two { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.controls-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.families { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 14px 22px; }
+.family { display: grid; gap: 8px; align-content: start; }
+.family-name { color: #8a9098; font-size: 13px; }
+.play-slot { display: flex; align-items: center; gap: 18px; margin-left: auto; }
+.play-slot .lab-play { justify-self: auto; }
+.pad { width: 84px; height: 84px; border-radius: 18px; border: 0; cursor: pointer; touch-action: none;
+  font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: .06em; color: var(--silk);
+  background: linear-gradient(#4a4e55, #3b3e44); box-shadow: 0 0 0 3px #26282c, 0 4px 0 #26282c, 0 8px 18px rgba(0,0,0,.5);
+  transition: transform .04s, box-shadow .04s; }
+.pad.down, .pad:active { transform: translateY(3px); color: var(--led); text-shadow: 0 0 8px var(--led);
+  box-shadow: 0 0 0 3px #26282c, 0 1px 0 #26282c, 0 0 26px rgba(215,232,255,.35); }
 .plate :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 @media (max-width: 860px) {                       /* phones: the text, then its plate */
   .features { padding-top: 72px; }
@@ -238,6 +252,13 @@ html { scroll-behavior: smooth; }
   .plate { padding: 14px; border-radius: 18px; min-height: 260px;
     box-shadow: 0 0 0 2px #3a3d42, 0 0 0 6px #4c5057, 0 20px 40px rgba(0,0,0,.5); }
   .knobs { gap: 14px 18px; }
+  .scopes.two { grid-template-columns: minmax(0, 1fr); }
+  .scope { height: 170px; }
+  .scope.spec { height: 140px; }
+  .families { display: flex; overflow-x: auto; gap: 22px; margin: 0 -14px; padding: 0 14px 6px;   /* one strip */
+    scroll-snap-type: x proximity; scrollbar-width: thin; }
+  .family { flex: none; scroll-snap-align: start; }
+  .family .chips { flex-wrap: nowrap; }
 }
 .mini { position: absolute; left: 0; top: 0; width: 1000px; height: 620px; transform-origin: 0 0; border-radius: 44px;
   background: linear-gradient(170deg, #4d5157, #3e4147); }

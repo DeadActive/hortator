@@ -389,3 +389,32 @@ test('lab: ids from the firmware, a voice rendered, the Grids lanes, the probes 
   assert.ok(probes.some(p => p.fired & 1), 'the kick fired');
   assert.equal(probes[0].lfo.length, 8);
 });
+
+// ---- the pieces' measurements (lab_dsp.js) on what the firmware rendered
+import { fft, spectrum, tailLength } from '../web/sim/lab_dsp.js';
+
+test('lab_dsp: the FFT finds a sine at its bin; a 909 kick is low, a closed hat high; decay lengthens the tail', async () => {
+  const n = 1024, re = new Float64Array(n), im = new Float64Array(n);
+  for (let i = 0; i < n; i++) re[i] = Math.sin(2 * Math.PI * 37 * i / n);
+  fft(re, im);
+  const mag = Array.from(re, (r, k) => Math.hypot(r, im[k])).slice(0, n / 2);
+  assert.equal(mag.indexOf(Math.max(...mag)), 37);
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const centroid = m => {                             // the spectrum's centre of mass, Hz
+    lab.reset();
+    lab.model(0, m);
+    const db = spectrum(lab.voice(8192, false));
+    let s = 0, w = 0;
+    db.forEach((d, k) => { const p = 10 ** (d / 10); s += p * k; w += p; });
+    return s / w * ids.fs / 8192;
+  };
+  const kick = centroid(ids.DM.K909), hat = centroid(ids.DM.HATC);
+  assert.ok(kick < 400 && hat > 3000, `kick ${kick.toFixed(0)} Hz, hat ${hat.toFixed(0)} Hz`);
+  lab.reset();
+  lab.model(0, ids.DM.K808);
+  lab.param(0, ids.P.E1, 10);
+  const short = tailLength(lab.voice(ids.fs, false));
+  lab.param(0, ids.P.E1, 120);
+  assert.ok(tailLength(lab.voice(ids.fs, false)) > short * 1.5);
+});

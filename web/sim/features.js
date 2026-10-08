@@ -7,7 +7,9 @@
 import { Lab, LabPlayer } from './lab.js';
 import { el } from './lab_ui.js';
 
-const PIECES = {};                                    // data-piece -> () => import of its module (filled as they land)
+const PIECES = {                                     // data-piece -> its module, loaded once the analyser runs
+  voices: () => import('./lab_voices.js'),
+};
 
 let lab = null, ids = null, wasm = null, player = null, starting = null, playing = null;
 
@@ -36,25 +38,30 @@ function stop() {
   button.textContent = 'Play';
 }
 
-async function play(chapter, piece, button) {
-  const again = playing?.piece === piece;
+// the piece's sound on: the player started (the first time, inside this click), reset, the piece's own setup; another
+// piece playing stops first; loop false: set up, nothing started (a pad, a held key). Resolves to the player, or null when the piece was stopped meanwhile.
+async function play(chapter, piece, button, loop = true) {
+  if (playing?.piece === piece) return playing.ready;
   stop();
-  if (again) return;
   button.setAttribute('aria-pressed', 'true');
   button.textContent = 'Stop';
-  playing = { chapter, piece, button };
-  try {
+  const me = { chapter, piece, button };
+  playing = me;
+  me.ready = (async () => {
     const p = await playerReady();
-    if (playing?.piece !== piece) return;            // stopped while the player started
+    if (playing !== me) return null;               // stopped while the player started
     p.call('reset');
-    piece.start(p);
+    piece.start(p, loop);
     await p.on();
-  } catch (err) {
-    stop();
+    return p;
+  })().catch(err => {
+    if (playing === me) stop();
     button.textContent = 'No sound in this browser';
     button.disabled = true;
     console.error(err);
-  }
+    return null;
+  });
+  return me.ready;
 }
 
 async function mount(chapter) {
@@ -62,13 +69,17 @@ async function mount(chapter) {
   const load = PIECES[stage?.dataset.piece];
   if (!load) return;
   const { default: make } = await load();
-  const piece = make(stage, { lab, ids });
-  if (!piece.start) return;                           // a diagram: nothing to hear
   const button = el('button', 'lab-play', 'Play');
+  let piece = null;
+  // audition(): the piece's sound, started if it is not on (a pad, a held key); -> the player or null
+  piece = make(stage, { lab, ids, audition: () => play(chapter, piece, button, false) });
+  if (!piece.start) return;                           // a diagram: nothing to hear
   button.type = 'button';
   button.setAttribute('aria-pressed', 'false');
-  button.addEventListener('click', () => play(chapter, piece, button));
-  stage.prepend(button);
+  button.addEventListener('click', () => (playing?.piece === piece ? stop() : play(chapter, piece, button)));
+  const slot = stage.querySelector('.play-slot');   // the piece's place for it, else the plate's top
+  if (slot) slot.prepend(button);
+  else stage.prepend(button);
   new IntersectionObserver(([e]) => { if (!e.isIntersecting && playing?.chapter === chapter) stop(); })
     .observe(chapter);
 }
