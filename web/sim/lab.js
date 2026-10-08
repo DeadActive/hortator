@@ -91,19 +91,22 @@ export class LabPlayer {
     const node = new AudioWorkletNode(ctx, 'fm1lab', {
       numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm: wasm.slice(0), ids },
     });
-    const gain = ctx.createGain();
+    const gain = ctx.createGain(), analyser = ctx.createAnalyser();
+    analyser.fftSize = 4096;                          // the output as heard, for a piece's live tape
     node.connect(gain).connect(ctx.destination);
+    gain.connect(analyser);
     await new Promise((resolve, reject) => {
       node.port.onmessage = e => (e.data.t === 'ready' ? resolve() : e.data.t === 'error' && reject(new Error(e.data.message)));
     });
     await resumed;
-    return new LabPlayer(ctx, node, gain);
+    return new LabPlayer(ctx, node, gain, analyser);
   }
 
-  constructor(ctx, node, gain) {
+  constructor(ctx, node, gain, analyser) {
     this.ctx = ctx;
     this.node = node;
     this.gain = gain;
+    this.analyser = analyser;
     this.listener = null;
     node.port.onmessage = e => { if (e.data.t === 'probes' && this.listener) this.listener(e.data.p); };
   }

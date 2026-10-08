@@ -14,6 +14,7 @@ const PIECES = {                                     // data-piece -> its module
   lfo: () => import('./lab_lfo.js'),
   seq: () => import('./lab_seq.js'),
   grids: () => import('./lab_grids.js'),
+  fx: () => import('./lab_fx.js'),
 };
 
 let lab = null, ids = null, wasm = null, player = null, starting = null, playing = null;

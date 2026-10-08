@@ -547,3 +547,31 @@ test('lab: tracks following Grids play what its lanes show (no chaos); FILL 0 em
   lab.global(G.GFILL2, 0);
   assert.equal(lab.grids().slice(32, 64).filter(b => b & 1).length, 0, 'FILL 0: no snare');
 });
+
+test('lab: every PERFORM key held changes the mix; each chain stage on changes the rimshot\'s bar', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const { P, DM, PF } = ids, n = ids.fs;
+  const loop = (params = [], key = null) => {
+    lab.reset();
+    lab.model(0, DM.K909);
+    lab.model(1, DM.RIM);
+    for (let s = 0; s < 16; s++) { lab.step(0, s, s % 4 === 0); lab.step(1, s, [0, 3, 6, 10, 11, 14].includes(s)); }
+    for (const [p, v] of params) lab.param(1, p, v);
+    lab.play(true);
+    lab.renderMono(n);
+    if (key) lab.perf(PF[key], true);
+    const a = lab.renderMono(n);
+    if (key) lab.perf(PF[key], false);
+    return a;
+  };
+  const same = (a, b) => a.every((v, i) => v === b[i]);
+  const base = loop();
+  for (const k of ['R8', 'R16', 'R32', 'REV', 'TAPE', 'LPF', 'HPF', 'FRZ', 'OUP', 'ODN'])
+    assert.ok(!same(loop([], k), base), `${k} held changes the output`);
+  const ft = ids.names.ftype.indexOf('LP');
+  for (const [name, params] of [['FILTER', [[P.FTYPE, ft], [P.FCUT, 40]]], ['RESON', [[P.RMODEL, ids.RS.CHORD]]],
+    ['DIST', [[P.DIST, 90]]], ['SLICER', [[P.SLCR, 1], [P.SLPAT, 5]]], ['DELAY', [[P.DLY, 60]]], ['REVERB', [[P.REV, 60]]],
+    ['CHORUS', [[P.CHOR, 70]]]])
+    assert.ok(!same(loop(params), base), `${name} changes the bar`);
+});
