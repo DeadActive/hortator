@@ -5,6 +5,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.13.1 - 2026-10-08
+
+- Recovery from a Mac with no extra hardware: when the FM-1 stops answering both the web installer and M-UPGRADE,
+  `tools/rescue/fm1_uboot.py` backs up its flash and puts M-VAVE's stock V15 back through the chip's boot mode
+  ([docs/RECOVERY.md](docs/RECOVERY.md)). The installer page and the README link to the guide. No firmware change.
+
 ## 0.13.0 - 2026-10-08
 
 - PHYS (upstream Felucca 1.0's physical models, MIT DaisySP): MEMB, a struck drum head as a drum model (TUNE DECAY
