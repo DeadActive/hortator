@@ -66,10 +66,12 @@ static uint32_t dv_weight(const track_t *t, const dvoice_t *v)
     return w ? w : 1u;
 }
 
-/* the oldest sounding voice of any track (model or layer): *ot its track; returns the sounding weight */
+/* the oldest sounding voice of any track (model or layer): *ot its track; returns the sounding weight. A gated model's
+ * voice (ACID) with its gate open goes last: a TIE or a slide keeps the voice and its age, so a held note would be
+ * the oldest and any drum hit would cut it; it is taken only when nothing else sounds */
 static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
 {
-    uint32_t i, k, n = 0;
+    uint32_t i, k, n = 0, held, oh = 0;
     *ot = 0;
     *ov = 0;
     for (i = 0; i < NTRK; i++)
@@ -78,15 +80,18 @@ static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
             if (!v->active)
                 continue;
             n += dv_weight(&trk[i], v);
-            if (!*ov || v->age < (*ov)->age) {
+            held = k < NDV && DMODELS[trk[i].model % NMODELS].gate && (v->x[2] & 1);
+            if (!*ov || held < oh || (held == oh && v->age < (*ov)->age)) {
                 *ov = v;
                 *ot = &trk[i];
+                oh = held;
             }
         }
     return n;
 }
 
-/* a voice of weight w is about to start: the oldest sounding voices stop (declick tail) until it fits the cap */
+/* a voice of weight w is about to start: the oldest sounding voices stop (declick tail; a held ACID note last) until
+ * it fits the cap */
 static void dv_make_room(uint32_t w)
 {
     track_t *ot;
@@ -95,7 +100,7 @@ static void dv_make_room(uint32_t w)
         dv_cut(ot, ov);
 }
 
-/* audio overload (audio.c, > 85 % of a half): the oldest sounding voice stops */
+/* audio overload (audio.c, > 85 % of a half): the oldest sounding voice stops (a held ACID note last) */
 static void drum_shed(void)
 {
     track_t *ot;

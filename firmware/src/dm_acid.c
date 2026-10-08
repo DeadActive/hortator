@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE */
 /* ACID (spec docs/superpowers/specs/2026-10-09-acid-design.md §4): a 303-style mono bass voice. A band-limited saw or
- * square (polyBLEP) into a 24 dB 4-pole ladder (zero-delay feedback, Q24, a cubic soft clip in the feedback path)
+ * square (polyBLEP) into a 24 dB 4-pole ladder (zero-delay feedback, Q24, a cubic soft clip on its input x - k y)
  * whose cutoff follows CUTOF + ENVMD x the filter envelope + the accent; the cutoff is computed per block at the
  * block's end and the ladder's coefficients ramp to it sample by sample (no zipper). The amp opens fast, holds while
  * the gate is open, releases in ~8 ms. ACC: more level and filter envelope (ACCNT), a shorter filter decay, and a
@@ -160,8 +160,9 @@ static void acid_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         gain += dgain;
         G2 = qm(G, G);
         G3 = qm(G2, G);
-        /* the ladder (TPT): y4 = (G^4 x + S) / (1 + k G^4), S = (1 - G)(G^3 s0 + G^2 s1 + G s2 + s3); the feedback
-         * through the soft clip; each one-pole: v = (u - s) G, y = v + s, s = y + v */
+        /* the ladder (TPT): y4 = (G^4 x + S) / (1 + k G^4), S = (1 - G)(G^3 s0 + G^2 s1 + G s2 + s3); the soft
+         * clip on the ladder's input (x - k y, the feedback subtracted); each one-pole: v = (u - s) G, y = v + s,
+         * s = y + v */
         S = qm(QONE - G, qm(G3, s0) + qm(G2, s1) + qm(G, s2) + s3);
         y = qm(qm(qm(G3, G), x) + S, inv);
         u = acid_clip(x - qm(k, y));

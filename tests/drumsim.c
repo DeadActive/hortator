@@ -623,13 +623,13 @@ int main(int argc, char **argv)
     trk[1].p[P_LFO1 + LF_RATE] = 16;                           /* SYNC 2 bars (16 * 17 / 128 = 2) */
     write_demo(dir, "reson_sweep.wav", 4, reson_none_bar);
     reson_kit(RS_PIPE);
-    write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);
+    write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);      /* RESON into DIST, every other bar */
     acid_kit(0);
     write_demo(dir, "acid_line.wav", 8, reson_none_bar);
     acid_kit(0);
     write_demo(dir, "acid_reso.wav", 16, acid_reso_bar);
     acid_kit(1);
-    write_demo(dir, "acid_sqr.wav", 8, reson_none_bar);      /* RESON into DIST, every other bar */
+    write_demo(dir, "acid_sqr.wav", 8, reson_none_bar);
     write_sound_pack(dir);
     write_perform(dir);
     write_motion(dir);

@@ -79,18 +79,23 @@ static step_t step_up(const step_v9_t *o)          /* an FDR2..FDRA step: the fl
     return s;
 }
 
-/* an FDRA image in a RAM slot (.noinit, left by the previous firmware): converted in place */
+/* FDRA and FDRB: the steps at the same offsets (4 bytes each), everything else the same */
+typedef char project_va_steps[__builtin_offsetof(project_va_t, t[1].step[1]) ==
+                              __builtin_offsetof(project_t, t[1].step[1]) ? 1 : -1];
+
+/* an FDRA image in a RAM slot (.noinit, left by the previous firmware): converted in place, step by step (the
+ * globals, parameters, motion, song and name stay where they are) */
 static void proj_upgrade(project_t *q)
 {
-    static project_va_t o;
     uint32_t i, k;
     if (q->magic != PROJ_MAGIC_VA || q->size != sizeof *q || q->sum != proj_hash(q, sizeof *q - 4u))
         return;
-    memcpy(&o, q, sizeof o);
-    memcpy(q, &o, sizeof *q);                          /* the globals, parameters, motion, song, name */
     for (k = 0; k < NTRK; k++)
-        for (i = 0; i < NSTEP; i++)
-            q->t[k].step[i] = step_up(&o.t[k].step[i]);
+        for (i = 0; i < NSTEP; i++) {
+            step_v9_t s;
+            memcpy(&s, &q->t[k].step[i], sizeof s);
+            q->t[k].step[i] = step_up(&s);
+        }
     q->magic = PROJ_MAGIC;
     q->sum = proj_sum(q);
 }
@@ -236,8 +241,8 @@ static void proj_from_old(project_t *q, uint32_t ver)
                          : proj_old.v7.t[k].p[i];
         for (i = 0; i < NSTEP; i++) {
             if (ver == 1u) {
-                q->t[k].step[i].on = proj_old.v1.t[k].step[i].on;
-                q->t[k].step[i].acc = proj_old.v1.t[k].step[i].acc;
+                q->t[k].step[i].on = proj_old.v1.t[k].step[i].on ? 1u : 0u;   /* (1-bit fields: 2 is set) */
+                q->t[k].step[i].acc = proj_old.v1.t[k].step[i].acc ? 1u : 0u;
             } else {
                 q->t[k].step[i] = step_up(ver == 2u ? &proj_old.v2.t[k].step[i]
                                 : ver == 3u ? &proj_old.v3.t[k].step[i] : ver == 4u ? &proj_old.v4.t[k].step[i]

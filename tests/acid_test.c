@@ -123,16 +123,29 @@ static void test_self_osc(void)                      /* RESO 127, CUTOF at ~1 kH
           rms(buf + FS / 2, FS / 2) > 500.0 && peak(buf, N / 2) < 32767 * 4);
 }
 
-static void test_alias(void)                         /* a high saw (C7): little energy at an alias frequency */
+/* C7, SAW and SQR (spec §8): the 21st harmonic folds back to ~147 Hz, in band (the ladder at CUTOF 127 passes it):
+ * under -30 dB of the fundamental. A naive (no polyBLEP) wave has it at 1 / 21, -26 dB: the measurement tells them
+ * apart (checked on a naive saw made here) */
+static void test_alias(void)
 {
-    track_t *t = acid();
-    double f0, al;
-    t->p[P_E0 + 2] = 127;
-    t->p[P_E0 + 3] = 0;
-    play(t, 96, 36, buf, FS / 2);
-    f0 = goertzel(buf, FS / 2, 2093.0);
-    al = goertzel(buf, FS / 2, 44100.0 - 2093.0 * 11);   /* the 11th harmonic folded back */
-    check("acid: a high saw is band-limited (the folded 11th < -30 dB of the fundamental)", al < f0 * 0.0316);
+    double f = (double)acid_inc(96 * 16) * FS / 4294967296.0, fa = fabs(FS - 21.0 * f), f0, al;
+    uint32_t w, i, ph = 0, inc = acid_inc(96 * 16);
+    for (i = 0; i < FS; i++, ph += inc)                /* a naive saw at the voice's own C7 */
+        buf[i] = (int32_t)(ph >> 17) - 16384;
+    check("acid: the alias measurement tells a naive saw (its folded 21st > -30 dB)",
+          goertzel(buf + FS / 10, FS - FS / 10, fa) > goertzel(buf + FS / 10, FS - FS / 10, f) * 0.0316);
+    for (w = 0; w < 2u; w++) {
+        track_t *t = acid();
+        t->p[P_E0 + 2] = 127;
+        t->p[P_E0 + 3] = 0;
+        t->p[P_E0 + 6] = (int16_t)w;                   /* WAVE: SAW, SQR */
+        play(t, 96, 36, buf, FS);
+        f0 = goertzel(buf + FS / 10, FS - FS / 10, f);
+        al = goertzel(buf + FS / 10, FS - FS / 10, fa);
+        check(w ? "acid: a high SQR is band-limited (C7: the folded 21st, ~147 Hz, < -30 dB of the fundamental)"
+                : "acid: a high SAW is band-limited (C7: the folded 21st, ~147 Hz, < -30 dB of the fundamental)",
+              al < f0 * 0.0316);
+    }
 }
 
 static void test_extremes(void)                      /* Review Focus 3: no overflow (UBSan), bounded */
@@ -515,6 +528,136 @@ static void test_row_change(void)
     seq_stop();
 }
 
+/* the voice cap (DRUM_MAXV) steals the oldest voice; a TIE keeps the ACID voice and its age, so a held note would
+ * be the oldest: it goes last. The heavy kit (BENCH heavy+2acid) with 8-step ties on 7 and 8 over 4 bars: every held
+ * note sounds through its tie (the voice active, the same age, until the next note) */
+static void test_steal_held(void)
+{
+    uint32_t i, k, s, cuts = 0, notes = 0, open = 0, blocks = 0, age[2], po[2];
+    host_init();
+    bench_setup(BENCH_MORE + 5u);
+    for (k = 6; k < 8u; k++)
+        for (s = 0; s < 16u; s++) {
+            memset(&trk[k].step[s], 0, sizeof(step_t));
+            trk[k].step[s].on = s % 8u == 0u;
+            trk[k].step[s].tie = s % 8u != 0u;
+            trk[k].step[s].nt = -24;
+        }
+    transport_req = 1;
+    for (i = 0; i < 4u * 2u * FS; i += CTL) {         /* 4 bars at 120 BPM */
+        for (k = 0; k < 2u; k++) {
+            dvoice_t *v = &trk[6 + k].v[0];
+            po[k] = v->active && (v->x[2] & 1);
+            age[k] = v->age;
+        }
+        render_mix(0, 0, CTL);
+        for (k = 0; k < 2u; k++) {
+            dvoice_t *v = &trk[6 + k].v[0];
+            if (po[k] && !v->active)
+                cuts++;
+            if (v->active && v->age != age[k])
+                notes++;
+            open += v->active && (v->x[2] & 1);
+            blocks++;
+        }
+    }
+    check("acid: the voice cap does not cut a held ACID note (heavy kit, 8-step ties: no cut, the gate open)",
+          cuts == 0u && notes == 2u * 4u * 2u && open > blocks * 99u / 100u);
+}
+
+/* the overload shedding (audio.c drum_shed): a drum voice goes before an older held ACID note; with nothing else
+ * sounding, the held note goes */
+static void test_shed_held(void)
+{
+    track_t *t = acid();
+    drum_play(t, 96, 0);                               /* the oldest, its gate open */
+    drum_play(&trk[1], 96, 0);
+    drum_shed();
+    check("acid: overload shedding takes a drum voice before a held ACID note", t->v[0].active && !trk[1].v[0].active);
+    drum_shed();
+    check("acid: ... and the held note when nothing else sounds", !t->v[0].active);
+}
+
+/* the sequencer's corner cases (review): RATCH + SLIDE, TIE + SLIDE, a TIE at step 0 after the wrap, a mute */
+static void test_seq_rat_slide(void)                 /* the last ratchet hit alone holds the gate, the next glides */
+{
+    track_t *t = acid_seq();
+    uint32_t age, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    int hit1_counts, hit2_held;
+    t->step[0].on = 1;
+    t->step[0].rat = 1;                                /* 2 hits */
+    t->step[0].slide = 1;
+    t->step[1].on = 1;
+    t->step[1].nt = 7;
+    seq_to(t, 2u * CTL);                               /* just after hit 1 */
+    hit1_counts = (t->v[0].x[2] & 1) && t->gate_n != 0u && t->gate_n != GATE_HELD;
+    seq_to(t, len / 2u + 3u * CTL);                    /* hit 2 */
+    hit2_held = t->rat_k == 2u && t->gate_n == GATE_HELD;
+    age = t->v[0].age;
+    seq_to(t, len + len / 4u);                         /* into step 1 */
+    check("acid seq: RATCH + SLIDE: hit 1's gate counts, the last hit's is held, the next step glides (same voice)",
+          hit1_counts && hit2_held && t->v[0].active && t->v[0].age == age && t->v[0].x[1] == (60 + 7) * 16);
+}
+
+static void test_seq_tie_slide(void)                 /* a TIE with SLIDE: the step after the tie glides */
+{
+    track_t *t = acid_seq();
+    uint32_t age, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    t->step[0].on = 1;
+    t->step[1].tie = 1;
+    t->step[1].slide = 1;
+    t->step[2].on = 1;
+    t->step[2].nt = 12;
+    seq_to(t, len / 4u);
+    age = t->v[0].age;
+    seq_to(t, len + len * 3u / 4u);                    /* late in the TIE */
+    check("acid seq: TIE + SLIDE holds the note and sets slide_in", t->slide_in && t->gate_n == GATE_HELD &&
+          (t->v[0].x[2] & 1));
+    seq_to(t, 2u * len + len / 4u);                    /* step 2 */
+    check("acid seq: ... the step after the tie glides (same voice, the new target)",
+          t->v[0].active && t->v[0].age == age && t->v[0].x[1] == (60 + 12) * 16);
+}
+
+static void test_seq_tie_wrap(void)                  /* LEN 4: step 3 ON, step 0 TIE: held across the wrap */
+{
+    track_t *t = acid_seq();
+    uint32_t age, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    int held3;
+    t->p[P_SLEN] = 4;
+    t->step[3].on = 1;
+    t->step[0].tie = 1;
+    t->step[0].nt = 5;                                 /* a TIE's own note is ignored */
+    seq_to(t, 3u * len + len * 3u / 4u);               /* step 3, past its GATE */
+    held3 = t->v[0].active && (t->v[0].x[2] & 1) && t->gate_n == GATE_HELD;
+    age = t->v[0].age;
+    seq_to(t, 4u * len + len * 3u / 4u);               /* step 0 (the TIE), 3/4 through */
+    check("acid seq: a TIE at step 0 holds the last step's note across the wrap",
+          held3 && t->v[0].active && (t->v[0].x[2] & 1) && t->v[0].age == age && t->v[0].x[1] == 60 * 16);
+    seq_to(t, 5u * len + len / 4u);                    /* step 1, a rest */
+    check("acid seq: ... and the rest after it closes the gate", !(t->v[0].x[2] & 1) && t->gate_n == 0u);
+}
+
+static void test_seq_mute(void)                      /* a mute (track_mute_toggle: panic_req) ends a held note */
+{
+    track_t *t = acid();
+    uint32_t k, i, len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    int held;
+    for (k = 0; k < NTRK; k++)
+        memset(trk[k].step, 0, sizeof trk[k].step);
+    t->step[0].on = 1;
+    t->step[0].slide = 1;                              /* held into step 1 */
+    transport_req = 1;
+    for (i = 0; i < len * 3u / 4u; i += CTL)
+        render_mix(0, 0, CTL);
+    held = t->v[0].active && (t->v[0].x[2] & 1) && t->gate_n == GATE_HELD && t->slide_in;
+    t->p[P_MUTE] = 1;
+    panic_req |= 1u;
+    render_mix(0, 0, 2u * CTL);
+    check("acid seq: a mute cuts a held note (no voice, gate_n 0, slide_in 0)",
+          held && !t->v[0].active && t->gate_n == 0u && !t->slide_in);
+    seq_stop();
+}
+
 int main(void)
 {
     test_pitch();
@@ -541,6 +684,12 @@ int main(void)
     test_hit_gate();
     test_live_hit_playing();
     test_row_change();
+    test_steal_held();
+    test_shed_held();
+    test_seq_rat_slide();
+    test_seq_tie_slide();
+    test_seq_tie_wrap();
+    test_seq_mute();
     printf(fails ? "acid: %d FAILED\n" : "acid: all checks passed\n", fails);
     return fails != 0;
 }

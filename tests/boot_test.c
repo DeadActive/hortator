@@ -254,6 +254,31 @@ static int fdr1_converts(void)
            song.g[G_GLEN2] == 12 && song.g[G_GMODE] == 0 && song.sel == 2;
 }
 
+/* an FDR1 step byte of 2 (any non-zero is set) loads as on / acc, not as its low bit */
+static int fdr1_flags_nonzero(void)
+{
+    project_v1_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V1;
+    v.size = sizeof v;
+    for (i = 0; i < G_GMODE; i++)
+        v.g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_SRC; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].step[4].on = 2;
+    v.t[2].step[4].acc = 2;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(1);
+    return trk[2].step[4].on && trk[2].step[4].acc;
+}
+
 /* an M2 project in flash ("FDR2") loads: everything it has, COMP off, DUCK off */
 static int fdr2_converts(void)
 {
@@ -631,11 +656,18 @@ static int fdra_ram_converts(void)
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < P_COUNT; i++)
             v->t[k].p[i] = trk[k].p[i];
+    v->g[G_BPM] = 133;
+    v->t[6].p[P_FCUT] = 33;
     v->t[6].step[3] = (step_v9_t){1, 0, 0, 3};
+    v->t[7].step[NSTEP - 1u] = (step_v9_t){2, 1, 4, 1};   /* the last step; on 2: set */
+    memcpy(v->name, "RAM FDRA", 8);
     v->sum = proj_hash(v, sizeof *v - 4u);
     persist_boot();
     project_load(1);
-    return trk[6].step[3].on && trk[6].step[3].rat == 3u && trk[6].step[3].nt == 0;
+    return trk[6].step[3].on && trk[6].step[3].rat == 3u && trk[6].step[3].nt == 0 && song.g[G_BPM] == 133 &&
+           trk[6].p[P_FCUT] == 33 && trk[7].step[NSTEP - 1u].on && trk[7].step[NSTEP - 1u].acc &&
+           trk[7].step[NSTEP - 1u].cond == 4u && trk[7].step[NSTEP - 1u].rat == 1u && !trk[7].step[NSTEP - 1u].tie &&
+           !trk[6].step[4].on && str_eq(chain.name, "RAM FDRA");
 }
 /* FDRB: SLIDE, TIE and the note through a save and a load (flash) */
 static int fdrb_round_trip(void)
@@ -837,6 +869,7 @@ int main(void)
     char what[96];
     int k, s, seq;
     check("project: an M1 record (FDR1) loads with PROB 100 %, 1 hit, SRC STEP, Grids defaults", fdr1_converts());
+    check("project: an FDR1 step's on / acc of 2 load set (not their low bit)", fdr1_flags_nonzero());
     check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
