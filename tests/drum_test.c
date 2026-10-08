@@ -1309,7 +1309,7 @@ static void test_len_change_sync(void)
 static uint32_t chance_hits(uint32_t ti, uint32_t pct, uint32_t n, uint64_t *bits)
 {
     track_t *t = &trk[ti];
-    step_t s = {1, 0, 0, 0};
+    step_t s = {.on = 1};
     uint32_t k, hits = 0;
     s.cond = (uint8_t)cond_store(pct / 5u);
     seq_start();                                     /* seeds the tracks' random sequences */
@@ -1351,7 +1351,7 @@ static void test_cond_loops(void)
     r0 = t->rng;
     for (b = 2; b <= 8u; b++)
         for (a = 1; a <= b; a++, n++) {
-            step_t s = {1, 0, 0, 0};
+            step_t s = {.on = 1};
             s.cond = (uint8_t)(22u + n);
             for (loop = 0; loop < 2u * 8u * 8u; loop++) {
                 t->seq_cnt = loop * len + 1u;        /* step 1 of each loop */
@@ -1360,7 +1360,7 @@ static void test_cond_loops(void)
         }
     check("PROB: every A/B condition plays exactly on loop A of every B (128 loops)", ok && t->rng == r0);
     {
-        step_t s = {1, 0, COND_1SHOT, 0};
+        step_t s = {.on = 1, .cond = COND_1SHOT};
         ok = 1;
         for (loop = 0; loop < 16u; loop++) {
             t->seq_cnt = loop * len;
@@ -1369,7 +1369,7 @@ static void test_cond_loops(void)
         check("PROB: 1-SHOT plays only on the first loop after PLAY", ok);
     }
     {
-        step_t s = {1, 0, 22, 0};                    /* 1/2 */
+        step_t s = {.on = 1, .cond = 22};                    /* 1/2 */
         t->seq_cnt = 9;                              /* LEN 4: loop 2 (plays); LEN 3: loop 3 (does not) */
         check("PROB: conditions count loops with the LEN of the moment", step_plays(t, &s, 4) && !step_plays(t, &s, 3));
     }

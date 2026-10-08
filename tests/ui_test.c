@@ -1749,9 +1749,9 @@ static void test_project_rejects(void)
     project_save(0);
     proj_slot[0].t[3].p[P_MODEL] = 99;               /* corrupt the stored data, fix the checksum */
     proj_slot[0].t[3].p[P_E1] = 30000;
-    proj_slot[0].t[3].step[0].on = 7;
+    ((uint8_t *)&proj_slot[0].t[3].step[0])[0] = 0xC1u;   /* on + both reserved bits */
     proj_slot[0].t[3].step[1].cond = 200;
-    proj_slot[0].t[3].step[1].rat = 9;
+    ((uint8_t *)&proj_slot[0].t[3].step[1])[0] = 0x30u;   /* rat 3 */
     proj_slot[0].t[3].p[P_SRC] = 40;
     proj_slot[0].g[G_GLEN1] = -5;
     proj_slot[0].g[G_CSRC] = 77;

@@ -113,11 +113,17 @@ typedef struct {
 } dmodel_t;
 
 /* ------------------------------------------------------------ track --- */
-typedef struct {                 /* one sequencer step; all zero = a plain step, off */
-    uint8_t on, acc;             /* hit; accent (velocity 127, else 96) */
+typedef struct {                 /* one sequencer step (4 B, stored as is); all zero = a plain step, off, at C4 */
+    uint8_t on : 1, acc : 1;     /* hit; accent (velocity 127, else 96) */
+    uint8_t slide : 1, tie : 1;  /* ACID: glide into the next note / hold the sounding note through this step */
+    uint8_t rat : 2;             /* RATCH: hits - 1 (0..3) */
+    uint8_t : 2;
     uint8_t cond;                /* PROB: 0 = 100 %, 1..20 = 0..95 %, 21 = 1-SHOT, 22..56 = A/B (params.c cond_*) */
-    uint8_t rat;                 /* RATCH: hits - 1 (0..3) */
+    int8_t nt;                   /* NOTE - 60 (C4 = 0): a drum's transpose, ACID's note (NT_MIN..NT_MAX) */
+    uint8_t rsv;                 /* 0 */
 } step_t;
+#define NT_MIN (-60)
+#define NT_MAX 67
 
 typedef struct { uint32_t ph, sub; int32_t out, from, to; uint8_t fresh; } lfo_state_t;   /* lfo.c: phase, sub-phase,
                                                                            * outputs, restarted */

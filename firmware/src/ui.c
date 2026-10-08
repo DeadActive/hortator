@@ -229,7 +229,7 @@ static uint32_t view_len(const track_t *t)
 static step_t view_step(const track_t *t, uint32_t si)
 {
     uint32_t s = view_src(t), b;
-    step_t r = {0, 0, 0, 0};
+    step_t r = {0};
     if (!s)
         return seq_steps(t)[si % NSTEP];             /* (a song: its row's) */
     b = grids_preview(s - 1u, si);

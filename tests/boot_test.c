@@ -574,6 +574,105 @@ static int fdra_clamps(void)
     project_load(0);
     return trk[4].p[P_FTYPE] == FT_N - 1 && trk[4].p[P_FCUT] == 127 && trk[4].p[P_FENV] == -64;
 }
+/* FDRB (ACID): the step's bytes: byte 0 = on | acc << 1 | slide << 2 | tie << 3 | rat << 4, byte 1 cond, byte 2 nt */
+static int fdrb_step_layout(void)
+{
+    step_t s;
+    const uint8_t *b = (const uint8_t *)&s;
+    memset(&s, 0, sizeof s);
+    s.on = 1;
+    s.tie = 1;
+    s.rat = 2;
+    s.cond = 5;
+    s.nt = -3;
+    return sizeof(step_t) == 4u && b[0] == (1u | 8u | 0x20u) && b[1] == 5u && (int8_t)b[2] == -3 && b[3] == 0u &&
+           sizeof(project_t) == 3672u;
+}
+/* an FDRA record in flash (same size as FDRB: told by its marker): steps into the flags, NOTE C4, no SLIDE / TIE */
+static int fdra_flash_converts(void)
+{
+    static project_va_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_VA;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[3].p[P_FCUT] = 33;
+    v.t[3].step[7] = (step_v9_t){1, 1, 5, 2};
+    v.t[3].step[8] = (step_v9_t){0, 1, 0, 0};
+    memcpy(v.name, "FDRA ONE", 8);
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 2u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(2);
+    return sizeof v == 3672u && trk[3].p[P_FCUT] == 33 && trk[3].step[7].on && trk[3].step[7].acc &&
+           trk[3].step[7].cond == 5u && trk[3].step[7].rat == 2u && trk[3].step[7].nt == 0 && !trk[3].step[7].slide &&
+           !trk[3].step[7].tie && !trk[3].step[8].on && trk[3].step[8].acc && str_eq(chain.name, "FDRA ONE");
+}
+/* an FDRA image left in a RAM slot by the previous firmware (.noinit): converted at boot, not dropped */
+static int fdra_ram_converts(void)
+{
+    project_va_t *v = (project_va_t *)(void *)&proj_slot[1];
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    v->magic = PROJ_MAGIC_VA;
+    v->size = sizeof *v;
+    for (i = 0; i < G_COUNT; i++)
+        v->g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v->t[k].p[i] = trk[k].p[i];
+    v->t[6].step[3] = (step_v9_t){1, 0, 0, 3};
+    v->sum = proj_hash(v, sizeof *v - 4u);
+    persist_boot();
+    project_load(1);
+    return trk[6].step[3].on && trk[6].step[3].rat == 3u && trk[6].step[3].nt == 0;
+}
+/* FDRB: SLIDE, TIE and the note through a save and a load (flash) */
+static int fdrb_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[2].step[4].on = 1;
+    trk[2].step[4].slide = 1;
+    trk[2].step[4].nt = -12;
+    trk[2].step[5].tie = 1;
+    project_save(0);
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(0);
+    return trk[2].step[4].on && trk[2].step[4].slide && trk[2].step[4].nt == -12 && trk[2].step[5].tie &&
+           !trk[2].step[5].on;
+}
+/* Review Focus 5: a stored step's reserved bits / byte and an out-of-range note: cleared and clamped on load */
+static int fdrb_clamps(void)
+{
+    project_t *p = &proj_slot[0];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    project_save(0);
+    ((uint8_t *)&p->t[4].step[2])[0] = 0xFFu;        /* every flag, the reserved bits too */
+    ((uint8_t *)&p->t[4].step[2])[3] = 0x5Au;
+    p->t[4].step[3].nt = 100;                        /* past NT_MAX (C4 + 67 = G9) */
+    p->t[4].step[5].nt = -100;
+    p->sum = proj_sum(p);
+    project_load(0);
+    return trk[4].step[2].on && trk[4].step[2].acc && trk[4].step[2].slide && trk[4].step[2].tie &&
+           trk[4].step[2].rat == 3u && ((const uint8_t *)&trk[4].step[2])[0] == 0x3Fu &&
+           ((const uint8_t *)&trk[4].step[2])[3] == 0u && trk[4].step[3].nt == NT_MAX && trk[4].step[5].nt == NT_MIN;
+}
 /* an FDR8 record (3544 B): its motion, an empty song, no name */
 static int fdr8_converts(void)
 {
@@ -752,6 +851,11 @@ int main(void)
     check("project: an FDR9 record loads, the filter OFF", fdr9_converts());
     check("project: FDRA keeps the five filter knobs through a save and a load", fdra_round_trip());
     check("project: out-of-range filter values are clamped on load", fdra_clamps());
+    check("project: FDRB's step layout (flags, cond, note offset) in 4 bytes", fdrb_step_layout());
+    check("project: an FDRA record in flash converts (NOTE C4, no SLIDE / TIE)", fdra_flash_converts());
+    check("project: an FDRA image in a RAM slot converts at boot", fdra_ram_converts());
+    check("project: FDRB keeps SLIDE, TIE and the note through a save and a load", fdrb_round_trip());
+    check("project: a stored step's reserved bits are cleared, its note clamped", fdrb_clamps());
     check("project: an FDR8 record (3544 B) loads with its motion, no song, no name", fdr8_converts());
     check("project: a broken song or name is dropped, the project loads", fdr9_bad_song_name_dropped());
     check("song: an empty slot refused; a slot's garbage made safe (ASan)", song_garbage_slot());

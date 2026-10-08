@@ -3,13 +3,16 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDRA" (the 10th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
- * parameter and its 64 steps (with PROB / RATCH, DUCK, the COMP settings, the LFOs, RESON, the FILTER), the motion
+ * Format "FDRB" (the 11th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
+ * parameter and its 64 steps (with PROB / RATCH, each step's note offset, SLIDE and TIE (ACID), DUCK, the COMP settings,
+ * the LFOs, RESON, the FILTER), the motion
  * (motion.c, 128 events), the song and the project's name (song.c).
  * M1's "FDR1", M2's "FDR2", M3's "FDR3", the LFOs' "FDR4" RESON's "FDR5", GHOST's "FDR6", the sound pack's
- * "FDR7", motion's "FDR8" and the song's "FDR9" records (in flash) are converted on load (the FILTER OFF).
+ * "FDR7", motion's "FDR8", the song's "FDR9" and the FILTER's "FDRA" records (in flash) are converted on load (the FILTER
+ * OFF, the steps at NOTE C4 with no SLIDE / TIE); an FDRA image in a RAM slot is converted at boot.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x41524446u                 /* "FDRA" (the 10th): + the FILTER (filter.c) */
+#define PROJ_MAGIC 0x42524446u                 /* "FDRB" (the 11th): + the step's note, SLIDE and TIE (ACID) */
+#define PROJ_MAGIC_VA 0x41524446u              /* "FDRA": the FILTER, the old steps; converted on load (same size) */
 #define PROJ_MAGIC_V9 0x39524446u              /* "FDR9": the song and the name, converted on load */
 #define PROJ_MAGIC_V8 0x38524446u              /* "FDR8": the motion, converted on load */
 #define PROJ_MAGIC_V7 0x37524446u              /* "FDR7": the reverb TYPE (sound pack), converted on load */
@@ -47,6 +50,51 @@ static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 static uint32_t proj_sum(const project_t *p) { return proj_hash(p, sizeof *p - 4u); }
 static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->size == sizeof *q && q->sum == proj_sum(q); }
 
+typedef struct { uint8_t on, acc, cond, rat; } step_v9_t;   /* a step as FDR2..FDRA stored it */
+/* FDRA: everything, the steps as FDR2..FDR9 (same size as FDRB: told by the marker) */
+typedef struct {
+    int16_t p[P_COUNT];
+    step_v9_t step[NSTEP];
+} proj_trk_va_t;
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_va_t t[NTRK];
+    motion_store_t motion;
+    chain_config_t song;
+    char name[NAME_LEN];
+    uint32_t sum;
+} project_va_t;
+typedef char project_va_size[sizeof(project_va_t) == sizeof(project_t) ? 1 : -1];
+
+static step_t step_up(const step_v9_t *o)          /* an FDR2..FDRA step: the flags, NOTE C4, no SLIDE / TIE */
+{
+    step_t s;
+    memset(&s, 0, sizeof s);
+    s.on = o->on ? 1u : 0u;
+    s.acc = o->acc ? 1u : 0u;
+    s.rat = (uint8_t)(o->rat < 3u ? o->rat : 3u);
+    s.cond = o->cond;
+    return s;
+}
+
+/* an FDRA image in a RAM slot (.noinit, left by the previous firmware): converted in place */
+static void proj_upgrade(project_t *q)
+{
+    static project_va_t o;
+    uint32_t i, k;
+    if (q->magic != PROJ_MAGIC_VA || q->size != sizeof *q || q->sum != proj_hash(q, sizeof *q - 4u))
+        return;
+    memcpy(&o, q, sizeof o);
+    memcpy(q, &o, sizeof *q);                          /* the globals, parameters, motion, song, name */
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++)
+            q->t[k].step[i] = step_up(&o.t[k].step[i]);
+    q->magic = PROJ_MAGIC;
+    q->sum = proj_sum(q);
+}
+
 #if FELUCCA_FLASH
 /* M1's format: the globals before G_GMODE, the parameters before P_SRC, steps of {on, acc} */
 typedef struct { uint8_t on, acc; } step_v1_t;
@@ -62,7 +110,7 @@ typedef struct {
     uint32_t magic, size;
     int16_t g[G_CSRC];
     uint8_t sel, rsv[3];
-    struct { int16_t p[P_DUCK]; step_t step[NSTEP]; } t[NTRK];
+    struct { int16_t p[P_DUCK]; step_v9_t step[NSTEP]; } t[NTRK];
     uint32_t sum;
 } project_v2_t;
 /* M3's format: the globals before G_CGHOST, the parameters before P_LFO1 */
@@ -70,7 +118,7 @@ typedef struct {
     uint32_t magic, size;
     int16_t g[G_CGHOST];
     uint8_t sel, rsv[3];
-    struct { int16_t p[P_LFO1]; step_t step[NSTEP]; } t[NTRK];
+    struct { int16_t p[P_LFO1]; step_v9_t step[NSTEP]; } t[NTRK];
     uint32_t sum;
 } project_v3_t;
 /* the LFO format: the globals before G_CGHOST, the parameters before P_RMODEL */
@@ -78,13 +126,13 @@ typedef struct {
     uint32_t magic, size;
     int16_t g[G_CGHOST];
     uint8_t sel, rsv[3];
-    struct { int16_t p[P_RMODEL]; step_t step[NSTEP]; } t[NTRK];
+    struct { int16_t p[P_RMODEL]; step_v9_t step[NSTEP]; } t[NTRK];
     uint32_t sum;
 } project_v4_t;
 /* a track as FDR5..FDR9 stored it: the parameters before P_FTYPE (no FILTER) */
 typedef struct {
     int16_t p[P_FTYPE];
-    step_t step[NSTEP];
+    step_v9_t step[NSTEP];
 } proj_trk_v9_t;
 /* RESON's format: the globals before G_CGHOST (the parameters before P_FTYPE) */
 typedef struct {
@@ -133,7 +181,7 @@ typedef struct {
 } project_v9_t;
 static union {
     project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
-    project_v8_t v8; project_v9_t v9;
+    project_v8_t v8; project_v9_t v9; project_va_t va;
 } proj_old;
 
 /* an old record (proj_old, version ver) -> q: what it has; the rest at the defaults (v1: PROB 100 %, 1 hit,
@@ -143,24 +191,26 @@ static void proj_from_old(project_t *q, uint32_t ver)
 {
     uint32_t i, k;
     uint32_t ng, np;
-    if (ver >= 8u) {                                 /* FDR8 / FDR9: the tracks without the FILTER */
-        const int16_t *g = ver == 8u ? proj_old.v8.g : proj_old.v9.g;
-        const proj_trk_v9_t *ot = ver == 8u ? proj_old.v8.t : proj_old.v9.t;
+    if (ver >= 8u) {                                 /* FDR8 / FDR9 / FDRA: the tracks without the FILTER (FDRA: with) */
+        const int16_t *g = ver == 8u ? proj_old.v8.g : ver == 9u ? proj_old.v9.g : proj_old.va.g;
         memset(q, 0, sizeof *q);
         q->magic = PROJ_MAGIC;
         q->size = sizeof *q;
         for (i = 0; i < G_COUNT; i++)
             q->g[i] = g[i];
-        q->sel = ver == 8u ? proj_old.v8.sel : proj_old.v9.sel;
+        q->sel = ver == 8u ? proj_old.v8.sel : ver == 9u ? proj_old.v9.sel : proj_old.va.sel;
         for (k = 0; k < NTRK; k++) {
+            const step_v9_t *os = ver == 10u ? proj_old.va.t[k].step : ver == 9u ? proj_old.v9.t[k].step : proj_old.v8.t[k].step;
             for (i = 0; i < P_COUNT; i++)
-                q->t[k].p[i] = i < P_FTYPE ? ot[k].p[i] : TP[i].def;
-            memcpy(q->t[k].step, ot[k].step, sizeof q->t[k].step);
+                q->t[k].p[i] = ver == 10u ? proj_old.va.t[k].p[i]
+                             : i < P_FTYPE ? (ver == 8u ? proj_old.v8.t[k].p[i] : proj_old.v9.t[k].p[i]) : TP[i].def;
+            for (i = 0; i < NSTEP; i++)
+                q->t[k].step[i] = step_up(&os[i]);
         }
-        q->motion = ver == 8u ? proj_old.v8.motion : proj_old.v9.motion;
-        if (ver == 9u) {
-            q->song = proj_old.v9.song;
-            memcpy(q->name, proj_old.v9.name, NAME_LEN);
+        q->motion = ver == 8u ? proj_old.v8.motion : ver == 9u ? proj_old.v9.motion : proj_old.va.motion;
+        if (ver >= 9u) {
+            q->song = ver == 9u ? proj_old.v9.song : proj_old.va.song;
+            memcpy(q->name, ver == 9u ? proj_old.v9.name : proj_old.va.name, NAME_LEN);
         }
         q->sum = proj_sum(q);
         return;
@@ -189,10 +239,10 @@ static void proj_from_old(project_t *q, uint32_t ver)
                 q->t[k].step[i].on = proj_old.v1.t[k].step[i].on;
                 q->t[k].step[i].acc = proj_old.v1.t[k].step[i].acc;
             } else {
-                q->t[k].step[i] = ver == 2u ? proj_old.v2.t[k].step[i]
-                                : ver == 3u ? proj_old.v3.t[k].step[i] : ver == 4u ? proj_old.v4.t[k].step[i]
-                                : ver == 5u ? proj_old.v5.t[k].step[i] : ver == 6u ? proj_old.v6.t[k].step[i]
-                                : proj_old.v7.t[k].step[i];
+                q->t[k].step[i] = step_up(ver == 2u ? &proj_old.v2.t[k].step[i]
+                                : ver == 3u ? &proj_old.v3.t[k].step[i] : ver == 4u ? &proj_old.v4.t[k].step[i]
+                                : ver == 5u ? &proj_old.v5.t[k].step[i] : ver == 6u ? &proj_old.v6.t[k].step[i]
+                                : &proj_old.v7.t[k].step[i]);
             }
         }
     }
@@ -203,17 +253,17 @@ static void proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
-    if (n > 8 && n <= (int)sizeof proj_old && n != (int)sizeof *q) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[10] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
-                                           PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9};
-        static const uint32_t SIZE[10] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+    if (n > 8 && n <= (int)sizeof proj_old && !proj_ok(q)) {   /* an old record: its marker names it */
+        static const uint32_t MAGIC[11] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
+                                           PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA};
+        static const uint32_t SIZE[11] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
                                           sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
-                                          sizeof proj_old.v8, sizeof proj_old.v9};
+                                          sizeof proj_old.v8, sizeof proj_old.v9, sizeof proj_old.va};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 10u; ver++)
+        for (ver = 1; ver < 11u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
                 proj_from_old(q, ver);
@@ -278,6 +328,7 @@ static void project_load(uint32_t slot)
 {
     project_t *p = &proj_slot[slot & 3u];
     uint32_t i, k;
+    proj_upgrade(p);
     if (chain_busy()) {                                 /* a song reads the slots */
         ui_message("STOP TO LOAD");
         return;
@@ -312,6 +363,10 @@ static void project_load(uint32_t slot)
             t->step[i].acc = q->acc ? 1u : 0u;
             t->step[i].cond = (uint8_t)(q->cond < COND_MAX ? q->cond : COND_MAX);
             t->step[i].rat = (uint8_t)(q->rat < 3u ? q->rat : 3u);
+            t->step[i].slide = q->slide;
+            t->step[i].tie = q->tie;
+            t->step[i].nt = (int8_t)clamp(q->nt, NT_MIN, NT_MAX);
+            t->step[i].rsv = 0;
         }
     }
     for (k = 0, i = 0; k < NTRK; k++)                   /* RESON on 4 tracks at most: the first four keep it */
@@ -353,6 +408,9 @@ static persist_t persist_saved;
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
+    uint32_t u;
+    for (u = 0; u < 4u; u++)                          /* FDRA images the previous firmware left in the RAM slots */
+        proj_upgrade(&proj_slot[u]);
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();
