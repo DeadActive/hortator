@@ -473,6 +473,32 @@ static void write_filter(const char *dir)
     filter_one(dir, "filter_lfo_clap.wav", DM_C909, "....x.......x...", FT_BP, 60, 70, 0, 40, filter_bar_none);
 }
 
+/* FM demos: one track, 4 bars at 120 BPM */
+static void fm_one(const char *dir, const char *name, const int16_t *k, const char *pat)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], DM_FM);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++)
+        trk[0].step[i].on = pat[i] == 'x';
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_fm(const char *dir)
+{
+    /* TUNE DECAY INDEX RATIO MDEC SWEEP FBK VEL (RATIO: index into 0.5 1 1.41 1.5 2 2.76 3 3.5 4 5.4 ...) */
+    static const int16_t BELL[8] = {19, 110, 70, 7, 90, 0, 0, 64}, MTOM[8] = {-10, 80, 50, 2, 30, 20, 20, 64};
+    static const int16_t WOOD[8] = {12, 25, 40, 5, 10, 0, 0, 64}, ZAP[8] = {12, 50, 90, 1, 25, 110, 0, 64};
+    static const int16_t KICK[8] = {-24, 70, 30, 1, 15, 60, 0, 64};
+    fm_one(dir, "fm_bell.wav", BELL, "x.......x.......");
+    fm_one(dir, "fm_metal_tom.wav", MTOM, "x..x..x...x.x...");
+    fm_one(dir, "fm_woodblock.wav", WOOD, "x.x.xx.x.x.xx.x.");
+    fm_one(dir, "fm_zap.wav", ZAP, "x...x...x...x.x.");
+    fm_one(dir, "fm_kick.wav", KICK, "x...x...x...x...");
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -579,5 +605,6 @@ int main(int argc, char **argv)
     write_song(dir);
     write_phys(dir);
     write_filter(dir);
+    write_fm(dir);
     return 0;
 }

@@ -320,6 +320,17 @@ Report what you saw first; we'll go through it together.
 - `tools/fm1_bench.py --yes`: the five new cases (heavy+filter, heavy+comp, heavy-fx+comp, heavy+sidechain,
   heavy-fx+sidechain).
 
+### FM (check on the FM-1)
+
+- A track to MODEL FM: SOUND 1/3 TUNE DECAY INDEX, 2/3 RATIO MDEC SWEEP FBK, 3/3 VEL; the graph shows RATIO and
+  the carrier with its sidebands (they move with RATIO and INDEX).
+- The five sounds of the WAVs (TUNE DECAY INDEX RATIO MDEC SWEEP FBK VEL; RATIO as shown):
+  bell 19 110 70 3.5 90 0 0 64; metallic tom -10 80 50 1.41 30 20 20 64; woodblock 12 25 40 2.76 10 0 0 64;
+  zap 12 50 90 1 25 110 0 64; FM kick -24 70 30 1 15 60 0 64.
+- RATIO's inharmonic steps (1.41 2.76 5.4 9.2) ring like metal; INDEX 0 is a pure sine; SWEEP drops the pitch
+  (zaps, toms); FBK adds grit up to noise; accented steps are brighter (VEL).
+- `tools/fm1_bench.py --yes`: the cases FM and FM+fx (8 tracks of the model).
+
 ### BENCH: the performance cases on the FM-1
 
 `tools/fm1_bench.py --yes` (FM-1 on USB, running a build of this tree) sends `bench yes` to the USB console: the

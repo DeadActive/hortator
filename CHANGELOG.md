@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- FM: a 2-operator FM percussion model (TUNE DECAY INDEX RATIO, MDEC SWEEP FBK VEL): bells, metallic toms,
+  woodblocks, zaps, FM kicks; 2 voices; the SOUND graph shows the ratio's sidebands.
 - SEQ: the white keys are the selected track's steps on every SEQ page (STEP, PATTERN, MOTION, SONG) and on TRACKS
   (tap on / off, hold accent, OCT+ / OCT- the bank); ALGO or TRACKS' KNOB 1 picks the track. TRACKS mutes: REC held + a
   key (+ top C# / D#: now / next bar), was OCT- held.

@@ -2949,6 +2949,37 @@ static void test_tracks_rec_mutes(void)
     check("TRACKS: a long REC hold asks nothing", !ui.confirm);
 }
 
+/* FM: SOUND 1/3 MODEL TUNE DECAY INDEX, 2/3 RATIO MDEC SWEEP FBK, 3/3 VEL ...; the graph shows the ratio and its
+ * sidebands */
+static uint32_t fm_graph_lit(void)               /* lit pixels right of the model's name: the sideband bars */
+{
+    uint32_t n = 0, x, y;
+    for (y = Y_GRAPH + 30u; y < Y_GRAPH + 100u; y++)
+        for (x = 100u; x < 236u; x++)
+            n += fb[y * 240u + x] != 0;
+    return n;
+}
+
+static void test_fm_screens(void)
+{
+    uint32_t k;
+    int16_t *vp;
+    ui_host_init();
+    drum_set_model(TSEL, DM_FM);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    ui.force = 1;
+    snap_page("fm/sound_1");
+    check("FM: SOUND 1/3 holds MODEL TUNE DECAY INDEX; the graph draws the sidebands",
+          str_eq(page_desc(cur_page(), 1, &vp)->label, "TUNE") && str_eq(page_desc(cur_page(), 3, &vp)->label, "INDEX") &&
+          str_eq(N_FMRATIO[TSEL->p[P_E3]], "1.41") && fm_graph_lit() > 150u);
+    page_turn(1);
+    ui.force = 1;
+    snap_page("fm/sound_2");
+    check("FM: SOUND 2/3 holds RATIO MDEC SWEEP FBK",
+          str_eq(page_desc(cur_page(), 0, &vp)->label, "RATIO") && str_eq(page_desc(cur_page(), 3, &vp)->label, "FBK"));
+}
+
 int main(void)
 {
     test_safe_start();
@@ -3023,6 +3054,7 @@ int main(void)
     test_perform_knobs_follow_screen();
     test_step_keys_everywhere();
     test_tracks_rec_mutes();
+    test_fm_screens();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
