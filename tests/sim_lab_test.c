@@ -252,6 +252,27 @@ static void test_reset_stops(void)
     check("reset: a playing transport stops (each piece starts from its own PLAY)", !song.playing && !transport_req);
 }
 
+static uint32_t fx_taps(uint32_t n)                     /* from a fresh reset: n taps on FX -> the page shown */
+{
+    uint32_t i;
+    lab_reset();
+    for (i = 0; i < n; i++) {
+        sim_btn(B_FX, 1);
+        sim_render(SIM_MAX_FRAMES);
+        sim_render(SIM_MAX_FRAMES);
+        sim_btn(B_FX, 0);
+        sim_render(SIM_MAX_FRAMES);
+        sim_render(SIM_MAX_FRAMES);
+    }
+    return ui.page;
+}
+
+static void test_reset_pages(void)
+{
+    uint32_t first = fx_taps(5);
+    check("reset: the pages start as at power-on (FX five times reaches the same page again)", fx_taps(5) == first);
+}
+
 int main(void)
 {
     test_voices();
@@ -264,6 +285,7 @@ int main(void)
     test_mute_bar();
     test_motion();
     test_reset_stops();
+    test_reset_pages();
     printf(fails ? "sim_lab_test: %d FAILED\n" : "sim_lab_test: all ok\n", fails);
     return fails != 0;
 }

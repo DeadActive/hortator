@@ -71,6 +71,8 @@ void lab_reset(void)                                   /* a blank project at 120
     fm1_in.buttons = fm1_in.notes = 0;
     sim_flash_reset();
     sim_init(0);
+    memset(ui.fam_last, 0, sizeof ui.fam_last);       /* each family's first page, as at power-on */
+    ui.bank = 0;
     song.g[G_BPM] = 120;
     song.g[G_CLOCK] = 0;
     song.rec = 0;

@@ -575,3 +575,25 @@ test('lab: every PERFORM key held changes the mix; each chain stage on changes t
     ['CHORUS', [[P.CHOR, 70]]]])
     assert.ok(!same(loop(params), base), `${name} changes the bar`);
 });
+
+test('features reel: a clip per chapter (not Bluetooth: no page), each over 5 s, replayable to the end, small', async () => {
+  const gz = readFileSync(join(DIR, 'features.bin.gz'));
+  assert.ok(gz.length < 6e5, `features.bin.gz is ${gz.length} B`);
+  const { gunzipSync } = await import('node:zlib');
+  const b = gunzipSync(gz), reel = parseReel(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
+  const list = JSON.parse(readFileSync(join(DIR, 'features.json'), 'utf8'));
+  assert.deepEqual(list.map(c => c.name), ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
+  let at = 0;
+  for (const c of list) {
+    assert.equal(c.from, at, `${c.name} follows on`);
+    assert.ok((c.to - c.from) / reel.fps >= 5, `${c.name}: ${(c.to - c.from) / reel.fps} s`);
+    at = c.to;
+  }
+  assert.equal(at, reel.frames);
+  const fb = new Uint16Array(240 * 240), seen = new Set();
+  for (let i = 0; i < reel.frames; i++) {             // the screen keeps changing: knobs turning, not a still
+    reel.apply(i, fb);
+    if (i % 15 === 0) seen.add(fb.reduce((h, v) => (h * 31 + v) >>> 0, 7));
+  }
+  assert.ok(seen.size > reel.frames / 15 * 0.9, `${seen.size} different screens in ${reel.frames / 15} s`);
+});

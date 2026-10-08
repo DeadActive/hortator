@@ -7,6 +7,7 @@
 import { Lab, LabPlayer } from './lab.js';
 import { el } from './lab_ui.js';
 import { B } from './controls.js';
+import { parseReel, snapshots } from './reel.js';
 
 const PIECES = {                                     // data-piece -> its module, loaded once the analyser runs
   voices: () => import('./lab_voices.js'),
@@ -42,6 +43,71 @@ function paint(canvas, fb) {                          // RGB565 -> the canvas, 1
     px[4 * i + 3] = 255;
   }
   g.putImageData(img, 0, 0);
+}
+
+// ---- the screens' clips (tests/sim_feature_reel.c): each chapter's page recorded with its knobs turned to their ends,
+// looped while on screen; a change in the piece shows the live screen for a while, then the clip comes back
+const LIVE_MS = 5000;
+const still = matchMedia('(prefers-reduced-motion: reduce)');
+let reel = null, clips = null, snaps = null, ticking = false;
+const screens = new Map();                            // chapter -> { lcd, clip, fb, pos, t0, live, seen }
+
+function loadClips() {
+  if (!window.DecompressionStream || still.matches) return Promise.resolve();
+  return Promise.all([
+    fetch('features.bin.gz').then(r => (r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+      : Promise.reject(new Error(`features.bin.gz: HTTP ${r.status}`)))),
+    fetch('features.json').then(r => (r.ok ? r.json() : Promise.reject(new Error(`features.json: HTTP ${r.status}`)))),
+  ]).then(([buf, list]) => {
+    reel = parseReel(buf);
+    clips = Object.fromEntries(list.map(c => [c.name, c]));
+    snaps = snapshots(reel, list.map(c => c.from));
+  }).catch(err => console.error(err));                // no clips: the screens show the live state only
+}
+
+function restart(s) {                                 // the clip from its first frame
+  s.fb.set(snaps.get(s.clip.from).fb);
+  s.pos = s.clip.from;
+  s.t0 = performance.now();
+  paint(s.lcd, s.fb);
+}
+
+function tick(now) {
+  ticking = false;
+  for (const s of screens.values()) {
+    if (!s.seen || !s.clip || now < s.live) continue;
+    if (s.live) {                                     // the live hold is over: the clip again
+      s.live = 0;
+      restart(s);
+      continue;
+    }
+    const len = s.clip.to - s.clip.from, target = s.clip.from + Math.floor((now - s.t0) / 1000 * reel.fps) % len;
+    if (target === s.pos) continue;
+    if (target < s.pos) {                             // looped
+      restart(s);
+      continue;
+    }
+    while (s.pos < target) reel.apply(++s.pos, s.fb);
+    paint(s.lcd, s.fb);
+  }
+  if ([...screens.values()].some(s => s.seen && s.clip)) {
+    ticking = true;
+    requestAnimationFrame(tick);
+  }
+}
+
+function watch(chapter, lcd, name) {                  // the chapter's clip plays while its screen is in view
+  const s = { lcd, clip: clips?.[name] ?? null, fb: new Uint16Array(240 * 240), pos: -1, t0: 0, live: 0, seen: false };
+  screens.set(chapter, s);
+  if (s.clip) restart(s);
+  new IntersectionObserver(([e]) => {
+    s.seen = e.isIntersecting;
+    if (s.seen && !ticking) {
+      ticking = true;
+      requestAnimationFrame(tick);
+    }
+  }).observe(lcd);
+  return s;
 }
 
 const DIAGRAMS = new Set(['ble']);                   // no firmware to run: mounted without the analyser
@@ -106,11 +172,19 @@ async function mount(chapter) {
   const { default: make } = await load();
   const button = el('button', 'lab-play', 'Play');
   const lcd = chapter.querySelector('.device-screen canvas'), page = PAGES[stage.dataset.piece] ?? [];
-  // screen(more): the FM-1's screen for the analyser's state now (a piece calls it at the end of a render)
-  const screen = (more = []) => { if (lab && lcd) paint(lcd, lab.screen(panel([...page, ...more]))); };
+  const shown = lcd ? watch(chapter, lcd, stage.dataset.piece) : null;
+  let ready = false;
+  // screen(more): the FM-1's screen for the analyser's state now (a piece calls it at the end of a render): with a
+  // clip, only for a change made here (then held LIVE_MS); without one, always
+  const screen = (more = []) => {
+    if (!lab || !lcd || (shown?.clip && !ready)) return;
+    paint(lcd, lab.screen(panel([...page, ...more])));
+    if (shown?.clip) shown.live = performance.now() + LIVE_MS;
+  };
   let piece = null;
   // audition(): the piece's sound, started if it is not on (a pad, a held key); -> the player or null
   piece = make(stage, { lab, ids, screen, audition: () => play(chapter, piece, button, false) });
+  ready = true;
   if (!piece.start) return;                           // a diagram: nothing to hear
   button.type = 'button';
   button.setAttribute('aria-pressed', 'false');
@@ -131,7 +205,7 @@ export function initFeatures() {
     obs.disconnect();
     const needsLab = c => !DIAGRAMS.has(c.querySelector('.plate')?.dataset.piece);
     chapters.filter(c => !needsLab(c)).forEach(mount);
-    boot().then(() => {
+    Promise.all([boot(), loadClips()]).then(() => {
       for (const c of chapters.filter(c => !needsLab(c))) {   // a diagram's screen: the page it leaves as it is
         const lcd = c.querySelector('.device-screen canvas');
         lab.reset();
