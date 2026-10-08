@@ -1,23 +1,31 @@
 {
- "version": "0.13.0",
- "commit": "63b235d",
+ "version": "0.14.0",
+ "commit": "2c2847e",
  "date": "2026-10-08",
  "since": [],
  "release": {
-  "version": "0.13.0",
+  "version": "0.14.0",
   "date": "2026-10-08",
   "notes": [
    {
-    "title": "PHYS",
-    "text": "PHYS (upstream Felucca 1.0's physical models, MIT DaisySP): MEMB, a struck drum head as a drum model (TUNE DECAY TONE HEAD on HOME; POS, BEND, STICK; toms, timpani, tabla), and MODAL, a bell / bar / plate body as a RESON model (STRCT from harmonic to bell, DECAY its ring time as STRNG's; 2 tracks at most). The RESON MODEL knob now skips a model that is full. No project format change."
+    "title": "FM",
+    "text": "FM: a 2-operator FM percussion model (TUNE DECAY INDEX RATIO, MDEC SWEEP FBK VEL): bells, metallic toms, woodblocks, zaps, FM kicks; 2 voices; the SOUND graph shows the ratio's sidebands."
    },
    {
-    "title": "BENCH",
-    "text": "BENCH: the console's bench yes plays the performance cases on the FM-1; tools/fm1_bench.py compares them with the host's (render time, CPU %, per case: every model, RESON model, the heavy kits and their FX)."
+    "title": "SEQ",
+    "text": "SEQ: the white keys are the selected track's steps on every SEQ page (STEP, PATTERN, MOTION, SONG) and on TRACKS (tap on / off, hold accent, OCT+ / OCT- the bank); ALGO or TRACKS' KNOB 1 picks the track. TRACKS mutes: REC held + a key (+ top C# / D#: now / next bar), was OCT- held."
    },
    {
-    "title": "The start screen and ABOUT",
-    "text": "The start screen and ABOUT show the HortatoR logo (UnifrakturCook Bold, SIL OFL); the \"untested\" labels are gone."
+    "title": "PERFORM",
+    "text": "PERFORM: the knobs are the macros whenever the PERFORM screen shows (a held layer key no longer let them edit the page under it)."
+   },
+   {
+    "title": "FILTER",
+    "text": "FILTER: a filter on every track (FX > FILTER: TYPE OFF LP BP HP NOT, CUT, RESO, ENV, DECAY), after RESON, before DIST; each hit sweeps it by ENV (accents further); LFO DEST F.CUT / F.RES. Projects: format FDRA (older ones load with the filter OFF). BENCH: filter, compressor and sidechain cases."
+   },
+   {
+    "title": "COWB",
+    "text": "COWB: TUNE now moves its pitch (its own 540 / 800 Hz oscillators, the band-pass follows); before, it only moved the filter over fixed partials. At TUNE 0 it sounds as before."
    }
   ]
  }
