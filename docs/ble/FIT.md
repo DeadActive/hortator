@@ -116,7 +116,20 @@ blocks and headers), and 1b sizes the heap from the device's number. The task st
 - The BLE build: `.ram_text` (the radio calibration) reaches nothing outside itself; no BT library RAM-code section
   lands in XIP; register access only in `hal/` (`src/ble/` scanned, except the SDK's radio tables); `divdi` 0. The
   libraries bring their own soft double (`libcompiler_rt.a`: `divdf3`, `adddf3`, `muldf3`, … 2700 B), vendor code.
-- A BLE build is never packaged in part 1a (`FELUCCA_BLE=1 DRUM_PACKAGE=1` stops: gates 2–4 come with 1b).
+- Gates 2a, 2b and 3 (part 1b) run in every BLE build, which stops on any of them:
+  - 2a: the update path's sources (`usb.c`, `usb_app.c`, `ota.c`, `storage.c`, `libc.c`, `firmware/hal`,
+    `firmware/loader`) equal the last `drum-v*` release's; only the new BLE HAL files may be added;
+  - 2b: the update path's machine code (45 functions: the main loop, USB, OTA, flash, storage, the timer IRQ,
+    `fm1_cstart`, UBOOT, the watchdog) equals the reference core's: the same core object linked with empty BLE entry
+    points (`build/felucca_ref.dis`);
+  - 3: no BT start-up (`ble_start`, `btstack_init`, …) is reachable from `fm1_cstart`, the ISRs or the fault handlers,
+    except through `ble_user_start` (the console's `ble start`).
+  Each was broken on purpose once: a comment appended to `ota.c` → `gate 2a: … ota.c differs from drum-v0.14.0 (M)`;
+  a `ble_start()` call in `ble_service` → `gate 3: … ble_start, btctrler_task_init, btstack_init`; the BLE listing
+  against the default build's → `changed: fm1_main`.
+- The SDK config sources are pinned too (`tools/ble_libs.py` `SOURCE_PINS`).
+- A gated BLE build may be packaged: `FELUCCA_BLE=1 DRUM_PACKAGE=1 ./build.sh` → `build/felucca-ble-UNTESTED.fwsc`,
+  and the local installer is labelled `…+ble`. `BLE_MEASURE=1` builds are never packaged.
 - H2 / H3 and the cost budgets run on the default build (byte-identical to 0.14.0's, so unchanged).
 
 ## Verdict: GO for part 1b

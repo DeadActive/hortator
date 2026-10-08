@@ -78,6 +78,12 @@ PINS = {           # AC79NN_SDK_V1.2.0 (`ble_libs.py pin`); a different library 
     "include_lib/newlib/pi32v2-lib/libcompiler_rt.a": "141997ab6977c0c4abfb857bc32a897eb345f8d593e27e74c33bdebcf3fd5009",
 }
 
+SOURCE_PINS = {    # the SDK config sources compiled into the BLE build (bitcode: they decide what LTO keeps)
+    "apps/common/config/log_config/lib_btctrler_config.c":
+        "7323d979d70af02110ada6d3a6eaf76ad5a1292ccbbb7ff30a51e9c667d28fe8",
+    "apps/common/config/bt_profile_config.c": "1d385cbd6b07e1b8d87d7336debe51b34b414c1feae4366973b18468fac6f7f2",
+}
+
 
 def sha(p):
     return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -107,8 +113,10 @@ def members(outdir):
     paths = []
     for rel, names in MEMBERS.items():
         p = SDK / rel
+        if not p.exists():
+            sys.exit(f"ble_libs: {p} missing (set AC79_BT_SDK to a full AC79 SDK copy)")
         if rel not in PINS or sha(p) != PINS[rel]:
-            sys.exit(f"ble_libs: {rel} missing or not the pinned archive")
+            sys.exit(f"ble_libs: {rel} not the pinned archive")
         found = ar_members(p)
         for n in names:
             q = Path(outdir) / n
@@ -128,6 +136,12 @@ def libs():
         if rel not in PINS:
             sys.exit(f"ble_libs: {rel} not pinned (run `ble_libs.py pin` and fill PINS)")
         out.append(p)
+    for rel, pin in SOURCE_PINS.items():
+        p = SDK / rel
+        if not p.exists():
+            sys.exit(f"ble_libs: {p} missing (set AC79_BT_SDK to a full AC79 SDK copy)")
+        if sha(p) != pin:
+            sys.exit(f"ble_libs: {rel} sha256 {sha(p)} is not the pinned {pin}")
     return out
 
 

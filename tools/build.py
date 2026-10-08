@@ -285,6 +285,14 @@ def build_app():
         ram_code = sorted(set(re.findall(r"^\s*(\.\S*ram_code\S*)", (OUT / "felucca.map").read_text(), re.M)) - ok)
         if ram_code:
             raise SystemExit(f"build: BT library RAM code sections linked (not placed in RAM): {ram_code}")
+    ref_dis = None
+    if ble:                         # gate 2b's reference (spec): the same core object, empty BLE entry points, app.ld
+        tc("cc", *[f for f in flags if f != "-Ibuild/gen"], "-c", FW / "src" / "ble" / "ble_stub.c", "-o",
+           OUT / "ble_stub.o")
+        tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
+           OUT / "felucca.o", OUT / "ble_stub.o", "-o", OUT / "felucca_ref.elf")
+        ref_dis = tc("common/bin/objdump", "-d", OUT / "felucca_ref.elf")
+        (OUT / "felucca_ref.dis").write_text(ref_dis)
     for sect in ("text.bin", "data.bin", "ramtext.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
@@ -311,7 +319,7 @@ def build_app():
             img += blob
     img += b"\xff" * (-len(img) % 4)
     (OUT / "felucca.bin").write_bytes(img)
-    return bytes(img), syms, dis, rt
+    return bytes(img), syms, dis, rt, ref_dis
 
 
 def rt_reach(rt):
@@ -445,10 +453,8 @@ def main():
         return 0
     ble = os.environ.get("FELUCCA_BLE") == "1"
     measure = ble and os.environ.get("BLE_MEASURE") == "1"
-    if ble and os.environ.get("DRUM_PACKAGE") == "1":   # (BLE_MEASURE included)
-        # gates 2-4 (the update path's machine code, no BT at boot) come with BLE part 1b: until then a BLE image is
-        # built and checked, never packaged (nothing installable)
-        raise SystemExit("build: FELUCCA_BLE=1 builds are not packaged yet (gates 2-4: BLE part 1b)")
+    if measure and os.environ.get("DRUM_PACKAGE") == "1":
+        raise SystemExit("build: BLE_MEASURE=1 only measures; no package with it")
     name = "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
@@ -457,6 +463,8 @@ def main():
         PRODUCT = "FM-1_9" + m[1] + m[2]
         VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
         name = f"felucca-{a.release}.fwsc"
+    if ble:                         # a gated BLE build (gates 1-5) may be packaged, named as one
+        name = name.replace("felucca", "felucca-ble", 1)
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -466,8 +474,24 @@ def main():
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
-    img, syms, dis, rt = build_app()
+    img, syms, dis, rt, ref_dis = build_app()
     errors, notes = check(img, syms, dis, rt, ble, measure)
+    if ble:                         # gates 2-3 (spec part 1): every BLE build stops on them
+        import check_update_path as cup
+        import check_ble_boot as cbb
+        base = cup.last_release()
+        e2a = cup.source_errors(base)
+        e2b = cup.compare(dis, cup.render(cup.selected(cup.functions(ref_dis))))
+        e3 = cbb.reachable_starts(dis)
+        errors += [f"gate 2a: {e}" for e in e2a] + [f"gate 2b: {e}" for e in e2b]
+        errors += [f"gate 3: BT start-up reachable at boot: {', '.join(e3)}"] if e3 else []
+        if not e2a:
+            notes.append(f"gate 2a: the update path's sources = {base}'s")
+        if not e2b:
+            notes.append(f"gate 2b: the update path's machine code = the reference core's "
+                         f"({len(cup.selected(cup.functions(ref_dis)))} functions)")
+        if not e3:
+            notes.append("gate 3: no BT start-up reachable at boot (only through ble_user_start)")
     hal_err = mmio_check()
     errors += hal_err
     if not hal_err:
@@ -492,7 +516,8 @@ def main():
     print(f"app      {OUT / 'felucca.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
-    make_site.main(OUT / name, VERSION or drum_label(), OUT / "site")   # the local web installer: always this package
+    label = (VERSION or drum_label()) + ("+ble" if ble else "")    # the installer shows which build it ships
+    make_site.main(OUT / name, label, OUT / "site")   # the local web installer: always this package
     return 0
 
 
