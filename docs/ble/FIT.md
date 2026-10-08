@@ -13,6 +13,7 @@ a package.
 | 2: the SDK config sources and the log stubs as bitcode (LTO) | 422096 | 159468 | 126700 | 63020 | 365920 (−21856 headroom) |
 | 3: RAM fit (2 KB task stacks, a 26 KB heap; Task 4), every check on (no `BLE_MEASURE`) | 422268 | 159296 | 126528 | 63028 | 335200 (8864 headroom) |
 | 4: part 1b (the console, the service hook, gates 2–3, the stack and IRQ guards) | 424068 | 157496 | 124728 | 63056 | 335200 (8864 headroom) |
+| 5: the heap sized from the device (10824 B high-water + 25 % = 13824 B; user-approved 2026-10-09) | 424068 | 157496 | 124728 | 63056 | 322400 (21664 headroom) |
 
 ## Step 1: where the XIP bytes are (build/felucca.map)
 
@@ -91,7 +92,7 @@ the goal.
 | what | where | B |
 |------|-------|--:|
 | the core's buffers (as drum-v0.14.0) | `.pool` | 298656 |
-| the BT heap (`BLE_HEAP_BYTES`, `ble.c`) | `.pool` | 26624 |
+| the BT heap (`BLE_HEAP_BYTES`, `ble.c`; 13824 since step 5) | `.pool` | 26624 |
 | 4 task slots (`ble_os.c`: a 2 KB stack, `BLE_STACK_WORDS` 512, + a 384 B message queue each) | `.pool` | 9920 |
 | **pool** | of 344064 (8192 kept spare) | **335200** (8864 spare) |
 | the core's `.data + .bss` (as drum-v0.14.0) | RAM | 51048 |
