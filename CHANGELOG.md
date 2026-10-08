@@ -5,6 +5,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- SEQ: the white keys are the selected track's steps on every SEQ page (STEP, PATTERN, MOTION, SONG) and on TRACKS
+  (tap on / off, hold accent, OCT+ / OCT- the bank); ALGO or TRACKS' KNOB 1 picks the track. TRACKS mutes: REC held + a
+  key (+ top C# / D#: now / next bar), was OCT- held.
+- PERFORM: the knobs are the macros whenever the PERFORM screen shows (a held layer key no longer let them edit the
+  page under it).
 - FILTER: a filter on every track (FX > FILTER: TYPE OFF LP BP HP NOT, CUT, RESO, ENV, DECAY), after RESON, before
   DIST; each hit sweeps it by ENV (accents further); LFO DEST F.CUT / F.RES. Projects: format FDRA (older ones load
   with the filter OFF). BENCH: filter, compressor and sidechain cases.
