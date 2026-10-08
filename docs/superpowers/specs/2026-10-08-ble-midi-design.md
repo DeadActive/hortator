@@ -272,3 +272,35 @@ The JieLi BT libraries linked into the image come from the AC79 SDK (Apache-2.0)
 already carries. `LICENSING.md` gets a row for them, and `LICENSES/Apache-2.0.txt` already covers them. The
 `ble_rf_tables.c` copy is Apache-2.0, credited in the file. The SMC mapping values come from the user's own
 `smc-seq` project.
+
+## Amendments (2026-10-08, after surveying Hortator 0.14.0 against fm1-lsdj 548ce73; approved by the user)
+
+1. **Loader pin:** Hortator already pins its loader (`tools/frozen_base.txt` `LOADER_SHA256 cc98eed2…`, checked by
+   `tools/check_loader.py` as a test). Gate 1 makes the BLE build itself stop on that pin. fm1-lsdj's pin
+   (`e671adf0…`, Felucca 1.0.5.2's loader) is not copied.
+2. **HAL:** `firmware/hal/` is frozen (`tools/check_untouched.py`, frozen-base-7). No existing HAL file changes:
+   `fm1_guard_stack_window`, `fm1_irq_unmask`, `fm1_irq_is_masked` go into the new `firmware/hal/fm1_ble_hal.h`
+   (with `fm1_clk_hz`, `fm1_ble_ticks`, `fm1_ble_irq_off/on`), next to the new `fm1_ctx.h` / `fm1_ctx.S`; included
+   only under `FELUCCA_BLE`. No frozen baseline move.
+3. **Main loop:** `main.c` is frozen. The BT service runs from `ed_service()` (not frozen; `felucca.c`), which the
+   main loop calls every pass and in its 15 ms wait loop; the slice is at most 5 ms per call *(budget)*.
+4. **RAM:** the test's 48 KB heap + 4 × 4 KB task stacks (~67 KB) do not fit Hortator's pool (~37 KB free after the
+   8 KB headroom). Task stacks: 2 KB each (measured high-water 1.5 KB + 25 %) *(budget)*; the heap gets a
+   high-water report and is sized from its measured peak + 25 % *(budget)*, in `.pool` or `.bss` (~30 KB spare
+   there), whichever keeps both checks.
+5. **Flash, measure first:** none of the shrink steps exists yet. Part 1 begins with a measuring build (the stack
+   linked into 0.14.0, then shrink step 1). If the image cannot reach the slot − 32 KB, the work stops and the
+   user decides. The SDK's own build uses `-Oz` with LTO (spec step 3's "-Os as the SDK's" corrected).
+6. **Gate scope:** H2 (`compare_upstream.py`), H3 (`stack_depth.py`) and the cost budgets run on the default build,
+   which stays byte-identical (gate 5); the BLE build gets gates 1–4 (H3 cannot follow the BT task switch).
+7. **div0 trap:** stays ON in BLE builds (Hortator's setting); the device test watches the console's crash record.
+8. **Smaller:** gate 2a's source list is Hortator's update path (`usb.c`, `usb_app.c`, `ota.c`, `storage.c`,
+   `libc.c`, `firmware/hal`, `firmware/loader`) against `drum-v0.14.0`; gate 2b's reference is regenerated from a
+   Hortator `FELUCCA_CORE_REF=1` build; gate 3 walks from `fm1_cstart` and from the ISRs; the BLE build's
+   `.ram_text` check is fm1-lsdj's reach check (`delay_us` calls `ble_spin`); the console commands
+   `ble start/scan/list/connect N/stop` are new (fm1-lsdj drove them from keys), `ble_ui.c`'s console status moves
+   into the console; `status` gains `audio_late` (`felucca_dbg.late`); both SDK checkouts are checked (`AC79_BT_SDK`
+   V1.2.0 for the BT libraries, `AC79_SDK` V1.2.1 for packaging).
+9. **Part 1 in two plans:** 1a (port, link, shrink to fit; default build byte-identical; ends in a go / no-go on the
+   fit) and 1b (the service hook, console commands, gates 2–4, the device test), the second written after 1a's
+   measurements.
