@@ -78,10 +78,10 @@ Copy the console text of each step back (the whole `ble` output where asked).
 
 | Step | Date | Result | Notes |
 | --- | --- | --- | --- |
-| 1 install | | | |
+| 1 install | 2026-10-09 | ok | drum-0.14.0+45df60a+ble installed over 0.14.0 |
 | 2 UBOOT, BT off | | | |
-| 3 start | | | |
-| 4 scan / connect | | | |
-| 5 under load | | | |
+| 3 start | 2026-10-09 | ok | IDLE, rf trim stored (block 0x0E7E68), stage 7, fatal 0, irq_leaks 0, irq_lowered 0; longest BT task run 18745 us (start / connect) |
+| 4 scan / connect | 2026-10-09 | ok | SMC-Mixer listed with MIDI (-59 dBm); connect → SUBSCRIBED, then RECEIVING once the controls moved: msgs 422, pkts 236, errs 0, lost 0 |
+| 5 under load | 2026-10-09 | audio_late 0 | receiving: loop last 15 ms, max 23 ms (BT on); longest BT task run 1018 us; heap high 10824 of 26624, 0 failed; stack free app_core 1832, btctrler 1080, btstack 416 (of 2048) |
 | 6 update, BT on | | | |
 | 7 UBOOT, BT on | | | |
