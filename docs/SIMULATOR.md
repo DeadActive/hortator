@@ -157,7 +157,7 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
    ```
 
 3. **The firmware's name is Hortator** (user decision, 2026-10-07). The landing page and the installer use it;
-   the device shows it as the HortatoR logo (UnifrakturCook Bold) on the start screen and ABOUT (done: `ui_menu.c` `draw_boot_title`, `tools/gen_logo.py`).
+   the device shows it on the start screen (CRT COLLAPSE, `assets/boot.png`: `ui_menu.c` `draw_boot_title`, `tools/gen_boot.py`) and as the HortatoR logo (UnifrakturMaguntia) on ABOUT (`tools/gen_logo.py`).
    The version labels
    (`DRUM-x.y.z` on the device, `drum-x.y.z+<commit>` in the installer and package names; `tools/build.py`
    `drum_label`, `tools/version.py` and its checks) can stay as they are or become `HORTATOR-` / `hortator-`. That is

@@ -1,4 +1,4 @@
-UnifrakturCook Bold (UnifrakturCook-Bold.ttf), rendered as the HortatoR logo (tools/gen_logo.py)
+UnifrakturCook Bold (UnifrakturCook-Bold.ttf), one face of the boot screen study (tools/boot_variants.py)
 Source: https://github.com/google/fonts (ofl/unifrakturcook)
 
 Copyright (c) 2010, j. 'mach' wust, with Reserved Font Name UnifrakturCook.

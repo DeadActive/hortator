@@ -14,6 +14,7 @@ typedef struct {               /* proportional, see tools/gen_font.py */
 } felucca_font_t;
 #include "felucca_font.h"
 #include "felucca_logo.h"         /* the HortatoR logo (tools/gen_logo.py) */
+#include "felucca_boot.h"         /* the start screen (tools/gen_boot.py) */
 
 #define CV_MAX (240u * 124u)      /* the graph strip is 240 x 124 */
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
@@ -171,6 +172,23 @@ static void cv_logo(int32_t x, int32_t y, uint16_t c)
             if (v)
                 cv_pset(x + (int32_t)gx, y + (int32_t)gy, ramp[v]);
         }
+}
+
+/* start screen rows y0 .. y0 + cv_h - 1 onto the canvas (cv_begin(240, rows) first): level 0 black, 1..5 the
+ * palette's steps, 6 white */
+static void cv_boot(uint32_t y0)
+{
+    uint16_t lut[16] = {0};                 /* 7..15 never occur (gen_boot.py checks); black if they did */
+    uint32_t k, i, n = cv_w * cv_h;
+    const uint8_t *src = BOOT_DATA + y0 * (BOOT_W / 2u);
+    for (k = 0; k < 5u; k++)
+        lut[k + 1u] = swap16(pal[k]);
+    lut[6] = swap16(C_WHITE);
+    for (i = 0; i < n; i += 2u) {
+        uint32_t v = src[i / 2u];
+        cv_px[i] = lut[v >> 4];
+        cv_px[i + 1u] = lut[v & 15u];
+    }
 }
 
 static int32_t text_w(const felucca_font_t *f, const char *s)

@@ -1,3 +1,6 @@
+UnifrakturMaguntia (UnifrakturMaguntia-Book.ttf), rendered as the HortatoR logo (tools/gen_logo.py) and the start screen (assets/boot.png, tools/boot_variants.py --ship)
+Source: https://github.com/google/fonts (ofl/unifrakturmaguntia)
+
 Copyright (c) 2010, j. 'mach' wust, with Reserved Font Name UnifrakturMaguntia.
 Copyright (c) 2009, Peter Wiegel.
 

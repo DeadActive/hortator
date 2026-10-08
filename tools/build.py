@@ -98,6 +98,7 @@ def generate():
     cmds = [[tools / "gen_font.py", GEN / "felucca_font.h"],
             [tools / "gen_icons.py", GEN / "felucca_icons.h"],
             [tools / "gen_logo.py", GEN / "felucca_logo.h"],
+            [tools / "gen_boot.py", GEN / "felucca_boot.h"],
             [tools / "gen_tables.py", GEN / "felucca_tables.h"],
             [tools / "gen_samples.py", GEN / "felucca_samples.h"]]
     procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

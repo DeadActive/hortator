@@ -6,6 +6,7 @@ and dither.
 
   boot_variants.py OUTDIR [N ...]        (N: only these screens, 1..20)
   boot_variants.py OUTDIR collapse       (screen 14 in ten faces: c01..c10)
+  boot_variants.py --ship                (C2 into assets/boot.png, the firmware's start screen)
 
 Screens 1-10 set the word in UnifrakturMaguntia (assets/fonts/, SIL OFL 1.1) stretched tall and
 emboldened. Screens 11-20 use one gothic or horror face each (FONTS: SIL OFL 1.1, fetched from
@@ -758,8 +759,27 @@ def save(scr, name):
     print(f"{name}: levels {np.unique(scr).tolist()}")
 
 
+SHIP = ROOT / "assets" / "boot.png"     # the screen the firmware shows (tools/gen_boot.py): C2
+
+
+def ship():
+    """C2, CRT COLLAPSE in UnifrakturMaguntia, as assets/boot.png: palette image, pixel = level 0..6,
+    the palette is GREEN for viewing only (the firmware maps the levels to the chosen COLOR)"""
+    global OUT
+    OUT = ROOT / "build" / "boot_variants"
+    OUT.mkdir(parents=True, exist_ok=True)
+    scr = collapse(np.random.default_rng(1014), "maguntia")
+    assert scr.shape == (H, W) and scr.max() <= 6
+    im = Image.frombytes("P", (W, H), scr.astype(np.uint8).tobytes())
+    im.putpalette([v for c in [(0, 0, 0)] + PALETTES["green"] + [(255, 255, 255)] for v in c])
+    im.save(SHIP, optimize=True)
+    print(f"{SHIP.relative_to(ROOT)}: levels {np.unique(scr).tolist()}")
+
+
 def main():
     global OUT
+    if sys.argv[1:2] == ["--ship"]:
+        return ship()
     OUT = Path(sys.argv[1])
     OUT.mkdir(parents=True, exist_ok=True)
     if sys.argv[2:3] == ["collapse"]:

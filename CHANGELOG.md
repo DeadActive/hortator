@@ -5,6 +5,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- A new start screen, CRT COLLAPSE: the HortatoR logo squashed through five dithered frames into one white scan line
+  that bursts sideways, in the chosen COLOR (`assets/boot.png`, made by `tools/boot_variants.py --ship`; the study's
+  other screens: `tools/boot_variants.py OUTDIR`). The logo, there and on ABOUT, is now UnifrakturMaguntia (SIL OFL).
+
 ## 0.14.0 - 2026-10-08
 
 - FM: a 2-operator FM percussion model (TUNE DECAY INDEX RATIO, MDEC SWEEP FBK VEL): bells, metallic toms,

@@ -39,7 +39,7 @@ static void draw_menu(void)
             cv_text(4, 129, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
             cv_text(4, 142, &FONT_S, "GITHUB.COM/HUGELTON/FELUCCA", C_AMB);
             cv_text(4, 155, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
-            cv_text(4, 168, &FONT_S, "LOGO: UNIFRAKTURCOOK (OFL)", C_DIM);
+            cv_text(4, 168, &FONT_S, "LOGO: UNIFRAKTURMAGUNTIA OFL", C_DIM);   /* 28 cells: (OFL) would clip */
             cv_text(4, 181, &FONT_S, "SAMPLES: VERSILIAN (CC0)", C_DIM);
             cv_text(4, 194, &FONT_S, "+ H\xDCGELTON SAMPLE PACK", C_DIM);
         } else {
@@ -83,14 +83,16 @@ static void menu_close(void)
     go_home();
 }
 
-/* the start screen (main.c fm1_main, right after lcd_init): the logo, DRUM MACHINE under it */
-#define BOOT_Y 80u
+/* the start screen (main.c fm1_main, right after lcd_init): CRT COLLAPSE, the logo squashed into a scan line
+ * (assets/boot.png), in the chosen COLOR; the canvas holds 124 rows, so two bands of 120 */
 static void draw_boot_title(void)
 {
-    cv_begin(240, LOGO_H, C_BLACK);
-    cv_logo((240 - LOGO_W) / 2, 0, C_HI);
-    cv_blit(0, BOOT_Y);
-    draw_text_box(0, BOOT_Y + LOGO_H + 6u, 240, &FONT_S, "DRUM MACHINE", C_GRAY, 1);
+    uint32_t y;
+    for (y = 0; y < BOOT_H; y += BOOT_H / 2u) {
+        cv_begin(BOOT_W, BOOT_H / 2u, C_BLACK);
+        cv_boot(y);
+        cv_blit(0, y);
+    }
 }
 
 /* menu: PRESETS moves, OCT+ confirms, OCT- cancels (ABOUT -> list -> close) */

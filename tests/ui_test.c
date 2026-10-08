@@ -1370,15 +1370,28 @@ static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows 
     return n;
 }
 
-/* the start screen (main.c fm1_main): the HortatoR logo and DRUM MACHINE, nothing above or below */
+/* the start screen (main.c fm1_main): assets/boot.png, every pixel, in the chosen palette */
 static void test_boot_title(void)
 {
-    memset(fb, 0, sizeof fb);
-    draw_boot_title();
-    shot("build/ui_shots/00_boot.ppm");
-    check("boot: the logo", fb_lit(BOOT_Y, BOOT_Y + LOGO_H) > 3000);
-    check("boot: DRUM MACHINE under it", fb_lit(BOOT_Y + LOGO_H, BOOT_Y + LOGO_H + 24) > 100);
-    check("boot: nothing else", fb_lit(0, BOOT_Y) + fb_lit(BOOT_Y + LOGO_H + 24, 240) == 0);
+    static const uint32_t PALS[2] = {0, 3};         /* GREEN, RED */
+    uint32_t p, i;
+    for (p = 0; p < 2u; p++) {
+        uint32_t bad = 0;
+        palette_set(PALS[p]);
+        memset(fb, 0, sizeof fb);
+        draw_boot_title();
+        if (p == 0)
+            shot("build/ui_shots/00_boot.ppm");
+        for (i = 0; i < 240u * 240u; i++) {
+            uint32_t v = (BOOT_DATA[i / 2u] >> ((i & 1u) ? 0 : 4)) & 15u;
+            bad += fb[i] != (v == 0 ? C_BLACK : v == 6u ? C_WHITE : pal[v - 1u]);
+        }
+        check(p ? "boot: the same screen in RED" : "boot: every pixel is assets/boot.png in GREEN", bad == 0);
+    }
+    palette_set(settings.palette);
+    check("boot: the collapse frames fill the middle", fb_lit(40, 200) > 8000);
+    check("boot: the white scan line across the middle", fb[119u * 240u + 120u] == C_WHITE &&
+                                                          fb[120u * 240u + 60u] == C_WHITE);
 }
 
 static void snap_page(const char *name)
