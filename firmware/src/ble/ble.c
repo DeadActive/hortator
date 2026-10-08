@@ -30,7 +30,10 @@ static __attribute__((unused)) void ble_stage(uint32_t s)
 #include "ble/ble_scan.c"
 #include "ble/ble_vm.c"
 #include "ble/ble_port.c"
-static uint8_t ble_heap[48 * 1024] __attribute__((section(".pool")));
+/* the BT libraries' heap, in .pool: the largest round size that keeps the pool's 8 KB headroom with 2 KB task stacks
+ * (27296 B at 0.14.0, docs/ble/FIT.md); 1b sizes it from the measured high-water (`ble`) + 25 % (budget) */
+#define BLE_HEAP_BYTES (26u * 1024u)
+static uint8_t ble_heap[BLE_HEAP_BYTES] __attribute__((section(".pool")));
 static uint8_t ble_on;
 int ble_started(void) { return ble_on; }
 /* how far the last run got, kept over a crash reboot (.noinit) for the console's `ble`: stage 1 OS ready, 2 stack

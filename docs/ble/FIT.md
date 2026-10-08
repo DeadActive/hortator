@@ -11,6 +11,7 @@ a package.
 | drum-v0.14.0, no BLE | 296948 | 284616 | — | 51048 | 298656 |
 | 1: the port, as fm1-lsdj 548ce73 (48 KB heap, 4 KB task stacks) | 737680 | −156116 | −188884 | 68784 | 365920 (−21856 headroom) |
 | 2: the SDK config sources and the log stubs as bitcode (LTO) | 422096 | 159468 | 126700 | 63020 | 365920 (−21856 headroom) |
+| 3: RAM fit (2 KB task stacks, a 26 KB heap; Task 4), every check on (no `BLE_MEASURE`) | 422268 | 159296 | 126528 | 63028 | 335200 (8864 headroom) |
 
 ## Step 1: where the XIP bytes are (build/felucca.map)
 
@@ -80,6 +81,27 @@ For the 1b device test (the ones a BLE-MIDI central might still need, if the fol
 `.hci_interface_code`, `.uECC_code` / `.hmac_code` / `.crypto*` (pairing with LE Secure Connections: a device that
 asks for it), `.vendor_manager_code`, and the link layer's 31 KB. Start, scan, connect, discover and notify each have
 a console step in 1b; a failure there points here first.
+
+Shrink step 2 of the plan (stubbing classic / TWS references by hand) is not needed: step 1 leaves 126528 B under
+the goal.
+
+## RAM (step 3)
+
+| what | where | B |
+|------|-------|--:|
+| the core's buffers (as drum-v0.14.0) | `.pool` | 298656 |
+| the BT heap (`BLE_HEAP_BYTES`, `ble.c`) | `.pool` | 26624 |
+| 4 task slots (`ble_os.c`: a 2 KB stack, `BLE_STACK_WORDS` 512, + a 384 B message queue each) | `.pool` | 9920 |
+| **pool** | of 344064 (8192 kept spare) | **335200** (8864 spare) |
+| the core's `.data + .bss` (as drum-v0.14.0) | RAM | 51048 |
+| the libraries' and the BLE unit's `.data + .bss` | RAM | 11980 |
+| **`.data + .bss`** | of 98304 | **63028** (35276 spare) |
+
+The heap's 26 KB is the largest round size that keeps the pool's 8 KB headroom (27296 B would leave exactly 8192).
+`.bss` had more room (35276 B) but would leave the core's RAM with none; `.pool` keeps both checks with room. The
+spec's budget is the measured peak + 25 %: the console's `ble` now prints `heap high <n> of 26624` (the most in use,
+blocks and headers), and 1b sizes the heap from the device's number. The task stacks are 2 KB (the device measured a
+1.5 KB high-water in fm1-lsdj; `ble` prints each task's unused bytes).
 
 ## Checks
 

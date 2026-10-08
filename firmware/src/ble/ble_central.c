@@ -428,6 +428,11 @@ void ble_status(void)                              /* console `ble` */
         }
         core_con_puts("\r\n");
     }
+    o = put_u(put_s(b, "  heap high "), ble_os_heap_high());
+    o = put_u(put_s(o, " of "), sizeof ble_heap);
+    o = put_s(o, "\r\n");
+    *o = 0;
+    core_con_puts(b);
     for (i = 0; i < 4u; i++) {                     /* the task stacks' unused bytes */
         const char *name;
         uint32_t f = ble_os_stack_free(i, &name);

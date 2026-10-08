@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * BLE MIDI test: 2026 DEADACTIVE */
+ * BLE MIDI test: 2026 DEADACTIVE
+ * Drum machine fork: 2026 DEADACTIVE */
 /* A cooperative OS for the JieLi BT libraries. Tasks switch only inside the blocking calls below; the core's main
  * loop calls ble_os_service() to run them, so nothing ever preempts the core. Interrupt handlers may post to
  * queues and semaphores (they only mark the waiter ready). */
@@ -15,7 +16,7 @@
 #define NTASK 4
 #define QWORDS 96                                  /* message words per task queue */
 #define NTIMER 16
-#define STACK_WORDS 1024                           /* 4 KiB per task */
+#define STACK_WORDS BLE_STACK_WORDS
 
 typedef struct {
     const char *name;
@@ -49,6 +50,7 @@ _Static_assert(sizeof(sem_t) <= BLE_SDK_OS_SEM_SIZE, "sem_t fits in OS_SEM");
 /* ---- heap: first fit, 8-byte aligned, headers with a guard word ---- */
 typedef struct blk { uint32_t size, used, guard; struct blk *next; } blk_t;
 static blk_t *heap0;
+static uint32_t heap_use, heap_high;              /* bytes in use (blocks + headers), the most seen */
 #define GUARD 0xB1E0B1E0u
 
 void ble_os_init(uint8_t *heap, uint32_t heap_len)
@@ -59,6 +61,7 @@ void ble_os_init(uint8_t *heap, uint32_t heap_len)
     heap0->used = 0;
     heap0->guard = GUARD;
     heap0->next = 0;
+    heap_use = heap_high = 0;
     for (i = 0; i < NTASK; i++)
         tasks[i].name = 0;
     for (i = 0; i < NTIMER; i++)
@@ -84,11 +87,16 @@ void *ble_malloc(unsigned int n)
                 b->size = n;
             }
             b->used = 1;
+            heap_use += b->size + sizeof(blk_t);
+            if (heap_use > heap_high)
+                heap_high = heap_use;
             return b + 1;
         }
     }
     return 0;
 }
+
+uint32_t ble_os_heap_high(void) { return heap_high; }
 
 void *ble_zalloc(unsigned int n)
 {
@@ -108,7 +116,10 @@ void ble_free(void *p)
     f = (blk_t *)p - 1;
     if (f->guard != GUARD)
         return;
+    if (!f->used)
+        return;
     f->used = 0;
+    heap_use -= f->size + sizeof(blk_t);
     for (b = heap0; b; b = b->next)               /* merge free neighbours */
         while (!b->used && b->next && !b->next->used) {
             b->size += sizeof(blk_t) + b->next->size;

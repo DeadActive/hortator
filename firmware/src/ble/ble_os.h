@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * BLE MIDI test: 2026 DEADACTIVE */
+ * BLE MIDI test: 2026 DEADACTIVE
+ * Drum machine fork: 2026 DEADACTIVE */
 /* The OS calls the JieLi BT libraries make (SDK signatures), on a cooperative scheduler run from the core's main
  * loop (ble_os_service). Semantics follow the SDK's os_api.c (docs/ble/LINK_NOTES.md). */
 #ifndef BLE_OS_H
 #define BLE_OS_H
 #include <stdint.h>
 #include "ble_sdk_abi.h"
+#define BLE_STACK_WORDS 512                        /* 2 KiB per task (budget, spec amendment 4), in .pool */
 int task_create(void (*task)(void *p), void *p, const char *name);
 const char *os_current_task(void);
 const char *os_current_task_rom(void);
@@ -44,5 +46,6 @@ uint32_t ble_os_service(uint32_t budget_us);
 extern void (*ble_os_after_run)(int task);      /* called after each task run (the core's checks) */
 extern volatile uint32_t *ble_os_trace;          /* diagnostics: the running task + 1 is written here */
 uint32_t ble_os_stack_free(uint32_t i, const char **name);   /* console: a task's unused stack, bytes */
+uint32_t ble_os_heap_high(void);                  /* console: the most heap in use (blocks + headers), bytes */
 uint32_t ble_os_now_ms(void);
 #endif

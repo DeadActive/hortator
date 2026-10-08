@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * BLE MIDI test: 2026 DEADACTIVE */
+ * BLE MIDI test: 2026 DEADACTIVE
+ * Drum machine fork: 2026 DEADACTIVE */
 #define BLE_OS_HOST 1
 #define _XOPEN_SOURCE 700
 #include <stdio.h>
@@ -156,7 +157,7 @@ int main(void)
         for (i = 0; i < 4u; i++)
             if (ble_os_stack_free(i, &name) && name && !strcmp(name, "painted"))
                 slot = i;
-        CHECK(slot < 4u && ble_os_stack_free(slot, &name) == 4096u, "stack high-water: a new task's stack is all free");
+        CHECK(slot < 4u && ble_os_stack_free(slot, &name) == BLE_STACK_WORDS * 4u, "stack high-water: a new task's stack is all free");
         if (slot < 4u)
             tasks[slot].stack[100] = 0;            /* the deepest word the task touched */
         CHECK(slot < 4u && ble_os_stack_free(slot, &name) == 400u, "stack high-water: counts up to the deepest use");
@@ -183,6 +184,25 @@ int main(void)
         ble_os_service(1000);
         CHECK(after_runs == 1 && after_last == 0, "the after-run hook runs when a task hands back");
         ble_os_after_run = 0;
+    }
+    {   /* the heap high-water (part 1a: the heap is sized from it): the peak in-use bytes, headers included */
+        uint32_t h = sizeof(blk_t), peak = (104u + h) + (200u + h) + (304u + h);
+        void *a, *b, *c, *d;
+        ble_os_init(heap, sizeof heap);
+        CHECK(ble_os_heap_high() == 0, "heap high-water: 0 on a fresh heap");
+        a = ble_malloc(100);
+        b = ble_malloc(200);
+        c = ble_malloc(300);
+        ble_free(b);
+        d = ble_malloc(50);                        /* into the freed 200: in use stays under the peak */
+        CHECK(a && b && c && d == b, "heap high-water: the blocks as expected");
+        CHECK(ble_os_heap_high() == peak, "heap high-water: the peak in-use bytes (100 + 200 + 300, headers)");
+        ble_free(a);
+        ble_free(c);
+        ble_free(d);
+        CHECK(ble_os_heap_high() == peak, "heap high-water: kept after everything is freed");
+        ble_os_init(heap, sizeof heap);
+        CHECK(ble_os_heap_high() == 0, "heap high-water: reset by ble_os_init");
     }
     printf(fails ? "ble_os: %d FAILED\n" : "ble_os: all checks passed\n", fails);
     return fails != 0;
