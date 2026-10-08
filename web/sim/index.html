@@ -9,7 +9,8 @@
 <meta name="description" content="Hortator turns the M-VAVE FM-1 into an eight-track drum machine. Play it in your browser, then install it over USB.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;125,700&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="preload" href="terminus.woff" as="font" type="font/woff" crossorigin>
 <link rel="stylesheet" href="sim.css">
 </head>
 <body>
@@ -242,6 +243,7 @@
   </div>
 </section>
 
+<div class="foot-band" id="foot-band" aria-hidden="true"></div>
 <footer class="foot">
   <div class="foot-brand">
     <p class="silk foot-mark">HORTATOR</p>
@@ -257,7 +259,7 @@
     <p>Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
       <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. Licensed GPL-3.0, no
       warranty. Saves made here stay in this browser.</p>
-    <p>Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and
+    <p>Font: Terminus, the firmware’s own (Dimitar Toshkov Zhekov, <a href="terminus-license.txt">SIL OFL 1.1</a>). Samples: Versilian Studios VSCO-2 Community Edition and
       VCSL (CC0 1.0). M-VAVE and FM-1 are trademarks of their respective owners; this project is not affiliated with
       M-VAVE.</p>
   </div>

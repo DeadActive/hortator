@@ -8,6 +8,7 @@ import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
 import { parseReel } from './reel.js';
 import { initFeatures } from './features.js';
+import { ditherBackground, initGlitch } from './dither.js';
 import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js';
 
 // ---- the panel's elements (built once, placed per layout)
@@ -518,3 +519,10 @@ window.addEventListener('resize', relayout);
 document.fonts?.ready.then(relayout);
 requestAnimationFrame(paint);
 initFeatures();
+// the look (dither.js): a dithered glow behind the device, a dithered fade into the footer, headings that glitch
+ditherBackground(document.getElementById('stage'), (x, y) => {
+  const dx = (x - 0.5) / 0.55, dy = (y - 0.42) / 0.5;
+  return Math.max(0, 1 - Math.hypot(dx, dy)) * 1.15;
+}, '#000000', '#282828');
+ditherBackground(document.getElementById('foot-band'), (x, y) => 1 - Math.abs(2 * y - 1), '#000000', '#505050');
+initGlitch();

@@ -2,8 +2,9 @@
 // Drum machine fork: 2026 DEADACTIVE
 // The lab pieces' traces, drawn like the FM-1's LEDs: a bright line with a glow on the plate's black.
 import { INK } from './lab_ui.js';
+import { ditherPattern } from './dither.js';
 
-const LABEL = '11px "IBM Plex Sans", system-ui, sans-serif';
+const LABEL = '16px "Hortator Terminus", monospace';
 
 // a waveform, min / max per pixel column, of a[0 .. frames): centred; scale 1 = full scale fills the box's height
 export function wave(g, w, h, a, frames, { color = INK.led, glow = INK.glow, fill = false, scale = 1 } = {}) {
@@ -18,7 +19,6 @@ export function wave(g, w, h, a, frames, { color = INK.led, glow = INK.glow, fil
   g.fillStyle = g.strokeStyle = color;
   g.shadowColor = glow;
   g.shadowBlur = glow ? 8 : 0;
-  g.globalAlpha = fill ? 0.35 : 1;
   g.beginPath();
   for (let x = 0; x < w; x++) {
     const i0 = Math.floor(x / w * n), i1 = Math.max(i0 + 1, Math.floor((x + 1) / w * n));
@@ -90,11 +90,9 @@ export function spectrum(g, w, h, db, fs, { color = INK.led, glow = INK.glow, fi
     g.lineTo(px, y(m));
   }
   g.lineTo(w, bot);
-  if (fill) {
-    g.fillStyle = color;
-    g.globalAlpha = 0.14;
+  if (fill) {                                         // the area under it, dithered (a quarter of the tone)
+    g.fillStyle = ditherPattern(g, color, 0.25);
     g.fill();
-    g.globalAlpha = 1;
   }
   g.strokeStyle = color;
   g.lineWidth = 1.5;

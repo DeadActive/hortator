@@ -257,3 +257,29 @@ test('the lab\'s styles stay in its plates: the power switch\'s knob is styled b
     for (const part of sel.split(','))
       if (/\.knob\b/.test(part)) assert.match(part.trim(), /^(\.plate|\.power-toggle|@)/, part.trim());
 });
+
+test('the page is the screen\'s monochrome: every colour in sim.css is a grey (the firmware\'s MONO palette and the device)', () => {
+  const css = readFileSync('web/sim/sim.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/url\("data:[^"]*"\)/g, '');
+  const hues = [];
+  for (const [m, h] of css.matchAll(/#([0-9a-f]{6}|[0-9a-f]{3})\b/gi)) {
+    const v = h.length === 3 ? h.split('').map(c => c + c) : [h.slice(0, 2), h.slice(2, 4), h.slice(4, 6)];
+    if (new Set(v.map(x => x.toLowerCase())).size > 1) hues.push(m);
+  }
+  for (const [m, r, g, b] of css.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)/g)) if (r !== g || g !== b) hues.push(m);
+  assert.deepEqual(hues, []);
+  for (const tone of ['#282828', '#505050', '#828282', '#bababa', '#e2e2e2'])   // firmware/src/gfx.c MONO
+    assert.match(css, new RegExp(tone), tone);
+});
+
+import { parseBdf, buildFont, woff, WANT } from './sim_font.mjs';
+test('the type is the firmware\'s: Terminus from its BDF as a web font, every character the page uses', () => {
+  const bdf = parseBdf(readFileSync('assets/fonts/ter-u16n.bdf', 'utf8'));
+  const tables = buildFont(bdf), font = woff(tables);
+  assert.equal(font.subarray(0, 4).toString(), 'wOFF');
+  const cps = new Set(bdf.glyphs.map(g => g.cp).filter(WANT));   // what the web font carries
+  const page = LANDING.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ');
+  const missing = [...new Set(page)].filter(ch => ch.trim() && !cps.has(ch.codePointAt(0)));
+  assert.deepEqual(missing, [], 'characters Terminus lacks');
+  assert.doesNotMatch(LANDING, /Archivo|IBM\+Plex/, 'no other typeface');
+  assert.match(readFileSync('web/sim/sim.css', 'utf8'), /@font-face\s*{[^}]*terminus\.woff/);
+});

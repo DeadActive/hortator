@@ -101,21 +101,21 @@ export default function lfo(plate, { lab, ids, screen }) {
     g.restore();
     let pk = 0;
     for (let i = 0; i < mix.length; i++) pk = Math.max(pk, Math.abs(mix[i]));
-    draw.wave(g, w, h, mix, span, { color: '#3a3f46', glow: null, scale: 0.9 / (pk || 1) });
-    trace(g, w, h, outs[1], INK.warm, 'rgba(255,179,71,.6)');
+    draw.wave(g, w, h, mix, span, { color: '#505050', glow: null, scale: 0.9 / (pk || 1) });
+    trace(g, w, h, outs[1], INK.warm, 'rgba(0,0,0,0)');
     trace(g, w, h, outs[0], INK.led, INK.glow);
     playhead(g, w, h);
   });
   const stepScope = scope('per-step', (g, w, h) => {   // per step: the knob the hit got, TONE above, DECAY below
     const row = (h - 6) / 2, cw = w / STEPS;
     g.save();
-    g.font = '11px "IBM Plex Sans", system-ui, sans-serif';
+    g.font = '16px "Hortator Terminus", monospace';
     for (const k of [0, 1]) {
       const top = k * (row + 6), d = edit[k === 0 ? 2 : 1];
       g.fillStyle = INK.grid;
       g.fillRect(0, top, w, row);
       g.fillStyle = k ? INK.warm : INK.led;
-      g.shadowColor = k ? 'rgba(255,179,71,.5)' : INK.glow;
+      g.shadowColor = k ? 'rgba(0,0,0,0)' : INK.glow;
       g.shadowBlur = 6;
       hits[k].forEach((v, s) => {
         const f = (v - d.min) / (d.max - d.min), bh = Math.max(2, f * (row - 4));

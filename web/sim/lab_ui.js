@@ -125,4 +125,6 @@ export function hitPad(audition, t = 0, label = 'Hit') {
   return pad;
 }
 
-export const INK = { led: '#f2f7ff', glow: 'rgba(215,232,255,.55)', dim: '#5d636b', dry: '#8a9098', grid: '#22262b', warm: '#ffb347' };
+// the firmware's MONO palette (gfx.c) in its roles: white the accent, the brightest grey values, then secondary,
+// labels, inactive, rules; no glow (a pixel screen): shadows are drawn transparent
+export const INK = { led: '#ffffff', glow: 'rgba(0,0,0,0)', dim: '#505050', dry: '#828282', grid: '#282828', warm: '#bababa' };

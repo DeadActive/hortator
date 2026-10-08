@@ -62,6 +62,23 @@ To preview with a real firmware package, pass one the firmware session already b
 name (`drum-X.Y.Z+<commit>`). Use the package's own commit as `--ref` so the simulator and the firmware match. That
 preview's installer *can* flash an FM-1.
 
+### The look
+
+The page is drawn as the FM-1's screen draws its pages:
+
+- **Colour:** only the firmware's MONO palette (`firmware/src/gfx.c`: five greys and white), in the firmware's roles:
+  `#282828` rules, `#505050` inactive, `#828282` labels, `#bababa` secondary text, `#e2e2e2` values and text, white
+  only for what is touched or where you are. The device keeps its own neutral greys. `tests/sim_site.mjs` fails on any
+  colour with a hue.
+- **Type:** the firmware's own Terminus 8 × 16. `tests/sim_font.mjs` turns `assets/fonts/ter-u16n.bdf` into
+  `terminus.woff` at build time (pixel squares, 64 units each; 210 glyphs, about 5 KB), published with its OFL
+  licence. Sizes are whole multiples of 16 px, so every pixel lands on the grid. Silkscreen remains for the device's
+  printed labels.
+- **Dither:** blends are ordered dithering (Bayer 4 × 4, 2 px cells, `web/sim/dither.js`): the glow behind the device,
+  the band above the footer, the pieces' area fills.
+- **Glitch:** headings tear into offset slices once as they arrive; the hero's title now and then. Reduced motion
+  turns it off.
+
 ## How it works
 
 | Unit | File | Job |

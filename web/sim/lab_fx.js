@@ -80,7 +80,7 @@ export default function fx(plate, { lab, ids, audition, screen }) {
       }
       g.restore();
       g.save();
-      g.font = '11px "IBM Plex Sans", system-ui, sans-serif';
+      g.font = '16px "Hortator Terminus", monospace';
       g.fillStyle = INK.dim;
       g.textBaseline = 'top';
       g.fillText('live, the last 2 s', 2, 2);

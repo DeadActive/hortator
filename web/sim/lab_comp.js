@@ -6,6 +6,7 @@
 // playhead follows the sequencer's step and a meter shows the reduction now.
 import { el, knob, chips, scope, INK } from './lab_ui.js';
 import * as draw from './lab_draw.js';
+import { ditherPattern } from './dither.js';
 
 const DB = gr => gr * 241 / 327680;                  // comp.gr -> dB, as the FM-1's COMP page (ui_draw.c)
 const FLOOR = -24;                                   // the trace's bottom, dB
@@ -112,7 +113,7 @@ export default function comp(plate, { lab, ids, screen }) {
       g.arc(b / 4 * w + 6, 7, 4, 0, 2 * Math.PI);
       if (heard) g.fill(); else g.stroke();
     }
-    g.font = '11px "IBM Plex Sans", system-ui, sans-serif';
+    g.font = '16px "Hortator Terminus", monospace';
     g.fillStyle = INK.dry;
     g.textBaseline = 'middle';
     g.fillText(heard ? 'kick' : 'kick, unheard', 15, 7);
@@ -135,16 +136,16 @@ export default function comp(plate, { lab, ids, screen }) {
     const y = d => 2 + Math.min(1, d / FLOOR) * (h - 18);
     beats(g, w, h);
     g.save();
-    g.font = '11px "IBM Plex Sans", system-ui, sans-serif';
+    g.font = '16px "Hortator Terminus", monospace';
     g.fillStyle = INK.dim;
     g.textBaseline = 'bottom';
     g.fillText(`${FLOOR} dB`, 2, h);
     g.textBaseline = 'top';
     g.fillText('0 dB', 2, 4);
     g.strokeStyle = INK.warm;
-    g.fillStyle = 'rgba(255,179,71,.16)';
+    g.fillStyle = ditherPattern(g, INK.warm, 0.25);   // the reduction's area, dithered
     g.lineWidth = 1.5;
-    g.shadowColor = 'rgba(255,179,71,.6)';
+    g.shadowColor = 'rgba(0,0,0,0)';
     g.shadowBlur = 8;
     g.beginPath();
     g.moveTo(0, y(0));

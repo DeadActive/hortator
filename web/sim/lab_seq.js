@@ -64,7 +64,8 @@ export default function seq(plate, { lab, ids, audition, screen }) {
   const paint = () => cells.forEach(({ col, pad, tag }, s) => {
     const st = steps[s];
     pad.setAttribute('aria-pressed', String(st.on));
-    tag.textContent = st.on ? conds[st.pos].name + (st.rat ? `\n\u00d7${st.rat + 1}` : '') : '';   // RATCH: a 2nd line
+    const name = conds[st.pos].name.replace(/^(.+)-(.{3,})$/, '$1-\n$2');   // 8 px a letter: 1-SHOT on two lines
+    tag.textContent = st.on ? name + (st.rat ? `\n\u00d7${st.rat + 1}` : '') : '';   // RATCH: a line of its own
     tag.disabled = !st.on;
     tag.setAttribute('aria-pressed', String(s === sel));
     col.classList.toggle('now', s === now);
@@ -94,7 +95,7 @@ export default function seq(plate, { lab, ids, audition, screen }) {
   const diceScope = scope('dice', (g, w, h) => {
     const left = 30, cw = (w - left) / 16, rh = h / BARS;
     g.save();
-    g.font = '11px "IBM Plex Sans", system-ui, sans-serif';
+    g.font = '16px "Hortator Terminus", monospace';
     g.textBaseline = 'middle';
     for (let b = 0; b < BARS; b++) {
       g.fillStyle = INK.dim;
@@ -105,7 +106,7 @@ export default function seq(plate, { lab, ids, audition, screen }) {
           g.fillStyle = INK.grid;
           g.fillRect(x + cwi / 2 - 1.5, y + chi / 2 - 1.5, 3, 3);
         } else if (!n) {
-          g.strokeStyle = '#3a3f46';
+          g.strokeStyle = '#505050';
           g.strokeRect(x + 0.5, y + 0.5, cwi - 1, chi - 1);
         } else {
           g.fillStyle = INK.led;
@@ -117,7 +118,7 @@ export default function seq(plate, { lab, ids, audition, screen }) {
         }
       }
     }
-    g.fillStyle = 'rgba(242,247,255,.06)';            // the picked step's column
+    g.fillStyle = 'rgba(255,255,255,.08)';            // the picked step's column
     g.fillRect(left + sel * cw, 0, cw, h);
     g.restore();
   });
@@ -156,7 +157,7 @@ export default function seq(plate, { lab, ids, audition, screen }) {
     g.fillStyle = INK.grid;
     g.fillRect(0, 0, w, h);
     g.fillStyle = INK.warm;
-    g.shadowColor = 'rgba(255,179,71,.5)';
+    g.shadowColor = 'rgba(0,0,0,0)';
     g.shadowBlur = 6;
     motionVals.forEach((v, s) => {
       if (v == null) return;

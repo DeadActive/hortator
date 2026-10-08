@@ -4,6 +4,7 @@
 // Snare, Hats: one bar of 32nds, grids_preview) redraw as the point moves. Playing, three tracks follow the channels;
 // the cells light as they fire, amber where CHAOS added a hit the map did not have.
 import { el, knob, scope, INK } from './lab_ui.js';
+import { ditherPattern } from './dither.js';
 
 const LANES = ['Kick', 'Snare', 'Hats'];
 
@@ -42,13 +43,13 @@ export default function grids(plate, { lab, ids, screen }) {
   // ---- the pad: X / Y (0..127), Grids' 5 x 5 nodes behind
   const padScope = scope('xy', (g, w, h) => {
     g.save();
-    g.fillStyle = '#121417';
+    g.fillStyle = '#000000';
     g.fillRect(0, 0, w, h);
-    g.fillStyle = '#2c3036';
+    g.fillStyle = '#505050';
     for (let i = 0; i < 5; i++)
       for (let j = 0; j < 5; j++) g.fillRect(i / 4 * (w - 12) + 4, j / 4 * (h - 12) + 4, 4, 4);
     const px = state.x / 127 * w, py = (1 - state.y / 127) * h;
-    g.strokeStyle = 'rgba(242,247,255,.18)';
+    g.strokeStyle = '#282828';
     g.beginPath();
     g.moveTo(px, 0); g.lineTo(px, h);
     g.moveTo(0, py); g.lineTo(w, py);
@@ -90,7 +91,7 @@ export default function grids(plate, { lab, ids, screen }) {
   const laneScope = scope('lanes', (g, w, h) => {
     const left = 52, cw = (w - left) / 32, rh = h / 3;
     g.save();
-    g.font = '13px "IBM Plex Sans", system-ui, sans-serif';
+    g.font = '16px "Hortator Terminus", monospace';
     g.textBaseline = 'middle';
     for (let ch = 0; ch < 3; ch++) {
       g.fillStyle = INK.dry;
@@ -109,19 +110,19 @@ export default function grids(plate, { lab, ids, screen }) {
           g.fillRect(x, y0 + full - hh, cw - 3, hh);
           g.shadowBlur = 0;
         } else if (fired) {
-          g.fillStyle = INK.warm;                      // CHAOS: a hit the map does not have
-          g.shadowColor = 'rgba(255,179,71,.6)';
+          g.fillStyle = ditherPattern(g, INK.led, 0.5);   // CHAOS: a hit the map does not have, dithered
+          g.shadowColor = 'rgba(0,0,0,0)';
           g.shadowBlur = 8;
           g.fillRect(x, y0 + full * 0.45, cw - 3, full * 0.55);
           g.shadowBlur = 0;
         } else {
-          g.fillStyle = '#1d2024';
+          g.fillStyle = '#282828';
           g.fillRect(x, y0 + full - 3, cw - 3, 3);
         }
       }
     }
     if (now >= 0) {
-      g.fillStyle = 'rgba(242,247,255,.08)';
+      g.fillStyle = '#282828';
       g.fillRect(left + now * cw, 0, cw, h);
     }
     g.restore();

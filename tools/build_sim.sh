@@ -100,6 +100,9 @@ cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_ids" "$ROOT/tests/sim_ids.c" -l
 cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_record" "$ROOT/tests/sim_record.c" -lm
 "$OUT/host/sim_record" "$OUT/reel.bin" "$OUT/reel.hash" "$OUT/reel.json"
 gzip -9 -n -f -k "$OUT/reel.bin"
+# the page's typeface: the firmware's own Terminus as a web font (tests/sim_font.mjs), with its licence
+node "$ROOT/tests/sim_font.mjs" "$ROOT/assets/fonts/ter-u16n.bdf" "$OUT/terminus.woff"
+cp "$ROOT/assets/fonts/Terminus-LICENSE.txt" "$OUT/terminus-license.txt"
 # the features' reel: each chapter's page with its knobs turned to their ends (tests/sim_feature_reel.c)
 cc "${CFLAGS[@]}" "${DEFS[@]}" -o "$OUT/host/sim_feature_reel" "$ROOT/tests/sim_feature_reel.c" -lm
 "$OUT/host/sim_feature_reel" "$OUT/features.bin" "$OUT/features.json"
@@ -135,7 +138,7 @@ fi
     echo "build_sim: uncommitted changes: source.tar.gz is HEAD, not this build (commit before publishing)" >&2
 # stamp every local reference with a hash of what is published (?v=): after an update, browsers never mix cached old
 # files with new ones (app.js of one build, layout.js of another)
-"$PY" - "$OUT" $PAGE fm1sim.wasm reel.bin.gz reel.json features.bin.gz features.json version.json lab_ids.json source.tar.gz <<'PY'
+"$PY" - "$OUT" $PAGE fm1sim.wasm reel.bin.gz reel.json features.bin.gz features.json terminus.woff terminus-license.txt version.json lab_ids.json source.tar.gz <<'PY'
 import hashlib, sys
 from pathlib import Path
 out, names = Path(sys.argv[1]), sys.argv[2:]
@@ -174,9 +177,9 @@ sys.path.insert(0, sys.argv[1])
 import make_site                                     # the site exactly as web/make_site.py makes it
 make_site.main(sys.argv[2], sys.argv[3], sys.argv[4])
 PY
-        for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json features.bin.gz features.json version.json lab_ids.json; do cp "$OUT/$f" "$P/"; done   # the landing page at /
+        for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json features.bin.gz features.json terminus.woff terminus-license.txt version.json lab_ids.json; do cp "$OUT/$f" "$P/"; done   # the landing page at /
     else
-    for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json features.bin.gz features.json version.json lab_ids.json; do cp "$OUT/$f" "$P/"; done
+    for f in $PAGE fm1sim.wasm source.tar.gz reel.bin.gz reel.json features.bin.gz features.json terminus.woff terminus-license.txt version.json lab_ids.json; do cp "$OUT/$f" "$P/"; done
     "$PY" - "$ROOT/web" "$P/webapp/installer/index.html" "DRUM-$VERSION" <<'PY'
 import json, sys
 from pathlib import Path
