@@ -3683,6 +3683,331 @@ static void test_srec_exits(void)
     ui_frame();
 }
 
+/* ---- ACID plan B: the display (spec §7) */
+static uint16_t gpx(int32_t x, int32_t gy)          /* the screen pixel at x, graph row gy */
+{
+    return fb[(uint32_t)(Y_GRAPH + G_OY + gy) * 240u + (uint32_t)x];
+}
+static void acid_line(track_t *t)                    /* C4 ACC, D4 SLIDE, E4, TIE, G4 RATCH 2, a rest */
+{
+    memset(t->step, 0, sizeof t->step);
+    t->step[0].on = 1;
+    t->step[0].acc = 1;
+    t->step[1].on = 1;
+    t->step[1].nt = 2;
+    t->step[1].slide = 1;
+    t->step[2].on = 1;
+    t->step[2].nt = 4;
+    t->step[3].tie = 1;
+    t->step[4].on = 1;
+    t->step[4].nt = 7;
+    t->step[4].rat = 1;
+}
+
+static void test_roll_draw(void)
+{
+    int32_t x, k, yc, yd, ye, yg, xx, yy, ok = 1, amb = 0, rest = 0, lab = 0;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    seq_open("STEP");
+    ui.force = 1;
+    ui_frame();
+    yc = pr_row_y(60);
+    yd = pr_row_y(62);
+    ye = pr_row_y(64);
+    yg = pr_row_y(67);
+    check("roll: an ACID track's STEP page: the view holds the bank's notes (C4..G4)", proll.lo <= 60 &&
+          proll.lo + PR_ROWS > 67);
+    for (k = 0; k < PR_RH; k++)
+        ok &= gpx(PR_X0 + 4, yc + k) == C_WHITE;
+    check("roll: an accented note (C4) WHITE, its row's full height", ok);
+    x = PR_X0 + 2 * PR_CW + 4;
+    check("roll: a plain note (E4) a 2 px HI bar inside its row", gpx(x, ye + 1) == C_HI && gpx(x, ye + 2) == C_HI &&
+          gpx(x, ye) != C_HI && gpx(x, ye + 3) != C_HI);
+    check("roll: a TIE carries the note before through its column, across the step line",
+          gpx(PR_X0 + 3 * PR_CW, ye + 1) == C_HI && gpx(PR_X0 + 3 * PR_CW + 6, ye + 1) == C_HI);
+    x = PR_X0 + 4 * PR_CW + 2;
+    check("roll: RATCH 2 splits the bar in two, 1 px apart", gpx(x + 3, yg + 1) == C_HI && gpx(x + 4, yg + 1) != C_HI &&
+          gpx(x + 5, yg + 1) == C_HI);
+    for (xx = PR_X0 + PR_CW + 11; xx <= PR_X0 + PR_CW + 14; xx++)
+        for (yy = ye; yy <= yd + 2; yy++)
+            amb += gpx(xx, yy) == C_AMB;
+    check("roll: SLIDE an AMB line from D4's bar into E4", amb > 0);
+    for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
+        rest += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_HI || gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_WHITE;
+    check("roll: a rest is empty", rest == 0);
+    for (yy = yc - 6; yy < yc + 10; yy++)
+        for (xx = 0; xx < 20; xx++)
+            lab += gpx(xx, yy) != 0;
+    check("roll: the C row named on the left (C4)", lab > 10);
+}
+
+static void test_roll_follow(void)
+{
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->step[0].on = t->step[1].on = 1;
+    t->step[0].nt = 30;                              /* F#6, A#6 */
+    t->step[1].nt = 34;
+    seq_open("STEP");
+    ui_frame();
+    check("roll: the view follows the notes up (F#6, A#6 in view)", proll.lo <= 90 && proll.lo + PR_ROWS > 94);
+    t->step[0].nt = -30;                             /* F#1, A#1 */
+    t->step[1].nt = -26;
+    ui_frame();
+    check("roll: ... and down (F#1, A#1)", proll.lo <= 30 && proll.lo + PR_ROWS > 34);
+    t->step[0].nt = -40;                             /* G#0 .. E7: wider than the view */
+    t->step[1].nt = 40;
+    ui_frame();
+    check("roll: notes wider than the view: the lowest in the middle, the other a mark on the top edge",
+          proll.lo == 20 - PR_ROWS / 2 && gpx(PR_X0 + PR_CW + 4, PR_Y0) == C_HI);
+}
+
+static void test_roll_cursor_playhead(void)
+{
+    int32_t x;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    tap(B_SCL);
+    seq_open("STEP");
+    tap(B_REC);
+    turn(EN_K1, 2);
+    ui_frame();
+    x = PR_X0 + 2 * PR_CW;
+    check("roll: step record's cursor framed WHITE (step 3)", ui.srec && gpx(x + 5, PR_Y0 - 2) == C_WHITE &&
+          gpx(x, 50) == C_WHITE && gpx(x + PR_CW, 50) == C_WHITE);
+    tap(B_REC);
+    transport_req = 1;
+    seq_play_to(0, 4);
+    ui_frame();
+    x = PR_X0 + 4 * PR_CW;
+    check("roll: the playhead a 1 px WHITE line through the playing step (5)", gpx(x + 6, PR_Y0 + 1) == C_WHITE &&
+          gpx(x + 5, PR_Y0 + 1) != C_WHITE);
+    transport_req = 2;
+    ui_frame();
+}
+
+static uint32_t foot_lit(void)                       /* lit pixels where the footer's note goes (x 80..167) */
+{
+    uint32_t n = 0, x, y;
+    for (y = Y_FOOT + 20u; y < Y_FOOT + 36u; y++)
+        for (x = 80u; x < 168u; x++)
+            n += fb[y * 240u + x] != 0;
+    return n;
+}
+
+/* the footer: the step held on the grid, or step record's cursor step: its note, + ACC SLD, or TIE; a drum's grid
+ * shows step record's cursor framed */
+static void test_foot_note(void)
+{
+    char b[16];
+    uint32_t ms;
+    track_t *t;
+    ui_host_init();
+    t = TSEL;                                        /* track 1, a drum */
+    t->key_nt = 1;
+    open_step_page();
+    keys(1u << WHITE[1]);
+    ui_frame();
+    check("footer: a step held on the grid shows its note (C#4: the last key note)", foot_note(b) && str_eq(b, "C#4") &&
+          foot_lit() > 0u);
+    for (ms = 0; ms < 500u; ms += 50u) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+    check("footer: held into its accent: C#4 ACC", foot_note(b) && str_eq(b, "C#4 ACC"));
+    keys(0);
+    ui_frame();
+    check("footer: nothing held: no note", !foot_note(b) && !b[0] && foot_lit() == 0u);
+    t->step[2].tie = 1;
+    t->step[2].nt = -11;
+    t->step[3].on = 1;
+    t->step[3].slide = 1;
+    tap(B_SCL);
+    tap(B_REC);
+    turn(EN_K1, 2);
+    ui_frame();
+    check("footer: step record's cursor step, a TIE: C#3 TIE", foot_note(b) && str_eq(b, "C#3 TIE"));
+    check("drum grid: step record's cursor framed WHITE (step 3)", gpx(4 + 2 * 14 - 2, 40) == C_WHITE);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("footer: ... a slide: C4 SLD", foot_note(b) && str_eq(b, "C4 SLD"));
+    tap(B_REC);
+}
+
+static void test_grid_transposed_mark(void)
+{
+    ui_host_init();
+    memset(TSEL->step, 0, sizeof TSEL->step);
+    TSEL->step[1].on = 1;
+    TSEL->step[1].nt = 3;
+    TSEL->step[2].on = 1;
+    open_step_page();
+    ui.force = 1;
+    ui_frame();
+    check("drum grid: a transposed step (NOTE != C4) a small AMB mark under its bar; a C4 step none",
+          gpx(4 + 14 + 4, 30 + 42) == C_AMB && gpx(4 + 2 * 14 + 4, 30 + 42) != C_AMB);
+}
+
+static int32_t acid_peak_x(void)                    /* the leftmost lit x (100..235) above the 0 dB line; -1 none */
+{
+    uint32_t x, y;
+    for (x = 100u; x < 236u; x++)
+        for (y = Y_GRAPH + G_OY + 2u; y < Y_GRAPH + G_OY + ACID_GY; y++)
+            if (fb[y * 240u + x])
+                return (int32_t)x;
+    return -1;
+}
+static uint32_t acid_hi(uint32_t y0, uint32_t y1)   /* HI pixels at x 110..235 (past the first 10 px) of graph rows
+                                                     * y0..y1 */
+{
+    uint32_t n = 0, x, y;
+    for (y = Y_GRAPH + G_OY + y0; y < Y_GRAPH + G_OY + y1; y++)
+        for (x = 110u; x < 236u; x++)
+            n += fb[y * 240u + x] == C_HI;
+    return n;
+}
+static void test_acid_edit_graph(void)
+{
+    uint32_t k, flat, peak, shortd, longd;
+    int32_t x40, x100;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    TSEL->p[P_E0 + 4] = 0;                           /* ENVMD 0: no reach line */
+    TSEL->p[P_E0 + 3] = 0;
+    ui.force = 1;
+    ui_frame();
+    flat = fm_graph_area(G_OY + 2u, G_OY + ACID_GY);
+    TSEL->p[P_E0 + 3] = 127;
+    ui_frame();
+    peak = fm_graph_area(G_OY + 2u, G_OY + ACID_GY);
+    check("ACID graph: RESO 0 nothing over 0 dB, RESO 127 a peak at the cutoff", flat == 0u && peak > 0u);
+    TSEL->p[P_E0 + 2] = 40;
+    ui_frame();
+    x40 = acid_peak_x();
+    TSEL->p[P_E0 + 2] = 100;
+    ui_frame();
+    x100 = acid_peak_x();
+    check("ACID graph: the peak follows CUTOF (40 -> 100: right)", x40 > 0 && x100 > x40 + 40);
+    TSEL->p[P_E0 + 1] = 0;
+    ui_frame();
+    shortd = acid_hi(ACID_EY, ACID_EY + 18u);
+    TSEL->p[P_E0 + 1] = 127;
+    ui_frame();
+    longd = acid_hi(ACID_EY, ACID_EY + 18u);
+    check("ACID graph: the filter envelope falls over DECAY (30 ms: down within 10 px; 3 s: still in the upper half)",
+          shortd == 0u && longd > 20u);
+}
+
+static void test_roll_frame_cost(void)
+{
+    uint64_t i0 = 0, worst = 0, c;
+    uint32_t i;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    seq_open("STEP");
+    transport_req = 1;
+    for (i = 0; i < 400u; i++) {
+        ui.force = i % 50u == 0u;
+        i0 = instr_now();
+        ui_input();
+        ui_leds();
+        ui_draw();
+        c = instr_now() - i0;
+        worst = c > worst ? c : worst;
+        render_mix(0, 0, CTL);
+    }
+    printf("     ui: heaviest frame %llu host instructions (STEP, the ACID piano roll, playing)\n",
+           (unsigned long long)worst);
+    check("ui frame cost, the piano roll: under 4,000,000 host instructions (as every page)", !i0 || worst < 4000000u);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* the screens, for the user's eye: build/ui_shots/acid/ */
+static void test_acid_screens(void)
+{
+    track_t *t;
+    uint32_t k;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    acid_line(t);
+    t->step[6].on = 1;
+    t->step[6].nt = -5;
+    t->step[7].on = 1;
+    t->step[7].nt = 7;
+    t->step[7].acc = 1;
+    t->step[7].slide = 1;
+    t->step[8].on = 1;
+    t->step[8].nt = 12;
+    t->step[9].tie = 1;
+    t->step[10].tie = 1;
+    t->step[12].on = 1;
+    t->step[12].nt = -12;
+    t->step[12].rat = 2;
+    t->step[14].on = 1;
+    t->step[14].nt = 3;
+    t->step[14].acc = 1;
+    tap(B_SCL);
+    snap_page("acid/01_home_keys_f3");
+    tap(B_OCTUP);
+    snap_page("acid/02_home_keys_f4");
+    tap(B_OCTDN);
+    seq_open("STEP");
+    snap_page("acid/03_roll");
+    keys(1u << 11);                                  /* E4 held: its row lit on the keyboard strip */
+    snap_page("acid/04_roll_key_held");
+    keys(0);
+    ui_frame();
+    tap(B_REC);                                      /* step record, the cursor on step 5 */
+    turn(EN_K1, 4);
+    snap_page("acid/05_step_rec_05");
+    tap(B_REC);
+    transport_req = 1;
+    seq_play_to(0, 7);
+    snap_page("acid/06_roll_play_step08");
+    seq_play_to(0, 12);
+    snap_page("acid/07_roll_play_step13");
+    transport_req = 2;
+    ui_frame();
+    tap(B_SCL);                                      /* KEYS off */
+    seq_select(1);                                   /* track 2, a drum: its transposed steps marked */
+    for (k = 0; k < 16u; k++) {
+        trk[1].step[k].on = k % 4u == 0u || k == 6u || k == 14u;
+        trk[1].step[k].nt = (int8_t)(k == 4u ? 5 : k == 6u ? -7 : k == 14u ? 12 : 0);
+    }
+    snap_page("acid/08_drum_grid_transposed");
+    trk[1].key_nt = 3;
+    keys(1u << WHITE[1]);                            /* step 2 held into its accent: the footer's note */
+    for (k = 0; k < 10u; k++) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+    snap_page("acid/09_footer_held_step");
+    keys(0);
+    ui_frame();
+    seq_select(0);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    snap_page("acid/10_edit_acid");
+    t->p[P_E0 + 3] = 127;
+    t->p[P_E0 + 2] = 70;
+    snap_page("acid/11_edit_acid_reso127");
+    t->p[P_E0 + 1] = 127;
+    t->p[P_E0 + 7] = 127;
+    snap_page("acid/12_edit_acid_decay_gate");
+    printf("     acid: screens in build/ui_shots/acid\n");
+}
+
 int main(void)
 {
     test_safe_start();
@@ -3775,6 +4100,14 @@ int main(void)
     test_srec_keys();
     test_srec_knobs();
     test_srec_exits();
+    test_roll_draw();
+    test_roll_follow();
+    test_roll_cursor_playhead();
+    test_foot_note();
+    test_grid_transposed_mark();
+    test_acid_edit_graph();
+    test_roll_frame_cost();
+    test_acid_screens();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
