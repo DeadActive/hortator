@@ -5,6 +5,15 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- ACID: every step holds a note, SLIDE and TIE (format FDRB; older projects load and play as before, but projects
+  saved by this build can't be read by 0.15.0); drum tracks play their steps transposed; ACID, a 303-style bass voice
+  (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE), plays them with accent, slide and tie on up to two tracks ("ACID: 2
+  TRACKS MAX"). KEYS (an SCL tap): the keys play the selected track chromatically, OCT- / OCT+ the octave (-2 to +2;
+  LAYER from EDIT and LFO 2 need KEYS off, the STEP bank stays on KNOB 1, TRACKS keeps OCT as its bank); KEYS notes
+  send no MIDI out; a note held over 5.5 s is cut. Armed, the keys record notes, ties and slides (the nearest step;
+  ACID only for TIE / SLIDE); on STEP, stopped, a REC tap starts step record (KNOB 1..4 STEP NOTE TIME FLAG, EDIT a
+  rest). An ACID track's STEP page is a piano roll, the note shows in the footer; ACID's SOUND page shows its filter
+  and the note's shape.
 - Releases can carry two versions: the plain firmware and the same build with Bluetooth MIDI. The web installer
   offers a choice (the plain one by default), the release a second file `hortator-X.Y.Z-bluetooth.fwsc`
   (`BLE=1 tools/publish.sh`; first used for Bluetooth part 2).

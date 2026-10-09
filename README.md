@@ -28,6 +28,12 @@ firmware ([below](#back-to-the-official-firmware)).
 - **Step sequencer.** Up to 64 steps per track on the 16 white keys, each track with its own length, division and
   swing. Accents, PROB and RATCH per step, fills that play every other bar, live recording, mutes that wait for the
   next bar.
+- **Notes and ACID.** Every step holds a note. Drum tracks play their steps transposed (C4 plays as tuned); ACID, a
+  303-style bass voice (saw or square into a resonant 24 dB filter, with accent, slide and tie), plays them as a bass
+  line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys into a keyboard for the selected track (KEYS):
+  play it, record it live with ties and slides, or enter a line step by step. An ACID track's STEP page is a piano
+  roll. KEYS notes send no MIDI out, and a note held longer than 5.5 s is cut (a safety limit). Projects saved by this
+  build can't be read by 0.15.0; older projects convert on load.
 - **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.
 - **SONG and names.** Chain up to 16 rows of projects with repeats; name projects on the device.
 - **Grids.** Mutable Instruments' pattern generator: a map of drum patterns, chaos, or Euclidean rhythms. Any track
@@ -56,6 +62,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | **REC** | TRACKS (levels, lengths, pans, mutes) and recording |
 | **GLO** | global and system settings |
 | **SAVE** | projects (save, load, name) and tools |
+| **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track (OCT- / OCT+ the octave, -2 to +2; they stop being the STEP bank, LAYER's back and LFO 2 while KEYS is on, so those need KEYS off; the STEP bank stays on KNOB 1, and TRACKS keeps OCT as its bank); on STEP, stopped, REC records it step by step (KNOB 1 to 4: step, note, tie / rest, accent / slide; EDIT a rest) |
 
 ALGORITHM picks the track anywhere; PRESETS turns the pages of a section; KNOB 1 to 4 edit what the screen shows.
 SELECT sets the tempo.
