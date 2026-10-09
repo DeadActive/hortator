@@ -260,8 +260,8 @@ static void rat_due(track_t *t, uint32_t cur_len)
     }
 }
 
-/* live recording: into the nearest step, as swung (the playing one, or the next one past its middle) */
-static void rec_hit(track_t *t, uint32_t vel)
+/* live recording: into the nearest step, as swung (the playing one, or the next one past its middle); returns the step */
+static uint32_t rec_hit(track_t *t, uint32_t vel)
 {
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, idx = t->seq_idx % len;
     uint32_t period = div_period((uint32_t)t->p[P_SDIV], t->seq_rem);
@@ -275,6 +275,7 @@ static void rec_hit(track_t *t, uint32_t vel)
     t->step[idx].rat = 0;
     if (vel > 110u)
         t->step[idx].acc = 1;
+    return idx;
 }
 
 static void input_hit(track_t *t, uint32_t vel)
@@ -302,6 +303,45 @@ static __attribute__((noinline)) void keys_off(void)
     kz.rec = 0;
 }
 
+/* KEYS live record (spec §6): the key's note into the nearest step (rec_hit): ON + NOTE; a gated model's key goes on
+ * recording while held (TIE, keys_tie), and a key pressed over it (legato) puts SLIDE on its last step. A drum: ON +
+ * NOTE only */
+static __attribute__((noinline)) void keys_rec(track_t *t, int32_t nt, int legato)
+{
+    uint32_t idx = rec_hit(t, 100u);
+    step_t *s = &t->step[idx];
+    int gated = DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS].gate != 0;
+    s->nt = (int8_t)clamp(nt, NT_MIN, NT_MAX);
+    s->tie = 0;
+    s->slide = 0;
+    if (gated && legato && kz.rec && kz.last != idx)
+        t->step[kz.last % NSTEP].slide = 1;
+    kz.rec = (uint8_t)gated;
+    kz.last = (uint8_t)idx;
+}
+
+/* KEYS live record, every block while a gated model's key records: held past the middle of the step after the one it
+ * wrote last: TIE there (the note goes on through it). Disarmed or stopped: the recording ends */
+static __attribute__((noinline)) void keys_tie(void)
+{
+    track_t *t = &trk[kz.trk % NTRK];
+    uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, nx = (kz.last + 1u) % len;
+    step_t *s;
+    if (!song.playing || !((song.rec >> kz.trk) & 1u)) {
+        kz.rec = 0;
+        return;
+    }
+    if (nx == kz.last || t->seq_idx % len != nx || t->seq_pos >= 0x7FFFFFFFu ||
+        t->seq_pos <= step_samples(t, div_period((uint32_t)t->p[P_SDIV], t->seq_rem), t->seq_cnt) / 2u)
+        return;
+    s = &t->step[nx];
+    s->on = 0;
+    s->tie = 1;
+    s->slide = 0;
+    s->nt = t->step[kz.last % NSTEP].nt;
+    kz.last = (uint8_t)nx;
+}
+
 /* key pressed: the selected track plays its note at 100 (as the drum keys), no MIDI out. A gated model (ACID) is mono:
  * a key pressed while the last one still sounds slides to it (no restart), and the key holds the gate (gate_n 0: no
  * countdown; the sequencer's rests and TIEs leave it; keys_off closes it; ACID_LIFE stays the backstop). A drum: a hit
@@ -314,6 +354,10 @@ static __attribute__((noinline)) void keys_on(uint32_t key)
     int legato = kz.key && kz.trk == song.sel;
     if (kz.key && !legato)
         keys_off();                                    /* mono over the keys: another track's held note ends */
+    if (((song.rec >> song.sel) & 1u) && song.playing && !t->p[P_SRC])
+        keys_rec(t, nt, legato);                       /* live record (spec §6) */
+    else
+        kz.rec = 0;
     if (m->gate) {
         dvoice_t *v = &t->v[0];
         model_follow(t);
@@ -357,6 +401,10 @@ static void keyboard_block(void)
     }
     if (kz.key && ((ch >> (kz.key - 1u)) & 1u) && !((cur >> (kz.key - 1u)) & 1u))
         keys_off();                                 /* KEYS: the sounding key let go, whoever has the keys now */
+    if (kz.rec)
+        keys_tie();                                 /* KEYS live record: the held note's TIEs (before this block's
+                                                     * presses: a legato key in the block that passes a middle finds
+                                                     * its TIE, the SLIDE goes there) */
     if (song.seq_mode == 3u) {                      /* KEYS: the presses play the selected track */
         for (key = 0; key < 27u; key++)
             if (((ch & cur) >> key) & 1u)

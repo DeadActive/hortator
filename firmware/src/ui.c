@@ -301,6 +301,8 @@ static void step_press(uint32_t k)
     } else {
         s->on = 1;
         s->acc = 0;
+        s->tie = 0;                                   /* a TIE step turned on plays (acid_step reads TIE first) */
+        s->nt = TSEL->key_nt;                         /* spec §2: the track's last played / recorded note */
     }
 }
 
@@ -313,6 +315,9 @@ static void step_hold(uint32_t k)
     s = &TSEL->step[ui.step_si[k]];
     *s = ui.step_prev[k];
     s->on = 1;
+    s->tie = 0;
+    if (!ui.step_prev[k].on)
+        s->nt = TSEL->key_nt;
     s->acc = (uint8_t)!ui.step_prev[k].acc;
 }
 

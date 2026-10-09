@@ -137,6 +137,9 @@ static int step_edit(uint32_t knob, int32_t steps)
     if (!(ui.step_t0[k] & 4u)) {
         *s = ui.step_prev[k];
         s->on = 1;
+        s->tie = 0;
+        if (!ui.step_prev[k].on)
+            s->nt = TSEL->key_nt;
         ui.step_t0[k] |= 6u;                          /* edited: no hold accent from now on */
     }
     if (knob == 0u)

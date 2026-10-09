@@ -3263,6 +3263,158 @@ static void test_keys_oct_uboot(void)
     release_all();
 }
 
+/* ---- ACID plan B: live record (spec §6) */
+/* armed and playing, KEYS on ACID: a key writes the nearest step (ON + NOTE), TIE on each later step it is held past
+ * the middle of, a legato key SLIDE on the held note's last step */
+static void test_keys_live_rec(void)
+{
+    track_t *t = &trk[0];
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    tap(B_SCL);                                      /* KEYS, HOME */
+    song.rec = 1u;                                   /* track 1 armed (as TRACKS' REC tap) */
+    transport_req = 1;
+    seq_play_to(0, 2);                               /* step 3 just started */
+    keys(1u << 7);                                   /* C4 */
+    ui_frame();
+    seq_play_to(0, 5);                               /* held through steps 4 and 5's middles */
+    keys(1u << 7 | 1u << 11);                        /* E4 over it: legato */
+    ui_frame();
+    keys(1u << 11);                                  /* C4 let go */
+    ui_frame();
+    keys(0);                                         /* E4 let go at once */
+    ui_frame();
+    seq_play_to(0, 7);
+    check("KEYS live record: the key's note on the nearest step (ON + C4)", t->step[2].on && !t->step[2].tie &&
+          t->step[2].nt == 0);
+    check("KEYS live record: held into the later steps: TIE on them", t->step[3].tie && !t->step[3].on &&
+          t->step[4].tie && !t->step[4].on);
+    check("KEYS live record: a legato key: SLIDE on the held note's last step, its own note (E4) next",
+          t->step[4].slide && !t->step[2].slide && !t->step[3].slide && t->step[5].on && t->step[5].nt == 4 &&
+          !t->step[5].slide);
+    check("KEYS live record: let go before the next step's middle: nothing there", !t->step[6].tie && !t->step[6].on);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review Focus 4: pressed past the middle of the last step: the next one across the wrap (LEN 4), which then does not
+ * hit a second time; the TIE follows across it */
+static void test_keys_live_rec_wrap(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, age;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 4;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 3);
+    for (k = 0; k < 120u; k++)                       /* 70 % into step 4 (172 blocks a 1/16 at 120 BPM) */
+        ui_frame();
+    keys(1u << 9);                                   /* D4 */
+    ui_frame();
+    age = t->v[0].age;
+    check("KEYS live record past mid-step: the next step across the wrap (step 1: ON + D4), step 4 untouched",
+          t->step[0].on && t->step[0].nt == 2 && !t->step[3].on && !t->step[3].tie && t->rskip && t->rskip_idx == 0u);
+    seq_play_to(0, 2);                               /* held through step 1 and step 2's middle */
+    check("KEYS live record: the written step does not hit again, the note holds (same voice); TIE on step 2",
+          t->v[0].age == age && (t->v[0].x[2] & 1) && t->step[1].tie && t->step[0].on && !t->step[0].tie);
+    keys(0);
+    ui_frame();
+    seq_play_to(0, 3);
+    check("KEYS live record: let go at step 3's start: no TIE there", !t->step[2].tie && !t->step[2].on);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review Focus 4, the block a held note passes a step's middle in: a legato key pressed in that very block still finds
+ * the TIE there (keys_tie before the presses), so the SLIDE goes on it and no rest is left between the two notes */
+static void test_keys_live_rec_mid_block(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, half;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 2);
+    keys(1u << 7);                                   /* C4 on step 3 */
+    ui_frame();
+    seq_play_to(0, 3);
+    half = step_samples(t, div_period((uint32_t)t->p[P_SDIV], t->seq_rem), t->seq_cnt) / 2u;
+    for (k = 0; k < 400u && t->seq_pos <= half; k++)  /* the block that passes step 4's middle has just run */
+        ui_frame();
+    keys(1u << 7 | 1u << 11);                        /* E4 over it in the next block */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    seq_play_to(0, 6);
+    check("KEYS live record: a legato key in the block that passes the middle: TIE + SLIDE on step 4, E4 on step 5",
+          t->step[2].on && t->step[2].nt == 0 && t->step[3].tie && t->step[3].slide && t->step[4].on &&
+          t->step[4].nt == 4);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* a drum track records ON + NOTE only: holding its key writes no TIE */
+static void test_keys_live_rec_drum(void)
+{
+    track_t *t = &trk[0];
+    ui_host_init();
+    memset(t->step, 0, sizeof t->step);
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 2);
+    keys(1u << 9);                                   /* D4, held into step 6 */
+    ui_frame();
+    seq_play_to(0, 5);
+    keys(0);
+    ui_frame();
+    check("KEYS live record, a drum: ON + NOTE (D4: nt +2) on the nearest step, no TIE on the steps held through",
+          t->step[2].on && t->step[2].nt == 2 && !t->step[3].tie && !t->step[3].on && !t->step[4].tie &&
+          !t->step[4].on);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* spec §2: a step the grid keys turn on gets the track's last played / recorded note (C4 at first); a TIE step turned
+ * on plays (its TIE cleared) */
+static void test_step_key_note(void)
+{
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    open_step_page();
+    grid_hold(WHITE[0], 0);
+    check("grid: a new step, nothing played yet: C4", t->step[0].on && t->step[0].nt == 0);
+    tap(B_SCL);                                      /* KEYS: F4 played */
+    keys(1u << 12);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    tap(B_SCL);
+    check("KEYS: the track's last key note kept (F4, nt +5)", t->key_nt == 5);
+    grid_hold(WHITE[1], 0);
+    check("grid: a new step gets the track's last key note (F4)", t->step[1].on && t->step[1].nt == 5);
+    t->step[2].tie = 1;
+    t->step[2].nt = -3;
+    grid_hold(WHITE[2], 0);
+    check("grid: a TIE step turned on plays: ON, TIE cleared, the last key note", t->step[2].on && !t->step[2].tie &&
+          t->step[2].nt == 5);
+    t->step[3].tie = 1;
+    grid_hold(WHITE[3], 600);
+    check("grid: a TIE step held into an accent: ON + ACC, TIE cleared", t->step[3].on && t->step[3].acc &&
+          !t->step[3].tie && t->step[3].nt == 5);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -3345,6 +3497,11 @@ int main(void)
     test_keys_release_anywhere();
     test_keys_owners();
     test_keys_oct_uboot();
+    test_keys_live_rec();
+    test_keys_live_rec_wrap();
+    test_keys_live_rec_mid_block();
+    test_keys_live_rec_drum();
+    test_step_key_note();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
