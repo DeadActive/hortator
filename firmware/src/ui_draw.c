@@ -31,17 +31,29 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
+/* the top bar's mode (spec §7): KEYS and its lowest key's note ("KEYS F3"); 0 (b "") when off */
+static int head_mode(char *b)
+{
+    b[0] = 0;
+    if (!ui.keys)
+        return 0;
+    str_cpy(b, "KEYS ", 16);
+    note_text(b + 5, 53 + 12 * song.octave);
+    return 1;
+}
+
 /* top bar: transport, BPM | track, USB, battery; messages replace it */
 static void draw_head(void)
 {
-    char b[16];
+    char b[16], m[16];
     uint32_t i;
     int32_t x;
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
-                   (chain.running ? (chain.row + 1u) * 104729u : 0u);
+                   (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
+                   (uint32_t)(song.octave + 2) * 1009u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -66,7 +78,9 @@ static void draw_head(void)
         x += 14;
     }
     cv_text(x, 1, &FONT_S, b, ui.bpm_t ? C_WHITE : C_HI);
-    if (chain.running) {                              /* a song: its row */
+    if (head_mode(m)) {
+        cv_text(76, 1, &FONT_S, m, C_HI);              /* KEYS: before the song's row (SONG shows it) */
+    } else if (chain.running) {                       /* a song: its row */
         str_cpy(b, "SONG ", sizeof b);
         fmt_int(b + 5, (int32_t)chain.row + 1);
         cv_text(84, 1, &FONT_S, b, C_HI);

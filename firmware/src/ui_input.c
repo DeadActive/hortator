@@ -51,6 +51,7 @@ static void ui_leds(void)
             (fam != FAM_LAY && (fam != FAM_LFO || !song.lsel)) || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u);
+    led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
     if (name_on()) {                                  /* NAME: the keys that type */
         uint32_t m = name_leds(fm1_ticks());
         for (k = 0; k < 27u; k++)
@@ -83,6 +84,11 @@ static void ui_leds(void)
     } else if (comp_mode()) {                         /* COMP: the ducked tracks' keys */
         for (k = 0; k < NTRK; k++)
             led_put(nl, 14u + KEY_TRK_KEY[k], trk[k].p[P_DUCK] && k != comp_src());
+    } else if (keys_mode()) {                         /* KEYS: the keys held lit; OCT- / OCT+ lit off octave 0 */
+        led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
+        led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
+        for (k = 0; k < 27u; k++)
+            led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
     } else {
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
@@ -542,8 +548,6 @@ static void ui_input(void)
         home_step();
     settings_poll();
     song.octdn = panel.btn[B_REC];                     /* seq.c: TRACKS armed, REC held: the keys mute */
-    if (mix_mode())                                     /* REC on TRACKS arms / disarms: the keys play / select */
-        song.seq_mode = song.rec ? 2u : 1u;
     song.act[2] = (int16_t)settings.mutebar;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
@@ -568,9 +572,14 @@ static void ui_input(void)
         case B_REC:
         case B_HOME:                                    /* tap / hold: above */
             break;
+        case B_SCL:                                     /* KEYS on / off */
+            keys_toggle();
+            break;
         case B_OCTDN:
         case B_OCTUP:                                   /* the STEP grid's bank; EDIT: into / out of the layer */
-            if (step_keys()) {
+            if (keys_mode()) {
+                keys_octave(b == B_OCTUP ? 1 : -1);
+            } else if (step_keys()) {
                 bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
             } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_SND) {
                 ui.fam_last[FAM_LAY] = 0;               /* LAYER 1/2 */
@@ -595,6 +604,7 @@ static void ui_input(void)
         }
         }
     }
+    song.seq_mode = seq_mode_now();                   /* seq.c: whose the keys are (KEYS may have changed) */
     if (mix_mode() && rec_held()) {                     /* TRACKS, REC held: a white key mutes its track, top C# / D#
                                                          * (MONO / POLY): mutes at once / next bar; the REC press is then
                                                          * used (no arm, no hold) */
@@ -625,7 +635,7 @@ static void ui_input(void)
         for (k = 0; k < NTRK; k++)                      /* COMP: a white key ducks / unducks its track */
             if ((notes >> KEY_TRK_KEY[k]) & 1u)
                 track_duck_toggle(k);
-    } else if (ui.home || (!ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ)) {
+    } else if (!keys_mode() && (ui.home || (!ui.menu && cur_page()->scope == SC_TRACK && cur_fam() != FAM_SEQ))) {
         for (k = 0; k < NTRK; k++)                      /* HOME, a per-track page: a white key selects its track */
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);

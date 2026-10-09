@@ -67,6 +67,7 @@ static struct {
     uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
     uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
+    uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
@@ -102,11 +103,27 @@ static int song_lock(void)                          /* a song plays (or is armed
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
 static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
 static int comp_mode(void) { return !ui.home && !ui.menu && cur_page()->graph == GR_COMP; }   /* COMP: keys DUCK */
-/* the white keys are the selected track's steps (the bank's 16): every SEQ page, and TRACKS while nothing is armed
- * (user, 2026-10-08) */
+/* KEYS (spec §5): the keys a chromatic keyboard of the selected track on every page but TRACKS and COMP (their mute /
+ * duck keys); NAME and the menu keep theirs, and FX held takes its keys first (seq.c keyboard_block) */
+static int keys_mode(void)
+{
+    return ui.keys && !ui.menu && !name_on() &&
+           (ui.home || (cur_page()->scope != SC_MIX && cur_page()->graph != GR_COMP));
+}
+/* the white keys are the selected track's steps (the bank's 16): every SEQ page while KEYS is off, and TRACKS while
+ * nothing is armed (user, 2026-10-08) */
 static int step_keys(void)
 {
-    return !ui.home && !ui.menu && (cur_page()->fam == FAM_SEQ || (cur_page()->scope == SC_MIX && !song.rec));
+    return !ui.home && !ui.menu &&
+           ((cur_page()->fam == FAM_SEQ && !keys_mode()) || (cur_page()->scope == SC_MIX && !song.rec));
+}
+/* seq.c keyboard_block: whose the keys' presses are: 0 the drum keys (hits, MIDI), 1 the UI's (the STEP grid, COMP,
+ * TRACKS, NAME), 2 TRACKS armed (hits and recording; REC held: the mutes), 3 KEYS */
+static uint8_t seq_mode_now(void)
+{
+    if (keys_mode())
+        return 3u;
+    return (uint8_t)(step_keys() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);
 }
 
 /* a held grid key lets go of its step (another track or page): keys still held edit nothing, flip no accent */
@@ -123,10 +140,27 @@ static void grid_drop_holds(void)
 static void page_entered(void)
 {
     grid_drop_holds();
-    song.seq_mode = (uint8_t)(step_keys() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);   /* seq.c: the keys
-                                                     * belong to the steps / the ducks / TRACKS (armed: play, REC held: mute) */
+    song.seq_mode = seq_mode_now();                    /* seq.c: whose the keys are */
     ui.hot_t = 0;
     ui.force = 1;
+}
+
+/* SCL: KEYS on / off (a key still held: its release still ends its note, seq.c keyboard_block) */
+static void keys_toggle(void)
+{
+    ui.keys ^= 1u;
+    grid_drop_holds();                                 /* a grid key held edits nothing more */
+    song.seq_mode = seq_mode_now();
+    ui.force = 1;
+}
+/* OCT- / OCT+ while KEYS has the keys: the keyboard an octave down / up, -2..+2 (seq.c keys_nt) */
+static void keys_octave(int32_t d) { song.octave = (int8_t)clamp(song.octave + d, -2, 2); }
+/* a note (MIDI, 60 = C4) by name: "C4", "F#3", "C-1" */
+static void note_text(char *b, int32_t n)
+{
+    n = clamp(n, 0, 127);
+    str_cpy(b, N_NOTE[n % 12], 4);
+    fmt_int(b + str_len(b), n / 12 - 1);
 }
 
 /* a page with nothing to edit for the selected track: an EDIT page past the end of its engine's sound list */
@@ -175,7 +209,7 @@ static void go_home(void)
 {
     ui.home = 1;
     ui.hot_t = 0;
-    song.seq_mode = 0;
+    song.seq_mode = seq_mode_now();
     ui.force = 1;
 }
 

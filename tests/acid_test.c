@@ -658,6 +658,33 @@ static void test_seq_mute(void)                      /* a mute (track_mute_toggl
     seq_stop();
 }
 
+/* Review Focus 2 (plan B): a live hit (MIDI, the keys: C4) between a ratchet's hits leaves the roll's note: its later
+ * hits play the step's note */
+static void test_rat_note_live(void)
+{
+    track_t *t = acid_seq();
+    uint32_t len = (uint32_t)step_samples(t, div_period((uint32_t)t->p[P_SDIV], 0), 0);
+    t->p[P_MODEL] = DM_K808;                           /* a drum */
+    t->model = DM_K808;
+    t->step[0].on = 1;
+    t->step[0].rat = 3;                                /* 4 hits */
+    t->step[0].nt = 5;
+    seq_to(t, 2u * CTL);                               /* after hit 1 */
+    drum_hit(t, 100);                                  /* a live hit, C4 */
+    seq_to(t, len * 7u / 8u + CTL);                    /* hits 2..4 */
+    check("seq: a live hit during a drum's ratchet: the roll's later hits keep the step's note",
+          t->rat_k == 4u && t->nt == 5);
+    t = acid_seq();                                    /* ACID */
+    t->step[0].on = 1;
+    t->step[0].rat = 1;                                /* 2 hits */
+    t->step[0].nt = 5;
+    seq_to(t, 2u * CTL);
+    drum_hit(t, 100);
+    seq_to(t, len / 2u + 3u * CTL);                    /* hit 2 */
+    check("acid seq: a live hit during a ratchet: hit 2 plays the step's note (F4), not C4",
+          t->rat_k == 2u && t->v[0].x[1] == (60 + 5) * 16);
+}
+
 int main(void)
 {
     test_pitch();
@@ -690,6 +717,7 @@ int main(void)
     test_seq_tie_slide();
     test_seq_tie_wrap();
     test_seq_mute();
+    test_rat_note_live();
     printf(fails ? "acid: %d FAILED\n" : "acid: all checks passed\n", fails);
     return fails != 0;
 }

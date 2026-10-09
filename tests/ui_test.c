@@ -43,7 +43,10 @@ static void test_families(void)
     press(B_SCL);
     ui_frame();
     release_all();
-    check("ENV and SCL do nothing (free)", !ui.home && cur_page()->fam == FAM_LFO);
+    check("ENV does nothing (free); SCL toggles KEYS, the page stays", !ui.home && cur_page()->fam == FAM_LFO && ui.keys);
+    press(B_SCL);                                    /* KEYS off again */
+    ui_frame();
+    release_all();
     press(B_EDIT);
     ui_frame();
     release_all();
@@ -3069,6 +3072,197 @@ static void test_fm_screens(void)
           str_eq(page_desc(cur_page(), 0, &vp)->label, "RATIO") && str_eq(page_desc(cur_page(), 3, &vp)->label, "FBK"));
 }
 
+/* ---- ACID plan B: KEYS (spec §5) */
+/* an SCL tap turns KEYS on (its LED, the top bar KEYS F3) and off; the 27 keys play the selected track chromatically
+ * (a drum transposed: nt = NOTE - 60, F3 = 53); OCT- / OCT+ shift by an octave, -2..+2; KEYS selects no track */
+static void test_keys_map_oct(void)
+{
+    char b[16];
+    uint32_t k, a, ok = 1;
+    ui_host_init();
+    tap(B_SCL);
+    check("KEYS: an SCL tap turns it on: the SCL LED lit, the top bar KEYS F3, the keys KEYS' (seq_mode 3)",
+          ui.keys && led_on(panel.btn[B_SCL]) && head_mode(b) && str_eq(b, "KEYS F3") && song.seq_mode == 3u);
+    for (k = 0; k < 27u; k++) {
+        a = hit_age(&trk[0]);
+        keys(1u << k);
+        ui_frame();
+        keys(0);
+        ui_frame();
+        ok &= hit_age(&trk[0]) != a && trk[0].nt == (int32_t)k - 7;
+    }
+    check("KEYS: key k (0 = F3) hits the selected drum transposed to NOTE 53 + k (nt k - 7), every key", ok);
+    check("KEYS: the keys select no track (HOME)", song.sel == 0);
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    keys(1u);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: OCT+ three times: +2 octaves at most (F3's key plays F5, nt +17), KEYS F5, OCT+ lit",
+          song.octave == 2 && trk[0].nt == 17 && head_mode(b) && str_eq(b, "KEYS F5") && led_on(panel.btn[B_OCTUP]));
+    for (k = 0; k < 5u; k++)
+        tap(B_OCTDN);
+    keys(1u);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: OCT- five times: -2 octaves at most (F1, nt -31), KEYS F1",
+          song.octave == -2 && trk[0].nt == -31 && head_mode(b) && str_eq(b, "KEYS F1"));
+    tap(B_SCL);
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS off: the LED dark, no KEYS in the top bar, the keys select and hit tracks again",
+          !ui.keys && !led_on(panel.btn[B_SCL]) && !head_mode(b) && song.sel == 3 && song.seq_mode == 0u);
+}
+
+/* ACID under KEYS: mono, the last key wins; held: the gate stays open past GATE; a key over the sounding one slides
+ * (same voice); the sounding key's release closes the gate, an earlier key's does nothing */
+static void test_keys_acid_mono(void)
+{
+    track_t *t = &trk[0];
+    uint32_t age, k;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    tap(B_SCL);
+    keys(1u << 7);                                   /* C4 */
+    ui_frame();
+    age = t->v[0].age;
+    check("KEYS, ACID: a key starts its note (C4), the gate open",
+          t->v[0].active && (t->v[0].x[2] & 1) && t->v[0].x[1] == 60 * 16);
+    for (k = 0; k < 400u; k++)                       /* 400 blocks, 290 ms: well past GATE (half a 1/16) */
+        ui_frame();
+    check("KEYS, ACID: held past GATE the gate stays open (the key holds it)", (t->v[0].x[2] & 1) != 0);
+    keys(1u << 7 | 1u << 12);                        /* F4 over it */
+    ui_frame();
+    check("KEYS, ACID: a key over the sounding one slides to it (same voice, no restart)",
+          t->v[0].age == age && t->v[0].x[1] == 65 * 16 && (t->v[0].x[2] & 1));
+    keys(1u << 12);                                  /* C4 (no longer sounding) let go */
+    ui_frame();
+    check("KEYS, ACID: an earlier key let go: the note goes on", (t->v[0].x[2] & 1) != 0);
+    keys(0);
+    ui_frame();
+    check("KEYS, ACID: the sounding key let go: the gate closes", !(t->v[0].x[2] & 1));
+    keys(1u << 9);                                   /* D4 after all were let go */
+    ui_frame();
+    check("KEYS, ACID: a key after all were let go starts a new note", t->v[0].age != age && t->v[0].x[1] == 62 * 16);
+    keys(0);
+    ui_frame();
+}
+
+/* Review Focus 1: a key's ACID note ends on its release wherever the keys went meanwhile */
+static void test_keys_release_anywhere(void)
+{
+    ui_host_init();
+    drum_set_model(&trk[0], DM_ACID);
+    drum_set_model(&trk[1], DM_ACID);
+    tap(B_SCL);
+    keys(1u << 7);                                   /* C4 on track 1 */
+    ui_frame();
+    tap(B_SCL);                                      /* KEYS off, C4 still held */
+    keys(0);
+    ui_frame();
+    check("KEYS turned off while a key holds an ACID note: its release still ends it",
+          !(trk[0].v[0].x[2] & 1) && song.seq_mode == 0u);
+    tap(B_SCL);
+    keys(1u << 7);
+    ui_frame();
+    turn(EN_ALGO, 1);                                /* track 2 selected while C4 holds track 1's note */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: the track changed while held: the release ends track 1's note", song.sel == 1 && !(trk[0].v[0].x[2] & 1));
+    keys(1u << 7);                                   /* C4 on track 2 */
+    ui_frame();
+    press(B_REC);                                    /* a REC tap: TRACKS (its own keys) */
+    ui_frame();
+    release_all();
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: TRACKS opened while held: the release ends the note", mix_mode() && song.seq_mode == 1u &&
+          !(trk[1].v[0].x[2] & 1));
+    tap(B_HOME);
+    keys(1u << 7);                                   /* C4 on track 2, held */
+    ui_frame();
+    turn(EN_ALGO, -1);                               /* track 1 */
+    ui_frame();
+    keys(1u << 7 | 1u << 9);                         /* D4 on track 1 while C4 still holds track 2's note */
+    ui_frame();
+    check("KEYS: a key on another track ends the held note (mono over the keys)",
+          !(trk[1].v[0].x[2] & 1) && (trk[0].v[0].x[2] & 1) && trk[0].v[0].x[1] == 62 * 16);
+    keys(0);
+    ui_frame();
+    check("KEYS: ... and its own release ends the new one", !(trk[0].v[0].x[2] & 1));
+}
+
+/* Review Focus 3: with KEYS on, FX held (PERFORM), TRACKS, COMP, the menu and NAME keep their keys */
+static void test_keys_owners(void)
+{
+    uint32_t a;
+    int16_t duck;
+    ui_host_init();
+    drum_set_model(&trk[0], DM_ACID);
+    tap(B_SCL);
+    press(B_FX);
+    ui_frame();
+    keys(1u << 4);                                   /* A3 with FX held */
+    fx_hold_frames(2);
+    check("KEYS + FX held: the key is PERFORM's (track 3 muted while held), no note",
+          ((perf_held >> (PF_M1 + 2u)) & 1u) && !trk[0].v[0].active);
+    keys(0);
+    fx_hold_frames(1);
+    release_all();
+    ui_frame();
+    press(B_REC);                                    /* TRACKS, nothing armed: its step grid */
+    ui_frame();
+    release_all();
+    ui_frame();
+    keys(1u << STEP_KEY[2]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS + TRACKS: a white key is the track's step (seq_mode 1), no note",
+          mix_mode() && song.seq_mode == 1u && trk[0].step[2].on && !trk[0].v[0].active);
+    open_comp(0);
+    duck = trk[3].p[P_DUCK];
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS + COMP: a white key ducks its track, no note", comp_mode() && trk[3].p[P_DUCK] != duck &&
+          !trk[0].v[0].active);
+    hold(B_HOME);                                    /* the menu */
+    check("KEYS + the menu: the keys are not KEYS' (as without it)", ui.menu && !keys_mode() && song.seq_mode == 0u);
+    hold(B_HOME);
+    project_page();
+    project_save(0);
+    name_open(NK_RENAME, 0);
+    a = trk[0].v[0].age;
+    name_type(7);                                    /* C4 */
+    check("KEYS + NAME: the keys type, no note", name_on() && song.seq_mode == 1u && trk[0].v[0].age == a);
+    name_close();
+}
+
+/* main.c's UBOOT (OCT- + OCT+ held 5 s): under KEYS both buttons stay visible; pressed together the octave is back */
+static void test_keys_oct_uboot(void)
+{
+    uint32_t both;
+    ui_host_init();
+    tap(B_SCL);
+    seq_open("STEP");
+    both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
+    press(B_OCTDN);
+    press(B_OCTUP);
+    ui_input();
+    check("KEYS: OCT- + OCT+ together: the octave back where it was, both buttons visible to main.c (UBOOT), no bank",
+          song.octave == 0 && (fm1_in.buttons & both) == both && ui.bank == 0);
+    release_all();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -3146,6 +3340,11 @@ int main(void)
     test_tracks_rec_mutes();
     test_fm_screens();
     test_fm_graph_clear();
+    test_keys_map_oct();
+    test_keys_acid_mono();
+    test_keys_release_anywhere();
+    test_keys_owners();
+    test_keys_oct_uboot();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

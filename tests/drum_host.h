@@ -56,6 +56,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     dvage = 0;
     mi_r = mi_w = 0;
     kb_prev = 0;
+    memset(&kz, 0, sizeof kz);                      /* KEYS: no key sounding */
     fm1_in.notes = 0;
     transport_req = panic_req = 0;
     memset(metal_ph, 0, sizeof metal_ph);

@@ -153,6 +153,8 @@ typedef struct track {
     int8_t nt;                   /* the playing note's offset from C4 (the step's, 0 for MIDI, keys): models read TUNE through dm_tune */
     uint32_t gate_n;             /* ACID: samples until its gate closes, GATE_HELD while the next step decides, 0 closed */
     uint8_t slide_in;            /* ACID: the previous step slides into this one */
+    int8_t rat_nt;               /* RATCH: the roll's note (a live hit between its hits leaves it) */
+    int8_t key_nt;               /* the note KEYS played or recorded last on this track (0 = C4): a new step's (§2) */
     uint32_t seq_pos;            /* samples into the current step */
     uint16_t seq_idx;
     uint32_t seq_cnt;            /* steps played since PLAY: swing pairs follow it, so any length stays on the bar */
@@ -187,7 +189,7 @@ typedef struct {
                                   * 2026-10-08, the mute key) is held */
     uint8_t rec;                 /* live recording armed: bit per track */
     uint8_t sel;                 /* selected track 0..NTRK-1: keys, pages, editor */
-    int8_t octave;
+    int8_t octave;               /* KEYS: the keyboard's octave, -2..+2 (OCT- / OCT+), never stored */
     uint32_t tick;               /* blocks since play */
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t cpu_rem;            /* its average's remainder (audio.c) */
