@@ -29,11 +29,14 @@ firmware ([below](#back-to-the-official-firmware)).
   swing. Accents, PROB and RATCH per step, fills that play every other bar, live recording, mutes that wait for the
   next bar.
 - **Notes and ACID.** Every step holds a note. Drum tracks play their steps transposed (C4 plays as tuned); ACID, a
-  303-style bass voice (saw or square into a resonant 24 dB filter, with accent, slide and tie), plays them as a bass
-  line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys into a keyboard for the selected track (KEYS):
-  play it, record it live with ties and slides, or enter a line step by step. An ACID track's STEP page is a piano
-  roll. KEYS notes send no MIDI out, and a note held longer than 5.5 s is cut (a safety limit). Projects saved by this
-  build can't be read by 0.15.0; older projects convert on load.
+  303-style bass voice (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE: saw or square into a resonant 24 dB filter, with
+  accent, slide and tie), plays them as a bass line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys
+  into a keyboard for the selected track (KEYS): play it, record it live, or enter a line step by step. Live record:
+  a REC tap on TRACKS, then PLAY; a key writes the nearest step, a key held into later steps writes TIEs, a legato
+  overlap writes a SLIDE (TIE and SLIDE on ACID tracks only). An ACID track's STEP page is a piano roll. KEYS notes
+  send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s is cut (a safety limit). Projects saved by
+  this build can't be read by 0.15.0; older projects convert on load. A loaded project keeps ACID on its first two
+  ACID tracks; the others come back as their power-on kit drum.
 - **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.
 - **SONG and names.** Chain up to 16 rows of projects with repeats; name projects on the device.
 - **Grids.** Mutable Instruments' pattern generator: a map of drum patterns, chaos, or Euclidean rhythms. Any track
@@ -62,7 +65,13 @@ firmware ([below](#back-to-the-official-firmware)).
 | **REC** | TRACKS (levels, lengths, pans, mutes) and recording |
 | **GLO** | global and system settings |
 | **SAVE** | projects (save, load, name) and tools |
-| **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track (OCT- / OCT+ the octave, -2 to +2; they stop being the STEP bank, LAYER's back and LFO 2 while KEYS is on, so those need KEYS off; the STEP bank stays on KNOB 1, and TRACKS keeps OCT as its bank); on STEP, stopped, REC records it step by step (KNOB 1 to 4: step, note, tie / rest, accent / slide; EDIT a rest) |
+| **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
+
+With KEYS on, OCT- / OCT+ are the octave: LAYER (from EDIT) and the LFO pages' OCT buttons need KEYS off; the STEP
+bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu and PERFORM (FX held) keep their keys.
+Step record starts in KEYS mode, on the STEP page, with the transport stopped, by a REC tap: the cursor starts at the
+bank's first step and the top bar shows `STEP REC nn`. KNOB 1 to 4 are STEP, NOTE, TIME (NOTE / TIE / REST) and FLAG
+(- / ACC / SLD / A+S); EDIT writes a rest. A REC tap, PLAY or leaving the page ends it.
 
 ALGORITHM picks the track anywhere; PRESETS turns the pages of a section; KNOB 1 to 4 edit what the screen shows.
 SELECT sets the tempo.
