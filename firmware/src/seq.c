@@ -287,8 +287,9 @@ static void input_hit(track_t *t, uint32_t vel)
 
 /* KEYS (spec §5; ui.c keys_mode, song.seq_mode 3): the 27 keys a chromatic keyboard of the selected track, F3 = NOTE 53
  * at octave 0 (song.octave -2..+2). kz: the key sounding + 1 (0 none) and its track; live record (Task 2): rec 1 while
- * the key's note is being written, last the step it wrote last */
-static struct { uint8_t key, trk, rec, last; } kz;
+ * the key's note is being written, last the step it wrote last, first the step its phrase started on (the TIEs stop
+ * there: a note held longer than LEN does not erase itself) */
+static struct { uint8_t key, trk, rec, last, first; } kz;
 
 static int32_t keys_nt(uint32_t key) { return (int32_t)key - 7 + 12 * song.octave; }   /* NOTE - 60 */
 
@@ -316,28 +317,34 @@ static __attribute__((noinline)) void keys_rec(track_t *t, int32_t nt, int legat
     s->slide = 0;
     if (gated && legato && kz.rec && kz.last != idx)
         t->step[kz.last % NSTEP].slide = 1;
+    if (!legato || !kz.rec)
+        kz.first = (uint8_t)idx;                       /* a phrase starts here (a legato note goes on with it) */
     kz.rec = (uint8_t)gated;
     kz.last = (uint8_t)idx;
 }
 
 /* KEYS live record, every block while a gated model's key records: held past the middle of the step after the one it
- * wrote last: TIE there (the note goes on through it). Disarmed or stopped: the recording ends */
+ * wrote last: TIE there (the note goes on through it), a plain one (no PROB, RATCH, ACC, SLIDE). Disarmed, stopped, or
+ * round the loop to the phrase's start (LEN 1 too): the recording ends */
 static __attribute__((noinline)) void keys_tie(void)
 {
     track_t *t = &trk[kz.trk % NTRK];
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, nx = (kz.last + 1u) % len;
     step_t *s;
-    if (!song.playing || !((song.rec >> kz.trk) & 1u)) {
+    if (!song.playing || !((song.rec >> kz.trk) & 1u) || nx == kz.first) {
         kz.rec = 0;
         return;
     }
-    if (nx == kz.last || t->seq_idx % len != nx || t->seq_pos >= 0x7FFFFFFFu ||
+    if (t->seq_idx % len != nx || t->seq_pos >= 0x7FFFFFFFu ||
         t->seq_pos <= step_samples(t, div_period((uint32_t)t->p[P_SDIV], t->seq_rem), t->seq_cnt) / 2u)
         return;
     s = &t->step[nx];
     s->on = 0;
     s->tie = 1;
     s->slide = 0;
+    s->acc = 0;
+    s->cond = 0;
+    s->rat = 0;
     s->nt = t->step[kz.last % NSTEP].nt;
     kz.last = (uint8_t)nx;
 }

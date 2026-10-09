@@ -3361,6 +3361,88 @@ static void test_keys_live_rec_mid_block(void)
     ui_frame();
 }
 
+/* Review fix: a note held longer than LEN stops recording at the phrase's start: its TIEs never reach the step the key
+ * wrote (it stays ON with its note); a later legato note does not move that start */
+static void test_keys_live_rec_long_hold(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, ok = 1;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 4;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 1);                               /* step 2 just started */
+    keys(1u << 7);                                   /* C4 on step 2 */
+    ui_frame();
+    seq_play_to(0, 3);
+    seq_play_to(0, 1);                               /* across the wrap */
+    seq_play_to(0, 3);                               /* held through 5 steps' middles */
+    keys(0);
+    ui_frame();
+    for (k = 0; k < 4u; k++)
+        ok &= k == 1u || (t->step[k].tie && !t->step[k].on && t->step[k].nt == 0);
+    check("KEYS live record, held longer than LEN: the start step stays ON with its note (C4), TIEs on the others",
+          t->step[1].on && !t->step[1].tie && t->step[1].nt == 0 && ok);
+    transport_req = 2;
+    ui_frame();
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 4;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 1);
+    keys(1u << 7);                                   /* C4 on step 2 */
+    ui_frame();
+    seq_play_to(0, 3);                               /* TIE on step 3 */
+    keys(1u << 7 | 1u << 11);                        /* E4 over it on step 4: legato */
+    ui_frame();
+    keys(1u << 11);
+    ui_frame();
+    seq_play_to(0, 1);
+    seq_play_to(0, 3);                               /* E4 held round to the phrase's start and past it */
+    keys(0);
+    ui_frame();
+    check("KEYS live record, a legato note held round the loop: the phrase's start (C4) kept, step 3 TIE + SLIDE kept",
+          t->step[1].on && !t->step[1].tie && t->step[1].nt == 0 && t->step[2].tie && t->step[2].slide &&
+          t->step[2].nt == 0 && t->step[3].on && t->step[3].nt == 4 && t->step[0].tie && t->step[0].nt == 4);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review fix: a step held through becomes a plain TIE: its PROB, RATCH, ACC (and SLIDE) cleared, as rec_hit's step */
+static void test_keys_live_rec_tie_clean(void)
+{
+    track_t *t = &trk[0];
+    step_t *s = &t->step[3];
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    s->on = 1;
+    s->acc = 1;
+    s->slide = 1;
+    s->cond = 5;
+    s->rat = 2;
+    s->nt = -7;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 2);
+    keys(1u << 7);                                   /* C4 on step 3, held through step 4 */
+    ui_frame();
+    seq_play_to(0, 4);
+    keys(0);
+    ui_frame();
+    check("KEYS live record: a step held through is a plain TIE (no ACC, PROB, RATCH, SLIDE; the held note)",
+          s->tie && !s->on && !s->acc && !s->slide && s->cond == 0 && s->rat == 0 && s->nt == 0);
+    transport_req = 2;
+    ui_frame();
+}
+
 /* a drum track records ON + NOTE only: holding its key writes no TIE */
 static void test_keys_live_rec_drum(void)
 {
@@ -3500,6 +3582,8 @@ int main(void)
     test_keys_live_rec();
     test_keys_live_rec_wrap();
     test_keys_live_rec_mid_block();
+    test_keys_live_rec_long_hold();
+    test_keys_live_rec_tie_clean();
     test_keys_live_rec_drum();
     test_step_key_note();
     test_boot_title();
