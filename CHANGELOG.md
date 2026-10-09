@@ -10,8 +10,9 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE), plays them with accent, slide and tie on up to two tracks ("ACID: 2
   TRACKS MAX"). KEYS (an SCL tap): the keys play the selected track chromatically, OCT- / OCT+ the octave (-2 to +2;
   LAYER from EDIT and the LFO pages' OCT buttons need KEYS off, the STEP bank stays on KNOB 1, TRACKS keeps OCT as its bank); KEYS notes
-  send no MIDI out; an ACID note (or a tied chain) over 5.5 s is cut. Live record (a REC tap on TRACKS, then PLAY): a key writes the
-  nearest step, a held key TIEs the later steps, a legato overlap SLIDEs (TIE / SLIDE on ACID tracks only). Step
+  send no MIDI out; an ACID note (or a tied chain) over 5.5 s is cut. Live record (a REC tap on TRACKS arms the track,
+  and starts the transport when stopped): a key writes the nearest step, a held key TIEs the later steps, a legato
+  overlap SLIDEs (TIE / SLIDE on ACID tracks only). Step
   record: KEYS on, STEP page, stopped, a REC tap (KNOB 1..4 STEP NOTE TIME FLAG, EDIT a rest; REC, PLAY or leaving
   the page ends it). A loaded project keeps ACID on its first two ACID tracks, the others return as their power-on
   kit drum. An ACID track's STEP page is a piano roll, the note shows in the footer; ACID's SOUND page shows its filter

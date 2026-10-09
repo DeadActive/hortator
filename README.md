@@ -32,11 +32,11 @@ firmware ([below](#back-to-the-official-firmware)).
   303-style bass voice (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE: saw or square into a resonant 24 dB filter, with
   accent, slide and tie), plays them as a bass line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys
   into a keyboard for the selected track (KEYS): play it, record it live, or enter a line step by step. Live record:
-  a REC tap on TRACKS, then PLAY; a key writes the nearest step, a key held into later steps writes TIEs, a legato
-  overlap writes a SLIDE (TIE and SLIDE on ACID tracks only). An ACID track's STEP page is a piano roll. KEYS notes
-  send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s is cut (a safety limit). Projects saved by
-  this build can't be read by 0.15.0; older projects convert on load. A loaded project keeps ACID on its first two
-  ACID tracks; the others come back as their power-on kit drum.
+  a REC tap on TRACKS arms the track (and starts the transport when stopped); a key writes the nearest step, a key
+  held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on ACID tracks only). An ACID
+  track's STEP page is a piano roll. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
+  is cut (a safety limit). Projects saved by this build can't be read by 0.15.0; older projects convert on load. A
+  loaded project keeps ACID on its first two ACID tracks; the others come back as their power-on kit drum.
 - **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.
 - **SONG and names.** Chain up to 16 rows of projects with repeats; name projects on the device.
 - **Grids.** Mutable Instruments' pattern generator: a map of drum patterns, chaos, or Euclidean rhythms. Any track
