@@ -308,6 +308,27 @@ static void graph_steps(const track_t *t, uint16_t c)
     }
 }
 
+static int srec_ok(void);                               /* ui_input.c: a REC tap starts step record */
+
+/* the STEP page's held step (a grid key held, KEYS off) at graph row y: "STEP n  PROB  RATCH n"; 0: none held */
+static int held_line(const track_t *t, int32_t y)
+{
+    const step_t *hs;
+    char h[32], cs[8];
+    if (!(ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] != 0xFFFFu))
+        return 0;
+    hs = &t->step[ui.step_si[ui.held]];
+    str_cpy(h, "STEP ", sizeof h);
+    fmt_int(h + str_len(h), (int32_t)ui.step_si[ui.held] + 1);
+    str_cpy(h + str_len(h), "  ", sizeof h - str_len(h));
+    cond_format(hs->cond, cs);
+    str_cpy(h + str_len(h), cs, sizeof h - str_len(h));
+    str_cpy(h + str_len(h), "  RATCH ", sizeof h - str_len(h));
+    fmt_int(h + str_len(h), (int32_t)hs->rat + 1);
+    cv_text(4, y, &FONT_S, h, C_WHITE);
+    return 1;
+}
+
 /* STEP page: the bank's 16 steps as the keys show them; bank n/m on the left. Hint line: a held step's PROB /
  * RATCH, or a Grids track's channel (its grid is read-only) */
 static void graph_grid(const track_t *t, uint16_t c)
@@ -348,19 +369,10 @@ static void graph_grid(const track_t *t, uint16_t c)
         cv_text(4, 84, &FONT_S, GN[view_src(t) - 1u], C_AMB);
     } else if (ui.srec) {                             /* step record: the ways on and out */
         cv_text(4, 84, &FONT_S, "EDIT: REST  REC: END", C_DIM);
-    } else if (keys_mode()) {                         /* KEYS: the keys are notes, REC records */
-        cv_text(4, 84, &FONT_S, "KEYS  REC: STEP RECORD", C_DIM);
-    } else if (ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] != 0xFFFFu) {
-        const step_t *hs = &t->step[ui.step_si[ui.held]];
-        char h[32], cs[8];
-        str_cpy(h, "STEP ", sizeof h);
-        fmt_int(h + str_len(h), (int32_t)ui.step_si[ui.held] + 1);
-        str_cpy(h + str_len(h), "  ", sizeof h - str_len(h));
-        cond_format(hs->cond, cs);
-        str_cpy(h + str_len(h), cs, sizeof h - str_len(h));
-        str_cpy(h + str_len(h), "  RATCH ", sizeof h - str_len(h));
-        fmt_int(h + str_len(h), (int32_t)hs->rat + 1);
-        cv_text(4, 84, &FONT_S, h, C_WHITE);
+    } else if (keys_mode()) {                         /* KEYS: the keys are notes; REC: step record where a tap starts
+                                                       * it (stopped; playing, a song: it opens TRACKS) */
+        cv_text(4, 84, &FONT_S, srec_ok() ? "KEYS  REC: STEP RECORD" : "KEYS", C_DIM);
+    } else if (held_line(t, 84)) {
     } else {
         cv_text(4, 84, &FONT_S, "TAP: ON/OFF  HOLD: ACCENT", C_DIM);
     }
@@ -449,8 +461,21 @@ static void roll_view(const track_t *t)
     proll.trk = (uint8_t)(song.sel + 1u);
 }
 
-/* a note's bar at row y in `hits` parts 1 px apart (RATCH; 1: whole); out of the view: a 1 px mark on its edge */
-static void pr_bar(int32_t x, int32_t y, int32_t w, int acc, uint16_t c, uint32_t hits)
+/* a part of a bar: whole, or hatched (PROB: every other column, as step_bar's rows) */
+static void pr_part(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c, int prob)
+{
+    int32_t i;
+    if (!prob) {
+        cv_rect(x, y, w, h, c);
+        return;
+    }
+    for (i = 0; i < w; i += 2)
+        cv_rect(x + i, y, 1, h, c);
+}
+
+/* a note's bar at row y in `hits` parts 1 px apart (RATCH; 1: whole), hatched when its PROB is not 100 % (prob); out
+ * of the view: a 1 px mark on its edge */
+static void pr_bar(int32_t x, int32_t y, int32_t w, int acc, uint16_t c, uint32_t hits, int prob)
 {
     int32_t k, pw, ybot = PR_Y0 + PR_ROWS * PR_RH, yy = acc ? y : y + 1, h = acc ? PR_RH : PR_RH - 2;
     if (y < PR_Y0) {
@@ -461,12 +486,12 @@ static void pr_bar(int32_t x, int32_t y, int32_t w, int acc, uint16_t c, uint32_
         h = 1;
     }
     if (hits < 2u) {
-        cv_rect(x, yy, w, h, c);
+        pr_part(x, yy, w, h, c, prob);
         return;
     }
     pw = (w - (int32_t)hits + 1) / (int32_t)hits;
     for (k = 0; k < (int32_t)hits; k++)
-        cv_rect(x + k * (pw + 1), yy, pw, h, c);
+        pr_part(x + k * (pw + 1), yy, pw, h, c, prob);
 }
 
 static void graph_roll(const track_t *t, uint16_t c)
@@ -502,9 +527,9 @@ static void graph_roll(const track_t *t, uint16_t c)
         ss = &st[s];
         y = pr_row_y(60 + ss->nt);
         if (s == si)
-            pr_bar(x + 2, y, 9, ss->acc, ss->acc ? C_WHITE : c, ss->rat + 1u);
-        else
-            pr_bar(x - 1, y, 12, ss->acc, ss->acc ? C_WHITE : c, 1u);   /* a TIE: on through the step line */
+            pr_bar(x + 2, y, 9, ss->acc, ss->acc ? C_WHITE : c, ss->rat + 1u, ss->cond != 0u);
+        else                                          /* a TIE: on through the step line (its note's PROB: hatched) */
+            pr_bar(x - 1, y, 12, ss->acc, ss->acc ? C_WHITE : c, 1u, ss->cond != 0u);
         if (own->slide && (own->tie || !own->rat) && ns->on && !ns->tie && y >= PR_Y0 && y < ybot) {
             int32_t ny = clamp(pr_row_y(60 + ns->nt), PR_Y0, ybot - PR_RH);
             cv_line(x + 11, y + 1, x + 14 < gx1 ? x + 14 : gx1, ny + 1, C_AMB);   /* the slide into the next note
@@ -1287,6 +1312,9 @@ static void draw_graph(void)
             if (trk_model(t)->gate && !view_src(t)) {
                 roll_view(t);                         /* (the graph changed: the view chosen again) */
                 graph_roll(t, c);
+                if (!ui.srec && held_line(t, -18))  /* a held step's line in the band above the roll (screen y
+                                                       * 74..97, blitted this frame; the next one clears it) */
+                    top = 1;
             } else
                 graph_grid(t, c);
             break;

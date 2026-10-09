@@ -271,6 +271,7 @@ static uint32_t rec_hit(track_t *t, uint32_t vel)
         t->rskip_idx = (uint8_t)idx;
     }
     t->step[idx].on = 1;
+    t->step[idx].tie = 0;                           /* (a TIE is read first: the hit would never play) */
     t->step[idx].cond = 0;                          /* a recorded step always plays, once */
     t->step[idx].rat = 0;
     if (vel > 110u)
@@ -324,14 +325,15 @@ static __attribute__((noinline)) void keys_rec(track_t *t, int32_t nt, int legat
 }
 
 /* KEYS live record, every block while a gated model's key records: held past the middle of the step after the one it
- * wrote last: TIE there (the note goes on through it), a plain one (no PROB, RATCH, ACC, SLIDE). Disarmed, stopped, or
- * round the loop to the phrase's start (LEN 1 too): the recording ends */
+ * wrote last: TIE there (the note goes on through it), a plain one (no PROB, RATCH, ACC, SLIDE). Disarmed, stopped,
+ * round the loop to the phrase's start (LEN 1 too), or LEN cut under that start (its note out of the loop: a TIE would
+ * hold another note): the recording ends */
 static __attribute__((noinline)) void keys_tie(void)
 {
     track_t *t = &trk[kz.trk % NTRK];
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, nx = (kz.last + 1u) % len;
     step_t *s;
-    if (!song.playing || !((song.rec >> kz.trk) & 1u) || nx == kz.first) {
+    if (!song.playing || !((song.rec >> kz.trk) & 1u) || nx == kz.first || kz.first >= len) {
         kz.rec = 0;
         return;
     }

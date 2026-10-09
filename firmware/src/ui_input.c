@@ -505,20 +505,28 @@ static void srec_note(uint32_t key)                    /* a key pressed: its not
     t->key_nt = s->nt;
     ui.sr_key = (uint8_t)(key + 1u);
 }
-static void srec_keys(uint32_t notes)                  /* the frame's key edges */
+static void srec_keys(uint32_t notes)                  /* the frame's key edges: one key, the highest (the ISR's
+                                                        * keyboard_block sounds that one of a frame's chord) */
 {
     uint32_t k;
     if (ui.sr_key && !((fm1_in.notes >> (ui.sr_key - 1u)) & 1u))
         srec_next();                                   /* the cursor's key let go */
-    for (k = 0; k < 27u; k++)
-        if ((notes >> k) & 1u)
+    for (k = 27u; k-- > 0u;)
+        if ((notes >> k) & 1u) {
             srec_note(k);
+            break;
+        }
 }
-static void srec_rest(void)                            /* EDIT: the cursor step a rest, the cursor on */
+static void srec_rest(void)                            /* EDIT: the cursor step a plain rest (no PROB RATCH ACC SLIDE
+                                                        * left for a later note), the cursor on */
 {
     step_t *s = &TSEL->step[ui.sr_cur];
     s->on = 0;
     s->tie = 0;
+    s->cond = 0;
+    s->rat = 0;
+    s->acc = 0;
+    s->slide = 0;
     srec_next();
 }
 static void srec_knob(uint32_t k, int32_t s)
