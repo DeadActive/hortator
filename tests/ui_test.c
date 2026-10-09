@@ -2895,6 +2895,44 @@ static void test_perform_knobs_follow_screen(void)
     check("PERFORM shown (FX or a layer key held, or PAGE): the knobs are its macros, not the page under it", !ch);
 }
 
+/* bug 2026-10-10 ("the PERFORM knobs change the page's knobs"): FX and a layer key held into the menu, the menu
+ * closed with both still held: FX is dead (no map), the key keeps the screen and the knobs. A knob turn then must not
+ * mark the dead FX open: once the key is let go the screen goes with it, and the knobs edit the page again with the
+ * page shown (never the page under a PERFORM screen) */
+static void test_perform_dead_knob(void)
+{
+    uint32_t mode, i, bad = 0;
+    for (mode = 0; mode < 2u; mode++) {
+        int16_t tb[P_COUNT];
+        ui_host_init();
+        settings.perfpage = mode;
+        tap(B_EDIT);                                 /* SOUND under it */
+        keys(1u << 1);                               /* FX + a black key: the layer's (REPEAT 1/8) */
+        fx_hold_frames(3);
+        for (i = 0; i < 1000u && !ui.menu; i++) {    /* HOME held too: the menu */
+            fm1_in.buttons |= 1u << panel.btn[B_HOME];
+            fx_hold_frames(1);
+        }
+        fm1_in.buttons &= ~(1u << panel.btn[B_HOME]);
+        fx_hold_frames(2);
+        menu_close();
+        fx_hold_frames(3);                           /* FX still held (dead), the key still held */
+        turn(EN_K2, 3);                              /* the key's screen: CRUSH */
+        fx_hold_frames(2);
+        keys(0);                                     /* the key let go, FX still held */
+        fx_hold_frames(3);
+        memcpy(tb, TSEL->p, sizeof tb);
+        turn(EN_K1, 3);
+        fx_hold_frames(2);
+        for (i = 0; i < P_COUNT; i++)
+            bad |= ui.layer && TSEL->p[i] != tb[i];
+        bad |= ui.layer;                             /* a dead FX hold shows no map */
+        release_all();
+        ui_frame();
+    }
+    check("FX dead (held through the menu), its layer key let go: no PERFORM screen over the page the knobs edit", !bad);
+}
+
 /* user 2026-10-08: on every SEQ page (STEP PATTERN MOTION SONG) and on TRACKS (not armed) the 16 white keys are the
  * selected track's steps in the bank (a tap: on / off, a hold: accent); they play nothing and select nothing;
  * OCT+ / OCT- change the bank; the key LEDs show the steps. The track: ALGO (or TRACKS' KNOB 1) */
@@ -4532,6 +4570,7 @@ int main(void)
     test_filter_screens();
     test_initsnd_filter();
     test_perform_knobs_follow_screen();
+    test_perform_dead_knob();
     test_step_keys_everywhere();
     test_tracks_rec_mutes();
     test_fm_screens();

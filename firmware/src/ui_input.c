@@ -444,8 +444,9 @@ static void fx_layer(uint32_t now, int home_tap)
         for (k = 0; k < 4u; k++)                        /* the macros (FILTER CRUSH THROW DEPTH) while it is PERFORM's */
             if ((s = panel_enc(EN_K1 + k)) != 0) {
                 perf_k[k] = (int8_t)clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
-                if (down)
-                    *t0 |= FX_OPEN;
+                if (down && !(*t0 & FX_DEAD))
+                    *t0 |= FX_OPEN;                     /* (a dead hold stays dead: a held layer key's turn
+                                                         * opens no map that outlives the key) */
             }
     if (settings.perfpage && (*t0 & FX_OPEN) && !ui.pg_open && fx_allowed()) {   /* PAGE: the screen stays */
         ui.pg_open = 1;
