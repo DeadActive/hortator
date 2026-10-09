@@ -68,6 +68,7 @@ static struct {
     uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
+    uint8_t srec, sr_cur, sr_key;   /* step record (spec §6): on; its cursor; the key whose note is on it + 1 */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
@@ -139,6 +140,7 @@ static void grid_drop_holds(void)
 
 static void page_entered(void)
 {
+    ui.srec = 0;                                       /* step record ends (leaving the page, another track) */
     grid_drop_holds();
     song.seq_mode = seq_mode_now();                    /* seq.c: whose the keys are */
     ui.hot_t = 0;
@@ -162,6 +164,8 @@ static void note_text(char *b, int32_t n)
     str_cpy(b, N_NOTE[n % 12], 4);
     fmt_int(b + str_len(b), n / 12 - 1);
 }
+/* step record's TIME of a step: 0 NOTE (ON), 1 TIE, 2 REST */
+static uint32_t srec_time(const step_t *s) { return s->tie ? 1u : s->on ? 0u : 2u; }
 
 /* a page with nothing to edit for the selected track: an EDIT page past the end of its engine's sound list */
 static int page_hidden(uint32_t i)
@@ -207,6 +211,7 @@ static void open_family(uint32_t fam)
 
 static void go_home(void)
 {
+    ui.srec = 0;                                       /* step record ends (leaving the page, another track) */
     ui.home = 1;
     ui.hot_t = 0;
     song.seq_mode = seq_mode_now();
@@ -393,6 +398,7 @@ static void track_select(uint32_t i)
 {
     if (i >= NTRK || i == song.sel)
         return;
+    ui.srec = 0;                                       /* step record ends (leaving the page, another track) */
     song.sel = (uint8_t)i;
     grid_drop_holds();
     ui.bank = 0;

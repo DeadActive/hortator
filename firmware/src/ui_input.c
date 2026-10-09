@@ -50,7 +50,7 @@ static void ui_leds(void)
     led_put(nl, panel.btn[FAM_BTN[fam]],                /* LAYER: EDIT blinks, LFO 2: LFO blinks, 250 ms on / off */
             (fam != FAM_LAY && (fam != FAM_LFO || !song.lsel)) || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
-    led_put(nl, panel.btn[B_REC], song.rec != 0u);
+    led_put(nl, panel.btn[B_REC], song.rec != 0u || ui.srec);
     led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
     if (name_on()) {                                  /* NAME: the keys that type */
         uint32_t m = name_leds(fm1_ticks());
@@ -464,6 +464,88 @@ static void fx_layer(uint32_t now, int home_tap)
     }
 }
 
+/* --------------------------------------------------- step record (spec §6) --- */
+/* KEYS on the STEP page, stopped: a REC tap starts it at the bank's first step (top bar STEP REC nn). A key writes its
+ * note to the cursor step (ON, NOTE; TIME = NOTE; ACC / SLIDE as FLAG left them) and the cursor moves on when it is
+ * let go; a key pressed while the cursor's key is still held: SLIDE on that step, its note on the next one. KNOB 1 the
+ * cursor, 2 NOTE, 3 TIME (NOTE / TIE / REST), 4 FLAG (- / ACC / SLD / A+S); an EDIT tap: a rest, the cursor on. A REC
+ * tap, PLAY, leaving the page, KEYS off, another track, the transport starting, the menu, NAME or PERFORM's layer
+ * (FX held) end it. The ISR sounds the keys. */
+static int srec_ok(void)
+{
+    return keys_mode() && !ui.home && !ui.layer && cur_page()->scope == SC_GRID && !song.playing && !chain_busy() &&
+           !view_src(TSEL);
+}
+static void srec_start(void)
+{
+    uint32_t len = view_len(TSEL);
+    ui.srec = 1;
+    ui.sr_cur = (uint8_t)(ui.bank * 16u < len ? ui.bank * 16u : len - 1u);
+    ui.sr_key = 0;
+    grid_drop_holds();
+}
+static void srec_next(void)                            /* the cursor on (LEN wraps), its bank shown */
+{
+    ui.sr_cur = (uint8_t)((ui.sr_cur + 1u) % view_len(TSEL));
+    ui.bank = (uint8_t)(ui.sr_cur / 16u);
+    ui.sr_key = 0;
+}
+static void srec_note(uint32_t key)                    /* a key pressed: its note on the cursor step */
+{
+    track_t *t = TSEL;
+    step_t *s;
+    if (ui.sr_key) {                                   /* the cursor's key still held: its step slides into this one */
+        t->step[ui.sr_cur].slide = 1;
+        srec_next();
+    }
+    s = &t->step[ui.sr_cur];
+    s->on = 1;
+    s->tie = 0;
+    s->nt = (int8_t)clamp(keys_nt(key), NT_MIN, NT_MAX);
+    t->key_nt = s->nt;
+    ui.sr_key = (uint8_t)(key + 1u);
+}
+static void srec_keys(uint32_t notes)                  /* the frame's key edges */
+{
+    uint32_t k;
+    if (ui.sr_key && !((fm1_in.notes >> (ui.sr_key - 1u)) & 1u))
+        srec_next();                                   /* the cursor's key let go */
+    for (k = 0; k < 27u; k++)
+        if ((notes >> k) & 1u)
+            srec_note(k);
+}
+static void srec_rest(void)                            /* EDIT: the cursor step a rest, the cursor on */
+{
+    step_t *s = &TSEL->step[ui.sr_cur];
+    s->on = 0;
+    s->tie = 0;
+    srec_next();
+}
+static void srec_knob(uint32_t k, int32_t s)
+{
+    track_t *t = TSEL;
+    step_t *st;
+    int32_t d = s > 0 ? 1 : -1, v, len = (int32_t)view_len(t);
+    if (k == 0u) {
+        ui.sr_cur = (uint8_t)clamp((int32_t)ui.sr_cur + accel(EN_K1, s, len), 0, len - 1);
+        ui.bank = (uint8_t)(ui.sr_cur / 16u);
+        ui.sr_key = 0;                                 /* a key still held moves nothing on its release */
+        return;
+    }
+    st = &t->step[ui.sr_cur];
+    if (k == 1u) {
+        st->nt = (int8_t)clamp(st->nt + accel(EN_K2, s, NT_MAX - NT_MIN), NT_MIN, NT_MAX);
+    } else if (k == 2u) {
+        v = clamp((int32_t)srec_time(st) + d, 0, 2);
+        st->on = v == 0;
+        st->tie = v == 1;
+    } else {
+        v = clamp((int32_t)(st->acc | st->slide << 1) + d, 0, 3);
+        st->acc = (uint8_t)(v & 1);
+        st->slide = (uint8_t)(v >> 1);
+    }
+}
+
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
@@ -477,6 +559,7 @@ static void ui_input(void)
         notes = 0;
     notes &= ~kb_layer;
     if (name_on()) {                                  /* NAME owns the panel: OCT+ / OCT- / HOME / PLAY, the keys, K1 K2 */
+        ui.srec = 0;                                    /* (step record ends) */
         name_input(pressed, notes, now, home);
         return;
     }
@@ -485,6 +568,7 @@ static void ui_input(void)
             menu_close();
         } else {
             ui.menu = 1;
+            ui.srec = 0;                                /* step record ends */
             ui.menu_sel = 0;
             ui.confirm = 0;
             ui.force = 1;
@@ -509,7 +593,11 @@ static void ui_input(void)
             ui.force = 1;
         }
     } else if (rec == BT_TAP && !ui.confirm) {
-        if (fam == FAM_MIX) {
+        if (ui.srec) {
+            ui.srec = 0;                                /* step record ends */
+        } else if (srec_ok()) {
+            srec_start();                               /* KEYS, STEP, stopped: step record */
+        } else if (fam == FAM_MIX) {
             if (!song_lock())
                 tracks_rec_tap();
         } else {
@@ -563,8 +651,13 @@ static void ui_input(void)
         if (!((pressed >> id) & 1u))
             continue;
         b = panel_btn_of(id);
+        if (ui.srec && b == B_EDIT) {                   /* step record: a rest, the cursor on */
+            srec_rest();
+            continue;
+        }
         switch (b) {
         case B_PLAY:                                    /* SONG: the song; PLAY / STOP during one stops it */
+            ui.srec = 0;
             if (song.playing || chain_busy())
                 transport_req = 2;
             else if (!ui.home && cur_page()->graph == GR_SONG)
@@ -608,6 +701,8 @@ static void ui_input(void)
         }
     }
     song.seq_mode = seq_mode_now();                   /* seq.c: whose the keys are (KEYS may have changed) */
+    if (ui.srec && !srec_ok())
+        ui.srec = 0;                                    /* KEYS off, another page, the transport started */
     if (mix_mode() && rec_held()) {                     /* TRACKS, REC held: a white key mutes its track, top C# / D#
                                                          * (MONO / POLY): mutes at once / next bar; the REC press is then
                                                          * used (no arm, no hold) */
@@ -620,6 +715,8 @@ static void ui_input(void)
                 track_mute_toggle(k);
         if (notes && ui.rec_t0)
             ui.rec_t0 |= 2u;
+    } else if (ui.srec) {
+        srec_keys(notes);
     } else if (step_keys()) {
         for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a press */
             uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off, a hold flips its accent */
@@ -660,6 +757,12 @@ static void ui_input(void)
         int16_t *hv;
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
+        if (ui.srec) {                                  /* step record: STEP NOTE TIME FLAG */
+            srec_knob(k, s);
+            ui.hot_col = (uint8_t)k;
+            ui.hot_t = 40;
+            continue;
+        }
         if (grid_mode() && step_edit(k, s))
             continue;
         if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || pg->graph == GR_SONG || page_desc(pg, k, &hv)) {

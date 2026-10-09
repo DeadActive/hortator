@@ -3497,6 +3497,192 @@ static void test_step_key_note(void)
           !t->step[3].tie && t->step[3].nt == 5);
 }
 
+/* ---- ACID plan B: step record (spec §6) */
+static void srec_open(void)                          /* ACID on track 1, KEYS, STEP, stopped; a REC tap: step record */
+{
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    memset(TSEL->step, 0, sizeof TSEL->step);
+    tap(B_SCL);
+    seq_open("STEP");
+    tap(B_REC);
+}
+static void srec_turn(uint32_t knob, int32_t d)      /* one detent, 0.1 s after the last (no acceleration) */
+{
+    turn(EN_K1 + knob, d);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+}
+
+static void test_srec_keys(void)
+{
+    char b[16];
+    track_t *t;
+    srec_open();
+    t = TSEL;
+    check("step record: a REC tap on STEP (KEYS, stopped) starts it at step 1: STEP REC 01, REC lit, still STEP, nothing armed",
+          ui.srec && ui.sr_cur == 0u && head_mode(b) && str_eq(b, "STEP REC 01") && led_on(panel.btn[B_REC]) &&
+          !ui.home && cur_page()->scope == SC_GRID && song.rec == 0u);
+    keys(1u << 7);                                   /* C4 */
+    ui_frame();
+    check("step record: a key writes its note to the cursor step (ON, C4), the cursor waits for its release",
+          t->step[0].on && !t->step[0].tie && t->step[0].nt == 0 && ui.sr_cur == 0u);
+    keys(0);
+    ui_frame();
+    check("step record: let go: the cursor moves on (STEP REC 02)", ui.sr_cur == 1u && head_mode(b) &&
+          str_eq(b, "STEP REC 02"));
+    keys(1u << 9);                                   /* D4 */
+    ui_frame();
+    keys(1u << 9 | 1u << 11);                        /* E4 before D4 is let go */
+    ui_frame();
+    check("step record: a key before the last one is let go: SLIDE on that step, the new note on the next",
+          t->step[1].nt == 2 && t->step[1].slide && t->step[2].on && t->step[2].nt == 4 && !t->step[2].slide &&
+          ui.sr_cur == 2u);
+    keys(1u << 9);                                   /* E4 (the cursor's) let go */
+    ui_frame();
+    keys(0);                                         /* D4 let go */
+    ui_frame();
+    check("step record: the cursor's key let go moves it on, the earlier one does nothing", ui.sr_cur == 3u);
+    tap(B_OCTUP);
+    keys(1u << 7);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("step record: OCT+ (KEYS): C5 on step 4, the track's last note C5", t->step[3].on && t->step[3].nt == 12 &&
+          ui.sr_cur == 4u && song.octave == 1 && t->key_nt == 12);
+}
+
+static void test_srec_knobs(void)
+{
+    track_t *t;
+    srec_open();
+    t = TSEL;
+    t->step[2].on = 1;
+    srec_turn(0, 1);
+    srec_turn(0, 1);
+    check("step record: KNOB 1 moves the cursor (step 3)", ui.sr_cur == 2u);
+    srec_turn(1, 1);
+    srec_turn(1, 1);
+    srec_turn(1, 1);
+    check("step record: KNOB 2 the cursor step's NOTE (+3: D#4)", t->step[2].nt == 3);
+    srec_turn(2, 1);
+    check("step record: KNOB 3 TIME: NOTE -> TIE", !t->step[2].on && t->step[2].tie);
+    srec_turn(2, 1);
+    check("step record: TIME: TIE -> REST", !t->step[2].on && !t->step[2].tie);
+    srec_turn(2, 1);
+    check("step record: TIME: REST is the end", !t->step[2].on && !t->step[2].tie);
+    srec_turn(2, -1);
+    srec_turn(2, -1);
+    check("step record: TIME: back to NOTE", t->step[2].on && !t->step[2].tie);
+    srec_turn(3, 1);
+    check("step record: KNOB 4 FLAG: - -> ACC", t->step[2].acc && !t->step[2].slide);
+    srec_turn(3, 1);
+    check("step record: FLAG: ACC -> SLD", !t->step[2].acc && t->step[2].slide);
+    srec_turn(3, 1);
+    check("step record: FLAG: SLD -> A+S", t->step[2].acc && t->step[2].slide);
+    srec_turn(3, -1);
+    srec_turn(3, -1);
+    srec_turn(3, -1);
+    check("step record: FLAG: back to -", !t->step[2].acc && !t->step[2].slide);
+    tap(B_EDIT);
+    check("step record: an EDIT tap writes a rest and moves on (no SOUND page)", !t->step[2].on && !t->step[2].tie &&
+          ui.sr_cur == 3u && ui.srec && cur_page()->scope == SC_GRID);
+    keys(1u << 7);                                   /* C4 on step 4, held ... */
+    ui_frame();
+    srec_turn(0, -1);                                /* ... while KNOB 1 moves the cursor back */
+    keys(0);
+    ui_frame();
+    check("step record: a key let go after KNOB 1 moved the cursor moves it no further", ui.sr_cur == 2u &&
+          t->step[3].on && t->step[3].nt == 0);
+}
+
+/* Review Focus 5: every way out ends step record; nothing is written after it */
+static void test_srec_exits(void)
+{
+    track_t *t;
+    uint32_t i;
+    srec_open();
+    tap(B_REC);
+    check("step record ends: a REC tap (STEP stays, TRACKS not opened, nothing armed)", !ui.srec &&
+          cur_page()->scope == SC_GRID && song.rec == 0u);
+    srec_open();
+    press(B_PLAY);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("step record ends: PLAY (the transport starts)", !ui.srec && song.playing);
+    srec_open();
+    press(B_SEQ);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("step record ends: leaving the page (SEQ: PATTERN)", !ui.srec && cur_page()->graph == GR_STEPS);
+    srec_open();
+    tap(B_HOME);
+    check("step record ends: HOME", !ui.srec && ui.home);
+    srec_open();
+    tap(B_SCL);
+    check("step record ends: KEYS off", !ui.srec && !ui.keys);
+    srec_open();
+    turn(EN_ALGO, 1);
+    ui_frame();
+    check("step record ends: another track", !ui.srec && song.sel == 1);
+    srec_open();
+    transport_req = 1;                               /* as a MIDI Start or a song would */
+    ui_frame();
+    ui_frame();
+    check("step record ends: the transport started elsewhere", !ui.srec && song.playing);
+    srec_open();
+    t = TSEL;
+    keys(1u << 7);                                   /* C4 held ... */
+    ui_frame();
+    tap(B_REC);                                      /* ... over the end */
+    keys(0);
+    ui_frame();
+    keys(1u << 9);                                   /* a key after the end */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("step record: after its end no key writes a step (only C4 on step 1)", !ui.srec && t->step[0].on &&
+          t->step[0].nt == 0 && !t->step[1].on && !t->step[1].tie);
+    srec_open();
+    for (i = 0; i < 1000u && !ui.menu; i++) {        /* HOME held: the menu */
+        fm1_in.buttons |= 1u << panel.btn[B_HOME];
+        ui_frame();
+    }
+    release_all();
+    ui_frame();
+    check("step record ends: the menu opened (REC dark under it)", ui.menu && !ui.srec && !led_on(panel.btn[B_REC]));
+    menu_close();
+    ui_frame();
+    srec_open();
+    press(B_FX);
+    fx_hold_frames(500);                             /* PERFORM's layer: its keys, its knobs */
+    check("step record ends: FX held (PERFORM's layer)", ui.layer && !ui.srec);
+    release_all();
+    ui_frame();
+    check("step record: FX let go: still off, still STEP", !ui.srec && cur_page()->scope == SC_GRID);
+    srec_open();
+    name_open(NK_RENAME, 0);
+    ui_frame();
+    check("step record ends: NAME", !ui.srec);
+    name_close();
+    ui_frame();
+    ui_host_init();
+    seq_open("STEP");
+    tap(B_REC);
+    check("KEYS off: a REC tap on STEP opens TRACKS (as before)", !ui.srec && mix_mode());
+    ui_host_init();
+    tap(B_SCL);
+    seq_open("STEP");
+    transport_req = 1;
+    ui_frame();
+    tap(B_REC);
+    check("KEYS on, playing: a REC tap on STEP opens TRACKS (as before)", !ui.srec && mix_mode());
+    transport_req = 2;
+    ui_frame();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -3586,6 +3772,9 @@ int main(void)
     test_keys_live_rec_tie_clean();
     test_keys_live_rec_drum();
     test_step_key_note();
+    test_srec_keys();
+    test_srec_knobs();
+    test_srec_exits();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

@@ -31,10 +31,18 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
-/* the top bar's mode (spec §7): KEYS and its lowest key's note ("KEYS F3"); 0 (b "") when off */
+/* the top bar's mode (spec §7): "STEP REC 05" (step record, the cursor's step), else KEYS and its lowest key's note
+ * ("KEYS F3"); 0 (b "") when neither */
 static int head_mode(char *b)
 {
     b[0] = 0;
+    if (ui.srec) {
+        str_cpy(b, "STEP REC ", 16);
+        b[9] = (char)('0' + (ui.sr_cur + 1u) / 10u);
+        b[10] = (char)('0' + (ui.sr_cur + 1u) % 10u);
+        b[11] = 0;
+        return 1;
+    }
     if (!ui.keys)
         return 0;
     str_cpy(b, "KEYS ", 16);
@@ -53,7 +61,7 @@ static void draw_head(void)
                    (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
-                   (uint32_t)(song.octave + 2) * 1009u;
+                   (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -79,7 +87,7 @@ static void draw_head(void)
     }
     cv_text(x, 1, &FONT_S, b, ui.bpm_t ? C_WHITE : C_HI);
     if (head_mode(m)) {
-        cv_text(76, 1, &FONT_S, m, C_HI);              /* KEYS: before the song's row (SONG shows it) */
+        cv_text(76, 1, &FONT_S, m, ui.srec ? C_WHITE : C_HI);   /* KEYS / STEP REC: before the song's row */
     } else if (chain.running) {                       /* a song: its row */
         str_cpy(b, "SONG ", sizeof b);
         fmt_int(b + 5, (int32_t)chain.row + 1);
@@ -88,7 +96,7 @@ static void draw_head(void)
     b[0] = 'T';
     b[1] = (char)('1' + song.sel);
     b[2] = 0;
-    cv_text(140, 1, &FONT_S, b, C_HI);
+    cv_text(ui.srec ? 168 : 140, 1, &FONT_S, b, C_HI);   /* (STEP REC nn reaches x 164) */
     {
         int32_t lvl = batt_shown(), k, bx = 236 - 19;
         cv_rect(bx, 4, 17, 1, C_GRAY);
@@ -1202,6 +1210,20 @@ static void draw_columns(void)
         draw_column(2, "LEN", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
         param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);
         draw_column(3, "PAN", val, unit, VAL(3u), RATIO(&TP[P_PAN], t->p[P_PAN]), param_icon(&TP[P_PAN], t->p[P_PAN]));
+        return;
+    }
+    if (pg->scope == SC_GRID && ui.srec) {             /* step record: STEP NOTE TIME FLAG of the cursor step */
+        static const char *const TM[3] = {"NOTE", "TIE", "REST"}, *const FL[4] = {"-", "ACC", "SLD", "A+S"};
+        const step_t *st = &TSEL->step[ui.sr_cur % NSTEP];
+        char u[8];
+        fmt_int(val, (int32_t)ui.sr_cur + 1);
+        str_cpy(u, "/", 8);
+        fmt_int(u + 1, (int32_t)view_len(TSEL));
+        draw_column(0, "STEP", val, u, VAL(0u), -1, ICON_AUTO);
+        note_text(val, 60 + st->nt);
+        draw_column(1, "NOTE", val, "", VAL(1u), (st->nt - NT_MIN) * 1000 / (NT_MAX - NT_MIN), ICON_AUTO);
+        draw_column(2, "TIME", TM[srec_time(st)], "", VAL(2u), -1, ICON_AUTO);
+        draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", VAL(3u), -1, ICON_AUTO);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */
