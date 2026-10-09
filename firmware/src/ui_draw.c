@@ -372,8 +372,8 @@ static void graph_grid(const track_t *t, uint16_t c)
  * beats DIM. A note is a 9 px bar on its row (ACC: WHITE, the row's full height; else HI, 2 px), a RATCH step's in its
  * 2..4 parts; a TIE carries the bar of the note before through its column (from the step line: one long bar); a rest
  * is empty; SLIDE an AMB line from the bar's end into the next note (not out of a ratcheted step). A note outside the
- * view: a 1 px mark on the edge row. Step record's cursor: a WHITE frame; the playhead: a 1 px WHITE line. The view
- * (proll.lo, the bottom row's note) is roll_view's (graph_signature) */
+ * view: a 1 px mark on the edge row; the key sounding outside it: the strip's edge row WHITE. Step record's cursor: a
+ * WHITE frame; the playhead: a 1 px WHITE line. The view (proll.lo, the bottom row's note) is roll_view's */
 #define PR_ROWS 24                                      /* 2 octaves */
 #define PR_RH 4                                         /* px per row */
 #define PR_Y0 2                                         /* the top row (graph y) */
@@ -395,26 +395,57 @@ static uint32_t pr_src(const track_t *t, uint32_t si, uint32_t len)
     return st[si].on && !st[si].tie ? si : NSTEP;
 }
 
-/* the view: the bank's notes centred, kept while they fit; wider than the view: step record's cursor note (else the
- * lowest) in the middle; no notes: the track's last key note */
-static void roll_view(const track_t *t)
+/* the bank's sounding notes into nn (a TIE: its source's, pr_src); their count */
+static uint32_t pr_notes(const track_t *t, int32_t *nn)
 {
     const step_t *st = seq_steps(t);
-    uint32_t i, len = view_len(t), base = ui.bank * 16u;
-    int32_t lo = 127, hi = -1, n, cur = proll.lo, tgt;
+    uint32_t i, s, n = 0, len = view_len(t), base = ui.bank * 16u;
     for (i = 0; i < 16u && base + i < len; i++)
-        if (st[base + i].on && !st[base + i].tie) {
-            n = 60 + st[base + i].nt;
-            lo = n < lo ? n : lo;
-            hi = n > hi ? n : hi;
+        if ((s = pr_src(t, base + i, len)) != NSTEP)
+            nn[n++] = 60 + st[s].nt;
+    return n;
+}
+static uint32_t pr_count(const int32_t *nn, uint32_t n, int32_t lo)   /* the notes in the window from lo */
+{
+    uint32_t k, c = 0;
+    for (k = 0; k < n; k++)
+        c += nn[k] >= lo && nn[k] < lo + PR_ROWS;
+    return c;
+}
+
+/* the view (proll.lo; draw_graph, when the graph changes, never on an idle frame): of the windows with a note on their
+ * bottom row (16 x 16 compares at most), the one holding the most of the bank's sounding notes, the lowest of equals;
+ * the view now kept while it holds as many. Step record: kept while it holds the cursor step's sounding note (a rest:
+ * kept), else that window shifted only as far as the note needs. Neither the playhead nor a KEYS key moves it (a key
+ * outside: graph_roll lights the strip's edge row). No notes: the track's last key note in the middle */
+static void roll_view(const track_t *t)
+{
+    int32_t nn[16], lo = 0, w, cn;
+    uint32_t n = pr_notes(t, nn), k, c, best = 0, s, len = view_len(t);
+    int cur = proll.trk == song.sel + 1u;
+    for (k = 0; k < n; k++) {
+        w = clamp(nn[k], 0, 128 - PR_ROWS);
+        c = pr_count(nn, n, w);
+        if (c > best || (c == best && w < lo)) {
+            best = c;
+            lo = w;
         }
-    if (hi < 0)
-        lo = hi = 60 + t->key_nt;
-    if (hi - lo < PR_ROWS)
-        tgt = proll.trk == song.sel + 1u && lo >= cur && hi < cur + PR_ROWS ? cur : (lo + hi + 1) / 2 - PR_ROWS / 2;
-    else
-        tgt = (ui.srec ? 60 + st[ui.sr_cur % NSTEP].nt : lo) - PR_ROWS / 2;
-    proll.lo = (uint8_t)clamp(tgt, 0, 128 - PR_ROWS);
+    }
+    if (!n)
+        lo = 60 + t->key_nt - PR_ROWS / 2;
+    if (cur && pr_count(nn, n, proll.lo) >= best)
+        lo = proll.lo;                                /* as good as the best: no jump */
+    if (ui.srec) {
+        s = ui.sr_cur < len ? pr_src(t, ui.sr_cur, len) : NSTEP;
+        cn = s == NSTEP ? 0 : 60 + seq_steps(t)[s].nt;
+        if (cur && (s == NSTEP || (cn >= proll.lo && cn < proll.lo + PR_ROWS)))
+            lo = proll.lo;                            /* the cursor's note in the view, or a rest: no move */
+        else if (s != NSTEP && cn < lo)
+            lo = cn;
+        else if (s != NSTEP && cn >= lo + PR_ROWS)
+            lo = cn - PR_ROWS + 1;
+    }
+    proll.lo = (uint8_t)clamp(lo, 0, 128 - PR_ROWS);
     proll.trk = (uint8_t)(song.sel + 1u);
 }
 
@@ -443,19 +474,21 @@ static void graph_roll(const track_t *t, uint16_t c)
     const step_t *st = seq_steps(t);
     uint32_t i, len = view_len(t), base = ui.bank * 16u, ncol = base < len ? (len - base < 16u ? len - base : 16u) : 0u;
     int32_t r, ybot = PR_Y0 + PR_ROWS * PR_RH, gw = (int32_t)ncol * PR_CW + 1;
+    int32_t gx1 = PR_X0 + (int32_t)ncol * PR_CW, top = (int32_t)proll.lo + PR_ROWS - 1;
     int32_t held = kz.key && kz.trk == song.sel ? 60 + t->key_nt : -1000;
     char nb[8];
     for (r = 0; r < PR_ROWS; r++) {                   /* rows: the keyboard strip, the C rows named and closed */
-        int32_t n = (int32_t)proll.lo + PR_ROWS - 1 - r, y = PR_Y0 + r * PR_RH;
+        int32_t n = top - r, y = PR_Y0 + r * PR_RH, lx;
         uint32_t pc = (uint32_t)n % 12u;
-        if (n == held)
+        if (n == held || (held > -1000 && ((r == 0 && held > top) || (r == PR_ROWS - 1 && held < proll.lo))))
             cv_rect(PR_KX, y, 9, PR_RH - 1, C_WHITE);
         else
             cv_rect(PR_KX, y, KEY_BLACK[pc] ? 5 : 9, PR_RH - 1, KEY_BLACK[pc] ? C_LINE : C_DIM);
         if (pc == 0u) {
             cv_rect(PR_X0, y + PR_RH - 1, gw, 1, C_DIM);
             note_text(nb, n);
-            cv_text(PR_KX - 2 - text_w(&FONT_S, nb), y < 6 ? 0 : y - 6, &FONT_S, nb, C_GRAY);
+            lx = PR_KX - 2 - text_w(&FONT_S, nb);
+            cv_text(lx < 0 ? 0 : lx, y < 6 ? 0 : y - 6, &FONT_S, nb, C_GRAY);   /* (C-1: from x 0) */
         }
     }
     for (i = 0; i <= ncol; i++)                       /* step lines, the beats brighter */
@@ -474,7 +507,8 @@ static void graph_roll(const track_t *t, uint16_t c)
             pr_bar(x - 1, y, 12, ss->acc, ss->acc ? C_WHITE : c, 1u);   /* a TIE: on through the step line */
         if (own->slide && (own->tie || !own->rat) && ns->on && !ns->tie && y >= PR_Y0 && y < ybot) {
             int32_t ny = clamp(pr_row_y(60 + ns->nt), PR_Y0, ybot - PR_RH);
-            cv_line(x + 11, y + 1, x + 14, ny + 1, C_AMB);   /* the slide into the next note */
+            cv_line(x + 11, y + 1, x + 14 < gx1 ? x + 14 : gx1, ny + 1, C_AMB);   /* the slide into the next note
+                                                         * (out of the last column: to the grid's edge) */
         }
     }
     for (i = 0; i < ncol; i++) {                      /* the playhead, step record's cursor */
@@ -990,12 +1024,10 @@ static uint32_t graph_signature(void)
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
         h ^= steps_hash(t) + (song.playing ? view_idx(t) + 1u : 0u) * 31u;
         h ^= (ui.held < 16u && ui.step_t0[ui.held] ? ui.held + 1u : 0u) * 977u;
-    if (pg->graph == GR_GRID) {                       /* the roll's view, step record's cursor, the key sounding, KEYS */
-        if (trk_model(t)->gate && !view_src(t))
-            roll_view(t);
-        h ^= proll.lo * 7001u + (ui.srec ? ui.sr_cur + 1u : 0u) * 1543u +
+    if (pg->graph == GR_GRID)                         /* step record's cursor, the key sounding, KEYS (the roll's view
+                                                       * follows from these: draw_graph) */
+        h ^= (ui.srec ? ui.sr_cur + 1u : 0u) * 1543u +
              (kz.key && kz.trk == song.sel ? (uint32_t)(t->key_nt + 61) : 0u) * 389u + (uint32_t)keys_mode() * 99991u;
-    }
     if (pg->graph == GR_MODEL)
         h ^= (uint32_t)song.g[G_BPM] * 40503u;        /* ACID's gate: GATE of a step at the tempo */
     if (pg->graph == GR_GRIDS) {
@@ -1252,9 +1284,10 @@ static void draw_graph(void)
             graph_steps(t, c);
             break;
         case GR_GRID:
-            if (trk_model(t)->gate && !view_src(t))
+            if (trk_model(t)->gate && !view_src(t)) {
+                roll_view(t);                         /* (the graph changed: the view chosen again) */
                 graph_roll(t, c);
-            else
+            } else
                 graph_grid(t, c);
             break;
         case GR_FX:
@@ -1300,26 +1333,35 @@ static void draw_graph(void)
     ui.graph_top = (uint8_t)top;
 }
 
-/* the footer's note (spec §7): step record's cursor step, else the step held on the grid: "C#3", + " ACC" " SLD", a
- * TIE "C#3 TIE"; 0 (b "") when neither, or the step is empty */
+/* the footer's note (spec §7): step record's cursor step, else the step held on the grid, in the steps the roll and
+ * the grid show (a song's row while a song runs): "C#3", + " ACC" " SLD"; a TIE the note it holds (pr_src) "C#3 TIE",
+ * after a rest "TIE"; 0 (b "") when neither, or the step is empty */
 static int foot_note(char *b)
 {
     const track_t *t = TSEL;
-    const step_t *s;
+    const step_t *st = seq_steps(t), *s;
+    uint32_t si, src, len = view_len(t);
     b[0] = 0;
     if (ui.srec)
-        s = &t->step[ui.sr_cur % NSTEP];
+        si = ui.sr_cur % NSTEP;
     else if (step_keys() && ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] < NSTEP)
-        s = &t->step[ui.step_si[ui.held]];
+        si = ui.step_si[ui.held];
     else
         return 0;
+    s = &st[si];
     if (!s->on && !s->tie)
         return 0;
-    note_text(b, 60 + s->nt);
     if (s->tie) {
+        src = si < len ? pr_src(t, si, len) : NSTEP;
+        if (src == NSTEP) {
+            str_cpy(b, "TIE", 4);
+            return 1;
+        }
+        note_text(b, 60 + st[src].nt);
         str_cpy(b + str_len(b), " TIE", 6);
         return 1;
     }
+    note_text(b, 60 + s->nt);
     if (s->acc)
         str_cpy(b + str_len(b), " ACC", 6);
     if (s->slide)

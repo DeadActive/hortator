@@ -3763,8 +3763,215 @@ static void test_roll_follow(void)
     t->step[0].nt = -40;                             /* G#0 .. E7: wider than the view */
     t->step[1].nt = 40;
     ui_frame();
-    check("roll: notes wider than the view: the lowest in the middle, the other a mark on the top edge",
-          proll.lo == 20 - PR_ROWS / 2 && gpx(PR_X0 + PR_CW + 4, PR_Y0) == C_HI);
+    check("roll: notes wider than the view, one each: the lowest window (G#0 on the bottom row), the other a mark on "
+          "the top edge", proll.lo == 20 && gpx(PR_X0 + PR_CW + 4, PR_Y0) == C_HI);
+}
+
+/* fix round 1: the roll's view (the coordinator's ruling): the 24-row window holding the most of the bank's sounding
+ * notes (a TIE counts its source's), the lowest of equals, kept while it holds as many as the best; step record
+ * shifts it only as far as the cursor's sounding note needs (a rest: nothing); neither the playhead nor a KEYS key
+ * moves it (a key outside: the strip's edge row lit) */
+static void roll_notes(track_t *t, const int8_t *nt, uint32_t n)   /* steps 1..n ON at C4 + nt; 99: a TIE, 100: a rest */
+{
+    uint32_t i;
+    memset(t->step, 0, sizeof t->step);
+    for (i = 0; i < n; i++) {
+        t->step[i].tie = nt[i] == 99;
+        t->step[i].on = nt[i] < 99;
+        t->step[i].nt = (int8_t)(nt[i] < 99 ? nt[i] : 0);
+    }
+}
+static void roll_open(track_t *t)                    /* STEP on an ACID track, the view chosen afresh */
+{
+    proll.trk = 0;
+    seq_open("STEP");
+    ui.force = 1;
+    ui_frame();
+    (void)t;
+}
+
+static void test_roll_view_most(void)
+{
+    static const int8_t L[11] = {-24, 0, 2, 3, 5, 7, 10, -24, 28, 99, 100};   /* C2 x2, C4..A#4 (6), E6 + its TIE */
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 11);
+    roll_open(t);
+    check("roll view: a line wider than 24 rows: the window holding the most notes (C4 up: 6; C2 up 2, D4 up 5)",
+          proll.lo == 60);
+    t->step[11].on = t->step[12].on = 1;             /* C#6, C6: D4 up and F4 up now hold 7, C4 up 6 */
+    t->step[11].nt = 25;
+    t->step[12].nt = 24;
+    ui_frame();
+    check("roll view: ... notes added: the window moves to the lowest holding the most (D4 up)", proll.lo == 62);
+    t->step[11].on = 0;                              /* C#6 gone: C4 up, D4 up, F4 up hold 6 each */
+    t->step[11].nt = 0;
+    ui_frame();
+    check("roll view: ... one removed: C4 up holds as many as D4 up: the view stays (no jump)", proll.lo == 62);
+    roll_open(t);
+    check("roll view: ... opened afresh: the lowest of the equal windows (C4 up)", proll.lo == 60);
+}
+
+static void test_roll_view_low_note(void)
+{
+    static const int8_t L[8] = {12, 14, 15, 17, 19, -24, 15, 12};   /* a riff at C5..G5, one C2 under it */
+    track_t *t;
+    int32_t yy, edge = 0;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 8);
+    roll_open(t);
+    for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
+        edge += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_HI;
+    check("roll view: one low note under a high riff: the riff stays in view (C5 on the bottom row)", proll.lo == 72);
+    check("roll view: ... the low note a 1 px mark on the bottom edge",
+          edge == 1 && gpx(PR_X0 + 5 * PR_CW + 4, PR_Y0 + PR_ROWS * PR_RH - 1) == C_HI);
+}
+
+static void test_roll_view_srec(void)
+{
+    static const int8_t L[8] = {0, 2, 4, 5, 7, 36, 100, 7};   /* C4 D4 E4 F4 G4, C7, a rest, G4 */
+    track_t *t;
+    uint32_t lo0;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 8);
+    tap(B_SCL);
+    roll_open(t);
+    lo0 = proll.lo;
+    tap(B_REC);
+    ui_frame();
+    check("roll view, step record: the cursor's note (C4) in the view: no move", ui.srec && ui.sr_cur == 0u &&
+          proll.lo == lo0 && lo0 == 60u);
+    turn(EN_K1, 4);
+    ui_frame();
+    check("roll view, step record: ... G4 still in it: no move", ui.sr_cur == 4u && proll.lo == lo0);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("roll view, step record: ... C7 out of it: the view moves only as far as C7 needs (C7 the top row)",
+          ui.sr_cur == 5u && proll.lo == 96u - PR_ROWS + 1u);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("roll view, step record: ... a rest moves nothing", ui.sr_cur == 6u && proll.lo == 96u - PR_ROWS + 1u);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("roll view, step record: ... G4 out of it again: back to the best window, G4 in it", ui.sr_cur == 7u &&
+          proll.lo == lo0);
+    tap(B_REC);
+    tap(B_SCL);
+    ui_frame();
+}
+
+static void test_roll_view_key_out(void)
+{
+    track_t *t;
+    uint32_t lo0;
+    int32_t ybot = PR_Y0 + (PR_ROWS - 1) * PR_RH;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    acid_line(t);
+    tap(B_SCL);
+    roll_open(t);
+    lo0 = proll.lo;
+    keys(1u << 0);                                   /* F3: under the view (C4 up) */
+    ui_frame();
+    ui_frame();                                      /* (the key sounds in the frame's audio, the graph shows it next) */
+    check("roll view: a KEYS key under the view: the view stays, the strip's bottom row lit",
+          kz.key && proll.lo == lo0 && lo0 == 60u && gpx(PR_KX + 1, ybot) == C_WHITE && gpx(PR_KX + 1, PR_Y0) != C_WHITE);
+    keys(0);
+    ui_frame();
+    ui_frame();
+    check("roll view: ... let go: the bottom row back to its key", gpx(PR_KX + 1, ybot) != C_WHITE);
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    keys(1u << 26);                                  /* G7 (two octaves up): over the view */
+    ui_frame();
+    ui_frame();
+    check("roll view: a KEYS key over the view: the strip's top row lit, the view stays",
+          kz.key && proll.lo == lo0 && gpx(PR_KX + 1, PR_Y0) == C_WHITE && gpx(PR_KX + 1, ybot) != C_WHITE);
+    keys(0);
+    tap(B_OCTDN);
+    tap(B_OCTDN);
+    tap(B_SCL);
+    ui_frame();
+}
+
+static void test_roll_view_idle(void)
+{
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    roll_open(TSEL);
+    ui_frame();
+    proll.lo = 3;                                    /* a mark: an idle frame does not choose the view again */
+    ui_frame();
+    ui_frame();
+    check("roll view: chosen only when the graph changes, not every idle frame", proll.lo == 3);
+    TSEL->step[5].on = 1;
+    ui_frame();
+    check("roll view: ... a step changed: chosen again", proll.lo == 60);
+}
+
+static void test_roll_label_slide_edges(void)
+{
+    static const int8_t L[16] = {-60, -58, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, -58};
+    track_t *t;
+    int32_t xx, yy, lit0 = 0, whole = 0, amb = 0, yc;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 16);
+    t->step[15].slide = 1;                           /* step 16 slides into step 1 (the wrap) */
+    roll_open(t);
+    yc = pr_row_y(0);
+    for (yy = yc - 6; yy < H_GRAPH - G_OY; yy++)    /* the label: from its row's y - 6 down */
+        for (xx = 0; xx < PR_KX; xx++)
+            lit0 += gpx(xx, yy) != 0;
+    cv_begin(240, 40, C_BLACK);                      /* the label whole, for reference */
+    cv_text(0, 0, &FONT_S, "C-1", C_GRAY);
+    for (yy = 0; yy < 40 * 240; yy++)
+        whole += cv_px[yy] != 0 && yy % 240 < PR_KX;
+    ui.force = 1;
+    ui_frame();
+    check("roll: C-1 (NOTE 0) on the bottom row, its label whole (from x 0, not clipped)", proll.lo == 0u &&
+          PR_KX - 2 - text_w(&FONT_S, "C-1") < 0 && whole > 20 && lit0 == whole);
+    for (yy = PR_Y0 - 2; yy < PR_Y0 + PR_ROWS * PR_RH + 2; yy++)
+        for (xx = PR_X0 + 16 * PR_CW + 1; xx < 240; xx++)
+            amb += gpx(xx, yy) == C_AMB;
+    check("roll: a slide out of the bank's last column stays inside the grid", amb == 0);
+}
+
+/* the footer reads the steps the roll and the grid show: a song's row while a song runs */
+static void test_foot_note_song(void)
+{
+    static step_t row[NSTEP];
+    const step_t *keep;
+    char b[16];
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    memset(t->step, 0, sizeof t->step);
+    t->step[3].on = 1;                               /* the track's own step 4: C4 */
+    memset(row, 0, sizeof row);
+    row[3].on = 1;                                   /* the song row's step 4: F4 SLD */
+    row[3].nt = 5;
+    row[3].slide = 1;
+    keep = chain.src[0].step[0];
+    chain.src[0].step[0] = row;
+    chain.slot = 0;
+    chain.running = 1;
+    ui.srec = 1;
+    ui.sr_cur = 3;
+    check("footer: in a song, the row's step (as the roll / grid show it): F4 SLD", foot_note(b) && str_eq(b, "F4 SLD"));
+    ui.srec = 0;
+    chain.running = 0;
+    chain.src[0].step[0] = keep;
+    check("footer: ... no song: the track's own (no note shown without step record or a held step)", !foot_note(b));
 }
 
 static void test_roll_cursor_playhead(void)
@@ -3832,7 +4039,8 @@ static void test_foot_note(void)
     tap(B_REC);
     turn(EN_K1, 2);
     ui_frame();
-    check("footer: step record's cursor step, a TIE: C#3 TIE", foot_note(b) && str_eq(b, "C#3 TIE"));
+    check("footer: step record's cursor step, a TIE: the note it holds (step 2's C#4, not its own unused C#3)",
+          foot_note(b) && str_eq(b, "C#4 TIE"));
     check("drum grid: step record's cursor framed WHITE (step 3)", gpx(4 + 2 * 14 - 2, 40) == C_WHITE);
     turn(EN_K1, 1);
     ui_frame();
@@ -4005,6 +4213,25 @@ static void test_acid_screens(void)
     t->p[P_E0 + 1] = 127;
     t->p[P_E0 + 7] = 127;
     snap_page("acid/12_edit_acid_decay_gate");
+    seq_select(1);                                   /* track 2, a drum, on STEP: KEYS on, then step record */
+    seq_open("STEP");
+    tap(B_SCL);
+    snap_page("acid/13_drum_grid_keys");
+    tap(B_REC);                                      /* the cursor on step 5 (F4, transposed): the footer's note */
+    turn(EN_K1, 4);
+    snap_page("acid/14_drum_grid_step_rec");
+    tap(B_REC);
+    seq_select(0);                                   /* the ACID roll: a KEYS key over the view */
+    seq_open("STEP");
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    keys(1u << 26);                                  /* G7 */
+    snap_page("acid/15_roll_key_over_view");
+    keys(0);
+    tap(B_OCTDN);
+    tap(B_OCTDN);
+    tap(B_SCL);
+    ui_frame();
     printf("     acid: screens in build/ui_shots/acid\n");
 }
 
@@ -4102,6 +4329,13 @@ int main(void)
     test_srec_exits();
     test_roll_draw();
     test_roll_follow();
+    test_roll_view_most();
+    test_roll_view_low_note();
+    test_roll_view_srec();
+    test_roll_view_key_out();
+    test_roll_view_idle();
+    test_roll_label_slide_edges();
+    test_foot_note_song();
     test_roll_cursor_playhead();
     test_foot_note();
     test_grid_transposed_mark();
