@@ -1,7 +1,7 @@
 # ENSEMBLE: a performance synth firmware for the FM-1 — design
 
 Date: 2026-10-10. Working name **ENSEMBLE** (the user names it before the first release). A new firmware, not a
-Hortator feature: a fork of Felucca 1.1.5.1 (`upstream/main`, 213df5a) in its own repo. This spec holds the whole
+Hortator feature: a fork of Felucca 1.5 (`upstream/main`, 129a4cf, the latest on 2026-10-10) in its own repo. This spec holds the whole
 design (§1–§8) and stage 1 in full (§9); stages 2–4 each get their own detailed spec and plan when reached. The spec
 is written in the Hortator repo only because the new repo does not exist yet; stage 1 moves it there.
 
@@ -27,7 +27,7 @@ User decisions (2026-10-09/10, in the brainstorm):
   the next one's IN move) (C).
 - **AUTO rhythm:** a style library per role with DENSITY / VARIATION, plus a generative rhythm map (A + C).
 - **Drums / sync:** none; a click and count-in only (C). Felucca's existing MIDI stays as it is; no new clock work.
-- **Build approach:** fork Felucca 1.1.5.1, keep its sound layer, replace the UI and the sequencer (approach 1).
+- **Build approach:** fork the latest Felucca (1.5), keep its sound layer, replace the UI and the sequencer (approach 1).
 - **Storage:** performances take the user-sample flash region (A, the recommendation; the user's "yes").
 - **Stages:** shell and sound → looper and performances → harmony and AUTO → FX.
 
@@ -198,7 +198,7 @@ Ends with: ENSEMBLE installs on the FM-1 and in the web simulator; four tracks P
 from the keys, each choosing from its role library with PRESETS and shaped by 4 macros on HOME; the deep editor
 behind EDIT; a CPU baseline.
 
-**9.1 Repo.** `~/Desktop/dev/fm1-drummachine/ensemble`, cloned from upstream Felucca at 1.1.5.1 (history kept,
+**9.1 Repo.** `~/Desktop/dev/fm1-drummachine/ensemble`, cloned from upstream Felucca at 1.5, tag `v1.5` (history kept,
 GPL-3.0-only, Leo Kuroshita / Hügelton credited as Hortator does). No remote until the user creates one. From
 Hortator, where upstream has no equivalent: BENCH (`tools/fm1_bench.py`, `bench.c`, with synth cases), CHANGELOG.md
 and VERSION.txt / docs/VERSIONING.md (starting at 0.1.0), the recovery tool (`tools/rescue`, docs/RECOVERY.md).
