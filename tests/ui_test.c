@@ -3535,6 +3535,82 @@ static void test_step_key_note(void)
           !t->step[3].tie && t->step[3].nt == 5);
 }
 
+/* bug 2026-10-10 (user: "ACID only"): the last KEYS note goes to the steps the grid keys turn on only on a gated
+ * (ACID) track; on a drum the new step is C4 (tap, hold, hold + knob) */
+static void test_step_key_note_drum(void)
+{
+    track_t *t;
+    uint32_t pass;
+    for (pass = 0; pass < 2u; pass++) {              /* 0: a drum (the kick), 1: ACID */
+        int8_t want;
+        ui_host_init();
+        t = TSEL;
+        if (pass)
+            drum_set_model(t, DM_ACID);
+        memset(t->step, 0, sizeof t->step);
+        tap(B_SCL);                                  /* KEYS: D4 played */
+        keys(1u << 9);
+        ui_frame();
+        keys(0);
+        ui_frame();
+        tap(B_SCL);
+        open_step_page();
+        grid_hold(WHITE[0], 0);                      /* tap */
+        grid_hold(WHITE[1], 600);                    /* hold: an accent */
+        grid_hold_turn(WHITE[2], 0, -2);             /* hold + KNOB 1 */
+        keys(0);
+        ui_frame();
+        want = pass ? 2 : 0;
+        check(pass ? "ACID: a step the grid keys turn on (tap, hold, hold + knob) gets the last KEYS note (D4)"
+                   : "drum: a step the grid keys turn on (tap, hold, hold + knob) is C4 after KEYS played D4",
+              t->step[0].on && t->step[1].on && t->step[2].on && t->step[0].nt == want && t->step[1].nt == want &&
+                  t->step[2].nt == want);
+    }
+}
+
+/* bug 2026-10-10: no last KEYS note carries over a LOAD or a cleared pattern */
+static void test_key_note_reset(void)
+{
+    uint32_t k, ok = 1;
+    ui_host_init();
+    project_save(0);
+    for (k = 0; k < NTRK; k++)
+        trk[k].key_nt = 5;
+    project_load(0);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].key_nt == 0;
+    check("LOAD: every track's last KEYS note back to C4", ok);
+    trk[2].key_nt = 5;
+    track_clear(&trk[2]);
+    check("a track's pattern cleared (CLEAR TRACK, CLR PATTERN): its last KEYS note back to C4", trk[2].key_nt == 0);
+    for (k = 0; k < NTRK; k++)
+        trk[k].key_nt = 5;
+    seq_clear_all();
+    for (ok = 1, k = 0; k < NTRK; k++)
+        ok &= trk[k].key_nt == 0;
+    check("CLR*: every track's last KEYS note back to C4", ok);
+}
+
+/* bug 2026-10-10: live record of a drum key (or MIDI) writes the step's NOTE as C4 (the hit sounded at C4): a NOTE
+ * left on an off step (a step-record REST, TIME -> REST) does not come back */
+static void test_rec_hit_drum_note(void)
+{
+    track_t *t = &trk[0];
+    ui_host_init();
+    memset(t->step, 0, sizeof t->step);
+    t->step[3].nt = 7;                               /* off, a NOTE left on it */
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 3);
+    keys(1u << 0);                                   /* F3: track 1's key (HOME, KEYS off) */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("drum live record onto a step holding a NOTE: ON at C4", t->step[3].on && t->step[3].nt == 0);
+    transport_req = 2;
+    ui_frame();
+}
+
 /* ---- ACID plan B: step record (spec §6) */
 static void srec_open(void)                          /* ACID on track 1, KEYS, STEP, stopped; a REC tap: step record */
 {
@@ -4059,16 +4135,17 @@ static void test_foot_note(void)
     open_step_page();
     keys(1u << WHITE[1]);
     ui_frame();
-    check("footer: a step held on the grid shows its note (C#4: the last key note)", foot_note(b) && str_eq(b, "C#4") &&
-          foot_lit() > 0u);
+    check("footer: a step held on the grid shows its note (a drum's new step: C4, not the last key note)",
+          foot_note(b) && str_eq(b, "C4") && foot_lit() > 0u);
     for (ms = 0; ms < 500u; ms += 50u) {
         host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
         ui_frame();
     }
-    check("footer: held into its accent: C#4 ACC", foot_note(b) && str_eq(b, "C#4 ACC"));
+    check("footer: held into its accent: C4 ACC", foot_note(b) && str_eq(b, "C4 ACC"));
     keys(0);
     ui_frame();
     check("footer: nothing held: no note", !foot_note(b) && !b[0] && foot_lit() == 0u);
+    t->step[1].nt = 1;                               /* C#4 (as KEYS record writes it) */
     t->step[2].tie = 1;
     t->step[2].nt = -11;
     t->step[3].on = 1;
@@ -4587,6 +4664,9 @@ int main(void)
     test_keys_live_rec_tie_clean();
     test_keys_live_rec_drum();
     test_step_key_note();
+    test_step_key_note_drum();
+    test_key_note_reset();
+    test_rec_hit_drum_note();
     test_srec_keys();
     test_srec_knobs();
     test_srec_exits();

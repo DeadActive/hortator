@@ -362,6 +362,7 @@ static void project_load(uint32_t slot)
         }
         t->p[P_MODEL] = (int16_t)m;
         t->model = (uint8_t)m;
+        t->key_nt = 0;                                  /* no last KEYS note carried over (spec §2) */
         for (i = 0; i < NSTEP; i++) {                   /* garbage cannot index a table or divide by zero */
             const step_t *q = &s->step[i];
             t->step[i].on = q->on ? 1u : 0u;

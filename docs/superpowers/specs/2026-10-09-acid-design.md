@@ -35,7 +35,10 @@ The keyboard can play and record any track chromatically. User decisions (2026-1
   (byte 2 = 0), SLIDE = TIE = 0, COND as it was. Such a project plays exactly as before (the golden kit hashes do not
   change). FDRA records are the same size as FDRB ones: they are told apart by their marker, in flash and in the RAM
   slots (.noinit) left by the previous firmware.
-- A plain step (ON only) written by the step keys gets NOTE = the track's last played or recorded note (60 at first).
+- A plain step (ON only) written by the step keys gets NOTE = the track's last played or recorded note (60 at first)
+  on a gated (ACID) track only; on a drum track it is C4 (user, 2026-10-10: "ACID only"). The last note goes back
+  to C4 on a project LOAD and when the track's pattern is cleared (CLEAR TRACK, CLR PATTERN, CLR\*). A live-recorded
+  drum key or MIDI hit writes its step's NOTE as C4 (the hit sounded at C4).
 - Every place that reads or writes `on`, `acc` or `rat` (sequencer, step keys, UI, conversion, tests) moves to the
   flag accessors; nothing else changes meaning.
 

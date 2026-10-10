@@ -15,7 +15,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   overlap SLIDEs (TIE / SLIDE on ACID tracks only). Step
   record: KEYS on, STEP page, stopped, a REC tap (KNOB 1..4 STEP NOTE TIME FLAG, EDIT a rest; REC, PLAY or leaving
   the page ends it). A loaded project keeps ACID on its first two ACID tracks, the others return as their power-on
-  kit drum. An ACID track's STEP page is a piano roll, the note shows in the footer; ACID's SOUND page shows its filter
+  kit drum. A step the white keys turn on takes the last KEYS note on an ACID track, C4 on a drum (the last note
+  resets on LOAD and on clearing the pattern). An ACID track's STEP page is a piano roll, the note shows in the footer; ACID's SOUND page shows its filter
   and the note's shape.
 - Releases can carry two versions: the plain firmware and the same build with Bluetooth MIDI. The web installer
   offers a choice (the plain one by default), the release a second file `hortator-X.Y.Z-bluetooth.fwsc`

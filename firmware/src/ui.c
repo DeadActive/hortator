@@ -287,6 +287,10 @@ static void bank_fix(void)                             /* LEN shortened (knob, p
         bank_set((int32_t)bank_count() - 1);
 }
 
+/* the NOTE of a step the grid keys turn on (spec §2, user 2026-10-10): a gated (ACID) track's last KEYS / recorded
+ * note; a drum's C4 (its steps transposed only by KEYS record, step record's NOTE or the roll) */
+static int8_t new_step_nt(const track_t *t) { return trk_model(t)->gate ? t->key_nt : 0; }
+
 /* key k of the grid pressed: step bank * 16 + k turns on, or off (then plain again: no accent, PROB 100 %,
  * 1 hit), inside LEN only; the step before the press is kept for a hold / a knob turn */
 static void step_press(uint32_t k)
@@ -307,7 +311,7 @@ static void step_press(uint32_t k)
         s->on = 1;
         s->acc = 0;
         s->tie = 0;                                   /* a TIE step turned on plays (acid_step reads TIE first) */
-        s->nt = TSEL->key_nt;                         /* spec §2: the track's last played / recorded note */
+        s->nt = new_step_nt(TSEL);                    /* spec §2: ACID's last played / recorded note, a drum's C4 */
     }
 }
 
@@ -322,13 +326,14 @@ static void step_hold(uint32_t k)
     s->on = 1;
     s->tie = 0;
     if (!ui.step_prev[k].on)
-        s->nt = TSEL->key_nt;
+        s->nt = new_step_nt(TSEL);
     s->acc = (uint8_t)!ui.step_prev[k].acc;
 }
 
-static void track_clear(track_t *t)               /* its steps and its motion */
+static void track_clear(track_t *t)               /* its steps and its motion; its last KEYS note C4 again */
 {
     memset(t->step, 0, sizeof t->step);
+    t->key_nt = 0;
     motion_clear((uint32_t)(t - trk));
 }
 

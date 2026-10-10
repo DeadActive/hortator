@@ -34,7 +34,8 @@ firmware ([below](#back-to-the-official-firmware)).
   into a keyboard for the selected track (KEYS): play it, record it live, or enter a line step by step. Live record:
   a REC tap on TRACKS arms the track (and starts the transport when stopped); a key writes the nearest step, a key
   held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on ACID tracks only). An ACID
-  track's STEP page is a piano roll. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
+  track's STEP page is a piano roll; a step the white keys turn on takes the last KEYS note on an ACID track, C4 on a
+  drum. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
   is cut (a safety limit). Projects saved by this build can't be read by 0.15.0; older projects convert on load. A
   loaded project keeps ACID on its first two ACID tracks; the others come back as their power-on kit drum.
 - **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.

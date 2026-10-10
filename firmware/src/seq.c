@@ -274,6 +274,9 @@ static uint32_t rec_hit(track_t *t, uint32_t vel)
     t->step[idx].tie = 0;                           /* (a TIE is read first: the hit would never play) */
     t->step[idx].cond = 0;                          /* a recorded step always plays, once */
     t->step[idx].rat = 0;
+    if (!trk_model(t)->gate)
+        t->step[idx].nt = 0;                        /* a drum's hit sounds at C4 (drum_hit): no NOTE left on the step
+                                                     * (KEYS record writes its own after, keys_rec) */
     if (vel > 110u)
         t->step[idx].acc = 1;
     return idx;
