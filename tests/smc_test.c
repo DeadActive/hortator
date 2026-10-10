@@ -275,6 +275,21 @@ static void test_buttons(void)
     transport_req = 0;
     in(note(0x5F, 127));
     check("REC again: disarmed", !song.rec);
+    chain.armed = 1;                                 /* a song armed (PLAY on SONG): REC as on TRACKS */
+    ui.msg[0] = 0;
+    in(note(0x02, 127));
+    check("REC 3 while a song is armed: nothing armed, STOP TO EDIT", !song.rec && str_eq(ui.msg, "STOP TO EDIT"));
+    ui.msg[0] = 0;
+    in(note(0x5F, 127));
+    check("REC while a song is armed: nothing armed, STOP TO EDIT", !song.rec && str_eq(ui.msg, "STOP TO EDIT") &&
+          !transport_req);
+    chain.running = 1;
+    chain.armed = 0;
+    ui.msg[0] = 0;
+    in(note(0x02, 127));
+    in(note(0x5F, 127));
+    check("REC 3 / REC while a song runs: nothing armed, STOP TO EDIT", !song.rec && str_eq(ui.msg, "STOP TO EDIT"));
+    chain.running = 0;
     in(note(0x5D, 127));
     check("STOP while stopped: nothing", !transport_req);
     in(note(0x5E, 127));

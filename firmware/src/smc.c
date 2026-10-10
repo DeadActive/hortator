@@ -183,12 +183,14 @@ static void smc_frame(void)
     }
     if (!smc.on)
         smc_fresh();
-    for (i = 0; i < NTRK; i++) {
+    for (i = 0; i < NTRK; i++)
         smc_notice(i);
+    fm1_irq_off();                                    /* the audio ISR flips P_MUTE and clears mute_q at the bar */
+    for (i = 0; i < NTRK; i++)
         m |= (uint32_t)(trk[i].p[P_MUTE] != 0) << i;
-    }
-    w[0] = (uint32_t)song.rec | (uint32_t)song.solo << 8 | ((m ^ song.mute_q) & 0xFFu) << 16 |   /* MUTE: lit = muted, */
-           1u << (24u + song.sel);                                                              /* xor a waiting flip */
+    m ^= song.mute_q;                                 /* MUTE: lit = muted, xor a waiting flip */
+    fm1_irq_on();
+    w[0] = (uint32_t)song.rec | (uint32_t)song.solo << 8 | (m & 0xFFu) << 16 | 1u << (24u + song.sel);
     w[1] = (song.playing ? 2u : 1u) | (song.rec ? 4u : 0u);
     for (j = 0; j < 2u; j++) {
         uint32_t dirty = ((w[j] ^ smc.lit[j]) | ~smc.known[j]) & (j ? 7u : 0xFFFFFFFFu);
