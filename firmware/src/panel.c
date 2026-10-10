@@ -61,13 +61,15 @@ static int32_t panel_enc(uint32_t role)
     return fm1_enc_take(panel.enc[role]) * panel.dir[role];
 }
 
-/* user settings that survive a reset. mutebar: TRACKS mutes wait for the next bar. btmode: the Bluetooth MODE (0 AUTO,
- * 1 SMC DAW, 2 MIDI); bt_type, bt_lo, bt_hi: the remembered device (address type, address bytes 0..2 and 3..5; all 0
- * none), kept in both builds (project.c: in zoom's and lowcut's spare bits) */
+/* user settings that survive a reset (mutebar: TRACKS mutes wait for the next bar). 32 B as in drum-v0.15.0: .noinit's
+ * layout stays, so an update finds the RAM project slots after it */
 #define SETTINGS_MAGIC 0x53455433u              /* "SET3" */
-struct {
-    uint32_t magic, palette, lowcut, zoom, mutebar, accel, usbfix, perfpage, btmode, bt_type, bt_lo, bt_hi;
-} settings __attribute__((section(".noinit")));
+struct { uint32_t magic, palette, lowcut, zoom, mutebar, accel, usbfix, perfpage; } settings __attribute__((section(".noinit")));
+_Static_assert(sizeof settings == 32u, ".noinit settings: the layout an update finds");
+/* the Bluetooth settings (both builds): MODE (0 AUTO, 1 SMC DAW, 2 MIDI), the remembered device (address type,
+ * address bytes 0..2 and 3..5; all 0 none). Only from the flash record (persist_boot: zoom's and lowcut's spare bits),
+ * else 0 */
+static struct { uint32_t btmode, bt_type, bt_lo, bt_hi; } btset;
 
 static void settings_save(void);
 static void settings_poll(void);              /* project.c */              /* project.c: flash copy (FELUCCA_FLASH) */
@@ -82,16 +84,10 @@ static void settings_init(void)
         settings.accel = 1;                    /* knob acceleration (calm, upstream 1.0): on */
         settings.usbfix = 0;                   /* USB LEVEL MASTER */
         settings.perfpage = 0;                 /* PERFORM HOLD */
-        settings.btmode = settings.bt_type = settings.bt_lo = settings.bt_hi = 0;   /* BT MODE AUTO, no device */
     }
     settings.mutebar &= 1u;
     settings.usbfix &= 1u;                    /* .noinit: fields added after "SET3" */
     settings.perfpage &= 1u;
-    if (settings.btmode > 2u)                  /* AUTO, SMC DAW, MIDI */
-        settings.btmode = 0;
-    settings.bt_type &= 1u;                   /* the remembered device: its address type, its address (3 + 3 bytes) */
-    settings.bt_lo &= 0xFFFFFFu;
-    settings.bt_hi &= 0xFFFFFFu;
     if (settings.accel > 1u)
         settings.accel = 1u;
     if (settings.lowcut > 2u)                  /* SPEAKER EQ: FLAT LOWCUT BASS+ */

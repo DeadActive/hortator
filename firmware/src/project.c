@@ -425,9 +425,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     uint32_t u;
     for (u = 0; u < 4u; u++)                          /* FDRA images the previous firmware left in the RAM slots */
         proj_upgrade(&proj_slot[u]);
-    settings.btmode = settings.bt_type = settings.bt_lo = settings.bt_hi = 0;   /* .noinit: after an update from a
-                                                     * firmware with 32 B of settings these words were its proj_slot[0]
-                                                     * (SET3 still valid): no device unless the flash record has one */
+    memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO unless the flash record has them */
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();
@@ -450,10 +448,12 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.accel = !((p.zoom >> 2) & 1u);    /* bit 2 = KNOB ACCEL OFF: older saves read as on */
         settings.usbfix = (p.zoom >> 3) & 1u;      /* bit 3 = USB LEVEL FIXED: older saves read MASTER */
         settings.perfpage = (p.zoom >> 4) & 1u;    /* bit 4 = PERFORM PAGE: older saves read HOLD */
-        settings.btmode = (p.zoom >> 5) & 3u;      /* bits 5..6 = BT MODE, 7 its address type, 8..31 its address */
-        settings.bt_type = (p.zoom >> 7) & 1u;     /* bytes 0..2; lowcut bits 8..31 bytes 3..5 (all 0 = none) */
-        settings.bt_lo = p.zoom >> 8;
-        settings.bt_hi = p.lowcut >> 8;
+        btset.btmode = (p.zoom >> 5) & 3u;         /* bits 5..6 = BT MODE, 7 its address type, 8..31 its address */
+        if (btset.btmode > 2u)                     /* bytes 0..2; lowcut bits 8..31 bytes 3..5 (all 0 = none) */
+            btset.btmode = 0;
+        btset.bt_type = (p.zoom >> 7) & 1u;
+        btset.bt_lo = p.zoom >> 8;
+        btset.bt_hi = p.lowcut >> 8;
         if (p.panel.magic == PANEL_MAGIC)
             panel = p.panel;
         persist_saved = p;
@@ -553,10 +553,9 @@ static void settings_save(void)                    /* asked for while playing: w
     memset(&p, 0, sizeof p);
     p.magic = PERSIST_MAGIC;
     p.palette = settings.palette;
-    p.lowcut = (settings.lowcut & 0xFFu) | settings.bt_hi << 8;
+    p.lowcut = (settings.lowcut & 0xFFu) | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
-             (settings.perfpage & 1u) << 4 | (settings.btmode & 3u) << 5 | (settings.bt_type & 1u) << 7 |
-             settings.bt_lo << 8;
+             (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;
     p.panel = panel;
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;

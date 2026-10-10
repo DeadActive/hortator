@@ -238,11 +238,12 @@ static int settings_old_record(void)
     p.panel = PANEL_DEFAULT;
     st_save(OBJ_SETTINGS, &p, sizeof p);
     rfill(&settings, sizeof settings);               /* power off: .noinit is anything */
+    rfill(&btset, sizeof btset);                     /* (the load replaces whatever was there) */
     persist_boot();
     settings_init();
     return settings.lowcut == 2u && fx_lowcut == 2u && settings.zoom == 1u && settings.mutebar == 1u && settings.accel == 1u &&
-           settings.usbfix == 1u && settings.perfpage == 1u && settings.palette == 2u && settings.btmode == 0u &&
-           settings.bt_type == 0u && settings.bt_lo == 0u && settings.bt_hi == 0u;
+           settings.usbfix == 1u && settings.perfpage == 1u && settings.palette == 2u && btset.btmode == 0u &&
+           btset.bt_type == 0u && btset.bt_lo == 0u && btset.bt_hi == 0u;
 }
 
 /* the remembered device (address, type) and MODE survive a save and a load in zoom's and lowcut's spare bits; lowcut
@@ -263,28 +264,29 @@ static int settings_bt_round_trip(void)
         settings.accel = 1;
         settings.usbfix = 1;
         settings.perfpage = 0;
-        settings.btmode = m;                         /* AUTO SMC MIDI */
-        settings.bt_type = m & 1u;
-        settings.bt_lo = 0xA1B2C3u + m;              /* address bytes 0..2 */
-        settings.bt_hi = 0xFFEEDDu - m;              /* .. 3..5 */
+        btset.btmode = m;                            /* AUTO SMC MIDI */
+        btset.bt_type = m & 1u;
+        btset.bt_lo = 0xA1B2C3u + m;                 /* address bytes 0..2 */
+        btset.bt_hi = 0xFFEEDDu - m;                 /* .. 3..5 */
         settings_save();
         st_load(OBJ_SETTINGS, &p, sizeof p);
         ok &= p.zoom >> 8 == 0xA1B2C3u + m && p.lowcut >> 8 == 0xFFEEDDu - m && (p.lowcut & 0xFFu) == m &&
               ((p.zoom >> 5) & 3u) == m && ((p.zoom >> 7) & 1u) == (m & 1u) && (p.zoom & 0x1Fu) == (1u | 1u << 3);
         rfill(&settings, sizeof settings);           /* power off */
+        memset(&btset, 0, sizeof btset);             /* (.bss) */
         persist_boot();
         settings_init();
-        ok &= settings.btmode == m && settings.bt_type == (m & 1u) && settings.bt_lo == 0xA1B2C3u + m &&
-              settings.bt_hi == 0xFFEEDDu - m && settings.lowcut == m && fx_lowcut == m && settings.zoom == 1u &&
+        ok &= btset.btmode == m && btset.bt_type == (m & 1u) && btset.bt_lo == 0xA1B2C3u + m &&
+              btset.bt_hi == 0xFFEEDDu - m && settings.lowcut == m && fx_lowcut == m && settings.zoom == 1u &&
               settings.mutebar == 0u && settings.accel == 1u && settings.usbfix == 1u && settings.perfpage == 0u &&
               settings.palette == 3u;
     }
     return (int)ok;
 }
 
-/* an update from a firmware whose settings were 32 B: SET3 is valid, but the four Bluetooth words are the old
- * firmware's proj_slot[0] header (FDRB magic, size, ...); no settings record in flash -> no device, MODE AUTO; the
- * rest of .noinit's settings kept */
+/* an update keeps .noinit where it was: `settings` stays Felucca's 32 B (the RAM project slots after it are found
+ * again); the Bluetooth fields are outside it, from the flash record only: none -> no device, MODE AUTO, the .noinit
+ * settings kept */
 static int settings_bt_after_update(void)
 {
     memset(hflash, 0xFF, sizeof hflash);             /* no settings record */
@@ -297,27 +299,32 @@ static int settings_bt_after_update(void)
     settings.accel = 1;
     settings.usbfix = 0;
     settings.perfpage = 0;
-    settings.btmode = PROJ_MAGIC;                    /* the old proj_slot[0]: magic, size, sum, ... */
-    settings.bt_type = sizeof(project_t);
-    settings.bt_lo = 0x9E3779B9u;
-    settings.bt_hi = 0x00C0FFEEu;
+    rfill(&btset, sizeof btset);                     /* (anything before: a record-less boot clears it) */
     persist_boot();
     settings_init();
-    return settings.btmode == 0u && settings.bt_type == 0u && settings.bt_lo == 0u && settings.bt_hi == 0u &&
-           settings.palette == 2u && settings.lowcut == 1u && settings.zoom == 1u && settings.mutebar == 1u;
+    return sizeof settings == 32u && btset.btmode == 0u && btset.bt_type == 0u && btset.bt_lo == 0u &&
+           btset.bt_hi == 0u && settings.palette == 2u && settings.lowcut == 1u && settings.zoom == 1u &&
+           settings.mutebar == 1u;
 }
 
-/* .noinit after a reset by another firmware: the Bluetooth fields inside their ranges */
-static int settings_bt_masked(void)
+/* a record whose MODE bits read 3 (no such MODE): AUTO; the address kept */
+static int settings_bt_mode_range(void)
 {
+    persist_t p;
+    memset(hflash, 0xFF, sizeof hflash);
     host_init();
-    settings_init();                                 /* SET3 */
-    settings.btmode = 7;
-    settings.bt_type = 0x55;
-    settings.bt_lo = 0xFFFFFFFFu;
-    settings.bt_hi = 0x12345678u;
+    persist_boot();
+    memset(&p, 0, sizeof p);
+    p.magic = PERSIST_MAGIC;
+    p.palette = 2;
+    p.zoom = 3u << 5 | 1u << 7 | 0x123456u << 8;
+    p.lowcut = 0x654321u << 8;
+    p.panel = PANEL_DEFAULT;
+    st_save(OBJ_SETTINGS, &p, sizeof p);
+    persist_boot();
     settings_init();
-    return settings.btmode == 0u && settings.bt_type <= 1u && settings.bt_lo == 0xFFFFFFu && settings.bt_hi == 0x345678u;
+    return btset.btmode == 0u && btset.bt_type == 1u && btset.bt_lo == 0x123456u && btset.bt_hi == 0x654321u &&
+           settings.lowcut == 0u;
 }
 
 /* spec 2026-10-10 §4: a project saved with CLK BLE (3) loads as CLK INT in a build whose CLK ends at TRS (2), not as
@@ -1026,8 +1033,8 @@ int main(void)
           settings_old_record());
     check("settings: the remembered device and MODE survive a power cycle in the spare bits; SPEAKER EQ keeps its value",
           settings_bt_round_trip());
-    check("settings: settings_init keeps the Bluetooth fields in their ranges", settings_bt_masked());
-    check("settings: after an update (SET3 valid, the old project header in the new words, no record): no device",
+    check("settings: a record's MODE bits beyond MIDI load AUTO", settings_bt_mode_range());
+    check("settings: .noinit's settings stay 32 B (an update finds the RAM projects); no record: no device",
           settings_bt_after_update());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     for (k = 0; k < F_KINDS; k++)

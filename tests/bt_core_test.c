@@ -54,7 +54,7 @@ static void link_to(const char *name)
 static void fresh(uint32_t mode)                     /* MODE (0 AUTO 1 SMC 2 MIDI), nothing connected */
 {
     ui_host_init();
-    settings.btmode = mode;
+    btset.btmode = mode;
     conn_up = 0;
     bt_link(0);
     memset(&bt_in, 0, sizeof bt_in);
@@ -167,12 +167,12 @@ static void test_mode(void)
     check("MODE AUTO, connected to another name: MIDI", bt_mode_now() == 0u);
     link_to("SM");
     check("MODE AUTO, a name shorter than SMC: MIDI", bt_mode_now() == 0u);
-    settings.btmode = 1;
+    btset.btmode = 1;
     check("MODE SMC DAW: SMC whatever the name", bt_mode_now() == 1u);
-    settings.btmode = 2;
+    btset.btmode = 2;
     link_to("SMC-Mixer");
     check("MODE MIDI: MIDI with an SMC connected", bt_mode_now() == 0u);
-    settings.btmode = 0;
+    btset.btmode = 0;
     conn_up = 0;
     bt_link(0);
     check("MODE AUTO: the link down -> MIDI (the name's decision cleared)", bt_mode_now() == 0u);

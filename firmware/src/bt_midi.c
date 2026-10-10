@@ -20,8 +20,8 @@ static void bt_link(int up)
 /* 1 = the SMC-Mixer DAW layout, 0 = MIDI: MODE, or AUTO by the connected device's name */
 static uint32_t bt_mode_now(void)
 {
-    if (settings.btmode)
-        return settings.btmode == 1u;
+    if (btset.btmode)
+        return btset.btmode == 1u;
     return bt_in.smc;
 }
 
