@@ -87,6 +87,7 @@ static void power_cycle(void)                        /* power off: .bss cleared,
 static void fresh(void)                              /* erased flash, the stack OFF, nothing listed, the menu's list */
 {
     memset(hflash, 0xFF, sizeof hflash);
+    memset(&persist_saved, 0, sizeof persist_saved);  /* (power-on: .bss; else an equal record is not written again) */
     ui_host_init();
     persist_boot();                                  /* (finds the flash: settings_save writes) */
     memset(&bs, 0, sizeof bs);
@@ -225,22 +226,54 @@ static void test_mode(void)
     static const int8_t TURN[5] = {1, 1, 1, -1, -1};
     static const uint8_t WANT[5] = {1, 2, 2, 1, 0};
     uint32_t i, lo, hi, ok = 1;
-    fresh();
+    fresh();                                         /* (erased flash: no settings record yet) */
     open_page();
     row(1);
     for (i = 0; i < 5u; i++) {
         knob(TURN[i]);
-        ok &= btset.btmode == WANT[i] && rec_bt(&lo, &hi) == WANT[i];
+        ok &= btset.btmode == WANT[i] && rec_bt(&lo, &hi) == 0xFFFFFFFFu;
     }
-    check("MODE: KNOB 1 steps AUTO SMC DAW MIDI, stops at the ends, each saved", ok);
+    check("MODE: KNOB 1 steps AUTO SMC DAW MIDI, stops at the ends; no flash write per step", ok);
     tap(B_OCTUP);
     tap(B_OCTUP);
-    check("MODE: OCT+ steps", btset.btmode == 2u && rec_bt(&lo, &hi) == 2u);
+    check("MODE: OCT+ steps", btset.btmode == 2u && rec_bt(&lo, &hi) == 0xFFFFFFFFu);
     tap(B_OCTUP);
-    check("MODE: OCT+ wraps to AUTO", btset.btmode == 0u && rec_bt(&lo, &hi) == 0u);
+    check("MODE: OCT+ wraps to AUTO", btset.btmode == 0u && rec_bt(&lo, &hi) == 0xFFFFFFFFu);
     tap(B_OCTUP);
+    tap(B_OCTDN);
+    check("MODE: OCT- back to the menu's list: not written yet", ui.menu == 1 && rec_bt(&lo, &hi) == 0xFFFFFFFFu);
+    menu_close();
+    check("MODE: the menu closed: saved (the flash record)", ui.menu == 0 && rec_bt(&lo, &hi) == 1u);
     power_cycle();
     check("MODE survives a power cycle (the flash record)", btset.btmode == 1u);
+    fresh();
+    open_page();
+    row(1);
+    knob(1);
+    knob(1);
+    menu_close();                                    /* (HOME held on the page) */
+    check("MODE: HOME held on the page closes the menu: saved", rec_bt(&lo, &hi) == 2u);
+}
+
+/* a pick takes the row on screen: the list changed after the last draw (the input runs before this frame's draw) */
+static void test_pick_drawn(void)
+{
+    uint8_t a[6];
+    fresh();
+    bs.state = BLE_ST_SCANNING;
+    open_page();
+    knob(1);
+    three();
+    row(4);                                          /* (drawn: 4 = SMC-Mixer) */
+    dev_set(0, A_JBL, 0, 1, -40, "JBL Flip 5");      /* the list changed: a MIDI device above the SMC */
+    dev_set(1, A_SMC, 1, 1, -59, "SMC-Mixer");
+    ui_input();                                      /* OCT+ before any draw of the new list */
+    press(B_OCTUP);
+    ui_input();
+    release_all();
+    saved(a);
+    check("a pick takes the row last drawn, not the list as it is now", !memcmp(a, A_SMC, 6) && btset.bt_type == 1u &&
+          !memcmp(bs.taddr, A_SMC, 6) && bs.ttype == 1);
 }
 
 static void test_list_pick_forget(void)
@@ -416,6 +449,7 @@ int main(void)
     test_on_off();
     test_refusals();
     test_mode();
+    test_pick_drawn();
     test_list_pick_forget();
     test_scan();
     test_addr_text();

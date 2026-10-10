@@ -5,7 +5,8 @@
  * MENU > BLUETOOTH, ui.menu 3 (spec 2026-10-10 §2). A state line, then the rows BLUETOOTH, MODE, DEVICE, SCAN and up
  * to 8 devices found (BLE-MIDI ones first). PRESETS moves, KNOB 1 changes the row, OCT+ acts, OCT- back to the menu.
  * BLUETOOTH ON is the only call of ble_user_start (gate 3: tools/check_ble_boot.py TRIGGERS has bt_page_on); it is
- * off at every power-on. MODE and the remembered device are saved with the settings (btset, project.c). */
+ * off at every power-on. The remembered device is saved with the settings (btset, project.c) at once, MODE when the
+ * menu closes. */
 #define BT_ROWS 4u                                  /* BLUETOOTH MODE DEVICE SCAN, then the devices */
 #define BT_SHOW 8u                                  /* devices listed (the scan keeps 16) */
 #define BT_VIS 9u                                   /* rows in view (the cursor scrolls them) */
@@ -168,7 +169,7 @@ static void bt_page_close(void)                     /* OCT- or HOME held: reconn
 
 static void bt_page_input(uint32_t pressed)
 {
-    uint32_t ok = (pressed >> panel.btn[B_OCTUP]) & 1u, rows = BT_ROWS + btp.n, st = ble_ui_state(), m;
+    uint32_t ok = (pressed >> panel.btn[B_OCTUP]) & 1u, rows = BT_ROWS + btp.n, st = ble_ui_state();
     int32_t s;
     if ((pressed >> panel.btn[B_OCTDN]) & 1u) {
         bt_page_close();
@@ -188,13 +189,10 @@ static void bt_page_input(uint32_t pressed)
             ble_ui_want(0);
         }
         break;
-    case 1:                                         /* MODE: KNOB 1 steps, stops at the ends; OCT+ wraps */
-        m = s > 0 ? (btset.btmode < 2u ? btset.btmode + 1u : 2u) : s < 0 ? (btset.btmode ? btset.btmode - 1u : 0u)
-          : ok ? (btset.btmode + 1u) % 3u : btset.btmode;
-        if (m != btset.btmode) {
-            btset.btmode = m;
-            settings_save();
-        }
+    case 1:                                         /* MODE: KNOB 1 steps, stops at the ends; OCT+ wraps. Saved when
+                                                     * the menu closes (menu_close), not per step */
+        btset.btmode = s > 0 ? (btset.btmode < 2u ? btset.btmode + 1u : 2u)
+                     : s < 0 ? (btset.btmode ? btset.btmode - 1u : 0u) : ok ? (btset.btmode + 1u) % 3u : btset.btmode;
         break;
     case 2:                                         /* DEVICE: KNOB 1 left forgets it */
         if (s < 0 && (btset.bt_lo | btset.bt_hi))
