@@ -175,6 +175,7 @@ static void ota_commit(const uint8_t *parm)
 #include "ble/ble_core.h"            /* the BLE unit's entry points (ble.c) */
 #include "smc.c"                     /* the SMC-Mixer DAW layout: decode, actions, LEDs, fader pickup */
 #include "bt_midi.c"                 /* BLE MIDI in: the SMC-Mixer or the input ring (source 3) */
+#include "bt_page.c"                 /* the Bluetooth page (MENU > BLUETOOTH, ui_menu.c ui.menu 3) */
 #endif
 #if FELUCCA_OTA
 /* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)

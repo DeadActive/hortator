@@ -1,10 +1,22 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, ABOUT. */
+/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
 /* ------------------------------------------------------------ menu --- */
+#if FELUCCA_BLE                                     /* the Bluetooth page's row (bt_page.c) before ABOUT */
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
+                                              "HARDWARE CALIBRATION", "BLUETOOTH", "ABOUT", "BACK"};
+#define MENU_DY 16                                  /* ten rows above the hints */
+static void bt_page_open(void);                     /* bt_page.c (after ble/ble_core.h): ui.menu 3 */
+static void bt_page_close(void);
+static void bt_page_draw(void);
+static void bt_page_input(uint32_t pressed);
+#else
 enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
                                               "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+#define MENU_DY 18                                  /* nine rows above the hints */
+#endif
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
@@ -16,6 +28,12 @@ static void draw_menu(void)
     uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u +
                             settings.perfpage * 49979687u;
+#if FELUCCA_BLE
+    if (ui.menu == 3u) {                            /* the Bluetooth page: its own drawing and signature */
+        bt_page_draw();
+        return;
+    }
+#endif
     if (!ui.force && sig == ui.menu_sig)
         return;
     ui.menu_sig = sig;
@@ -44,7 +62,7 @@ static void draw_menu(void)
             cv_text(4, 194, &FONT_S, "+ H\xDCGELTON SAMPLE PACK", C_DIM);
         } else {
             for (i = 0; i < MI_COUNT; i++) {
-                int32_t y = 4 + (int32_t)i * 18;   /* nine rows above the hints */
+                int32_t y = 4 + (int32_t)i * MENU_DY;
                 int sel = i == ui.menu_sel;
                 if (sel)
                     cv_rect(4, y + 6, 3, 3, C_WHITE);
@@ -77,6 +95,10 @@ static void enc_drop(void)                             /* knob turns nobody take
 
 static void menu_close(void)
 {
+#if FELUCCA_BLE
+    if (ui.menu == 3u)                                 /* HOME held on the Bluetooth page: it closes too */
+        bt_page_close();
+#endif
     settings_save();                                   /* palette / panel table, if changed */
     ui.menu = 0;
     ui.force = 1;
@@ -98,6 +120,13 @@ static void menu_input(uint32_t pressed)
 {
     int32_t s;
     uint32_t ok = (pressed >> panel.btn[B_OCTUP]) & 1u, back = (pressed >> panel.btn[B_OCTDN]) & 1u;
+#if FELUCCA_BLE
+    if (ui.menu == 3u) {                               /* the Bluetooth page (OCT-: back to the list) */
+        bt_page_input(pressed);
+        enc_drop();
+        return;
+    }
+#endif
     if (back) {
         if (ui.menu == 2)
             ui.menu = 1, ui.force = 1;
@@ -137,6 +166,11 @@ static void menu_input(uint32_t pressed)
             panel_setup();
             ui.force = 1;
             break;
+#if FELUCCA_BLE
+        case MI_BT:
+            bt_page_open();
+            break;
+#endif
         case MI_ABOUT:
             ui.menu = 2;
             ui.force = 1;

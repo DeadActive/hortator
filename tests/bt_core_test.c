@@ -8,25 +8,11 @@
 #if !FELUCCA_BLE
 #error "build with -DFELUCCA_BLE=1"
 #endif
-#define memset felucca_memset                         /* (ble_core.h declares libc.c's, as the firmware's) */
-#define memcpy felucca_memcpy
-#define memcmp felucca_memcmp
-#include "../firmware/src/ble/ble_core.h"
-#undef memset
-#undef memcpy
-#undef memcmp
-static char conn_name[24];
-static int conn_up;
-int ble_ui_conn_name(char out[24])                   /* (the BLE unit: SUBSCRIBED / RECEIVING only) */
-{
-    if (!conn_up)
-        return 0;
-    memcpy(out, conn_name, 24);
-    return 1;
-}
+#include "ble_ui_stub.h"                            /* ble_core.h, the connected name (conn_name / conn_up) */
 int ble_midi_send(const uint8_t *m, uint32_t n) { (void)m; (void)n; return 0; }   /* (smc.c; smc_test checks it) */
 #include "../firmware/src/smc.c"
 #include "../firmware/src/bt_midi.c"
+#include "../firmware/src/bt_page.c"                  /* (ui_menu.c's Bluetooth row needs it) */
 
 static int fails;
 static int check(const char *what, int ok)

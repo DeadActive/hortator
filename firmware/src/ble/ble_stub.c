@@ -7,6 +7,7 @@
 #include "ble/ble_core.h"
 void ble_service(void) {}
 void ble_console(const char *args) { (void)args; }
+void ble_user_start(void) {}
 void ble_status(void) {}
 int ble_started(void) { return 0; }
 int ble_midi_send(const uint8_t *m, uint32_t n) { (void)m; (void)n; return 0; }

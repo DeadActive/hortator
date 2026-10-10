@@ -14,7 +14,8 @@ import sys
 
 START = {"ble_start", "btstack_init", "btctrler_task_init", "bt_ble_init", "bt_master_ble_init"}
 ALLOWED = {"ble_user_start"}
-TRIGGERS = {"ble_console"}             # the only functions that may reference ALLOWED (the user's commands)
+TRIGGERS = {"ble_console", "bt_page_on"}   # the only functions that may reference ALLOWED (the user's commands:
+                                           # the console's `ble start`, the Bluetooth page's BLUETOOTH ON)
 ROOTS = ("fm1_cstart", "fm1_fatal_common", "fm1_fault_c")
 LABEL = re.compile(r"^([A-Za-z_.$][\w.$]*):\s*$")
 REF = re.compile(r"<([A-Za-z_.$][\w.$]*)(?:\+[^:>]*)?\s*:\s*[0-9a-f]+\s*>", re.I)
@@ -65,6 +66,9 @@ def selftest():
                                                                                 "call -4 <ble_start : 2000040 >")
     assert reachable_starts(hook + fn("ble_start", "rts")) == ["ble_user_start (from ed_service)"], \
         "the trigger called from outside the console not caught"
+    page = boot + fn("ed_service", "call -4 <ui_input : 2000030 >") + fn("ui_input", "call -4 <bt_page_on : 2000038 >") + \
+        fn("bt_page_on", "call -4 <ble_user_start : 2000040 >") + fn("ble_user_start", "call -4 <ble_start : 2000048 >")
+    assert reachable_starts(page + fn("ble_start", "rts")) == [], "the Bluetooth page's BLUETOOTH ON flagged"
     lng = boot + fn("ed_service", "r0 = 33554496 <ble_start : 2000040 >", "call r0") + fn("ble_start", "rts")
     assert reachable_starts(lng) == ["ble_start"], "a long call (address load) not caught"
     isr = fn("isr_timer5", "call -4 <fm1_timer5_irq : 2000050 >") + fn("fm1_timer5_irq",
