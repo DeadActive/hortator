@@ -25,8 +25,6 @@ static uint32_t bt_mode_now(void)
     return bt_in.smc;
 }
 
-static void smc_in(uint32_t pkt) { (void)pkt; }     /* the SMC-Mixer layout (smc.c: not yet) */
-
 /* usb_app.c midi_in_event's filter: the realtime F8 FA FB FC (as their status), channel voice with CIN = the status'
  * high nibble and data bytes < 0x80 (Cx Dx: one); 0 = dropped */
 static uint32_t bt_midi_filter(uint32_t pkt)

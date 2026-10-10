@@ -24,6 +24,8 @@ int ble_ui_conn_name(char out[24])                   /* (the BLE unit: SUBSCRIBE
     memcpy(out, conn_name, 24);
     return 1;
 }
+int ble_midi_send(const uint8_t *m, uint32_t n) { (void)m; (void)n; return 0; }   /* (smc.c; smc_test checks it) */
+#include "../firmware/src/smc.c"
 #include "../firmware/src/bt_midi.c"
 
 static int fails;

@@ -178,9 +178,9 @@ static void mute_bar_set(uint32_t on)                  /* TRACKS' mutes: at once
     ui_message(settings.mutebar ? "MUTE: NEXT BAR" : "MUTE: NOW");
 }
 
-static void tracks_rec_tap(void)                       /* arm / disarm; arming while stopped starts play */
+static void track_rec_toggle(uint32_t k)               /* arm / disarm track k; arming while stopped starts play */
 {
-    uint8_t bit = (uint8_t)(1u << song.sel);
+    uint8_t bit = (uint8_t)(1u << k);
     song.rec ^= bit;
     if ((song.rec & bit) && !song.playing)
         transport_req = 1;
@@ -608,7 +608,7 @@ static void ui_input(void)
             srec_start();                               /* KEYS, STEP, stopped: step record */
         } else if (fam == FAM_MIX) {
             if (!song_lock())
-                tracks_rec_tap();
+                track_rec_toggle(song.sel);
         } else {
             open_family(FAM_MIX);                       /* arming is TRACKS' (a REC tap there) */
         }
