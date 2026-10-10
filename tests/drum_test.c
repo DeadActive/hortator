@@ -2540,6 +2540,31 @@ static void test_mute_next_bar(void)
     }
 }
 
+/* the COMP source (GHOST KEEP) silenced by another track's SOLO: a mute and an unmute on the bar leave it silent in
+ * the mix (no 5 ms of the unmuted bar's kick) */
+static void test_mute_next_bar_solo(void)
+{
+    uint32_t f;
+    int32_t peak = 0;
+    host_init();
+    trk[0].step[0].on = trk[0].step[15].on = 1;
+    song.g[G_CSRC] = 1;
+    song.g[G_CGHOST] = CG_KEEP;
+    trk[1].p[P_DUCK] = 1;
+    song.solo = 1u << 1;                             /* T2 soloed: T1, the source, silent */
+    render_mix(0, 0, 4 * CTL);
+    play();
+    for (f = 0; f < 4u * MBAR; f += CTL) {
+        if (f / CTL == (MBAR + MBAR / 2) / CTL || f / CTL == (2 * MBAR + MBAR / 2) / CTL)
+            song.mute_q |= 1;                        /* mute for bar 2, unmute for bar 3 */
+        render_mix(mb_out + f, 0, CTL);
+    }
+    for (f = 0; f < 4u * MBAR; f++)
+        peak = abs(mb_out[f]) > peak ? abs(mb_out[f]) : peak;
+    printf("     COMP source silenced by SOLO, muted and unmuted on the bar: mix peak %d\n", (int)peak);
+    check("unmute on the bar of a COMP source another track's SOLO silences: still silent in the mix", peak == 0);
+}
+
 /* RESON parameters (params.c): TUNE as a note, DECAY as a time, STRCT named CHORD (with chord names) on CHORD */
 static void test_reson_params(void)
 {
@@ -3350,6 +3375,7 @@ int main(void)
     test_lfo_random_phase_restart();
     test_lfo_activate_on_bar();
     test_mute_next_bar();
+    test_mute_next_bar_solo();
     test_reson_params();
     test_swing_cap();
     test_reson_pitch();

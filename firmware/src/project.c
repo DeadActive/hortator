@@ -425,6 +425,9 @@ static void persist_boot(void)                    /* before settings_init / pane
     uint32_t u;
     for (u = 0; u < 4u; u++)                          /* FDRA images the previous firmware left in the RAM slots */
         proj_upgrade(&proj_slot[u]);
+    settings.btmode = settings.bt_type = settings.bt_lo = settings.bt_hi = 0;   /* .noinit: after an update from a
+                                                     * firmware with 32 B of settings these words were its proj_slot[0]
+                                                     * (SET3 still valid): no device unless the flash record has one */
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();

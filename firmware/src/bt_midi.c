@@ -5,15 +5,24 @@
  * §4). Each USB-MIDI packet the BLE unit received goes to the SMC-Mixer layout (SMC DAW mode) or, in MIDI mode,
  * through the USB filter into the MIDI input ring as source 3 (seq.c midi_block: notes on the drum channel, the
  * realtime messages with CLK BLE). Main loop only. */
-static uint32_t bt_in_drops;                         /* MIDI mode: packets refused, the ring's last 8 slots are TRS's */
+static struct {
+    uint32_t drops;                                  /* MIDI mode: packets refused, the ring's last 8 slots are TRS's */
+    uint8_t smc;                                     /* the linked device's name starts with "SMC" (bt_link) */
+} bt_in;
 
-/* 1 = the SMC-Mixer DAW layout, 0 = MIDI: MODE, or AUTO by the connected device's name ("SMC...") */
-static uint32_t bt_mode_now(void)
+/* core_ble_link: the link up (the connected device's name read once) / down */
+static void bt_link(int up)
 {
     char n[24];
+    bt_in.smc = (uint8_t)(up && ble_ui_conn_name(n) && n[0] == 'S' && n[1] == 'M' && n[2] == 'C');
+}
+
+/* 1 = the SMC-Mixer DAW layout, 0 = MIDI: MODE, or AUTO by the connected device's name */
+static uint32_t bt_mode_now(void)
+{
     if (settings.btmode)
         return settings.btmode == 1u;
-    return ble_ui_conn_name(n) && n[0] == 'S' && n[1] == 'M' && n[2] == 'C';
+    return bt_in.smc;
 }
 
 static void smc_in(uint32_t pkt) { (void)pkt; }     /* the SMC-Mixer layout (smc.c: not yet) */
@@ -42,7 +51,8 @@ static void bt_midi_in(uint32_t pkt)
         return;
     fm1_irq_off();                                   /* the TIMER5 ISR fills the ring too (USB, TRS) */
     if (MQ - (mi_w - mi_r) <= 8u || !midi_enqueue(pkt, 3u))   /* 8 slots stay for TRS (usb_app.c EP1_ROOM), so BLE
-                                                               * never sets the overflow; refused after one */
-        bt_in_drops++;
+                                                               * never sets the overflow; while USB / TRS have set
+                                                               * it, midi_enqueue refuses: counted too */
+        bt_in.drops++;
     fm1_irq_on();
 }

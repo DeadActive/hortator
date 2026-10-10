@@ -599,8 +599,9 @@ static void events_block(uint32_t n)
                     trk[i].p[P_MUTE] = (int16_t)!trk[i].p[P_MUTE];
                     if (trk[i].p[P_MUTE])
                         pr |= 1u << i;
-                    else if (i == src && song.playing)
-                        trk[i].gfade = 0;           /* heard at once: the bar's first hit with its attack */
+                    else if (i == src && song.playing && (!song.solo || ((song.solo >> i) & 1u)))
+                        trk[i].gfade = 0;           /* heard at once: the bar's first hit with its attack (unless
+                                                     * another track's SOLO silences it: trk_silent, inline here) */
                 }
             song.mute_q = 0;
         }

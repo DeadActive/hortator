@@ -49,13 +49,15 @@ static void link_to(const char *name)
     memset(conn_name, 0, sizeof conn_name);
     str_cpy(conn_name, name, sizeof conn_name);
     conn_up = 1;
+    bt_link(1);                                      /* (ble_service: core_ble_link(1) once linked) */
 }
 static void fresh(uint32_t mode)                     /* MODE (0 AUTO 1 SMC 2 MIDI), nothing connected */
 {
     ui_host_init();
     settings.btmode = mode;
     conn_up = 0;
-    bt_in_drops = 0;
+    bt_link(0);
+    memset(&bt_in, 0, sizeof bt_in);
 }
 
 static void test_midi_mode_notes(void)
@@ -144,10 +146,10 @@ static void test_ring_room(void)
     mi_r = 1000u;
     mi_w = mi_r + MQ - 9u;                           /* 9 slots free: one goes to BLE */
     bt_midi_in(note_on(ch, 36, 100));
-    check("ring: with 9 slots free a BLE packet goes in", mi_w - mi_r == MQ - 8u && !bt_in_drops);
+    check("ring: with 9 slots free a BLE packet goes in", mi_w - mi_r == MQ - 8u && !bt_in.drops);
     bt_midi_in(note_on(ch, 36, 100));                /* 8 free: TRS's */
     check("ring: with only 8 slots free the BLE packet is refused, counted, the overflow flag not set",
-          mi_w - mi_r == MQ - 8u && !midi_in_overflow && bt_in_drops == 1u);
+          mi_w - mi_r == MQ - 8u && !midi_in_overflow && bt_in.drops == 1u);
     mi_r = mi_w = 0;
 }
 
@@ -170,6 +172,14 @@ static void test_mode(void)
     settings.btmode = 2;
     link_to("SMC-Mixer");
     check("MODE MIDI: MIDI with an SMC connected", bt_mode_now() == 0u);
+    settings.btmode = 0;
+    conn_up = 0;
+    bt_link(0);
+    check("MODE AUTO: the link down -> MIDI (the name's decision cleared)", bt_mode_now() == 0u);
+    conn_up = 1;                                     /* linked again, before core_ble_link(1): not SMC yet */
+    check("MODE AUTO: the name is read once, on core_ble_link(1)", bt_mode_now() == 0u);
+    bt_link(1);
+    check("MODE AUTO: .. then SMC DAW", bt_mode_now() == 1u);
 }
 
 static void test_solo_toggle(void)

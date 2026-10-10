@@ -282,6 +282,31 @@ static int settings_bt_round_trip(void)
     return (int)ok;
 }
 
+/* an update from a firmware whose settings were 32 B: SET3 is valid, but the four Bluetooth words are the old
+ * firmware's proj_slot[0] header (FDRB magic, size, ...); no settings record in flash -> no device, MODE AUTO; the
+ * rest of .noinit's settings kept */
+static int settings_bt_after_update(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);             /* no settings record */
+    host_init();
+    settings.magic = SETTINGS_MAGIC;
+    settings.palette = 2;
+    settings.lowcut = 1;
+    settings.zoom = 1;
+    settings.mutebar = 1;
+    settings.accel = 1;
+    settings.usbfix = 0;
+    settings.perfpage = 0;
+    settings.btmode = PROJ_MAGIC;                    /* the old proj_slot[0]: magic, size, sum, ... */
+    settings.bt_type = sizeof(project_t);
+    settings.bt_lo = 0x9E3779B9u;
+    settings.bt_hi = 0x00C0FFEEu;
+    persist_boot();
+    settings_init();
+    return settings.btmode == 0u && settings.bt_type == 0u && settings.bt_lo == 0u && settings.bt_hi == 0u &&
+           settings.palette == 2u && settings.lowcut == 1u && settings.zoom == 1u && settings.mutebar == 1u;
+}
+
 /* .noinit after a reset by another firmware: the Bluetooth fields inside their ranges */
 static int settings_bt_masked(void)
 {
@@ -1002,6 +1027,8 @@ int main(void)
     check("settings: the remembered device and MODE survive a power cycle in the spare bits; SPEAKER EQ keeps its value",
           settings_bt_round_trip());
     check("settings: settings_init keeps the Bluetooth fields in their ranges", settings_bt_masked());
+    check("settings: after an update (SET3 valid, the old project header in the new words, no record): no device",
+          settings_bt_after_update());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
