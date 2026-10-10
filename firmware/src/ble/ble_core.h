@@ -52,4 +52,7 @@ void ble_user_start(void);
 void ble_list(void);
 void ble_status(void);
 int ble_started(void);
+/* MIDI out to the connected BLE-MIDI device: one message of 1..3 bytes (main loop only, never from an ISR);
+ * 1 = queued, 0 = dropped (not connected, or the 64-message queue full: `ble`'s out_drops) */
+int ble_midi_send(const uint8_t *m, uint32_t n);
 #endif

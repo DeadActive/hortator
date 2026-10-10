@@ -120,6 +120,29 @@ int main(void)
         ble_loop_note(&l, 8, 151);
         CHECK(l.last_ms == 15u && l.max_ms == 20u, "loop: last and max");
     }
+    {   /* MIDI out: queued only while connected, 64 deep, emptied on a disconnect */
+        static const uint8_t on[3] = {0x90, 0x3C, 0x7F};
+        uint8_t m[3] = {0xB0, 0, 0};
+        int all = 1;
+        st = BLE_IDLE;
+        CHECK(!ble_midi_send(on, 3), "out: refused while not connected (IDLE)");
+        st = BLE_DISCOVERING;
+        CHECK(!ble_midi_send(on, 3) && mo.h == mo.t && !mo.drops, "out: refused while discovering, not a drop");
+        st = BLE_SUBSCRIBED;
+        CHECK(!ble_midi_send(on, 0) && !ble_midi_send(on, 4) && mo.h == mo.t, "out: 1..3 bytes only");
+        CHECK(ble_midi_send(on, 3) && mo.len[mo.t & 63u] == 3u && !memcmp(mo.msg[mo.t & 63u], on, 3),
+              "out: queued while subscribed");
+        st = BLE_RECEIVING;
+        for (i = 1; i < 64; i++) {
+            m[1] = (uint8_t)i;
+            all &= ble_midi_send(m, 3);
+        }
+        CHECK(all && mo.h - mo.t == 64u && mo.msg[(mo.t + 63u) & 63u][1] == 63u, "out: 64 queued in order");
+        CHECK(!ble_midi_send(on, 2) && mo.drops == 1u && mo.h - mo.t == 64u, "out: the 65th dropped and counted");
+        ble_ev(EV_DISCONNECTED);
+        CHECK(st == BLE_IDLE && mo.h == mo.t, "out: a disconnect empties the queue");
+        CHECK(!ble_midi_send(on, 3) && mo.drops == 1u, "out: refused after the disconnect");
+    }
     printf(fails ? "ble_central: %d FAILED\n" : "ble_central: all checks passed\n", fails);
     return fails != 0;
 }

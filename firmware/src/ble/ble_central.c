@@ -2,7 +2,7 @@
  * BLE MIDI test: 2026 DEADACTIVE
  * Drum machine fork: 2026 DEADACTIVE */
 /* BLE-MIDI central on the JieLi SDK's ble_op_* API (reference: SDK apps/common/ble/le_net_central.c). The state
- * machine at the top is pure and host-tested (tests/ble/ble_central_test.c); the SDK glue below it. */
+ * machine and the MIDI out queue at the top are host-tested (tests/ble/ble_central_test.c); the SDK glue below. */
 #include "ble_scan.h"
 enum { BLE_OFF, BLE_STARTING, BLE_IDLE, BLE_SCANNING, BLE_CONNECTING, BLE_DISCOVERING, BLE_SUBSCRIBED,
        BLE_RECEIVING, BLE_FAILED };
@@ -184,6 +184,36 @@ void ble_loop_note(ble_loop_t *l, uint32_t frames, uint32_t now_ms)
     l->at_ms = now_ms;
 }
 
+/* MIDI out (ble_midi_send, called by the core's main loop): whole messages of 1..3 bytes, queued only while
+ * connected; ble_service sends them (ble_out_flush). A disconnect empties the queue (ble_ev). */
+static uint32_t st;                                 /* BLE_OFF ... BLE_FAILED */
+static struct {
+    uint8_t msg[64][3], len[64];
+    uint32_t h, t, sent, drops;                     /* sent / drops: the console's `out` / `out_drops` */
+} mo;
+static int ble_linked(void) { return st == BLE_SUBSCRIBED || st == BLE_RECEIVING; }
+static void ble_ev(ble_ev_t ev)                     /* every event's state change; the queue lives only while linked */
+{
+    st = ble_next(st, ev);
+    if (!ble_linked())
+        mo.t = mo.h;
+}
+int ble_midi_send(const uint8_t *m, uint32_t n)    /* 1 = queued, 0 = dropped (not connected, or the queue full) */
+{
+    uint32_t i;
+    if (!ble_linked() || n - 1u > 2u)
+        return 0;
+    if (mo.h - mo.t >= 64u) {
+        mo.drops++;
+        return 0;
+    }
+    for (i = 0; i < n; i++)
+        mo.msg[mo.h & 63u][i] = m[i];
+    mo.len[mo.h & 63u] = (uint8_t)n;
+    mo.h++;
+    return 1;
+}
+
 #ifndef BLE_CENTRAL_STATE_ONLY
 /* ---- the SDK glue: in ble.c's unit, after ble_heap / ble_on / ble_mac. The stack calls ble_profile_init and the
  * three handlers below from its own task (ble_os.c); the main loop calls ble_start / ble_scan / ble_connect /
@@ -191,7 +221,6 @@ void ble_loop_note(ble_loop_t *l, uint32_t frames, uint32_t now_ms)
 #include "ble/ble_sdk.h"
 #define ATT_MTU 128u                                /* le_net_central.c ATT_LOCAL_MTU_SIZE */
 
-static uint32_t st;                                 /* BLE_OFF ... BLE_FAILED */
 static ble_scan_t scan;
 static ble_midi_t bm;
 static uint16_t con_handle, midi_handle;
@@ -244,7 +273,7 @@ static void cbk_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
         if (packet[3]) {
             if (st == BLE_CONNECTING) {
                 set_err("CONNECT FAILED", packet[3]);
-                st = ble_next(st, EV_CONN_FAIL);
+                ble_ev(EV_CONN_FAIL);
             }
             break;
         }
@@ -258,7 +287,7 @@ static void cbk_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
         ble_op_att_send_init(con_handle, att_ram, sizeof att_ram, ATT_MTU);
         user_client_init(con_handle, search_ram, sizeof search_ram);
         ble_op_search_profile_all();
-        st = ble_next(st, EV_CONNECTED);
+        ble_ev(EV_CONNECTED);
         set_deadline(10000);
         break;
     case BLE_SDK_HCI_EVENT_DISCONNECTION_COMPLETE:   /* le_net_central.c 917: reason packet[5] */
@@ -267,7 +296,7 @@ static void cbk_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
         con_handle = 0;
         midi_handle = 0;
         ble_op_att_send_init(0, 0, 0, 0);
-        st = ble_next(st, EV_DISCONNECTED);
+        ble_ev(EV_DISCONNECTED);
         break;
     default:
         break;
@@ -297,7 +326,7 @@ static void ble_on_event(int from, struct bt_event *e)  /* bt_event_notify (ble_
 {
     if (from == BLE_SDK_BT_EVENT_FROM_CON && e->event == BLE_SDK_BT_STATUS_INIT_OK && st == BLE_STARTING) {
         ble_stage(7);
-        st = ble_next(st, EV_INIT_OK);
+        ble_ev(EV_INIT_OK);
     }
 }
 
@@ -310,11 +339,11 @@ void user_client_report_search_result(search_result_t *r)
         if (midi_handle) {
             static const uint8_t on[2] = {1, 0};   /* notifications on: the CCCD after the value */
             ble_op_att_send_data(midi_handle + 1u, (void *)on, 2, BLE_SDK_ATT_OP_WRITE);
-            st = ble_next(st, EV_FOUND_MIDI);
+            ble_ev(EV_FOUND_MIDI);
         } else {
             set_err("NO BLE-MIDI SERVICE", 0);
             ble_op_disconnect(con_handle);
-            st = ble_next(st, EV_NO_MIDI);
+            ble_ev(EV_NO_MIDI);
         }
         return;
     }
@@ -327,7 +356,7 @@ void user_client_report_data_callback(att_data_report_t *d)
     if (d->packet_type == BLE_SDK_GATT_EVENT_NOTIFICATION && midi_handle && d->value_handle == midi_handle &&
         (st == BLE_SUBSCRIBED || st == BLE_RECEIVING)) {
         ble_midi_parse(&bm, d->blob, d->blob_length, ring_put, 0);
-        st = ble_next(st, EV_NOTIFY);
+        ble_ev(EV_NOTIFY);
     }
 }
 
@@ -400,7 +429,7 @@ void ble_disconnect(void)
         ble_op_disconnect(con_handle);
     } else if (st == BLE_CONNECTING) {
         ble_op_create_connection_cancel();
-        st = ble_next(st, EV_CONN_FAIL);
+        ble_ev(EV_CONN_FAIL);
     }
 }
 
@@ -413,22 +442,38 @@ static void ble_tick(void)                         /* the deadlines of the waiti
     switch (st) {
     case BLE_SCANNING:
         ble_op_scan_enable2(0, 0);
-        st = ble_next(st, EV_SCAN_DONE);
+        ble_ev(EV_SCAN_DONE);
         break;
     case BLE_STARTING:
         set_err("BT START TIMEOUT", 0);
-        st = ble_next(st, EV_TIMEOUT);
+        ble_ev(EV_TIMEOUT);
         break;
     case BLE_CONNECTING:
         ble_op_create_connection_cancel();
         set_err("CONNECT TIMEOUT", 0);
-        st = ble_next(st, EV_TIMEOUT);
+        ble_ev(EV_TIMEOUT);
         break;
     default:                                       /* BLE_DISCOVERING */
         ble_op_disconnect(con_handle);
         set_err("DISCOVERY TIMEOUT", 0);
-        st = ble_next(st, EV_TIMEOUT);
+        ble_ev(EV_TIMEOUT);
         break;
+    }
+}
+
+static void ble_out_flush(void)                    /* ble_service: the queue as packets, while the stack has room */
+{
+    uint8_t pkt[20];                                /* the default ATT MTU's payload: at most 4 three-byte messages */
+    while (mo.h != mo.t && ble_linked() && midi_handle) {
+        uint32_t i = mo.t & 63u, n = mo.h - mo.t, len, taken, room = 0;
+        if (n > 64u - i)
+            n = 64u - i;                            /* up to the ring's end: the rest in the next packet */
+        len = ble_midi_pack(&mo.msg[i], &mo.len[i], n, core_ms(), pkt, sizeof pkt, &taken);
+        if (ble_op_att_get_remain(&room) || room < len ||
+            ble_op_att_send_data(midi_handle, pkt, len, BLE_SDK_ATT_OP_WRITE_WITHOUT_RESPOND))
+            return;                                 /* no room (or refused): the next pass */
+        mo.t += taken;
+        mo.sent += taken;
     }
 }
 
@@ -471,6 +516,8 @@ void ble_status(void)                              /* console `ble` */
     o = put_u(put_s(o, " pkts "), bm.packets);
     o = put_u(put_s(o, " errs "), bm.errors);
     o = put_u(put_s(o, " lost "), ring_lost);
+    o = put_u(put_s(o, " out "), mo.sent);
+    o = put_u(put_s(o, " out_drops "), mo.drops);
     o = put_u(put_s(o, " audio_late "), core_audio_late());
     o = put_s(o, "\r\n");
     *o = 0;
