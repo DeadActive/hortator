@@ -181,6 +181,14 @@ int main(void)
         CHECK(ble_midi_send(on, 3) && mo.h - mo.t == 1u, "flush: the queue works after the next connect");
         ble_ev(EV_DISCONNECTED);
     }
+    {   /* how a disconnect is asked: CONNECTING cancels (a stale handle from a failed link is not used) */
+        CHECK(ble_disc_how(BLE_CONNECTING, 0) == BD_CANCEL && ble_disc_how(BLE_CONNECTING, 0x41) == BD_CANCEL,
+              "disconnect: connecting -> cancel, even with a stale handle");
+        CHECK(ble_disc_how(BLE_DISCOVERING, 0x41) == BD_DISC && ble_disc_how(BLE_SUBSCRIBED, 0x41) == BD_DISC &&
+              ble_disc_how(BLE_RECEIVING, 0x41) == BD_DISC, "disconnect: a live link with a handle -> disconnect");
+        CHECK(ble_disc_how(BLE_RECEIVING, 0) == BD_NONE && ble_disc_how(BLE_IDLE, 0x41) == BD_NONE &&
+              ble_disc_how(BLE_SCANNING, 0x41) == BD_NONE, "disconnect: no link or no handle -> nothing");
+    }
     {   /* the auto-connect step (spec 3) */
         ble_auto_t a;
         memset(&a, 0, sizeof a);

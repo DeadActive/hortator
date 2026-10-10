@@ -247,6 +247,13 @@ typedef struct {
     uint32_t rest_ms;                               /* the last scan end / link drop: auto scans 2 s after it */
 } ble_auto_t;
 static int ble_live(uint32_t s) { return s >= BLE_CONNECTING && s <= BLE_RECEIVING; }
+/* how ble_disconnect asks: CONNECTING cancels the connect (con_handle may still hold a failed link's handle until
+ * its disconnection-complete event); DISCOVERING..RECEIVING disconnect the handle */
+enum { BD_NONE, BD_CANCEL, BD_DISC };
+uint32_t ble_disc_how(uint32_t s, uint32_t handle)
+{
+    return s == BLE_CONNECTING ? BD_CANCEL : ble_live(s) && handle ? BD_DISC : BD_NONE;
+}
 uint32_t ble_auto_step(const ble_auto_t *a, uint32_t state, int target_listed, uint32_t now_ms)
 {
     if (state == BLE_IDLE && a->scan_req)
@@ -492,11 +499,12 @@ void ble_connect(uint32_t sorted_index)
 
 void ble_disconnect(void)
 {
-    if (con_handle) {
-        ble_op_disconnect(con_handle);
-    } else if (st == BLE_CONNECTING) {
+    uint32_t how = ble_disc_how(st, con_handle);
+    if (how == BD_CANCEL) {
         ble_op_create_connection_cancel();
         ble_ev(EV_CONN_FAIL);
+    } else if (how == BD_DISC) {
+        ble_op_disconnect(con_handle);
     }
 }
 
@@ -551,8 +559,11 @@ static uint32_t ble_listed(void)
 static int ble_target_at(void)                     /* the target's index in ble_scan_sorted's order; -1 not listed */
 {
     uint8_t idx[BLE_SCAN_MAX];
-    uint32_t i, n = ble_scan_sorted(&scan, idx);
-    for (i = 0; au.have && i < n; i++)
+    uint32_t i, n;
+    if (!au.have)
+        return -1;                                 /* (no sort per pass without a target) */
+    n = ble_scan_sorted(&scan, idx);
+    for (i = 0; i < n; i++)
         if (scan.dev[idx[i]].addr_type == au.type && !memcmp(scan.dev[idx[i]].addr, au.addr, 6))
             return (int)i;
     return -1;
@@ -812,7 +823,10 @@ void ble_console(const char *args)
     case BLE_CMD_LIST: ble_list(); return;
     case BLE_CMD_START: ble_user_start(); break;
     case BLE_CMD_SCAN: au.manual = 1; ble_scan(); break;          /* (the console's scan runs its 10 s) */
-    case BLE_CMD_CONNECT: au.console = 1; ble_connect(n - 1u); break;   /* (want / target leave it) */
+    case BLE_CMD_CONNECT:                          /* want leaves it; a drop reconnects after a scan (tried) */
+        au.console = au.tried = 1;
+        ble_connect(n - 1u);
+        break;
     case BLE_CMD_STOP: ble_disconnect(); break;
     default:
         core_con_puts("ble [start | scan | list | connect N | stop]\r\n");
