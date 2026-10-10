@@ -50,7 +50,8 @@ firmware ([below](#back-to-the-official-firmware)).
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH.
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
-  into a DAW over its USB cable.
+  into a DAW over its USB cable. The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
+  keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
 - **Projects.** Four slots, A to D, saved in the FM-1's flash.
 
 ### On the panel
@@ -76,6 +77,72 @@ bank's first step and the top bar shows `STEP REC nn`. KNOB 1 to 4 are STEP, NOT
 
 ALGORITHM picks the track anywhere; PRESETS turns the pages of a section; KNOB 1 to 4 edit what the screen shows.
 SELECT sets the tempo.
+
+## Bluetooth MIDI
+
+A second version of each release, **Hortator + Bluetooth MIDI** (experimental): the installer offers it next to the
+plain one, and the release has it as `hortator-X.Y.Z-bluetooth.fwsc`. Everything above works the same in it.
+Bluetooth is **off at every power-on**; it runs only after you turn it on, until the FM-1 is switched off.
+
+### The Bluetooth page
+
+MENU (hold HOME), PRESETS to **BLUETOOTH**, OCT+. PRESETS moves the cursor, KNOB 1 changes the row, OCT+ acts on it,
+OCT- goes back to the menu.
+
+| Row | What it does |
+| --- | --- |
+| **BLUETOOTH** | ON starts Bluetooth and reconnects to the remembered device; OFF disconnects and stops reconnecting. KNOB 1 right / left, or OCT+. Not saved: off at every power-on. |
+| **MODE** | What the connected device's MIDI does: **AUTO** (SMC DAW for a device whose name starts with `SMC`, else MIDI), **SMC DAW** or **MIDI**. Saved when the menu closes. |
+| **DEVICE** | The remembered device: its name once it has been seen since power-on, else its address; `NONE`. KNOB 1 left forgets it (and disconnects). |
+| **SCAN** | OCT+: scans for 10 s (BLUETOOTH ON only). Up to 8 devices are listed under it, BLE-MIDI ones (`MIDI`) first, then by signal. |
+| **1 .. 8** | A device found: OCT+ remembers it (saved at once) and connects to it. |
+
+Above the rows, the state: OFF, STARTING, IDLE, SCANNING, CONNECTING, CONNECTED and the device's name, or FAILED and
+the reason (`NO RF TRIM IN FLASH`: this FM-1 cannot run Bluetooth; `BT START TIMEOUT`: switch off and on to retry).
+Under it, the last error (`CONNECT TIMEOUT`, `NO BLE-MIDI SERVICE`, `DISCONNECTED 0x08`). `BT CONNECTED` and
+`BT LOST` show in the top bar on any page.
+
+**Reconnecting.** With BLUETOOTH ON and a remembered device, the FM-1 connects to it whenever it is in range: when
+it is switched on again or comes back after a lost connection, and after a power-on as soon as you turn BLUETOOTH
+ON (no scan or pick needed). While it is not found, it scans 10 s at a time with a 2 s pause. A SCAN from the page
+pauses this while the page stays open, so you can pick another device.
+
+**MIDI mode.** Notes on the drum channel (GLO: CH) play the tracks whose NOTE matches, as over USB and TRS. GLO:
+**CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as CLK USB / TRS do; the BPM knob then says
+`CLK BLE`. A project saved with CLK BLE loads with CLK INT in the plain version.
+
+### The SMC-Mixer (DAW mode)
+
+The M-VAVE SMC-Mixer in its DAW (Mackie Control) mode, MODE AUTO or SMC DAW. Only presses act.
+
+| Control | Hortator |
+| --- | --- |
+| Fader 1–8 | track 1–8 LEVEL, with pickup (below); recorded as motion for the selected track while it is armed and playing |
+| Master fader | nothing |
+| Knob 1–4 | the selected track's first four knobs (TUNE DECAY TONE and the model's fourth; ACID: TUNE DECAY CUTOF RESO), one step a click; the top bar shows e.g. `T3 DECAY 64`; recorded as motion while the track is armed and playing |
+| Knob 5–8 | nothing |
+| MUTE 1–8 | mute / unmute the track, as the TRACKS key (MUTE: NEXT BAR applies) |
+| SOLO 1–8 | solo / unsolo the track (below) |
+| REC 1–8 | arm / disarm the track for recording; arming while stopped starts play (as a REC tap on TRACKS) |
+| SELECT 1–8 | select the track |
+| PLAY | stopped: play; playing: nothing |
+| STOP | stop |
+| REC | arm / disarm the selected track |
+| BANK ◀ / CHANNEL ◀, BANK ▶ / CHANNEL ▶ | the previous / next track (stops at 1 and 8) |
+| REW, FF, the arrows | nothing |
+
+While a song plays or is armed, REC 1–8 and REC say `STOP TO EDIT`, as REC on TRACKS. An armed track records the
+FM-1's keys as live record does.
+
+- **LEDs:** MUTE n lit = track n muted (or a mute waiting for the next bar), SOLO n = soloed, REC n = armed,
+  SELECT n = the selected track, PLAY = playing, STOP = stopped, REC = any track armed. They are sent again on every
+  connection.
+- **Fader pickup:** a fader does nothing until it reaches its track's level (within 2, or passing it); until then
+  the mixer blinks its LED. Then it follows. On every connection, and whenever a track's LEVEL changes some other
+  way (the FM-1's knob, LOAD, INIT, LEVEL motion), that fader has to be picked up again.
+- **Solo:** while any track is soloed, only the soloed tracks are heard; several can be soloed. A silenced track
+  is dimmed on HOME and TRACKS, as a muted one; the TRACKS mutes are unchanged. Solo is not saved: INIT and a
+  power-on clear it.
 
 ## Install
 
@@ -116,7 +183,7 @@ If it does not start at all and never reaches boot mode, recovering it needs a
 
 ## Credits
 
-- Hortator by DEADACTIVE.
+- Hortator by DEADACTIVE. BLE MIDI: 2026 DEADACTIVE.
 - [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita ([@kurogedelic](https://github.com/kurogedelic)),
   [Hügelton Instruments](https://hugelton.com): the firmware Hortator is built on, its hardware layer, update
   loader, installer, UI and engines.
@@ -139,7 +206,8 @@ If it does not start at all and never reaches boot mode, recovering it needs a
 Code: [GPL-3.0-only](LICENSE). Assets and third-party material: [LICENSING.md](LICENSING.md).
 
 M-VAVE and FM-1 are trademarks of their respective owners. Hortator is independent firmware that runs on FM-1
-hardware; it is not affiliated with, endorsed by or supported by them. It never enables the hardware's Bluetooth /
-Wi-Fi radio.
+hardware; it is not affiliated with, endorsed by or supported by them. The plain version never enables the
+hardware's Bluetooth / Wi-Fi radio; the Bluetooth version turns on Bluetooth only when you set BLUETOOTH ON.
 
-Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; drum machine fork: 2026 DEADACTIVE.
+Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; drum machine fork: 2026 DEADACTIVE; BLE MIDI:
+2026 DEADACTIVE.

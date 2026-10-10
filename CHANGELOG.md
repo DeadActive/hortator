@@ -21,6 +21,20 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 - Releases can carry two versions: the plain firmware and the same build with Bluetooth MIDI. The web installer
   offers a choice (the plain one by default), the release a second file `hortator-X.Y.Z-bluetooth.fwsc`
   (`BLE=1 tools/publish.sh`; first used for Bluetooth part 2).
+- Bluetooth MIDI (the Bluetooth version only): MENU (HOME held) > BLUETOOTH turns Bluetooth on (off at every
+  power-on), scans, lists the devices found (BLE-MIDI ones first) and connects to the one picked. It remembers it
+  (saved) and reconnects whenever it is in range, also after a power-on once BLUETOOTH is ON; KNOB 1 left on DEVICE
+  forgets it. MODE (saved): AUTO (SMC DAW for a device named `SMC…`, else MIDI), SMC DAW, MIDI. `BT CONNECTED` /
+  `BT LOST` in the top bar. The console's `ble` stays for testing.
+- The M-VAVE SMC-Mixer in its DAW mode: faders 1–8 = the track levels (pickup: a fader acts once it reaches the
+  level; the mixer blinks it until then), knobs 1–4 = the selected track's first four knobs, MUTE / SOLO / REC /
+  SELECT per track, PLAY / STOP / REC, BANK / CHANNEL ◀ ▶ the track; its LEDs show the mutes, solos, armed tracks,
+  the selected track and the transport. Fader and knob moves record as motion on the selected track while armed.
+- MIDI mode: the device's notes on the drum channel play the tracks, as USB and TRS; GLO CLK BLE follows its clock (a
+  project saved with CLK BLE loads with CLK INT in the plain version).
+- SOLO (from the SMC-Mixer): while any track is soloed only the soloed ones are heard; not saved, cleared by INIT.
+- MODE and the remembered device are kept in spare bits of the device settings, in both versions. Going back to an
+  older Hortator after picking a device: its SPEAKER EQ reads FLAT.
 
 ## 0.15.0 - 2026-10-09
 
