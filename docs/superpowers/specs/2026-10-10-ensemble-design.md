@@ -80,7 +80,7 @@ shape it.
 | KEYS | STAB, PULSE, BROKEN, ARP (Felucca's arpeggiator), GEN |
 | LEAD | ANSWER, HARMONY (a 3rd / 6th under your line), FILLS, OSTINATO, GEN |
 
-- **GEN:** a Grids-style X / Y rhythm map plus a Euclidean mode (Hortator's Grids port, MIT), pitches from the
+- **GEN:** a Grids-style X / Y rhythm map plus a Euclidean mode (Hortator's Grids port, GPL-3.0-or-later), pitches from the
   harmony.
 - **ANSWER** (the countermelody): it waits for a gap in the player's phrase (~½ beat), answers with a short phrase of
   chord tones on the rhythm of the last phrase, and stops when the player plays again.
