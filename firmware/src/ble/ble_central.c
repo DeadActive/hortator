@@ -213,6 +213,7 @@ int ble_midi_send(const uint8_t *m, uint32_t n)    /* 1 = queued, 0 = dropped (n
     mo.h++;
     return 1;
 }
+uint32_t ble_midi_room(void) { return ble_linked() ? 64u - (mo.h - mo.t) : 0u; }   /* free entries; 0 unlinked */
 /* the queue as packets while tx takes them (0 = sent): ble_service's ble_out_flush. A handler run inside tx may
  * empty the queue (a disconnect: ble_ev), so the tail moves only over messages still queued. */
 static void ble_out_drain(uint32_t now_ms, int (*tx)(const uint8_t *pkt, uint32_t len))
@@ -243,7 +244,9 @@ typedef struct {
     uint8_t tried;                                  /* a connect tried since the last scan start: one per sighting */
     uint8_t console;                                /* the link is the console's `ble connect`: want leaves it */
     uint8_t dropping;                               /* a disconnect asked for this link: not again */
+    uint8_t sighted;                                /* the target listed in this scan, since sighted_ms */
     uint32_t seen;                                  /* the state at the last ble_watch */
+    uint32_t sighted_ms;
     uint32_t rest_ms;                               /* the last scan end / link drop: auto scans 2 s after it */
 } ble_auto_t;
 static int ble_live(uint32_t s) { return s >= BLE_CONNECTING && s <= BLE_RECEIVING; }
@@ -254,6 +257,8 @@ uint32_t ble_disc_how(uint32_t s, uint32_t handle)
 {
     return s == BLE_CONNECTING ? BD_CANCEL : ble_live(s) && handle ? BD_DISC : BD_NONE;
 }
+/* target_listed: 0 no, 1 listed without a name yet, 2 listed with its name. An auto scan stops for the target once
+ * its name is in (the scan response, which AUTO's SMC test reads at link up) or 500 ms after its first listing */
 uint32_t ble_auto_step(const ble_auto_t *a, uint32_t state, int target_listed, uint32_t now_ms)
 {
     if (state == BLE_IDLE && a->scan_req)
@@ -264,9 +269,17 @@ uint32_t ble_auto_step(const ble_auto_t *a, uint32_t state, int target_listed, u
         return BA_NONE;
     if (state == BLE_IDLE)
         return target_listed && !a->tried ? BA_CONNECT : now_ms - a->rest_ms >= 2000u ? BA_SCAN : BA_NONE;
-    if (state == BLE_SCANNING && !a->manual && target_listed && !a->tried)
+    if (state == BLE_SCANNING && !a->manual && target_listed && !a->tried &&
+        (target_listed > 1 || (a->sighted && now_ms - a->sighted_ms >= 500u)))
         return BA_STOP_SCAN;
     return BA_NONE;
+}
+void ble_sight(ble_auto_t *a, int listed, uint32_t now_ms)   /* ble_service, scanning: the target's first listing */
+{
+    if (listed && !a->sighted) {
+        a->sighted = 1;
+        a->sighted_ms = now_ms;
+    }
 }
 /* ble_service, before the step: link up / down to the core (core_ble_link, once each), the rest times, the flags
  * that end with a scan or a link */
@@ -276,7 +289,7 @@ static void ble_watch(ble_auto_t *a, uint32_t now_ms)
     if (up != wasup)
         core_ble_link((int)up);
     if (st == BLE_SCANNING && was != BLE_SCANNING)
-        a->tried = 0;
+        a->tried = a->sighted = 0;
     if (was == BLE_SCANNING && st != BLE_SCANNING) {
         a->rest_ms = now_ms;
         a->manual = 0;
@@ -556,16 +569,19 @@ static uint32_t ble_listed(void)
     uint8_t idx[BLE_SCAN_MAX];
     return ble_scan_sorted(&scan, idx);
 }
-static int ble_target_at(void)                     /* the target's index in ble_scan_sorted's order; -1 not listed */
+static int ble_target_at(int *named)               /* the target's index in ble_scan_sorted's order; -1 not listed */
 {
     uint8_t idx[BLE_SCAN_MAX];
     uint32_t i, n;
+    *named = 0;
     if (!au.have)
         return -1;                                 /* (no sort per pass without a target) */
     n = ble_scan_sorted(&scan, idx);
     for (i = 0; i < n; i++)
-        if (scan.dev[idx[i]].addr_type == au.type && !memcmp(scan.dev[idx[i]].addr, au.addr, 6))
+        if (scan.dev[idx[i]].addr_type == au.type && !memcmp(scan.dev[idx[i]].addr, au.addr, 6)) {
+            *named = scan.dev[idx[i]].name[0] != 0;
             return (int)i;
+        }
     return -1;
 }
 static void ble_drop(void)                         /* disconnect the link or cancel the connect, once */
@@ -584,9 +600,11 @@ static void ble_scan_stop(void)
 }
 static void ble_auto(void)                         /* ble_service: the step applied */
 {
-    int at = ble_target_at();
+    int named, at = ble_target_at(&named);
     ble_watch(&au, core_ms());
-    switch (ble_auto_step(&au, st, at >= 0, core_ms())) {
+    if (st == BLE_SCANNING)
+        ble_sight(&au, at >= 0, core_ms());
+    switch (ble_auto_step(&au, st, at < 0 ? 0 : named ? 2 : 1, core_ms())) {
     case BA_SCAN:
         au.manual = au.scan_req;
         au.scan_req = 0;

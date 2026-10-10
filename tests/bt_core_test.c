@@ -10,6 +10,7 @@
 #endif
 #include "ble_ui_stub.h"                            /* ble_core.h, the connected name (conn_name / conn_up) */
 int ble_midi_send(const uint8_t *m, uint32_t n) { (void)m; (void)n; return 0; }   /* (smc.c; smc_test checks it) */
+uint32_t ble_midi_room(void) { return 0; }
 #include "../firmware/src/smc.c"
 #include "../firmware/src/bt_midi.c"
 #include "../firmware/src/bt_page.c"                  /* (ui_menu.c's Bluetooth row needs it) */

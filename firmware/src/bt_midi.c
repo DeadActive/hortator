@@ -10,7 +10,8 @@ static struct {
     uint8_t smc;                                     /* the linked device's name starts with "SMC" (bt_link) */
 } bt_in;
 
-/* core_ble_link: the link up (the connected device's name read once) / down */
+/* core_ble_link: the link up (the connected device's name read once: an auto scan waits up to 500 ms for the
+ * target's name, ble_auto_step) / down */
 static void bt_link(int up)
 {
     char n[24];

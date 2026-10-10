@@ -10,12 +10,13 @@
 #endif
 #include "ble_ui_stub.h"                            /* ble_core.h, the connected name (conn_name / conn_up) */
 static uint8_t sent[256][3];                          /* the messages ble_midi_send took */
-static uint32_t nsent, tries;
-static int32_t accept_left = -1;                      /* this many more taken, then refused (-1: all taken) */
+static uint32_t nsent, tries, refuse;                 /* refuse: ble_midi_send refuses although ble_midi_room had room */
+static int32_t accept_left = -1;                      /* the queue's room: this many more taken (-1: 64 each time) */
+uint32_t ble_midi_room(void) { return accept_left < 0 ? 64u : (uint32_t)accept_left; }
 int ble_midi_send(const uint8_t *m, uint32_t n)
 {
     tries++;
-    if (!accept_left || n != 3u || nsent >= 256u)
+    if (refuse || !accept_left || n != 3u || nsent >= 256u)
         return 0;
     if (accept_left > 0)
         accept_left--;
@@ -359,12 +360,16 @@ static void test_leds(void)
     render_mix(0, 0, CTL);
     smc_frame();
 
-    in(note(0x15, 127));                             /* refused: retried */
+    in(note(0x15, 127));                             /* no room: waits */
     clear_sent();
     accept_left = 0;
     smc_frame();
-    check("a refused send: tried, nothing taken", tries >= 1u && !nsent);
+    check("no room in the queue: nothing tried (no refusal counted as a drop)", !tries && !nsent);
     accept_left = -1;
+    refuse = 1;
+    smc_frame();
+    check("a refused send although room: tried, nothing taken", tries == 1u && !nsent);
+    refuse = 0;
     smc_frame();
     check(".. retried on the next frame: MUTE 6 lit", nsent == 1u && was_sent(0x90, 0x15, 127));
     link_down();
@@ -375,7 +380,9 @@ static void test_leds(void)
     link_up();
     accept_left = 20;
     smc_frame();
-    check("a new link with room for 20: 20 sent", nsent == 20u);
+    smc_frame();
+    check("a new link with room for 20: 20 sent, no send refused (out_drops counts only real losses)",
+          nsent == 20u && tries == 20u);
     accept_left = -1;
     smc_frame();
     check(".. the rest on the next frame: 35 LEDs and 8 positions in all", count_sent(0x90u) == 35u && count_sent(0xE0u) == 8u &&
@@ -393,12 +400,104 @@ static void test_midi_mode(void)
     in(bend(2, 3));
     check("MIDI mode: smc_in is not called (MUTE 4, fader 3 do nothing)", !trk[3].p[P_MUTE] && trk[2].p[P_LEVEL] != 3);
     trk[2].p[P_LEVEL] = 11;
+    smc_frame();                                     /* (the LEDs off: test_mode_end) */
     clear_sent();
     smc_frame();
     check("MIDI mode: no LEDs, no positions", !tries);
     btset.btmode = 1;
     smc_frame();
     check("back to SMC: everything sent again", nsent == 43u && was_sent(0xE2, 11, 11));
+}
+
+/* final review: solo clears when the SMC link drops or SMC mode ends (the FM-1 has no unsolo); unsolo cuts no voice */
+static void test_solo_clears(void)
+{
+    fresh();
+    in(note(0x09, 100));
+    in(note(0x0B, 100));
+    check("SOLO 2, SOLO 4: song.solo 0x0A", song.solo == 0x0Au);
+    panic_req = 0;
+    link_down();
+    check("the SMC link drops: solo cleared, no voice cut (panic_req 0)", !song.solo && !panic_req);
+    fresh();
+    in(note(0x09, 100));
+    panic_req = 0;
+    btset.btmode = 1;                                /* AUTO -> SMC DAW: still SMC mode */
+    smc_frame();
+    check("MODE AUTO -> SMC DAW while soloed: solo kept", song.solo == 2u);
+    btset.btmode = 2;                                /* MODE MIDI on the page */
+    smc_frame();
+    check("MODE MIDI while linked: solo cleared, no voice cut", !song.solo && !panic_req);
+    btset.btmode = 1;
+    smc_frame();
+    in(note(0x0C, 100));
+    check("SMC mode again: SOLO 5 works", song.solo == 0x10u);
+    conn_up = 0;                                     /* a link to another device (AUTO: MIDI) never touches solo */
+    bt_link(0);
+    smc_link(0);
+    song.solo = 0x10u;
+    btset.btmode = 0;
+    str_cpy(conn_name, "Keys", sizeof conn_name);
+    conn_up = 1;
+    bt_link(1);
+    smc_link(1);
+    smc_frame();
+    check("linked in MIDI mode from the start: solo left alone", song.solo == 0x10u);
+    song.solo = 0;
+}
+
+/* final review: SMC mode ends while linked -> every LED off once (35 notes, velocity 0), then nothing */
+static void test_mode_end(void)
+{
+    uint32_t i, off;
+    fresh();
+    in(note(0x13, 127));
+    in(note(0x0A, 127));
+    smc_frame();
+    btset.btmode = 2;
+    clear_sent();
+    smc_frame();
+    for (i = off = 0; i < 32u; i++)
+        off += was_sent(0x90, (uint8_t)i, 0);
+    for (i = 0x5Du; i <= 0x5Fu; i++)
+        off += was_sent(0x90, (uint8_t)i, 0);
+    check("MODE MIDI while linked: the 35 LEDs off, nothing else", off == 35u && nsent == 35u);
+    clear_sent();
+    smc_frame();
+    smc_frame();
+    check(".. once: nothing after", !tries);
+    fresh();
+    btset.btmode = 2;
+    accept_left = 10;
+    clear_sent();
+    smc_frame();
+    accept_left = 0;
+    smc_frame();
+    accept_left = -1;
+    smc_frame();
+    smc_frame();
+    check("LEDs off with room for 10: the rest on later frames, 35 in all", nsent == 35u && count_sent(0x90u) == 35u &&
+          tries == 35u);
+    fresh();
+    btset.btmode = 2;
+    accept_left = 10;
+    smc_frame();
+    accept_left = -1;
+    btset.btmode = 1;                                /* SMC again before the LEDs were all off */
+    clear_sent();
+    smc_frame();
+    check("SMC mode again: the full refresh (35 LEDs, 8 positions), no LEDs-off left", nsent == 43u);
+    btset.btmode = 0;
+    link_down();
+    clear_sent();
+    smc_frame();
+    check("the link drops in SMC mode: nothing sent", !tries);
+    str_cpy(conn_name, "Keys", sizeof conn_name);
+    conn_up = 1;
+    bt_link(1);
+    smc_link(1);
+    smc_frame();
+    check("AUTO, a MIDI device linked: no LEDs off (SMC mode never began)", !tries);
 }
 
 int main(void)
@@ -409,6 +508,8 @@ int main(void)
     test_buttons();
     test_leds();
     test_midi_mode();
+    test_solo_clears();
+    test_mode_end();
     printf(fails ? "smc_test: %d FAILED\n" : "smc_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

@@ -59,8 +59,10 @@ void ble_list(void);
 void ble_status(void);
 int ble_started(void);
 /* MIDI out to the connected BLE-MIDI device: one message of 1..3 bytes (main loop only, never from an ISR);
- * 1 = queued, 0 = dropped (not connected, or the 64-message queue full: `ble`'s out_drops) */
+ * 1 = queued, 0 = dropped (not connected, or the 64-message queue full: `ble`'s out_drops). A caller that retries
+ * sends only what ble_midi_room allows, so out_drops counts real losses only */
 int ble_midi_send(const uint8_t *m, uint32_t n);
+uint32_t ble_midi_room(void);                          /* the queue's free entries; 0 when not connected */
 /* the Bluetooth page (main loop only). None of these starts the stack: the page's BLUETOOTH ON calls ble_user_start
  * (gate 3). States = ble_central.c's. Reconnecting (spec 3): want on + a target -> connect when the target is in the
  * scan list, else an auto scan, 2 s after the last scan end / link drop. */

@@ -157,6 +157,16 @@ int main(void)
         ble_ev(EV_DISCONNECTED);
         CHECK(st == BLE_IDLE && mo.h == mo.t, "out: a disconnect empties the queue");
         CHECK(!ble_midi_send(on, 3) && mo.drops == 1u, "out: refused after the disconnect");
+        CHECK(!ble_midi_room(), "room: 0 while not connected");
+        st = BLE_SUBSCRIBED;
+        CHECK(ble_midi_room() == 64u, "room: 64 when linked and empty");
+        ble_midi_send(on, 3);
+        ble_midi_send(on, 3);
+        CHECK(ble_midi_room() == 62u, "room: 62 after two queued");
+        while (ble_midi_room())
+            ble_midi_send(on, 3);
+        CHECK(mo.h - mo.t == 64u && mo.drops == 1u, "room: a caller that sends only what fits never counts a drop");
+        ble_ev(EV_DISCONNECTED);
     }
     {   /* the out flush: the tail moves only over messages still queued (a clear inside the send) */
         static const uint8_t on[3] = {0x90, 0x3C, 0x7F};
@@ -198,10 +208,18 @@ int main(void)
         CHECK(ble_auto_step(&a, BLE_IDLE, 1, 1000) == BA_CONNECT, "auto: IDLE, target listed -> connect");
         CHECK(ble_auto_step(&a, BLE_IDLE, 0, 2900) == BA_NONE, "auto: not listed, 1.9 s after the rest -> nothing");
         CHECK(ble_auto_step(&a, BLE_IDLE, 0, 3000) == BA_SCAN, "auto: not listed, 2.0 s after the rest -> scan");
-        CHECK(ble_auto_step(&a, BLE_SCANNING, 1, 3000) == BA_STOP_SCAN, "auto: auto scan, target seen -> stop the scan");
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 2, 3000) == BA_STOP_SCAN, "auto: auto scan, target seen with its name -> stop the scan");
         CHECK(ble_auto_step(&a, BLE_SCANNING, 0, 9000) == BA_NONE, "auto: auto scan, not seen -> keep scanning");
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 1, 3000) == BA_NONE, "auto: auto scan, target listed without a name, not sighted -> keep scanning");
+        a.sighted = 1;
+        a.sighted_ms = 3000;
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 1, 3000) == BA_NONE && ble_auto_step(&a, BLE_SCANNING, 1, 3499) == BA_NONE,
+              "auto: listed without a name at t0, t0 + 499 ms -> keep scanning (the scan response may follow)");
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 2, 3001) == BA_STOP_SCAN, "auto: .. its name arrives -> stop the scan");
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 1, 3500) == BA_STOP_SCAN, "auto: still no name at t0 + 500 ms -> stop the scan");
+        a.sighted = 0;
         a.manual = 1;
-        CHECK(ble_auto_step(&a, BLE_SCANNING, 1, 3000) == BA_NONE, "auto: a manual scan is never stopped early");
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 2, 3000) == BA_NONE, "auto: a manual scan is never stopped early");
         a.manual = 0;
         a.tried = 1;
         CHECK(ble_auto_step(&a, BLE_IDLE, 1, 2900) == BA_NONE && ble_auto_step(&a, BLE_IDLE, 1, 3000) == BA_SCAN,
@@ -249,6 +267,20 @@ int main(void)
         st = BLE_SCANNING;
         ble_watch(&a, 200);
         CHECK(!a.tried, "watch: a scan start is a new sighting");
+        a.sighted = 1;
+        ble_sight(&a, 1, 250);
+        CHECK(a.sighted_ms == 0u, "sight: an old sighting is kept");
+        a.sighted = 0;
+        ble_sight(&a, 0, 250);
+        CHECK(!a.sighted, "sight: not listed -> not sighted");
+        ble_sight(&a, 1, 260);
+        ble_sight(&a, 1, 270);
+        CHECK(a.sighted && a.sighted_ms == 260u, "sight: the first listing in the scan sets the time");
+        st = BLE_IDLE;
+        ble_watch(&a, 280);
+        st = BLE_SCANNING;
+        ble_watch(&a, 290);
+        CHECK(!a.sighted, "watch: a scan start clears the sighting");
         a.manual = 1;
         ble_ev(EV_SCAN_DONE);
         ble_watch(&a, 300);

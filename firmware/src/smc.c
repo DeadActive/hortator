@@ -14,6 +14,7 @@ static struct {
     uint8_t lv[NTRK];               /* each track's LEVEL as the fader set it or its position was sent */
     uint8_t last[NTRK];             /* each fader's last report (crossing; valid with its seen bit) */
     uint8_t up, on;                 /* linked; refreshed for SMC mode since the link (0: smc_fresh first) */
+    uint8_t dark;                   /* SMC mode ended while linked: LEDs still to turn off (35 -> 0) */
     uint8_t picked, seen, pend;     /* bits per fader: picked up; last[] valid; position to send */
 } smc;
 
@@ -24,6 +25,7 @@ static void smc_fresh(void)
     smc.known[0] = smc.known[1] = 0;
     smc.picked = smc.seen = 0;
     smc.pend = 0xFFu;
+    smc.dark = 0;
     for (i = 0; i < NTRK; i++)
         smc.lv[i] = (uint8_t)clamp(trk[i].p[P_LEVEL], 0, 127);
     smc.on = 1;
@@ -155,11 +157,17 @@ static void smc_in(uint32_t pkt)
     }
 }
 
+/* the SMC's controller gone (the link down, SMC mode ended): solo off, as no FM-1 control unsolos. Nothing is cut:
+ * the tracks it silenced become audible */
+static void smc_unsolo(void) { song.solo = 0; }
+
 /* core_ble_link: the link up / down (bt_link first: the mode). Up: everything sent again, the faders unpicked */
 static void smc_link(int up)
 {
     smc.up = (uint8_t)(up != 0);
-    smc.on = 0;
+    if (!up)
+        smc_unsolo();
+    smc.on = smc.dark = 0;
     ui_message(up ? "BT CONNECTED" : "BT LOST");
 }
 
@@ -169,7 +177,7 @@ static int smc_send(uint32_t a, uint32_t b, uint32_t c)   /* 1 = queued (ble_mid
     m[0] = (uint8_t)a;
     m[1] = (uint8_t)b;
     m[2] = (uint8_t)c;
-    return ble_midi_send(m, 3u) == 1;
+    return ble_midi_room() && ble_midi_send(m, 3u) == 1;   /* only what fits: out_drops = real losses */
 }
 
 /* ed_service, after ble_service (may run several times a frame): linked in SMC mode, the LED changes and the fader
@@ -178,7 +186,14 @@ static void smc_frame(void)
 {
     uint32_t w[2], i, j, b, m = 0;
     if (!smc.up || !bt_mode_now()) {
+        if (smc.on && smc.up) {                       /* SMC mode ended while linked: unsolo, the LEDs off once */
+            smc_unsolo();
+            smc.dark = 35u;
+        }
         smc.on = 0;                                   /* SMC mode again: everything again */
+        for (; smc.dark; smc.dark--)                  /* notes 0x00..0x1F, 0x5D..0x5F at 0 */
+            if (!smc_send(0x90u, 35u - smc.dark < 32u ? 35u - smc.dark : 0x5Du + 3u - smc.dark, 0))
+                return;
         return;
     }
     if (!smc.on)
