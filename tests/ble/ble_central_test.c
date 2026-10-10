@@ -5,8 +5,23 @@
 #include <stdint.h>
 #define BLE_CENTRAL_STATE_ONLY 1
 #include <string.h>
+static int link_up, link_down;                      /* core_ble_link's calls (the core's side, counted) */
+void core_ble_link(int up) { if (up) link_up++; else link_down++; }
+#include "../../firmware/src/ble/ble_midi.c"
 #include "../../firmware/src/ble/ble_central.c"
 static int fails;
+static uint32_t tx_n, tx_busy, tx_drop;            /* ble_out_drain's sender: packets, refuse, a disconnect inside */
+static int tx(const uint8_t *p, uint32_t n)
+{
+    (void)p;
+    (void)n;
+    if (tx_busy)
+        return 1;
+    tx_n++;
+    if (tx_drop)
+        ble_ev(EV_DISCONNECTED);                    /* a handler run synchronously by the send */
+    return 0;
+}
 #define CHECK(c, what) do { if (c) printf("ok    %s\n", what); else { printf("FAIL  %s\n", what); fails++; } } while (0)
 int main(void)
 {
@@ -142,6 +157,118 @@ int main(void)
         ble_ev(EV_DISCONNECTED);
         CHECK(st == BLE_IDLE && mo.h == mo.t, "out: a disconnect empties the queue");
         CHECK(!ble_midi_send(on, 3) && mo.drops == 1u, "out: refused after the disconnect");
+    }
+    {   /* the out flush: the tail moves only over messages still queued (a clear inside the send) */
+        static const uint8_t on[3] = {0x90, 0x3C, 0x7F};
+        uint32_t sent;
+        st = BLE_RECEIVING;
+        ble_midi_send(on, 3);
+        ble_midi_send(on, 3);
+        tx_busy = 1;
+        ble_out_drain(0, tx);
+        CHECK(mo.h - mo.t == 2u && !tx_n, "flush: a busy stack keeps the queue");
+        tx_busy = 0;
+        sent = mo.sent;
+        ble_out_drain(0, tx);
+        CHECK(mo.h == mo.t && tx_n == 1u && mo.sent == sent + 2u, "flush: both in one packet");
+        ble_midi_send(on, 3);
+        tx_drop = 1;
+        sent = mo.sent;
+        ble_out_drain(0, tx);
+        CHECK(st == BLE_IDLE && mo.h == mo.t && mo.sent == sent, "flush: a disconnect inside the send: queue empty");
+        tx_drop = 0;
+        st = BLE_SUBSCRIBED;
+        CHECK(ble_midi_send(on, 3) && mo.h - mo.t == 1u, "flush: the queue works after the next connect");
+        ble_ev(EV_DISCONNECTED);
+    }
+    {   /* the auto-connect step (spec 3) */
+        ble_auto_t a;
+        memset(&a, 0, sizeof a);
+        a.want = 1;
+        a.have = 1;
+        a.rest_ms = 1000;
+        CHECK(ble_auto_step(&a, BLE_IDLE, 1, 1000) == BA_CONNECT, "auto: IDLE, target listed -> connect");
+        CHECK(ble_auto_step(&a, BLE_IDLE, 0, 2900) == BA_NONE, "auto: not listed, 1.9 s after the rest -> nothing");
+        CHECK(ble_auto_step(&a, BLE_IDLE, 0, 3000) == BA_SCAN, "auto: not listed, 2.0 s after the rest -> scan");
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 1, 3000) == BA_STOP_SCAN, "auto: auto scan, target seen -> stop the scan");
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 0, 9000) == BA_NONE, "auto: auto scan, not seen -> keep scanning");
+        a.manual = 1;
+        CHECK(ble_auto_step(&a, BLE_SCANNING, 1, 3000) == BA_NONE, "auto: a manual scan is never stopped early");
+        a.manual = 0;
+        a.tried = 1;
+        CHECK(ble_auto_step(&a, BLE_IDLE, 1, 2900) == BA_NONE && ble_auto_step(&a, BLE_IDLE, 1, 3000) == BA_SCAN,
+              "auto: one connect per sighting: after a failed try, a scan after the rest");
+        a.tried = 0;
+        CHECK(ble_auto_step(&a, BLE_RECEIVING, 1, 3000) == BA_NONE && ble_auto_step(&a, BLE_CONNECTING, 1, 3000) ==
+              BA_NONE, "auto: connected / connecting -> nothing");
+        a.paused = 1;
+        CHECK(ble_auto_step(&a, BLE_IDLE, 1, 9000) == BA_NONE && ble_auto_step(&a, BLE_IDLE, 0, 9000) == BA_NONE,
+              "auto: paused -> no auto connect, no auto scan");
+        a.scan_req = 1;
+        CHECK(ble_auto_step(&a, BLE_IDLE, 0, 1000) == BA_SCAN, "auto: a requested scan starts on IDLE (no rest)");
+        CHECK(ble_auto_step(&a, BLE_RECEIVING, 0, 1000) == BA_NONE, "auto: a requested scan waits for IDLE");
+        a.scan_req = 0;
+        a.paused = 0;
+        a.have = 0;
+        CHECK(ble_auto_step(&a, BLE_IDLE, 0, 9000) == BA_NONE && ble_auto_step(&a, BLE_RECEIVING, 0, 9000) == BA_NONE,
+              "auto: no target -> nothing");
+        a.have = 1;
+        for (i = 0; i < 3; i++) {
+            static const uint32_t S[3] = {BLE_OFF, BLE_STARTING, BLE_FAILED};
+            CHECK(ble_auto_step(&a, S[i], 1, 9000) == BA_NONE && ble_auto_step(&a, S[i], 0, 9000) == BA_NONE,
+                  "auto: OFF / STARTING / FAILED -> nothing");
+        }
+        a.want = 0;
+        CHECK(ble_auto_step(&a, BLE_RECEIVING, 1, 9000) == BA_DISCONNECT, "auto: want off while receiving -> disconnect");
+        CHECK(ble_auto_step(&a, BLE_DISCOVERING, 1, 9000) == BA_DISCONNECT, "auto: want off while discovering -> disconnect");
+        CHECK(ble_auto_step(&a, BLE_IDLE, 1, 9000) == BA_NONE && ble_auto_step(&a, BLE_IDLE, 0, 9000) == BA_NONE,
+              "auto: want off, IDLE -> nothing");
+        a.dropping = 1;
+        CHECK(ble_auto_step(&a, BLE_RECEIVING, 1, 9000) == BA_NONE, "auto: want off: the disconnect asked once");
+        a.dropping = 0;
+        a.console = 1;
+        CHECK(ble_auto_step(&a, BLE_RECEIVING, 1, 9000) == BA_NONE, "auto: want off: the console's link is left alone");
+        a.console = 0;
+        a.scan_req = 1;
+        CHECK(ble_auto_step(&a, BLE_IDLE, 0, 1000) == BA_SCAN, "auto: a requested scan runs without want");
+    }
+    {   /* the service's watch: link up / down to the core once each, the rest times, the scan flags */
+        ble_auto_t a;
+        memset(&a, 0, sizeof a);
+        st = BLE_IDLE;
+        ble_watch(&a, 100);
+        a.tried = 1;
+        st = BLE_SCANNING;
+        ble_watch(&a, 200);
+        CHECK(!a.tried, "watch: a scan start is a new sighting");
+        a.manual = 1;
+        ble_ev(EV_SCAN_DONE);
+        ble_watch(&a, 300);
+        CHECK(a.rest_ms == 300u && !a.manual, "watch: a scan end: the rest starts, the scan is no longer manual");
+        st = BLE_CONNECTING;
+        a.console = 1;
+        ble_watch(&a, 400);
+        ble_ev(EV_CONNECTED);
+        ble_watch(&a, 500);
+        CHECK(!link_up && !link_down, "watch: connecting / discovering: no link yet");
+        ble_ev(EV_FOUND_MIDI);
+        ble_watch(&a, 600);
+        CHECK(link_up == 1 && !link_down, "watch: SUBSCRIBED -> core_ble_link(1)");
+        ble_ev(EV_NOTIFY);
+        ble_watch(&a, 700);
+        ble_watch(&a, 800);
+        CHECK(link_up == 1 && !link_down, "watch: RECEIVING after it: no second call");
+        a.dropping = 1;
+        ble_ev(EV_DISCONNECTED);
+        ble_watch(&a, 900);
+        ble_watch(&a, 1000);
+        CHECK(link_up == 1 && link_down == 1, "watch: the disconnect -> core_ble_link(0) once");
+        CHECK(a.rest_ms == 900u && !a.dropping && !a.console, "watch: a drop: the rest starts, the link's flags clear");
+        st = BLE_CONNECTING;
+        ble_watch(&a, 1100);
+        ble_ev(EV_CONN_FAIL);
+        ble_watch(&a, 1200);
+        CHECK(link_up == 1 && link_down == 1 && a.rest_ms == 1200u, "watch: a failed connect: rest, no link calls");
     }
     printf(fails ? "ble_central: %d FAILED\n" : "ble_central: all checks passed\n", fails);
     return fails != 0;

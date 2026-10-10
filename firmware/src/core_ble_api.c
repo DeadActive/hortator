@@ -47,3 +47,5 @@ void core_con_puts(const char *s)
     (void)s;
 #endif
 }
+void core_ble_midi_in(uint32_t pkt) { (void)pkt; }   /* (empty until the MIDI mode / the SMC layout) */
+void core_ble_link(int up) { (void)up; }
