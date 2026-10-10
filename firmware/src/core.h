@@ -198,6 +198,7 @@ typedef struct {
     int16_t act[3];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
                                   * copy of settings.mutebar */
     uint8_t mute_q;              /* TRACKS: mutes to flip on the next bar (bit per track; seq.c) */
+    uint8_t solo;                /* SOLO (the SMC-Mixer): bit per track, runtime only (trk_silent) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */
     uint8_t lsel;                /* the LFO pages show LFO 1 / 2 (OCT-): screen state, never stored */
 } song_t;

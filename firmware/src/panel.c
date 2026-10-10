@@ -61,10 +61,13 @@ static int32_t panel_enc(uint32_t role)
     return fm1_enc_take(panel.enc[role]) * panel.dir[role];
 }
 
-/* user settings that survive a reset */
+/* user settings that survive a reset. mutebar: TRACKS mutes wait for the next bar. btmode: the Bluetooth MODE (0 AUTO,
+ * 1 SMC DAW, 2 MIDI); bt_type, bt_lo, bt_hi: the remembered device (address type, address bytes 0..2 and 3..5; all 0
+ * none), kept in both builds (project.c: in zoom's and lowcut's spare bits) */
 #define SETTINGS_MAGIC 0x53455433u              /* "SET3" */
-struct { uint32_t magic, palette, lowcut, zoom, mutebar, accel, usbfix, perfpage; } settings __attribute__((section(".noinit")));   /* mutebar:
-                                                                                   * TRACKS mutes wait for the next bar */
+struct {
+    uint32_t magic, palette, lowcut, zoom, mutebar, accel, usbfix, perfpage, btmode, bt_type, bt_lo, bt_hi;
+} settings __attribute__((section(".noinit")));
 
 static void settings_save(void);
 static void settings_poll(void);              /* project.c */              /* project.c: flash copy (FELUCCA_FLASH) */
@@ -79,10 +82,16 @@ static void settings_init(void)
         settings.accel = 1;                    /* knob acceleration (calm, upstream 1.0): on */
         settings.usbfix = 0;                   /* USB LEVEL MASTER */
         settings.perfpage = 0;                 /* PERFORM HOLD */
+        settings.btmode = settings.bt_type = settings.bt_lo = settings.bt_hi = 0;   /* BT MODE AUTO, no device */
     }
     settings.mutebar &= 1u;
     settings.usbfix &= 1u;                    /* .noinit: fields added after "SET3" */
     settings.perfpage &= 1u;
+    if (settings.btmode > 2u)                  /* AUTO, SMC DAW, MIDI */
+        settings.btmode = 0;
+    settings.bt_type &= 1u;                   /* the remembered device: its address type, its address (3 + 3 bytes) */
+    settings.bt_lo &= 0xFFFFFFu;
+    settings.bt_hi &= 0xFFFFFFu;
     if (settings.accel > 1u)
         settings.accel = 1u;
     if (settings.lowcut > 2u)                  /* SPEAKER EQ: FLAT LOWCUT BASS+ */

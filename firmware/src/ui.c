@@ -367,6 +367,7 @@ static void init_all(void)
     song.master_q12 = master;
     song.playing = 0;
     song.rec = 0;
+    song.solo = 0;
     memset(&mo, 0, sizeof mo);                     /* no motion */
     memset(&chain, 0, sizeof chain);               /* no song, no name */
     fm1_irq_on();
@@ -389,6 +390,20 @@ static void track_mute_toggle(uint32_t k)
     trk[k].p[P_MUTE] = (int16_t)!trk[k].p[P_MUTE];
     if (trk[k].p[P_MUTE])
         panic_req |= (uint8_t)(1u << k);
+}
+
+/* SOLO (the SMC-Mixer): track k soloed / not; the tracks this silences cut what they play, as a mute does */
+static void track_solo_toggle(uint32_t k)
+{
+    uint32_t i, was = 0;
+    if (k >= NTRK)
+        return;
+    for (i = 0; i < NTRK; i++)
+        was |= (uint32_t)trk_silent(&trk[i]) << i;
+    song.solo ^= (uint8_t)(1u << k);
+    for (i = 0; i < NTRK; i++)
+        if (trk_silent(&trk[i]) && !((was >> i) & 1u))
+            panic_req |= (uint8_t)(1u << i);
 }
 
 /* COMP: white key k turns DUCK of track k on / off (not the source's: it is never ducked) */

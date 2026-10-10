@@ -711,6 +711,7 @@ void ble_status(void)                              /* console `ble` */
     o = put_u(put_s(o, " lost "), ring_lost);
     o = put_u(put_s(o, " out "), mo.sent);
     o = put_u(put_s(o, " out_drops "), mo.drops);
+    o = put_u(put_s(o, " in_drops "), core_ble_in_drops());
     o = put_u(put_s(o, " audio_late "), core_audio_late());
     o = put_s(o, "\r\n");
     *o = 0;

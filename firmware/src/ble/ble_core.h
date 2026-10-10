@@ -43,6 +43,8 @@ void core_con_puts(const char *s);
  * linked; up = 1 once on entering SUBSCRIBED, 0 once on leaving SUBSCRIBED / RECEIVING */
 void core_ble_midi_in(uint32_t pkt);
 void core_ble_link(int up);
+/* MIDI mode: received packets the core's input ring refused (its last 8 slots are TRS MIDI's), for `ble` */
+uint32_t core_ble_in_drops(void);
 /* libc.c */
 void *memset(void *d, int c, unsigned n);
 void *memcpy(void *d, const void *s, unsigned n);

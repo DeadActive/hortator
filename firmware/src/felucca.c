@@ -173,6 +173,7 @@ static void ota_commit(const uint8_t *parm)
 #error "FELUCCA_BLE needs FELUCCA_OTA (ed_service, the main loop's hook)"
 #endif
 #include "ble/ble_core.h"            /* the BLE unit's entry points (ble.c) */
+#include "bt_midi.c"                 /* BLE MIDI in: the SMC-Mixer or the input ring (source 3) */
 #endif
 #if FELUCCA_OTA
 /* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)

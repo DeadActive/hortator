@@ -743,7 +743,7 @@ static void draw_mix(void)
     }
     for (c = 0; c < NTRK; c++) {
         track_t *t = &trk[c];
-        uint32_t sel = c == song.sel, lvl = (uint32_t)t->p[P_LEVEL] & 127u, mute = !lvl || t->p[P_MUTE];
+        uint32_t sel = c == song.sel, lvl = (uint32_t)t->p[P_LEVEL] & 127u, mute = !lvl || trk_silent(t);
         uint32_t arm = (song.rec >> c) & 1u, len = view_len(t), bank, sig, k;
         int32_t m = mute ? 0 : meter_px(t->peak);
         uint16_t ink = sel ? C_HI : C_GRAY;
@@ -797,7 +797,7 @@ static const char *comp_src_state(void)
     uint32_t src = comp_src();
     if (src >= NTRK)
         return "";
-    if (trk[src].p[P_MUTE])
+    if (trk_silent(&trk[src]))
         return song.g[G_CGHOST] == CG_MUTE ? "MUTED" : "GHOST";
     return song.g[G_CGHOST] == CG_HIDE ? "GHOST" : "HEARD";
 }
@@ -1069,7 +1069,7 @@ static uint32_t graph_signature(void)
         for (i = G_CSRC; i <= G_CGHOST; i++)
             h = (h ^ (uint32_t)song.g[i]) * 16777619u;
         for (i = 0; i < NTRK; i++)
-            h = (h ^ (uint32_t)(trk[i].p[P_DUCK] | trk[i].p[P_MUTE] << 1)) * 16777619u;
+            h = (h ^ (uint32_t)(trk[i].p[P_DUCK] | trk_silent(&trk[i]) << 1)) * 16777619u;
         h ^= ui.page * 389u;
         if (comp_on())
             h ^= ((uint32_t)(-comp.gr) >> 7) * 2654435761u + (uint32_t)meter_px(comp.peak) * 40503u;
@@ -1501,7 +1501,7 @@ static void draw_columns(void)
         } else {
             param_format(&TP[P_LEVEL], (int32_t)lvl, val, &unit);
         }
-        draw_column(1, "LEVEL", val, unit, lvl && !t->p[P_MUTE] ? VAL(1u) : C_DIM, (int32_t)lvl * 1000 / 127, ICON_AUTO);
+        draw_column(1, "LEVEL", val, unit, lvl && !trk_silent(t) ? VAL(1u) : C_DIM, (int32_t)lvl * 1000 / 127, ICON_AUTO);
         param_format(&TP[P_SLEN], t->p[P_SLEN], val, &unit);
         draw_column(2, "LEN", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
         param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);

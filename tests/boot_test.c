@@ -222,6 +222,104 @@ static int settings_oversize_refused(void)
     return settings.palette == 4u;
 }
 
+/* spec 2026-10-10 §8: an older record (no Bluetooth bits) loads exactly as before: SPEAKER EQ BASS+ stays, no device,
+ * MODE AUTO */
+static int settings_old_record(void)
+{
+    persist_t p;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();                                  /* finds the flash */
+    memset(&p, 0, sizeof p);
+    p.magic = PERSIST_MAGIC;
+    p.palette = 2;
+    p.lowcut = 2;                                    /* BASS+ */
+    p.zoom = 1u | 1u << 1 | 1u << 3 | 1u << 4;       /* ZOOM, NEXT BAR, USB FIXED, PERFORM PAGE (bits 0..4) */
+    p.panel = PANEL_DEFAULT;
+    st_save(OBJ_SETTINGS, &p, sizeof p);
+    rfill(&settings, sizeof settings);               /* power off: .noinit is anything */
+    persist_boot();
+    settings_init();
+    return settings.lowcut == 2u && fx_lowcut == 2u && settings.zoom == 1u && settings.mutebar == 1u && settings.accel == 1u &&
+           settings.usbfix == 1u && settings.perfpage == 1u && settings.palette == 2u && settings.btmode == 0u &&
+           settings.bt_type == 0u && settings.bt_lo == 0u && settings.bt_hi == 0u;
+}
+
+/* the remembered device (address, type) and MODE survive a save and a load in zoom's and lowcut's spare bits; lowcut
+ * and the zoom flags keep their values */
+static int settings_bt_round_trip(void)
+{
+    uint32_t m, ok = 1;
+    for (m = 0; m < 3u; m++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = 3;
+        settings.lowcut = m;                         /* FLAT LOWCUT BASS+ */
+        settings.zoom = 1;
+        settings.mutebar = 0;
+        settings.accel = 1;
+        settings.usbfix = 1;
+        settings.perfpage = 0;
+        settings.btmode = m;                         /* AUTO SMC MIDI */
+        settings.bt_type = m & 1u;
+        settings.bt_lo = 0xA1B2C3u + m;              /* address bytes 0..2 */
+        settings.bt_hi = 0xFFEEDDu - m;              /* .. 3..5 */
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= p.zoom >> 8 == 0xA1B2C3u + m && p.lowcut >> 8 == 0xFFEEDDu - m && (p.lowcut & 0xFFu) == m &&
+              ((p.zoom >> 5) & 3u) == m && ((p.zoom >> 7) & 1u) == (m & 1u) && (p.zoom & 0x1Fu) == (1u | 1u << 3);
+        rfill(&settings, sizeof settings);           /* power off */
+        persist_boot();
+        settings_init();
+        ok &= settings.btmode == m && settings.bt_type == (m & 1u) && settings.bt_lo == 0xA1B2C3u + m &&
+              settings.bt_hi == 0xFFEEDDu - m && settings.lowcut == m && fx_lowcut == m && settings.zoom == 1u &&
+              settings.mutebar == 0u && settings.accel == 1u && settings.usbfix == 1u && settings.perfpage == 0u &&
+              settings.palette == 3u;
+    }
+    return (int)ok;
+}
+
+/* .noinit after a reset by another firmware: the Bluetooth fields inside their ranges */
+static int settings_bt_masked(void)
+{
+    host_init();
+    settings_init();                                 /* SET3 */
+    settings.btmode = 7;
+    settings.bt_type = 0x55;
+    settings.bt_lo = 0xFFFFFFFFu;
+    settings.bt_hi = 0x12345678u;
+    settings_init();
+    return settings.btmode == 0u && settings.bt_type <= 1u && settings.bt_lo == 0xFFFFFFu && settings.bt_hi == 0x345678u;
+}
+
+/* spec 2026-10-10 §4: a project saved with CLK BLE (3) loads as CLK INT in a build whose CLK ends at TRS (2), not as
+ * TRS; a value inside the range is kept */
+static int clock_beyond_range_is_int(void)
+{
+    project_t *p = &proj_slot[0];
+    uint32_t ok;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    project_save(0);
+    p->g[G_CLOCK] = 3;
+    p->sum = proj_sum(p);
+    song.g[G_CLOCK] = 1;
+    project_load(0);
+    ok = GP[G_CLOCK].max == 2 && song.g[G_CLOCK] == 0;
+    p->g[G_CLOCK] = 2;
+    p->sum = proj_sum(p);
+    project_load(0);
+    ok &= song.g[G_CLOCK] == 2;
+    p->g[G_CLOCK] = -1;
+    p->sum = proj_sum(p);
+    project_load(0);
+    return (int)(ok & (song.g[G_CLOCK] == 0));
+}
+
 /* an M1 project in flash ("FDR1") loads: its steps and settings; PROB 100 %, 1 hit, SRC STEP, Grids defaults */
 static int fdr1_converts(void)
 {
@@ -899,6 +997,12 @@ int main(void)
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());
     check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());
+    check("settings: an older record (no Bluetooth bits) loads as before (SPEAKER EQ BASS+ stays, no device)",
+          settings_old_record());
+    check("settings: the remembered device and MODE survive a power cycle in the spare bits; SPEAKER EQ keeps its value",
+          settings_bt_round_trip());
+    check("settings: settings_init keeps the Bluetooth fields in their ranges", settings_bt_masked());
+    check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {

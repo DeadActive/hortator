@@ -134,6 +134,12 @@ static void dv_init(dvoice_t *v, uint32_t vel)
     v->rng = (int32_t)(dvage * 2654435761u) | 1;
 }
 
+/* silent: muted, or another track soloed and not this one (SOLO: the SMC-Mixer; P_MUTE itself unchanged) */
+static int trk_silent(const track_t *t)
+{
+    return t->p[P_MUTE] || (song.solo && !((song.solo >> (uint32_t)(t - trk)) & 1u));
+}
+
 /* one hit of track t at velocity vel (1..127), playing note nt (an offset from C4) */
 static void drum_play(track_t *t, uint32_t vel, int32_t nt)
 {
@@ -144,8 +150,8 @@ static void drum_play(track_t *t, uint32_t vel, int32_t nt)
     if (safe_start)
         return;
     lfo_hit(t);                                     /* HIT LFOs restart, the trigger reads their values */
-    if (t->p[P_MUTE] && (uint32_t)(t - trk) != comp_ghost_src())   /* a muted COMP source still plays (GHOST KEEP /
-                                                                       * HIDE, fx.c) */
+    if (trk_silent(t) && (uint32_t)(t - trk) != comp_ghost_src())   /* a muted COMP source still plays (GHOST KEEP /
+                                                                      * HIDE, fx.c) */
         return;
     trk_filter_hit(t, vel);                             /* FILTER: the hit's sweep (filter.c) */
     if (t->p[P_CHOKE])

@@ -350,7 +350,8 @@ static void project_load(uint32_t slot)
     fm1_irq_off();                                      /* the audio ISR must not see half a project */
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_LOAD && i != G_SAVE)
-            song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
+            song.g[i] = (int16_t)(i == G_CLOCK && (p->g[i] < 0 || p->g[i] > GP[i].max)
+                                      ? 0 : clamp(p->g[i], GP[i].min, GP[i].max));   /* CLK BLE without BLE: INT */
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
@@ -440,12 +441,16 @@ static void persist_boot(void)                    /* before settings_init / pane
     if (st_load(OBJ_SETTINGS, &p, sizeof p) == (int)sizeof p && p.magic == PERSIST_MAGIC) {
         settings.magic = SETTINGS_MAGIC;
         settings.palette = p.palette;
-        settings.lowcut = p.lowcut;
+        settings.lowcut = p.lowcut & 0xFFu;
         settings.zoom = p.zoom & 1u;
         settings.mutebar = (p.zoom >> 1) & 1u;     /* kept in zoom's bit 1: the flash format stays Felucca's */
         settings.accel = !((p.zoom >> 2) & 1u);    /* bit 2 = KNOB ACCEL OFF: older saves read as on */
         settings.usbfix = (p.zoom >> 3) & 1u;      /* bit 3 = USB LEVEL FIXED: older saves read MASTER */
         settings.perfpage = (p.zoom >> 4) & 1u;    /* bit 4 = PERFORM PAGE: older saves read HOLD */
+        settings.btmode = (p.zoom >> 5) & 3u;      /* bits 5..6 = BT MODE, 7 its address type, 8..31 its address */
+        settings.bt_type = (p.zoom >> 7) & 1u;     /* bytes 0..2; lowcut bits 8..31 bytes 3..5 (all 0 = none) */
+        settings.bt_lo = p.zoom >> 8;
+        settings.bt_hi = p.lowcut >> 8;
         if (p.panel.magic == PANEL_MAGIC)
             panel = p.panel;
         persist_saved = p;
@@ -545,9 +550,10 @@ static void settings_save(void)                    /* asked for while playing: w
     memset(&p, 0, sizeof p);
     p.magic = PERSIST_MAGIC;
     p.palette = settings.palette;
-    p.lowcut = settings.lowcut;
+    p.lowcut = (settings.lowcut & 0xFFu) | settings.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
-             (settings.perfpage & 1u) << 4;
+             (settings.perfpage & 1u) << 4 | (settings.btmode & 3u) << 5 | (settings.bt_type & 1u) << 7 |
+             settings.bt_lo << 8;
     p.panel = panel;
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;

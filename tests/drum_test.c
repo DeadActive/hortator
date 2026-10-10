@@ -132,6 +132,43 @@ static void test_mute(void)
     check("mute: a muted track ignores hits", !trk[0].v[0].active && !trk[0].v[1].active);
 }
 
+static int any_voice(const track_t *t)
+{
+    uint32_t i;
+    for (i = 0; i < NDV; i++)
+        if (t->v[i].active)
+            return 1;
+    return 0;
+}
+
+/* SOLO (song.solo, spec 2026-10-10 §7): a track is silent when muted, or when any track is soloed and it is not */
+static void test_solo(void)
+{
+    int a, b;
+    host_init();
+    song.solo = 1u << 1;                             /* track 2 soloed */
+    drum_hit(&trk[0], 127);
+    drum_hit(&trk[1], 127);
+    check("solo: with track 2 soloed track 1's hit is silent (no voice), track 2 plays",
+          !any_voice(&trk[0]) && any_voice(&trk[1]));
+    host_init();
+    drum_hit(&trk[0], 127);
+    drum_hit(&trk[1], 127);
+    a = any_voice(&trk[0]);
+    b = any_voice(&trk[1]);
+    check("solo: none soloed -> both play", a && b);
+    host_init();
+    song.solo = 1u << 1;
+    trk[1].p[P_MUTE] = 1;
+    drum_hit(&trk[1], 127);
+    check("solo: a soloed and muted track is silent", !any_voice(&trk[1]));
+    a = trk_silent(&trk[1]) && trk_silent(&trk[0]) && trk_silent(&trk[2]);   /* T2 muted, T1 and T3 not soloed */
+    song.solo = 0;
+    trk[1].p[P_MUTE] = 0;
+    check("solo: trk_silent = MUTE, or another track soloed and not this one",
+          a && !trk_silent(&trk[0]) && !trk_silent(&trk[1]));
+}
+
 static void test_empty_slot(void)
 {
     host_init();
@@ -1827,6 +1864,7 @@ static void test_comp_formats(void)
 /* (src_before: the SRC during the first 0.25 s, then src; src_duck: DUCK on the source itself) */
 typedef struct { int32_t after, late, send, src_peak; } comp_meas_t;
 static int16_t scene_ghost = CG_KEEP;               /* GHOST for comp_scene */
+static uint8_t scene_solo;                           /* song.solo for comp_scene */
 static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, int src_duck, int src_before)
 {
     comp_meas_t m = {0, 0, 0, 0};
@@ -1840,6 +1878,7 @@ static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, 
     trk[1].p[P_DUCK] = (int16_t)duck;
     trk[0].p[P_DUCK] = (int16_t)src_duck;
     trk[0].p[P_MUTE] = (int16_t)src_muted;
+    song.solo = scene_solo;
     if (src_level0)
         trk[0].p[P_LEVEL] = 0;
     drum_hit(&trk[1], 127);
@@ -1908,6 +1947,11 @@ static void test_comp_ghost(void)
     check("COMP ghost key: a muted source is silent and still ducks exactly as heard",
           ghost.src_peak == 0 && ghost.after == heard.after && ghost.late == heard.late);
     check("COMP: a source at LEVEL 0 still ducks exactly as heard", quiet.after == heard.after);
+    scene_solo = 1u << 1;                            /* T2 soloed: the source (T1) silent, as muted */
+    ghost = comp_scene(1, 1, 0, 0, 0, 1);
+    scene_solo = 0;
+    check("COMP ghost key: a source silenced by another track's SOLO is silent and still ducks exactly as heard",
+          ghost.src_peak == 0 && ghost.after == heard.after && ghost.late == heard.late);
 }
 
 /* GHOST: MUTE (a muted source is muted: silent, ducks nothing), KEEP (above), HIDE (never heard, always ducks) */
@@ -3328,6 +3372,7 @@ int main(void)
     test_two_voices();
     test_choke();
     test_mute();
+    test_solo();
     test_empty_slot();
     test_mix_health();
     test_seq_timing();
