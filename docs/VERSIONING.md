@@ -45,5 +45,7 @@ built in the cloud:
 
 `BLE=1 tools/publish.sh …` publishes two versions: the same build with Bluetooth MIDI too (`FELUCCA_BLE=1`, every
 Bluetooth gate), as `hortator-X.Y.Z-bluetooth.fwsc` in the release and a choice in the web installer (the plain
-version is the default). Off until Bluetooth part 2: the user wants the first two-version release to be part 2's.
+version is the default). The Bluetooth package now carries parts 2, 3 and 5 (the Bluetooth page and MIDI in, MIDI
+out, the SMC-Mixer DAW mode; part 4, MIDI learn, is not in it); the first two-version release (`BLE=1`) is the one
+that brings them.
 Locally, `DRUM_PACKAGE=1 DRUM_BUNDLE=1 ./build.sh` makes both packages and the two-version `build/site`.

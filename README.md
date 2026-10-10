@@ -141,8 +141,11 @@ FM-1's keys as live record does.
   the mixer blinks its LED. Then it follows. On every connection, and whenever a track's LEVEL changes some other
   way (the FM-1's knob, LOAD, INIT, LEVEL motion), that fader has to be picked up again.
 - **Solo:** while any track is soloed, only the soloed tracks are heard; several can be soloed. A silenced track
-  is dimmed on HOME and TRACKS, as a muted one; the TRACKS mutes are unchanged. Solo is not saved: INIT and a
-  power-on clear it.
+  is dimmed on HOME and TRACKS, as a muted one; the TRACKS mutes are unchanged. The FM-1 has no SOLO control, so solo
+  clears by itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (every track audible again; nothing
+  is cut). Solo is not saved: INIT and a power-on clear it too.
+- **Leaving SMC DAW** (MODE MIDI while connected): Hortator turns the mixer's LEDs off once and sends it nothing
+  more.
 
 ## Install
 

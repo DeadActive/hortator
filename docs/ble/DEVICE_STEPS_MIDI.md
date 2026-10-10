@@ -67,7 +67,8 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
    - MUTE n: track n mutes / unmutes as the TRACKS key does, and MUTE n's LED shows it. With MUTE: NEXT BAR (TRACKS),
      the LED changes at once and the track at the next bar.
    - SOLO n: only the soloed tracks are heard (several can be); SOLO n again unsolos. TRACKS and HOME dim the
-     silenced tracks; SOLO n's LED is lit while soloed.
+     silenced tracks; SOLO n's LED is lit while soloed. Solo clears by itself when the SMC-Mixer disconnects
+     (step 10) or MODE leaves SMC DAW (step 13): every track is heard again, no sound is cut.
    - REC n: arms track n (REC n lit, the FM-1's REC LED lit); while stopped it also starts play. Again: disarms.
    - SELECT n: selects track n on the FM-1; SELECT n's LED moves to it.
 8. **Transport and track ◀ ▶:**
@@ -81,23 +82,27 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
    FM-1's keys as for live record now. Expected: the hits are written to track 2's steps. Turn knob 2 a few clicks,
    and move fader 2 once it is picked up: both recorded as motion (SEQ → MOTION shows it). REC 2 again disarms;
    STOP.
-10. **The SMC off and on:** with the transport playing, switch the SMC-Mixer off. Expected: `BT LOST` in the top
-    bar, Hortator plays on. Switch it on again (DAW mode). Expected: within about 15 s `BT CONNECTED`; the LEDs are
-    right again and every fader is picked up again (step 5).
+10. **The SMC off and on:** with the transport playing, SOLO 1, then switch the SMC-Mixer off. Expected: `BT LOST`
+    in the top bar, Hortator plays on, the solo clears (every track heard again, no sound cut). Switch it on again
+    (DAW mode). Expected: within about 15 s `BT CONNECTED`; the LEDs are right again and every fader is picked up
+    again (step 5).
 11. **Under load:** a pattern playing, move several faders fast and turn the knobs for 20 s, then type `ble`.
     Expected: no audible glitch; `audio_late 0`, `out` rising from one `ble` to the next while the faders move,
     `in_drops 0`, `errs 0`, `out_drops 0`. Copy the whole `ble` output.
 12. **Power cycle:** switch the FM-1 off and on (Bluetooth is off), the SMC-Mixer on. MENU → BLUETOOTH: DEVICE shows
     the remembered device (its address until it is seen). KNOB 1 right on BLUETOOTH. Expected: it reconnects by
     itself, with no SCAN or pick: `CONNECTED SMC-Mixer` within about 15 s. MODE kept what it was set to before.
+    With MODE AUTO: the mixer's LEDs light and its faders and buttons act (AUTO chose SMC DAW, not MIDI); do this
+    power cycle three times.
 13. **MIDI mode** (optional, with a BLE-MIDI keyboard or app): MODE `MIDI` (AUTO picks MIDI for any device whose
     name does not start with `SMC`), SCAN, pick the keyboard. Expected: notes on the drum channel (GLO: CH, 10 by
     default) play the tracks whose NOTE (EDIT) matches, as USB and TRS do. GLO: CLK `BLE` with a device that sends
     MIDI clock: the tempo follows it, Start / Stop drive the transport, the BPM knob says `CLK BLE`. Without a
     keyboard, the SMC-Mixer works too: MODE `MIDI`, GLO CH 1, a track's NOTE 16; MUTE 1 (note 16) then plays that
-    track, and Hortator sends the mixer no LEDs or fader positions. Afterwards: CH and NOTE back, MODE back to AUTO
-    (saved when the menu closes), and, after a keyboard, SCAN and pick the SMC-Mixer again so it is the remembered
-    device for the next steps.
+    track, and Hortator sends the mixer no LEDs or fader positions. Before switching to MIDI with the SMC-Mixer
+    connected in SMC DAW: SOLO 2 and some MUTE LEDs lit; on MODE `MIDI` every LED on the mixer goes dark once and the
+    solo clears. Afterwards: CH and NOTE back, MODE back to AUTO (saved when the menu closes), and, after a keyboard,
+    SCAN and pick the SMC-Mixer again so it is the remembered device for the next steps.
 14. **Way back, BT on:** connected (step 4 or 12), hold OCT- + OCT+ for 5 s. Expected: UBOOT. Leave it by switching
     off and on.
 15. **Update path, BT on and connected:** BLUETOOTH ON (it reconnects, step 12) and ask me for the next build; I rebuild it with a new
@@ -108,6 +113,16 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
     - If Hortator does not come back: do not run any other tool on it; tell me what the screen shows.
 16. **FORGET:** MENU → BLUETOOTH, ON, connected; PRESETS to DEVICE, KNOB 1 left. Expected: DEVICE `NONE`, the link
     drops (`BT LOST`), no reconnect. A power cycle and BLUETOOTH ON stay `IDLE` until a device is picked again.
+17. **Flash saves with Bluetooth on and linked:** a pattern playing, BLUETOOTH ON, the SMC-Mixer connected. Each of
+    these writes the flash. After each, check: the pattern plays on, the state line says `CONNECTED SMC-Mixer`
+    (again, where the step drops the link: SCAN and FORGET do), and the mixer still works (move a fader, press
+    MUTE 1 twice):
+    - pick a device: SCAN, pick the SMC-Mixer (the remembered device is saved);
+    - FORGET it (DEVICE, KNOB 1 left), then SCAN and pick it again;
+    - MODE: change it (e.g. AUTO → SMC DAW), close the menu (hold HOME: MODE is saved then), open it and set it back;
+    - a project save (the SAVE page, as usual).
+    Then type `ble`. Expected: `audio_late` as before the saves (or a few more, during the saves only), `errs 0`,
+    no crash. Copy the `ble` output.
 
 ## On a failure
 
@@ -134,3 +149,4 @@ never happens: the state line and the error line under it.
 | 14 UBOOT, BT on | | | |
 | 15 update, BT on | | | |
 | 16 FORGET | | | |
+| 17 flash saves, BT on | | | |
