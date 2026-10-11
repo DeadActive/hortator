@@ -124,10 +124,12 @@ static const param_desc_t GP[G_COUNT] = {
     [G_RTYPE] = PE("TYPE", N_RTYPE, 0),
 };
 
-/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE (G_MUTEBAR, the device setting
- * settings.mutebar); their knob values are song.act, not song.g / projects */
+/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE and METRO (G_MUTEBAR, G_METRO: the
+ * device settings settings.mutebar, fx_metro); their knob values are song.act, not song.g / projects */
 static const char *const N_MUTEBAR[] = {"NOW", "BAR"};
-static const param_desc_t GP_ACT[3] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0)};
+static const char *const N_METRO[] = {"OFF", "LOW", "MID", "HIGH"};
+static const param_desc_t GP_ACT[4] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0),
+                                       PE("METRO", N_METRO, 0)};
 
 /* RESON STRCT on CHORD: the chord type, 0..127 split evenly over N_RCHORD (reson.c rs_chord) */
 static const param_desc_t RS_CHORD_DESC = {"CHORD", F_INT, 0, 127, 0, N_RCHORD, 0};

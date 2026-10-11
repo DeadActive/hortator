@@ -73,8 +73,8 @@ enum {                          /* global parameters */
     G_COUNT
 };
 enum { CG_MUTE, CG_KEEP, CG_HIDE };                 /* GHOST: muted = muted; muted still keys; never heard, keys */
-enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR };   /* TOOLS actions, the MUTE setting: shown like globals, not stored
-                                                     * in projects */
+enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO };   /* TOOLS actions, the MUTE and METRO settings: shown
+                                                     * like globals, not stored in projects */
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {                 /* sample playback state (eng_sample.c sample_next, dm_sample.c) */
@@ -195,8 +195,8 @@ typedef struct {
     uint32_t cpu_rem;            /* its average's remainder (audio.c) */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
-    int16_t act[3];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
-                                  * copy of settings.mutebar */
+    int16_t act[4];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
+                                  * copy of settings.mutebar; METRO: of fx_metro */
     uint8_t mute_q;              /* TRACKS: mutes to flip on the next bar (bit per track; seq.c) */
     uint8_t solo;                /* SOLO (the SMC-Mixer): bit per track, runtime only (trk_silent) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */

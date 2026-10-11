@@ -1368,6 +1368,43 @@ static void test_global_mute_setting(void)
     check("GLOBAL 3/3: KNOB 1 back -> NOW", settings.mutebar == 0u);
 }
 
+/* GLOBAL 3/3, KNOB 2: METRO OFF / LOW / MID / HIGH (spec 2026-10-11-fixes §8), the device setting fx_metro (fx.c's
+ * click); not in projects */
+static void test_global_metro_setting(void)
+{
+    uint32_t k, ok = 1;
+    int16_t *vp;
+    const param_desc_t *d;
+    char v[12];
+    const char *u;
+    static const char *const NAMES[4] = {"OFF", "LOW", "MID", "HIGH"};
+    ui_host_init();
+    fx_metro = 0;
+    for (k = 0; k < 6u && (ui.home || cur_page()->id[0] != G_MUTEBAR); k++)
+        tap(B_GLO);
+    d = page_desc(cur_page(), 1, &vp);
+    check("GLOBAL 3/3: KNOB 2 is METRO, OFF", d && str_eq(d->label, "METRO") && vp && *vp == 0);
+    for (k = 0; k < 4u; k++) {
+        param_format(d, (int32_t)k, v, &u);
+        ok &= str_eq(v, NAMES[k]);
+    }
+    check("METRO values: OFF LOW MID HIGH", ok);
+    turn(EN_K2, 2);
+    ui_frame();
+    check("GLOBAL 3/3: KNOB 2 -> MID (the setting; the knob shows it)", fx_metro == 2u && song.act[3] == 2);
+    snap_page("fixes/global_3_metro");
+    turn(EN_K2, 5);
+    ui_frame();
+    check("KNOB 2 up: HIGH at the end", fx_metro == 3u);
+    turn(EN_K2, -9);
+    ui_frame();
+    check("KNOB 2 down: OFF", fx_metro == 0u && song.act[3] == 0);
+    fx_metro = 1;
+    ui_frame();
+    check("the knob follows the setting (as MUTE's)", song.act[3] == 1);
+    fx_metro = 0;
+}
+
 static void test_clear_confirm(void)
 {
     uint32_t i;
@@ -4615,6 +4652,7 @@ int main(void)
     test_acid_cap();
     test_preset_pages();
     test_global_mute_setting();
+    test_global_metro_setting();
     test_comp_pages();
     test_comp_ghost_knob();
     test_comp_keys();

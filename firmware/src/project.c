@@ -426,6 +426,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     for (u = 0; u < 4u; u++)                          /* FDRA images the previous firmware left in the RAM slots */
         proj_upgrade(&proj_slot[u]);
     memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO unless the flash record has them */
+    fx_metro = 0;                                     /* METRO OFF, as well */
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();
@@ -442,7 +443,8 @@ static void persist_boot(void)                    /* before settings_init / pane
     if (st_load(OBJ_SETTINGS, &p, sizeof p) == (int)sizeof p && p.magic == PERSIST_MAGIC) {
         settings.magic = SETTINGS_MAGIC;
         settings.palette = p.palette;
-        settings.lowcut = p.lowcut & 0xFFu;
+        settings.lowcut = p.lowcut & 3u;          /* bits 0..1 SPEAKER EQ; 5..6 METRO (spec 2026-10-11-fixes §9) */
+        fx_metro = (uint8_t)((p.lowcut >> 5) & 3u);
         settings.zoom = p.zoom & 1u;
         settings.mutebar = (p.zoom >> 1) & 1u;     /* kept in zoom's bit 1: the flash format stays Felucca's */
         settings.accel = !((p.zoom >> 2) & 1u);    /* bit 2 = KNOB ACCEL OFF: older saves read as on */
@@ -553,7 +555,7 @@ static void settings_save(void)                    /* asked for while playing: w
     memset(&p, 0, sizeof p);
     p.magic = PERSIST_MAGIC;
     p.palette = settings.palette;
-    p.lowcut = (settings.lowcut & 0xFFu) | btset.bt_hi << 8;
+    p.lowcut = (settings.lowcut & 3u) | (fx_metro & 3u) << 5 | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
              (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;
     p.panel = panel;
