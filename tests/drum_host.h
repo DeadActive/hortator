@@ -20,7 +20,8 @@
 #undef memcmp
 static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                    /* (the main loop's guard: nothing to guard on the host) */
-static void fm1_irq_on(void) {}
+static uint32_t host_irq_on;                         /* fm1_irq_on calls (boot_test: none before main.c's) */
+static void fm1_irq_on(void) { host_irq_on++; }
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"
 #include "../firmware/src/comp.c"

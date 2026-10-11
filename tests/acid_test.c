@@ -685,6 +685,25 @@ static void test_rat_note_live(void)
           t->rat_k == 2u && t->v[0].x[1] == (60 + 5) * 16);
 }
 
+/* PRIO (spec 2026-10-11 §10): a held ACID note still goes last, on a LOW track too; between two held notes the LOW
+ * track's goes first */
+static void test_shed_held_prio(void)
+{
+    track_t *t = acid();
+    t->p[P_PRIO] = 1;                                  /* LOW */
+    drum_play(t, 96, 0);                               /* the oldest, its gate open */
+    drum_play(&trk[1], 96, 0);                         /* a HIGH drum voice */
+    drum_shed();
+    check("acid: a held ACID note on a LOW track still goes after a HIGH drum voice", t->v[0].active && !trk[1].v[0].active);
+    t = acid();                                        /* two held notes: track 1 HIGH (older), track 2 LOW */
+    drum_set_model(&trk[1], DM_ACID);
+    trk[1].p[P_PRIO] = 1;
+    drum_play(t, 96, 0);
+    drum_play(&trk[1], 96, 0);
+    drum_shed();
+    check("acid: of two held notes the LOW track's goes first", t->v[0].active && !trk[1].v[0].active);
+}
+
 int main(void)
 {
     test_pitch();
@@ -713,6 +732,7 @@ int main(void)
     test_row_change();
     test_steal_held();
     test_shed_held();
+    test_shed_held_prio();
     test_seq_rat_slide();
     test_seq_tie_slide();
     test_seq_tie_wrap();

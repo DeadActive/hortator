@@ -62,12 +62,12 @@ static int bench_isr(void)
         fail = 1;
     }
     bench.mode = BENCH_LIVE;
-    render_us = 5000;                                /* 86 % of the half: shedding would start */
+    render_us = 5600;                                /* 96 % of the half: shedding would start */
     shed_req = 0;
     bench_isr_case();
     ticks_calls = 0;
     fm1_alnk0_irq();
-    if (dblock == db || nonzero_half() || bench.halves != 1u || bench.sum_us != 5000u || bench.max_us != 5000u ||
+    if (dblock == db || nonzero_half() || bench.halves != 1u || bench.sum_us != 5600u || bench.max_us != 5600u ||
         shed_req || !bench.rest) {
         printf("bench LIVE: blocks %u, output %s, halves %u, sum %u, max %u, shed %u, rest %u\n", dblock - db,
                nonzero_half() ? "not silent" : "silent", bench.halves, bench.sum_us, bench.max_us, shed_req,
@@ -84,7 +84,7 @@ static int bench_isr(void)
     render_us = 1000;
     ticks_calls = 0;
     fm1_alnk0_irq();
-    if (dblock == db || bench.halves != 2u || bench.sum_us != 6000u || bench.max_us != 5000u || bench.rest) {
+    if (dblock == db || bench.halves != 2u || bench.sum_us != 6600u || bench.max_us != 5600u || bench.rest) {
         printf("bench LIVE light: halves %u, sum %u, max %u, rest %u\n", bench.halves, bench.sum_us, bench.max_us,
                bench.rest);
         fail = 1;
@@ -92,6 +92,40 @@ static int bench_isr(void)
     bench.mode = BENCH_OFF;
     if (!fail)
         printf("audio ISR: BENCH hold silent, live timed and muted, no shedding, a rest after a heavy half ok\n");
+    return fail;
+}
+
+/* overload: a half that took more than 95 % of its time (5804 us at 256 frames, 44.1 kHz: above 5513.8 us) asks
+ * for one voice to be shed before the next half; 90 % and 95 % exactly do not */
+static int shed_threshold(void)
+{
+    static const uint32_t US[4] = {5224, 5513, 5514, 5600};   /* 90 %, 95 % (5513.8 not reached), above, 96 % */
+    static const uint8_t WANT[4] = {0, 0, 1, 1};
+    uint32_t i, s0;
+    int fail = 0;
+    host_init();
+    nested_add = 0;
+    memset(&bench, 0, sizeof bench);
+    for (i = 0; i < 4u; i++) {
+        render_us = US[i];
+        shed_req = 0;
+        ticks_calls = 0;
+        fm1_alnk0_irq();
+        if (shed_req != WANT[i]) {
+            printf("audio ISR: a %u us half: shed %u, want %u (95 %% of 5804 us)\n", US[i], shed_req, WANT[i]);
+            fail = 1;
+        }
+    }
+    s0 = song.sheds;
+    render_us = 1000;
+    ticks_calls = 0;
+    fm1_alnk0_irq();                                 /* the next half sheds (and counts it: the top bar's icon) */
+    if (shed_req || song.sheds != s0 + 1u) {
+        printf("audio ISR: the half after a heavy one: shed %u, sheds %u (was %u)\n", shed_req, song.sheds, s0);
+        fail = 1;
+    }
+    if (!fail)
+        printf("audio ISR: sheds above 95 %% of a half (5514 us), not at 90 %% or 95 %%; counted ok\n");
     return fail;
 }
 
@@ -126,5 +160,6 @@ int main(void)
     if (!fail)
         printf("audio ISR: in_audio first, nested TIMER5 time excluded ok\n");
     fail |= bench_isr();
+    fail |= shed_threshold();
     return fail;
 }

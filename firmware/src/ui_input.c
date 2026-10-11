@@ -613,7 +613,7 @@ static void ui_input(void)
             open_family(FAM_MIX);                       /* arming is TRACKS' (a REC tap there) */
         }
     }
-    if (ui.confirm) {                                   /* OCT- cancels, OCT+ clears; nothing else reacts */
+    if (ui.confirm) {                                   /* OCT- cancels (NO), OCT+ clears (YES); nothing else reacts */
         if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
             char m[12] = "1 CLEARED";
             m[0] = (char)('1' + ui.confirm_trk);
@@ -628,6 +628,9 @@ static void ui_input(void)
                 memset(&chain.cfg, 0, sizeof chain.cfg);
                 ui.song_row = 0;
                 ui_message("SONG CLEARED");
+            } else if (ui.confirm == 5u) {              /* the last project failed to load: forget it (saved) */
+                lastp.set = 0;
+                settings_save();
             } else if (ui.confirm == 2u) {              /* the MOTION page's CLEAR */
                 motion_clear(ui.confirm_trk % NTRK);
                 ui_message("MOTION CLEARED");

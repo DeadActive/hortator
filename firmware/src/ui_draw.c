@@ -50,18 +50,33 @@ static int head_mode(char *b)
     return 1;
 }
 
-/* top bar: transport, BPM | track, USB, battery; messages replace it */
+#define C_ALERT RGB(255, 40, 32)                     /* the CPU icon (a fixed red, not the palette's) */
+/* the CPU icon (spec 2026-10-11 §10): on for 2 s after an overload shed (audio.c song.sheds) */
+static uint32_t cpu_alert(void)
+{
+    if (song.sheds != ui.sheds) {
+        ui.sheds = song.sheds;
+        ui.cpu_ms = fm1_ms;
+        ui.cpu_on = 1;
+    }
+    if (ui.cpu_on && fm1_ms - ui.cpu_ms >= 2000u)
+        ui.cpu_on = 0;
+    return ui.cpu_on;
+}
+
+/* top bar: transport, BPM | track, (the CPU icon), USB, battery; messages replace it */
 static void draw_head(void)
 {
     char b[16], m[16];
     uint32_t i;
     int32_t x;
-    uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;
+    uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u, cpu = cpu_alert();
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
                    (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u;
+    sig += cpu * 50021u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -97,6 +112,13 @@ static void draw_head(void)
     b[1] = (char)('1' + song.sel);
     b[2] = 0;
     cv_text(ui.srec ? 168 : 140, 1, &FONT_S, b, C_HI);   /* (STEP REC nn reaches x 164) */
+    if (cpu) {                                        /* after T<n>; in step record (T at 168) in USB's place */
+        x = ui.srec ? 191 : 162;
+        if (FELUCCA_ICONS)
+            cv_icon(x + 3, 2, ICON_CHIP, C_ALERT);
+        else
+            cv_text(x, 1, &FONT_S, "CPU", C_ALERT);
+    }
     {
         int32_t lvl = batt_shown(), k, bx = 236 - 19;
         cv_rect(bx, 4, 17, 1, C_GRAY);
@@ -106,7 +128,7 @@ static void draw_head(void)
         cv_rect(bx + 17, 6, 2, 5, C_GRAY);
         for (k = 0; k < lvl; k++)
             cv_rect(bx + 2 + k * 5, 6, 3, 5, lvl == 1 && batt_level() <= 1 ? C_WHITE : C_HI);
-        if (usb.config && !usb.suspended)
+        if (usb.config && !usb.suspended && !(cpu && ui.srec))
             cv_text(bx - 28, 1, &FONT_S, "USB", C_DIM);
     }
     cv_blit(0, Y_HEAD);
@@ -1598,11 +1620,16 @@ __attribute__((always_inline)) static inline void ui_draw(void)
                 str_cpy(b + str_len(b), "?", 4);
             } else if (ui.confirm == 4u) {
                 str_cpy(b, "CLEAR SONG?", sizeof b);
+            } else if (ui.confirm == 5u) {              /* the power-on load failed (project.c project_boot) */
+                str_cpy(b, "LOAD FAILED: SLOT A", sizeof b);
+                b[18] = (char)('A' + ui.confirm_trk % 4u);
             } else {
                 b[12] = (char)('1' + ui.confirm_trk);
             }
             lcd_fill(0, 0, 240, 240, C_BLACK);
             draw_text_box(0, 84, 240, &FONT_S, b, C_WHITE, 1);
+            if (ui.confirm == 5u)
+                draw_text_box(0, 104, 240, &FONT_S, "START NEW PROJECT?", C_WHITE, 1);
             draw_text_box(0, 132, 240, &FONT_S, "OCT- NO    OCT+ YES", C_GRAY, 1);
             ui.force = 0;
         }

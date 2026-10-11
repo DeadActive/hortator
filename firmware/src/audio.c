@@ -40,15 +40,15 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
     }
 }
 
-/* overload: a half that took > 85 % of its time sheds one voice before the next one: the oldest
- * sounding drum voice of any track fades out (drum_shed, the declick tail). */
+/* overload: a half that took > 95 % of its time sheds one voice before the next one: a LOW track's oldest
+ * sounding drum voice first, else the oldest (drum_shed, the declick tail); song.sheds counts them (the top bar's CPU
+ * icon, the console). */
 static volatile uint8_t shed_req;
-static uint32_t shed_count;
 
 static void shed_voice(void)
 {
     drum_shed();
-    shed_count++;
+    song.sheds++;
 }
 
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
@@ -84,7 +84,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         if (bench.mode) {                               /* BENCH: timed, never shed */
             if (!rest)
                 bench_time(us, fm1_audio_free_half() != half);
-        } else if (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u) {
+        } else if (us * 100u > (HALF_FRAMES * 1000000u / FS) * 95u) {
             shed_req = 1;
         }
         {                                             /* (upstream 1.0) the IIR keeps its remainder: no low bias */

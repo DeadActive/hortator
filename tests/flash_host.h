@@ -4,7 +4,8 @@
  * HAL entry points persist_boot calls) served from the test's 1 MiB image hflash (declared by the test). */
 static uint8_t flash_ok;
 #define FL_FAR(fn) (fn)
-static uint32_t fl_jedec_ram(void) { return 0x856014u; }   /* the FM-1's flash id */
+static uint32_t host_jedec = 0x856014u;                    /* the FM-1's flash id (0: no flash found) */
+static uint32_t fl_jedec_ram(void) { return host_jedec; }
 static void fl_plain_window_init(void) {}
 static uint32_t irq_save(void) { return 0; }                /* the HAL brackets flash reads with these */
 static void irq_restore(uint32_t f) { (void)f; }

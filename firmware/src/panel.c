@@ -70,6 +70,9 @@ _Static_assert(sizeof settings == 32u, ".noinit settings: the layout an update f
  * address bytes 0..2 and 3..5; all 0 none). Only from the flash record (persist_boot: zoom's and lowcut's spare bits),
  * else 0 */
 static struct { uint32_t btmode, bt_type, bt_lo, bt_hi; } btset;
+/* the last project saved to flash (spec 2026-10-11 §6): set, its slot 0..3 (lowcut's bits 2, 3..4). As btset: only
+ * from the flash record, else 0 */
+static struct { uint8_t set, slot; } lastp;
 
 static void settings_save(void);
 static void settings_poll(void);              /* project.c */              /* project.c: flash copy (FELUCCA_FLASH) */

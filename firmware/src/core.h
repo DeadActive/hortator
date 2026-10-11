@@ -52,6 +52,7 @@ enum {                          /* per-track parameters */
     P_RMODEL = P_LFO2 + LF_N,    /* RESON (reson.c): MODEL TUNE DECAY MIX, TONE STRCT POS */
     P_RTUNE, P_RDECAY, P_RMIX, P_RTONE, P_RSTRCT, P_RPOS,
     P_FTYPE, P_FCUT, P_FRESO, P_FENV, P_FDEC,   /* FILTER (filter.c): TYPE CUT RESO ENV DECAY */
+    P_PRIO,                      /* 0 HIGH, 1 LOW: a LOW track's voice goes first (the voice cap, a CPU shed; FDRC) */
     P_COUNT
 };
 
@@ -193,6 +194,7 @@ typedef struct {
     uint32_t tick;               /* blocks since play */
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t cpu_rem;            /* its average's remainder (audio.c) */
+    uint32_t sheds;              /* overload sheds (audio.c shed_voice): the top bar's CPU icon (ui_draw.c) */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
     int16_t act[3];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a

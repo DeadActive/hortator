@@ -57,7 +57,7 @@ static const page_t PAGES[] = {
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_REC};
 
 /* the EDIT list of track t: MODEL, its model's TUNE DECAY TONE and 4th knob, its extra knobs, then LVL PAN NOTE
- * CHOKE (at most 16); returns how many */
+ * CHOKE PRIO (at most 16: 14); returns how many */
 static uint32_t snd_list(const track_t *t, uint8_t *ids)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
@@ -70,6 +70,7 @@ static uint32_t snd_list(const track_t *t, uint8_t *ids)
     ids[n++] = P_PAN;
     ids[n++] = P_NOTE;
     ids[n++] = P_CHOKE;
+    ids[n++] = P_PRIO;
     return n;
 }
 

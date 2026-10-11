@@ -93,7 +93,8 @@ static void test_sound_pages(void)
     edit_next();
     pg = cur_page();
     n = fam_pages(FAM_SND, &k);
-    check("EDIT page 3: CHOKE, nothing else (no MUTE)", page_id(pg, 0) == P_CHOKE && page_id(pg, 1) == 0xFFu && k == 3u && n == 3u);
+    check("EDIT page 3: CHOKE PRIO, nothing else (no MUTE)", page_id(pg, 0) == P_CHOKE && page_id(pg, 1) == P_PRIO &&
+                                                               page_id(pg, 2) == 0xFFu && k == 3u && n == 3u);
     snap_page("engines/zz_c808_edit_3");
     edit_next();
     n = fam_pages(FAM_SND, &k);
@@ -4587,6 +4588,89 @@ static void test_acid_screens(void)
     printf("     acid: screens in build/ui_shots/acid\n");
 }
 
+/* ---- CPU (spec 2026-10-11 §10): PRIO on the SOUND list after CHOKE; the CPU icon after an overload shed */
+
+static void test_prio_sound_list(void)
+{
+    uint8_t ids[16];
+    uint32_t m, n, ok = 1;
+    ui_host_init();
+    for (m = 0; m < NMODELS; m++) {
+        drum_set_model(TSEL, m);
+        n = snd_list(TSEL, ids);
+        ok &= n <= 16u && ids[n - 1u] == P_PRIO && ids[n - 2u] == P_CHOKE;
+    }
+    check("PRIO: every model's SOUND list ends CHOKE, PRIO", ok);
+    drum_set_model(TSEL, DM_CYMB);
+    n = snd_list(TSEL, ids);
+    ui.home = 0;                                     /* the SOUND page with PRIO */
+    ui.page = (uint8_t)(page_first(FAM_SND) + (n - 1u) / 4u);
+    ui.force = 1;
+    ui_frame();
+    turn(EN_K1 + (n - 1u) % 4u, 1);
+    ui_frame();
+    check("PRIO: its knob sets LOW (the selected track), HIGH back", TSEL->p[P_PRIO] == 1 && trk[1].p[P_PRIO] == 0);
+    snap_page("fixes/sound_prio");
+    turn(EN_K1 + (n - 1u) % 4u, -1);
+    ui_frame();
+    check("PRIO: ... and HIGH again", TSEL->p[P_PRIO] == 0);
+}
+
+static uint32_t head_alert(int32_t x0, int32_t x1)   /* the CPU icon's pixels in the top bar, x0..x1 */
+{
+    uint32_t x, y, n = 0;
+    for (y = 0; y < H_HEAD; y++)
+        for (x = (uint32_t)x0; x <= (uint32_t)x1; x++)
+            n += fb[y * 240u + x] == C_ALERT;
+    return n;
+}
+
+static void test_cpu_icon(void)
+{
+    uint32_t a, b, ball, c, d;
+    ui_host_init();
+    fm1_ms = 5000;
+    ui_frame();
+    a = head_alert(0, 239);
+    song.sheds++;                                    /* audio.c shed a voice */
+    ui_frame();
+    b = head_alert(158, 188);
+    ball = head_alert(0, 239);
+    snap_page("fixes/cpu_icon");
+    fm1_ms = 6999;
+    ui_frame();
+    c = head_alert(158, 188);
+    fm1_ms = 7000;
+    ui_frame();
+    d = head_alert(0, 239);
+    check("CPU icon: none before a shed; red in the top bar's free space (x 158..188) after one", a == 0u && b > 10u && b == ball);
+    check("CPU icon: shown for 2 s, then gone", c == b && d == 0u);
+    fm1_ms = 8000;
+    song.sheds += 3u;                                /* more sheds: shown again, 2 s from the last */
+    ui_frame();
+    fm1_ms = 9500;
+    song.sheds++;
+    ui_frame();
+    fm1_ms = 11000;
+    ui_frame();
+    check("CPU icon: each shed shows it 2 s from then", head_alert(158, 188) == b);
+    fm1_ms = 11500;
+    ui_frame();
+    check("CPU icon: ... and it goes", head_alert(0, 239) == 0u);
+    srec_open();                                     /* STEP REC 01 and T1 moved right (x 168): the icon by them */
+    fm1_ms = 20000;
+    ui_frame();
+    song.sheds++;
+    ui_frame();
+    check("CPU icon: in step record it keeps clear of STEP REC nn and T<n> (x 186..)", ui.srec &&
+                                                                                     head_alert(186, 239) > 10u &&
+                                                                                     head_alert(0, 185) == 0u);
+    snap_page("fixes/cpu_icon_step_rec");
+    tap(B_REC);
+    fm1_ms = 0;
+    ui_frame();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -4705,6 +4789,8 @@ int main(void)
     test_srec_chord();
     test_keys_seq_takeover();
     test_acid_screens();
+    test_prio_sound_list();
+    test_cpu_icon();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
