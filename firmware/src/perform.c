@@ -21,7 +21,8 @@
  * frames at 22.05 kHz (743 ms). While borrowed, STUT tracks play live; their recordings are dropped afterwards. A
  * REPEAT 1/8 or REVERSE longer than the loop at the tempo (40 BPM) does nothing (the map shows it dimmed).
  * KNOB 1..4 with FX: the macros FILTER (the LPF / HPF), CRUSH, THROW (the dry mix into the delay and reverb
- * sends), DEPTH (the buffer effects' level; OCT UP / DN: the shimmer).
+ * sends), DEPTH (the buffer effects' level; OCT UP / DN: the shimmer). They stay on after the PERFORM screen closes,
+ * until turned back to 0 on it (ui_input.c fx_layer); perf_kill (the menu, a dialog) stops only the buffer effects.
  * Chain: [REPEAT / REVERSE / TAPE / FREEZE / OCT] -> LPF -> HPF -> CRUSH, after the master level and before
  * master_out (the limiter); THROW and the mutes act before the buses (fx.c mix_block / mix_part).
  * Idle (no key, no knob, no ramp left) every stage is skipped: the output is bit-identical. */
@@ -47,7 +48,7 @@ enum { BM_NONE, BM_LOOP, BM_TAPE, BM_FRZ, BM_HARM };
 static volatile uint32_t perf_mask;   /* main: the FX button's bit while its layer may own keys, 0 = none */
 #define PERF_PAGE 0x80000000u                 /* perf_mask: the PERFORM page is open (MENU PERFORM PAGE): keys are
                                                * the layer's with no button held (no button has this bit) */
-static volatile uint8_t perf_kill;    /* main: every effect off (the menu, a dialog, UBOOT) */
+static volatile uint8_t perf_kill;    /* main: every key effect off (the menu, a dialog, UBOOT; not the knobs) */
 static volatile int8_t perf_k[4];     /* main: the knob macros, 0 = untouched: FILTER -100..100 (- LPF, + HPF),
                                        * CRUSH 0..100, THROW 0..100, DEPTH cut 0..100 (the buffer effects' level) */
 static volatile uint32_t kb_layer;    /* ISR: the keys held that are the layer's, a bit per key */

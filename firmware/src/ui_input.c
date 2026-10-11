@@ -399,30 +399,28 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 }
 
 /* PERFORM (perform.c): FX tapped = its pages, on the release (nothing else touched); FX held = the layer: keys
- * pressed with it are its own (seq.c keyboard_block), KNOB 1..4 its macros FILTER CRUSH THROW DEPTH (never saved,
- * back to off when FX is let go). It opens at once with a key or a knob, else after FX_HOLD_MS (then the release
- * does nothing). No layer in the menu, a dialog or the MUTE screen: a press there stays dead until let go, and every
- * effect is off until its keys are let go */
+ * pressed with it are its own (seq.c keyboard_block), KNOB 1..4 its macros FILTER CRUSH THROW DEPTH (never saved;
+ * spec §7: they stay on when the screen goes, until turned back to 0 on it, INIT ALL or BENCH). It opens at once
+ * with a key or a knob, else after FX_HOLD_MS (then the release does nothing). No layer in the menu, a dialog or the
+ * MUTE screen: a press there stays dead until let go, and every key effect is off until its keys are let go */
 #define FX_HOLD_MS 400u
 #define FX_DOWN 1u
 #define FX_OPEN 2u
 #define FX_DEAD 4u
 static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute; }
-/* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros off; keys
+/* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros stay on; keys
  * still held stay the layer's until let go */
 static void perf_page_close(void)
 {
     ui.pg_open = 0;
     perf_mask &= ~PERF_PAGE;
-    perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
 }
 static void fx_layer(uint32_t now, int home_tap)
 {
     uint32_t bit = 1u << panel.btn[B_FX], *t0 = &ui.fx_t0, k, show, down = (fm1_in.buttons & bit) != 0u;
     int32_t s;
     if (!fx_allowed()) {
-        perf_kill = 1;
-        perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* (the macros too: nothing runs under a menu) */
+        perf_kill = 1;                                  /* the buffer effects off (the macros stay on: spec §7) */
     } else if (!kb_layer) {
         perf_kill = 0;
     }
@@ -439,8 +437,6 @@ static void fx_layer(uint32_t now, int home_tap)
         if (!(*t0 & (FX_OPEN | FX_DEAD)))
             open_family(FAM_FX);                        /* a tap: the FX pages, as the button always did */
         *t0 = 0;
-        if (!ui.pg_open)
-            perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* HOLD: the macros snap back */
     }
     if ((down && !(*t0 & FX_DEAD)) || ui.pg_open || (kb_layer && fx_allowed()))   /* the knobs follow the screen: */
         for (k = 0; k < 4u; k++)                        /* the macros (FILTER CRUSH THROW DEPTH) while it is PERFORM's */
@@ -458,9 +454,7 @@ static void fx_layer(uint32_t now, int home_tap)
     perf_mask = (fx_allowed() && !(*t0 & FX_DEAD) ? bit : 0u) | (ui.pg_open ? PERF_PAGE : 0u);   /* armed before FX
                                                          * is pressed: a key struck with it is the layer's even before
                                                          * this pass has seen FX (keyboard_block tests the button) */
-    show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer || ui.pg_open);
-    if (!show)
-        perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* the screen gone: the macros snap back */
+    show = fx_allowed() && ((*t0 & FX_OPEN) || kb_layer || ui.pg_open);   /* (the screen gone: the macros stay) */
     if (show != ui.layer) {
         ui.layer = (uint8_t)show;
         ui.force = 1;

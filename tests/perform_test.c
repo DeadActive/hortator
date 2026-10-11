@@ -373,6 +373,28 @@ static void test_kill(void)
           !perf_act && !pf.w && Y[11025u + 1023u] == X[11025u + 1023u]);
 }
 
+/* spec §7: the knob effects stay on under the menu / a dialog (perf_kill stops only the buffer effects) */
+static void test_kill_keeps_knobs(void)
+{
+    uint32_t i, ok = 1;
+    pf_fresh(120);
+    sig_sine(100.0, 8000.0);
+    hold(PF_R16);
+    perf_k[1] = 100;                                  /* CRUSH 100 */
+    perf_kill = 1;
+    fx_run(0, 22050u);
+    for (i = 1024u; i < 22050u; i++)
+        ok &= (Y[i] & 2047) == 1024;
+    check("off (the menu): CRUSH (a knob) keeps working, the held REPEAT stops", ok && !perf_act);
+    pf_fresh(120);
+    sig_sine(8000.0, 8000.0);
+    perf_k[0] = -100;
+    perf_kill = 1;
+    fx_run(0, 44100u);
+    check("off (the menu): FILTER (a knob) keeps working: the LPF", rms(Y, 22050u, 44100u) < 0.1 * 8000.0 / sqrt(2.0));
+    perf_kill = 0;
+}
+
 /* the 1/16: REPEAT pressed mid-1/16 starts in the block where the Grids clock's next 1/16 starts */
 static void test_sixteenth(void)
 {
@@ -549,6 +571,7 @@ int main(void)
     test_stacking();
     test_slicer_lend();
     test_kill();
+    test_kill_keeps_knobs();
     test_sixteenth();
     test_sixteenth_clock();
     test_key_map();

@@ -70,6 +70,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     for (k = 0; k < NTRK; k++)
         pf.mg[k] = 32768;
     perf_mask = kb_layer = perf_held = perf_act = 0;
+    mute_mask = kb_mute = kb_mute_hit = 0;          /* the MUTE screen's keys (seq.c): none */
     perf_kill = 0;
     perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
     perf_seq = 0;

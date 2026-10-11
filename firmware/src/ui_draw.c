@@ -50,18 +50,19 @@ static int head_mode(char *b)
     return 1;
 }
 
-/* top bar: transport, BPM | track, USB, battery; messages replace it */
+/* top bar: transport, (FX) BPM | track, USB, battery; messages replace it */
 static void draw_head(void)
 {
     char b[16], m[16];
     uint32_t i;
     int32_t x;
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;
+    uint32_t pfx = (perf_k[0] | perf_k[1] | perf_k[2] | perf_k[3]) != 0;   /* PERFORM's knob effects on (spec §7) */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
-                   (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u;
+                   (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -81,7 +82,11 @@ static void draw_head(void)
         cv_rect(18, 6, 6, 6, rec == 2u ? C_WHITE : C_GRAY);
     fmt_int(b, song.g[G_BPM]);
     x = 32;
-    if (FELUCCA_ICONS) {
+    if (pfx) {                                        /* FX (a knob effect on) in the tempo icon's place */
+        cv_rect(27, 2, 18, 15, C_AMB);                /* (x 27..44: clear of the REC dot and the BPM) */
+        cv_text(28, 1, &FONT_S, "FX", C_BLACK);
+        x = 48;
+    } else if (FELUCCA_ICONS) {
         cv_icon(x, 2, ICON_TEMPO, C_GRAY);
         x += 14;
     }
@@ -1125,8 +1130,8 @@ static void graph_perf(void)
 #define MU_BH 40u
 #define MU_BX(k) (4u + (k) % 4u * 59u)
 #define MU_BY(k) (MU_Y + 4u + (k) / 4u * 60u)
-/* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber); in each the track and its model, under
- * it the key that toggles it; below, the mode and its keys. The top bar as everywhere */
+/* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber); in each the track and its
+ * model, under it the key that toggles it; below, the mode and its keys. The top bar as everywhere */
 static void draw_mute(void)
 {
     uint32_t k, blink = (fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u;

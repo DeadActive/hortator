@@ -2428,7 +2428,7 @@ static void test_perform_gesture(void)
     check("FX + KNOB 2: CRUSH, the layer open at once", perf_k[1] > 0 && ui.layer == 1u);
     release_all();
     ui_frame();
-    check("FX let go: the macros back to off, no page change", !perf_k[1] && (uint32_t)(cur_page() - PAGES) == fam);
+    check("FX let go (HOLD): CRUSH stays on, no page change", perf_k[1] > 0 && (uint32_t)(cur_page() - PAGES) == fam);
 }
 
 static void test_perform_keys(void)
@@ -2534,7 +2534,7 @@ static void test_perform_page(void)
     ui_frame();
     check("PAGE: PLAY and OCT+ leave it open", ui.pg_open && perf_k[1] > 0);
     tap(B_GLO);
-    check("PAGE: another page button closes it, the macros off", !ui.pg_open && !ui.layer && !perf_k[1] &&
+    check("PAGE: another page button closes it, the macros stay on", !ui.pg_open && !ui.layer && perf_k[1] > 0 &&
           cur_fam() == FAM_GLO);
     press(B_FX);
     fx_hold_frames(500);
@@ -2588,6 +2588,104 @@ static void test_perform_screens(void)
     ui_frame();
 }
 
+/* spec §7: the knob effects (FILTER CRUSH THROW DEPTH) keep their values and keep working after the PERFORM screen
+ * closes (FX let go, PAGE closed, the menu, a confirm, NAME); they change only on the PERFORM screen; INIT ALL resets
+ * them; the top bar shows FX while any is on. The buffer effects (black keys) still stop as before */
+static int head_fx_lit(void) { return fb[15u * 240u + 27u] != 0; }   /* the top bar's FX mark (left of the BPM) */
+static void test_perform_knobs_stay(void)
+{
+    uint32_t mode;
+    int16_t e1;
+    ui_host_init();
+    ui_frame();
+    check("no knob effect on: no FX mark in the top bar", !head_fx_lit());
+    press(B_FX);
+    turn(EN_K1, -40);                                 /* FILTER: LPF */
+    fx_hold_frames(2);
+    release_all();
+    ui_frame();
+    render_mix(0, 0, CTL);
+    check("HOLD: FX let go, FILTER stays on and keeps working", perf_k[0] < 0 && !ui.layer && pf.busy && pf.lc < PF_TOP);
+    ui_frame();
+    check("..the top bar shows FX", head_fx_lit());
+    snap_page("fixes/head_fx");
+    ui.keys = 1;                                     /* (the top bar at its fullest: armed, KEYS, a song's row) */
+    song.rec = 1u;
+    ui.force = 1;
+    snap_page("fixes/head_fx_keys");
+    ui.keys = 0;
+    song.rec = 0;
+    ui.force = 1;
+    ui_frame();
+    e1 = trk[0].p[P_E1];
+    turn(EN_K1 + 1, 3);
+    ui_frame();
+    check("the screen gone: the knobs edit the page again (HOME: DECAY), the macros untouched",
+          trk[0].p[P_E1] != e1 && perf_k[1] == 0 && perf_k[0] < 0);
+    for (mode = 0; mode < 3u; mode++) {               /* the menu, a confirm, NAME: the macros stay; effects stop */
+        press(B_FX);
+        keys(1u << 3);                                /* G#3: REPEAT 1/16 */
+        turn(EN_K2, 10);                              /* CRUSH */
+        fx_hold_frames(2);
+        release_all();
+        if (mode == 0u) {
+            ui.menu = 1;
+            ui.force = 1;
+        } else if (mode == 1u) {
+            ui.confirm = 1;
+            ui.force = 1;
+        } else {
+            project_save(0);
+            name_open(NK_RENAME, 0);
+        }
+        fm1_in.buttons = 0;
+        ui_frame();
+        render_mix(0, 0, CTL);
+        check(mode == 0u ? "the menu: CRUSH and FILTER stay on, the held REPEAT stops"
+              : mode == 1u ? "a confirm: CRUSH and FILTER stay on, the held REPEAT stops"
+                           : "NAME: CRUSH and FILTER stay on, the held REPEAT stops",
+              perf_k[1] > 0 && perf_k[0] < 0 && perf_kill && !perf_act && pf.busy);
+        keys(0);
+        ui_frame();
+        if (mode == 0u)
+            menu_close();
+        else if (mode == 1u)
+            ui.confirm = 0;
+        else
+            name_close();
+        ui.force = 1;
+        ui_frame();
+        perf_k[1] = 0;
+    }
+    settings.perfpage = 1;                            /* PAGE: closed by another page */
+    press(B_FX);
+    turn(EN_K3, 20);                                  /* THROW */
+    fx_hold_frames(2);
+    release_all();
+    ui_frame();
+    check("PAGE: the screen stays after FX", ui.pg_open && perf_k[2] > 0);
+    tap(B_EDIT);
+    check("PAGE closed by another page: THROW stays on", !ui.pg_open && !ui.layer && perf_k[2] > 0);
+    settings.perfpage = 0;
+    press(B_FX);
+    turn(EN_K1, 60);                                  /* FILTER back to 0 (-40 + 60 = 20 .. then down) */
+    turn(EN_K3, -40);                                 /* THROW back to 0 */
+    fx_hold_frames(2);
+    turn(EN_K1, -20);
+    fx_hold_frames(2);
+    release_all();
+    ui_frame();
+    ui_frame();
+    check("on the PERFORM screen, turned back to 0: FILTER and THROW off, no FX mark", !perf_k[0] && !perf_k[2] &&
+          !head_fx_lit());
+    perf_k[1] = 30;
+    perf_k[3] = 20;
+    init_all();
+    render_mix(0, 0, CTL);
+    check("INIT ALL: the knob effects off", !perf_k[0] && !perf_k[1] && !perf_k[2] && !perf_k[3]);
+    ui_frame();
+}
+
 /* review: FX pressed and a key at once, before the UI's pass has seen FX: still the layer's (no note) */
 static void test_perform_fast_key(void)
 {
@@ -2622,8 +2720,8 @@ static void test_perform_dead_hold(void)
         }
         fm1_in.buttons &= ~(1u << panel.btn[B_HOME]);
         fx_hold_frames(2);
-        check(p ? "PAGE: FX held into the menu: the CRUSH macro off there" : "HOLD: FX held into the menu: the CRUSH macro off there",
-              ui.menu && !perf_k[1]);
+        check(p ? "PAGE: FX held into the menu: the CRUSH macro stays on there" : "HOLD: FX held into the menu: the CRUSH macro stays on there",
+              ui.menu && perf_k[1] > 0);
         menu_close();
         fx_hold_frames(3);                            /* FX still held, the menu gone */
         check(p ? "PAGE: FX held out of the menu: dead (no PERFORM page, keys not the layer's)"
@@ -3192,10 +3290,10 @@ static void test_perform_knobs_follow_screen(void)
         ui_frame();
         for (i = 0; i < P_COUNT; i++)
             ch |= TSEL->p[i] != tb[i] && ui.layer;
-        keys(0);                                     /* the key let go: the screen goes, the macros snap back */
+        keys(0);                                     /* the key let go: the screen goes, the macros stay on */
         ui_frame();
         ui_frame();
-        ch |= !ui.layer && (perf_k[0] || perf_k[2]);
+        ch |= ui.layer || !perf_k[0] || !perf_k[2];
     }
     check("PERFORM shown (FX or a layer key held, or PAGE): the knobs are its macros, not the page under it", !ch);
 }
@@ -4934,6 +5032,7 @@ int main(void)
     test_perform_page();
     test_perform_screens();
     test_perform_fast_key();
+    test_perform_knobs_stay();
     test_perform_dead_hold();
     test_motion_recording();
     test_motion_model_change();
