@@ -15,7 +15,8 @@ record, change track buttons, auto approve youself, i want i to make me a workin
 "Auto approve yourself": the design choices below were made by Claude, not asked; they are listed for the user in the
 final report. The hard rules of the BLE design stay: nothing Bluetooth at boot (gate 3), the update path untouched
 (gates 1, 2a, 2b), no flash writes from BT code, integer only, the default build byte-identical without the BT files
-(gate 5).
+(gate 5). (Amended 2026-10-12, §2: AUTOSTART, the user's saved choice, starts Bluetooth 5 s after power-on from
+the main loop's UI.)
 
 ## 2. The Bluetooth page
 
@@ -47,6 +48,31 @@ PRESETS MOVE   OCT+ OK   OCT- BACK
   as `ble list`: BLE-MIDI devices first, then by signal.
 - **A device row, OCT+:** remembers it (saved) and connects to it; a connected device is disconnected first.
 - Top-bar messages anywhere: `BT CONNECTED` on a connection, `BT LOST` when a connection drops.
+
+**Amendment 2026-10-12: AUTOSTART.** The user (2026-10-12): "add setting in bluetooth menu to autostart bluetooth".
+This deliberately relaxes the hard rule "nothing Bluetooth at boot" for this one setting, at the user's request; every
+other rule stays (the update path, no flash writes from BT code, integer only, gate 5).
+- A row **AUTOSTART** OFF / ON after BLUETOOTH (rows: BLUETOOTH, AUTOSTART, MODE, DEVICE, SCAN, the devices). KNOB 1
+  right ON, left OFF; OCT+ toggles. Default OFF. Saved when the menu closes (as MODE), in the settings record's
+  `palette` word bit 8 (§8: the palette itself stays bits 0..7, masked on load); both builds load and save it, so the
+  default build keeps it. An older Hortator reading a record with it set sees a palette out of range and resets its
+  display settings once (`settings_init`).
+- With AUTOSTART ON, `bt_autostart` (`bt_page.c`, noinline) does BLUETOOTH ON (`bt_page_on`: the remembered device
+  the target, want on, `ble_user_start`; it then reconnects, §3) **once, 5 s after power-on** (`fm1_ms >= 5000`), from
+  `ui_input` — the main loop's UI, after the UI has run — never from `felucca_init`, `drum_boot_init`, the service
+  hook or an ISR. Gate 3 (`tools/check_ble_boot.py` CALLERS) allows exactly that: `bt_page_on` may be referenced by
+  the page's input and `bt_autostart`, and `bt_autostart` only by `ui_input`; its selftests check that a call from
+  `felucca_init`, `drum_boot_init`, `ed_service`, `menu_input` or an ISR still fails, and that `bt_autostart` may
+  not call `ble_user_start` itself.
+- Safeguards: nothing in a safe start (SEQ held); nothing when Bluetooth was already started by hand (the page or the
+  console) before 5 s. **Skipped** when the last Bluetooth start before this boot stopped short or ended fatally:
+  the BLE unit's `.noinit` record `ble_diag` (kept over a reboot) has a start counted whose stage never reached 7
+  (`BT_STATUS_INIT_OK`: a hang or crash in the start, the watchdog or a fault rebooted), or `fatal` ≠ 0 (a library
+  assert, reset request or a task's stack overflow; `ble_ui_prev_start_ok`, `ble_start_rec_ok` host-tested). Then
+  the top bar shows `BT AUTOSTART SKIPPED` once; BLUETOOTH ON by hand still works (and, completing, clears the way for
+  the next power-on). A start that FAILs without a reboot (`NO RF TRIM IN FLASH`) just shows its state on the page.
+  With a crash in the start every power-on, the boot guard (two boots dying in the first 30 s → UBOOT) and this skip
+  keep the FM-1 reachable: the boot after such a crash does not autostart.
 
 ## 3. Connecting and reconnecting
 
@@ -133,6 +159,7 @@ The remembered device and MODE live in spare bits of the existing settings objec
 magic, so the flash format stays readable by older Hortator and by Felucca):
 - `zoom` bits 5..6: MODE (0 AUTO, 1 SMC DAW, 2 MIDI); bit 7: the address type (0 public, 1 random);
 - `zoom` bits 8..31: address bytes 0..2; `lowcut` bits 8..31: address bytes 3..5; all zero = no device.
+- `palette` bit 8: AUTOSTART (amendment 2026-10-12, §2); bits 0..7 stay the palette.
 - `settings` (.noinit) gains `btmode`, `bt_type`, `bt_lo`, `bt_hi` in both builds, loaded and saved every time, so the
   default build keeps a remembered device it never uses.
 - An older Hortator reading a record with a device in it reads SPEAKER EQ as FLAT (its range check); nothing else

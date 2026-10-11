@@ -450,7 +450,7 @@ static void project_boot(void)
 /* settings + learned panel table: one flash object (format unchanged from Felucca, so a calibrated
  * panel survives the change of firmware). The flash copy wins at boot. */
 typedef struct {
-    uint32_t magic, palette, lowcut, zoom;
+    uint32_t magic, palette, lowcut, zoom;          /* palette: bits 0..7 COLOR, bit 8 the BT AUTOSTART (2026-10-12) */
     panel_t panel;
 } persist_t;
 #define PERSIST_MAGIC 0x50455232u                  /* "PER2" */
@@ -478,7 +478,8 @@ static void lc_unpack(uint32_t lc)
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
-    memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO unless the flash record has them */
+    memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO, AUTOSTART OFF unless the flash record
+                                                       * has them */
     memset(&lastp, 0, sizeof lastp);                  /* no last project, unless the flash record has one */
     fx_metro = 0;                                     /* METRO OFF, as well */
     backlight = 0;                                    /* BACKLIGHT OFF, as well */
@@ -497,7 +498,8 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     if (st_load(OBJ_SETTINGS, &p, sizeof p) == (int)sizeof p && p.magic == PERSIST_MAGIC) {
         settings.magic = SETTINGS_MAGIC;
-        settings.palette = p.palette;
+        settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
+        btset.bt_auto = (p.palette >> 8) & 1u;
         lc_unpack(p.lowcut);
         settings.zoom = p.zoom & 1u;
         settings.mutebar = (p.zoom >> 1) & 1u;     /* kept in zoom's bit 1: the flash format stays Felucca's */
@@ -608,7 +610,8 @@ static void settings_save(void)                    /* asked for while playing: w
         return;
     memset(&p, 0, sizeof p);
     p.magic = PERSIST_MAGIC;
-    p.palette = settings.palette;
+    p.palette = (settings.palette & 0xFFu) | (btset.bt_auto & 1u) << 8;   /* an older Hortator reads a palette
+                                                     * out of range from bit 8: its display settings reset */
     p.lowcut = lc_pack() | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
              (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;

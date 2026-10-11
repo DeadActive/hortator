@@ -4,7 +4,8 @@
 /* The Bluetooth page (firmware/src/bt_page.c, spec 2026-10-10 §2) on the host, built with FELUCCA_BLE=1, the UI
  * harness and the host flash (the remembered device and MODE through settings_save / persist_boot): the menu's
  * BLUETOOTH row, ON / OFF (the stack started once, only from OFF; FAILED and safe start refuse), MODE, a pick, FORGET,
- * SCAN, the pause ended on leaving, MIDI devices first, the redraw signature. Screens: build/ui_shots/bt/. */
+ * SCAN, the pause ended on leaving, MIDI devices first, the redraw signature; AUTOSTART (the row, its saved bit, once
+ * at 5 s after power-on, not in safe start, skipped after a bad last start). Screens: build/ui_shots/bt/. */
 #define FELUCCA_FLASH 1
 #include <stdint.h>
 static uint8_t hflash[0x100000];
@@ -95,6 +96,8 @@ static void fresh(void)                              /* erased flash, the stack 
     memset(&btp, 0, sizeof btp);
     conn_up = 0;
     safe_start = 0;
+    fm1_ms = 0;                                      /* (power-on) */
+    bt_auto_done = 0;
     ui.menu = 1;
     ui.menu_sel = 0;
     ui.home = 0;
@@ -220,7 +223,7 @@ static void test_refusals(void)
     safe_start = 0;
     fresh();
     open_page();
-    row(3);
+    row(BTR_SCAN);
     tap(B_OCTUP);
     check("SCAN while BLUETOOTH is OFF: refused with a message", !bs.scans && btp.msg && str_eq(btp.msg, "BLUETOOTH IS OFF"));
 }
@@ -232,7 +235,7 @@ static void test_mode(void)
     uint32_t i, lo, hi, ok = 1;
     fresh();                                         /* (erased flash: no settings record yet) */
     open_page();
-    row(1);
+    row(BTR_MODE);
     for (i = 0; i < 5u; i++) {
         knob(TURN[i]);
         ok &= btset.btmode == WANT[i] && rec_bt(&lo, &hi) == 0xFFFFFFFFu;
@@ -252,7 +255,7 @@ static void test_mode(void)
     check("MODE survives a power cycle (the flash record)", btset.btmode == 1u);
     fresh();
     open_page();
-    row(1);
+    row(BTR_MODE);
     knob(1);
     knob(1);
     menu_close();                                    /* (HOME held on the page) */
@@ -268,7 +271,7 @@ static void test_pick_drawn(void)
     open_page();
     knob(1);
     three();
-    row(4);                                          /* (drawn: 4 = SMC-Mixer) */
+    row(BT_ROWS);                                    /* (drawn: the first device = SMC-Mixer) */
     dev_set(0, A_JBL, 0, 1, -40, "JBL Flip 5");      /* the list changed: a MIDI device above the SMC */
     dev_set(1, A_SMC, 1, 1, -59, "SMC-Mixer");
     ui_input();                                      /* OCT+ before any draw of the new list */
@@ -292,7 +295,7 @@ static void test_list_pick_forget(void)
     ui_frame();
     check("the list: MIDI devices first, then by signal (as the BLE unit sorts)", btp.n == 3 &&
           !memcmp(btp.dev[0].addr, A_SMC, 6) && !memcmp(btp.dev[1].addr, A_JBL, 6) && !memcmp(btp.dev[2].addr, A_ANON, 6));
-    row(4);
+    row(BT_ROWS);
     tap(B_OCTUP);
     saved(a);
     check("a device row, OCT+: remembered (address, type), the target, want on",
@@ -305,7 +308,7 @@ static void test_list_pick_forget(void)
         bt_dev_text(t);
         check("DEVICE: the remembered device's name once seen in a scan", str_eq(t, "SMC-Mixer"));
     }
-    row(6);
+    row(BT_ROWS + 2u);
     tap(B_OCTUP);
     saved(a);
     check("the third row (no name) picked: its address and type", !memcmp(a, A_ANON, 6) && btset.bt_type == 1u &&
@@ -319,7 +322,7 @@ static void test_list_pick_forget(void)
     power_cycle();
     saved(a);
     check("the remembered device survives a power cycle", !memcmp(a, A_ANON, 6) && btset.bt_type == 1u);
-    row(2);
+    row(BTR_DEV);
     knob(-1);
     saved(a);
     check("DEVICE, KNOB 1 left: FORGET (cleared, saved, the target none)",
@@ -340,11 +343,191 @@ static void test_scan(void)
     bs.state = BLE_ST_IDLE;
     open_page();
     knob(1);
-    row(3);
+    row(BTR_SCAN);
     tap(B_OCTUP);
     check("SCAN, OCT+: a scan (it pauses reconnecting)", bs.scans == 1);
     tap(B_OCTDN);
     check("OCT-: the pause ended", ui.menu == 1 && bs.pauses == 1 && bs.pause == 0);
+}
+
+static uint32_t rec_palette(void)                    /* the flash record's palette word (bit 8: AUTOSTART) */
+{
+    persist_t p;
+    if (st_load(OBJ_SETTINGS, &p, sizeof p) != (int)sizeof p)
+        return 0xFFFFFFFFu;
+    return p.palette;
+}
+
+/* AUTOSTART (spec 2026-10-10 §2, amendment 2026-10-12): the row after BLUETOOTH; KNOB 1 right ON, left OFF, OCT+
+ * toggles; saved when the menu closes (the settings record's palette word, bit 8), not per change; nothing started */
+static void test_autostart_row(void)
+{
+    uint32_t ok = 1, pal;
+    fresh();
+    check("AUTOSTART: the row after BLUETOOTH, before MODE", str_eq(BT_NAME[BTR_ON], "BLUETOOTH") &&
+          BTR_AUTO == BTR_ON + 1 && str_eq(BT_NAME[BTR_AUTO], "AUTOSTART") && BTR_MODE == BTR_AUTO + 1 &&
+          str_eq(BT_NAME[BTR_MODE], "MODE") && str_eq(BT_NAME[BTR_DEV], "DEVICE") && str_eq(BT_NAME[BTR_SCAN], "SCAN"));
+    check("AUTOSTART: OFF by default (no settings record)", btset.bt_auto == 0u);
+    remember(A_SMC, 1);
+    open_page();
+    row(BTR_AUTO);
+    knob(1);
+    ok &= btset.bt_auto == 1u;
+    knob(1);
+    ok &= btset.bt_auto == 1u;
+    knob(-1);
+    ok &= btset.bt_auto == 0u;
+    knob(-1);
+    ok &= btset.bt_auto == 0u;
+    check("AUTOSTART: KNOB 1 right ON, left OFF (stays at the ends)", ok);
+    tap(B_OCTUP);
+    ok = btset.bt_auto == 1u;
+    tap(B_OCTUP);
+    ok &= btset.bt_auto == 0u;
+    tap(B_OCTUP);
+    check("AUTOSTART: OCT+ toggles", ok && btset.bt_auto == 1u);
+    check("AUTOSTART: nothing started or asked of the stack; not written per change",
+          !bs.starts && !bs.targets && !bs.wants && !btp.on && rec_palette() == 0xFFFFFFFFu);
+    snap("07_autostart_on");
+    tap(B_OCTDN);
+    check("AUTOSTART: OCT- back to the menu's list: not written yet", ui.menu == 1 && rec_palette() == 0xFFFFFFFFu);
+    settings.palette = 1;                            /* (not the default: a reset of the display settings shows) */
+    palette_set(1);
+    pal = settings.palette;
+    menu_close();
+    check("AUTOSTART: the menu closed: saved (palette word bit 8; bits 0..7 the palette)",
+          rec_palette() == (pal | 1u << 8));
+    settings.palette = 0;
+    power_cycle();
+    settings_init();
+    check("AUTOSTART survives a power cycle; the palette loads without the bit (no reset of the display settings)",
+          btset.bt_auto == 1u && settings.palette == pal && settings.magic == SETTINGS_MAGIC);
+    ui.menu = 1;
+    ui.menu_sel = 0;
+    open_page();
+    row(BTR_AUTO);
+    knob(-1);
+    menu_close();
+    check("AUTOSTART OFF: saved (bit 8 clear)", rec_palette() == pal && btset.bt_auto == 0u);
+    {                                                /* an older record: palette 2, no bit 8 */
+        persist_t p;
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.palette = 2;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        btset.bt_auto = 1;
+        power_cycle();
+        settings_init();
+        check("AUTOSTART: an older record (no bit 8) loads OFF, its palette kept",
+              btset.bt_auto == 0u && settings.palette == 2u);
+    }
+}
+
+static void frames_at(uint32_t ms, uint32_t n)       /* n UI frames at ms after power-on */
+{
+    fm1_ms = ms;
+    while (n--)
+        ui_frame();
+}
+static int nothing_asked(void) { return !bs.starts && !bs.targets && !bs.wants && !btp.on; }
+
+/* AUTOSTART ON: once, 5 s after power-on, from the UI (ui_input), as BLUETOOTH ON (the remembered device the target,
+ * want on, the stack started); not in safe start; skipped with a message after an incomplete or fatal last start */
+static void test_autostart(void)
+{
+    uint32_t k, ok;
+    fresh();
+    ui.menu = 0;
+    remember(A_SMC, 1);
+    btset.bt_auto = 1;
+    frames_at(0, 3);
+    frames_at(4999, 3);
+    check("autostart: nothing before 5 s", nothing_asked());
+    frames_at(5000, 1);
+    check("autostart at 5 s: the remembered device the target, want on, the stack started, BLUETOOTH ON",
+          bs.starts == 1 && bs.targets == 1 && !memcmp(bs.taddr, A_SMC, 6) && bs.ttype == 1 && bs.wants == 1 &&
+          bs.want == 1 && btp.on);
+    check("autostart: no message when it starts", !ui.msg_t || !str_eq(ui.msg, "BT AUTOSTART SKIPPED"));
+    frames_at(5015, 3);
+    frames_at(60000, 3);
+    check("autostart: once (later frames call nothing more)", bs.starts == 1 && bs.targets == 1 && bs.wants == 1);
+    bs.state = BLE_ST_OFF;                           /* (even with the stack seen OFF and BLUETOOTH turned OFF) */
+    btp.on = 0;
+    frames_at(70000, 3);
+    check("autostart: once, even when BLUETOOTH is OFF again", bs.starts == 1 && bs.targets == 1);
+
+    fresh();                                         /* AUTOSTART OFF */
+    ui.menu = 0;
+    remember(A_SMC, 1);
+    frames_at(5000, 3);
+    frames_at(9000, 3);
+    check("AUTOSTART OFF: nothing at 5 s", nothing_asked());
+
+    fresh();                                         /* first frame later than 5 s (a slow boot) */
+    ui.menu = 0;
+    btset.bt_auto = 1;
+    frames_at(7000, 2);
+    check("autostart: the first frame after 5 s starts it (no device: target none)", bs.starts == 1 &&
+          bs.targets == 1 && !(bs.taddr[0] | bs.taddr[5]) && bs.want == 1);
+
+    fresh();                                         /* safe start (SEQ held at power-on) */
+    ui.menu = 0;
+    remember(A_SMC, 1);
+    btset.bt_auto = 1;
+    safe_start = 1;
+    frames_at(5000, 3);
+    bt_autostart();                                  /* (ui_input returns first in safe start; it refuses too) */
+    frames_at(9000, 3);
+    check("autostart: not in safe start", nothing_asked() && !btp.msg_t);
+    safe_start = 0;
+
+    fresh();                                         /* the last start before this boot stopped short / fatal */
+    ui.menu = 0;
+    remember(A_SMC, 1);
+    btset.bt_auto = 1;
+    bs.prev_bad = 1;
+    frames_at(4999, 2);
+    check("autostart skipped: nothing before 5 s either", nothing_asked() && !ui.msg_t);
+    frames_at(5000, 1);
+    check("autostart skipped after an incomplete or fatal last start: nothing called, BT AUTOSTART SKIPPED",
+          nothing_asked() && ui.msg_t && str_eq(ui.msg, "BT AUTOSTART SKIPPED"));
+    snap("08_autostart_skipped");
+    for (k = 0, ok = 1; k < 100u; k++) {
+        frames_at(5100 + k * 15u, 1);
+        ok &= !str_eq(ui.msg, "BT AUTOSTART SKIPPED") || ui.msg_t < 40u;
+    }
+    check("autostart skipped: the message once (it times out, not shown again)", ok && !ui.msg_t && nothing_asked());
+    ui.menu = 1;
+    ui.menu_sel = 0;
+    open_page();
+    knob(1);
+    check("autostart skipped: BLUETOOTH ON by hand still starts it", bs.starts == 1 && btp.on && bs.want == 1);
+
+    fresh();                                         /* turned ON by hand before 5 s */
+    btset.bt_auto = 1;
+    bs.prev_bad = 1;                                 /* (this boot's start in progress: the record is not the last) */
+    fm1_ms = 3000;
+    open_page();
+    knob(1);
+    frames_at(5000, 3);
+    check("autostart after a start by hand: nothing more, no message", bs.starts == 1 && bs.targets == 1 &&
+          bs.wants == 1 && (!ui.msg_t || !str_eq(ui.msg, "BT AUTOSTART SKIPPED")));
+
+    fresh();                                         /* the stack FAILED (started from the console) before 5 s */
+    ui.menu = 0;
+    btset.bt_auto = 1;
+    bs.state = BLE_ST_FAILED;
+    bs.err = "NO RF TRIM IN FLASH";
+    frames_at(5000, 3);
+    check("autostart with the stack FAILED: nothing called, no message", nothing_asked() && !btp.msg_t &&
+          (!ui.msg_t || !str_eq(ui.msg, "BT AUTOSTART SKIPPED")));
+    fresh();                                         /* started from the console (`ble start`) before 5 s */
+    ui.menu = 0;
+    btset.bt_auto = 1;
+    bs.state = BLE_ST_IDLE;
+    frames_at(5000, 3);
+    check("autostart with the stack already started (console): nothing called", nothing_asked());
 }
 
 static void test_addr_text(void)
@@ -391,7 +574,7 @@ static void test_screens(void)
     knob(1);
     bs.state = BLE_ST_SCANNING;
     three();
-    row(4);
+    row(BT_ROWS);
     snap("02_scanning");
     fresh();
     bs.state = BLE_ST_SUBSCRIBED;
@@ -425,8 +608,8 @@ static void test_screens(void)
         ui_frame();
         check("more than 8 found: 8 listed, the MIDI ones first", btp.n == 8 && btp.dev[0].midi && btp.dev[1].midi &&
               !btp.dev[2].midi && btp.dev[0].addr[0] == 5 && btp.dev[1].addr[0] == 9);
-        row(11);
-        check("the cursor on the last device: the rows scrolled", btp.top == 11u - BT_VIS + 1u);
+        row(BT_ROWS + 7u);
+        check("the cursor on the last device: the rows scrolled", btp.top == BT_ROWS + 7u - BT_VIS + 1u);
         snap("06_scrolled");
     }
     fresh();
@@ -459,6 +642,8 @@ int main(void)
     test_addr_text();
     test_signature();
     test_screens();
+    test_autostart_row();
+    test_autostart();
     printf(fails ? "bt_page_test: %d FAILED\n" : "bt_page_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

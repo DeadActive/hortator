@@ -13,6 +13,7 @@ static void bt_page_open(void);                     /* bt_page.c (after ble/ble_
 static void bt_page_close(void);
 static void bt_page_draw(void);
 static void bt_page_input(uint32_t pressed);
+static void bt_autostart(void);                     /* AUTOSTART: once, 5 s after power-on (ui_input only, gate 3) */
 #else
 enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",

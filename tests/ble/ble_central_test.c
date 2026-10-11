@@ -310,6 +310,16 @@ int main(void)
         ble_watch(&a, 1200);
         CHECK(link_up == 1 && link_down == 1 && a.rest_ms == 1200u, "watch: a failed connect: rest, no link calls");
     }
+    /* AUTOSTART's safeguard (spec 2026-10-10 §2, amendment 2026-10-12): the last start before this boot, from the
+     * .noinit record (ble.c ble_diag: magic, starts, stage, fatal) */
+    CHECK(ble_start_rec_ok(0, 5, 3, 1), "last start: no record (power-on RAM) -> ok");
+    CHECK(ble_start_rec_ok(1, 0, 0, 0), "last start: a record, no start counted -> ok");
+    CHECK(ble_start_rec_ok(1, 1, 7, 0), "last start: stage 7 (BT_STATUS_INIT_OK), no fatal -> ok");
+    for (i = 1; i < 7u; i++)
+        CHECK(!ble_start_rec_ok(1, 2, i, 0), "last start: stopped short of stage 7 -> skip");
+    for (i = 1; i < 4u; i++)
+        CHECK(!ble_start_rec_ok(1, 1, 7, i), "last start: completed, then fatal (assert, reset, stack) -> skip");
+    CHECK(!ble_start_rec_ok(1, 1, 8, 0) && !ble_start_rec_ok(1, 1, 0xFFFFFFFFu, 0), "last start: a stage beyond 7 -> skip");
     printf(fails ? "ble_central: %d FAILED\n" : "ble_central: all checks passed\n", fails);
     return fails != 0;
 }

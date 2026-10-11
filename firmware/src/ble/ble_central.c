@@ -301,6 +301,15 @@ static void ble_watch(ble_auto_t *a, uint32_t now_ms)
     a->seen = st;
 }
 
+/* AUTOSTART's safeguard (spec 2026-10-10 §2, amendment 2026-10-12): the last start's record, kept over a reboot
+ * (ble.c ble_diag: rec = its magic found, starts, stage, fatal). Ok: none recorded (power-on RAM, or no start counted),
+ * or stage 7 (BT_STATUS_INIT_OK) reached with no fatal error. A start that stopped short (a hang or a crash in it:
+ * the watchdog or a fault rebooted) or a fatal error (ble_port.c ble_fatal) is not */
+int ble_start_rec_ok(int rec, uint32_t starts, uint32_t stage, uint32_t fatal)
+{
+    return !rec || !starts || (stage == 7u && !fatal);
+}
+
 #ifndef BLE_CENTRAL_STATE_ONLY
 /* ---- the SDK glue: in ble.c's unit, after ble_heap / ble_on / ble_mac. The stack calls ble_profile_init and the
  * three handlers below from its own task (ble_os.c); the main loop calls ble_start / ble_scan / ble_connect /
@@ -679,6 +688,10 @@ void ble_ui_pause(int on)
     au.paused = on != 0;
     if (!on)
         au.manual = 0;                             /* the page closed: the list need not stay */
+}
+int ble_ui_prev_start_ok(void)                    /* (read before this boot's start: ble_stage(1) resets it) */
+{
+    return ble_start_rec_ok(ble_diag.magic == BLE_DIAG_MAGIC, ble_diag.starts, ble_diag.stage, ble_diag.fatal);
 }
 int ble_ui_conn_name(char out[24])
 {

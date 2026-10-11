@@ -5,7 +5,10 @@
 function named in an instruction's `<name[+off] : addr>` operand (calls, tail gotos, and the address loads of the
 BLE unit's long calls, `rN = … <fn : …>` then `call rN`). Walked from fm1_cstart, every isr_* entry and the fault
 handlers; reaching a START function is an error, except through ALLOWED (the user's trigger: the console's
-`ble start`, part 2's Bluetooth page), and ALLOWED itself may be referenced only from TRIGGERS.
+`ble start`, part 2's Bluetooth page), and ALLOWED itself may be referenced only from TRIGGERS. A trigger in CALLERS
+may be referenced only from its listed functions: the page's BLUETOOTH ON from the page's input, and from AUTOSTART's
+bt_autostart (the user's saved choice, amendment 2026-10-12 of spec 2026-10-10 §2), itself only from ui_input (the
+main loop's UI, 5 s after power-on), never from felucca_init / drum_boot_init / the service hook / an ISR.
 
   check_ble_boot.py build/felucca.dis
   check_ble_boot.py --selftest"""
@@ -16,8 +19,10 @@ START = {"ble_start", "btstack_init", "btctrler_task_init", "bt_ble_init", "bt_m
 ALLOWED = {"ble_user_start"}
 TRIGGERS = {"ble_console", "bt_page_on"}   # the only functions that may reference ALLOWED (the user's commands:
                                            # the console's `ble start`, the Bluetooth page's BLUETOOTH ON)
-CALLERS = {"bt_page_on": {"bt_page_input", "menu_input", "ui_input"}}   # a trigger in the core: only from the page's
-                                           # input (or the functions it is inlined into), never the service / boot
+CALLERS = {"bt_page_on": {"bt_page_input", "menu_input", "ui_input", "bt_autostart"},   # a trigger in the core: only
+           "bt_autostart": {"ui_input"}}   # from the page's input (or the functions it is inlined into) and AUTOSTART
+                                           # (amendment 2026-10-12: 5 s after power-on, from the main loop's UI only),
+                                           # never the service hook, the boot or an ISR
 ROOTS = ("fm1_cstart", "fm1_fatal_common", "fm1_fault_c")
 LABEL = re.compile(r"^([A-Za-z_.$][\w.$]*):\s*$")
 REF = re.compile(r"<([A-Za-z_.$][\w.$]*)(?:\+[^:>]*)?\s*:\s*[0-9a-f]+\s*>", re.I)
@@ -79,6 +84,28 @@ def selftest():
             fn("bt_page_on", "call -4 <ble_user_start : 2000040 >") + fn("ble_user_start", "call -4 <ble_start : 2000048 >")
         assert reachable_starts(bad + fn("ble_start", "rts")) == [f"bt_page_on (from {hook})"], \
             f"the page's trigger called from {hook} not caught"
+    # AUTOSTART (amendment 2026-10-12): bt_autostart may reference bt_page_on, and only ui_input (the main loop's UI,
+    # 5 s after power-on) may call bt_autostart; from the boot, the service hook or an ISR it is a start at boot
+    chain = fn("bt_autostart", "call -4 <bt_page_on : 2000040 >") + \
+        fn("bt_page_on", "call -4 <ble_user_start : 2000048 >") + fn("ble_user_start", "call -4 <ble_start : 2000050 >") + \
+        fn("ble_start", "rts")
+    auto = boot + fn("ed_service", "call -4 <ui_input : 2000030 >") + fn("ui_input", "call -4 <bt_autostart : 2000038 >")
+    assert reachable_starts(auto + chain) == [], "AUTOSTART from ui_input flagged"
+    for hook in ("felucca_init", "drum_boot_init", "ed_service", "menu_input"):
+        bad = boot + fn(hook, "call -4 <bt_autostart : 2000038 >")
+        assert reachable_starts(bad + chain) == [f"bt_autostart (from {hook})"], f"AUTOSTART from {hook} not caught"
+    isr = fn("isr_timer5", "call -4 <bt_autostart : 2000038 >")
+    assert reachable_starts(boot + isr + chain) == ["bt_autostart (from isr_timer5)"], "AUTOSTART from an ISR not caught"
+    lng = boot + fn("felucca_init", "r0 = 33554496 <bt_autostart : 2000038 >", "call r0")
+    assert reachable_starts(lng + chain) == ["bt_autostart (from felucca_init)"], "AUTOSTART's address load not caught"
+    # bt_autostart is no trigger: it may not reference ble_user_start itself; nor may any other new function call
+    # the page's trigger
+    direct = boot + fn("ed_service", "call -4 <ui_input : 2000030 >") + fn("ui_input", "call -4 <bt_autostart : 2000038 >") + \
+        fn("bt_autostart", "call -4 <ble_user_start : 2000048 >") + fn("ble_user_start", "call -4 <ble_start : 2000050 >") + \
+        fn("ble_start", "rts")
+    assert reachable_starts(direct) == ["ble_user_start (from bt_autostart)"], "AUTOSTART calling ble_user_start not caught"
+    other = auto + chain + fn("ui_draw", "call -4 <bt_page_on : 2000040 >")
+    assert reachable_starts(other) == ["bt_page_on (from ui_draw)"], "another caller of the page's trigger not caught"
     lng = boot + fn("ed_service", "r0 = 33554496 <ble_start : 2000040 >", "call r0") + fn("ble_start", "rts")
     assert reachable_starts(lng) == ["ble_start"], "a long call (address load) not caught"
     isr = fn("isr_timer5", "call -4 <fm1_timer5_irq : 2000050 >") + fn("fm1_timer5_irq",

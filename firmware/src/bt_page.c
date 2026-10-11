@@ -2,12 +2,16 @@
  * BLE MIDI: 2026 DEADACTIVE
  * Drum machine fork: 2026 DEADACTIVE */
 /* FELUCCA_BLE (felucca.c includes it after ble/ble_core.h; ui_menu.c declares its entry points): the Bluetooth page,
- * MENU > BLUETOOTH, ui.menu 3 (spec 2026-10-10 §2). A state line, then the rows BLUETOOTH, MODE, DEVICE, SCAN and up
- * to 8 devices found (BLE-MIDI ones first). SELECT moves, KNOB 1 changes the row, OCT+ acts, OCT- back to the menu.
- * BLUETOOTH ON is the only call of ble_user_start (gate 3: tools/check_ble_boot.py TRIGGERS has bt_page_on); it is
- * off at every power-on. The remembered device is saved with the settings (btset, project.c) at once, MODE when the
- * menu closes. */
-#define BT_ROWS 4u                                  /* BLUETOOTH MODE DEVICE SCAN, then the devices */
+ * MENU > BLUETOOTH, ui.menu 3 (spec 2026-10-10 §2). A state line, then the rows BLUETOOTH, AUTOSTART, MODE, DEVICE,
+ * SCAN and up to 8 devices found (BLE-MIDI ones first). SELECT moves, KNOB 1 changes the row, OCT+ acts, OCT- back to
+ * the menu. BLUETOOTH ON is the only call of ble_user_start (gate 3: tools/check_ble_boot.py TRIGGERS has bt_page_on);
+ * it is off at every power-on unless AUTOSTART is on: then bt_autostart turns it on once, 5 s after power-on, from
+ * ui_input (amendment 2026-10-12; gate 3 CALLERS). The remembered device is saved with the settings (btset, project.c)
+ * at once, AUTOSTART and MODE when the menu closes. */
+enum { BTR_ON, BTR_AUTO, BTR_MODE, BTR_DEV, BTR_SCAN };
+#define BT_ROWS 5u                                  /* BLUETOOTH AUTOSTART MODE DEVICE SCAN, then the devices */
+_Static_assert(BTR_SCAN + 1 == BT_ROWS, "the page's rows");
+static const char *const BT_NAME[BT_ROWS] = {"BLUETOOTH", "AUTOSTART", "MODE", "DEVICE", "SCAN"};
 #define BT_SHOW 8u                                  /* devices listed (the scan keeps 16) */
 #define BT_VIS 9u                                   /* rows in view (the cursor scrolls them) */
 #define BT_Y0 40                                    /* band y of the first row; the state line at 2, the error at 18 */
@@ -111,7 +115,7 @@ static void bt_list(void)
 }
 
 /* BLUETOOTH ON: the remembered device the target, reconnecting wanted, the stack started if it is not (the user's
- * trigger: the only call of ble_user_start in the core, gate 3) */
+ * trigger: the only call of ble_user_start in the core, gate 3; from the page's input and bt_autostart only) */
 __attribute__((noinline)) static void bt_page_on(void)
 {
     uint8_t a[6];
@@ -131,6 +135,27 @@ __attribute__((noinline)) static void bt_page_on(void)
     ble_ui_want(1);
     if (ble_ui_state() == BLE_ST_OFF)
         ble_user_start();
+}
+
+/* AUTOSTART ON (spec 2026-10-10 §2, amendment 2026-10-12): BLUETOOTH ON once, 5 s after power-on (fm1_ms: the UI
+ * has run by then), as if chosen on the page; it then reconnects to the remembered device. Called every UI frame from
+ * ui_input only, never from the boot (felucca_init, drum_boot_init) or an ISR (gate 3: CALLERS). Not in safe start;
+ * nothing when Bluetooth was started by hand before (or the stack is not OFF). Skipped, BT AUTOSTART SKIPPED in the top
+ * bar once, when the last start before this boot stopped short or ended fatally (ble_ui_prev_start_ok: ble_diag, kept
+ * over the reboot); BLUETOOTH ON by hand still starts it */
+static uint8_t bt_auto_done;                        /* the 5 s point passed (.bss: 0 at power-on) */
+__attribute__((noinline)) static void bt_autostart(void)
+{
+    if (bt_auto_done || fm1_ms < 5000u)
+        return;
+    bt_auto_done = 1;
+    if (!btset.bt_auto || safe_start || btp.on || ble_ui_state() != BLE_ST_OFF)
+        return;
+    if (!ble_ui_prev_start_ok()) {
+        ui_message("BT AUTOSTART SKIPPED");
+        return;
+    }
+    bt_page_on();
 }
 
 static void bt_pick(const ble_ui_dev_t *d)          /* a device row, OCT+: remembered (saved) and connected */
@@ -181,7 +206,7 @@ static void bt_page_input(uint32_t pressed)
         btp.sel = (uint8_t)((btp.sel + (s > 0 ? 1u : rows - 1u)) % rows);
     s = panel_enc(EN_K1);
     switch (btp.sel) {
-    case 0:                                         /* BLUETOOTH: KNOB 1 right ON, left OFF; OCT+ toggles */
+    case BTR_ON:                                    /* BLUETOOTH: KNOB 1 right ON, left OFF; OCT+ toggles */
         if (s > 0 || (ok && !btp.on)) {
             bt_page_on();
         } else if ((s < 0 || ok) && btp.on) {
@@ -189,16 +214,20 @@ static void bt_page_input(uint32_t pressed)
             ble_ui_want(0);
         }
         break;
-    case 1:                                         /* MODE: KNOB 1 steps, stops at the ends; OCT+ wraps. Saved when
+    case BTR_AUTO:                                  /* AUTOSTART: KNOB 1 right ON, left OFF; OCT+ toggles. Saved
+                                                     * when the menu closes (menu_close), as MODE; acts at power-on */
+        btset.bt_auto = s > 0 ? 1u : s < 0 ? 0u : ok ? !btset.bt_auto : btset.bt_auto;
+        break;
+    case BTR_MODE:                                  /* MODE: KNOB 1 steps, stops at the ends; OCT+ wraps. Saved when
                                                      * the menu closes (menu_close), not per step */
         btset.btmode = s > 0 ? (btset.btmode < 2u ? btset.btmode + 1u : 2u)
                      : s < 0 ? (btset.btmode ? btset.btmode - 1u : 0u) : ok ? (btset.btmode + 1u) % 3u : btset.btmode;
         break;
-    case 2:                                         /* DEVICE: KNOB 1 left forgets it */
+    case BTR_DEV:                                   /* DEVICE: KNOB 1 left forgets it */
         if (s < 0 && (btset.bt_lo | btset.bt_hi))
             bt_forget();
         break;
-    case 3:                                         /* SCAN (BLUETOOTH ON only) */
+    case BTR_SCAN:                                  /* SCAN (BLUETOOTH ON only) */
         if (ok && st == BLE_ST_FAILED)
             bt_say("POWER OFF AND ON TO RETRY");
         else if (ok && !btp.on)
@@ -222,8 +251,8 @@ static uint32_t bt_hash(uint32_t h, const void *p, uint32_t n)
 }
 
 /* the page; drawn again when its signature changes: the state line (state, seconds left, the connected name, the
- * reason), the last error, the list (count, addresses, RSSIs, names), the cursor, BLUETOOTH, MODE, the remembered
- * device, the head's message */
+ * reason), the last error, the list (count, addresses, RSSIs, names), the cursor, BLUETOOTH, AUTOSTART, MODE, the
+ * remembered device, the head's message */
 static void bt_page_draw(void)
 {
     char st[40], dev[24], err[24], t[24];
@@ -256,7 +285,7 @@ static void bt_page_draw(void)
         ui.msg_t--, title = ui.msg;
     scan_ok = btp.on && sbt != BLE_ST_FAILED;
     v[0] = btp.on | (uint32_t)btp.sel << 8 | (uint32_t)btp.top << 16 | (uint32_t)btp.n << 24;
-    v[1] = btset.btmode | btset.bt_type << 8 | settings.palette << 16;
+    v[1] = btset.btmode | btset.bt_type << 8 | settings.palette << 16 | btset.bt_auto << 31;
     v[2] = btset.bt_lo, v[3] = btset.bt_hi, v[4] = (uint32_t)scan_ok;
     h = bt_hash(2166136261u, v, sizeof v);
     h = str_hash(str_hash(str_hash(str_hash(h, st), dev), title), err);
@@ -281,10 +310,10 @@ static void bt_page_draw(void)
             if (sel)
                 cv_rect(4, y + 6, 3, 3, C_WHITE);
             if (i < BT_ROWS) {
-                static const char *const NAME[BT_ROWS] = {"BLUETOOTH", "MODE", "DEVICE", "SCAN"};
-                cv_text(14, y, &FONT_S, NAME[i], i == 3u && !scan_ok ? C_DIM : c);
-                cv_text(BT_VX, y, &FONT_S, i == 0u ? (btp.on ? "ON" : "OFF") : i == 1u ? BT_MODE[btset.btmode % 3u]
-                                           : i == 2u ? dev : "", C_HI);
+                cv_text(14, y, &FONT_S, BT_NAME[i], i == BTR_SCAN && !scan_ok ? C_DIM : c);
+                cv_text(BT_VX, y, &FONT_S, i == BTR_ON ? (btp.on ? "ON" : "OFF") : i == BTR_AUTO ?
+                        (btset.bt_auto ? "ON" : "OFF") : i == BTR_MODE ? BT_MODE[btset.btmode % 3u] :
+                        i == BTR_DEV ? dev : "", C_HI);
             } else {
                 const ble_ui_dev_t *d = &btp.dev[i - BT_ROWS];
                 t[0] = (char)('1' + i - BT_ROWS), t[1] = 0;

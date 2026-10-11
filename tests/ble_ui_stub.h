@@ -3,7 +3,8 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* The BLE unit's entry points the core calls (firmware/src/ble/ble_core.h), as host stubs for the FELUCCA_BLE core
  * tests (after ui_host.h): the connected device's name, the Bluetooth page's ble_ui_* (state the test sets in `bs`,
- * the calls counted) and ble_user_start. Each test defines ble_midi_send. */
+ * the calls counted), the last start's record (ble_ui_prev_start_ok) and ble_user_start. Each test defines
+ * ble_midi_send. */
 #define memset felucca_memset                         /* (ble_core.h declares libc.c's, as the firmware's) */
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
@@ -25,6 +26,8 @@ static struct {
     const char *err;
     ble_ui_dev_t dev[16];                            /* the list in ble_scan_sorted's order (by signal) */
     uint32_t starts, scans, targets, wants, pauses;  /* calls */
+    uint32_t prev_bad;                               /* ble_ui_prev_start_ok: 1 = the last start before this boot
+                                                      * stopped short or ended fatally */
     int want, pause;                                 /* the last values */
     uint8_t taddr[6];
     uint32_t ttype;
@@ -49,6 +52,7 @@ void ble_ui_target(const uint8_t addr[6], uint32_t type)
 }
 void ble_ui_want(int on) { bs.wants++; bs.want = on; }
 void ble_ui_pause(int on) { bs.pauses++; bs.pause = on; }
+int ble_ui_prev_start_ok(void) { return !bs.prev_bad; }
 void ble_user_start(void)
 {
     bs.starts++;

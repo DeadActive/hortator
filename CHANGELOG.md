@@ -36,6 +36,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   the buttons unchanged. The LEDs are dimmed by the 10 kHz key scan (5-frame PWM, ~180 Hz).
 - Device settings: the last project, METRO and BACKLIGHT are kept in spare bits. Going back to an older Hortator with
   any of them set: its SPEAKER EQ reads FLAT.
+- Bluetooth version: the Bluetooth page gains **AUTOSTART** OFF / ON (after BLUETOOTH; KNOB 1 right ON / left OFF,
+  OCT+ toggles; saved when the menu closes; default OFF). ON: 5 s after power-on, Bluetooth starts by itself as if
+  BLUETOOTH ON were chosen, and reconnects to the remembered device. Not in a safe start (SEQ held). If the last
+  Bluetooth start before this power-on did not complete or ended in a fatal error, it is skipped and the top bar says
+  `BT AUTOSTART SKIPPED`; BLUETOOTH ON by hand still works. Kept in the palette word's bit 8 of the settings, by both
+  versions: going back to an older Hortator with AUTOSTART ON resets its display settings (COLOR, SPEAKER EQ, ZOOM,
+  KNOB ACCEL, USB LEVEL, PERFORM) to their defaults once (its COLOR check).
 - Frozen baseline moved to `frozen-base-8` (user decision 2026-10-12): the frozen `main.c` gains one line, the key
   backlight's hook in the TIMER5 scan ISR right after `fm1_input_tick()` (`led_dim_tick()`, `firmware/src/led_dim.c`),
   the only way to dim LEDs while the audio ISR renders. `frozen-base-8` = `frozen-base-7` + that line + the file it

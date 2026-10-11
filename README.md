@@ -135,7 +135,8 @@ a held ACID note goes last. The same order picks the voice to stop when too many
 
 A second version of each release, **Hortator + Bluetooth MIDI** (experimental): the installer offers it next to the
 plain one, and the release has it as `hortator-X.Y.Z-bluetooth.fwsc`. Everything above works the same in it.
-Bluetooth is **off at every power-on**; it runs only after you turn it on, until the FM-1 is switched off.
+Bluetooth is **off at every power-on**, unless you set AUTOSTART ON (below); it runs only after you turn it on, until
+the FM-1 is switched off.
 
 ### The Bluetooth page
 
@@ -144,7 +145,8 @@ OCT- goes back to the menu.
 
 | Row | What it does |
 | --- | --- |
-| **BLUETOOTH** | ON starts Bluetooth and reconnects to the remembered device; OFF disconnects and stops reconnecting. KNOB 1 right / left, or OCT+. Not saved: off at every power-on. |
+| **BLUETOOTH** | ON starts Bluetooth and reconnects to the remembered device; OFF disconnects and stops reconnecting. KNOB 1 right / left, or OCT+. Not saved: off at every power-on (unless AUTOSTART is ON). |
+| **AUTOSTART** | ON: Bluetooth starts by itself 5 s after every power-on, as if you chose BLUETOOTH ON, and reconnects to the remembered device. KNOB 1 right / left, or OCT+. Saved when the menu closes; OFF by default. Not in a safe start (SEQ held). If the last Bluetooth start before this power-on did not finish (a hang or a crash in it) or ended in an error, it is skipped and the top bar says `BT AUTOSTART SKIPPED`; BLUETOOTH ON by hand still works. |
 | **MODE** | What the connected device's MIDI does: **AUTO** (SMC DAW for a device whose name starts with `SMC`, else MIDI), **SMC DAW** or **MIDI**. Saved when the menu closes. |
 | **DEVICE** | The remembered device: its name once it has been seen since power-on, else its address; `NONE`. KNOB 1 left forgets it (and disconnects). |
 | **SCAN** | OCT+: scans for 10 s (BLUETOOTH ON only). Up to 8 devices are listed under it, BLE-MIDI ones (`MIDI`) first, then by signal. |
@@ -157,8 +159,8 @@ Under it, the last error (`CONNECT TIMEOUT`, `NO BLE-MIDI SERVICE`, `DISCONNECTE
 
 **Reconnecting.** With BLUETOOTH ON and a remembered device, the FM-1 connects to it whenever it is in range: when
 it is switched on again or comes back after a lost connection, and after a power-on as soon as you turn BLUETOOTH
-ON (no scan or pick needed). While it is not found, it scans 10 s at a time with a 2 s pause. A SCAN from the page
-pauses this while the page stays open, so you can pick another device.
+ON, or 5 s after it with AUTOSTART ON (no scan or pick needed). While it is not found, it scans 10 s at a time with a
+2 s pause. A SCAN from the page pauses this while the page stays open, so you can pick another device.
 
 **MIDI mode.** Notes on the drum channel (GLO: CH) play the tracks whose NOTE matches, as over USB and TRS. GLO:
 **CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as CLK USB / TRS do; the tempo knobs then say
@@ -263,7 +265,8 @@ Code: [GPL-3.0-only](LICENSE). Assets and third-party material: [LICENSING.md](L
 
 M-VAVE and FM-1 are trademarks of their respective owners. Hortator is independent firmware that runs on FM-1
 hardware; it is not affiliated with, endorsed by or supported by them. The plain version never enables the
-hardware's Bluetooth / Wi-Fi radio; the Bluetooth version turns on Bluetooth only when you set BLUETOOTH ON.
+hardware's Bluetooth / Wi-Fi radio; the Bluetooth version turns on Bluetooth only when you set BLUETOOTH ON (or
+AUTOSTART ON: then 5 s after each power-on).
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; drum machine fork: 2026 DEADACTIVE; BLE MIDI:
 2026 DEADACTIVE.

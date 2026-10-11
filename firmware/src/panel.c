@@ -67,9 +67,9 @@ static int32_t panel_enc(uint32_t role)
 struct { uint32_t magic, palette, lowcut, zoom, mutebar, accel, usbfix, perfpage; } settings __attribute__((section(".noinit")));
 _Static_assert(sizeof settings == 32u, ".noinit settings: the layout an update finds");
 /* the Bluetooth settings (both builds): MODE (0 AUTO, 1 SMC DAW, 2 MIDI), the remembered device (address type,
- * address bytes 0..2 and 3..5; all 0 none). Only from the flash record (persist_boot: zoom's and lowcut's spare bits),
- * else 0 */
-static struct { uint32_t btmode, bt_type, bt_lo, bt_hi; } btset;
+ * address bytes 0..2 and 3..5; all 0 none), AUTOSTART (1 on: bt_page.c bt_autostart). Only from the flash record
+ * (persist_boot: zoom's and lowcut's spare bits, the palette word's bit 8), else 0 */
+static struct { uint32_t btmode, bt_type, bt_lo, bt_hi, bt_auto; } btset;
 /* the last project saved to flash (spec 2026-10-11 §6): set, its slot 0..3 (lowcut's bits 2, 3..4). As btset: only
  * from the flash record, else 0 */
 static struct { uint8_t set, slot; } lastp;

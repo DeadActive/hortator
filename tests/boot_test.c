@@ -383,6 +383,63 @@ static int settings_metro_round_trip(void)
     return (int)ok;
 }
 
+/* spec 2026-10-10 §2 amendment 2026-10-12: AUTOSTART (BLE build) in the palette word's bit 8, round-tripped by both
+ * builds as the device is; the palette itself in bits 0..7 (kept, not reset by settings_init); an older record and
+ * none load OFF */
+static int settings_autostart_round_trip(void)
+{
+    uint32_t a, ok = 1;
+    for (a = 0; a < 2u; a++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = 3;
+        settings.lowcut = 2;
+        settings.zoom = 1;
+        btset.btmode = 2;
+        btset.bt_lo = 0x123456u;
+        btset.bt_hi = 0xABCDEFu;
+        btset.bt_auto = a;
+        backlight = 1;
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= p.palette == (3u | a << 8) && (p.lowcut & 0xFFu) == (2u | 1u << 7) && p.lowcut >> 8 == 0xABCDEFu &&
+              p.zoom >> 8 == 0x123456u && ((p.zoom >> 5) & 3u) == 2u;
+        rfill(&settings, sizeof settings);           /* power off */
+        memset(&btset, 0, sizeof btset);             /* (.bss) */
+        btset.bt_auto = !a;
+        backlight = 0;
+        persist_boot();
+        settings_init();
+        ok &= btset.bt_auto == a && settings.palette == 3u && settings.lowcut == 2u && settings.zoom == 1u &&
+              btset.btmode == 2u && btset.bt_lo == 0x123456u && btset.bt_hi == 0xABCDEFu && backlight == 1u;
+    }
+    {                                                /* an older record: palette 2, no bit 8 */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.palette = 2;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        btset.bt_auto = 1;
+        persist_boot();
+        settings_init();
+        ok &= btset.bt_auto == 0u && settings.palette == 2u;
+    }
+    memset(hflash, 0xFF, sizeof hflash);             /* no record */
+    host_init();
+    btset.bt_auto = 1;
+    persist_boot();
+    settings_init();
+    ok &= btset.bt_auto == 0u;
+    return (int)ok;
+}
+
 /* spec 2026-10-11-fixes §12: BACKLIGHT in lowcut's bit 7 survives a power cycle beside SPEAKER EQ, the last project,
  * METRO and the device's address bytes 3..5; a record without it (0.16.0's, this branch's before it) and no record at
  * all load OFF */
@@ -1566,6 +1623,8 @@ int main(void)
           "and none load OFF", settings_metro_round_trip());
     check("settings: BACKLIGHT survives a power cycle in lowcut's bit 7 (SPEAKER EQ, the last project, METRO, the "
           "device kept); an older record and none load OFF", settings_backlight_round_trip());
+    check("settings: AUTOSTART survives a power cycle in the palette word's bit 8 (the palette, SPEAKER EQ, BACKLIGHT, "
+          "the device kept); an older record and none load OFF", settings_autostart_round_trip());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
     check("project: FDRC keeps PRIO through a save and a load", fdrc_round_trip());

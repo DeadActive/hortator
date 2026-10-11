@@ -658,6 +658,10 @@ static void ui_input(void)
     int32_t s;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+#if FELUCCA_BLE
+    bt_autostart();                                     /* AUTOSTART: BLUETOOTH ON once, 5 s after power-on (the
+                                                         * main loop's UI only: gate 3 CALLERS) */
+#endif
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
     if (ui.mute) {                                      /* the MUTE screen owns the panel (its keys: glo_input), PLAY

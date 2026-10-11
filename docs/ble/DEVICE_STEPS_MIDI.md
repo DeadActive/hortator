@@ -6,7 +6,8 @@ The build is the Bluetooth package `felucca-ble-*.fwsc` from `DRUM_BUNDLE=1 DRUM
 `midi`. Its local web installer (`build/site`) offers two versions; this test uses the second, **Hortator + Bluetooth
 MIDI (experimental)**, whose label ends in `+ble`. It is Hortator 0.15.0 with ACID, plus Bluetooth: the page
 MENU → BLUETOOTH, MIDI in from a BLE-MIDI device, and the M-VAVE SMC-Mixer in its DAW mode. Bluetooth is **off at
-every power-on**; only BLUETOOTH ON on the page turns it on, until the next power-off.
+every power-on**; only BLUETOOTH ON on the page turns it on, until the next power-off, or AUTOSTART ON (step 18):
+then it starts by itself 5 s after each power-on.
 
 ## The page
 
@@ -16,6 +17,7 @@ OCT+ acts on it, OCT- goes back to the menu (HOME held closes the menu).
 | Row | KNOB 1 | OCT+ |
 | --- | --- | --- |
 | BLUETOOTH | right ON, left OFF | ON / OFF |
+| AUTOSTART | right ON, left OFF | ON / OFF (saved when the menu closes; acts at the next power-on) |
 | MODE | AUTO, SMC DAW, MIDI (stops at the ends) | the next one (wraps) |
 | DEVICE | left: FORGET (the remembered device; a link drops) | - |
 | SCAN | - | a 10 s scan (Bluetooth ON only; dim while OFF) |
@@ -124,6 +126,22 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
     Then type `ble`. Expected: `audio_late` as before the saves (or a few more, during the saves only), `errs 0`,
     no crash. Copy the `ble` output.
 
+18. **AUTOSTART** (after step 12: the SMC-Mixer is the remembered device): MENU → BLUETOOTH, SELECT to AUTOSTART,
+    KNOB 1 right: `ON`. Hold HOME (the menu closes: saved). Switch the FM-1 off and on, the SMC-Mixer on; touch
+    nothing. Expected: about 5 s after power-on Bluetooth starts by itself and it reconnects: `BT CONNECTED` in the top
+    bar within about 20 s, the mixer's LEDs light; MENU → BLUETOOTH shows BLUETOOTH `ON`, `CONNECTED SMC-Mixer`.
+    Do this power cycle three times. Then:
+    - **Safe start:** power on with SEQ held. Expected: the safe-start screen, and Bluetooth does not start (`ble`
+      says `state OFF` after 10 s).
+    - **UBOOT with AUTOSTART on:** power on normally, wait for `BT CONNECTED`, hold OCT- + OCT+ for 5 s. Expected:
+      UBOOT. Switch off and on: Hortator starts and Bluetooth autostarts again.
+    - **UBOOT while it starts:** power on; as soon as Hortator's screen shows (after the start screen; not held at
+      power-on, which opens HARDWARE CALIBRATION), hold OCT- + OCT+. Expected: the countdown, then UBOOT, while
+      Bluetooth starts at 5 s. Switch off and on: Hortator starts normally.
+    - Afterwards AUTOSTART back to `OFF` if you like (hold HOME to save); a power cycle then leaves Bluetooth off.
+    - `BT AUTOSTART SKIPPED` in the top bar at power-on means the last Bluetooth start before it did not finish or
+      ended in an error: type `ble` and `crash` and copy both; BLUETOOTH ON by hand still works.
+
 ## On a failure
 
 Copy back: the step, what the screen showed (a photo of the page helps), `ble` and `crash`. For a reconnect that
@@ -150,3 +168,4 @@ never happens: the state line and the error line under it.
 | 15 update, BT on | | | |
 | 16 FORGET | | | |
 | 17 flash saves, BT on | | | |
+| 18 AUTOSTART | | | |
