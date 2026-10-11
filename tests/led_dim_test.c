@@ -4,7 +4,7 @@
  * scan: hal/fm1_input.h's fm1_input_tick runs on host GPIO registers, led_dim_tick right after it as in main.c's
  * fm1_timer5_irq, and the LED lines each tick drives are decoded (row bit 1 PA9, 2 PA10, 3 PH6, 4 PH9). Checked:
  *   - OFF: the hook writes nothing; every column is lit with fm1_led bit for bit;
- *   - ON: per column, the full layer lit in every frame, the 40 % layer in 2 of 5, the 20 % layer in 1 of 5;
+ *   - ON: per column, the full layer lit in every frame, the 25 % layer in 5 of 20, the 5 % layer in 1 of 20;
  *   - a column is lit with the value composed for it from its layers (the next-column write: never another
  *     column's, never half of a change); a layer change shows from the next frame on;
  *   - led_dim_compose: phase by phase. */
@@ -66,13 +66,13 @@ int main(void)
 
     /* led_dim_compose, phase by phase */
     ok = 1;
-    for (f = 0; f < 5u; f++) {
-        uint32_t v = led_dim_compose(0x040201u, f), want = 0x01u | (f < 2u ? 0x02u : 0u) | (f < 1u ? 0x04u : 0u);
+    for (f = 0; f < 20u; f++) {
+        uint32_t v = led_dim_compose(0x040201u, f), want = 0x01u | (f % 4u == 0u ? 0x02u : 0u) | (f == 0u ? 0x04u : 0u);
         ok &= v == want;
-        ok &= led_dim_compose(0x1E1E00u, f) == (f < 2u ? 0x1Eu : 0u);   /* a bit in both dim layers: 40 % */
+        ok &= led_dim_compose(0x1E1E00u, f) == (f % 4u == 0u ? 0x1Eu : 0u);   /* a bit in both dim layers: 25 % */
         ok &= led_dim_compose(0x1Eu, f) == 0x1Eu;                     /* full only: every phase */
     }
-    check("compose: full in every phase, 40 % in phases 0..1, 20 % in phase 0", ok);
+    check("compose: full in every phase, 25 % in phases 0 4 8 12 16, 5 % in phase 0", ok);
 
     /* OFF: the hook does nothing; the scan lights fm1_led bit for bit */
     reset();
@@ -89,13 +89,13 @@ int main(void)
     }
     check("OFF: the hook writes nothing; every column lit with fm1_led exactly", ok);
 
-    /* ON: duty per layer over 5 frames, every column, from any starting phase of the scan */
+    /* ON: duty per layer over 20 frames, every column, from any starting phase of the scan */
     for (i = 0; i < FM1_NCOL; i++) {
         uint32_t t, start;
         reset();
         for (start = 0; start < i; start++)        /* the scan somewhere mid-frame when the backlight turns on */
             tick(&lit);
-        for (c = 0; c < FM1_NCOL; c++)             /* row bit 1 full, 2 at 40 %, 3 at 20 %, 4 off */
+        for (c = 0; c < FM1_NCOL; c++)             /* row bit 1 full, 2 at 25 %, 3 at 5 %, 4 off */
             led_lay[c] = 0x02u | 0x04u << 8 | 0x08u << 16;
         led_dim_on = 1;
         tick(&lit);                                /* (the column composed before ON: the next tick shows it) */
@@ -109,11 +109,11 @@ int main(void)
                 cnt[c][r] += (lit >> r) & 1u;
         }
         for (c = 0; c < FM1_NCOL; c++)
-            ok &= cnt[c][1] == 200u && cnt[c][2] == 80u && cnt[c][3] == 40u && cnt[c][4] == 0u;
+            ok &= cnt[c][1] == 200u && cnt[c][2] == 50u && cnt[c][3] == 10u && cnt[c][4] == 0u;   /* (200 frames) */
         if (!ok)
             break;
     }
-    check("ON: full lit every frame, 40 % in 2 of 5, 20 % in 1 of 5, per column, any start", ok);
+    check("ON: full lit every frame, 25 % in 5 of 20, 5 % in 1 of 20, per column, any start", ok);
 
     /* the next-column write: each tick lights the value composed for that column from its own layers; a column's
      * layers changed while it is lit or just composed show from its next frame, never torn or one column over */
