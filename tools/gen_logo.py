@@ -5,28 +5,32 @@
 
   gen_logo.py OUT.h
 
-UnifrakturCook Bold (assets/fonts/, SIL OFL 1.1), the largest size whose ink fits LOGO_MAXW x LOGO_MAXH.
+UnifrakturMaguntia (assets/fonts/, SIL OFL 1.1), emboldened as on the start screen (tools/boot_variants.py: a
+3 px max filter at double size), the largest size whose ink fits LOGO_MAXW x LOGO_MAXH.
 Format as the fonts' glyphs (tools/gen_font.py): rows top to bottom, 2 pixels per byte (high nibble first),
-alpha 0..15. Drawn by gfx.c cv_logo on the start screen (draw_boot_title) and on ABOUT.
+alpha 0..15. Drawn by gfx.c cv_logo on ABOUT.
 """
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-FONT = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "UnifrakturCook-Bold.ttf"
+FONT = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "UnifrakturMaguntia-Book.ttf"
 TEXT = "HortatoR"
 LOGO_MAXW, LOGO_MAXH = 216, 56
 
 
 def render():
     for px in range(120, 8, -1):
-        font = ImageFont.truetype(str(FONT), px)
+        font = ImageFont.truetype(str(FONT), 2 * px)
         l, t, r, b = font.getbbox(TEXT)
-        if r - l <= LOGO_MAXW and b - t <= LOGO_MAXH:
-            img = Image.new("L", (r - l, b - t), 0)
-            ImageDraw.Draw(img).text((-l, -t), TEXT, font=font, fill=255)
-            return px, img
+        big = Image.new("L", (r - l + 8, b - t + 8), 0)
+        ImageDraw.Draw(big).text((4 - l, 4 - t), TEXT, font=font, fill=255)
+        big = big.filter(ImageFilter.MaxFilter(3))
+        big = big.crop(big.getbbox())
+        w, h = (big.width + 1) // 2, (big.height + 1) // 2
+        if w <= LOGO_MAXW and h <= LOGO_MAXH:
+            return px, big.resize((w, h), Image.LANCZOS)
     raise SystemExit("gen_logo: no size fits")
 
 

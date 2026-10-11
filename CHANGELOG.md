@@ -18,6 +18,9 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   kit drum. A step the white keys turn on takes the last KEYS note on an ACID track, C4 on a drum (the last note
   resets on LOAD and on clearing the pattern). An ACID track's STEP page is a piano roll, the note shows in the footer; ACID's SOUND page shows its filter
   and the note's shape.
+- A new start screen, CRT COLLAPSE: the HortatoR logo squashed through five dithered frames into one white scan line
+  that bursts sideways, in the chosen COLOR (`assets/boot.png`, made by `tools/boot_variants.py --ship`; the study's
+  other screens: `tools/boot_variants.py OUTDIR`). The logo, there and on ABOUT, is now UnifrakturMaguntia (SIL OFL).
 - Releases can carry two versions: the plain firmware and the same build with Bluetooth MIDI. The web installer
   offers a choice (the plain one by default), the release a second file `hortator-X.Y.Z-bluetooth.fwsc`
   (`BLE=1 tools/publish.sh`; first used for the Bluetooth version with parts 2, 3 and 5).
