@@ -413,11 +413,12 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
     }
 }
 
-/* METRO's click, added after the MASTER level (the knob does not change it): a sine, 1 kHz (1.6 kHz on the bar's
+/* METRO's click, added after the FX layer (PERFORM's effects leave it alone), scaled by the MASTER level mg (the
+ * volume knob turns it down with the mix): a sine, 1 kHz (1.6 kHz on the bar's
  * first), from phase 0 (no step), decaying 1/128 a sample (2.9 ms: -40 dB at 13 ms), ended below 1 LSB (~28 ms at
  * HIGH). LVL: the start amplitude (Q8 in env) for a peak of about -24 / -15 / -6 dBFS at the output (the decay before
  * the first peak and the soft clip counted). noinline: the audio ISR's loop code stays as it was (target_budget.py) */
-static __attribute__((noinline)) void metro_block(int32_t *l, int32_t *r, uint32_t n)
+static __attribute__((noinline)) void metro_block(int32_t *l, int32_t *r, uint32_t n, int32_t mg)
 {
     static const int32_t LVL[4] = {0, 2230, 6330, 19400};
     uint32_t i, s = n;
@@ -436,7 +437,7 @@ static __attribute__((noinline)) void metro_block(int32_t *l, int32_t *r, uint32
         }
         if (!metro.env)
             continue;
-        x = (sine_i(metro.ph) * (metro.env >> 8)) >> 15;
+        x = (((sine_i(metro.ph) * (metro.env >> 8)) >> 15) * mg) >> 12;   /* MASTER_FULL = unity */
         metro.ph += metro.inc;
         metro.env -= metro.env >> 7;
         if (metro.env < 256)
@@ -486,10 +487,10 @@ static void mix_block(int32_t *out, uint32_t n)
         mix_l[i] = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
         mix_r[i] = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */
     }
-    if (metro.due | metro.env)
-        metro_block(mix_l, mix_r, n);                   /* METRO: after MASTER, before the FX layer */
     if (perf)
         perf_block(mix_l, mix_r, n);                    /* the FX layer's effects (perform.c) */
+    if (metro.due | metro.env)
+        metro_block(mix_l, mix_r, n, mg);               /* METRO: after the FX layer, at the MASTER level */
     for (i = 0; i < n; i++) {
         int32_t l = mix_l[i], r = mix_r[i];
         master_out(&l, &r);
