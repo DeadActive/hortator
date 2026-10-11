@@ -127,12 +127,15 @@ frozen `main.c` with a hook in the TIMER5 key-scan ISR and moving the frozen bas
   toggles; it shows at once). Default menu: ten rows, 16 px apart (were nine, 18 px). Bluetooth build: eleven rows,
   15 px apart, the two hints moved down to y 177 / 193 (screenshots `build/ui_shots/fixes/menu_backlight.png`,
   `menu_backlight_ble.png`).
-- **ON:** every key LED (the 27 keys) that is not lit glows at **20 %**; where the white keys are the selected
-  track's steps (wherever `ui_leds` draws steps: the SEQ pages, HOME's TRACKS mode not armed), an unlit step whose
-  number in the bank shown is **1, 5, 9 or 13** glows at **40 %** (bank 2: steps 17, 21, 25, 29). Lit keys stay full
+- **ON:** every key LED (the 27 keys) that is not lit glows at **5 %**; on every screen where the white keys are the
+  selected track's steps (`step_keys()`, the keys' own test and the branch where `ui_leds` draws steps: STEP,
+  PATTERN, MOTION and SONG while KEYS is off, armed or not; HOME's TRACKS mode while no track is armed, KEYS on or
+  off), an unlit step whose number in the bank shown is **1, 5, 9 or 13** glows at **25 %** (bank 2: steps 17, 21,
+  25, 29; past the track's LEN as well), from the same `STEP_KEY` / `ui.bank` mapping the key presses use. Lit keys stay full
   (steps on, the playhead, held keys, KEYS, the MUTE screen's heard tracks and mode key, PERFORM's effects and
   tracks, NAME's keys). On the playhead's step that is on (shown dark), the step dims like any unlit one. The
-  buttons' LEDs are unchanged. The MUTE screen, PERFORM, NAME, KEYS, COMP: unlit keys 20 %. Safe start: every LED
+  buttons' LEDs are unchanged. Where the keys are not steps (the MUTE screen, PERFORM, NAME, the menu, KEYS, COMP,
+  the HOME screen, the per-track and global pages, TRACKS armed): unlit keys 5 %, no beat marks. Safe start: every LED
   off, as before. **OFF:** exactly as before (`fm1_led` written by `ui_leds`, the hook idle).
 - **Setting:** `backlight` (panel.c, a static, not `.noinit`), in the settings record's `lowcut` **bit 7** (`lc_pack`
   / `lc_unpack`, project.c; bits 0..1 SPEAKER EQ, 2..4 the last project, 5..6 METRO). Only from the flash record:
@@ -141,12 +144,12 @@ frozen `main.c` with a hook in the TIMER5 key-scan ISR and moving the frozen bas
 - **Dimming** (`firmware/src/led_dim.c`, included by `ui_input.c`): the LEDs are on / off, multiplexed by the frozen
   HAL's scan (`fm1_input_tick`, 10 kHz, one of 11 columns per tick, column n lit with `fm1_led[n]` until the next
   tick, also while the audio ISR renders). With BACKLIGHT ON, `ui_leds` writes one word per column, `led_lay[c]` =
-  full | 40 % << 8 | 20 % << 16 (one 32-bit store: the scan never sees half a column), then `led_dim_on = 1`. The hook
+  full | 25 % << 8 | 5 % << 16 (one 32-bit store: the scan never sees half a column), then `led_dim_on = 1`. The hook
   `led_dim_tick()`, called by `fm1_timer5_irq` right after `fm1_input_tick()` (before the `in_audio` early return),
   composes `fm1_led[n]` for **the column the next tick lights**, `n = fm1__tick_col + 1` (the HAL sets
   `fm1__tick_col` to the column it has just lit), so a column's value is written one tick before it is used and never
-  changes while lit. PWM over 5 scan frames (55 ticks, ~182 Hz): the phase advances at column 0; full in every frame,
-  40 % in phases 0..1, 20 % in phase 0. While `led_dim_on` is 0 the hook returns at once and `fm1_led` is the UI's,
+  changes while lit. PWM over 20 scan frames (220 ticks, 22 ms): the phase advances at column 0; full in every
+  frame, 25 % in phases 0 4 8 12 16 (every 4th frame, ~230 Hz), 5 % in phase 0 (1 in 20, ~45 Hz). While `led_dim_on` is 0 the hook returns at once and `fm1_led` is the UI's,
   bit for bit. Non-frozen code in the TIMER5 path otherwise runs only when not nested in the audio ISR
   (`uart_midi_poll`), hence the hook in the frozen file.
 - **Cost** (measured in the build's listing): the hook is inlined into `fm1_timer5_irq`, no call, no loop. OFF: 3
@@ -162,9 +165,14 @@ frozen `main.c` with a hook in the TIMER5 key-scan ISR and moving the frozen bas
   Gate 2b (the update path's machine code = the reference core's) and gate 3 are unchanged.
 - **Tests:** `tests/led_dim_test.c` runs the real HAL scan on host GPIO registers with the hook after each tick (OFF
   bit-exact, the duty per layer and column from any start, the one-ahead write, a layer change never torn);
-  ui_test (`test_backlight_leds`, `test_backlight_menu`): the layers on STEP, bank 2, the playhead, HOME, the MUTE
-  screen, PERFORM, safe start, OFF again = the full layer; the menu row; bt_page_test: eleven rows above the hints;
+  ui_test (`test_backlight_leds`, `test_backlight_beats_everywhere`, `test_backlight_menu`): the layers on STEP, bank
+  2, the playhead, HOME, the MUTE screen, PERFORM, safe start, OFF again = the full layer; every page of the table and
+  the HOME screen with KEYS off / on, armed or not: where `step_keys()` the beats at 25 % and the on steps full in
+  bank 1 and bank 2, elsewhere no 25 % (the menu, the MUTE screen and PERFORM over STEP too); the menu row; bt_page_test: eleven rows above the hints;
   boot_test: bit 7 round trip with the other bits, an older record and none read OFF.
 
   Amended 2026-10-12 (user): 5 % and 30 % instead of 20 % / 40 %: PWM over 20 frames, 30 % in phases 0 3 7 10 13 17, 5 % in phase 0.
   Amended again 2026-10-12 (user): 5 % and 25 %: 25 % in phases 0 4 8 12 16.
+  2026-10-12 (user): "the divisions must be visible on every screen when sequencer on keys available": the beat
+  marks on every screen where the keys are steps, as above (each such screen already had them; the test now walks
+  every page and HOME mode). The text above now gives the levels in force (5 % / 25 %, 20 frames).

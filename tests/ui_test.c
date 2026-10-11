@@ -1736,7 +1736,7 @@ static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows 
     return n;
 }
 
-/* spec 2026-10-11-fixes §12: the key backlight. The level ui_leds gave key / button id: 100 full, 40, 20 or 0 (the
+/* spec 2026-10-11-fixes §12: the key backlight. The level ui_leds gave key / button id: 100 full, 25, 5 or 0 (the
  * dimmed layers in led_lay while BACKLIGHT is ON, else fm1_led) */
 static uint32_t led_level(uint32_t id)
 {
@@ -1748,14 +1748,14 @@ static uint32_t led_level(uint32_t id)
     if (!led_dim_on)
         return fm1_led[q >> 3] & bit ? 100u : 0u;
     lay = led_lay[q >> 3];
-    return lay & bit ? 100u : (lay >> 8) & bit ? 40u : (lay >> 16) & bit ? 20u : 0u;
+    return lay & bit ? 100u : (lay >> 8) & bit ? 25u : (lay >> 16) & bit ? 5u : 0u;
 }
-static int keys_dim_except(uint32_t mask)          /* every key not in mask at 20 % */
+static int keys_dim_except(uint32_t mask)          /* every key not in mask at 5 % */
 {
     uint32_t k, ok = 1;
     for (k = 0; k < 27u; k++)
         if (!((mask >> k) & 1u))
-            ok &= led_level(14u + k) == 20u;
+            ok &= led_level(14u + k) == 5u;
     return (int)ok;
 }
 static void test_backlight_leds(void)
@@ -1775,16 +1775,16 @@ static void test_backlight_leds(void)
     backlight = 1;
     ui_frame();
     ok = led_dim_on && led_level(14u + STEP_KEY[1]) == 100u && led_level(14u + STEP_KEY[4]) == 100u;
-    ok &= led_level(14u + STEP_KEY[0]) == 40u && led_level(14u + STEP_KEY[8]) == 40u &&
-          led_level(14u + STEP_KEY[12]) == 40u;
+    ok &= led_level(14u + STEP_KEY[0]) == 25u && led_level(14u + STEP_KEY[8]) == 25u &&
+          led_level(14u + STEP_KEY[12]) == 25u;
     for (k = 0; k < 16u; k++)
         if (k != 0u && k != 1u && k != 4u && k != 8u && k != 12u)
-            ok &= led_level(14u + STEP_KEY[k]) == 20u;
+            ok &= led_level(14u + STEP_KEY[k]) == 5u;
     for (k = 0; k < 27u; k++)                        /* the black keys */
         if (k != 0u && k != 2u && k != 4u && k != 6u && k != 7u && k != 9u && k != 11u && k != 12u && k != 14u &&
             k != 16u && k != 18u && k != 19u && k != 21u && k != 23u && k != 24u && k != 26u)
-            ok &= led_level(14u + k) == 20u;
-    check("BACKLIGHT ON, STEP: on steps full, off beats 1 5 9 13 at 40 %, the other keys at 20 %", ok);
+            ok &= led_level(14u + k) == 5u;
+    check("BACKLIGHT ON, STEP: on steps full, off beats 1 5 9 13 at 25 %, the other keys at 5 %", ok);
     check("BACKLIGHT ON: the buttons unchanged (SEQ lit, SAVE dark, no dimming)",
           led_level(panel.btn[B_SEQ]) == 100u && led_level(panel.btn[B_SAVE]) == 0u &&
           led_level(panel.btn[B_OCTUP]) == 100u && led_level(panel.btn[B_OCTDN]) == 0u);
@@ -1794,9 +1794,9 @@ static void test_backlight_leds(void)
     trk[0].step[20].on = 1;
     ui_frame();
     check("BACKLIGHT ON, bank 2: the beats are 17 21 25 29 (keys 1 5 9 13); step 21 on: full",
-          ui.bank == 1u && led_level(14u + STEP_KEY[0]) == 40u && led_level(14u + STEP_KEY[4]) == 100u &&
-          led_level(14u + STEP_KEY[8]) == 40u && led_level(14u + STEP_KEY[12]) == 40u &&
-          led_level(14u + STEP_KEY[1]) == 20u);
+          ui.bank == 1u && led_level(14u + STEP_KEY[0]) == 25u && led_level(14u + STEP_KEY[4]) == 100u &&
+          led_level(14u + STEP_KEY[8]) == 25u && led_level(14u + STEP_KEY[12]) == 25u &&
+          led_level(14u + STEP_KEY[1]) == 5u);
     tap(B_OCTDN);
     backlight = 0;
     ui_frame();
@@ -1809,14 +1809,14 @@ static void test_backlight_leds(void)
                                                       * step 3 (off) it lights full */
     seq_play_to(0, 1);
     ui_leds();                                       /* (the frame lit the LEDs before the step moved) */
-    ok = led_level(14u + STEP_KEY[1]) == 20u;
+    ok = led_level(14u + STEP_KEY[1]) == 5u;
     seq_play_to(0, 2);
     ui_leds();
     ok &= led_level(14u + STEP_KEY[2]) == 100u;
     seq_play_to(0, 4);
     ui_leds();
-    ok &= led_level(14u + STEP_KEY[4]) == 40u;
-    check("BACKLIGHT ON, playing: the playhead lights an off step full; on an on step it dims (20 %, a beat 40 %)", ok);
+    ok &= led_level(14u + STEP_KEY[4]) == 25u;
+    check("BACKLIGHT ON, playing: the playhead lights an off step full; on an on step it dims (5 %, a beat 25 %)", ok);
     transport_req = 2;
     ui_frame();
     ui_frame();
@@ -1826,11 +1826,11 @@ static void test_backlight_leds(void)
     ui_frame();
     keys(1u << 3);
     ui_frame();
-    check("BACKLIGHT ON, HOME (the keys play): a held key full, every other key 20 %, no 40 %",
+    check("BACKLIGHT ON, HOME (the keys play): a held key full, every other key 5 %, no 25 %",
           !step_keys() && led_level(14u + 3u) == 100u && keys_dim_except(1u << 3));
     keys(0);
     ui_frame();
-    {                                                /* the MUTE screen: audible tracks' keys full, the rest 20 % */
+    {                                                /* the MUTE screen: audible tracks' keys full, the rest 5 % */
         uint32_t m = 0;
         trk[5].p[P_MUTE] = 1;
         press(B_GLO);
@@ -1839,23 +1839,23 @@ static void test_backlight_leds(void)
             if (!trk[k].p[P_MUTE])
                 m |= 1u << KEY_TRK_KEY[k];
         m |= 1u << 20;                               /* top C#: MUTE NOW */
-        check("BACKLIGHT ON, MUTE screen: audible tracks and the mode key full, every other key 20 %",
-              ui.mute && led_level(14u + KEY_TRK_KEY[5]) == 20u && led_level(14u + KEY_TRK_KEY[0]) == 100u &&
+        check("BACKLIGHT ON, MUTE screen: audible tracks and the mode key full, every other key 5 %",
+              ui.mute && led_level(14u + KEY_TRK_KEY[5]) == 5u && led_level(14u + KEY_TRK_KEY[0]) == 100u &&
               keys_dim_except(m));
         release_all();
         ui_frame();
         trk[5].p[P_MUTE] = 0;
     }
-    {                                                /* PERFORM: lit keys full, dark ones 20 % */
+    {                                                /* PERFORM: lit keys full, dark ones 5 % */
         uint32_t m = 0, dim = 0;
         press(B_FX);
         fx_hold_frames(500);
         for (k = 0; k < 27u; k++) {
             uint32_t l = led_level(14u + k);
             m += l == 100u;
-            dim += l == 20u;
+            dim += l == 5u;
         }
-        check("BACKLIGHT ON, PERFORM: its lit keys full, every other key 20 %", ui.layer && m > 0u && m + dim == 27u);
+        check("BACKLIGHT ON, PERFORM: its lit keys full, every other key 5 %", ui.layer && m > 0u && m + dim == 27u);
         release_all();
         ui_frame();
     }
@@ -1866,6 +1866,111 @@ static void test_backlight_leds(void)
         ok &= fm1_led[c] == 0u;
     check("BACKLIGHT ON in safe start: all LEDs off, the hook idle", ok);
     safe_start = 0;
+    backlight = 0;
+    ui_frame();
+}
+
+/* the beat marks on every screen where the keys are steps (user, 2026-10-12: "the divisions must be visible on every
+ * screen when sequencer on keys available"): every page of the table and the HOME screen, KEYS off / on, the track
+ * armed or not. Where step_keys(): the bank's on steps full, its unlit steps 1 5 9 13 at 25 %, the rest 5 %, in bank 1
+ * and bank 2 (OCT+, as the keys' own bank); elsewhere no key at 25 %. */
+static int beats_shown(uint32_t bank)               /* track 0's pattern below; every other key 5 % */
+{
+    uint32_t k, ok = 1, steps = 0;
+    for (k = 0; k < 16u; k++) {
+        uint32_t si = bank * 16u + k, l = led_level(14u + STEP_KEY[k]);
+        steps |= 1u << STEP_KEY[k];
+        ok &= trk[0].step[si].on ? l == 100u : (k & 3u) == 0u ? l == 25u : l == 5u;
+    }
+    for (k = 0; k < 27u; k++)
+        if (!((steps >> k) & 1u))
+            ok &= led_level(14u + k) == 5u;
+    return (int)ok;
+}
+static int no_beat_layer(void)
+{
+    uint32_t k, ok = 1;
+    for (k = 0; k < 27u; k++)
+        ok &= led_level(14u + k) != 25u;
+    return (int)ok;
+}
+static void test_backlight_beats_everywhere(void)
+{
+    uint32_t i, kys, arm, n_steps = 0, n_other = 0, seq_seen = 0, mix_seen = 0, ok_steps = 1, ok_other = 1;
+    char bad[160] = "";
+    ui_host_init();
+    for (i = 0; i < NSTEP; i++)
+        trk[0].step[i].on = 0;
+    trk[0].p[P_SLEN] = 32;
+    trk[0].step[1].on = trk[0].step[4].on = 1;       /* bank 1: steps 2, 5 (a beat) */
+    trk[0].step[17].on = trk[0].step[28].on = 1;     /* bank 2: steps 18, 29 (a beat) */
+    backlight = 1;
+    for (kys = 0; kys < 2u; kys++)
+        for (arm = 0; arm < 2u; arm++)
+            for (i = 0; i <= NPAGES; i++) {          /* (NPAGES: the HOME screen) */
+                ui.home = i == NPAGES;
+                ui.hmode = ui.home;
+                if (i < NPAGES)
+                    ui.page = (uint8_t)i;
+                ui.keys = (uint8_t)kys;
+                song.rec = (uint8_t)arm;
+                ui.bank = 0;
+                page_entered();
+                ui_frame();
+                if (step_keys()) {
+                    int ok = ui.bank == 0u && beats_shown(0);
+                    tap(B_OCTUP);
+                    ok &= ui.bank == 1u && beats_shown(1);
+                    tap(B_OCTDN);
+                    ok &= ui.bank == 0u && beats_shown(0);
+                    if (!ok && str_len(bad) < 120u) {
+                        str_cpy(bad + str_len(bad), " ", sizeof bad - str_len(bad));
+                        str_cpy(bad + str_len(bad), cur_page()->title, sizeof bad - str_len(bad));
+                    }
+                    ok_steps &= (uint32_t)ok;
+                    n_steps++;
+                    seq_seen |= cur_page()->fam == FAM_SEQ ? 1u << (ui.page & 31u) : 0u;
+                    mix_seen |= cur_page()->scope == SC_MIX;
+                } else {
+                    ok_other &= (uint32_t)no_beat_layer();
+                    n_other++;
+                }
+            }
+    for (i = 0; i < NPAGES; i++)                     /* every SEQ page among them */
+        if (PAGES[i].fam == FAM_SEQ)
+            ok_steps &= (seq_seen >> i) & 1u;
+    if (!ok_steps)
+        printf("      (beats missing on:%s)\n", bad);
+    check("BACKLIGHT ON, every page and the HOME screen, KEYS off / on, armed or not: where the keys are steps (every "
+          "SEQ page, TRACKS unarmed) on steps full, the unlit beats 1 5 9 13 at 25 % in bank 1 and bank 2, the rest 5 %",
+          ok_steps && mix_seen && n_steps == 10u);   /* 4 SEQ pages x armed / not, TRACKS unarmed x KEYS off / on */
+    check("BACKLIGHT ON: where the keys are not steps (EDIT FX LFO GLOBAL SAVE GRIDS COMP, the HOME screen, KEYS, "
+          "TRACKS armed) no key at 25 %", ok_other && n_other > 0u);
+    ui.home = 0;                                     /* a SEQ page under the menu, the MUTE screen, PERFORM: their
+                                                      * keys are not steps */
+    ui.keys = 0;
+    song.rec = 0;
+    seq_open("STEP");
+    ui_frame();
+    i = beats_shown(0);
+    ui.menu = 1;
+    ui.force = 1;
+    ui_frame();
+    i &= (uint32_t)no_beat_layer();
+    ui.menu = 0;
+    ui_frame();
+    press(B_GLO);
+    glo_hold_frames(500);
+    i &= ui.mute && no_beat_layer();
+    release_all();
+    ui_frame();
+    press(B_FX);
+    fx_hold_frames(500);
+    i &= ui.layer && no_beat_layer();
+    release_all();
+    ui_frame();
+    i &= beats_shown(0);
+    check("BACKLIGHT ON, over STEP: the menu, the MUTE screen and PERFORM show no beat marks; back on STEP they do", i);
     backlight = 0;
     ui_frame();
 }
@@ -5401,6 +5506,7 @@ int main(void)
     test_prio_sound_list();
     test_cpu_icon();
     test_backlight_leds();
+    test_backlight_beats_everywhere();
     test_backlight_menu();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
