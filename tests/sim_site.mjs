@@ -213,7 +213,10 @@ test('make_site: the front page is the landing page with the simulator beside it
   assert.match(front, /app\.js\?v=[0-9a-f]+/, 'the stamped build');
   for (const f of ['fm1sim.wasm', 'app.js', 'worklet.js', 'reel.bin.gz', 'reel.json', 'version.json', 'source.tar.gz'])
     assert.ok(existsSync(`${out}/${f}`), f);
-  for (const f of ['reel.bin', 'reel.hash', 'package.fwsc']) assert.ok(!existsSync(`${out}/${f}`), `${f} is not published`);
+  for (const f of ['features.js', 'lab_voices.js', 'dither.js', 'lab_ids.json', 'features.bin.gz', 'features.json',
+    'terminus.woff', 'terminus-license.txt'])        // the pieces, the screens' clips, the typeface and its licence
+    assert.ok(existsSync(`${out}/${f}`), `${f} is published`);
+  for (const f of ['reel.bin', 'features.bin', 'reel.hash', 'package.fwsc']) assert.ok(!existsSync(`${out}/${f}`), `${f} is not published`);
   assert.match(readFileSync(`${out}/webapp/installer/index.html`, 'utf8'), /Install Hortator/);
   rmSync(out, { recursive: true, force: true });
 });
