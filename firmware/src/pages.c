@@ -48,13 +48,14 @@ static const page_t PAGES[] = {
     /* LFO: LFO 1's knobs; OCT- shows LFO 2 (song.lsel, page_id) */
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_WAVE, P_LFO1 + LF_RATE, P_LFO1 + LF_MORPH, P_LFO1 + LF_DEPTH}},
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_DEST, P_LFO1 + LF_TRIG, P_LFO1 + LF_PHASE, 0xFF}},
-    {"TRACKS", FAM_MIX, SC_MIX, GR_MIX, {0xFF, 0xFF, 0xFF, 0xFF}},   /* TRACK LEVEL LEN PAN */
+    /* HOME's TRACKS mode (spec §3: a HOME tap on HOME; no button of its own): TRACK LEVEL LEN PAN */
+    {"TRACKS", FAM_MIX, SC_MIX, GR_MIX, {0xFF, 0xFF, 0xFF, 0xFF}},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
-/* the button (and LED) of each family; the LAYER pages are EDIT's (OCT+ from SOUND), the COMP pages HOME's (HOME 2/3,
- * 3/3); ENV and SCL are free */
-static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_REC};
+/* the button (and LED) of each family; the LAYER pages are EDIT's (OCT+ from SOUND), the COMP pages (HOME 2/3, 3/3)
+ * and TRACKS (HOME's TRACKS mode) HOME's; ENV and SCL are free */
+static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_HOME};
 
 /* the EDIT list of track t: MODEL, its model's TUNE DECAY TONE and 4th knob, its extra knobs, then LVL PAN NOTE
  * CHOKE (at most 16); returns how many */

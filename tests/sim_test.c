@@ -129,11 +129,25 @@ static void test_audio(void)
     check("stopped: silent once the tails decay", peak(FS / 2u) < 4.0f / 32768.0f);
 }
 
+static uint32_t steps_lit(const track_t *t)          /* the white keys of t's first 16 steps that are on (sim keys) */
+{
+    uint32_t k, m = 0;
+    for (k = 0; k < 16u; k++)
+        if (t->step[k].on)
+            m |= 1u << STEP_KEY[k];
+    return m;
+}
+
 static void test_leds(void)
 {
     sim_init(1);
     run(4096);
-    check("HOME: its button LED lit, no key LED lit", ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == 0u);
+    check("power-on: HOME's TRACKS mode, its button LED lit, the key LEDs track 1's steps (demo 1: the kick)",
+          mix_mode() && ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == steps_lit(&trk[0]));
+    tap(B_HOME);                                     /* HOME's second mode: the keys play */
+    run(4096);
+    check("HOME (mode 2): its button LED lit, no key LED lit", ui.home && ((sim_leds() >> B_HOME) & 1u) &&
+          sim_key_leds() == 0u);
     sim_key(5, 1);
     run(2048);
     check("a held note key lights its LED", (sim_key_leds() >> 5) & 1u);
@@ -270,10 +284,10 @@ static void test_calibration_menu(void)
     run(4096);
     check("HOME held opens the menu", ui.menu == 1u);
     for (i = 0; i < 20u && ui.menu_sel != MI_PANEL; i++) {
-        sim_enc(EN_PRESET, 1);
+        sim_enc(EN_SELECT, 1);
         run(2048);
     }
-    check("PRESETS reaches HARDWARE CALIBRATION", ui.menu_sel == MI_PANEL);
+    check("SELECT reaches HARDWARE CALIBRATION", ui.menu_sel == MI_PANEL);
     signal(SIGALRM, hang);
     alarm(10);
     sim_btn(B_OCTUP, 1);                             /* OK */

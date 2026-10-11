@@ -21,21 +21,23 @@ static const act_t SCRIPT[] = {                           /* HOME's scope first;
     {8.8f, 'b', B_EDIT, 0}, {8.8f, 'm', 0, 0, "sound"},  /* track 2's sound: a knob swept up and back */
     {9.8f, 'e', EN_K2, 2}, {10.1f, 'e', EN_K2, 2}, {10.4f, 'e', EN_K2, 2}, {10.7f, 'e', EN_K2, 2},
     {11.2f, 'e', EN_K2, -2}, {11.5f, 'e', EN_K2, -2}, {11.8f, 'e', EN_K2, -2}, {12.1f, 'e', EN_K2, -2},
-    {12.8f, 'b', B_FX, 0}, {12.8f, 'm', 0, 0, "fx"},     /* FX, PRESETS through to REVERB, SIZE swept */
-    {13.4f, 'e', EN_PRESET, 1}, {13.8f, 'e', EN_PRESET, 1}, {14.2f, 'e', EN_PRESET, 1}, {14.6f, 'e', EN_PRESET, 1},
-    {15.0f, 'e', EN_PRESET, 1},
+    {12.8f, 'b', B_FX, 0}, {12.8f, 'm', 0, 0, "fx"},     /* FX, SELECT through to REVERB, SIZE swept */
+    {13.4f, 'e', EN_SELECT, 1}, {13.8f, 'e', EN_SELECT, 1}, {14.2f, 'e', EN_SELECT, 1}, {14.6f, 'e', EN_SELECT, 1},
+    {15.0f, 'e', EN_SELECT, 1},
     {15.8f, 'e', EN_K2, 3}, {16.2f, 'e', EN_K2, 3}, {16.8f, 'e', EN_K2, -3}, {17.2f, 'e', EN_K2, -3},
     {18.0f, 'b', B_ARP, 0}, {18.0f, 'm', 0, 0, "grids"}, /* Grids: X and Y wander */
     {18.8f, 'e', EN_K2, 4}, {19.3f, 'e', EN_K3, 4}, {19.8f, 'e', EN_K2, 4}, {20.3f, 'e', EN_K3, -4},
     {20.8f, 'e', EN_K2, -4}, {21.3f, 'e', EN_K2, -4},
     {22.0f, 'e', EN_ALGO, -1},
-    {22.4f, 'b', B_HOME, 0},                              /* HOME, PRESETS to COMP, THR down and back */
-    {23.2f, 'e', EN_PRESET, 1}, {23.2f, 'm', 0, 0, "comp"},
+    {22.4f, 'b', B_HOME, 0},                              /* HOME (the scope), SELECT to COMP, THR down and back */
+    {23.2f, 'e', EN_SELECT, 1}, {23.2f, 'm', 0, 0, "comp"},
     {24.0f, 'e', EN_K2, -3}, {24.5f, 'e', EN_K2, -3}, {25.0f, 'e', EN_K2, 3}, {25.4f, 'e', EN_K2, 3},
-    {26.0f, 'b', B_REC, 0}, {26.0f, 'm', 0, 0, "tracks"}, /* TRACKS: the mixer's meters */
+    {26.0f, 'b', B_HOME, 0}, {26.0f, 'b', B_HOME, 0},    /* HOME's TRACKS mode (HOME, then HOME again): the */
+    {26.0f, 'm', 0, 0, "tracks"},                         /* mixer's meters */
     {29.2f, 'b', B_LFO, 0}, {29.2f, 'm', 0, 0, "lfo"},    /* LFO 1 of track 1, its knobs turned */
     {29.8f, 'e', EN_K2, 3}, {30.4f, 'e', EN_K3, 2}, {31.2f, 'e', EN_K2, -3}, {31.8f, 'e', EN_K3, -2},
-    {32.4f, 'b', B_HOME, 0}, {32.4f, 'm', 0, 0, "end"},   /* back to HOME for the loop */
+    {32.4f, 'b', B_HOME, 0}, {32.4f, 'b', B_HOME, 0},    /* back to HOME's scope for the loop (TRACKS, then HOME) */
+    {32.4f, 'm', 0, 0, "end"},
 };
 #define NACT (sizeof SCRIPT / sizeof SCRIPT[0])
 
@@ -109,6 +111,7 @@ int main(int argc, char **argv)
         return 2;
     }
     sim_init(1);                                          /* the first visit: demo 1 loaded */
+    tap_btn(B_HOME);                                      /* HOME's second mode: the scope (power-on shows TRACKS) */
     tap_btn(B_PLAY);
     for (i = 0; i < FS * 2u / SIM_MAX_FRAMES; i++)        /* 2 s in: the pattern runs, LOADED has gone */
         sim_render(SIM_MAX_FRAMES);

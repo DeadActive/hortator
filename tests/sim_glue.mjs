@@ -9,7 +9,7 @@ import { Fm1Sim, FS } from '../web/sim/engine.js';
 
 const DIR = process.argv[2] || 'build/sim';
 const WASM = readFileSync(join(DIR, 'fm1sim.wasm'));
-const B_EDIT = 4, B_PLAY = 10;                      // panel.c's label order (controls.js checks it against panel.c)
+const B_EDIT = 4, B_HOME = 6, B_PLAY = 10;          // panel.c's label order (controls.js checks it against panel.c)
 
 async function boot(sectors = null) {
   const sim = await Fm1Sim.create(WASM);
@@ -84,6 +84,7 @@ test('the fresh boot leaves dirty flash sectors; a new instance boots from them 
 test('releaseAll lets go of held keys and buttons', async () => {
   const sim = await boot();
   run(sim, 4096);
+  tap(sim, B_HOME);                                 // HOME's second mode (power-on: TRACKS, the keys its steps)
   sim.key(5, true);
   run(sim, 2048);
   assert.ok((sim.keyLeds() >>> 5) & 1, 'held key lit');

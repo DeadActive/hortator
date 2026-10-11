@@ -28,8 +28,6 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
 
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 
-static int rec_held(void) { return (int)((fm1_in.buttons >> panel.btn[B_REC]) & 1u); }   /* TRACKS: the mute key */
-
 #include "ui_name.c"                               /* NAME: naming a project */
 
 static void ui_leds(void)
@@ -65,11 +63,6 @@ static void ui_leds(void)
             led_put(nl, 14u + k, e < PF_M1 ? (int)(((ok >> e) & 1u) && (((held >> e) & 1u) || blink))
                                : e < PF_N ? (int)(!((held >> e) & 1u) && !trk[e - PF_M1].p[P_MUTE]) : 0);
         }
-    } else if (mix_mode() && rec_held()) {            /* TRACKS, REC held: the playing tracks' keys; a mute waiting
-                                                         * for the bar blinks */
-        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
-        for (k = 0; k < NTRK; k++)
-            led_put(nl, 14u + KEY_TRK_KEY[k], ((song.mute_q >> k) & 1u) ? blink : trk[k].p[P_MUTE] == 0);
     } else if (step_keys()) {                         /* the bank's steps; the playhead inverted */
         const track_t *t = TSEL;
         led_put(nl, panel.btn[B_OCTDN], ui.bank > 0u);
@@ -170,7 +163,7 @@ static void tracks_edit(uint32_t slot, int32_t steps)
     motion_capture(t, id);                          /* motion.c: LEVEL / PAN recorded (LEN never) */
 }
 
-static void mute_bar_set(uint32_t on)                  /* TRACKS' mutes: at once / on the next bar (device setting) */
+static void mute_bar_set(uint32_t on)                  /* the mutes: at once / on the next bar (device setting) */
 {
     settings.mutebar = on & 1u;
     song.act[2] = (int16_t)settings.mutebar;
@@ -178,7 +171,8 @@ static void mute_bar_set(uint32_t on)                  /* TRACKS' mutes: at once
     ui_message(settings.mutebar ? "MUTE: NEXT BAR" : "MUTE: NOW");
 }
 
-static void track_rec_toggle(uint32_t k)               /* arm / disarm track k; arming while stopped starts play */
+static void track_rec_toggle(uint32_t k)               /* arm / disarm track k (REC, every screen; the SMC-Mixer);
+                                                        * arming while stopped starts play */
 {
     uint8_t bit = (uint8_t)(1u << k);
     song.rec ^= bit;
@@ -559,7 +553,7 @@ static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
-    uint32_t rec = btn_hold(&ui.rec_t0, B_REC, now, !ui.menu && (fam == FAM_SEQ || fam == FAM_MIX));
+    uint32_t rec = btn_hold(&ui.rec_t0, B_REC, now, !ui.menu && fam == FAM_SEQ);
     int32_t s;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
@@ -591,26 +585,21 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
-    if (rec == BT_HOLD) {                               /* REC held on SEQ: "clear track n?"; SONG: its row; TRACKS:
-                                                         * nothing (REC is the mute key there; the press is used) */
-        if (fam == FAM_MIX) {
-        } else if (!ui.home && cur_page()->graph == GR_SONG) {
+    if (rec == BT_HOLD) {                               /* REC held on SEQ: "clear track n?"; SONG: its row */
+        if (!ui.home && cur_page()->graph == GR_SONG) {
             song_rec_hold();
         } else if (!song_lock()) {
             ui.confirm = 1;
             ui.confirm_trk = song.sel;
             ui.force = 1;
         }
-    } else if (rec == BT_TAP && !ui.confirm) {
+    } else if (rec == BT_TAP && !ui.confirm) {          /* spec §4: REC arms on every screen */
         if (ui.srec) {
             ui.srec = 0;                                /* step record ends */
         } else if (srec_ok()) {
             srec_start();                               /* KEYS, STEP, stopped: step record */
-        } else if (fam == FAM_MIX) {
-            if (!song_lock())
-                track_rec_toggle(song.sel);
-        } else {
-            open_family(FAM_MIX);                       /* arming is TRACKS' (a REC tap there) */
+        } else if (!song_lock()) {
+            track_rec_toggle(song.sel);                 /* the selected track armed / disarmed */
         }
     }
     if (ui.confirm) {                                   /* OCT- cancels, OCT+ clears; nothing else reacts */
@@ -645,9 +634,8 @@ static void ui_input(void)
         return;
     }
     if (home == BT_TAP)
-        home_step();
+        home_tap();                                     /* HOME: TRACKS <-> HOME; elsewhere HOME as last shown */
     settings_poll();
-    song.octdn = panel.btn[B_REC];                     /* seq.c: TRACKS armed, REC held: the keys mute */
     song.act[2] = (int16_t)settings.mutebar;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
@@ -703,7 +691,7 @@ static void ui_input(void)
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_MIX && f != FAM_LAY && b != B_FX)
+                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX)
                     open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }
@@ -712,19 +700,7 @@ static void ui_input(void)
     song.seq_mode = seq_mode_now();                   /* seq.c: whose the keys are (KEYS may have changed) */
     if (ui.srec && !srec_ok())
         ui.srec = 0;                                    /* KEYS off, another page, the transport started */
-    if (mix_mode() && rec_held()) {                     /* TRACKS, REC held: a white key mutes its track, top C# / D#
-                                                         * (MONO / POLY): mutes at once / next bar; the REC press is then
-                                                         * used (no arm, no hold) */
-        if ((notes >> 20) & 1u)
-            mute_bar_set(0);
-        if ((notes >> 22) & 1u)
-            mute_bar_set(1);
-        for (k = 0; k < NTRK; k++)
-            if ((notes >> KEY_TRK_KEY[k]) & 1u)
-                track_mute_toggle(k);
-        if (notes && ui.rec_t0)
-            ui.rec_t0 |= 2u;
-    } else if (ui.srec) {
+    if (ui.srec) {
         srec_keys(notes);
     } else if (step_keys()) {
         for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a press */
@@ -749,12 +725,13 @@ static void ui_input(void)
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);
     }
-    if ((s = panel_enc(EN_PRESET)) != 0)              /* PRESET: the section's pages (the engine: MODEL on EDIT 1) */
-        page_turn(s > 0 ? 1 : -1);
+    panel_enc(EN_PRESET);                             /* PRESETS: nothing (spec §2: free) */
     if ((s = panel_enc(EN_ALGO)) != 0)
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-    if ((s = panel_enc(EN_SELECT)) != 0) {
-        if (song.g[G_CLOCK])                         /* following a clock: its tempo, not the knob */
+    if ((s = panel_enc(EN_SELECT)) != 0) {              /* SELECT: the section's pages; HOME's TRACKS mode: BPM */
+        if (!mix_mode())
+            page_turn(s > 0 ? 1 : -1);
+        else if (song.g[G_CLOCK])                       /* following a clock: its tempo, not the knob */
             ui_say("CLK ", N_CLOCK[song.g[G_CLOCK]]);
         else {
             song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);

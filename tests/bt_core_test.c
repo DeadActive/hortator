@@ -110,10 +110,15 @@ static void test_clock(void)
     check("CLK USB: a BLE Start and Clock do nothing", !song.playing && !midi_clock.tempo_valid);
     check("CLK: BLE is value 3 in this build", GP[G_CLOCK].max == 3 && str_eq(N_CLOCK[3], "BLE"));
     fresh(2);
+    press(B_HOME);                                   /* a HOME tap: HOME's TRACKS mode (SELECT is BPM there) */
+    ui_input();
+    release_all();
+    ui_input();
     song.g[G_CLOCK] = 3;
     turn(EN_SELECT, 1);
     ui_input();
-    check("CLK BLE: the BPM knob says CLK BLE", str_eq(ui.msg, "CLK BLE") && song.g[G_BPM] == GP[G_BPM].def);
+    check("CLK BLE: the BPM knob (SELECT on HOME's TRACKS mode) says CLK BLE", mix_mode() && str_eq(ui.msg, "CLK BLE") &&
+          song.g[G_BPM] == GP[G_BPM].def);
     song.g[G_CLOCK] = 2;
     ui.msg[0] = 0;
     turn(EN_SELECT, 1);

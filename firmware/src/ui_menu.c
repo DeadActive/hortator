@@ -78,7 +78,7 @@ static void draw_menu(void)
                         cv_rect(160 + (int32_t)k * 14, y + 3, 10, 10, pal[k]);
                 }
             }
-            cv_text(4, 170, &FONT_S, "PRESETS MOVE", C_DIM);
+            cv_text(4, 170, &FONT_S, "SELECT MOVE", C_DIM);
             cv_text(4, 188, &FONT_S, "OCT+ OK   OCT- BACK", C_DIM);
         }
         cv_oy = 0;
@@ -102,7 +102,7 @@ static void menu_close(void)
     settings_save();                                   /* palette / panel table, if changed */
     ui.menu = 0;
     ui.force = 1;
-    go_home();
+    go_home();                                         /* HOME in the mode last shown */
 }
 
 /* the start screen (main.c fm1_main, right after lcd_init): CRT COLLAPSE, the logo squashed into a scan line
@@ -117,7 +117,7 @@ static void draw_boot_title(void)
     }
 }
 
-/* menu: PRESETS moves, OCT+ confirms, OCT- cancels (ABOUT -> list -> close) */
+/* menu: SELECT moves, OCT+ confirms, OCT- cancels (ABOUT -> list -> close) */
 static void menu_input(uint32_t pressed)
 {
     int32_t s;
@@ -136,7 +136,7 @@ static void menu_input(uint32_t pressed)
             menu_close();
         return;
     }
-    if ((s = panel_enc(EN_PRESET)) != 0 && ui.menu == 1)
+    if ((s = panel_enc(EN_SELECT)) != 0 && ui.menu == 1)
         ui.menu_sel = (uint8_t)((ui.menu_sel + (s > 0 ? 1u : MI_COUNT - 1u)) % MI_COUNT);
     s = panel_enc(EN_K1);
     if (s != 0 && ui.menu == 1 && ui.menu_sel == MI_COLOR) {

@@ -34,7 +34,8 @@ static void panel_setup(void);
 #define H_FOOT 38
 
 static struct {
-    uint8_t home;
+    uint8_t home;                /* HOME's second mode shown: the HOME screen (spec §3) */
+    uint8_t hmode;               /* HOME's mode last shown: 0 TRACKS (the TRACKS page), 1 HOME (the HOME screen, COMP) */
     uint8_t page;                /* index into PAGES */
     uint8_t fam_last[FAM_COUNT]; /* last page used per family */
     uint8_t bank;                /* STEP grid: 16-step bank shown on the keys */
@@ -102,9 +103,9 @@ static int song_lock(void)                          /* a song plays (or is armed
 }
 
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
-static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
+static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* HOME's TRACKS mode */
 static int comp_mode(void) { return !ui.home && !ui.menu && cur_page()->graph == GR_COMP; }   /* COMP: keys DUCK */
-/* KEYS (spec §5): the keys a chromatic keyboard of the selected track on every page but TRACKS and COMP (their mute /
+/* KEYS (spec §5): the keys a chromatic keyboard of the selected track on every page but TRACKS and COMP (their step /
  * duck keys); NAME and the menu keep theirs, and FX held takes its keys first (seq.c keyboard_block) */
 static int keys_mode(void)
 {
@@ -119,7 +120,7 @@ static int step_keys(void)
            ((cur_page()->fam == FAM_SEQ && !keys_mode()) || (cur_page()->scope == SC_MIX && !song.rec));
 }
 /* seq.c keyboard_block: whose the keys' presses are: 0 the drum keys (hits, MIDI), 1 the UI's (the STEP grid, COMP,
- * TRACKS, NAME), 2 TRACKS armed (hits and recording; REC held: the mutes), 3 KEYS */
+ * TRACKS, NAME), 2 TRACKS armed (hits and recording, as 0), 3 KEYS */
 static uint8_t seq_mode_now(void)
 {
     if (keys_mode())
@@ -209,37 +210,56 @@ static void open_family(uint32_t fam)
     page_entered();
 }
 
-static void go_home(void)
+/* HOME (spec §3): two modes, 1 TRACKS (the TRACKS page: the mixer, TRACK LEVEL LEN PAN, the keys as on TRACKS) and 2
+ * HOME (the HOME screen: the scope, the selected track's macros; SELECT on to COMP 2/3, 3/3). ui.hmode: the one last
+ * shown */
+static void home_screen(void)                         /* HOME's second mode */
 {
     ui.srec = 0;                                       /* step record ends (leaving the page, another track) */
     ui.home = 1;
+    ui.hmode = 1;
     ui.hot_t = 0;
     song.seq_mode = seq_mode_now();
     ui.force = 1;
 }
 
-static void home_step(void)                           /* HOME: the HOME screen -> COMP 2/3 -> COMP 3/3 -> HOME */
+static void home_tracks(void)                         /* HOME's TRACKS mode: the TRACKS page (FAM_MIX: HOME's LED) */
 {
-    if (ui.home) {
-        ui.page = (uint8_t)page_first(FAM_HOME);
-        ui.home = 0;
-        page_entered();
-    } else if (cur_page()->fam == FAM_HOME && ui.page + 1u < NPAGES && PAGES[ui.page + 1u].fam == FAM_HOME) {
-        ui.page++;
-        page_entered();
-    } else {
-        go_home();
-    }
+    ui.page = (uint8_t)page_first(FAM_MIX);
+    ui.home = 0;
+    ui.hmode = 0;
+    page_entered();
 }
 
-/* PRESET: the current section's next / previous page (its empty pages skipped), stopping at the ends; HOME 1/3 is
- * the HOME section's first page (then COMP 2/3, 3/3) */
+static void go_home(void)                             /* HOME in the mode last shown */
+{
+    if (ui.hmode)
+        home_screen();
+    else
+        home_tracks();
+}
+
+static void home_tap(void)                            /* on HOME: TRACKS <-> HOME (COMP: HOME); elsewhere: HOME */
+{
+    if (ui.home)
+        home_tracks();
+    else if (cur_page()->fam == FAM_MIX || cur_page()->fam == FAM_HOME)
+        home_screen();
+    else
+        go_home();
+}
+
+/* SELECT: the current section's next / previous page (its empty pages skipped), stopping at the ends; HOME 1/3 (the
+ * HOME screen) is the HOME section's first page (then COMP 2/3, 3/3). (HOME's TRACKS mode: BPM, ui_input.c) */
 static void page_turn(int32_t dir)
 {
     uint32_t fam, i;
     if (ui.home) {
-        if (dir > 0)
-            home_step();                              /* HOME 1/3 -> COMP 2/3 */
+        if (dir > 0) {                                /* HOME 1/3 -> COMP 2/3 */
+            ui.page = (uint8_t)page_first(FAM_HOME);
+            ui.home = 0;
+            page_entered();
+        }
         return;
     }
     fam = cur_page()->fam;
@@ -252,7 +272,7 @@ static void page_turn(int32_t dir)
         ui.fam_last[fam] = ui.page;
         page_entered();
     } else if (dir < 0 && fam == FAM_HOME) {
-        go_home();                                    /* COMP 2/3 back to HOME 1/3 */
+        home_screen();                                /* COMP 2/3 back to HOME 1/3 */
     }
 }
 
@@ -376,7 +396,7 @@ static void init_all(void)
     ui.force = 1;
 }
 
-/* TRACKS: white key k mutes / unmutes track k; a mute also cuts what it is playing (declicked, in the ISR) */
+/* track k muted / unmuted (MUTE: NOW, or NEXT BAR); a mute also cuts what it is playing (declicked, in the ISR) */
 static void track_mute_toggle(uint32_t k)
 {
     if (k >= NTRK)
@@ -443,8 +463,7 @@ static void drum_boot_init(void)
 {
     safe_start_check();
     drum_tracks_init();
-    ui.home = 1;
-    ui.force = 1;
+    home_tracks();                                     /* HOME's TRACKS mode (spec §3) */
 }
 
 /* the next / previous model on the selected track, with its default sound; with the audio IRQ off,

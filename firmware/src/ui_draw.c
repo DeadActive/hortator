@@ -370,7 +370,7 @@ static void graph_grid(const track_t *t, uint16_t c)
     } else if (ui.srec) {                             /* step record: the ways on and out */
         cv_text(4, 84, &FONT_S, "EDIT: REST  REC: END", C_DIM);
     } else if (keys_mode()) {                         /* KEYS: the keys are notes; REC: step record where a tap starts
-                                                       * it (stopped; playing, a song: it opens TRACKS) */
+                                                       * it (stopped; playing, a song: a tap arms the track) */
         cv_text(4, 84, &FONT_S, srec_ok() ? "KEYS  REC: STEP RECORD" : "KEYS", C_DIM);
     } else if (held_line(t, 84)) {
     } else {

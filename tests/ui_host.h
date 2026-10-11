@@ -87,7 +87,8 @@ static void ui_host_init(void)
     settings.magic = 0;
     settings_init();
     host_ticks += 1000u * 1000u * FM1_TICKS_PER_US;   /* 1 s idle: the first turn of a test is not accelerated */
-    ui.home = 1;
+    ui.home = 1;                                     /* HOME's second mode (the HOME screen; power-on: TRACKS) */
+    ui.hmode = 1;
     ui.force = 1;
 }
 

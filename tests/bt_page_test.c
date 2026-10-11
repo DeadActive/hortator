@@ -61,11 +61,11 @@ static void knob(int32_t s)
     turn(EN_K1, s);
     ui_frame();
 }
-static void row(uint32_t r)                          /* the page's cursor to row r (PRESETS from the top) */
+static void row(uint32_t r)                          /* the page's cursor to row r (SELECT from the top) */
 {
     uint32_t k;
     for (k = 0; btp.sel != r && k < 20u; k++) {
-        turn(EN_PRESET, 1);
+        turn(EN_SELECT, 1);
         ui_frame();
     }
 }
@@ -104,7 +104,7 @@ static void open_page(void)
 {
     uint32_t k;
     for (k = 0; k < MI_BT; k++) {                   /* (one row per frame) */
-        turn(EN_PRESET, 1);
+        turn(EN_SELECT, 1);
         ui_frame();
     }
     tap(B_OCTUP);
@@ -144,7 +144,7 @@ static void test_menu_row(void)
     {
         uint32_t k;
         for (k = 0; k < MI_BT; k++) {
-            turn(EN_PRESET, 1);
+            turn(EN_SELECT, 1);
             ui_frame();
         }
         snap("00_menu");

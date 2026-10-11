@@ -93,7 +93,7 @@ static void smc_button(uint32_t n)
     uint32_t k = n & 7u;
     if (n < 0x20u) {
         if (n < 0x08u) {
-            if (!song_lock())                         /* as REC on TRACKS */
+            if (!song_lock())                         /* as a REC tap */
                 track_rec_toggle(k);
         } else if (n < 0x10u) {
             track_solo_toggle(k);

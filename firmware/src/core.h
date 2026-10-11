@@ -185,8 +185,6 @@ typedef struct track {
 typedef struct {
     int16_t g[G_COUNT];
     uint8_t playing, seq_mode;
-    uint8_t octdn;               /* seq_mode 2 (TRACKS, armed): the keys are the UI's only while this button (REC since
-                                  * 2026-10-08, the mute key) is held */
     uint8_t rec;                 /* live recording armed: bit per track */
     uint8_t sel;                 /* selected track 0..NTRK-1: keys, pages, editor */
     int8_t octave;               /* KEYS: the keyboard's octave, -2..+2 (OCT- / OCT+), never stored */
@@ -197,7 +195,7 @@ typedef struct {
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
     int16_t act[3];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
                                   * copy of settings.mutebar */
-    uint8_t mute_q;              /* TRACKS: mutes to flip on the next bar (bit per track; seq.c) */
+    uint8_t mute_q;              /* mutes to flip on the next bar (bit per track; seq.c) */
     uint8_t solo;                /* SOLO (the SMC-Mixer): bit per track, runtime only (trk_silent) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */
     uint8_t lsel;                /* the LFO pages show LFO 1 / 2 (OCT-): screen state, never stored */

@@ -422,10 +422,10 @@ static void keyboard_block(void)
             if (((ch & cur) >> key) & 1u)
                 keys_on(key);
         ch &= ~cur;                                 /* (releases still send their note-off, as on the grid) */
-    } else if (song.seq_mode == 1u || (song.seq_mode == 2u && ((fm1_in.buttons >> song.octdn) & 1u))) {
+    } else if (song.seq_mode == 1u) {
         ch &= ~cur;                                 /* the STEP grid / TRACKS / COMP ducks (ui_input.c) own presses; releases
                                                      * still send their note-off (no hung notes). TRACKS while armed
-                                                     * (seq_mode 2): the keys play and record, REC held: they mute */
+                                                     * (seq_mode 2): the keys play and record */
     }
     for (i = 0; ch && i < NTRK; i++) {
         uint32_t k = KEY_TRK_KEY[i], note = (uint32_t)trk[i].p[P_NOTE] & 127u;

@@ -15,10 +15,28 @@ static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
 static uint32_t fb_lit(uint32_t y0, uint32_t y1);
 static void tap(uint32_t b);
+static void hold(uint32_t label);
+static void safe_boot(int seq_held);
+static void kit_session(void);
 static int led_on(uint32_t id)                       /* the LED of button / key id (ui_leds' last frame) */
 {
     uint32_t q = led_pos[id];
     return q != 0xFF && ((fm1_led[q >> 3] >> (q & 7u)) & 1u);
+}
+
+/* SELECT (spec §2): one detent; the pages, BPM on HOME's TRACKS mode */
+static void sel(int32_t d)
+{
+    turn(EN_SELECT, d);
+    ui_frame();
+}
+/* HOME's TRACKS mode (spec §3): HOME taps until it shows (on HOME a tap toggles TRACKS / HOME, elsewhere it opens
+ * HOME in the mode last shown) */
+static void open_tracks(void)
+{
+    uint32_t k;
+    for (k = 0; k < 3u && !mix_mode(); k++)
+        tap(B_HOME);
 }
 
 static void test_families(void)
@@ -146,67 +164,77 @@ static void test_model_swap(void)
     ui_frame();
     release_all();
     ui_frame();
-    turn(EN_PRESET, 1);
-    ui_frame();
-    check("PRESET elsewhere (FX page) leaves the model alone", (uint32_t)trk[0].p[P_MODEL] == m0);
+    sel(1);
+    check("SELECT elsewhere (FX page) leaves the model alone", (uint32_t)trk[0].p[P_MODEL] == m0);
 }
 
-/* PRESET turns the current section's pages, both ways, stopping at the ends (HOME: HOME 1/3 <-> COMP 2/3 <-> 3/3);
- * it no longer changes the engine */
-static void preset(int32_t d)
-{
-    turn(EN_PRESET, d);
-    ui_frame();
-}
-
-static void test_preset_pages(void)
+/* SELECT turns the current section's pages (spec §2), both ways, stopping at the ends (HOME's second mode: HOME 1/3
+ * <-> COMP 2/3 <-> 3/3); on HOME's TRACKS mode it is BPM; PRESETS does nothing; it never changes the engine */
+static void test_select_pages(void)
 {
     uint32_t m0, pos, k;
+    int16_t bpm;
     ui_host_init();
     m0 = (uint32_t)TSEL->p[P_MODEL];
-    preset(1);
-    check("PRESET on HOME: COMP (HOME 2/3), the engine unchanged",
-          !ui.home && cur_page()->fam == FAM_HOME && page_id(cur_page(), 0) == G_CSRC && (uint32_t)TSEL->p[P_MODEL] == m0);
-    preset(1);
-    check("PRESET again: COMP (HOME 3/3)", page_id(cur_page(), 0) == G_CATK);
-    preset(1);
-    check("PRESET at the last page: stays", page_id(cur_page(), 0) == G_CATK);
-    preset(-1);
-    preset(-1);
-    check("PRESET back twice: the HOME screen", ui.home);
-    preset(-1);
-    check("PRESET back on HOME 1/3: stays, the engine unchanged", ui.home && (uint32_t)TSEL->p[P_MODEL] == m0);
+    bpm = song.g[G_BPM];
+    sel(1);
+    check("SELECT on HOME (mode 2): COMP (HOME 2/3), the engine and BPM unchanged",
+          !ui.home && cur_page()->fam == FAM_HOME && page_id(cur_page(), 0) == G_CSRC &&
+              (uint32_t)TSEL->p[P_MODEL] == m0 && song.g[G_BPM] == bpm);
+    sel(1);
+    check("SELECT again: COMP (HOME 3/3)", page_id(cur_page(), 0) == G_CATK);
+    sel(1);
+    check("SELECT at the last page: stays", page_id(cur_page(), 0) == G_CATK);
+    sel(-1);
+    sel(-1);
+    check("SELECT back twice: the HOME screen (mode 2)", ui.home);
+    sel(-1);
+    check("SELECT back on HOME 1/3: stays, the engine unchanged", ui.home && (uint32_t)TSEL->p[P_MODEL] == m0);
     tap(B_FX);
     check("FX opens on FILTER 1/2", str_eq(cur_page()->title, "FILTER") && page_id(cur_page(), 0) == P_FTYPE);
-    preset(1);                                       /* FILTER 2/2 */
-    preset(1);                                       /* FX */
-    preset(1);
-    check("PRESET on FX: SLICER", str_eq(cur_page()->title, "SLICER"));
-    preset(1);
-    check("PRESET again: RESON 1/2", str_eq(cur_page()->title, "RESON") && page_id(cur_page(), 0) == P_RMODEL);
-    preset(-1);
-    check("PRESET back: SLICER", str_eq(cur_page()->title, "SLICER"));
+    sel(1);                                          /* FILTER 2/2 */
+    sel(1);                                          /* FX */
+    sel(1);
+    check("SELECT on FX: SLICER", str_eq(cur_page()->title, "SLICER"));
+    sel(1);
+    check("SELECT again: RESON 1/2", str_eq(cur_page()->title, "RESON") && page_id(cur_page(), 0) == P_RMODEL);
+    sel(-1);
+    check("SELECT back: SLICER", str_eq(cur_page()->title, "SLICER"));
+    k = ui.page;
+    turn(EN_PRESET, 3);
+    ui_frame();
+    turn(EN_PRESET, -1);
+    ui_frame();
+    check("PRESETS does nothing (the page, the BPM, the track, the engine stay)",
+          ui.page == k && song.g[G_BPM] == bpm && song.sel == 0 && (uint32_t)TSEL->p[P_MODEL] == m0);
     tap(B_SEQ);
     tap(B_FX);
-    check("FX again later: the page PRESET left it on (SLICER)", str_eq(cur_page()->title, "SLICER"));
+    check("FX again later: the page SELECT left it on (SLICER)", str_eq(cur_page()->title, "SLICER"));
     tap(B_EDIT);                                     /* SOUND 1/3 .. 3/3; page 4 is empty for every engine: skipped */
     for (k = 0; k < 6u; k++)
-        preset(1);
-    check("PRESET on EDIT: stops on the engine's last SOUND page (empty pages skipped)",
+        sel(1);
+    check("SELECT on EDIT: stops on the engine's last SOUND page (empty pages skipped)",
           str_eq(cur_page()->title, "SOUND") && fam_pages(FAM_SND, &pos) == pos && !page_hidden(ui.page));
     tap(B_OCTUP);                                    /* the layer */
-    preset(1);
-    check("PRESET in the layer: LAYER 2/2", str_eq(cur_page()->title, "LAYER") && page_id(cur_page(), 0) == P_LDEC);
-    preset(1);
-    check("PRESET at LAYER 2/2: stays", page_id(cur_page(), 0) == P_LDEC);
-    press(B_REC);                                    /* TRACKS: one page */
-    ui_frame();
-    release_all();
-    ui_frame();
+    sel(1);
+    check("SELECT in the layer: LAYER 2/2", str_eq(cur_page()->title, "LAYER") && page_id(cur_page(), 0) == P_LDEC);
+    sel(1);
+    check("SELECT at LAYER 2/2: stays", page_id(cur_page(), 0) == P_LDEC);
+    tap(B_HOME);                                     /* HOME as last shown (mode 2), then its TRACKS mode */
+    tap(B_HOME);
     k = ui.page;
-    preset(1);
-    preset(-1);
-    check("PRESET on TRACKS: nothing to turn", ui.page == k && cur_page()->fam == FAM_MIX);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;   /* (a new turn: no acceleration) */
+    sel(1);
+    check("SELECT on HOME's TRACKS mode: BPM +1, the page stays", mix_mode() && ui.page == k && song.g[G_BPM] == bpm + 1);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    sel(-2);
+    check("SELECT left on TRACKS: BPM -2", mix_mode() && song.g[G_BPM] == bpm - 1);
+    turn(EN_PRESET, 2);
+    ui_frame();
+    check("PRESETS on TRACKS: nothing", mix_mode() && song.g[G_BPM] == bpm - 1);
+    turn(EN_ALGO, 2);
+    ui_frame();
+    check("ALGORITHM on TRACKS: the track (1 -> 2 per read)", song.sel == 1);
 }
 
 static void test_home_macros(void)
@@ -425,14 +453,7 @@ static void test_src_readonly(void)
     song.g[G_GMODE] = 0;
     trk[0].p[P_SRC] = 1;
     trk[2].p[P_SRC] = 3;
-    press(B_HOME);                                   /* HOME, then a REC tap: TRACKS (on SEQ REC arms) */
-    ui_frame();
-    release_all();
-    ui_frame();
-    press(B_REC);
-    ui_frame();
-    release_all();
-    ui_frame();
+    open_tracks();                                   /* HOME's TRACKS mode */
     check("TRACKS open for the Grids rows screen", !ui.home && cur_page()->scope == SC_MIX && !song.rec);
     transport_req = 1;
     seq_play_to(1, 5);
@@ -469,15 +490,14 @@ static void test_grid_hold_track_change(void)
               !trk[0].step[20].on);
 }
 
-static void open_comp(int page2)                    /* HOME until COMP (HOME 2/3, or 3/3) shows */
+static void open_comp(int page2)                    /* HOME's second mode, then SELECT until COMP (2/3, or 3/3) */
 {
     uint32_t k;
-    for (k = 0; k < 8u && (ui.home || cur_page()->graph != GR_COMP || (cur_page()->id[0] == G_CATK) != page2); k++) {
-        press(B_HOME);
-        ui_frame();
-        release_all();
-        ui_frame();
-    }
+    for (k = 0; k < 8u && (!comp_mode() || (cur_page()->id[0] == G_CATK) != page2); k++)
+        if (ui.home || comp_mode())
+            sel(ui.home || page2 ? 1 : -1);
+        else
+            tap(B_HOME);
 }
 
 static void test_comp_pages(void)
@@ -492,28 +512,19 @@ static void test_comp_pages(void)
         fx_comp |= !ui.home && cur_page()->graph == GR_COMP;
     }
     check("FX no longer reaches COMP", !fx_comp);
-    press(B_HOME);
-    ui_frame();
-    release_all();
-    ui_frame();
-    check("HOME from FX: the HOME screen (1/3)", ui.home);
-    press(B_HOME);
-    ui_frame();
-    release_all();
-    ui_frame();
-    check("HOME again: COMP (HOME 2/3: SRC THRSH RATIO REL)",
+    tap(B_HOME);
+    check("HOME from FX: the HOME screen (1/3, the mode last shown)", ui.home);
+    sel(1);
+    check("SELECT: COMP (HOME 2/3: SRC THRSH RATIO REL), HOME lit",
           !ui.home && str_eq(cur_page()->title, "COMP") && cur_page()->fam == FAM_HOME && cur_page()->id[0] == G_CSRC &&
               fam_pages(FAM_HOME, &pos) == 2u && pos == 1u && led_lit(panel.btn[B_HOME]));
-    press(B_HOME);
-    ui_frame();
-    release_all();
-    ui_frame();
-    check("HOME again: COMP (HOME 3/3: ATK KNEE MKUP)", !ui.home && cur_page()->id[0] == G_CATK);
-    press(B_HOME);
-    ui_frame();
-    release_all();
-    ui_frame();
-    check("HOME again: back to the HOME screen", ui.home);
+    sel(1);
+    check("SELECT again: COMP (HOME 3/3: ATK KNEE MKUP)", !ui.home && cur_page()->id[0] == G_CATK);
+    tap(B_HOME);
+    check("a HOME tap on COMP: back to the HOME screen (mode 2)", ui.home);
+    sel(1);
+    sel(-1);
+    check("SELECT left from COMP 2/3: the HOME screen (mode 2)", ui.home);
     open_comp(0);
     snap_page("comp/01_off");
     turn(EN_K1, 1);
@@ -638,12 +649,7 @@ static void test_comp_keys(void)
     song.g[G_CMKUP] = 127;                           /* MKUP at the end: Streams' limiter */
     seq_play_to(0, 5);
     snap_page("comp/04_limiter");
-    for (a = 0; a < 3u && !ui.home; a++) {           /* HOME steps on through COMP 3/3 to the HOME screen */
-        press(B_HOME);
-        ui_frame();
-        release_all();
-        ui_frame();
-    }
+    tap(B_HOME);                                     /* a HOME tap on COMP: the HOME screen */
     a = hit_age(&trk[2]);
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
@@ -984,34 +990,120 @@ static void test_bank_follows_len(void)
     check("grid: a key past LEN changes nothing", !trk[0].step[26].on);
 }
 
-static void test_mixer_and_rec(void)
+/* HOME's two modes (spec §3): 1 TRACKS (the mixer: TRACK LEVEL LEN PAN, the keys as on TRACKS), 2 HOME (the scope,
+ * the selected track's macros); a HOME tap on HOME toggles them, elsewhere it opens the mode last shown; power-on:
+ * TRACKS */
+static void test_home_modes(void)
 {
-    ui_host_init();
-    press(B_REC);
+    uint32_t k;
+    safe_boot(0);                                    /* power-on */
     ui_frame();
-    release_all();
-    ui_frame();                                      /* REC acts on release (tap) */
-    check("REC tap elsewhere opens the TRACKS mixer", !ui.home && cur_page()->fam == FAM_MIX);
+    check("power-on: HOME's TRACKS mode (the TRACKS mixer, the footer TRACKS), HOME lit, REC dark",
+          mix_mode() && !ui.home && str_eq(cur_page()->title, "TRACKS") && fam_pages(cur_page()->fam, &k) == 1u &&
+              led_lit(panel.btn[B_HOME]) && !led_lit(panel.btn[B_REC]) && song.seq_mode == 1u);
+    snap_page("fixes/home_tracks");
     turn(EN_K1, 1);
     ui_frame();
-    check("TRACKS: KNOB 1 selects the track", song.sel == 1);
-    press(B_REC);
+    check("TRACKS mode: KNOB 1 selects the track", song.sel == 1);
+    turn(EN_K1, -1);
     ui_frame();
-    release_all();
+    tap(B_HOME);
+    check("a HOME tap on TRACKS: HOME's second mode (the HOME screen), HOME lit", ui.home && !mix_mode() &&
+          led_lit(panel.btn[B_HOME]) && song.seq_mode == 0u);
+    snap_page("fixes/home_mode2");
+    tap(B_HOME);
+    check("a HOME tap on the HOME screen: TRACKS again", mix_mode());
+    tap(B_EDIT);
+    tap(B_HOME);
+    check("from EDIT a HOME tap opens HOME in the mode last shown (TRACKS)", mix_mode());
+    tap(B_HOME);
+    tap(B_GLO);
+    tap(B_HOME);
+    check("from GLO a HOME tap opens HOME in the mode last shown (the HOME screen)", ui.home);
+    sel(1);
+    sel(1);
+    tap(B_SEQ);
+    tap(B_HOME);
+    check("COMP 3/3, then SEQ, then HOME: the HOME screen (COMP is the second mode's)", ui.home);
+    tap(B_HOME);
+    hold(B_HOME);                                    /* the menu over TRACKS, and closed again */
+    check("HOME held on TRACKS: the menu", ui.menu == 1u);
+    hold(B_HOME);
+    check("the menu closed: HOME in the mode last shown (TRACKS)", !ui.menu && mix_mode());
+    {
+        static const uint8_t B[] = {B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_ENV, B_SCL, B_REC};
+        uint32_t b, any = 0;
+        for (b = 0; b < sizeof B; b++) {             /* each button tapped on and on: never TRACKS */
+            ui_host_init();
+            for (k = 0; k < 4u; k++) {
+                tap(B[b]);
+                any |= (uint32_t)mix_mode();
+            }
+            transport_req = 2;
+            ui_frame();
+        }
+        check("no page button and no REC opens TRACKS (HOME's)", !any);
+    }
+    ui_host_init();                                  /* the screens with a pattern: TRACKS, then HOME's second mode */
+    kit_session();
+    open_tracks();
+    snap_page("fixes/home_tracks_kit");
+    tap(B_HOME);
+    snap_page("fixes/home_mode2_kit");
+    transport_req = 2;
     ui_frame();
-    check("TRACKS: REC tap arms the selected track and starts play", ((song.rec >> 1) & 1u) && song.playing);
-    ui_host_init();
-    seq_open("PATTERN");
-    press(B_REC);
-    ui_frame();
-    release_all();
-    ui_frame();
-    check("SEQ: REC tap opens TRACKS and arms nothing", !ui.home && cur_page()->fam == FAM_MIX && song.rec == 0u);
 }
 
-/* TRACKS: a white key is a step of the selected track; with REC held the keys show the playing tracks (lit) and mute /
- * unmute them (a mute also cuts what is ringing); REC + top C# / D# (MONO / POLY): mutes at once / on the next bar;
- * elsewhere the keys play again and the mutes stay */
+/* REC (spec §4): a tap arms / disarms the selected track on every screen (arming while stopped starts play); never
+ * opens TRACKS; the menu, NAME and a confirm keep it */
+static void test_rec_everywhere(void)
+{
+    static const struct { const char *what; uint32_t btn, n; } S[] = {
+        {"HOME (mode 2)", B_HOME, 0}, {"HOME's TRACKS mode", B_HOME, 1}, {"EDIT", B_EDIT, 1}, {"FX", B_FX, 1},
+        {"GLO", B_GLO, 1}, {"SEQ PATTERN", B_SEQ, 2}, {"LFO", B_LFO, 1}, {"SAVE", B_SAVE, 1},
+    };
+    uint32_t i, j, pg, home;
+    char what[96];
+    for (i = 0; i < sizeof S / sizeof S[0]; i++) {
+        ui_host_init();
+        for (j = 0; j < S[i].n; j++)
+            tap(S[i].btn);
+        turn(EN_ALGO, 1);                            /* track 2 */
+        ui_frame();
+        pg = ui.page;
+        home = ui.home;
+        tap(B_REC);
+        snprintf(what, sizeof what, "%s: a REC tap arms track 2, starts play, the screen stays, REC lit", S[i].what);
+        check(what, song.rec == 2u && song.playing && ui.page == pg && ui.home == home && led_lit(panel.btn[B_REC]));
+        tap(B_REC);
+        snprintf(what, sizeof what, "%s: a REC tap again disarms it (still playing), REC dark", S[i].what);
+        check(what, song.rec == 0u && song.playing && ui.page == pg && ui.home == home && !led_lit(panel.btn[B_REC]));
+        transport_req = 2;
+        ui_frame();
+    }
+    ui_host_init();
+    tap(B_EDIT);
+    pg = ui.page;
+    hold(B_REC);
+    check("REC held long off the SEQ pages: no dialog; the release arms (a tap)", !ui.confirm && song.rec == 1u &&
+          ui.page == pg);
+    transport_req = 2;
+    ui_frame();
+    ui_host_init();
+    hold(B_HOME);                                    /* the menu */
+    tap(B_REC);
+    check("REC in the menu: nothing", ui.menu == 1u && song.rec == 0u && !song.playing);
+    hold(B_HOME);
+    ui_host_init();
+    trk[0].step[0].on = 1;
+    seq_open("STEP");
+    hold(B_REC);                                     /* REC held on SEQ: CLEAR TRACK? */
+    tap(B_REC);
+    check("REC on the CLEAR TRACK dialog: nothing (the dialog stays)", ui.confirm == 1u && song.rec == 0u);
+    tap(B_OCTDN);
+    check("REC held on SEQ: the CLEAR TRACK dialog still (OCT- keeps the steps)", !ui.confirm && trk[0].step[0].on);
+}
+
 /* upstream 1.0 (project.c "STOP TO SAVE"): a flash erase silences the audio and stalls the sequencer, so no project
  * is saved while playing, and a settings save waits until the transport stops */
 static void test_no_save_while_playing(void)
@@ -1088,108 +1180,66 @@ static void test_knob_accel(void)
     }
 }
 
+/* HOME's TRACKS mode: a white key is a step of the selected track (nothing armed); the mutes themselves
+ * (track_mute_toggle: a mute cuts what rings; NEXT BAR waits for the bar, at once when stopped) until the MUTE screen
+ * drives them; leaving TRACKS the keys play again and the mutes stay */
 static void test_quick_mute(void)
 {
-    uint32_t a, k, ok = 1, on = 0, off = 0;
+    uint32_t a, k, ok = 1;
     ui_host_init();
     settings.mutebar = 0;
-    press(B_REC);                                    /* HOME: a REC tap opens TRACKS */
-    ui_frame();
-    release_all();
-    ui_frame();
+    open_tracks();
     trk[5].p[P_MUTE] = 1;
     a = hit_age(&trk[2]);
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("TRACKS: white key 3 (no REC) is step 3 of the selected track: no select, no mute, no sound",
+    check("TRACKS: white key 3 is step 3 of the selected track: no select, no mute, no sound",
           song.sel == 0 && trk[2].p[P_MUTE] == 0 && hit_age(&trk[2]) == a && trk[0].step[2].on);
     for (k = 0; k < NTRK; k++)
         ok &= led_lit(14u + KEY_TRK_KEY[k]) == trk[0].step[k].on;
-    check("TRACKS without REC: the keys show the steps, not the mutes", ok);
-    press(B_REC);                                    /* REC held from here */
-    ui_frame();
-    for (k = 0, ok = 1; k < NTRK; k++)
-        ok &= led_lit(14u + KEY_TRK_KEY[k]) == (k != 5u);
-    check("TRACKS, REC held: the keys light for the playing tracks, dark for the muted one", ok);
-    snap_page("seq/23_tracks_mute_hold");
+    check("TRACKS: the keys show the steps, not the mutes", ok);
     drum_hit(&trk[2], 127);                          /* track 3 ringing */
-    a = hit_age(&trk[2]);
-    keys(1u << KEY_TRK_KEY[2]);
-    ui_frame();
-    keys(0);
+    track_mute_toggle(2);
     for (k = 0; k < 5u; k++)
         ui_frame();
-    check("REC + key 3 mutes track 3 (LED dark), does not play it, cuts its ringing voice",
-          trk[2].p[P_MUTE] == 1 && hit_age(&trk[2]) == a && !trk[2].v[0].active && !trk[2].v[1].active &&
-              !led_lit(14u + KEY_TRK_KEY[2]));
-    keys(1u << KEY_TRK_KEY[2]);
-    ui_frame();
-    keys(0);
-    ui_frame();
-    check("REC + key 3 again unmutes it (LED lit)", trk[2].p[P_MUTE] == 0 && led_lit(14u + KEY_TRK_KEY[2]));
-    keys(1u << 22);                                  /* top D# (POLY) */
-    ui_frame();
-    keys(0);
-    ui_frame();
-    check("REC + top D#: mutes on the next bar", settings.mutebar == 1u && str_eq(ui.msg, "MUTE: NEXT BAR"));
+    check("a mute: track 3 muted, its ringing voice cut", trk[2].p[P_MUTE] == 1 && !trk[2].v[0].active &&
+          !trk[2].v[1].active);
+    track_mute_toggle(2);
+    check("again: unmuted", trk[2].p[P_MUTE] == 0);
+    settings.mutebar = 1;                            /* MUTE: NEXT BAR */
     transport_req = 1;
     seq_play_to(0, 2);
-    keys(1u << KEY_TRK_KEY[0]);
+    track_mute_toggle(0);
     ui_frame();
-    keys(0);
-    ui_frame();
-    check("next bar: REC + key 1 while playing waits (track 1 not muted yet)", trk[0].p[P_MUTE] == 0);
-    for (k = 0; k < 40u; k++) {                      /* 2 s, 50 ms frames */
-        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
-        ui_frame();
-        if (led_lit(14u + KEY_TRK_KEY[0]))
-            on++;
-        else
-            off++;
-    }
-    check("the waiting mute's key blinks", on > 5u && off > 5u && trk[0].p[P_MUTE] == 0);
+    check("NEXT BAR while playing: the mute waits (track 1 not muted yet)", trk[0].p[P_MUTE] == 0 && (song.mute_q & 1u));
     seq_play_to(0, 15);
     check("still waiting on the bar's last step", trk[0].p[P_MUTE] == 0);
     seq_play_to(0, 0);
-    check("at the bar (track 1's step 1): track 1 muted", trk[0].p[P_MUTE] == 1);
-    keys(1u << 20);                                  /* top C# (MONO) */
-    ui_frame();
-    keys(0);
-    ui_frame();
-    check("REC + top C#: mutes at once", settings.mutebar == 0u && str_eq(ui.msg, "MUTE: NOW"));
-    keys(1u << KEY_TRK_KEY[0]);
-    ui_frame();
-    keys(0);
-    ui_frame();
-    check("NOW: REC + key 1 while playing unmutes at once", trk[0].p[P_MUTE] == 0);
+    check("at the bar (track 1's step 1): track 1 muted", trk[0].p[P_MUTE] == 1 && !song.mute_q);
+    settings.mutebar = 0;
+    track_mute_toggle(0);
+    check("NOW while playing: unmuted at once", trk[0].p[P_MUTE] == 0);
     transport_req = 2;
     ui_frame();
     settings.mutebar = 1;
-    keys(1u << KEY_TRK_KEY[3]);
-    ui_frame();
-    keys(0);
+    track_mute_toggle(3);
     ui_frame();
     check("NEXT BAR but stopped: a mute is at once", trk[3].p[P_MUTE] == 1);
     settings.mutebar = 0;
-    release_all();
-    ui_frame();
-    press(B_HOME);                                   /* HOME: keys play again; track 6 stays muted */
-    ui_frame();
-    release_all();
-    ui_frame();
+    tap(B_HOME);                                     /* HOME's second mode: keys play again; track 6 stays muted */
     a = hit_age(&trk[0]);
     keys(1u << KEY_TRK_KEY[0]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("leaving TRACKS: the keys play again, the mutes stay", hit_age(&trk[0]) != a && trk[5].p[P_MUTE] == 1 &&
-                                                                 trk[0].p[P_MUTE] == 0);
+    check("leaving TRACKS: the keys play again, the mutes stay", ui.home && hit_age(&trk[0]) != a &&
+          trk[5].p[P_MUTE] == 1 && trk[0].p[P_MUTE] == 0);
 }
 
-/* TRACKS while a track is armed: the white keys play (and record) their tracks instead of the steps; REC held:
- * they still mute; disarmed: they select again */
+/* HOME's TRACKS mode while a track is armed: the white keys play (and record) their tracks instead of the steps; REC
+ * held is no mute key (its release is a REC tap: disarms); disarmed: the steps again */
 static void test_tracks_rec_keys(void)
 {
     uint32_t a, k, n = 0;
@@ -1197,16 +1247,10 @@ static void test_tracks_rec_keys(void)
     settings.mutebar = 0;
     for (k = 0; k < 16u; k++)
         trk[1].step[k].on = 0;
-    press(B_REC);                                    /* HOME: REC tap opens TRACKS */
-    ui_frame();
-    release_all();
-    ui_frame();
+    open_tracks();
     turn(EN_K1, 1);                                  /* track 2 */
     ui_frame();
-    press(B_REC);                                    /* arms track 2, starts play */
-    ui_frame();
-    release_all();
-    ui_frame();
+    tap(B_REC);                                      /* arms track 2, starts play */
     seq_play_to(1, 3);
     a = hit_age(&trk[1]);
     keys(1u << KEY_TRK_KEY[1]);
@@ -1222,19 +1266,18 @@ static void test_tracks_rec_keys(void)
     keys(0);
     ui_frame();
     check("TRACKS, armed: key 4 plays track 4, the selection stays", song.sel == 1 && hit_age(&trk[3]) != a);
-    press(B_REC);                                    /* REC held (the mute key) */
+    press(B_REC);                                    /* REC held: no longer the mute key */
     ui_frame();
     a = hit_age(&trk[3]);
     keys(1u << KEY_TRK_KEY[3]);
+    press(B_REC);
     ui_frame();
     keys(0);
+    press(B_REC);
     ui_frame();
-    check("TRACKS, armed, REC held: key 4 mutes track 4, no sound, still armed", trk[3].p[P_MUTE] == 1 && hit_age(&trk[3]) == a && (song.rec & 2u));
-    release_all();
-    ui_frame();
-    press(B_REC);                                    /* disarm */
-    ui_frame();
-    release_all();
+    check("TRACKS, armed, REC held: key 4 plays track 4 (no mute)", trk[3].p[P_MUTE] == 0 && hit_age(&trk[3]) != a &&
+          (song.rec & 2u));
+    release_all();                                   /* REC let go: a tap, track 2 disarmed */
     ui_frame();
     a = hit_age(&trk[5]);
     keys(1u << KEY_TRK_KEY[5]);
@@ -1243,6 +1286,8 @@ static void test_tracks_rec_keys(void)
     ui_frame();
     check("TRACKS, disarmed: key 6 is step 6 of track 2, no select, no sound",
           song.rec == 0 && song.sel == 1 && hit_age(&trk[5]) == a && song.seq_mode == 1u);
+    transport_req = 2;
+    ui_frame();
 }
 
 /* FX: RESON 1/2 and 2/2 after SLICER; STRCT is CHORD on CHORD; CHORD on 2 tracks at most (knob and load) */
@@ -1349,7 +1394,7 @@ static void test_home_keys_and_lfo(void)
     snap_page("lfo/91_home_marker");
 }
 
-/* GLOBAL 3/3: MUTE NOW / BAR, the same device setting as REC + C# / D# on TRACKS */
+/* GLOBAL 3/3: MUTE NOW / BAR, the device setting the mutes follow (track_mute_toggle) */
 static void test_global_mute_setting(void)
 {
     uint32_t k;
@@ -1469,10 +1514,7 @@ static void test_tracks_rows(void)
     uint32_t r, k, ok = 1;
     ui_host_init();
     kit_session();
-    press(B_REC);
-    ui_frame();
-    release_all();
-    ui_frame();
+    open_tracks();
     for (r = 0; r < NTRK; r++)
         for (k = 0; k < 16; k++)
             ok &= (fb[(MX_ROW_Y(r) + 7u) * 240u + MX_CELL_X(k) + 2u] != 0) == trk[r].step[k].on;
@@ -1508,10 +1550,15 @@ static void test_screens(void)
         char *d;
         const char *c;
         for (k = 0; k < NPAGES && (cur_page() != pg || ui.home); k++) {   /* its button until it shows */
-            if (pg->fam == FAM_MIX || pg->fam == FAM_HOME) {
-                press(pg->fam == FAM_MIX ? B_REC : B_HOME);   /* REC opens TRACKS, HOME steps to COMP, on release */
-                ui_frame();
-                release_all();
+            if (pg->fam == FAM_MIX) {                /* HOME's TRACKS mode: HOME (toggles) */
+                tap(B_HOME);
+                continue;
+            } else if (pg->fam == FAM_HOME) {        /* COMP: SELECT from HOME's second mode */
+                if (ui.home || comp_mode())
+                    sel(1);
+                else
+                    tap(B_HOME);
+                continue;
             } else if (pg->fam == FAM_LAY) {         /* the layer: OCT+ from EDIT, then EDIT steps */
                 press(ui.home || (cur_page()->fam != FAM_SND && cur_page()->fam != FAM_LAY) ? B_EDIT
                       : cur_page()->fam == FAM_SND ? B_OCTUP : B_EDIT);
@@ -1547,8 +1594,8 @@ static void test_screens(void)
     hold(B_HOME);                                    /* HOME held: the menu */
     snap_page("90_menu");
     check("HOME held: the menu draws", ui.menu == 1 && fb_lit(20, 230) > 300);
-    for (k = 0; k < MI_ABOUT; k++) {                 /* PRESETS: one item per detent */
-        turn(EN_PRESET, 1);
+    for (k = 0; k < MI_ABOUT; k++) {                 /* SELECT: one item per detent */
+        turn(EN_SELECT, 1);
         ui_frame();
     }
     press(B_OCTUP);
@@ -1708,14 +1755,7 @@ static void test_seq_screens(void)
     seq_snap_at(4, 9, "09_pattern_t5_len12_swing_step10");
     seq_select(0);
     seq_snap_at(0, 4, "10_pattern_t1_step05");
-    press(B_HOME);                                   /* REC tap off the SEQ pages: the TRACKS mixer */
-    ui_frame();
-    release_all();
-    ui_frame();
-    press(B_REC);
-    ui_frame();
-    release_all();
-    ui_frame();
+    open_tracks();                                   /* HOME's TRACKS mode: the mixer */
     seq_snap_at(0, 2, "11_tracks_step03");
     seq_snap_at(0, 13, "12_tracks_step14");
     press(B_HOME);
@@ -1886,9 +1926,7 @@ static void test_ui_frame_cost(void)
     ui_host_init();
     kit_session();
     transport_req = 1;
-    press(B_REC);                                    /* REC tap on HOME: the TRACKS mixer */
-    ui_frame();
-    release_all();
+    open_tracks();                                   /* HOME's TRACKS mode: the mixer */
     for (i = 0; i < 60; i++) {
         i0 = instr_now();
         ui_input();
@@ -2095,9 +2133,16 @@ static void test_clock_screens(void)
     ui.force = 1;
     snap_page("global_clk_usb");
     bpm = song.g[G_BPM];
-    turn(EN_SELECT, 3);
+    turn(EN_K1, 3);
     ui_frame();
-    check("CLK USB: the BPM knob keeps the tempo (the clock's) and says so", song.g[G_BPM] == bpm && ui.msg_t);
+    check("CLK USB: GLOBAL's BPM knob keeps the tempo (the clock's) and says so", song.g[G_BPM] == bpm && ui.msg_t &&
+          str_eq(ui.msg, "CLK USB"));
+    open_tracks();
+    ui.msg_t = 0;
+    ui.msg[0] = 0;
+    sel(3);
+    check("CLK USB: SELECT on HOME's TRACKS mode keeps the tempo and says CLK USB", song.g[G_BPM] == bpm && mix_mode() &&
+          str_eq(ui.msg, "CLK USB"));
     song.g[G_CLOCK] = 0;
     render_mix(0, 0, CTL);
 }
@@ -2889,7 +2934,7 @@ static void test_perform_knobs_follow_screen(void)
         keys(1u << 1);
         ui_frame();
         if (mode) {
-            turn(EN_PRESET, 1);                      /* PAGE: another page under it closes the PAGE */
+            turn(EN_SELECT, 1);                      /* PAGE: another page under it (SELECT) closes the PAGE */
             keys(1u << 1);
             ui_frame();
         }
@@ -2946,9 +2991,9 @@ static void test_perform_dead_knob(void)
     check("FX dead (held through the menu), its layer key let go: no PERFORM screen over the page the knobs edit", !bad);
 }
 
-/* user 2026-10-08: on every SEQ page (STEP PATTERN MOTION SONG) and on TRACKS (not armed) the 16 white keys are the
- * selected track's steps in the bank (a tap: on / off, a hold: accent); they play nothing and select nothing;
- * OCT+ / OCT- change the bank; the key LEDs show the steps. The track: ALGO (or TRACKS' KNOB 1) */
+/* user 2026-10-08: on every SEQ page (STEP PATTERN MOTION SONG) and on HOME's TRACKS mode (not armed) the 16 white
+ * keys are the selected track's steps in the bank (a tap: on / off, a hold: accent); they play nothing and select
+ * nothing; OCT+ / OCT- change the bank; the key LEDs show the steps. The track: ALGO (or TRACKS' KNOB 1) */
 static void test_step_keys_everywhere(void)
 {
     static const char *const SEQ[4] = {"STEP", "PATTERN", "MOTION", "SONG"};
@@ -2964,10 +3009,7 @@ static void test_step_keys_everywhere(void)
         if (p < 4u) {
             seq_open(SEQ[p]);
         } else {
-            press(B_REC);                            /* HOME: a REC tap opens TRACKS */
-            ui_frame();
-            release_all();
-            ui_frame();
+            open_tracks();                           /* HOME's TRACKS mode */
         }
         turn(EN_ALGO, 1);                            /* track 2, nothing played */
         ui_frame();
@@ -2996,17 +3038,14 @@ static void test_step_keys_everywhere(void)
     }
 }
 
-/* TRACKS: REC held + a white key mutes / unmutes its track (no arm, no "clear?"); REC held + top D#: mutes on the
- * next bar; a long REC hold there asks nothing (clearing stays the SEQ pages') */
+/* REC is no mute key (spec §4): on HOME's TRACKS mode REC held + a white key toggles a step (nothing armed), REC
+ * + top C# / D# change no MUTE setting; the release is a REC tap (arms); a long REC hold there asks nothing */
 static void test_tracks_rec_mutes(void)
 {
     uint32_t k;
     ui_host_init();
     settings.mutebar = 0;
-    press(B_REC);
-    ui_frame();
-    release_all();
-    ui_frame();
+    open_tracks();
     press(B_REC);
     ui_frame();
     keys(1u << KEY_TRK_KEY[3]);
@@ -3015,16 +3054,19 @@ static void test_tracks_rec_mutes(void)
     keys(0);
     press(B_REC);
     ui_frame();
-    check("TRACKS: REC held, LEDs: the playing tracks lit", led_lit(14u + KEY_TRK_KEY[0]) && !led_lit(14u + KEY_TRK_KEY[3]));
     keys(1u << 22);                                  /* top D# */
     press(B_REC);
     ui_frame();
     keys(0);
+    press(B_REC);
+    ui_frame();
+    check("TRACKS: REC held + key 4 mutes nothing (step 4 toggled), + top D# sets no MUTE mode",
+          trk[3].p[P_MUTE] == 0 && settings.mutebar == 0u && trk[0].step[3].on && !ui.confirm && mix_mode());
     release_all();
     ui_frame();
-    check("TRACKS: REC held + key 4 mutes track 4, REC + top D# mutes on the next bar; no arm, no clear, no step",
-          trk[3].p[P_MUTE] == 1 && settings.mutebar == 1u && song.rec == 0u && !ui.confirm && !trk[0].step[6].on &&
-              str_eq(cur_page()->title, "TRACKS"));
+    check("TRACKS: REC let go: a tap (track 1 armed)", song.rec == 1u);
+    transport_req = 2;
+    ui_frame();
     for (k = 0; k < 60u; k++) {                      /* REC held 1.2 s alone */
         host_ticks += 20u * 1000u * FM1_TICKS_PER_US;
         press(B_REC);
@@ -3033,6 +3075,8 @@ static void test_tracks_rec_mutes(void)
     release_all();
     ui_frame();
     check("TRACKS: a long REC hold asks nothing", !ui.confirm);
+    transport_req = 2;
+    ui_frame();
 }
 
 /* FM: SOUND 1/4 MODEL TUNE DECAY INDEX, 2/4 RATIO MDEC SWEEP FBK, 3/4 VEL LVL PAN NOTE, 4/4 CHOKE; the graph shows the
@@ -3228,10 +3272,7 @@ static void test_keys_release_anywhere(void)
     check("KEYS: the track changed while held: the release ends track 1's note", song.sel == 1 && !(trk[0].v[0].x[2] & 1));
     keys(1u << 7);                                   /* C4 on track 2 */
     ui_frame();
-    press(B_REC);                                    /* a REC tap: TRACKS (its own keys) */
-    ui_frame();
-    release_all();
-    ui_frame();
+    tap(B_HOME);                                     /* a HOME tap: HOME's TRACKS mode (its own keys) */
     keys(0);
     ui_frame();
     check("KEYS: TRACKS opened while held: the release ends the note", mix_mode() && song.seq_mode == 1u &&
@@ -3268,10 +3309,7 @@ static void test_keys_owners(void)
     fx_hold_frames(1);
     release_all();
     ui_frame();
-    press(B_REC);                                    /* TRACKS, nothing armed: its step grid */
-    ui_frame();
-    release_all();
-    ui_frame();
+    open_tracks();                                   /* HOME's TRACKS mode, nothing armed: its step grid */
     keys(1u << STEP_KEY[2]);
     ui_frame();
     keys(0);
@@ -3730,7 +3768,7 @@ static void test_srec_exits(void)
     uint32_t i;
     srec_open();
     tap(B_REC);
-    check("step record ends: a REC tap (STEP stays, TRACKS not opened, nothing armed)", !ui.srec &&
+    check("step record ends: a REC tap (STEP stays, nothing armed)", !ui.srec &&
           cur_page()->scope == SC_GRID && song.rec == 0u);
     srec_open();
     press(B_PLAY);
@@ -3798,14 +3836,18 @@ static void test_srec_exits(void)
     ui_host_init();
     seq_open("STEP");
     tap(B_REC);
-    check("KEYS off: a REC tap on STEP opens TRACKS (as before)", !ui.srec && mix_mode());
+    check("KEYS off: a REC tap on STEP arms the track and starts play (STEP stays)", !ui.srec && song.rec == 1u &&
+          song.playing && cur_page()->scope == SC_GRID);
+    transport_req = 2;
+    ui_frame();
     ui_host_init();
     tap(B_SCL);
     seq_open("STEP");
     transport_req = 1;
     ui_frame();
     tap(B_REC);
-    check("KEYS on, playing: a REC tap on STEP opens TRACKS (as before)", !ui.srec && mix_mode());
+    check("KEYS on, playing: a REC tap on STEP arms the track (STEP stays)", !ui.srec && song.rec == 1u &&
+          cur_page()->scope == SC_GRID);
     transport_req = 2;
     ui_frame();
 }
@@ -4398,7 +4440,7 @@ static void test_srec_rest_clears(void)
 }
 
 /* final review 6: KEYS, STEP, a drum track: "REC: STEP RECORD" only where a REC tap starts it (stopped); playing (a REC
- * tap opens TRACKS): KEYS alone */
+ * tap arms the track): KEYS alone */
 static uint32_t hint_lit(int32_t x0)               /* the STEP grid's hint row (graph y 84..95) lit from x0 */
 {
     uint32_t n = 0;
@@ -4424,7 +4466,7 @@ static void test_keys_hint_playing(void)
     ui_frame();
     playing = hint_lit(x0);
     check("KEYS, STEP, stopped: the hint names REC: STEP RECORD", stopped > 40u);
-    check("KEYS, STEP, playing: no REC: STEP RECORD (a REC tap opens TRACKS)", playing == 0u);
+    check("KEYS, STEP, playing: no REC: STEP RECORD (a REC tap arms)", playing == 0u);
     transport_req = 2;
     ui_frame();
     ui_frame();
@@ -4605,7 +4647,8 @@ int main(void)
     test_home_macros();
     test_grid_keys();
     test_bank_follows_len();
-    test_mixer_and_rec();
+    test_home_modes();
+    test_rec_everywhere();
     test_quick_mute();
     test_no_save_while_playing();
     test_knob_accel();
@@ -4613,7 +4656,7 @@ int main(void)
     test_tracks_rec_keys();
     test_reson_pages();
     test_acid_cap();
-    test_preset_pages();
+    test_select_pages();
     test_global_mute_setting();
     test_comp_pages();
     test_comp_ghost_knob();

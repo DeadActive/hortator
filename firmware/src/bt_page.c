@@ -3,7 +3,7 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* FELUCCA_BLE (felucca.c includes it after ble/ble_core.h; ui_menu.c declares its entry points): the Bluetooth page,
  * MENU > BLUETOOTH, ui.menu 3 (spec 2026-10-10 §2). A state line, then the rows BLUETOOTH, MODE, DEVICE, SCAN and up
- * to 8 devices found (BLE-MIDI ones first). PRESETS moves, KNOB 1 changes the row, OCT+ acts, OCT- back to the menu.
+ * to 8 devices found (BLE-MIDI ones first). SELECT moves, KNOB 1 changes the row, OCT+ acts, OCT- back to the menu.
  * BLUETOOTH ON is the only call of ble_user_start (gate 3: tools/check_ble_boot.py TRIGGERS has bt_page_on); it is
  * off at every power-on. The remembered device is saved with the settings (btset, project.c) at once, MODE when the
  * menu closes. */
@@ -177,7 +177,7 @@ static void bt_page_input(uint32_t pressed)
         ui.force = 1;
         return;
     }
-    if ((s = panel_enc(EN_PRESET)) != 0)            /* one row per detent, wrapping */
+    if ((s = panel_enc(EN_SELECT)) != 0)            /* one row per detent, wrapping */
         btp.sel = (uint8_t)((btp.sel + (s > 0 ? 1u : rows - 1u)) % rows);
     s = panel_enc(EN_K1);
     switch (btp.sel) {
@@ -300,7 +300,7 @@ static void bt_page_draw(void)
                 cv_text(236 - text_w(&FONT_S, t), y, &FONT_S, t, C_GRAY);
             }
         }
-        cv_text(4, 198, &FONT_S, "PRESETS  OCT+ OK  OCT- BACK", C_DIM);
+        cv_text(4, 198, &FONT_S, "SELECT  OCT+ OK  OCT- BACK", C_DIM);
         cv_oy = 0;
         cv_blit(0, H_HEAD + 1 + pass * 124u);
     }
