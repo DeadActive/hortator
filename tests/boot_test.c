@@ -328,6 +328,61 @@ static int settings_bt_mode_range(void)
            settings.lowcut == 0u;
 }
 
+/* spec 2026-10-11-fixes §9: METRO in lowcut's bits 5..6 survives a power cycle beside SPEAKER EQ (bits 0..1) and the
+ * device's address bytes 3..5 (bits 8..31); a record without them (0.16.0's) and no record at all load OFF */
+static int settings_metro_round_trip(void)
+{
+    uint32_t m, ok = 1;
+    for (m = 0; m < 4u; m++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = 3;
+        settings.lowcut = m % 3u;
+        settings.zoom = 1;
+        btset.btmode = 1;
+        btset.bt_lo = 0x112233u;
+        btset.bt_hi = 0xFFEEDDu;
+        fx_metro = (uint8_t)m;
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= ((p.lowcut >> 5) & 3u) == m && (p.lowcut & 3u) == m % 3u && p.lowcut >> 8 == 0xFFEEDDu &&
+              !(p.lowcut & 0x9Cu);
+        rfill(&settings, sizeof settings);           /* power off */
+        memset(&btset, 0, sizeof btset);             /* (.bss) */
+        fx_metro = 0;
+        persist_boot();
+        settings_init();
+        ok &= fx_metro == m && settings.lowcut == m % 3u && fx_lowcut == m % 3u && btset.bt_hi == 0xFFEEDDu &&
+              btset.btmode == 1u && settings.palette == 3u && settings.zoom == 1u;
+    }
+    {                                                /* 0.16.0's record: BASS+, no METRO bits */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.palette = 2;
+        p.lowcut = 2u | 0x654321u << 8;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        fx_metro = 3;
+        persist_boot();
+        settings_init();
+        ok &= fx_metro == 0u && settings.lowcut == 2u && btset.bt_hi == 0x654321u;
+    }
+    memset(hflash, 0xFF, sizeof hflash);             /* no record (an update from the stock firmware) */
+    host_init();
+    fx_metro = 2;
+    persist_boot();
+    settings_init();
+    ok &= fx_metro == 0u;
+    return (int)ok;
+}
+
 /* spec 2026-10-10 §4: a project saved with CLK BLE (3) loads as CLK INT in a build whose CLK ends at TRS (2), not as
  * TRS; a value inside the range is kept */
 static int clock_beyond_range_is_int(void)
@@ -1452,6 +1507,8 @@ int main(void)
     check("settings: a record's MODE bits beyond MIDI load AUTO", settings_bt_mode_range());
     check("settings: .noinit's settings stay 32 B (an update finds the RAM projects); no record: no device",
           settings_bt_after_update());
+    check("settings: METRO survives a power cycle in lowcut's bits 5..6 (SPEAKER EQ, the device kept); 0.16.0's record "
+          "and none load OFF", settings_metro_round_trip());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
     check("project: FDRC keeps PRIO through a save and a load", fdrc_round_trip());

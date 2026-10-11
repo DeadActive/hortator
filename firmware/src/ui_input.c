@@ -320,6 +320,11 @@ static void edit_param(uint32_t slot, int32_t steps)
         mute_bar_set((uint32_t)v);
         return;
     }
+    if (pg->scope == SC_GLOBAL && id == G_METRO) {    /* METRO: the device setting (fx.c's click), saved */
+        fx_metro = (uint8_t)v;
+        settings_save();
+        return;
+    }
     if (!v || pg->scope != SC_GLOBAL)
         return;
     if ((id == G_CLRSEQ || id == G_CLRALL || id == G_INITALL) && song_lock()) {
@@ -652,6 +657,7 @@ static void ui_input(void)
     settings_poll();
     song.octdn = panel.btn[B_REC];                     /* seq.c: TRACKS armed, REC held: the keys mute */
     song.act[2] = (int16_t)settings.mutebar;
+    song.act[3] = (int16_t)fx_metro;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
         while (ui.page > page_first(FAM_SND) && page_hidden(ui.page))

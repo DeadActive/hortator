@@ -88,6 +88,14 @@ static __attribute__((noinline)) void usb_fixed_dac(int32_t *out, uint32_t n)   
 static volatile uint8_t fx_lowcut;     /* settings (MENU SPEAKER EQ): 0 FLAT, 1 LOWCUT 12 dB/oct ~110 Hz, 2 BASS+ (the
                                         * small speaker): 12 dB/oct ~220 Hz plus the harmonics of the bass (spk_bass) */
 static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
+/* METRO (GLOBAL 3/3, a device setting: project.c keeps it in the settings record's lowcut bits 5..6; not .noinit, so
+ * only the flash record sets it): 0 OFF, 1 LOW, 2 MID, 3 HIGH. While playing, seq.c grids_tick marks each quarter of
+ * Grids' clock (gclk.cnt % 4 == 0; bar: the bar's first, % 16): due = 1 + how far the clock had run past the quarter
+ * when the block's advance (adv) ended. metro_block starts the click at that point mapped onto the block, a block less
+ * a sample after it (own clock: always n - 1 samples, 0.7 ms): in the block whose start fires the beat's steps, and
+ * exactly a beat after the click before */
+static volatile uint8_t fx_metro;
+static struct { uint32_t ph, inc, due, adv; int32_t env; uint8_t bar; } metro;
 
 /* DC blocker (~2 Hz), always on: a leaky integrator of the input (Q6 state) subtracted from it.
  * The >> 12 step keeps its remainder (error feedback, 0..4095) and adds it to the next one, so no
@@ -405,6 +413,39 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
     }
 }
 
+/* METRO's click, added after the MASTER level (the knob does not change it): a sine, 1 kHz (1.6 kHz on the bar's
+ * first), from phase 0 (no step), decaying 1/128 a sample (2.9 ms: -40 dB at 13 ms), ended below 1 LSB (~28 ms at
+ * HIGH). LVL: the start amplitude (Q8 in env) for a peak of about -24 / -15 / -6 dBFS at the output (the decay before
+ * the first peak and the soft clip counted). noinline: the audio ISR's loop code stays as it was (target_budget.py) */
+static __attribute__((noinline)) void metro_block(int32_t *l, int32_t *r, uint32_t n)
+{
+    static const int32_t LVL[4] = {0, 2230, 6330, 19400};
+    uint32_t i, s = n;
+    if (metro.due) {
+        uint32_t p = metro.due - 1u, a = metro.adv;
+        metro.due = 0;
+        if (fx_metro)                                   /* following a clock, the advance maps onto the block */
+            s = p < a ? (a - 1u - p) * n / a : 0u;
+    }
+    for (i = 0; i < n; i++) {
+        int32_t x;
+        if (i == s) {
+            metro.ph = 0;
+            metro.inc = metro.bar ? 155826478u : 97391549u;   /* 1.6 kHz, 1 kHz: f * 2^32 / FS */
+            metro.env = LVL[fx_metro & 3u] << 8;
+        }
+        if (!metro.env)
+            continue;
+        x = (sine_i(metro.ph) * (metro.env >> 8)) >> 15;
+        metro.ph += metro.inc;
+        metro.env -= metro.env >> 7;
+        if (metro.env < 256)
+            metro.env = 0;
+        l[i] += x;
+        r[i] += x;
+    }
+}
+
 static uint32_t comp_was = NTRK;                 /* the COMP source of the last block (NTRK = off) */
 static void mix_block(int32_t *out, uint32_t n)
 {
@@ -445,6 +486,8 @@ static void mix_block(int32_t *out, uint32_t n)
         mix_l[i] = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
         mix_r[i] = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */
     }
+    if (metro.due | metro.env)
+        metro_block(mix_l, mix_r, n);                   /* METRO: after MASTER, before the FX layer */
     if (perf)
         perf_block(mix_l, mix_r, n);                    /* the FX layer's effects (perform.c) */
     for (i = 0; i < n; i++) {

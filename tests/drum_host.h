@@ -65,6 +65,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     dblock = 0;
     memset(&grids, 0, sizeof grids);
     memset(&gclk, 0, sizeof gclk);
+    memset(&metro, 0, sizeof metro);                /* METRO: no click sounding (fx_metro, the setting, kept) */
     memset(&pf, 0, sizeof pf);                      /* PERFORM (perform.c): nothing held, idle */
     pf.src = pf.next = PF_N;
     pf.lc = PF_TOP;
