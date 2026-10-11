@@ -165,3 +165,5 @@ frozen `main.c` with a hook in the TIMER5 key-scan ISR and moving the frozen bas
   ui_test (`test_backlight_leds`, `test_backlight_menu`): the layers on STEP, bank 2, the playhead, HOME, the MUTE
   screen, PERFORM, safe start, OFF again = the full layer; the menu row; bt_page_test: eleven rows above the hints;
   boot_test: bit 7 round trip with the other bits, an older record and none read OFF.
+
+  Amended 2026-10-12 (user): 5 % and 30 % instead of 20 % / 40 %: PWM over 20 frames, 30 % in phases 0 3 7 10 13 17, 5 % in phase 0.

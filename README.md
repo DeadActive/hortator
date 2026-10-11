@@ -118,9 +118,9 @@ MASTER volume, on the speaker, the headphones and USB audio. A device setting: s
 
 ### Key backlight
 
-MENU (hold HOME) **BACKLIGHT**: OFF (as before) or ON. With ON, every key LED that is not lit glows at about 20 %, so
+MENU (hold HOME) **BACKLIGHT**: OFF (as before) or ON. With ON, every key LED that is not lit glows at about 5 %, so
 the keys can be found in the dark; where the white keys are the selected track's steps (STEP and the other SEQ pages,
-HOME's TRACKS mode), the unlit steps 1, 5, 9 and 13 of the bank shown glow at about 40 %, marking the beats. Lit keys
+HOME's TRACKS mode), the unlit steps 1, 5, 9 and 13 of the bank shown glow at about 30 %, marking the beats. Lit keys
 (steps that are on, the playhead, held keys, the MUTE screen's heard tracks, PERFORM's effects) stay fully lit; the
 buttons' LEDs are unchanged. KNOB 1 or OCT+ on the row switches it. A device setting: saved when the menu closes,
 not part of projects; OFF until it is set. A safe start keeps every LED dark, as before.
