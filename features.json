@@ -1,0 +1,9 @@
+[
+  {"name": "voices", "from": 0, "to": 150},
+  {"name": "reson", "from": 150, "to": 297},
+  {"name": "comp", "from": 297, "to": 420},
+  {"name": "lfo", "from": 420, "to": 570},
+  {"name": "seq", "from": 570, "to": 690},
+  {"name": "grids", "from": 690, "to": 831},
+  {"name": "fx", "from": 831, "to": 990}
+]

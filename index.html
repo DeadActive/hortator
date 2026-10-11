@@ -9,8 +9,9 @@
 <meta name="description" content="Hortator turns the M-VAVE FM-1 into an eight-track drum machine. Play it in your browser, then install it over USB.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@112,600;125,700&family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="sim.css?v=d130c4c965">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="preload" href="terminus.woff?v=7bf91331b2" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="sim.css?v=7bf91331b2">
 </head>
 <body>
 <section id="hero" class="hero" aria-label="Hortator">
@@ -83,63 +84,114 @@
 
 <section id="features" class="features" aria-labelledby="features-title">
   <header class="features-head">
-    <h2 id="features-title">Everything is on the panel.</h2>
-    <p>No menus to dig through: every feature has its button, and the screen shows it at work. These are the
-      firmware's own screens, recorded from the same build you can play above.</p>
+    <h2 id="features-title">Hear what it does.</h2>
+    <p>Every picture here is drawn by the firmware's own sound code, running in your browser. Turn the knobs to
+      change it; press Play to hear it.</p>
   </header>
-  <div class="manual">
-    <aside class="manual-aside" aria-hidden="true">
-      <div class="manual-plate">
-        <canvas id="manual-screen" width="240" height="240"></canvas>
-      </div>
-      <div class="locator" id="locator"></div>
-      <p class="press" id="press"></p>
-    </aside>
-    <ol class="feats">
-      <li class="feat" data-clip="tracks" data-press="REC ALGORITHM">
-        <h3>Eight drum tracks</h3>
-        <p>Each track plays its own drum model and pattern. TRACKS shows all eight at once: level, length and pan,
-          with mutes that can wait for the next bar so a drop lands on the one.</p>
-        <p class="where"><b>REC</b> opens TRACKS; <b>ALGORITHM</b> picks a track anywhere.</p>
-      </li>
-      <li class="feat" data-clip="sound" data-press="EDIT KNOB1 KNOB2 KNOB3 KNOB4">
-        <h3>Shape every hit</h3>
-        <p>808 and 909 kicks, snares and claps, hats, toms, cowbell, cymbal, rim, clave, conga and Plaits-style
-          voices. Every model has TUNE, DECAY, TONE and a fourth knob of its own.</p>
-        <p class="where"><b>EDIT</b>, then the four knobs.</p>
-      </li>
-      <li class="feat" data-clip="seq" data-press="SEQ">
-        <h3>Step sequencer</h3>
-        <p>Up to 64 steps per track on the 16 white keys, each track with its own length. Accents, swing, PROB and
-          RATCH per step, fills that play every other bar, and live recording.</p>
-        <p class="where"><b>SEQ</b>; the white keys are the steps.</p>
-      </li>
-      <li class="feat" data-clip="grids" data-press="ARP">
-        <h3>Grids</h3>
-        <p>Mutable Instruments' pattern generator. Move through its map of drum patterns, add chaos, or switch to
-          Euclidean rhythms; any track can follow one of its three channels.</p>
-        <p class="where"><b>ARP</b>.</p>
-      </li>
-      <li class="feat" data-clip="comp" data-press="HOME PRESETS">
-        <h3>A compressor that pumps</h3>
-        <p>The Streams compressor, keyed by any track: duck the hats and the reverb under the kick. GHOST keeps the
-          pump going even with the key track muted.</p>
-        <p class="where"><b>HOME</b>, then <b>PRESETS</b> to the COMP pages.</p>
-      </li>
-      <li class="feat" data-clip="lfo" data-press="LFO">
-        <h3>Movement</h3>
-        <p>Two LFOs per track, ten waves with a morph between them, synced to the tempo, each on its own
-          destination: pitch, decay, tone, level, pan and more.</p>
-        <p class="where"><b>LFO</b>; press it again for the second one.</p>
-      </li>
-      <li class="feat" data-clip="fx" data-press="FX PRESETS">
-        <h3>Effects</h3>
-        <p>Distortion, the SLICER and RESON (string, pipe or chord) on every track; delay, ROOM or SPRING reverb
-          and chorus sends; a master limiter, and BASS+ for the small speaker.</p>
-        <p class="where"><b>FX</b>, <b>PRESETS</b> turns the pages.</p>
-      </li>
-    </ol>
-  </div>
+  <article class="chapter" id="f-voices" aria-labelledby="f-voices-title">
+    <div class="ch-text">
+      <h3 id="f-voices-title">Drum voices</h3>
+      <p>Twenty-three drum models: the 808 and 909, FM, a modelled drumhead, Plaits-style kicks, snares and hats, and samples. On the FM-1 they are joined by ACID, a 303-style bass voice.</p>
+      <p>Each model has its own knobs. The picture is one hit, drawn as it sounds and as its spectrum.</p>
+      <p class="where">On the panel: <b>EDIT</b>, then <b>KNOB1</b> picks the model; on <b>HOME</b> the four knobs shape it.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="voices"></div>
+  </article>
+  <article class="chapter" id="f-reson" aria-labelledby="f-reson-title">
+    <div class="ch-text">
+      <h3 id="f-reson-title">Resonators</h3>
+      <p>Any track can ring through a string, a pipe, a chord or a modal bar, tuned in semitones.</p>
+      <p>A rimshot becomes a pluck, a snare a bell: the dry hit is the grey trace, the ring the bright one.</p>
+      <p class="where">On the panel: <b>FX</b>, then <b>PRESETS</b> to the RESON pages.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="reson"></div>
+  </article>
+  <article class="chapter" id="f-comp" aria-labelledby="f-comp-title">
+    <div class="ch-text">
+      <h3 id="f-comp-title">A compressor that pumps</h3>
+      <p>The Streams compressor, keyed by the kick, pulls the rest of the mix down on every hit.</p>
+      <p>The amber trace is its gain reduction as it happens. GHOST keeps the pump going with the kick muted.</p>
+      <p class="where">On the panel: <b>HOME</b>, pressed again for the COMP pages; a white key ducks a track.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="comp"></div>
+  </article>
+  <article class="chapter" id="f-lfo" aria-labelledby="f-lfo-title">
+    <div class="ch-text">
+      <h3 id="f-lfo-title">Two LFOs on every track</h3>
+      <p>Ten waves with a morph between them, synced to the tempo, each on its own destination.</p>
+      <p>Here they move a hi-hat: the first its tone, the second its decay, step by step.</p>
+      <p class="where">On the panel: <b>LFO</b>; <b>OCT-</b> switches to the second one.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="lfo"></div>
+  </article>
+  <article class="chapter" id="f-seq" aria-labelledby="f-seq-title">
+    <div class="ch-text">
+      <h3 id="f-seq-title">Steps that roll dice</h3>
+      <p>A step can play with a chance, roll into a ratchet, or wait for a fill bar.</p>
+      <p>Mutes can wait for the next bar, so a drop lands on the one, and knob moves record into the pattern.</p>
+      <p class="where">On the panel: <b>SEQ</b>: hold a step key and turn <b>KNOB1</b> for the chance, <b>KNOB2</b> for the ratchet. <b>REC</b> for mutes and motion.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="seq"></div>
+  </article>
+  <article class="chapter" id="f-grids" aria-labelledby="f-grids-title">
+    <div class="ch-text">
+      <h3 id="f-grids-title">Grids</h3>
+      <p>Mutable Instruments' map of drum patterns: drag through it and the kick, snare and hat lanes rewrite themselves.</p>
+      <p>Three densities thin each lane out or fill it in. Any track can follow one of the lanes.</p>
+      <p class="where">On the panel: <b>ARP</b>; <b>PRESETS</b> to the fills.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="grids"></div>
+  </article>
+  <article class="chapter" id="f-fx" aria-labelledby="f-fx-title">
+    <div class="ch-text">
+      <h3 id="f-fx-title">Effects, per track and live</h3>
+      <p>Every track runs through its own filter, resonator, distortion and slicer, then into delay, reverb and chorus.</p>
+      <p>Hold FX and the black keys repeat, reverse, filter, stop or freeze the whole mix while it plays.</p>
+      <p class="where">On the panel: <b>FX</b> for the pages; hold <b>FX</b> and play the black keys to perform.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="fx"></div>
+  </article>
+  <article class="chapter" id="f-ble" aria-labelledby="f-ble-title">
+    <div class="ch-text">
+      <h3 id="f-ble-title">Bluetooth MIDI</h3>
+      <p>The Bluetooth version of Hortator lets the FM-1 find Bluetooth MIDI controllers and connect to them itself, with no computer in between.</p>
+      <p>An M-VAVE SMC-Mixer becomes its mixer: the faders are the track levels, the knobs the selected track's first four, with MUTE and SOLO per track. Any other controller plays the tracks with its notes.</p>
+      <p class="where">On the panel: hold <b>HOME</b> for the menu, <b>PRESETS</b> to BLUETOOTH, then <b>OCT+</b>. It is off at every power-on.</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The simulator runs the plain version, which has no Bluetooth page, so this screen stays on HOME.</figcaption>
+      </figure>
+    </div>
+    <div class="plate" data-piece="ble"></div>
+  </article>
 </section>
 
 <section id="install" class="install" aria-labelledby="install-title">
@@ -191,6 +243,7 @@
   </div>
 </section>
 
+<div class="foot-band" id="foot-band" aria-hidden="true"></div>
 <footer class="foot">
   <div class="foot-brand">
     <p class="silk foot-mark">HORTATOR</p>
@@ -200,17 +253,17 @@
     <a href="#play">Play it in the browser</a>
     <a href="webapp/installer/">Install on your FM-1</a>
     <a href="#install">What's new</a>
-    <a href="source.tar.gz?v=d130c4c965">Source code (GPL-3.0)</a>
+    <a href="source.tar.gz?v=7bf91331b2">Source code (GPL-3.0)</a>
   </nav>
   <div class="foot-credits">
     <p>Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
       <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. Licensed GPL-3.0, no
       warranty. Saves made here stay in this browser.</p>
-    <p>Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and
+    <p>Font: Terminus, the firmware’s own (Dimitar Toshkov Zhekov, <a href="terminus-license.txt?v=7bf91331b2">SIL OFL 1.1</a>). Samples: Versilian Studios VSCO-2 Community Edition and
       VCSL (CC0 1.0). M-VAVE and FM-1 are trademarks of their respective owners; this project is not affiliated with
       M-VAVE.</p>
   </div>
 </footer>
-<script type="module" src="app.js?v=d130c4c965"></script>
+<script type="module" src="app.js?v=7bf91331b2"></script>
 </body>
 </html>
