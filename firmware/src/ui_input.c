@@ -50,7 +50,15 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ui.srec);
     led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
-    if (name_on()) {                                  /* NAME: the keys that type */
+    if (ui.mute) {                                    /* MUTE screen: the tracks' keys lit while audible, blinking
+                                                       * while a mute waits for the bar; top C# (NOW) / D# (NEXT BAR) */
+        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
+        for (k = 0; k < NTRK; k++)
+            led_put(nl, 14u + KEY_TRK_KEY[k], !trk[k].p[P_MUTE] ^ (((song.mute_q >> k) & 1u) && blink));
+        led_put(nl, 14u + 20u, !settings.mutebar);
+        led_put(nl, 14u + 22u, settings.mutebar);
+        led_put(nl, panel.btn[B_GLO], 1);
+    } else if (name_on()) {                           /* NAME: the keys that type */
         uint32_t m = name_leds(fm1_ticks());
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((m >> k) & 1u));
@@ -393,13 +401,13 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 /* PERFORM (perform.c): FX tapped = its pages, on the release (nothing else touched); FX held = the layer: keys
  * pressed with it are its own (seq.c keyboard_block), KNOB 1..4 its macros FILTER CRUSH THROW DEPTH (never saved,
  * back to off when FX is let go). It opens at once with a key or a knob, else after FX_HOLD_MS (then the release
- * does nothing). No layer in the menu or a dialog: a press there stays dead until let go, and every effect is off
- * until its keys are let go */
+ * does nothing). No layer in the menu, a dialog or the MUTE screen: a press there stays dead until let go, and every
+ * effect is off until its keys are let go */
 #define FX_HOLD_MS 400u
 #define FX_DOWN 1u
 #define FX_OPEN 2u
 #define FX_DEAD 4u
-static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on(); }
+static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute; }
 /* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros off; keys
  * still held stay the layer's until let go */
 static void perf_page_close(void)
@@ -457,6 +465,78 @@ static void fx_layer(uint32_t now, int home_tap)
         ui.layer = (uint8_t)show;
         ui.force = 1;
     }
+}
+
+/* GLO (spec §5): a tap (let go within GLO_HOLD_MS, no key pressed meanwhile) = the GLOBAL pages, on the release; held
+ * GLO_HOLD_MS, or a key pressed with it = the MUTE screen while GLO is held: the white keys F3..F4 toggle the tracks'
+ * mutes (track_mute_toggle: NOW / NEXT BAR), top C# / D# the mode. Every key pressed with GLO is the screen's until
+ * let go (seq.c keyboard_block, mute_mask: no note, no MIDI, nothing recorded). Pressed in the menu, NAME or a confirm:
+ * dead until let go; with the PERFORM layer up or FX held: a plain button (the release opens GLOBAL) */
+#define GLO_HOLD_MS 400u
+#define GLO_DOWN 1u
+#define GLO_OPEN 2u
+#define GLO_DEAD 4u
+#define GLO_PLAIN 8u
+static int glo_dead(void) { return ui.menu || ui.confirm || name_on(); }
+static void mute_keys(uint32_t hits)                   /* the keys the ISR gave the MUTE screen */
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        if ((hits >> KEY_TRK_KEY[k]) & 1u)
+            track_mute_toggle(k);
+    if ((hits >> 20) & 1u)                             /* top C#: NOW */
+        mute_bar_set(0);
+    if ((hits >> 22) & 1u)                             /* top D#: NEXT BAR */
+        mute_bar_set(1);
+}
+static void glo_input(uint32_t now, uint32_t notes)
+{
+    uint32_t bit = 1u << panel.btn[B_GLO], *t0 = &ui.glo_t0, hits = 0;
+    if (kb_mute_hit) {
+        fm1_irq_off();
+        hits = kb_mute_hit;
+        kb_mute_hit = 0;
+        fm1_irq_on();
+    }
+    if (fm1_in.buttons & bit) {
+        if (!*t0)
+            *t0 = (now & ~15u) | GLO_DOWN;
+        if (!(*t0 & GLO_OPEN) && glo_dead())
+            *t0 |= GLO_DEAD;
+        else if (!(*t0 & GLO_OPEN) && (ui.layer || ui.fx_t0))
+            *t0 |= GLO_PLAIN;
+        if (!(*t0 & (GLO_OPEN | GLO_DEAD | GLO_PLAIN)) &&
+            (notes || hits || now - (*t0 & ~15u) >= GLO_HOLD_MS * 1000u * FM1_TICKS_PER_US)) {
+            *t0 |= GLO_OPEN;                            /* the MUTE screen */
+            ui.mute = 1;
+            ui.force = 1;
+            grid_drop_holds();                          /* a grid key held flips no accent under it */
+        }
+    } else if (*t0) {
+        if (!(*t0 & (GLO_OPEN | GLO_DEAD)) && !glo_dead())
+            open_family(FAM_GLO);                       /* a tap: the GLOBAL pages */
+        *t0 = 0;
+        if (ui.mute) {
+            ui.mute = 0;                                /* let go: the screen before */
+            ui.force = 1;
+        }
+    }
+    if (hits && !glo_dead())
+        mute_keys(hits);
+    mute_mask = (*t0 & GLO_OPEN) || (!(*t0 & (GLO_DEAD | GLO_PLAIN)) && !glo_dead() && !ui.layer && !ui.fx_t0) ? bit
+                                                                                                              : 0u;
+}
+
+/* PLAY: start / stop (SONG: the song; PLAY / STOP during one stops it); step record ends */
+static void play_press(void)
+{
+    ui.srec = 0;
+    if (song.playing || chain_busy())
+        transport_req = 2;
+    else if (!ui.home && cur_page()->graph == GR_SONG)
+        song_play();
+    else
+        transport_req = 1;
 }
 
 /* --------------------------------------------------- step record (spec §6) --- */
@@ -557,7 +637,19 @@ static void ui_input(void)
     int32_t s;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+    glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
+    if (ui.mute) {                                      /* the MUTE screen owns the panel (its keys: glo_input), PLAY
+                                                         * aside; a HOME / REC press under it is no tap or hold */
+        if ((pressed >> panel.btn[B_PLAY]) & 1u)
+            play_press();
+        if (ui.home_t0)
+            ui.home_t0 |= 2u;
+        if (ui.rec_t0)
+            ui.rec_t0 |= 2u;
+        enc_drop();
+        return;
+    }
     if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE))   /* PERFORM: keys are the layer's */
         notes = 0;
     notes &= ~kb_layer;
@@ -653,14 +745,8 @@ static void ui_input(void)
             continue;
         }
         switch (b) {
-        case B_PLAY:                                    /* SONG: the song; PLAY / STOP during one stops it */
-            ui.srec = 0;
-            if (song.playing || chain_busy())
-                transport_req = 2;
-            else if (!ui.home && cur_page()->graph == GR_SONG)
-                song_play();
-            else
-                transport_req = 1;
+        case B_PLAY:
+            play_press();
             break;
         case B_REC:
         case B_HOME:                                    /* tap / hold: above */
@@ -691,7 +777,7 @@ static void ui_input(void)
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX)
+                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX && b != B_GLO)   /* (FX, GLO: on the release) */
                     open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }

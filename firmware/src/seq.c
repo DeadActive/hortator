@@ -9,6 +9,10 @@
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 static volatile uint8_t panic_req;       /* bit per track: cut its voices */
 static uint32_t kb_prev;
+static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen may take keys (ui_input.c glo_input), 0 =
+                                       * none; armed before GLO is pressed (a key struck with it is the screen's) */
+static volatile uint32_t kb_mute;     /* ISR: the keys held that are the MUTE screen's (pressed with GLO) */
+static volatile uint32_t kb_mute_hit; /* ISR -> main: those presses, until the UI takes them */
 /* key index (0 = F3, the lowest key) of the white keys F3 G3 A3 B3 C4 D4 E4 F4 -> tracks 1..8 */
 static const uint8_t KEY_TRK_KEY[NTRK] = {0, 2, 4, 6, 7, 9, 11, 12};
 /* the STEP grid: steps 1..16 of a bank on the 16 white keys F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5
@@ -404,10 +408,18 @@ static void keyboard_block(void)
                 kb_layer |= bit;
                 perf_press(perf_key(key), 1);
                 ch &= ~bit;
+            } else if (fm1_in.buttons & mute_mask) {   /* GLO held: the MUTE screen's until let go (ui_input.c
+                                                         * glo_input takes kb_mute_hit): no note, no MIDI */
+                kb_mute |= bit;
+                kb_mute_hit |= bit;
+                ch &= ~bit;
             }
         } else if (kb_layer & bit) {
             kb_layer &= ~bit;
             perf_press(perf_key(key), 0);
+            ch &= ~bit;
+        } else if (kb_mute & bit) {
+            kb_mute &= ~bit;
             ch &= ~bit;
         }
     }

@@ -1119,6 +1119,61 @@ static void graph_perf(void)
     }
     cv_blit_from(0, Y_GRAPH, 0);
 }
+/* the MUTE screen (spec §5, GLO held): the 8 tracks as boxes, two rows of 4 (screen y MU_Y.., a 240 x 124 canvas) */
+#define MU_Y 22u
+#define MU_BW 55u
+#define MU_BH 40u
+#define MU_BX(k) (4u + (k) % 4u * 59u)
+#define MU_BY(k) (MU_Y + 4u + (k) / 4u * 60u)
+/* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber); in each the track and its model, under
+ * it the key that toggles it; below, the mode and its keys. The top bar as everywhere */
+static void draw_mute(void)
+{
+    uint32_t k, blink = (fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u;
+    uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u;
+    char b[24];
+    for (k = 0; k < NTRK; k++)
+        sig = (sig ^ ((uint32_t)(trk[k].p[P_MUTE] != 0) + (uint32_t)trk[k].p[P_MODEL] * 2u)) * 16777619u;
+    if (ui.force) {
+        lcd_fill(0, H_HEAD, 240, 240 - H_HEAD, C_BLACK);
+        lcd_fill(0, H_HEAD, 240, 1, C_LINE);
+    }
+    draw_head();
+    if (ui.msg_t)
+        ui.msg_t--;
+    if (ui.bpm_t)
+        ui.bpm_t--;
+    if (!ui.force && sig == ui.graph_sig)
+        return;
+    ui.graph_sig = sig;
+    ui.force = 0;
+    cv_begin(240, 124, C_BLACK);
+    cv_oy = 0;
+    for (k = 0; k < NTRK; k++) {
+        int32_t x = (int32_t)MU_BX(k), y = (int32_t)(MU_BY(k) - MU_Y);
+        uint32_t wait = (song.mute_q >> k) & 1u;
+        int on = !trk[k].p[P_MUTE] ^ (wait && blink);
+        const char *mn = N_MODEL[(uint32_t)trk[k].p[P_MODEL] % NMODELS];
+        uint16_t ink = on ? C_BLACK : wait ? C_AMB : C_GRAY;
+        cv_rect(x, y, MU_BW, MU_BH, wait ? C_AMB : on ? C_HI : C_GRAY);   /* (waiting: amber, both phases) */
+        if (!on)
+            cv_rect(x + 1, y + 1, MU_BW - 2, MU_BH - 2, C_BLACK);
+        b[0] = (char)('1' + k);
+        b[1] = 0;
+        cv_text(x + ((int32_t)MU_BW - text_w(&FONT_S, b)) / 2, y + 3, &FONT_S, b, on ? C_BLACK : C_WHITE);
+        cv_text(x + ((int32_t)MU_BW - text_w(&FONT_S, mn)) / 2, y + 21, &FONT_S, mn, ink);
+        note_text(b, 53 + KEY_TRK_KEY[k]);
+        cv_text(x + ((int32_t)MU_BW - text_w(&FONT_S, b)) / 2, y + (int32_t)MU_BH + 2, &FONT_S, b, C_DIM);
+    }
+    cv_blit(0, MU_Y);
+    cv_begin(240, 40, C_BLACK);                       /* "MUTE: NOW", "C# NOW  D# NEXT BAR" (the mode's key lit) */
+    str_cpy(b, settings.mutebar ? "MUTE: NEXT BAR" : "MUTE: NOW", sizeof b);
+    cv_text((240 - text_w(&FONT_S, b)) / 2, 0, &FONT_S, b, C_WHITE);
+    k = (uint32_t)cv_text((240 - text_w(&FONT_S, "C# NOW  D# NEXT BAR")) / 2, 22, &FONT_S, "C# NOW",
+                          settings.mutebar ? C_DIM : C_HI);
+    cv_text((int32_t)k + 16, 22, &FONT_S, "D# NEXT BAR", settings.mutebar ? C_HI : C_DIM);
+    cv_blit(0, 164);
+}
 /* PERFORM: KNOB 1..4 FILTER CRUSH THROW DEPTH (SHIMMER while OCT UP / DN plays) */
 static void perf_columns(void)
 {
@@ -1610,6 +1665,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     }
     if (name_on()) {                                  /* NAME: its own screen */
         draw_name();
+        return;
+    }
+    if (ui.mute) {                                    /* GLO held: the MUTE screen */
+        draw_mute();
         return;
     }
     bank_fix();
