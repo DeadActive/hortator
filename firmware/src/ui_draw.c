@@ -71,7 +71,8 @@ static void draw_head(void)
     uint32_t i;
     int32_t x;
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u, cpu = cpu_alert();
-    uint32_t pfx = (perf_k[0] | perf_k[1] | perf_k[2] | perf_k[3]) != 0;   /* PERFORM's knob effects on (spec §7) */
+    uint32_t pfx = (perf_k[0] | perf_k[1] | perf_k[2]) != 0;   /* PERFORM's knob effects on (spec §7; DEPTH acts only
+                                                                 * with a held black key) */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +

@@ -167,7 +167,11 @@ static void bench_reset(void)
     memset(&chain, 0, sizeof chain);
     comp_reset();
     comp_was = NTRK;
-    memset(&song, 0, sizeof song);
+    {
+        uint32_t sheds = song.sheds;                    /* (the top bar's CPU icon: no false alert after BENCH) */
+        memset(&song, 0, sizeof song);
+        song.sheds = sheds;
+    }
     drum_tracks_init();
 }
 

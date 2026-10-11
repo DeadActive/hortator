@@ -87,8 +87,8 @@ integer only, no 64-bit divide by a 64-bit divisor.
 
 - GLOBAL 3/3 gains **METRO: OFF / LOW / MID / HIGH** (a device setting like MUTE, saved, not in projects).
 - While playing (own clock or following one), a click on every quarter note, accented on the bar's first: a short
-  decaying sine (about 15 ms; 1.6 kHz on the bar, 1 kHz on the other beats), at the chosen level, mixed into the master
-  after the MASTER volume and before the PERFORM effects. It goes to the speaker, the line out and USB audio. Nothing
+  decaying sine (about 15 ms; 1.6 kHz on the bar, 1 kHz on the other beats), at the chosen level, mixed into the master after the PERFORM
+  effects (they leave it alone), at the MASTER level (the volume knob turns it down with the mix; amended 2026-10-12). It goes to the speaker, the line out and USB audio. Nothing
   while stopped.
 
 ## 9. Settings bits

@@ -446,7 +446,10 @@ static void fx_layer(uint32_t now, int home_tap)
     if ((down && !(*t0 & FX_DEAD)) || ui.pg_open || (kb_layer && fx_allowed()))   /* the knobs follow the screen: */
         for (k = 0; k < 4u; k++)                        /* the macros (FILTER CRUSH THROW DEPTH) while it is PERFORM's */
             if ((s = panel_enc(EN_K1 + k)) != 0) {
-                perf_k[k] = (int8_t)clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
+                int32_t v = clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
+                if (!k && perf_k[0] && (v < 0) != (perf_k[0] < 0))
+                    v = 0;                              /* FILTER: a turn across 0 stops at 0, its off point */
+                perf_k[k] = (int8_t)v;
                 if (down && !(*t0 & FX_DEAD))
                     *t0 |= FX_OPEN;                     /* (a dead hold stays dead: a held layer key's turn
                                                          * opens no map that outlives the key) */

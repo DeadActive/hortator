@@ -2706,16 +2706,28 @@ static void test_perform_knobs_stay(void)
     check("PAGE closed by another page: THROW stays on", !ui.pg_open && !ui.layer && perf_k[2] > 0);
     settings.perfpage = 0;
     press(B_FX);
-    turn(EN_K1, 60);                                  /* FILTER back to 0 (-40 + 60 = 20 .. then down) */
+    turn(EN_K1, 60);                                  /* FILTER past 0 (-40 + 60): it stops at 0, the off point */
     turn(EN_K3, -40);                                 /* THROW back to 0 */
     fx_hold_frames(2);
-    turn(EN_K1, -20);
-    fx_hold_frames(2);
+    check("FILTER turned across 0 stops at 0 (off), not at the far side", perf_k[0] == 0);
     release_all();
     ui_frame();
     ui_frame();
     check("on the PERFORM screen, turned back to 0: FILTER and THROW off, no FX mark", !perf_k[0] && !perf_k[2] &&
           !head_fx_lit());
+    press(B_FX);
+    turn(EN_K1, 10);                                  /* from 0 a turn goes on as before */
+    fx_hold_frames(2);
+    check("FILTER from 0: a turn moves it (HPF side)", perf_k[0] > 0);
+    turn(EN_K1, -30);
+    fx_hold_frames(2);
+    check("FILTER back across 0: stops at 0 again", perf_k[0] == 0);
+    turn(EN_K4, 20);                                  /* DEPTH alone: nothing sounds without a black key */
+    fx_hold_frames(2);
+    release_all();
+    ui_frame();
+    ui_frame();
+    check("DEPTH alone: no FX mark (it acts only with a held black key)", perf_k[3] > 0 && !head_fx_lit());
     perf_k[1] = 30;
     perf_k[3] = 20;
     init_all();
