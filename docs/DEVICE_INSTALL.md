@@ -48,8 +48,10 @@ Both directions now work on your FM-1, with firmware many people run.
    noted in step 1.
 
 ## 4. First boot (in this order)
-1. The start screen shows the **HortatoR** logo / DRUM MACHINE, then the HOME screen appears.
-2. The 8 white keys F3..F4 play the 8 tracks (kick, snare, clap, hats, ...).
+1. The start screen shows the **HortatoR** logo / DRUM MACHINE, then TRACKS (HOME's first mode: the mixer, footer
+   `TRACKS`). If a project was saved to flash before, it loads by itself (`LOADED` in the top bar).
+2. A HOME tap: the HOME screen (footer `HOME 1/3`); the 8 white keys F3..F4 play the 8 tracks (kick, snare, clap,
+   hats, ...).
 3. **The update path from the drum firmware:** run the step-3 command again (the same file).
    Expected: it installs and the FM-1 restarts into the drum firmware.
    If this fails: go back to stock at once (step 6) while the drum firmware still runs.
@@ -66,23 +68,28 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 For each: what you should see / hear. Note anything different (page, knob, what happened).
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
   then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
-  REVERB, CHORUS, COMP (HOME 2/3 and 3/3: HOME pressed on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
-  GLOBAL 3/3 (MUTE NOW / BAR), LFO 1/2 and 2/2,
-  PROJECT, TOOLS, TRACKS — each draws like the screenshots in `build/ui_shots/` (the engines' SOUND pages in
-  `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`).
+  REVERB, CHORUS, COMP (HOME 2/3 and 3/3: SELECT right on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
+  GLOBAL 3/3 (MUTE NOW / BAR, METRO), LFO 1/2 and 2/2,
+  PROJECT, TOOLS, TRACKS (HOME's first mode), the MUTE screen (GLO held) — each draws like the screenshots in
+  `build/ui_shots/` (the engines' SOUND pages in `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`,
+  the new screens in `build/ui_shots/fixes/`).
 - Every engine: KNOB 1 (MODEL) on EDIT's first page steps through the 21 engines; each plays on its key.
-- PRESET knob, on any screen: the section's next / previous page (HOME 1/3 <-> COMP 2/3 <-> 3/3, FX <-> SLICER <->
-  RESON <-> DLY ..., the SOUND pages, the LAYER pages in the layer); it stops at the first / last page and no
-  longer changes the engine.
-- HOME: a white key plays its track and selects it (the knobs and T<n> follow). An LFO on one of the HOME knobs
-  shows its live value as a small mark under that gauge, as on EDIT.
+- SELECT knob, on any screen but TRACKS: the section's next / previous page (HOME 1/3 <-> COMP 2/3 <-> 3/3, FX <->
+  SLICER <-> RESON <-> DLY ..., the SOUND pages, the LAYER pages in the layer); it stops at the first / last page.
+  In the menu it moves the cursor. On TRACKS it sets the BPM (the top bar follows; with CLK USB it says `CLK USB`).
+  The PRESETS knob does nothing anywhere; ALGORITHM picks the track.
+- HOME: a HOME tap on TRACKS opens the HOME screen, a HOME tap there TRACKS again; from EDIT, SEQ, GLOBAL ... a HOME
+  tap opens the one last shown; on COMP, the HOME screen. Holding HOME still opens the menu.
+- The HOME screen: a white key plays its track and selects it (the knobs and T<n> follow). An LFO on one of the HOME
+  knobs shows its live value as a small mark under that gauge, as on EDIT.
 - The demo kits: the kits in `tests/drumsim.c` (`KITS`) use other engines than the power-on kit. First set each
   track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with MODEL (KNOB 1) on
   EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
-- Live recording: arm a track (REC tap on TRACKS; on SEQ a REC tap only opens TRACKS) and play its key while
-  running, on TRACKS or any page where the keys play: the steps appear.
-- PROJECT: save to slot 1, change things, load slot 1: everything comes back.
+- Live recording: a REC tap on any page (HOME, EDIT, FX, SEQ, GLOBAL ...) arms the selected track (the REC LED
+  lights, play starts when stopped; the page stays); play its key while running, on TRACKS or any page where the
+  keys play: the steps appear. A REC tap again disarms. REC never opens TRACKS.
+- PROJECT: save to slot A, change things, load slot A: everything comes back.
 - The master knob changes the volume; the battery icon shows a level.
 
 ## 6. Going back to stock (any time USB answers: a normal start or SAFE START)
@@ -113,14 +120,16 @@ Report what you saw first; we'll go through it together.
   `G-KCK` / `G-SNR` / `G-HAT` makes a track follow Grids; its STEP grid shows the pattern, keys do nothing.
 - Every SEQ page (STEP, PATTERN, MOTION, SONG): the white keys are the selected track's steps (tap: on / off, hold:
   accent), OCT+ / OCT- the bank; the footer strip shows them; ALGO picks the track (no sound).
-- TRACKS (REC tap from HOME or SEQ): the white keys are the selected track's steps (as on STEP: tap on / off, hold:
-  accent; OCT+ / OCT- the bank; no sound); KNOB 1 or ALGO picks the track. With a track armed (REC tap on TRACKS) the
-  white keys play their tracks instead and record into the armed one, the selection stays. Hold REC: the keys light
-  for the playing tracks, dark for the muted; a white key mutes / unmutes its track (a muted track stops at once), the
-  row shows MUTE; that REC press neither arms nor asks to clear. Release REC: the mute lights go.
-- Mute on the next bar: hold REC on TRACKS + the top D# (POLY): "MUTE: NEXT BAR"; while playing, a mute waits
-  for the next bar (its key blinks) and lands on the downbeat. REC + the top C# (MONO): "MUTE: NOW". The same
-  setting is GLOBAL 3/3 MUTE NOW / BAR; it survives a power cycle.
+- TRACKS (HOME's first mode): the white keys are the selected track's steps (as on STEP: tap on / off, hold:
+  accent; OCT+ / OCT- the bank; no sound); KNOB 1 or ALGO picks the track. With a track armed (REC tap) the white
+  keys play their tracks instead and record into the armed one, the selection stays.
+- The MUTE screen: hold GLO (0.4 s, or GLO + a key at once): eight boxes, filled = heard, outline = muted, the keys
+  F3 .. F4 under them; the 8 white keys lit for the heard tracks. A white key mutes / unmutes its track (a muted
+  track stops at once) and plays nothing; nothing is recorded. Let go of GLO: the page before, no GLOBAL page. A
+  quick GLO tap still opens GLOBAL.
+- Mute on the next bar: on the MUTE screen the top D# (POLY): `MUTE: NEXT BAR`; while playing, a mute waits for the
+  next bar (its box and key blink) and lands on the downbeat. The top C# (MONO): `MUTE: NOW`. The same setting is
+  GLOBAL 3/3 MUTE NOW / BAR; it survives a power cycle.
 - CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
   stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1
@@ -128,12 +137,12 @@ Report what you saw first; we'll go through it together.
 
 ### M3: COMP sidechain (check on the FM-1)
 
-- HOME on the HOME screen: COMP (HOME 2/3: SRC THRSH RATIO REL), HOME again: 3/3 (ATK KNEE MKUP GHOST, the curve),
-  HOME again: back to HOME 1/3. FX no longer has the COMP pages. SRC T1 with a kick pattern; on a COMP page the
+- SELECT right on the HOME screen: COMP (HOME 2/3: SRC THRSH RATIO REL), again: 3/3 (ATK KNEE MKUP GHOST, the
+  curve); SELECT left back to HOME 1/3 (or a HOME tap). FX no longer has the COMP pages. SRC T1 with a kick pattern; on a COMP page the
   white keys 2-8 light for the ducked tracks (key 1, the source, does not toggle). PLAY: the ducked tracks pump
   with the kick, the GR meter moves; REL longer = slower recovery; RATIO higher = deeper duck; MKUP raises the
   ducked tracks (at the end LIMIT).
-- Mute T1 (TRACKS, REC held + key 1): the kick is silent, the others still pump (ghost key, GHOST KEEP).
+- Mute T1 (GLO held + F3): the kick is silent, the others still pump (ghost key, GHOST KEEP).
 - SRC OFF: the mix sounds exactly as before M3.
 - SAVE / power cycle / LOAD: SRC, the COMP knobs and DUCK come back; an M2 project loads with COMP off.
 
@@ -141,7 +150,7 @@ Report what you saw first; we'll go through it together.
 
 - HOME 3/3, KNOB 4 GHOST: KEEP at start; MUTE, KEEP, HIDE. The COMP picture shows the source HEARD / GHOST / MUTED
   next to its IN level.
-- KEEP: T1 muted (TRACKS, REC held + key 1) is silent and the others pump (as before), GHOST shown.
+- KEEP: T1 muted (GLO held + F3) is silent and the others pump (as before), GHOST shown.
 - MUTE: T1 muted is silent and nothing pumps (MUTED); unmuted it is heard and pumps (HEARD).
 - HIDE: T1 is never heard, muted or not, and the others pump (GHOST).
 - Turning GHOST while the kick plays: no click. Mute on the next bar (GLOBAL 3/3 MUTE NEXT BAR) in each mode:
@@ -166,8 +175,8 @@ Report what you saw first; we'll go through it together.
   no buzz or looped grain during the save. (While playing, SAVE still shows STOP TO SAVE; a setting changed
   while playing is written at STOP: no buzz then either.)
 - Change a setting (palette or MUTE NEXT BAR) so the settings are saved: no buzz.
-- Power off and on: the saved project loads, the settings and the panel layout (OCT- + OCT+ at power-on) are kept;
-  a project saved with the previous build still loads.
+- Power off and on: the last project saved loads by itself (`LOADED`), the settings and the panel layout (OCT- +
+  OCT+ at power-on) are kept; a project saved with the previous build still loads.
 
 ### TRS MIDI (stage 2 step 4: check on the FM-1)
 
@@ -221,7 +230,7 @@ Report what you saw first; we'll go through it together.
 
 ### PERFORM (check on the FM-1)
 - MENU > PERFORM PAGE: hold FX, let go: the PERFORM screen stays; the keys and knobs work without FX; PLAY / OCT±
-  keep it; an FX tap, another page button or HOME leaves it (the knobs back to off). Set it back to HOLD after.
+  keep it; an FX tap, another page button or HOME leaves it (the knob effects stay on). Set it back to HOLD after.
 - Hold FX alone: after a moment the map shows (two rows of effects, eight tracks); let go: back to the page.
 - Tap FX: the FX pages, as before.
 - Playing, FX held: each black key's effect while held — F#3 G#3 A#3 REPEAT 1/8 1/16 1/32 (starting on the next
@@ -230,13 +239,14 @@ Report what you saw first; we'll go through it together.
   returns to the other.
 - FX + a white track key (F3 .. F4): that track silent while held; no note plays, nothing is recorded.
 - FX + KNOB 1..4: FILTER (left LPF, right HPF), CRUSH, THROW (into the delay / reverb), DEPTH (SHIMMER while OCT
-  plays); let go of FX: all back to off.
+  plays); let go of FX: they stay on and keep working on every page (amber `FX` in the top bar); back to 0 on the
+  PERFORM screen: off, the `FX` mark goes.
 - A STUT slicer track keeps playing while a buffer effect plays and stutters again afterwards.
 - At 40 BPM REPEAT 1/8 and REVERSE are dimmed and do nothing.
 - With CLK USB from a DAW: REPEAT starts on the DAW's 1/16 grid.
 
 ### MOTION (check on the FM-1)
-- TRACKS: select a track and arm it (REC); play; open SOUND and sweep DECAY over a bar: the sweep comes back every
+- Select a track and arm it (a REC tap); play; open SOUND and sweep DECAY over a bar: the sweep comes back every
   bar. STOP: the knob back where it was before.
 - SEQ > MOTION: KNOB 1 PLAY OFF (the sweep stops, the events kept) / ON; EVENT shows how many; KNOB 4 CLEAR asks
   (OCT- keeps, OCT+ clears).
@@ -331,6 +341,23 @@ Report what you saw first; we'll go through it together.
 - RATIO's inharmonic steps (1.41 2.76 5.4 9.2) ring like metal; INDEX 0 is a pure sine; SWEEP drops the pitch
   (zaps, toms); FBK adds grit up to noise; accented steps are brighter (VEL).
 - `tools/fm1_bench.py --yes`: the cases FM and FM+fx (8 tracks of the model).
+
+### Fixes after 0.16.0 (check on the FM-1)
+
+- Last project: SAVE to slot B (stopped), power off and on: B loads by itself (`LOADED`, stopped; PROJECT's SLOT
+  shows B). SAVE to C, power cycle: C. A safe start (SEQ held) loads nothing.
+- A remembered slot that cannot load asks `LOAD FAILED: SLOT B` / `START NEW PROJECT?` (hard to cause on purpose;
+  the host tests cover it, the screen is `build/ui_shots/fixes/load_failed.png`). OCT- (NO): the power-on kit, and
+  the question again at the next power-on; OCT+ (YES): the power-on kit, and the next power-on is plain.
+- METRO (GLOBAL 3/3): LOW / MID / HIGH while playing: a click on each quarter, higher on the bar's first, in time
+  with a 1/4 kick; nothing while stopped; the MASTER knob turns it down with the mix; PERFORM's FILTER / CRUSH /
+  REPEAT leave it alone; with CLK USB it follows the DAW's beats. OFF: no click. Survives a power cycle; not in
+  projects. Listen first on the computer: `metro_120.wav` (2 bars each LOW, MID, HIGH at 120 BPM).
+- PRIO (EDIT, the last SOUND page, after CHOKE): HIGH / LOW. A heavy kit that sheds voices (GLOBAL > SYSTEM CPU near
+  100 %): the LOW tracks' voices drop out first; the top bar shows a red CPU icon right of T<n> for 2 s after each
+  shed. A light kit: no icon.
+- An older project (0.16.0's) loads and plays as before, every track PRIO HIGH; a project saved now cannot be loaded
+  by 0.16.0.
 
 ### BENCH: the performance cases on the FM-1
 

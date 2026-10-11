@@ -10,7 +10,7 @@ every power-on**; only BLUETOOTH ON on the page turns it on, until the next powe
 
 ## The page
 
-MENU (hold HOME), PRESETS to **BLUETOOTH**, OCT+. On the page: PRESETS moves the cursor, KNOB 1 changes the row,
+MENU (hold HOME), SELECT to **BLUETOOTH**, OCT+. On the page: SELECT moves the cursor, KNOB 1 changes the row,
 OCT+ acts on it, OCT- goes back to the menu (HOME held closes the menu).
 
 | Row | KNOB 1 | OCT+ |
@@ -51,12 +51,12 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
    then `IDLE` within 5 s; no tone, no crash, no reset.
    - `FAILED NO RF TRIM IN FLASH` or `FAILED BT START TIMEOUT`: copy `ble` and `crash`, power off and on, and stop
      here.
-4. **Scan and pick:** switch the SMC-Mixer on in its DAW mode. PRESETS to SCAN, OCT+. Expected: `SCANNING 10 S`
-   counting down; the SMC-Mixer is listed first, with `MIDI` and its signal. PRESETS to it, OCT+. Expected:
+4. **Scan and pick:** switch the SMC-Mixer on in its DAW mode. SELECT to SCAN, OCT+. Expected: `SCANNING 10 S`
+   counting down; the SMC-Mixer is listed first, with `MIDI` and its signal. SELECT to it, OCT+. Expected:
    `CONNECTING`, then `CONNECTED SMC-Mixer` and `BT CONNECTED` in the head; DEVICE shows `SMC-Mixer`. On the mixer:
    the selected track's SELECT lit, STOP lit, MUTE lit for any muted track, SOLO and REC dark; the fader LEDs blink
    where a fader is away from its track's level. Hold HOME to close the menu.
-5. **Faders** (REC opens TRACKS: the levels): move fader 1. Expected: nothing changes, its LED blinks, until the
+5. **Faders** (TRACKS, HOME's first mode: the levels): move fader 1. Expected: nothing changes, its LED blinks, until the
    fader comes within 2 of track 1's LEVEL or passes it; from then the LED is steady and LEVEL follows the fader.
    Then change track 1's LEVEL on the FM-1 (TRACKS). Expected: fader 1's LED blinks again; the fader does nothing
    until it reaches the new level, then follows. Faders 2–8 the same for tracks 2–8; the master fader does nothing.
@@ -64,8 +64,8 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
    up; the top bar shows e.g. `T1 TUNE …`. Knobs 2, 3, 4: DECAY, TONE and the model's fourth knob, one step a
    click, stopping at the ends. On an ACID track: TUNE DECAY CUTOF RESO. Knobs 5–8 do nothing.
 7. **The track rows:**
-   - MUTE n: track n mutes / unmutes as the TRACKS key does, and MUTE n's LED shows it. With MUTE: NEXT BAR (TRACKS),
-     the LED changes at once and the track at the next bar.
+   - MUTE n: track n mutes / unmutes as its key on the MUTE screen (GLO held) does, and MUTE n's LED shows it. With
+     MUTE: NEXT BAR, the LED changes at once and the track at the next bar.
    - SOLO n: only the soloed tracks are heard (several can be); SOLO n again unsolos. TRACKS and HOME dim the
      silenced tracks; SOLO n's LED is lit while soloed. Solo clears by itself when the SMC-Mixer disconnects
      (step 10) or MODE leaves SMC DAW (step 13): every track is heard again, no sound is cut.
@@ -77,7 +77,7 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
    - REC: arms / disarms the selected track (REC lit while any track is armed).
    - BANK ◀ / CHANNEL ◀ and BANK ▶ / CHANNEL ▶: the previous / next track; they stop at tracks 1 and 8. REW, FF and
      the arrows do nothing.
-   - With a song playing (SONG), REC n and REC show `STOP TO EDIT` and do nothing, as REC on TRACKS.
+   - With a song playing (SONG), REC n and REC show `STOP TO EDIT` and do nothing, as the FM-1's REC does.
 9. **Record:** stopped, SELECT 2, then REC 2. Expected: the transport starts, track 2 armed. Play track 2 on the
    FM-1's keys as for live record now. Expected: the hits are written to track 2's steps. Turn knob 2 a few clicks,
    and move fader 2 once it is picked up: both recorded as motion (SEQ → MOTION shows it). REC 2 again disarms;
@@ -97,7 +97,7 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
 13. **MIDI mode** (optional, with a BLE-MIDI keyboard or app): MODE `MIDI` (AUTO picks MIDI for any device whose
     name does not start with `SMC`), SCAN, pick the keyboard. Expected: notes on the drum channel (GLO: CH, 10 by
     default) play the tracks whose NOTE (EDIT) matches, as USB and TRS do. GLO: CLK `BLE` with a device that sends
-    MIDI clock: the tempo follows it, Start / Stop drive the transport, the BPM knob says `CLK BLE`. Without a
+    MIDI clock: the tempo follows it, Start / Stop drive the transport, SELECT on TRACKS says `CLK BLE`. Without a
     keyboard, the SMC-Mixer works too: MODE `MIDI`, GLO CH 1, a track's NOTE 16; MUTE 1 (note 16) then plays that
     track, and Hortator sends the mixer no LEDs or fader positions. Before switching to MIDI with the SMC-Mixer
     connected in SMC DAW: SOLO 2 and some MUTE LEDs lit; on MODE `MIDI` every LED on the mixer goes dark once and the
@@ -111,7 +111,7 @@ assert, 2 a library reset request, 3 a BT task's stack overflow) and the crash o
     - If the update stops or the FM-1 restarts midway and Hortator comes back: type `ble` and `crash`, copy both,
       and install again with BT off (BT is off after a power-on).
     - If Hortator does not come back: do not run any other tool on it; tell me what the screen shows.
-16. **FORGET:** MENU → BLUETOOTH, ON, connected; PRESETS to DEVICE, KNOB 1 left. Expected: DEVICE `NONE`, the link
+16. **FORGET:** MENU → BLUETOOTH, ON, connected; SELECT to DEVICE, KNOB 1 left. Expected: DEVICE `NONE`, the link
     drops (`BT LOST`), no reconnect. A power cycle and BLUETOOTH ON stay `IDLE` until a device is picked again.
 17. **Flash saves with Bluetooth on and linked:** a pattern playing, BLUETOOTH ON, the SMC-Mixer connected. Each of
     these writes the flash. After each, check: the pattern plays on, the state line says `CONNECTED SMC-Mixer`

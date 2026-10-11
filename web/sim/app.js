@@ -54,6 +54,7 @@ function build() {
     el.dataset.ctl = `btn:${id}`;
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', b.label);
+    if (b.tip) el.title = `${b.label}: ${b.tip}`;
     el.innerHTML = b.label === 'PLAY' ? '<span class="two">PLAY<br>STOP</span>' : `<span>${b.label}</span>`;
     addHint(el, `btn:${id}`);
     device.append(el);
@@ -70,12 +71,13 @@ function build() {
     device.append(el);
     els.ctl[`key:${k.n}`] = el;
   });
-  [...ENC.map((e, i) => [String(i), e.label]), ['master', 'MASTER']].forEach(([id, label]) => {
+  [...ENC.map((e, i) => [String(i), e.label, e.tip]), ['master', 'MASTER', 'the volume']].forEach(([id, label, tip]) => {
     const el = document.createElement('div');
     el.className = `enc${id === 'master' ? ' master' : ''}`;
     el.tabIndex = 0;
     el.setAttribute('role', 'slider');
     el.setAttribute('aria-label', label);
+    if (tip) el.title = `${label}: ${tip}`;
     el.innerHTML = '<span class="skirt"></span><span class="cap"></span>';
     device.append(el);
     els.enc[id] = el;

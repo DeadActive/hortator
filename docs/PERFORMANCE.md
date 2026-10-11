@@ -9,7 +9,9 @@ after every optimization below: the table is the before / after.
 
 The host predicts the device: a median **6.86 ns on the FM-1 per host instruction** (heavy DSP within ±8 %). So
 **100 % SYSTEM CPU ≈ 3300 host instructions / sample**; the stock Felucca reference (1566, `tests/drum_cost_ref.txt`)
-is ≈ 47 %. An audio half is 5804 µs (256 samples); a half above 85 % sheds a voice, above 100 % is late (a click).
+is ≈ 47 %. An audio half is 5804 µs (256 samples); a half above 95 % (5514 µs; 85 % until 0.16.0) sheds a voice, above 100 % is late (a click). The voice shed: a PRIO LOW
+track's before a PRIO HIGH one's, the oldest first, a held ACID note last (§2 item 9); the top bar shows the CPU icon
+for 2 s.
 
 | Kit | CPU average | worst half | late halves |
 |---|---|---|---|
@@ -66,9 +68,12 @@ Sound changed slightly (WAV A/B for the user, nothing without approval):
 
 Policy (the user decides):
 
-8. **Overload: degrade before shedding.** Above 85 % a half first lightens RESON / PHYS (fewer modes for a moment);
+8. **Overload: degrade before shedding.** Above the shedding threshold a half first lightens RESON / PHYS (fewer modes for a moment);
    voices are shed only as the last resort.
-9. **The shedding threshold** 85 % → ~95 %: fewer voices shed, more risk of a late half (a click).
+9. **The shedding threshold** 85 % → 95 %: **done** (after 0.16.0, user decision 2026-10-11): fewer voices shed,
+   more risk of a late half (a click). With it, **PRIO** per track (HIGH / LOW, EDIT after CHOKE, saved in projects,
+   format FDRC): a LOW track's voices go first, at a shed and at the voice cap (`drum_core.c` `dv_oldest`: a held
+   ACID note last, then LOW before HIGH, then the oldest). All HIGH (the default) sheds exactly as before.
 
 Not planned now: the audio code in fast internal RAM, `-O2` for the audio code (a split compile unit): the host
 matches the FM-1 on heavy DSP, so the gain looks small; BENCH would show it if tried.

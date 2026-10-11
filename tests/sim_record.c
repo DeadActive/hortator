@@ -13,8 +13,10 @@
 #define FRAME_SAMPLES (FS / FPS)                          /* 2940 */
 
 typedef struct { float t; char what; uint8_t id; int8_t val; const char *clip; } act_t;   /* b = tap button,
+                                                          * p / r = press / release a button (held), k = tap a key,
                                                           * e = turn encoder, m = a clip starts here */
-static const act_t SCRIPT[] = {                           /* HOME's scope first; every page a few seconds */
+static const act_t SCRIPT[] = {                           /* HOME's scope first; every page a few seconds; TRACKS and
+                                                           * the MUTE screen (GLO held) */
     {0.0f, 'm', 0, 0, "home"},
     {3.6f, 'b', B_SEQ, 0}, {3.6f, 'm', 0, 0, "seq"},     /* the step grid of track 1, the playhead running */
     {6.4f, 'e', EN_ALGO, 1},                              /* track 2's steps */
@@ -32,12 +34,17 @@ static const act_t SCRIPT[] = {                           /* HOME's scope first;
     {22.4f, 'b', B_HOME, 0},                              /* HOME (the scope), SELECT to COMP, THR down and back */
     {23.2f, 'e', EN_SELECT, 1}, {23.2f, 'm', 0, 0, "comp"},
     {24.0f, 'e', EN_K2, -3}, {24.5f, 'e', EN_K2, -3}, {25.0f, 'e', EN_K2, 3}, {25.4f, 'e', EN_K2, 3},
-    {26.0f, 'b', B_HOME, 0}, {26.0f, 'b', B_HOME, 0},    /* HOME's TRACKS mode (HOME, then HOME again): the */
-    {26.0f, 'm', 0, 0, "tracks"},                         /* mixer's meters */
-    {29.2f, 'b', B_LFO, 0}, {29.2f, 'm', 0, 0, "lfo"},    /* LFO 1 of track 1, its knobs turned */
-    {29.8f, 'e', EN_K2, 3}, {30.4f, 'e', EN_K3, 2}, {31.2f, 'e', EN_K2, -3}, {31.8f, 'e', EN_K3, -2},
-    {32.4f, 'b', B_HOME, 0}, {32.4f, 'b', B_HOME, 0},    /* back to HOME's scope for the loop (TRACKS, then HOME) */
-    {32.4f, 'm', 0, 0, "end"},
+    {26.0f, 'b', B_HOME, 0}, {26.0f, 'm', 0, 0, "tracks"},   /* HOME's TRACKS mode (HOME on COMP: the scope, */
+    {26.2f, 'b', B_HOME, 0},                              /* HOME again: TRACKS): the mixer's meters (two taps in two
+                                                           * frames, so the UI sees the release between them) */
+    {27.0f, 'p', B_GLO, 0},                               /* GLO held: the MUTE screen (after 0.4 s) */
+    {27.8f, 'k', 6, 0}, {28.2f, 'k', 7, 0},               /* B3, C4: the hats (tracks 4, 5) muted (MUTE: NOW) */
+    {29.0f, 'k', 6, 0}, {29.4f, 'k', 7, 0},               /* and back */
+    {29.8f, 'r', B_GLO, 0},                               /* let go: TRACKS again */
+    {30.4f, 'b', B_LFO, 0}, {30.4f, 'm', 0, 0, "lfo"},    /* LFO 1 of track 1, its knobs turned */
+    {30.9f, 'e', EN_K2, 3}, {31.4f, 'e', EN_K3, 2}, {31.9f, 'e', EN_K2, -3}, {32.4f, 'e', EN_K3, -2},
+    {33.0f, 'b', B_HOME, 0}, {33.0f, 'm', 0, 0, "end"},  /* back to HOME's scope for the loop (TRACKS, */
+    {33.2f, 'b', B_HOME, 0},                              /* then HOME) */
 };
 #define NACT (sizeof SCRIPT / sizeof SCRIPT[0])
 
@@ -88,16 +95,27 @@ static void write_frame(FILE *f, const int8_t enc[8], int full)
     memcpy(prev, cur, sizeof prev);
 }
 
+static void hold_for(uint32_t samples)
+{
+    while (samples) {
+        uint32_t n = samples < SIM_MAX_FRAMES ? samples : SIM_MAX_FRAMES;
+        sim_render(n);
+        samples -= n;
+    }
+}
+
 static void tap_btn(uint32_t b)                          /* held 0.12 s, as a finger: HOME / REC read the level */
 {
-    uint32_t left = FS * 12u / 100u;
     sim_btn(b, 1);
-    while (left) {
-        uint32_t n = left < SIM_MAX_FRAMES ? left : SIM_MAX_FRAMES;
-        sim_render(n);
-        left -= n;
-    }
+    hold_for(FS * 12u / 100u);
     sim_btn(b, 0);
+}
+
+static void tap_key(uint32_t k)                          /* a note key, held 0.12 s */
+{
+    sim_key(k, 1);
+    hold_for(FS * 12u / 100u);
+    sim_key(k, 0);
 }
 
 int main(int argc, char **argv)
@@ -131,6 +149,10 @@ int main(int argc, char **argv)
                 continue;
             if (a->what == 'b')
                 tap_btn(a->id);
+            else if (a->what == 'p' || a->what == 'r')
+                sim_btn(a->id, a->what == 'p');
+            else if (a->what == 'k')
+                tap_key(a->id);
             else {
                 sim_enc(a->id, a->val);
                 enc[a->id] = (int8_t)(enc[a->id] + a->val);

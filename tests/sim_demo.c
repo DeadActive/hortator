@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE */
 /* The web simulator's first-visit demos: the kits of tests/drumsim.c (808, 909, Plaits, mixed), saved to project
- * slots 1-4 with the firmware's own project_save; slot 1 is then loaded, so PLAY grooves at once.
+ * slots 1-4 with the firmware's own project_save; slot 1 is then loaded (and remembered as the last project, so a
+ * returning visit opens it), so PLAY grooves at once.
  * 'x' = a hit, 'X' = an accent; TUNE (P_E0), DECAY (P_E1, -1 = the model's default). */
 typedef struct {
     uint32_t model[NTRK];
@@ -51,6 +52,10 @@ static void sim_demo_install(void)
         song.sel = 0;
         project_save(s);
     }
+    lastp.set = 1;                                        /* the demos as one install: slot 1 is the one remembered
+                                                           * (a returning visit opens it, as before), not slot 4 */
+    lastp.slot = 0;
+    settings_save();
     drum_tracks_init();
     project_load(0);
 }

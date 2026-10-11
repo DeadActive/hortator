@@ -5,6 +5,35 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- SELECT turns the pages: SELECT does what PRESETS did (a section's pages, HOME 1/3 to COMP 2/3 and 3/3, the page
+  under PERFORM, the menu's cursor, the Bluetooth page's rows), except on HOME's TRACKS mode, where it sets the
+  tempo. PRESETS does nothing; ALGORITHM still picks the track.
+- HOME has two modes: TRACKS (the mixer: TRACK LEVEL LEN PAN, the steps on the keys) and HOME (the scope, the
+  selected track's knobs, the compressor after it). A HOME tap on HOME switches between them, from elsewhere it
+  opens the one last shown; power-on shows TRACKS. REC no longer opens TRACKS.
+- REC arms on every screen: a REC tap arms / disarms the selected track (arming while stopped starts play; `STOP
+  TO EDIT` during a song). Kept: step record on STEP with KEYS on and stopped, and REC held for CLEAR TRACK on SEQ,
+  DELETE ROW / CLEAR SONG on SONG. REC is no longer the mute modifier.
+- The MUTE screen (GLO held): the eight tracks as boxes, filled = heard, outline = muted, a waiting mute blinking,
+  the key under each; the white keys F3..F4 toggle them, the top C# / D# set MUTE: NOW / NEXT BAR. A GLO tap still
+  opens GLOBAL. Replaces REC held + a key.
+- The last project loads at power-on: every SAVE to flash remembers its slot; at power-on (not in safe start) it
+  loads, stopped. If it can't, `LOAD FAILED: SLOT n` / `START NEW PROJECT?`: YES forgets the slot, NO asks again at
+  the next power-on; both carry on with the power-on kit.
+- PERFORM knob effects stay on: FILTER, CRUSH, THROW and DEPTH keep working after FX is let go or the PERFORM page
+  closes, on every page, until turned back to 0 on the PERFORM screen (or TOOLS `INIT*`). An amber `FX` in the top
+  bar shows while any is on. The black keys' effects still stop when let go.
+- Metronome: GLOBAL 3/3 METRO OFF / LOW / MID / HIGH (a device setting, not in projects). While playing, a click on
+  every quarter note, higher on the bar's first, after the PERFORM effects and at the MASTER volume, on the speaker,
+  the headphones and USB audio.
+- CPU: voices are shed at 95 % of an audio block (was 85 %). PRIO per track (EDIT, after CHOKE): HIGH / LOW, a LOW
+  track's voices go first at a shed and at the voice cap (a held ACID note still last). A red CPU icon shows in the
+  top bar for 2 s after a shed.
+- Project format FDRC (for PRIO): older projects load as before, every track PRIO HIGH; projects saved by this
+  build can't be read by 0.16.0. Project data only in RAM (a slot whose flash save failed) is not carried over.
+- Device settings: the last project and METRO are kept in spare bits. Going back to an older Hortator with either
+  set: its SPEAKER EQ reads FLAT.
+
 ## 0.16.0 - 2026-10-11
 
 - ACID: every step holds a note, SLIDE and TIE (format FDRB; older projects load and play as before, but projects

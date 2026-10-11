@@ -27,17 +27,17 @@ firmware ([below](#back-to-the-official-firmware)).
   knob of its own.
 - **Step sequencer.** Up to 64 steps per track on the 16 white keys, each track with its own length, division and
   swing. Accents, PROB and RATCH per step, fills that play every other bar, live recording, mutes that wait for the
-  next bar.
+  next bar (the MUTE screen: hold GLO).
 - **Notes and ACID.** Every step holds a note. Drum tracks play their steps transposed (C4 plays as tuned); ACID, a
   303-style bass voice (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE: saw or square into a resonant 24 dB filter, with
   accent, slide and tie), plays them as a bass line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys
   into a keyboard for the selected track (KEYS): play it, record it live, or enter a line step by step. Live record:
-  a REC tap on TRACKS arms the track (and starts the transport when stopped); a key writes the nearest step, a key
+  a REC tap, on any screen, arms the selected track (and starts the transport when stopped); a key writes the nearest step, a key
   held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on ACID tracks only). An ACID
   track's STEP page is a piano roll; a step the white keys turn on takes the last KEYS note on an ACID track, C4 on a
   drum. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
-  is cut (a safety limit). Projects saved by this build can't be read by 0.15.0; older projects convert on load. A
-  loaded project keeps ACID on its first two ACID tracks; the others come back as their power-on kit drum.
+  is cut (a safety limit). A loaded project keeps ACID on its first two ACID tracks; the others come back as their
+  power-on kit drum.
 - **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.
 - **SONG and names.** Chain up to 16 rows of projects with repeats; name projects on the device.
 - **Grids.** Mutable Instruments' pattern generator: a map of drum patterns, chaos, or Euclidean rhythms. Any track
@@ -48,35 +48,78 @@ firmware ([below](#back-to-the-official-firmware)).
 - **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM or SPRING reverb
   and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
-  octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH.
+  octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
+  until you turn them back.
+- **Metronome.** GLOBAL 3/3 METRO: a click on every quarter note while playing, the bar's first higher.
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
   into a DAW over its USB cable. The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
   keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
-- **Projects.** Four slots, A to D, saved in the FM-1's flash.
+- **Projects.** Four slots, A to D, saved in the FM-1's flash; the last one saved loads at power-on.
 
 ### On the panel
 
 | Button | Opens |
 | --- | --- |
-| **HOME** | the main screen and the compressor (PRESETS turns the pages); hold it for the menu |
+| **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs |
 | **SEQ** | the steps on the white keys, then PATTERN, MOTION and SONG |
 | **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs |
-| **REC** | TRACKS (levels, lengths, pans, mutes) and recording |
-| **GLO** | global and system settings |
+| **REC** | arms / disarms the selected track for recording, on any screen (arming while stopped starts play). On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
+| **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes)) |
 | **SAVE** | projects (save, load, name) and tools |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
 
 With KEYS on, OCT- / OCT+ are the octave: LAYER (from EDIT) and the LFO pages' OCT buttons need KEYS off; the STEP
-bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu and PERFORM (FX held) keep their keys.
+bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu, PERFORM (FX held) and the MUTE
+screen (GLO held) keep their keys.
 Step record starts in KEYS mode, on the STEP page, with the transport stopped, by a REC tap: the cursor starts at the
 bank's first step and the top bar shows `STEP REC nn`. KNOB 1 to 4 are STEP, NOTE, TIME (NOTE / TIE / REST) and FLAG
 (- / ACC / SLD / A+S); EDIT writes a rest. A REC tap, PLAY or leaving the page ends it.
 
-ALGORITHM picks the track anywhere; PRESETS turns the pages of a section; KNOB 1 to 4 edit what the screen shows.
-SELECT sets the tempo.
+ALGORITHM picks the track anywhere. SELECT turns the pages of a section and moves the menu's cursor; on HOME's
+TRACKS mode it sets the tempo instead (`CLK USB` / `CLK TRS` when following a clock; GLOBAL 1/3 KNOB 1 sets it on any
+page). KNOB 1 to 4 edit what the screen shows. PRESETS does nothing.
+
+### Mutes
+
+Hold GLO: the **MUTE screen**, up while GLO is held (a quick GLO tap opens GLOBAL instead; a key pressed while GLO
+is down opens the screen at once). The eight tracks are boxes, **filled = heard, outline = muted**, each with its
+number and model, and under it the key that toggles it (F3 to F4, the white keys; their LEDs lit for the heard
+tracks). The top C# sets `MUTE: NOW`, the top D# `MUTE: NEXT BAR` (the same setting as GLOBAL 3/3 MUTE): with NEXT
+BAR, a mute made while playing blinks, then lands on the next downbeat. While the screen is up the keys play
+nothing and the knobs and the other buttons rest, PLAY aside. Let go of GLO: back to the page you were on.
+
+### PERFORM
+
+Hold FX for the PERFORM screen. The black keys are buffer effects while held (REPEAT 1/8 1/16 1/32, REVERSE, TAPE
+STOP, LPF and HPF sweeps, FREEZE, OCT UP / DN), the white keys silence their tracks while held, and KNOB 1 to 4 are
+FILTER (left LPF, right HPF), CRUSH, THROW and DEPTH. **The knob effects stay on** after FX is let go (or the PERFORM
+page closes) and keep working on every page; the top bar shows an amber `FX` in place of the tempo icon while any
+is on. To switch one off, turn it back to 0 on the PERFORM screen; TOOLS `INIT*` switches them all off. The
+buffer effects stop when their key is let go.
+
+### Projects
+
+SAVE > PROJECT: four slots, A to D. **The last project saved loads at power-on** (`LOADED` in the top bar, stopped;
+PROJECT's SLOT points at it). If it can't be loaded (the slot is empty or unreadable), the FM-1 asks
+`LOAD FAILED: SLOT B` / `START NEW PROJECT?`: OCT+ (YES) forgets it, OCT- (NO) tries it again at the next power-on;
+both carry on with the power-on kit. A safe start (SEQ held at power-on) loads nothing.
+
+Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
+
+### Metronome
+
+GLOBAL 3/3 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every
+quarter note, higher on the bar's first. It comes after the PERFORM effects (they leave it alone) and follows the
+MASTER volume, on the speaker, the headphones and USB audio. A device setting: saved, not part of projects.
+
+### CPU and PRIO
+
+When an audio block takes more than 95 % of its time, the FM-1 stops one sounding voice to catch up, and the top bar
+shows a red CPU icon for 2 s. A track with **PRIO LOW** loses its voices before a PRIO HIGH one, the oldest first;
+a held ACID note goes last. The same order picks the voice to stop when too many play at once. PRIO is on the track's last EDIT (SOUND) page, after CHOKE: HIGH by default, saved in the project.
 
 ## Bluetooth MIDI
 
@@ -86,7 +129,7 @@ Bluetooth is **off at every power-on**; it runs only after you turn it on, until
 
 ### The Bluetooth page
 
-MENU (hold HOME), PRESETS to **BLUETOOTH**, OCT+. PRESETS moves the cursor, KNOB 1 changes the row, OCT+ acts on it,
+MENU (hold HOME), SELECT to **BLUETOOTH**, OCT+. SELECT moves the cursor, KNOB 1 changes the row, OCT+ acts on it,
 OCT- goes back to the menu.
 
 | Row | What it does |
@@ -108,7 +151,7 @@ ON (no scan or pick needed). While it is not found, it scans 10 s at a time with
 pauses this while the page stays open, so you can pick another device.
 
 **MIDI mode.** Notes on the drum channel (GLO: CH) play the tracks whose NOTE matches, as over USB and TRS. GLO:
-**CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as CLK USB / TRS do; the BPM knob then says
+**CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as CLK USB / TRS do; the tempo knobs then say
 `CLK BLE`. A project saved with CLK BLE loads with CLK INT in the plain version.
 
 ### The SMC-Mixer (DAW mode)
@@ -121,9 +164,9 @@ The M-VAVE SMC-Mixer in its DAW (Mackie Control) mode, MODE AUTO or SMC DAW. Onl
 | Master fader | nothing |
 | Knob 1–4 | the selected track's first four knobs (TUNE DECAY TONE and the model's fourth; ACID: TUNE DECAY CUTOF RESO), one step a click; the top bar shows e.g. `T3 DECAY 64`; recorded as motion while the track is armed and playing |
 | Knob 5–8 | nothing |
-| MUTE 1–8 | mute / unmute the track, as the TRACKS key (MUTE: NEXT BAR applies) |
+| MUTE 1–8 | mute / unmute the track, as its key on the MUTE screen (MUTE: NEXT BAR applies) |
 | SOLO 1–8 | solo / unsolo the track (below) |
-| REC 1–8 | arm / disarm the track for recording; arming while stopped starts play (as a REC tap on TRACKS) |
+| REC 1–8 | arm / disarm the track for recording; arming while stopped starts play (as a REC tap) |
 | SELECT 1–8 | select the track |
 | PLAY | stopped: play; playing: nothing |
 | STOP | stop |
@@ -131,7 +174,7 @@ The M-VAVE SMC-Mixer in its DAW (Mackie Control) mode, MODE AUTO or SMC DAW. Onl
 | BANK ◀ / CHANNEL ◀, BANK ▶ / CHANNEL ▶ | the previous / next track (stops at 1 and 8) |
 | REW, FF, the arrows | nothing |
 
-While a song plays or is armed, REC 1–8 and REC say `STOP TO EDIT`, as REC on TRACKS. An armed track records the
+While a song plays or is armed, REC 1–8 and REC say `STOP TO EDIT`, as the FM-1's REC does. An armed track records the
 FM-1's keys as live record does.
 
 - **LEDs:** MUTE n lit = track n muted (or a mute waiting for the next bar), SOLO n = soloed, REC n = armed,
@@ -141,7 +184,7 @@ FM-1's keys as live record does.
   the mixer blinks its LED. Then it follows. On every connection, and whenever a track's LEVEL changes some other
   way (the FM-1's knob, LOAD, INIT, LEVEL motion), that fader has to be picked up again.
 - **Solo:** while any track is soloed, only the soloed tracks are heard; several can be soloed. A silenced track
-  is dimmed on HOME and TRACKS, as a muted one; the TRACKS mutes are unchanged. The FM-1 has no SOLO control, so solo
+  is dimmed on HOME and TRACKS, as a muted one; the mutes are unchanged. The FM-1 has no SOLO control, so solo
   clears by itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (every track audible again; nothing
   is cut). Solo is not saved: INIT and a power-on clear it too.
 - **Leaving SMC DAW** (MODE MIDI while connected): Hortator turns the mixer's LEDs off once and sends it nothing

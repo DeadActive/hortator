@@ -67,7 +67,7 @@ preview's installer *can* flash an FM-1.
 |---|---|---|
 | Host harness | `tests/sim_host.h` | `#include`s the firmware sources in `felucca.c`'s order, with the HAL replaced: the audio sample count as the clock, input levels with latched edges, the LCD as a framebuffer, the audio ISR (`audio.c`) run on demand, the flash in RAM with dirty sectors |
 | Sim core | `tests/sim_core.c` | the exported C API: `sim_init`, `sim_render`, `sim_frame`, `sim_btn`, `sim_key`, `sim_enc`, `sim_master`, `sim_leds`, `sim_key_leds`, `sim_fb`, `sim_audio`, `sim_flash*`, `sim_playing` |
-| Demos | `tests/sim_demo.c` | the first visit's four projects (the drumsim kits 808 / 909 / Plaits / mixed), saved to slots 1–4 with `project_save`, slot 1 loaded |
+| Demos | `tests/sim_demo.c` | the first visit's four projects (the drumsim kits 808 / 909 / Plaits / mixed), saved to slots 1–4 with `project_save`, slot 1 loaded and remembered as the last project |
 | Engine | `web/sim/engine.js` | loads the wasm (no emscripten JS glue), wraps the API; used by the worklet and by node |
 | Worklet | `web/sim/worklet.js` | the firmware runs here, in the audio thread: 128 frames per quantum. The audio ISR runs once per 256-frame half and the UI frame every 15 ms of audio, as on the device. It posts the screen, the LEDs and written flash sectors to the page |
 | Storage, audio | `web/sim/store.js`, `web/sim/audio.js` | the flash in IndexedDB (written sectors wait until a write completes; a lost connection is reopened once; a failure shows a note and is retried with the next save); resuming the AudioContext (the clock) after a phone stops it, and the iOS playback session (sound with the silent switch on) |
@@ -87,7 +87,7 @@ otherwise).
 
 The firmware's 1 MiB flash image lives in the wasm memory. After every UI frame, the sectors the firmware wrote go to IndexedDB (`fm1-sim` / `flash`, key = offset).
 
-On a later visit the page loads them and boots from them; slot 1 becomes the current project, so PLAY plays what was left there. The device itself powers on with an empty pattern.
+On a later visit the page loads them and boots from them; as on the device, the last project saved loads at power-on (the demos count as a save of slot 1), so PLAY plays what was left there. With no project remembered, slot 1 becomes the current project (the device would power on with an empty pattern).
 
 "Reset to demos" clears the store and reloads. A browser that blocks storage still runs the sim, with saves lasting only for the session.
 

@@ -65,7 +65,16 @@
         <ul>
           <li>Keys and buttons play while held. Several fingers work.</li>
           <li>Turn a knob by dragging it up or down, with the mouse wheel, or by hovering it and pressing ↑ ↓.</li>
-          <li>To hold a button for a combination (SEQ held + a key), right-click it or long-press it. Tap it again to let go.</li>
+          <li>To hold a button (GLO for the mutes, FX for PERFORM, SEQ + a key), right-click it or long-press it. Tap it again to let go.</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Getting around</h2>
+        <ul>
+          <li>SELECT turns the pages; on TRACKS it sets the tempo. ALGORITHM picks the track.</li>
+          <li>HOME switches between TRACKS and the HOME screen; hold it for the menu.</li>
+          <li>REC arms the selected track for recording, on any page.</li>
+          <li>Hold GLO for the MUTE screen: the white keys mute and unmute the tracks.</li>
         </ul>
       </div>
       <div>
@@ -73,7 +82,7 @@
         <ul>
           <li>Lower keys: Z X C V B N M , . / with S D F H J L ; ' for the raised ones.</li>
           <li>Upper keys: Q W E R T Y with 3 4 6.</li>
-          <li>Space PLAY, Enter REC, Esc HOME, ← OCT−, → OCT+.</li>
+          <li>Space PLAY, Enter REC (arms the track), Esc HOME (TRACKS / HOME), ← OCT−, → OCT+.</li>
         </ul>
       </div>
     </div>
@@ -96,11 +105,12 @@
       <p class="press" id="press"></p>
     </aside>
     <ol class="feats">
-      <li class="feat" data-clip="tracks" data-press="REC ALGORITHM">
+      <li class="feat" data-clip="tracks" data-press="HOME GLO ALGORITHM">
         <h3>Eight drum tracks</h3>
-        <p>Each track plays its own drum model and pattern. TRACKS shows all eight at once: level, length and pan,
-          with mutes that can wait for the next bar so a drop lands on the one.</p>
-        <p class="where"><b>REC</b> opens TRACKS; <b>ALGORITHM</b> picks a track anywhere.</p>
+        <p>Each track plays its own drum model and pattern. TRACKS shows all eight at once: level, length and pan.
+          Hold GLO and the tracks become boxes to mute, now or on the next bar so a drop lands on the one.</p>
+        <p class="where"><b>HOME</b> switches between TRACKS and the HOME screen; hold <b>GLO</b> to mute;
+          <b>ALGORITHM</b> picks a track anywhere.</p>
       </li>
       <li class="feat" data-clip="sound" data-press="EDIT KNOB1 KNOB2 KNOB3 KNOB4">
         <h3>Shape every hit</h3>
@@ -112,7 +122,7 @@
         <h3>Step sequencer</h3>
         <p>Up to 64 steps per track on the 16 white keys, each track with its own length. Accents, swing, PROB and
           RATCH per step, fills that play every other bar, and live recording.</p>
-        <p class="where"><b>SEQ</b>; the white keys are the steps.</p>
+        <p class="where"><b>SEQ</b>; the white keys are the steps. <b>REC</b> arms a track on any page.</p>
       </li>
       <li class="feat" data-clip="grids" data-press="ARP">
         <h3>Grids</h3>
@@ -120,11 +130,11 @@
           Euclidean rhythms; any track can follow one of its three channels.</p>
         <p class="where"><b>ARP</b>.</p>
       </li>
-      <li class="feat" data-clip="comp" data-press="HOME PRESETS">
+      <li class="feat" data-clip="comp" data-press="HOME SELECT">
         <h3>A compressor that pumps</h3>
         <p>The Streams compressor, keyed by any track: duck the hats and the reverb under the kick. GHOST keeps the
           pump going even with the key track muted.</p>
-        <p class="where"><b>HOME</b>, then <b>PRESETS</b> to the COMP pages.</p>
+        <p class="where"><b>HOME</b> to the HOME screen, then <b>SELECT</b> to the COMP pages.</p>
       </li>
       <li class="feat" data-clip="lfo" data-press="LFO">
         <h3>Movement</h3>
@@ -132,11 +142,11 @@
           destination: pitch, decay, tone, level, pan and more.</p>
         <p class="where"><b>LFO</b>; press it again for the second one.</p>
       </li>
-      <li class="feat" data-clip="fx" data-press="FX PRESETS">
+      <li class="feat" data-clip="fx" data-press="FX SELECT">
         <h3>Effects</h3>
         <p>Distortion, the SLICER and RESON (string, pipe or chord) on every track; delay, ROOM or SPRING reverb
           and chorus sends; a master limiter, and BASS+ for the small speaker.</p>
-        <p class="where"><b>FX</b>, <b>PRESETS</b> turns the pages.</p>
+        <p class="where"><b>FX</b>, <b>SELECT</b> turns the pages.</p>
       </li>
     </ol>
   </div>

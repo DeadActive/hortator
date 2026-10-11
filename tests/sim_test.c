@@ -195,6 +195,7 @@ static void test_demos_and_flash(void)
     tap(B_PLAY);
     run(FS);
     check("demos: the fresh boot left dirty flash sectors", dirty_count() > 0u);
+    check("demos: slot 1 is the remembered project", lastp.set && lastp.slot == 0u);
     sim_flash_clean();
     check("sim_flash_clean clears them", dirty_count() == 0u);
     trk[0].step[1].on = (uint8_t)!trk[0].step[1].on;
@@ -205,6 +206,17 @@ static void test_demos_and_flash(void)
     power_cycle(image);
     check("round trip: a boot from flash makes slot 1 the current project, with the saved change",
           trk[0].step[1].on == on && project_used(3));
+    check("round trip: slot 1 remembered and loaded at power-on (LOADED), no LOAD FAILED question",
+          lastp.set && lastp.slot == 0u && song.g[G_SLOT] == 1 && ui.confirm == 0u);
+    trk[0].step[2].on = (uint8_t)!trk[0].step[2].on;
+    on = trk[0].step[2].on;
+    project_save(1);
+    memcpy(image, sim_flash(), SIM_FLASH_SIZE);
+    power_cycle(image);
+    check("returning visit: the last project saved (slot 2) loads, as on the device",
+          trk[0].step[2].on == on && song.g[G_SLOT] == 2 && lastp.slot == 1u);
+    project_save(0);                                 /* (slot 1 remembered again for the cases below) */
+    memcpy(image, sim_flash(), SIM_FLASH_SIZE);
     for (i = 0x97000u; i < 0xE0000u; i++)            /* hostile store contents */
         image[i] = (uint8_t)(i * 2654435761u >> 24);
     power_cycle(image);
