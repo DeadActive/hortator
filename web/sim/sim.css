@@ -337,14 +337,17 @@ html { scroll-behavior: smooth; }
 .plate .ble-name { font: 16px/1.2 var(--mono); color: var(--w); }
 .plate .ble-sub { color: var(--c3); }
 .plate .ble-node.fm1 .ble-sub { color: var(--c4); }
-.plate.ble:not([data-step="2"]):not([data-step="3"]):not([data-step="4"]) .ble-node.ctl { opacity: .3; }
+.plate.ble:not([data-step="2"]):not([data-step="3"]) .ble-node.ctl { opacity: .3; }
 .plate .ble-faders { display: flex; gap: 18px; height: 46px; margin-bottom: 4px; }
 .plate .ble-fader { position: relative; width: 4px; background: var(--c1); }
+.plate .ble-levels { display: flex; gap: 6px; height: 46px; align-items: flex-end; margin-bottom: 4px; }
+.plate .ble-level { position: relative; width: 12px; height: 100%; border: 2px solid var(--c2); }
+.plate .ble-level i { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; background: var(--c5); transition: height .15s steps(3); }
 .plate .ble-fader i { position: absolute; left: -6px; top: 0; width: 16px; height: 8px; background: var(--c4);
   transition: transform .15s steps(3); }
 .plate .ble-air { position: relative; height: 120px; overflow: hidden; }
 .plate .ble-link { position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--c2); }
-.plate.ble[data-step="3"] .ble-link, .plate.ble[data-step="4"] .ble-link { border-top: 2px solid var(--w); }
+.plate.ble[data-step="2"] .ble-link, .plate.ble[data-step="3"] .ble-link { border-top: 2px solid var(--w); }
 .plate .ble-rings span { position: absolute; left: 0; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%;
   border: 2px dashed var(--w); opacity: 0; }
 .plate.ble[data-step="1"] .ble-rings span { animation: ble-ring 1.8s steps(9) infinite; }
@@ -357,10 +360,9 @@ html { scroll-behavior: smooth; }
 .plate .ble-row { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; }
 .plate .ble-side { flex: 1 1 340px; display: grid; gap: 14px; }
 .plate .ble-status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
-.plate .ble-states, .plate .ble-counters { display: flex; gap: 6px; }
-.plate .ble-state, .plate .ble-count { font: 16px/1 var(--mono); padding: 6px 6px; border: 2px solid var(--c1); color: var(--c2); }
+.plate .ble-states { display: flex; flex-wrap: wrap; gap: 6px; }
+.plate .ble-state { font: 16px/1 var(--mono); padding: 6px 6px; border: 2px solid var(--c1); color: var(--c2); }
 .plate .ble-state.on { color: var(--k); background: var(--w); border-color: var(--w); }
-.plate .ble-count { color: var(--c5); }
 .plate .ble-console { list-style: none; margin: 0; padding: 12px 14px; background: var(--k); border: 2px solid var(--c1);
   display: grid; gap: 8px; font: 16px/24px var(--mono); color: var(--c2); }
 .plate .ble-console li { display: flex; flex-wrap: wrap; gap: 0 16px; }

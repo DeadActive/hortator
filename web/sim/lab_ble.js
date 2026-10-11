@@ -1,25 +1,31 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
-// Piece 8, Bluetooth MIDI (alpha, a separate FELUCCA_BLE build; docs/ble/DEVICE_STEPS.md): an animated diagram, no
-// sound. The console's commands, as typed, and what each does: start, scan, the controller found offering BLE-MIDI,
-// connect; then fader moves arrive as messages the FM-1 counts (part 1). Playing the tracks from them is part 2,
-// drawn as what comes next. It runs while on screen; with reduced motion it shows the connected state, still.
+// Piece 8, Bluetooth MIDI (the Bluetooth version, README "Bluetooth MIDI"): an animated diagram, no sound. The
+// Bluetooth page's rows in the order they are used (MENU > BLUETOOTH: ON, SCAN, a device picked), the states it shows,
+// then an SMC-Mixer in its DAW mode: a fader moved, its message flies to the FM-1, that track's level follows. It
+// runs while on screen; with reduced motion it shows the connected state, still.
 import { el } from './lab_ui.js';
 
-const SCRIPT = [                                     // [command, what it does, the state after, ms]
-  ['ble start', 'Bluetooth on, until the next power-off', 'IDLE', 1800],
-  ['ble scan', 'a 10 s scan for devices', 'IDLE', 2200],
-  ['ble list', 'the controller is found, offering BLE-MIDI', 'IDLE', 1600],
-  ['ble connect 1', 'connected and subscribed to its MIDI', 'RECEIVING', 1400],
-  [null, 'faders moved: messages arrive and are counted', 'RECEIVING', 5200],
+const SCRIPT = [                                     // [the page's row, what it does, the state after, ms]
+  ['BLUETOOTH  ON', 'Bluetooth starts (off at every power-on)', 'IDLE', 1800],
+  ['SCAN', 'a 10 s scan; the BLE-MIDI devices listed first', 'SCANNING', 2200],
+  ['1  SMC-Mixer', 'picked with OCT+: remembered, and connected to', 'CONNECTED', 1800],
+  [null, 'faders moved: the track levels follow', 'CONNECTED', 5200],
 ];
-const STATES = ['OFF', 'STARTING', 'IDLE', 'RECEIVING'];
+const STATES = ['OFF', 'STARTING', 'IDLE', 'SCANNING', 'CONNECTED'];
 
 export default function ble(plate) {
   plate.classList.add('ble');
   const stage = el('div', 'ble-stage');
   const fm1 = el('div', 'ble-node fm1');
-  fm1.append(el('span', 'ble-name', 'FM-1'), el('span', 'ble-sub', 'Hortator, BLE build'));
+  const levels = el('div', 'ble-levels'), bars = [];
+  for (let i = 0; i < 4; i++) {                       // tracks 1 .. 4: their LEVEL, as the faders set it
+    const slot = el('span', 'ble-level'), bar = el('i');
+    slot.append(bar);
+    levels.append(slot);
+    bars.push(bar);
+  }
+  fm1.append(levels, el('span', 'ble-name', 'FM-1'), el('span', 'ble-sub', 'track levels 1 to 4'));
   const air = el('div', 'ble-air');
   const rings = el('div', 'ble-rings');
   for (let i = 0; i < 3; i++) rings.append(el('span'));
@@ -33,20 +39,18 @@ export default function ble(plate) {
     faders.append(slot);
     caps.push(cap);
   }
-  ctl.append(faders, el('span', 'ble-name', 'BLE-MIDI controller'), el('span', 'ble-sub', 'tested: SMC-Mixer'));
+  ctl.append(faders, el('span', 'ble-name', 'SMC-Mixer'), el('span', 'ble-sub', 'DAW mode: faders 1 to 4'));
   stage.append(fm1, air, ctl);
 
   const next = el('div', 'ble-next');
-  next.append(el('span', 'ble-name', 'Next'), el('span', 'ble-sub', 'the messages play the tracks'));
+  next.append(el('span', 'ble-name', 'MIDI mode'), el('span', 'ble-sub', 'any other controller: its notes play the tracks, CLK BLE follows its clock'));
   const statesEl = el('div', 'ble-states');
   const chipsEl = STATES.map(s => { const c = el('span', 'ble-state', s); statesEl.append(c); return c; });
-  const counters = el('div', 'ble-counters'), msgs = el('span', 'ble-count', 'msgs 0'), errs = el('span', 'ble-count', 'errs 0');
-  counters.append(msgs, errs);
   const status = el('div', 'ble-status');
-  status.append(statesEl, counters);
+  status.append(statesEl);
 
   const term = el('ol', 'ble-console');
-  term.setAttribute('aria-label', 'The FM-1’s serial console');
+  term.setAttribute('aria-label', 'The Bluetooth page, step by step');
   const lines = SCRIPT.map(([cmd, what]) => {
     const li = el('li');
     if (cmd) li.append(el('code', null, cmd));
@@ -62,7 +66,7 @@ export default function ble(plate) {
   plate.append(stage, row);
 
   // ---- the loop: the steps one after the other, then fader moves as packets
-  let step = -1, timer = 0, count = 0, packets = 0, running = false, gen = 0;
+  let step = -1, timer = 0, packets = 0, running = false, gen = 0;
   const state = s => chipsEl.forEach(c => c.classList.toggle('on', c.textContent === s));
   const show = i => {
     step = i;
@@ -71,14 +75,14 @@ export default function ble(plate) {
     state(i === 0 ? 'STARTING' : SCRIPT[i][2]);
     if (i === 0) setTimeout(() => step === 0 && state('IDLE'), 900);
   };
-  const packet = () => {                             // a fader moves: a message flies to the FM-1, counted there
-    const f = Math.floor(Math.random() * 4);
-    caps[f].style.transform = `translateY(${Math.round(Math.random() * 30)}px)`;
+  const packet = () => {                             // a fader moves: its message flies to the FM-1, that level follows
+    const f = Math.floor(Math.random() * 4), v = Math.random();
+    caps[f].style.transform = `translateY(${Math.round((1 - v) * 30)}px)`;
     const dot = el('span', 'ble-packet'), mine = gen;
     air.append(dot);
     setTimeout(() => {                               // the flight's length (sim.css ble-fly)
       dot.remove();
-      if (mine === gen) msgs.textContent = `msgs ${++count}`;
+      if (mine === gen) bars[f].style.height = `${Math.round(10 + v * 90)}%`;
     }, 900);
   };
   const run = () => {
@@ -88,8 +92,6 @@ export default function ble(plate) {
     if (i === 0) {
       gen++;                                         // a new round: the packets still flying are not counted
       for (const d of air.querySelectorAll('.ble-packet')) d.remove();
-      count = 0;
-      msgs.textContent = 'msgs 0';
       state('OFF');
     }
     show(i);
@@ -102,7 +104,6 @@ export default function ble(plate) {
   const still = matchMedia('(prefers-reduced-motion: reduce)');
   const rest = () => {                               // reduced motion: the connected state, still
     show(SCRIPT.length - 1);
-    msgs.textContent = 'msgs counting';
   };
   new IntersectionObserver(([e]) => {
     if (still.matches) return rest();
