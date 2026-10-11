@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.16.0 - 2026-10-11
+
 - ACID: every step holds a note, SLIDE and TIE (format FDRB; older projects load and play as before, but projects
   saved by this build can't be read by 0.15.0); drum tracks play their steps transposed; ACID, a 303-style bass voice
   (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE), plays them with accent, slide and tie on up to two tracks ("ACID: 2
