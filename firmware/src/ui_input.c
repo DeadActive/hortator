@@ -322,6 +322,11 @@ static void edit_param(uint32_t slot, int32_t steps)
         mute_bar_set((uint32_t)v);
         return;
     }
+    if (pg->scope == SC_GLOBAL && id == G_METRO) {    /* METRO: the device setting (fx.c's click), saved */
+        fx_metro = (uint8_t)v;
+        settings_save();
+        return;
+    }
     if (!v || pg->scope != SC_GLOBAL)
         return;
     if ((id == G_CLRSEQ || id == G_CLRALL || id == G_INITALL) && song_lock()) {
@@ -688,7 +693,7 @@ static void ui_input(void)
             track_rec_toggle(song.sel);                 /* the selected track armed / disarmed */
         }
     }
-    if (ui.confirm) {                                   /* OCT- cancels, OCT+ clears; nothing else reacts */
+    if (ui.confirm) {                                   /* OCT- cancels (NO), OCT+ clears (YES); nothing else reacts */
         if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
             char m[12] = "1 CLEARED";
             m[0] = (char)('1' + ui.confirm_trk);
@@ -703,6 +708,9 @@ static void ui_input(void)
                 memset(&chain.cfg, 0, sizeof chain.cfg);
                 ui.song_row = 0;
                 ui_message("SONG CLEARED");
+            } else if (ui.confirm == 5u) {              /* the last project failed to load: forget it (saved) */
+                lastp.set = 0;
+                settings_save();
             } else if (ui.confirm == 2u) {              /* the MOTION page's CLEAR */
                 motion_clear(ui.confirm_trk % NTRK);
                 ui_message("MOTION CLEARED");
@@ -723,6 +731,7 @@ static void ui_input(void)
         home_tap();                                     /* HOME: TRACKS <-> HOME; elsewhere HOME as last shown */
     settings_poll();
     song.act[2] = (int16_t)settings.mutebar;
+    song.act[3] = (int16_t)fx_metro;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
         while (ui.page > page_first(FAM_SND) && page_hidden(ui.page))

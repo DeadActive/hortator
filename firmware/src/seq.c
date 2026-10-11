@@ -98,6 +98,11 @@ static void grids_tick(uint32_t n)
         gclk.cnt++;
         gclk.half = 0;
         gclk.at = 1;
+        if (!(gclk.cnt & 3u)) {                     /* METRO (fx.c metro_block): a quarter, the bar's first accented */
+            metro.due = gclk.pos + 1u;
+            metro.adv = n;
+            metro.bar = !(gclk.cnt & 15u);
+        }
         grids_fire();                               /* the even 1/32, on the 1/16 */
     }
 }

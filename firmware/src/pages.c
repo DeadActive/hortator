@@ -40,7 +40,8 @@ static const page_t PAGES[] = {
     {"SONG", FAM_SEQ, SC_GLOBAL, GR_SONG, {0xFF, 0xFF, 0xFF, 0xFF}},   /* ROW SLOT REPS LOOP (song.c) */
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_DRCH}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
-    {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MUTEBAR, 0xFF, 0xFF, 0xFF}},   /* device setting (settings.mutebar) */
+    {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MUTEBAR, G_METRO, 0xFF, 0xFF}},   /* device settings (settings.mutebar,
+                                                                                * fx_metro) */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_NAME, G_LOAD, G_SAVE}},   /* NAME: rename (ui_name.c) */
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_CLRALL, G_INITALL}},   /* track; all */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
@@ -58,7 +59,7 @@ static const page_t PAGES[] = {
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_HOME};
 
 /* the EDIT list of track t: MODEL, its model's TUNE DECAY TONE and 4th knob, its extra knobs, then LVL PAN NOTE
- * CHOKE (at most 16); returns how many */
+ * CHOKE PRIO (at most 16: 14); returns how many */
 static uint32_t snd_list(const track_t *t, uint8_t *ids)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
@@ -71,6 +72,7 @@ static uint32_t snd_list(const track_t *t, uint8_t *ids)
     ids[n++] = P_PAN;
     ids[n++] = P_NOTE;
     ids[n++] = P_CHOKE;
+    ids[n++] = P_PRIO;
     return n;
 }
 
@@ -97,8 +99,8 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     *valp = 0;
     if (id == 0xFFu || pg->scope == SC_GRID || pg->scope == SC_MIX)
         return 0;
-    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE */
-        id = id - G_COUNT < 3u ? id - G_COUNT : 0u;
+    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE, METRO */
+        id = id - G_COUNT < 4u ? id - G_COUNT : 0u;
         *valp = &song.act[id];
         return &GP_ACT[id];
     }

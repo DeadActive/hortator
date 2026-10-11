@@ -3,15 +3,17 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDRB" (the 11th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
+ * Format "FDRC" (the 12th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
  * parameter and its 64 steps (with PROB / RATCH, each step's note offset, SLIDE and TIE (ACID), DUCK, the COMP settings,
- * the LFOs, RESON, the FILTER), the motion
+ * the LFOs, RESON, the FILTER, PRIO), the motion
  * (motion.c, 128 events), the song and the project's name (song.c).
  * M1's "FDR1", M2's "FDR2", M3's "FDR3", the LFOs' "FDR4" RESON's "FDR5", GHOST's "FDR6", the sound pack's
- * "FDR7", motion's "FDR8", the song's "FDR9" and the FILTER's "FDRA" records (in flash) are converted on load (the FILTER
- * OFF, the steps at NOTE C4 with no SLIDE / TIE); an FDRA image in a RAM slot is converted at boot.
+ * "FDR7", motion's "FDR8", the song's "FDR9", the FILTER's "FDRA" and ACID's "FDRB" records (in flash) are converted on
+ * load (the FILTER OFF, the steps at NOTE C4 with no SLIDE / TIE, PRIO HIGH). An older image in a RAM slot (FDRA, FDRB:
+ * 3672 B a slot, FDRC's are 3688 B) is never read as one: the slots are filled from flash at boot.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x42524446u                 /* "FDRB" (the 11th): + the step's note, SLIDE and TIE (ACID) */
+#define PROJ_MAGIC 0x43524446u                 /* "FDRC" (the 12th): + PRIO per track */
+#define PROJ_MAGIC_VB 0x42524446u              /* "FDRB": the step's note, SLIDE and TIE (ACID); converted on load */
 #define PROJ_MAGIC_VA 0x41524446u              /* "FDRA": the FILTER, the old steps; converted on load (same size) */
 #define PROJ_MAGIC_V9 0x39524446u              /* "FDR9": the song and the name, converted on load */
 #define PROJ_MAGIC_V8 0x38524446u              /* "FDR8": the motion, converted on load */
@@ -36,7 +38,7 @@ typedef struct {
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint32_t sum;
 } project_t;
-typedef char project_size[sizeof(project_t) == 3672u ? 1 : -1];
+typedef char project_size[sizeof(project_t) == 3688u ? 1 : -1];
 project_t proj_slot[4] __attribute__((section(".noinit")));
 
 static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
@@ -53,7 +55,7 @@ static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->siz
 typedef struct { uint8_t on, acc, cond, rat; } step_v9_t;   /* a step as FDR2..FDRA stored it */
 /* FDRA: everything, the steps as FDR2..FDR9 (same size as FDRB: told by the marker) */
 typedef struct {
-    int16_t p[P_COUNT];
+    int16_t p[P_PRIO];
     step_v9_t step[NSTEP];
 } proj_trk_va_t;
 typedef struct {
@@ -66,7 +68,23 @@ typedef struct {
     char name[NAME_LEN];
     uint32_t sum;
 } project_va_t;
-typedef char project_va_size[sizeof(project_va_t) == sizeof(project_t) ? 1 : -1];
+typedef char project_va_size[sizeof(project_va_t) == 3672u ? 1 : -1];
+/* FDRB (0.16.0): everything but PRIO, 3672 B (FDRA's size: told by the marker) */
+typedef struct {
+    int16_t p[P_PRIO];
+    step_t step[NSTEP];
+} proj_trk_vb_t;
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_vb_t t[NTRK];
+    motion_store_t motion;
+    chain_config_t song;
+    char name[NAME_LEN];
+    uint32_t sum;
+} project_vb_t;
+typedef char project_vb_size[sizeof(project_vb_t) == 3672u ? 1 : -1];
 
 static step_t step_up(const step_v9_t *o)          /* an FDR2..FDRA step: the flags, NOTE C4, no SLIDE / TIE */
 {
@@ -79,26 +97,9 @@ static step_t step_up(const step_v9_t *o)          /* an FDR2..FDRA step: the fl
     return s;
 }
 
-/* FDRA and FDRB: the steps at the same offsets (4 bytes each), everything else the same */
+/* FDRA and FDRB: the steps at the same offsets (4 bytes each), everything else the same: told by the marker */
 typedef char project_va_steps[__builtin_offsetof(project_va_t, t[1].step[1]) ==
-                              __builtin_offsetof(project_t, t[1].step[1]) ? 1 : -1];
-
-/* an FDRA image in a RAM slot (.noinit, left by the previous firmware): converted in place, step by step (the
- * globals, parameters, motion, song and name stay where they are) */
-static void proj_upgrade(project_t *q)
-{
-    uint32_t i, k;
-    if (q->magic != PROJ_MAGIC_VA || q->size != sizeof *q || q->sum != proj_hash(q, sizeof *q - 4u))
-        return;
-    for (k = 0; k < NTRK; k++)
-        for (i = 0; i < NSTEP; i++) {
-            step_v9_t s;
-            memcpy(&s, &q->t[k].step[i], sizeof s);
-            q->t[k].step[i] = step_up(&s);
-        }
-    q->magic = PROJ_MAGIC;
-    q->sum = proj_sum(q);
-}
+                              __builtin_offsetof(project_vb_t, t[1].step[1]) ? 1 : -1];
 
 #if FELUCCA_FLASH
 /* M1's format: the globals before G_GMODE, the parameters before P_SRC, steps of {on, acc} */
@@ -186,36 +187,44 @@ typedef struct {
 } project_v9_t;
 static union {
     project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
-    project_v8_t v8; project_v9_t v9; project_va_t va;
+    project_v8_t v8; project_v9_t v9; project_va_t va; project_vb_t vb;
 } proj_old;
 
 /* an old record (proj_old, version ver) -> q: what it has; the rest at the defaults (v1: PROB 100 %, 1 hit,
  * SRC STEP, Grids; v1 / v2: COMP off, DUCK off; v1..v3: the LFOs off; v1..v4: RESON off; v1..v5: GHOST KEEP;
- * v1..v6: reverb TYPE ROOM; v1..v7: no motion; v1..v8: no song, no name; all: the FILTER OFF) */
+ * v1..v6: reverb TYPE ROOM; v1..v7: no motion; v1..v8: no song, no name; v1..v9: the FILTER OFF; v1..v10: the steps
+ * at NOTE C4, no SLIDE / TIE; all: PRIO HIGH) */
 static void proj_from_old(project_t *q, uint32_t ver)
 {
     uint32_t i, k;
     uint32_t ng, np;
-    if (ver >= 8u) {                                 /* FDR8 / FDR9 / FDRA: the tracks without the FILTER (FDRA: with) */
-        const int16_t *g = ver == 8u ? proj_old.v8.g : ver == 9u ? proj_old.v9.g : proj_old.va.g;
+    if (ver >= 8u) {                                 /* FDR8 / FDR9: the tracks without the FILTER; FDRA / FDRB: without
+                                                      * PRIO; FDRB: the steps as now */
+        const int16_t *g = ver == 8u ? proj_old.v8.g : ver == 9u ? proj_old.v9.g : ver == 10u ? proj_old.va.g : proj_old.vb.g;
+        np = ver < 10u ? (uint32_t)P_FTYPE : (uint32_t)P_PRIO;
         memset(q, 0, sizeof *q);
         q->magic = PROJ_MAGIC;
         q->size = sizeof *q;
         for (i = 0; i < G_COUNT; i++)
             q->g[i] = g[i];
-        q->sel = ver == 8u ? proj_old.v8.sel : ver == 9u ? proj_old.v9.sel : proj_old.va.sel;
+        q->sel = ver == 8u ? proj_old.v8.sel : ver == 9u ? proj_old.v9.sel : ver == 10u ? proj_old.va.sel : proj_old.vb.sel;
         for (k = 0; k < NTRK; k++) {
+            const int16_t *op = ver == 8u ? proj_old.v8.t[k].p : ver == 9u ? proj_old.v9.t[k].p
+                              : ver == 10u ? proj_old.va.t[k].p : proj_old.vb.t[k].p;
             const step_v9_t *os = ver == 10u ? proj_old.va.t[k].step : ver == 9u ? proj_old.v9.t[k].step : proj_old.v8.t[k].step;
             for (i = 0; i < P_COUNT; i++)
-                q->t[k].p[i] = ver == 10u ? proj_old.va.t[k].p[i]
-                             : i < P_FTYPE ? (ver == 8u ? proj_old.v8.t[k].p[i] : proj_old.v9.t[k].p[i]) : TP[i].def;
-            for (i = 0; i < NSTEP; i++)
-                q->t[k].step[i] = step_up(&os[i]);
+                q->t[k].p[i] = i < np ? op[i] : TP[i].def;
+            if (ver == 11u)
+                memcpy(q->t[k].step, proj_old.vb.t[k].step, sizeof q->t[k].step);
+            else
+                for (i = 0; i < NSTEP; i++)
+                    q->t[k].step[i] = step_up(&os[i]);
         }
-        q->motion = ver == 8u ? proj_old.v8.motion : ver == 9u ? proj_old.v9.motion : proj_old.va.motion;
+        q->motion = ver == 8u ? proj_old.v8.motion : ver == 9u ? proj_old.v9.motion : ver == 10u ? proj_old.va.motion
+                  : proj_old.vb.motion;
         if (ver >= 9u) {
-            q->song = ver == 9u ? proj_old.v9.song : proj_old.va.song;
-            memcpy(q->name, ver == 9u ? proj_old.v9.name : proj_old.va.name, NAME_LEN);
+            q->song = ver == 9u ? proj_old.v9.song : ver == 10u ? proj_old.va.song : proj_old.vb.song;
+            memcpy(q->name, ver == 9u ? proj_old.v9.name : ver == 10u ? proj_old.va.name : proj_old.vb.name, NAME_LEN);
         }
         q->sum = proj_sum(q);
         return;
@@ -259,16 +268,16 @@ static void proj_fetch(uint32_t slot)
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
     if (n > 8 && n <= (int)sizeof proj_old && !proj_ok(q)) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[11] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4,
-                                           PROJ_MAGIC_V5, PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA};
-        static const uint32_t SIZE[11] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+        static const uint32_t MAGIC[12] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
+                                           PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA, PROJ_MAGIC_VB};
+        static const uint32_t SIZE[12] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
                                           sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
-                                          sizeof proj_old.v8, sizeof proj_old.v9, sizeof proj_old.va};
+                                          sizeof proj_old.v8, sizeof proj_old.v9, sizeof proj_old.va, sizeof proj_old.vb};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 11u; ver++)
+        for (ver = 1; ver < 12u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
                 proj_from_old(q, ver);
@@ -322,32 +331,42 @@ static void project_save(uint32_t slot)
     chain.from = (uint8_t)((slot & 3u) + 1u);
 #if FELUCCA_FLASH
     if (flash_ok) {
-        ui_message(st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p) ? "SAVE ERROR" : "SAVED");
+        if (st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p)) {
+            ui_message("SAVE ERROR");
+            return;
+        }
+        lastp.set = 1;                                  /* the last project: power-on loads it (spec 2026-10-11 §6) */
+        lastp.slot = (uint8_t)(slot & 3u);
+        settings_save();                                /* (stopped: now; unchanged: nothing written) */
+        ui_message("SAVED");
         return;
     }
 #endif
     ui_message("SAVED (RAM)");
 }
 
-static void project_load(uint32_t slot)
+/* slot -> the live project; 1 loaded. irq: the main loop's load (the audio ISR runs: off while copying); 0 the
+ * power-on one (drum_boot_init: before audio_init and fm1_irq_enable_all, so no fm1_irq_on; no EMPTY SLOT message) */
+static int proj_load(uint32_t slot, int irq)
 {
     project_t *p = &proj_slot[slot & 3u];
     uint32_t i, k;
-    proj_upgrade(p);
     if (chain_busy()) {                                 /* a song reads the slots */
         ui_message("STOP TO LOAD");
-        return;
+        return 0;
     }
 #if FELUCCA_FLASH
     if (flash_ok && !proj_ok(p))
         proj_fetch(slot);
 #endif
     if (!proj_ok(p)) {
-        ui_message("EMPTY SLOT");
-        return;
+        if (irq)
+            ui_message("EMPTY SLOT");
+        return 0;
     }
     transport_req = 2;
-    fm1_irq_off();                                      /* the audio ISR must not see half a project */
+    if (irq)
+        fm1_irq_off();                                  /* the audio ISR must not see half a project */
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_LOAD && i != G_SAVE)
             song.g[i] = (int16_t)(i == G_CLOCK && (p->g[i] < 0 || p->g[i] > GP[i].max)
@@ -404,9 +423,28 @@ static void project_load(uint32_t slot)
     proj_name_get(chain.name, p->name);
     chain.from = (uint8_t)((slot & 3u) + 1u);
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
-    fm1_irq_on();
+    if (irq)
+        fm1_irq_on();
     ui.force = 1;
     ui_message("LOADED");
+    return 1;
+}
+static void project_load(uint32_t slot) { (void)proj_load(slot, 1); }
+
+/* power-on (drum_boot_init, not in safe start): the last project saved to flash loads as a LOAD does, stopped, its
+ * slot PROJECT's SLOT. Empty or unreadable: confirm 5, LOAD FAILED / START NEW PROJECT? (ui_input.c) over the power-on
+ * kit */
+static void project_boot(void)
+{
+    if (!lastp.set)
+        return;
+    if (proj_load(lastp.slot, 0)) {
+        song.g[G_SLOT] = (int16_t)(lastp.slot + 1u);
+        return;
+    }
+    ui.confirm = 5;
+    ui.confirm_trk = lastp.slot;
+    ui.force = 1;
 }
 
 /* settings + learned panel table: one flash object (format unchanged from Felucca, so a calibrated
@@ -420,12 +458,26 @@ typedef struct {
 static persist_t persist_saved;
 #endif
 
+/* the stored lowcut word's bits 0..7 (bits 8..31: btset.bt_hi): 0..1 SPEAKER EQ, 2..4 the last project (2 set, 3..4
+ * its slot), 5..6 METRO (spec 2026-10-11 §9). An older firmware reads SPEAKER EQ FLAT from a record with any of 2..7 set */
+static uint32_t lc_pack(void)
+{
+    return (settings.lowcut & 3u) |
+           (lastp.set ? 1u << 2 | (uint32_t)(lastp.slot & 3u) << 3 : 0u) | (uint32_t)(fx_metro & 3u) << 5;
+}
+static void lc_unpack(uint32_t lc)
+{
+    settings.lowcut = lc & 3u;                       /* (3: settings_init makes it FLAT) */
+    lastp.set = (uint8_t)((lc >> 2) & 1u);
+    lastp.slot = (uint8_t)((lc >> 3) & 3u);
+    fx_metro = (uint8_t)((lc >> 5) & 3u);
+}
+
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
-    uint32_t u;
-    for (u = 0; u < 4u; u++)                          /* FDRA images the previous firmware left in the RAM slots */
-        proj_upgrade(&proj_slot[u]);
     memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO unless the flash record has them */
+    memset(&lastp, 0, sizeof lastp);                  /* no last project, unless the flash record has one */
+    fx_metro = 0;                                     /* METRO OFF, as well */
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();
@@ -442,7 +494,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     if (st_load(OBJ_SETTINGS, &p, sizeof p) == (int)sizeof p && p.magic == PERSIST_MAGIC) {
         settings.magic = SETTINGS_MAGIC;
         settings.palette = p.palette;
-        settings.lowcut = p.lowcut & 0xFFu;
+        lc_unpack(p.lowcut);
         settings.zoom = p.zoom & 1u;
         settings.mutebar = (p.zoom >> 1) & 1u;     /* kept in zoom's bit 1: the flash format stays Felucca's */
         settings.accel = !((p.zoom >> 2) & 1u);    /* bit 2 = KNOB ACCEL OFF: older saves read as on */
@@ -553,7 +605,7 @@ static void settings_save(void)                    /* asked for while playing: w
     memset(&p, 0, sizeof p);
     p.magic = PERSIST_MAGIC;
     p.palette = settings.palette;
-    p.lowcut = (settings.lowcut & 0xFFu) | btset.bt_hi << 8;
+    p.lowcut = lc_pack() | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
              (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;
     p.panel = panel;

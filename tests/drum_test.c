@@ -1108,6 +1108,47 @@ static void test_shed(void)
     check("shed: nothing sounding is a no-op", voices_sounding() == 0);
 }
 
+/* PRIO (spec 2026-10-11 §10): HIGH / LOW per track, HIGH by default; when a voice must go (the cap, an overload
+ * shed), a LOW track's voice goes before a HIGH track's, then the oldest */
+static void test_prio(void)
+{
+    uint32_t i;
+    host_init();
+    check("PRIO: a track parameter HIGH / LOW, HIGH on every track at power-on",
+          str_eq(TP[P_PRIO].label, "PRIO") && TP[P_PRIO].fmt == F_ENUM && TP[P_PRIO].min == 0 && TP[P_PRIO].max == 1 &&
+              str_eq(TP[P_PRIO].names[0], "HIGH") && str_eq(TP[P_PRIO].names[1], "LOW") && TP[P_PRIO].def == 0 &&
+              trk[0].p[P_PRIO] == 0 && trk[NTRK - 1].p[P_PRIO] == 0);
+    for (i = 0; i < NTRK; i++)
+        drum_set_model(&trk[i], DM_CYMB);
+    trk[6].p[P_PRIO] = 1;                            /* track 7 LOW */
+    for (i = 0; i < 6u; i++) {                       /* tracks 1..6 HIGH, track 1 the oldest */
+        drum_hit(&trk[i], 127);
+        render_mix(0, 0, CTL);
+    }
+    drum_hit(&trk[6], 127);                          /* the LOW voice, newer than six HIGH ones */
+    drum_hit(&trk[7], 127);                          /* the cap full */
+    render_mix(0, 0, CTL);
+    drum_hit(&trk[7], 127);                          /* one over: the LOW voice goes, not the oldest */
+    check("PRIO: the voice cap takes a LOW track's voice before an older HIGH one",
+          voices_sounding() == DRUM_MAXV && !trk[6].v[0].active && trk[6].dtail != 0 && trk[0].v[0].active);
+    drum_hit(&trk[5], 127);                          /* no LOW voice left: the oldest (track 1) */
+    check("PRIO: ... then the oldest HIGH voice", voices_sounding() == DRUM_MAXV && !trk[0].v[0].active);
+    host_init();
+    for (i = 0; i < 3u; i++)
+        drum_set_model(&trk[i], DM_CYMB);
+    trk[2].p[P_PRIO] = 1;
+    drum_hit(&trk[0], 127);                          /* HIGH, the oldest */
+    render_mix(0, 0, CTL);
+    drum_hit(&trk[2], 127);                          /* LOW */
+    drum_hit(&trk[1], 127);                          /* HIGH, the newest */
+    render_mix(0, 0, CTL);
+    drum_shed();
+    check("PRIO: an overload shed takes the LOW track's voice first", !trk[2].v[0].active && trk[0].v[0].active &&
+                                                                         trk[1].v[0].active);
+    drum_shed();
+    check("PRIO: ... then the oldest HIGH voice", !trk[0].v[0].active && trk[1].v[0].active);
+}
+
 static void test_step_mode_keys(void)
 {
     uint32_t a;
@@ -3449,6 +3490,7 @@ int main(void)
     test_silent_sample_keeps_voices();
     test_stress_seq();
     test_shed();
+    test_prio();
     test_step_mode_keys();
     test_step_mode_note_off();
     test_m1c_ends();

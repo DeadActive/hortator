@@ -20,7 +20,8 @@
 #undef memcmp
 static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                    /* (the main loop's guard: nothing to guard on the host) */
-static void fm1_irq_on(void) {}
+static uint32_t host_irq_on;                         /* fm1_irq_on calls (boot_test: none before main.c's) */
+static void fm1_irq_on(void) { host_irq_on++; }
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"
 #include "../firmware/src/comp.c"
@@ -64,6 +65,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     dblock = 0;
     memset(&grids, 0, sizeof grids);
     memset(&gclk, 0, sizeof gclk);
+    memset(&metro, 0, sizeof metro);                /* METRO: no click sounding (fx_metro, the setting, kept) */
     memset(&pf, 0, sizeof pf);                      /* PERFORM (perform.c): nothing held, idle */
     pf.src = pf.next = PF_N;
     pf.lc = PF_TOP;

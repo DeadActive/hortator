@@ -9,6 +9,7 @@
 #endif
 static void project_save(uint32_t slot);
 static void project_load(uint32_t slot);
+static void project_boot(void);
 static int project_used(uint32_t slot);
 static uint32_t chain_prepare(void);
 static int project_name(uint32_t slot, char *b);
@@ -52,7 +53,8 @@ static struct {
     uint16_t step_si[16];        /* the step it pressed, 0xFFFF none */
     step_t step_prev[16];        /* that step before the press (a hold or a knob turn restores it) */
     uint8_t held;                /* the grid key pressed last (valid while step_t0[held] is set) */
-    uint8_t confirm;             /* 1 = "clear track n?" */
+    uint8_t confirm;             /* 1 "CLEAR TRACK n?", 2 CLEAR MOTION, 3 DELETE ROW, 4 CLEAR SONG, 5 the last project
+                                  * failed to load (START NEW PROJECT?; confirm_trk its slot) */
     uint8_t confirm_trk;
     char msg[24];
     uint32_t enc_t[NE];
@@ -64,6 +66,8 @@ static struct {
     uint8_t tr_h, tr_n;
     uint32_t tr_ph, tr_key, tr_frame;   /* the phase at the last point; what the trail is of; the frame it was fed */
     uint8_t persist_pending;     /* a settings save asked for while playing: written once stopped (project.c) */
+    uint8_t cpu_on;              /* the top bar's CPU icon: since cpu_ms, after song.sheds moved past sheds (2 s) */
+    uint32_t sheds, cpu_ms;
     uint32_t fx_t0;              /* PERFORM: FX's press time | FX_DOWN / FX_OPEN / FX_DEAD (ui_input.c fx_layer) */
     uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
     uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
@@ -467,6 +471,9 @@ static void drum_boot_init(void)
     safe_start_check();
     drum_tracks_init();
     home_tracks();                                     /* HOME's TRACKS mode (spec §3) */
+    ui.force = 1;
+    if (!safe_start)
+        project_boot();                                /* the last saved project (project.c; no IRQ enable) */
 }
 
 /* the next / previous model on the selected track, with its default sound; with the audio IRQ off,

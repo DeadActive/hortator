@@ -34,6 +34,7 @@ static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", 
                                                    "ADD9", "QUART", "CLUST", 0};
 static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS", "F.CUT", "F.RES"};   /* LFO DEST 11..18 */
 static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
+static const char *const N_PRIO[] = {"HIGH", "LOW"};                 /* P_PRIO */
 #define LFO_TP(b, rf)                                                                                     \
     [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
     [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
@@ -78,6 +79,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_FRESO] = PD("RESO", F_INT, 0, 127, 0),
     [P_FENV] = PD("ENV", F_INT, -64, 63, 0),
     [P_FDEC] = PD("DECAY", F_FDEC, 0, 127, 40),
+    [P_PRIO] = PE("PRIO", N_PRIO, 0),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -124,10 +126,12 @@ static const param_desc_t GP[G_COUNT] = {
     [G_RTYPE] = PE("TYPE", N_RTYPE, 0),
 };
 
-/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE (G_MUTEBAR, the device setting
- * settings.mutebar); their knob values are song.act, not song.g / projects */
+/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE and METRO (G_MUTEBAR, G_METRO: the
+ * device settings settings.mutebar, fx_metro); their knob values are song.act, not song.g / projects */
 static const char *const N_MUTEBAR[] = {"NOW", "BAR"};
-static const param_desc_t GP_ACT[3] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0)};
+static const char *const N_METRO[] = {"OFF", "LOW", "MID", "HIGH"};
+static const param_desc_t GP_ACT[4] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0),
+                                       PE("METRO", N_METRO, 0)};
 
 /* RESON STRCT on CHORD: the chord type, 0..127 split evenly over N_RCHORD (reson.c rs_chord) */
 static const param_desc_t RS_CHORD_DESC = {"CHORD", F_INT, 0, 127, 0, N_RCHORD, 0};
