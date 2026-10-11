@@ -51,6 +51,7 @@ firmware ([below](#back-to-the-official-firmware)).
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
 - **Metronome.** GLOBAL 3/3 METRO: a click on every quarter note while playing, the bar's first higher.
+- **Key backlight.** MENU BACKLIGHT ON: the keys glow dimly while unlit, the steps 1, 5, 9 and 13 a little brighter.
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
   into a DAW over its USB cable. The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
   keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
@@ -114,6 +115,15 @@ Projects saved by this build can't be read by 0.16.0 or older; older projects lo
 GLOBAL 3/3 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every
 quarter note, higher on the bar's first. It comes after the PERFORM effects (they leave it alone) and follows the
 MASTER volume, on the speaker, the headphones and USB audio. A device setting: saved, not part of projects.
+
+### Key backlight
+
+MENU (hold HOME) **BACKLIGHT**: OFF (as before) or ON. With ON, every key LED that is not lit glows at about 20 %, so
+the keys can be found in the dark; where the white keys are the selected track's steps (STEP and the other SEQ pages,
+HOME's TRACKS mode), the unlit steps 1, 5, 9 and 13 of the bank shown glow at about 40 %, marking the beats. Lit keys
+(steps that are on, the playhead, held keys, the MUTE screen's heard tracks, PERFORM's effects) stay fully lit; the
+buttons' LEDs are unchanged. KNOB 1 or OCT+ on the row switches it. A device setting: saved when the menu closes,
+not part of projects; OFF until it is set. A safe start keeps every LED dark, as before.
 
 ### CPU and PRIO
 

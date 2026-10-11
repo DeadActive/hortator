@@ -73,6 +73,9 @@ static struct { uint32_t btmode, bt_type, bt_lo, bt_hi; } btset;
 /* the last project saved to flash (spec 2026-10-11 §6): set, its slot 0..3 (lowcut's bits 2, 3..4). As btset: only
  * from the flash record, else 0 */
 static struct { uint8_t set, slot; } lastp;
+/* MENU > BACKLIGHT (spec 2026-10-11 §12): 1 = the unlit keys dimly lit (ui_input.c ui_leds, led_dim.c). As btset: only
+ * from the flash record (lowcut's bit 7), else OFF */
+static uint32_t backlight;
 
 static void settings_save(void);
 static void settings_poll(void);              /* project.c */              /* project.c: flash copy (FELUCCA_FLASH) */

@@ -358,6 +358,10 @@ Report what you saw first; we'll go through it together.
   shed. A light kit: no icon.
 - An older project (0.16.0's) loads and plays as before, every track PRIO HIGH; a project saved now cannot be loaded
   by 0.16.0.
+- BACKLIGHT (MENU, HOME held; screen `build/ui_shots/fixes/menu_backlight.png`): ON, on STEP with a few steps on:
+  the unlit keys glow dimly, steps 1 5 9 13 (unlit) brighter, the on steps full; no visible flicker, also with a
+  dense pattern playing and while turning knobs; the playhead still reads. The MUTE screen and PERFORM: unlit keys
+  dim. OFF: the LEDs exactly as before. Survives a power cycle; a safe start keeps every LED dark.
 
 ### BENCH: the performance cases on the FM-1
 

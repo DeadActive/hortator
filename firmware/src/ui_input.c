@@ -4,7 +4,10 @@
 /* Drum UI input: LEDs, knobs and buttons, the STEP grid on the keys, panel setup. */
 /* ----------------------------------------------------------- LEDs --- */
 /* The LED picture is built off-line and copied one byte per column: clearing
- * and relighting would let the 10 kHz scan catch the dark gap and flicker. */
+ * and relighting would let the 10 kHz scan catch the dark gap and flicker.
+ * BACKLIGHT ON (spec 2026-10-11-fixes §12): one word per column instead, the full layer and the 40 % / 20 % ones,
+ * which the scan's hook composes (led_dim.c). */
+#include "led_dim.c"
 static uint8_t led_pos[41];                        /* (col << 3) | row bit, 0xFF = none */
 
 static void led_pos_init(void)
@@ -33,10 +36,11 @@ static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0};
-    uint32_t k, c, fam = cur_fam();
+    uint32_t k, c, fam = cur_fam(), beats = 0;        /* beats: the keys of steps 1 5 9 13 (step keys) */
     static uint8_t ready;
     if (safe_start) {                                 /* safe start: LEDs off */
         uint32_t c0;
+        led_dim_on = 0;
         for (c0 = 0; c0 < FM1_NCOL; c0++)
             fm1_led[c0] = 0;
         return;
@@ -81,6 +85,8 @@ static void ui_leds(void)
             if (song.playing && si == view_idx(t))
                 on = !on;
             led_put(nl, 14u + STEP_KEY[k], on);
+            if ((k & 3u) == 0u)
+                beats |= 1u << STEP_KEY[k];
         }
     } else if (comp_mode()) {                         /* COMP: the ducked tracks' keys */
         for (k = 0; k < NTRK; k++)
@@ -94,6 +100,19 @@ static void ui_leds(void)
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
     }
+    if (backlight) {                                  /* BACKLIGHT: every unlit key at 20 %, a beat's step at 40 % */
+        uint32_t lay[FM1_NCOL] = {0};
+        for (k = 0; k < 27u; k++) {
+            uint8_t q = led_pos[14u + k];
+            if (q != 0xFF && !((nl[q >> 3] >> (q & 7u)) & 1u))
+                lay[q >> 3] |= 1u << ((q & 7u) + ((beats >> k) & 1u ? 8u : 16u));
+        }
+        for (c = 0; c < FM1_NCOL; c++)
+            led_lay[c] = nl[c] | lay[c];              /* one store per column: the scan sees all of it or none */
+        led_dim_on = 1;                               /* (after the layers: the hook composes from them) */
+        return;
+    }
+    led_dim_on = 0;                                   /* (before fm1_led: the hook stops composing) */
     for (c = 0; c < FM1_NCOL; c++)
         fm1_led[c] = nl[c];
 }

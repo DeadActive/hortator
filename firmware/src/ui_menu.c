@@ -1,33 +1,38 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
+/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, BACKLIGHT (OFF ON), HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
 /* ------------------------------------------------------------ menu --- */
 #if FELUCCA_BLE                                     /* the Bluetooth page's row (bt_page.c) before ABOUT */
-enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
-                                              "HARDWARE CALIBRATION", "BLUETOOTH", "ABOUT", "BACK"};
-#define MENU_DY 16                                  /* ten rows above the hints */
+                                              "BACKLIGHT", "HARDWARE CALIBRATION", "BLUETOOTH", "ABOUT", "BACK"};
+#define MENU_DY 15                                  /* eleven rows above the hints */
+#define MENU_HY 177                                 /* the hints, one line apart (the canvas ends at 209) */
+#define MENU_HDY 16
 static void bt_page_open(void);                     /* bt_page.c (after ble/ble_core.h): ui.menu 3 */
 static void bt_page_close(void);
 static void bt_page_draw(void);
 static void bt_page_input(uint32_t pressed);
 #else
-enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
-                                              "HARDWARE CALIBRATION", "ABOUT", "BACK"};
-#define MENU_DY 18                                  /* nine rows above the hints */
+                                              "BACKLIGHT", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+#define MENU_DY 16                                  /* ten rows above the hints */
+#define MENU_HY 170
+#define MENU_HDY 18
 #endif
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
-    return i == MI_USB ? &settings.usbfix : i == MI_PERF ? &settings.perfpage : i == MI_ZOOM ? &settings.zoom : i == MI_ACCEL ? &settings.accel : 0;
+    return i == MI_USB ? &settings.usbfix : i == MI_PERF ? &settings.perfpage : i == MI_ZOOM ? &settings.zoom :
+           i == MI_ACCEL ? &settings.accel : i == MI_BACKLIGHT ? &backlight : 0;
 }
 
 static void draw_menu(void)
 {
     uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u +
-                            settings.perfpage * 49979687u;
+                            settings.perfpage * 49979687u + backlight * 67867967u;
 #if FELUCCA_BLE
     if (ui.menu == 3u) {                            /* the Bluetooth page: its own drawing and signature */
         bt_page_draw();
@@ -78,8 +83,8 @@ static void draw_menu(void)
                         cv_rect(160 + (int32_t)k * 14, y + 3, 10, 10, pal[k]);
                 }
             }
-            cv_text(4, 170, &FONT_S, "SELECT MOVE", C_DIM);
-            cv_text(4, 188, &FONT_S, "OCT+ OK   OCT- BACK", C_DIM);
+            cv_text(4, MENU_HY, &FONT_S, "SELECT MOVE", C_DIM);
+            cv_text(4, MENU_HY + MENU_HDY, &FONT_S, "OCT+ OK   OCT- BACK", C_DIM);
         }
         cv_oy = 0;
         cv_blit(0, H_HEAD + 1 + pass * 124u);

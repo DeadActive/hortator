@@ -16,6 +16,8 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 "$OUT/midi_clock_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/metro_test" tests/metro_test.c -lm   # (UBSan: the click in the mix)
 "$OUT/metro_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ifirmware/src -o "$OUT/led_dim_test" tests/led_dim_test.c   # (the key backlight on the real scan)
+"$OUT/led_dim_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/perform_test" tests/perform_test.c -lm
 "$OUT/perform_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/motion_test" tests/motion_test.c -lm

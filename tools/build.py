@@ -499,7 +499,7 @@ def main():
         errors += [f"gate 2a: {e}" for e in e2a] + [f"gate 2b: {e}" for e in e2b]
         errors += [f"gate 3: BT start-up reachable at boot: {', '.join(e3)}"] if e3 else []
         if not e2a:
-            notes.append(f"gate 2a: the update path's sources = {base}'s")
+            notes.append(f"gate 2a: the update path's sources = {base}'s{cup.source_note(base)}")
         if not e2b:
             notes.append(f"gate 2b: the update path's machine code = the reference core's "
                          f"({len(cup.selected(cup.functions(ref_dis)))} functions)")

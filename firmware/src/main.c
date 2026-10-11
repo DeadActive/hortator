@@ -22,6 +22,7 @@ void fm1_timer5_irq(void)
     fm1_timer5_ack();
     felucca_dbg.timer_irqs++;
     fm1_input_tick();
+    led_dim_tick();                             /* the dimmed LEDs (led_dim.c): the column the next tick lights */
     {   /* milliseconds from the 24 MHz TIMER4 (robust to a late tick) */
         static uint32_t last, acc;
         acc += t0 - last;

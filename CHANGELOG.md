@@ -31,8 +31,15 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   top bar for 2 s after a shed.
 - Project format FDRC (for PRIO): older projects load as before, every track PRIO HIGH; projects saved by this
   build can't be read by 0.16.0. Project data only in RAM (a slot whose flash save failed) is not carried over.
-- Device settings: the last project and METRO are kept in spare bits. Going back to an older Hortator with either
-  set: its SPEAKER EQ reads FLAT.
+- Key backlight: MENU BACKLIGHT OFF / ON (a device setting, default OFF). ON: every unlit key glows at about 20 %,
+  the unlit steps 1, 5, 9 and 13 of the bank shown at about 40 % (wherever the keys are steps); lit keys stay full,
+  the buttons unchanged. The LEDs are dimmed by the 10 kHz key scan (5-frame PWM, ~180 Hz).
+- Device settings: the last project, METRO and BACKLIGHT are kept in spare bits. Going back to an older Hortator with
+  any of them set: its SPEAKER EQ reads FLAT.
+- Frozen baseline moved to `frozen-base-8` (user decision 2026-10-12): the frozen `main.c` gains one line, the key
+  backlight's hook in the TIMER5 scan ISR right after `fm1_input_tick()` (`led_dim_tick()`, `firmware/src/led_dim.c`),
+  the only way to dim LEDs while the audio ISR renders. `frozen-base-8` = `frozen-base-7` + that line + the file it
+  calls; gate 2a accepts `main.c` differing from `drum-v0.16.0` by exactly that line (nothing else).
 
 ## 0.16.0 - 2026-10-11
 

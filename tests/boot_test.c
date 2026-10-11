@@ -383,6 +383,61 @@ static int settings_metro_round_trip(void)
     return (int)ok;
 }
 
+/* spec 2026-10-11-fixes §12: BACKLIGHT in lowcut's bit 7 survives a power cycle beside SPEAKER EQ, the last project,
+ * METRO and the device's address bytes 3..5; a record without it (0.16.0's, this branch's before it) and no record at
+ * all load OFF */
+static int settings_backlight_round_trip(void)
+{
+    uint32_t b, ok = 1;
+    for (b = 0; b < 2u; b++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.lowcut = 2;
+        fx_metro = 3;
+        lastp.set = 1;
+        lastp.slot = 2;
+        btset.bt_hi = 0xABCDEFu;
+        backlight = b;
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= ((p.lowcut >> 7) & 1u) == b && (p.lowcut & 0x7Fu) == (2u | 1u << 2 | 2u << 3 | 3u << 5) &&
+              p.lowcut >> 8 == 0xABCDEFu;
+        rfill(&settings, sizeof settings);           /* power off */
+        memset(&btset, 0, sizeof btset);             /* (.bss) */
+        backlight = !b;
+        fx_metro = 0;
+        persist_boot();
+        settings_init();
+        ok &= backlight == b && settings.lowcut == 2u && fx_metro == 3u && lastp.set == 1u && lastp.slot == 2u &&
+              btset.bt_hi == 0xABCDEFu;
+    }
+    {                                                /* an older record: BASS+, METRO MID, no bit 7 */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.lowcut = 2u | 2u << 5 | 0x654321u << 8;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        backlight = 1;
+        persist_boot();
+        settings_init();
+        ok &= backlight == 0u && settings.lowcut == 2u && fx_metro == 2u;
+    }
+    memset(hflash, 0xFF, sizeof hflash);             /* no record (an update from the stock firmware) */
+    host_init();
+    backlight = 1;
+    persist_boot();
+    settings_init();
+    ok &= backlight == 0u;
+    return (int)ok;
+}
+
 /* spec 2026-10-10 §4: a project saved with CLK BLE (3) loads as CLK INT in a build whose CLK ends at TRS (2), not as
  * TRS; a value inside the range is kept */
 static int clock_beyond_range_is_int(void)
@@ -1509,6 +1564,8 @@ int main(void)
           settings_bt_after_update());
     check("settings: METRO survives a power cycle in lowcut's bits 5..6 (SPEAKER EQ, the device kept); 0.16.0's record "
           "and none load OFF", settings_metro_round_trip());
+    check("settings: BACKLIGHT survives a power cycle in lowcut's bit 7 (SPEAKER EQ, the last project, METRO, the "
+          "device kept); an older record and none load OFF", settings_backlight_round_trip());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
     check("project: FDRC keeps PRIO through a save and a load", fdrc_round_trip());

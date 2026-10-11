@@ -116,3 +116,52 @@ Kept in the non-`.noinit` static `btset`-style storage; `settings` stays 32 B.
 - Screenshots of the new screens (TRACKS on HOME, the MUTE screen, the load-failed confirm, the FX and CPU marks).
 - README (the panel table, knobs, mutes, PERFORM, projects), DEVICE_INSTALL, the web simulator's hints and reel
   script, CHANGELOG.
+
+## 12. Key backlight (added 2026-10-12)
+
+The user's request (2026-10-12): "add a keyboard backlight option in HOME long press menu, only 2 options, off and
+on; when on, lit unselected keys 20 %, main beats (1, 5, 9, 13) 40 % brightness". The user approved changing the
+frozen `main.c` with a hook in the TIMER5 key-scan ISR and moving the frozen baseline to a new tag.
+
+- **MENU** (HOME held): a row **BACKLIGHT OFF / ON** after ACCEL (an ON / OFF row: KNOB 1 right ON, left OFF, OCT+
+  toggles; it shows at once). Default menu: ten rows, 16 px apart (were nine, 18 px). Bluetooth build: eleven rows,
+  15 px apart, the two hints moved down to y 177 / 193 (screenshots `build/ui_shots/fixes/menu_backlight.png`,
+  `menu_backlight_ble.png`).
+- **ON:** every key LED (the 27 keys) that is not lit glows at **20 %**; where the white keys are the selected
+  track's steps (wherever `ui_leds` draws steps: the SEQ pages, HOME's TRACKS mode not armed), an unlit step whose
+  number in the bank shown is **1, 5, 9 or 13** glows at **40 %** (bank 2: steps 17, 21, 25, 29). Lit keys stay full
+  (steps on, the playhead, held keys, KEYS, the MUTE screen's heard tracks and mode key, PERFORM's effects and
+  tracks, NAME's keys). On the playhead's step that is on (shown dark), the step dims like any unlit one. The
+  buttons' LEDs are unchanged. The MUTE screen, PERFORM, NAME, KEYS, COMP: unlit keys 20 %. Safe start: every LED
+  off, as before. **OFF:** exactly as before (`fm1_led` written by `ui_leds`, the hook idle).
+- **Setting:** `backlight` (panel.c, a static, not `.noinit`), in the settings record's `lowcut` **bit 7** (`lc_pack`
+  / `lc_unpack`, project.c; bits 0..1 SPEAKER EQ, 2..4 the last project, 5..6 METRO). Only from the flash record:
+  `persist_boot` clears it, so an older record (bit 7 clear) or none reads OFF. Saved when the menu closes. An older
+  Hortator reading a record with it set reads SPEAKER EQ FLAT (§9).
+- **Dimming** (`firmware/src/led_dim.c`, included by `ui_input.c`): the LEDs are on / off, multiplexed by the frozen
+  HAL's scan (`fm1_input_tick`, 10 kHz, one of 11 columns per tick, column n lit with `fm1_led[n]` until the next
+  tick, also while the audio ISR renders). With BACKLIGHT ON, `ui_leds` writes one word per column, `led_lay[c]` =
+  full | 40 % << 8 | 20 % << 16 (one 32-bit store: the scan never sees half a column), then `led_dim_on = 1`. The hook
+  `led_dim_tick()`, called by `fm1_timer5_irq` right after `fm1_input_tick()` (before the `in_audio` early return),
+  composes `fm1_led[n]` for **the column the next tick lights**, `n = fm1__tick_col + 1` (the HAL sets
+  `fm1__tick_col` to the column it has just lit), so a column's value is written one tick before it is used and never
+  changes while lit. PWM over 5 scan frames (55 ticks, ~182 Hz): the phase advances at column 0; full in every frame,
+  40 % in phases 0..1, 20 % in phase 0. While `led_dim_on` is 0 the hook returns at once and `fm1_led` is the UI's,
+  bit for bit. Non-frozen code in the TIMER5 path otherwise runs only when not nested in the audio ISR
+  (`uart_midi_poll`), hence the hook in the frozen file.
+- **Cost** (measured in the build's listing): the hook is inlined into `fm1_timer5_irq`, no call, no loop. OFF: 3
+  instructions (the flag's address, a byte load, a branch). ON: 18 instructions per tick, 24 at the tick that starts
+  a frame (the phase step), i.e. ~18.5 per 100 µs tick on average, well under 1 % of a tick.
+- **The frozen baseline moved** (user-approved 2026-10-12): `frozen-base-8` (local tag) = `frozen-base-7` + the
+  hook line in `main.c` + the glue the reference build needs (`led_dim.c` as is, included by `felucca.c` before
+  `main.c`; idle there: nothing sets `led_dim_on`), made as the earlier `frozen-base-N` tags. `tools/frozen_base.txt`
+  points at it; `build/upstream` (H2 / H3's reference) is rebuilt from it by `tools/upstream_build.sh`;
+  `check_untouched.py` compares against it. Gate 2a (`check_update_path.py --sources`) accepts `main.c` differing
+  from the last release (`drum-v0.16.0`) by exactly that one line after `fm1_input_tick();` and nothing else (a
+  self-test: any other change, the line twice, elsewhere or altered, or a second one once a release has it, fails).
+  Gate 2b (the update path's machine code = the reference core's) and gate 3 are unchanged.
+- **Tests:** `tests/led_dim_test.c` runs the real HAL scan on host GPIO registers with the hook after each tick (OFF
+  bit-exact, the duty per layer and column from any start, the one-ahead write, a layer change never torn);
+  ui_test (`test_backlight_leds`, `test_backlight_menu`): the layers on STEP, bank 2, the playhead, HOME, the MUTE
+  screen, PERFORM, safe start, OFF again = the full layer; the menu row; bt_page_test: eleven rows above the hints;
+  boot_test: bit 7 round trip with the other bits, an older record and none read OFF.

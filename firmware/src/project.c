@@ -459,11 +459,13 @@ static persist_t persist_saved;
 #endif
 
 /* the stored lowcut word's bits 0..7 (bits 8..31: btset.bt_hi): 0..1 SPEAKER EQ, 2..4 the last project (2 set, 3..4
- * its slot), 5..6 METRO (spec 2026-10-11 §9). An older firmware reads SPEAKER EQ FLAT from a record with any of 2..7 set */
+ * its slot), 5..6 METRO (spec 2026-10-11 §9), 7 BACKLIGHT (§12). An older firmware reads SPEAKER EQ FLAT from a record
+ * with any of 2..7 set */
 static uint32_t lc_pack(void)
 {
     return (settings.lowcut & 3u) |
-           (lastp.set ? 1u << 2 | (uint32_t)(lastp.slot & 3u) << 3 : 0u) | (uint32_t)(fx_metro & 3u) << 5;
+           (lastp.set ? 1u << 2 | (uint32_t)(lastp.slot & 3u) << 3 : 0u) | (uint32_t)(fx_metro & 3u) << 5 |
+           (backlight & 1u) << 7;
 }
 static void lc_unpack(uint32_t lc)
 {
@@ -471,6 +473,7 @@ static void lc_unpack(uint32_t lc)
     lastp.set = (uint8_t)((lc >> 2) & 1u);
     lastp.slot = (uint8_t)((lc >> 3) & 3u);
     fx_metro = (uint8_t)((lc >> 5) & 3u);
+    backlight = (lc >> 7) & 1u;
 }
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
@@ -478,6 +481,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO unless the flash record has them */
     memset(&lastp, 0, sizeof lastp);                  /* no last project, unless the flash record has one */
     fx_metro = 0;                                     /* METRO OFF, as well */
+    backlight = 0;                                    /* BACKLIGHT OFF, as well */
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();

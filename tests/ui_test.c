@@ -18,6 +18,7 @@ static void tap(uint32_t b);
 static void hold(uint32_t label);
 static void safe_boot(int seq_held);
 static void kit_session(void);
+static void fx_hold_frames(uint32_t n);
 static int led_on(uint32_t id)                       /* the LED of button / key id (ui_leds' last frame) */
 {
     uint32_t q = led_pos[id];
@@ -1733,6 +1734,172 @@ static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows 
     for (i = y0 * 240u; i < y1 * 240u; i++)
         n += fb[i] != 0;
     return n;
+}
+
+/* spec 2026-10-11-fixes §12: the key backlight. The level ui_leds gave key / button id: 100 full, 40, 20 or 0 (the
+ * dimmed layers in led_lay while BACKLIGHT is ON, else fm1_led) */
+static uint32_t led_level(uint32_t id)
+{
+    uint8_t q = led_pos[id];
+    uint32_t lay, bit;
+    if (q == 0xFF)
+        return 0;
+    bit = 1u << (q & 7u);
+    if (!led_dim_on)
+        return fm1_led[q >> 3] & bit ? 100u : 0u;
+    lay = led_lay[q >> 3];
+    return lay & bit ? 100u : (lay >> 8) & bit ? 40u : (lay >> 16) & bit ? 20u : 0u;
+}
+static int keys_dim_except(uint32_t mask)          /* every key not in mask at 20 % */
+{
+    uint32_t k, ok = 1;
+    for (k = 0; k < 27u; k++)
+        if (!((mask >> k) & 1u))
+            ok &= led_level(14u + k) == 20u;
+    return (int)ok;
+}
+static void test_backlight_leds(void)
+{
+    uint32_t k, ok, full[FM1_NCOL], c;
+    ui_host_init();
+    backlight = 0;
+    for (k = 0; k < NSTEP; k++)
+        trk[0].step[k].on = 0;
+    trk[0].p[P_SLEN] = 32;
+    trk[0].step[1].on = trk[0].step[4].on = 1;      /* steps 2 and 5 (5: a beat) */
+    seq_open("STEP");
+    ui_frame();
+    check("BACKLIGHT OFF: ui_leds writes fm1_led, no dimming (the hook idle)",
+          !led_dim_on && led_level(14u + STEP_KEY[1]) == 100u && led_level(14u + STEP_KEY[0]) == 0u &&
+          led_level(14u + 1u) == 0u);
+    backlight = 1;
+    ui_frame();
+    ok = led_dim_on && led_level(14u + STEP_KEY[1]) == 100u && led_level(14u + STEP_KEY[4]) == 100u;
+    ok &= led_level(14u + STEP_KEY[0]) == 40u && led_level(14u + STEP_KEY[8]) == 40u &&
+          led_level(14u + STEP_KEY[12]) == 40u;
+    for (k = 0; k < 16u; k++)
+        if (k != 0u && k != 1u && k != 4u && k != 8u && k != 12u)
+            ok &= led_level(14u + STEP_KEY[k]) == 20u;
+    for (k = 0; k < 27u; k++)                        /* the black keys */
+        if (k != 0u && k != 2u && k != 4u && k != 6u && k != 7u && k != 9u && k != 11u && k != 12u && k != 14u &&
+            k != 16u && k != 18u && k != 19u && k != 21u && k != 23u && k != 24u && k != 26u)
+            ok &= led_level(14u + k) == 20u;
+    check("BACKLIGHT ON, STEP: on steps full, off beats 1 5 9 13 at 40 %, the other keys at 20 %", ok);
+    check("BACKLIGHT ON: the buttons unchanged (SEQ lit, SAVE dark, no dimming)",
+          led_level(panel.btn[B_SEQ]) == 100u && led_level(panel.btn[B_SAVE]) == 0u &&
+          led_level(panel.btn[B_OCTUP]) == 100u && led_level(panel.btn[B_OCTDN]) == 0u);
+    for (c = 0; c < FM1_NCOL; c++)
+        full[c] = led_lay[c] & 0xFFu;
+    tap(B_OCTUP);                                    /* bank 2: steps 17..32, step 21 on */
+    trk[0].step[20].on = 1;
+    ui_frame();
+    check("BACKLIGHT ON, bank 2: the beats are 17 21 25 29 (keys 1 5 9 13); step 21 on: full",
+          ui.bank == 1u && led_level(14u + STEP_KEY[0]) == 40u && led_level(14u + STEP_KEY[4]) == 100u &&
+          led_level(14u + STEP_KEY[8]) == 40u && led_level(14u + STEP_KEY[12]) == 40u &&
+          led_level(14u + STEP_KEY[1]) == 20u);
+    tap(B_OCTDN);
+    backlight = 0;
+    ui_frame();
+    ok = !led_dim_on;
+    for (c = 0; c < FM1_NCOL; c++)
+        ok &= fm1_led[c] == full[c];
+    check("BACKLIGHT OFF again: fm1_led = the full layer exactly, the hook idle", ok);
+    backlight = 1;
+    transport_req = 1;                               /* the playhead: on step 2 (on) it goes out, so it dims; on
+                                                      * step 3 (off) it lights full */
+    seq_play_to(0, 1);
+    ui_leds();                                       /* (the frame lit the LEDs before the step moved) */
+    ok = led_level(14u + STEP_KEY[1]) == 20u;
+    seq_play_to(0, 2);
+    ui_leds();
+    ok &= led_level(14u + STEP_KEY[2]) == 100u;
+    seq_play_to(0, 4);
+    ui_leds();
+    ok &= led_level(14u + STEP_KEY[4]) == 40u;
+    check("BACKLIGHT ON, playing: the playhead lights an off step full; on an on step it dims (20 %, a beat 40 %)", ok);
+    transport_req = 2;
+    ui_frame();
+    ui_frame();
+    ui.home = 1;                                     /* HOME's second mode: the keys play */
+    ui.hmode = 1;
+    ui.force = 1;
+    ui_frame();
+    keys(1u << 3);
+    ui_frame();
+    check("BACKLIGHT ON, HOME (the keys play): a held key full, every other key 20 %, no 40 %",
+          !step_keys() && led_level(14u + 3u) == 100u && keys_dim_except(1u << 3));
+    keys(0);
+    ui_frame();
+    {                                                /* the MUTE screen: audible tracks' keys full, the rest 20 % */
+        uint32_t m = 0;
+        trk[5].p[P_MUTE] = 1;
+        press(B_GLO);
+        glo_hold_frames(500);
+        for (k = 0; k < NTRK; k++)
+            if (!trk[k].p[P_MUTE])
+                m |= 1u << KEY_TRK_KEY[k];
+        m |= 1u << 20;                               /* top C#: MUTE NOW */
+        check("BACKLIGHT ON, MUTE screen: audible tracks and the mode key full, every other key 20 %",
+              ui.mute && led_level(14u + KEY_TRK_KEY[5]) == 20u && led_level(14u + KEY_TRK_KEY[0]) == 100u &&
+              keys_dim_except(m));
+        release_all();
+        ui_frame();
+        trk[5].p[P_MUTE] = 0;
+    }
+    {                                                /* PERFORM: lit keys full, dark ones 20 % */
+        uint32_t m = 0, dim = 0;
+        press(B_FX);
+        fx_hold_frames(500);
+        for (k = 0; k < 27u; k++) {
+            uint32_t l = led_level(14u + k);
+            m += l == 100u;
+            dim += l == 20u;
+        }
+        check("BACKLIGHT ON, PERFORM: its lit keys full, every other key 20 %", ui.layer && m > 0u && m + dim == 27u);
+        release_all();
+        ui_frame();
+    }
+    safe_start = 1;
+    ui_frame();
+    ok = !led_dim_on;
+    for (c = 0; c < FM1_NCOL; c++)
+        ok &= fm1_led[c] == 0u;
+    check("BACKLIGHT ON in safe start: all LEDs off, the hook idle", ok);
+    safe_start = 0;
+    backlight = 0;
+    ui_frame();
+}
+
+/* MENU > BACKLIGHT: KNOB 1 right ON / left OFF, OCT+ toggles; the row drawn (default build: ten rows) */
+static void test_backlight_menu(void)
+{
+    uint32_t ok = 1;
+    ui_host_init();
+    backlight = 0;
+    check("menu: BACKLIGHT is a row (after ACCEL), an ON / OFF one",
+          str_eq(MI_NAME[MI_BACKLIGHT], "BACKLIGHT") && MI_BACKLIGHT == MI_ACCEL + 1 && menu_onoff(MI_BACKLIGHT) == &backlight);
+    ui.menu = 1;
+    ui.menu_sel = MI_BACKLIGHT;
+    ui.force = 1;
+    turn(EN_K1, 1);
+    ui_frame();
+    ok &= backlight == 1u && led_dim_on;
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= backlight == 0u && !led_dim_on;
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= backlight == 1u && ui.menu == 1u;
+    check("BACKLIGHT: KNOB 1 right ON / left OFF, OCT+ toggles; the keys follow at once", ok);
+    snap_page("fixes/menu_backlight");
+    check("menu: ten rows, BACK's drawn above the hints",
+          fb_lit(H_HEAD + 1 + 4 + (MI_COUNT - 1) * MENU_DY, H_HEAD + 1 + 4 + (MI_COUNT - 1) * MENU_DY + 16) > 50 &&
+          fb_lit(H_HEAD + 1 + 166, H_HEAD + 1 + 170) == 0);
+    backlight = 0;
+    menu_close();
+    ui_frame();
 }
 
 /* the start screen (main.c fm1_main): assets/boot.png, every pixel, in the chosen palette */
@@ -5233,6 +5400,8 @@ int main(void)
     test_acid_screens();
     test_prio_sound_list();
     test_cpu_icon();
+    test_backlight_leds();
+    test_backlight_menu();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

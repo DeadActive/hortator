@@ -132,7 +132,8 @@ static int sim_led_lit(uint32_t id)
     for (p = 0; p < FM1_NCOL; p++)
         for (r = 1; r < 5u; r++)
             if (FM1_KEYMAP[r][p] == (int8_t)id)
-                return (fm1_led[p] >> r) & 1u;
+                return ((led_dim_on ? led_lay[p] : fm1_led[p]) >> r) & 1u;   /* (BACKLIGHT ON: the full layer;
+                                                                                * no scan here composes fm1_led) */
     return 0;
 }
 

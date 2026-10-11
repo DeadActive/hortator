@@ -151,6 +151,35 @@ def selftest():
         assert len(source_errors("x")) == 2, "a changed source / an unlisted new file not caught"
     finally:
         globals()["git"] = real
+    # main.c: the recorded backlight hook (frozen-base-8) and nothing else, exactly once, in its place
+    base = ("void fm1_timer5_irq(void)\n{\n    fm1_timer5_ack();\n" + HOOK_AFTER + "    {   /* ms */\n    }\n"
+            "    if (felucca_dbg.in_audio)\n        return;\n}\n")
+    hooked = base.replace(HOOK_AFTER, HOOK_AFTER + HOOK_LINE)
+    cases = {"the hook": (hooked, True),
+             "the hook and another change": (hooked.replace("return;", "return; /* x */"), False),
+             "the hook twice": (hooked.replace(HOOK_LINE, HOOK_LINE * 2), False),
+             "the hook before fm1_input_tick": (base.replace(HOOK_AFTER, HOOK_LINE + HOOK_AFTER), False),
+             "the hook after the in_audio return": (base.replace("        return;\n", "        return;\n" + HOOK_LINE), False),
+             "another hook line": (base.replace(HOOK_AFTER, HOOK_AFTER + HOOK_LINE.replace("led_dim_tick", "led_dim_tock")), False),
+             "another change, no hook": (base.replace("fm1_timer5_ack();", "fm1_timer5_ack(); x();"), False),
+             "a comment changed with the hook": (hooked.replace("/* ms */", "/* us */"), False)}
+    real_wt = globals()["worktree_text"]
+    try:
+        for what, (cur, ok) in cases.items():
+            globals()["git"] = lambda *a, b=base: b if a[0] == "show" else "M\tfirmware/src/main.c\n"
+            globals()["worktree_text"] = lambda path, c=cur: c
+            assert (source_errors("x") == []) == ok, f"main.c, {what}: {'flagged' if ok else 'not caught'}"
+        globals()["git"] = lambda *a: hooked if a[0] == "show" else "M\tfirmware/src/main.c\n"
+        globals()["worktree_text"] = lambda path: hooked.replace(HOOK_LINE, HOOK_LINE * 2)
+        assert source_errors("x"), "a release with the hook: a second hook line not caught"
+        globals()["worktree_text"] = lambda path: hooked
+        globals()["git"] = lambda *a: hooked if a[0] == "show" else ""
+        assert source_errors("x") == [], "a release with the hook, main.c equal: flagged"
+        globals()["git"] = lambda *a: base if a[0] == "show" else "M\tfirmware/src/storage.c\n"
+        assert source_errors("x"), "the main.c allowance excused another file"
+    finally:
+        globals()["git"] = real
+        globals()["worktree_text"] = real_wt
     print("check_update_path: selftest ok")
 
 
@@ -162,6 +191,25 @@ SOURCES = ["firmware/src/usb.c", "firmware/src/usb_app.c", "firmware/src/ota.c",
            # change here would otherwise reach a BLE device build unseen (review 1b, I3)
            "firmware/src/main.c", "firmware/crt0.S", "firmware/app.ld"]
 NEW_OK = {"firmware/hal/fm1_ble_hal.h", "firmware/hal/fm1_ctx.h", "firmware/hal/fm1_ctx.S"}
+# the one recorded change to main.c a release may not have yet (user decision 2026-10-12, frozen-base-8, spec
+# 2026-10-11-fixes §12): the key backlight's hook, this exact line right after fm1_timer5_irq's fm1_input_tick(), and
+# nothing else. Once a release has it, main.c must equal that release's again (a second hook line fails).
+MAIN_C = "firmware/src/main.c"
+HOOK_AFTER = "    fm1_input_tick();\n"
+HOOK_LINE = "    led_dim_tick();                             /* the dimmed LEDs (led_dim.c): the column the next tick lights */\n"
+
+
+def main_hook_only(base_text, cur_text):
+    """cur_text is base_text with the recorded hook line added after its one fm1_input_tick() line, nothing else"""
+    if HOOK_LINE in base_text or base_text.count(HOOK_AFTER) != 1:
+        return False
+    return cur_text == base_text.replace(HOOK_AFTER, HOOK_AFTER + HOOK_LINE)
+
+
+def worktree_text(path):
+    from pathlib import Path
+    p = Path(__file__).resolve().parents[1] / path
+    return p.read_text() if p.exists() else None
 
 
 def git(*a):
@@ -182,9 +230,18 @@ def source_errors(base):
     errors = []
     for ln in git("diff", "--name-status", base, "--", *SOURCES).splitlines():
         status, path = ln.split("\t", 1)
-        if not (status == "A" and path in NEW_OK):
-            errors.append(f"update path source {path} differs from {base} ({status})")
+        if status == "A" and path in NEW_OK:
+            continue
+        if status == "M" and path == MAIN_C and main_hook_only(git("show", f"{base}:{path}"), worktree_text(path) or ""):
+            continue
+        errors.append(f"update path source {path} differs from {base} ({status})")
     return errors
+
+
+def source_note(base):
+    """what gate 2a allowed beyond the release's sources ("" for nothing)"""
+    hooked = MAIN_C in git("diff", "--name-only", base, "--", MAIN_C).split()
+    return " + main.c's recorded backlight hook (frozen-base-8)" if hooked else ""
 
 
 def main(argv):
@@ -194,7 +251,7 @@ def main(argv):
         for e in errors:
             print("gate 2a:", e)
         if not errors:
-            print(f"update path sources: identical to {base}")
+            print(f"update path sources: identical to {base}{source_note(base)}")
         return 1 if errors else 0
     if argv[1:] == ["--selftest"]:
         selftest()
