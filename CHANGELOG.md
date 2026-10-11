@@ -32,7 +32,7 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 - Project format FDRC (for PRIO): older projects load as before, every track PRIO HIGH; projects saved by this
   build can't be read by 0.16.0. Project data only in RAM (a slot whose flash save failed) is not carried over.
 - Key backlight: MENU BACKLIGHT OFF / ON (a device setting, default OFF). ON: every unlit key glows at about 5 %,
-  the unlit steps 1, 5, 9 and 13 of the bank shown at about 30 % (wherever the keys are steps); lit keys stay full,
+  the unlit steps 1, 5, 9 and 13 of the bank shown at about 25 % (wherever the keys are steps); lit keys stay full,
   the buttons unchanged. The LEDs are dimmed by the 10 kHz key scan (5-frame PWM, ~180 Hz).
 - Device settings: the last project, METRO and BACKLIGHT are kept in spare bits. Going back to an older Hortator with
   any of them set: its SPEAKER EQ reads FLAT.

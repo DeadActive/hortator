@@ -167,3 +167,4 @@ frozen `main.c` with a hook in the TIMER5 key-scan ISR and moving the frozen bas
   boot_test: bit 7 round trip with the other bits, an older record and none read OFF.
 
   Amended 2026-10-12 (user): 5 % and 30 % instead of 20 % / 40 %: PWM over 20 frames, 30 % in phases 0 3 7 10 13 17, 5 % in phase 0.
+  Amended again 2026-10-12 (user): 5 % and 25 %: 25 % in phases 0 4 8 12 16.

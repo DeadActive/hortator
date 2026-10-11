@@ -5,7 +5,7 @@
 /* ----------------------------------------------------------- LEDs --- */
 /* The LED picture is built off-line and copied one byte per column: clearing
  * and relighting would let the 10 kHz scan catch the dark gap and flicker.
- * BACKLIGHT ON (spec 2026-10-11-fixes §12): one word per column instead, the full layer and the 30 % / 5 % ones,
+ * BACKLIGHT ON (spec 2026-10-11-fixes §12): one word per column instead, the full layer and the 25 % / 5 % ones,
  * which the scan's hook composes (led_dim.c). */
 #include "led_dim.c"
 static uint8_t led_pos[41];                        /* (col << 3) | row bit, 0xFF = none */
@@ -100,7 +100,7 @@ static void ui_leds(void)
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
     }
-    if (backlight) {                                  /* BACKLIGHT: every unlit key at 5 %, a beat's step at 30 % */
+    if (backlight) {                                  /* BACKLIGHT: every unlit key at 5 %, a beat's step at 25 % */
         uint32_t lay[FM1_NCOL] = {0};
         for (k = 0; k < 27u; k++) {
             uint8_t q = led_pos[14u + k];
