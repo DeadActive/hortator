@@ -4,7 +4,8 @@
  * HAL replaced by state the simulator drives: the audio sample count as the clock, input levels and latched
  * edges, the LCD as a framebuffer, the audio ISR run on demand, the flash in RAM with dirty sectors.
  * Built with cc (tests/sim_test.c) and emcc (the browser). Left out: lcd.c (fb), main.c (sim_core.c runs its
- * boot and loop body), ota.c, console.c. tests/sim_test.c checks this list against felucca.c. */
+ * boot and loop body), ota.c, console.c, and the Bluetooth build's smc.c, bt_midi.c, bt_page.c, core_ble_api.c (the
+ * simulator is the plain build). tests/sim_test.c checks this list against felucca.c. */
 #include <stdint.h>
 #include <stddef.h>
 #define __attribute__(x)
