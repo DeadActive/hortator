@@ -24,6 +24,23 @@ const CHANGES = [
   ['  $("lang").textContent = t("other");\n', ''],
   ['$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });\n', ''],
   ['say(`Felucca ${meta.version}`);', 'say(`Hortator ${meta.version}`);'],
+  // two versions in one release (2026-10-09): the package loader runs again for the chosen version
+  ['(async () => {', 'const load = async () => {'],
+  ['})();\n', `};
+load();
+if ((meta.variants || []).length > 1) $("variants").hidden = false;
+document.querySelectorAll('input[name="variant"]').forEach((r) => r.addEventListener("change", () => {
+  const v = meta.variants.find((x) => x.id === r.value);
+  if (!v || writing) return;
+  meta.pkg = v.pkg;
+  meta.version = v.version;
+  image = null;
+  $("go").disabled = true;
+  const radios = document.querySelectorAll('input[name="variant"]');   // one download at a time: no stale image
+  radios.forEach((x) => { x.disabled = true; });
+  load().finally(() => radios.forEach((x) => { x.disabled = false; }));
+}));
+`],
 ];
 
 test('installer: the script is main\'s, changed only in its text table, the language lines and the label', { skip: !ORIG && 'no git history' }, () => {
@@ -51,6 +68,14 @@ test('installer: named Hortator, no language switch, /*LIB*/ and /*META*/ kept f
   assert.equal(NOW.split('/*LIB*/').length, 2);
   assert.equal(NOW.split('/*META*/').length, 2);
   for (const id of ['go', 'bar', 'status', 'log']) assert.match(NOW, new RegExp(`id="${id}"`), id);
+});
+
+test('installer: a version choice (with or without Bluetooth), hidden unless the site has two packages', () => {
+  const fs = NOW.match(/<fieldset id="variants" hidden>([\s\S]*?)<\/fieldset>/);
+  assert.ok(fs, 'a hidden fieldset id="variants"');
+  const values = [...fs[1].matchAll(/<input type="radio" name="variant" value="(\w+)"( checked)?>/g)];
+  assert.deepEqual(values.map((m) => m[1]), ['std', 'ble']);
+  assert.equal(values[0][2], ' checked', 'the version without Bluetooth is the default');
 });
 
 // ---- the landing page: the simulator as the hero, what it does, install

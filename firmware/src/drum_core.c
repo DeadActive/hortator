@@ -41,6 +41,8 @@ static void drum_cut(track_t *t)                         /* every voice of t, wi
         dv_cut(t, &t->v[i]);
         dv_cut(t, &t->lv[i]);
     }
+    t->gate_n = 0;                                       /* ACID: no gate left to close, nothing slides on */
+    t->slide_in = 0;
 }
 
 static void model_follow(track_t *t)                     /* the model changed: the old voices stop */
@@ -64,10 +66,12 @@ static uint32_t dv_weight(const track_t *t, const dvoice_t *v)
     return w ? w : 1u;
 }
 
-/* the oldest sounding voice of any track (model or layer): *ot its track; returns the sounding weight */
+/* the oldest sounding voice of any track (model or layer): *ot its track; returns the sounding weight. A gated model's
+ * voice (ACID) with its gate open goes last: a TIE or a slide keeps the voice and its age, so a held note would be
+ * the oldest and any drum hit would cut it; it is taken only when nothing else sounds */
 static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
 {
-    uint32_t i, k, n = 0;
+    uint32_t i, k, n = 0, held, oh = 0;
     *ot = 0;
     *ov = 0;
     for (i = 0; i < NTRK; i++)
@@ -76,15 +80,18 @@ static uint32_t dv_oldest(track_t **ot, dvoice_t **ov)
             if (!v->active)
                 continue;
             n += dv_weight(&trk[i], v);
-            if (!*ov || v->age < (*ov)->age) {
+            held = k < NDV && DMODELS[trk[i].model % NMODELS].gate && (v->x[2] & 1);
+            if (!*ov || held < oh || (held == oh && v->age < (*ov)->age)) {
                 *ov = v;
                 *ot = &trk[i];
+                oh = held;
             }
         }
     return n;
 }
 
-/* a voice of weight w is about to start: the oldest sounding voices stop (declick tail) until it fits the cap */
+/* a voice of weight w is about to start: the oldest sounding voices stop (declick tail; a held ACID note last) until
+ * it fits the cap */
 static void dv_make_room(uint32_t w)
 {
     track_t *ot;
@@ -93,7 +100,7 @@ static void dv_make_room(uint32_t w)
         dv_cut(ot, ov);
 }
 
-/* audio overload (audio.c, > 85 % of a half): the oldest sounding voice stops */
+/* audio overload (audio.c, > 85 % of a half): the oldest sounding voice stops (a held ACID note last) */
 static void drum_shed(void)
 {
     track_t *ot;
@@ -127,17 +134,24 @@ static void dv_init(dvoice_t *v, uint32_t vel)
     v->rng = (int32_t)(dvage * 2654435761u) | 1;
 }
 
-/* one hit of track t at velocity vel (1..127) */
-static void drum_hit(track_t *t, uint32_t vel)
+/* silent: muted, or another track soloed and not this one (SOLO: the SMC-Mixer; P_MUTE itself unchanged) */
+static int trk_silent(const track_t *t)
+{
+    return t->p[P_MUTE] || (song.solo && !((song.solo >> (uint32_t)(t - trk)) & 1u));
+}
+
+/* one hit of track t at velocity vel (1..127), playing note nt (an offset from C4) */
+static void drum_play(track_t *t, uint32_t vel, int32_t nt)
 {
     const dmodel_t *m = trk_model(t);
     uint32_t i, nv = m->voices < NDV ? m->voices : NDV;
     dvoice_t *v;
+    t->nt = (int8_t)clamp(nt, NT_MIN, NT_MAX);
     if (safe_start)
         return;
     lfo_hit(t);                                     /* HIT LFOs restart, the trigger reads their values */
-    if (t->p[P_MUTE] && (uint32_t)(t - trk) != comp_ghost_src())   /* a muted COMP source still plays (GHOST KEEP /
-                                                                       * HIDE, fx.c) */
+    if (trk_silent(t) && (uint32_t)(t - trk) != comp_ghost_src())   /* a muted COMP source still plays (GHOST KEEP /
+                                                                      * HIDE, fx.c) */
         return;
     trk_filter_hit(t, vel);                             /* FILTER: the hit's sweep (filter.c) */
     if (t->p[P_CHOKE])
@@ -156,10 +170,23 @@ static void drum_hit(track_t *t, uint32_t vel)
         if (zi != 0xFFFFu && smp_zone(zi)->n) {
             v = dv_alloc(t, t->lv, nv, 1u);
             dv_init(v, vel);
-            smp_start(v, zi, (uint32_t)t->p[P_LKEY], t->p[P_LTUNE]);
+            smp_start(v, zi, (uint32_t)t->p[P_LKEY], t->p[P_LTUNE] + clamp(t->nt, -24, 24));   /* as dm_tune */
             v->env[0] = ENV1;
             v->k[0] = dk(t->p[P_LDEC]);
         }
+    }
+}
+
+static uint32_t hit_gate_len(const track_t *t);          /* seq.c */
+
+/* MIDI, the keys, Grids: C4. A gated model's (ACID) note no step drives ends as a step's: its gate closes after
+ * GATE of the track's step (seq.c seq_tick counts it, stopped too) */
+static void drum_hit(track_t *t, uint32_t vel)
+{
+    drum_play(t, vel, 0);
+    if (trk_model(t)->gate) {
+        t->gate_n = hit_gate_len(t);
+        t->slide_in = 0;
     }
 }
 
@@ -170,6 +197,8 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     uint32_t i, nr = 0;
     for (i = 0; i < n; i++)
         out[i] = 0;
+    if (t->wow)
+        t->wow = mulq16(t->wow, ACID_WOW);              /* ACID's accent smoother falls every block, sounding or not */
     model_follow(t);
     for (i = 0; i < NDV; i++)
         if (t->v[i].active) {
@@ -205,6 +234,16 @@ static void drum_set_model(track_t *t, uint32_t mi)
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = m->edit[i].def;
     t->p[P_CHOKE] = m->choke;
+}
+
+#define ACID_MAXTRK 2u                                /* ACID is the model of 2 tracks at most (CPU), by user decision */
+
+static uint32_t acid_tracks(const track_t *except)   /* tracks with MODEL ACID, other than except */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NTRK; i++)
+        n += &trk[i] != except && (uint32_t)trk[i].p[P_MODEL] % NMODELS == DM_ACID;
+    return n;
 }
 
 static void drum_tracks_init(void)

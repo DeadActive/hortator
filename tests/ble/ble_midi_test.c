@@ -100,6 +100,57 @@ int main(void)
         CHECK(!m.in_sysex && m.errors == 1 && ngot >= 1 && got[ngot - 1] == PKT(0x09, 0x90, 0x3C, 0x64),
               "an unterminated SysEx ends at the next status");
     }
+    /* ---- the packer (MIDI out): header 80|ts[12:7], per message 80|ts[6:0] and its bytes, no running status ---- */
+    {   /* one note on, ts 1000 = 0x3E8: header 80|7, timestamp 80|68 */
+        static const uint8_t msg[1][3] = {{0x90, 0x3C, 0x7F}}, len[1] = {3};
+        static const uint8_t want[] = {0x87, 0xE8, 0x90, 0x3C, 0x7F};
+        uint8_t o[20];
+        uint32_t taken = 9, n = ble_midi_pack(msg, len, 1, 1000, o, sizeof o, &taken);
+        CHECK(n == 5 && taken == 1 && !memcmp(o, want, 5), "pack: one note on");
+    }
+    {   /* five 3-byte messages, 20 bytes: 4 fit (1 + 4 * 4 = 17), the fifth waits */
+        uint8_t msg[5][3], len[5], o[20];
+        uint32_t i, taken, n;
+        for (i = 0; i < 5; i++) {
+            msg[i][0] = 0xB0; msg[i][1] = (uint8_t)i; msg[i][2] = (uint8_t)(10 + i); len[i] = 3;
+        }
+        n = ble_midi_pack(msg, len, 5, 0, o, sizeof o, &taken);
+        CHECK(n == 17 && taken == 4 && o[0] == 0x80 && o[13] == 0x80 && o[14] == 0xB0 && o[15] == 3 && o[16] == 13,
+              "pack: 4 of 5 messages in 20 bytes, each whole with its timestamp");
+    }
+    {   /* a 2-byte message */
+        static const uint8_t msg[1][3] = {{0xC0, 0x05, 0xEE}}, len[1] = {2};
+        static const uint8_t want[] = {0x80, 0x85, 0xC0, 0x05};
+        uint8_t o[20];
+        uint32_t taken, n = ble_midi_pack(msg, len, 1, 5, o, sizeof o, &taken);
+        CHECK(n == 4 && taken == 1 && !memcmp(o, want, 4), "pack: program change (2 bytes)");
+    }
+    {   /* the timestamp is 13 bits: 0x3FFF -> 1FFF, 0x2005 -> 0005 */
+        static const uint8_t msg[1][3] = {{0xF8, 0, 0}}, len[1] = {1};
+        uint8_t o[20];
+        uint32_t taken, n = ble_midi_pack(msg, len, 1, 0x3FFF, o, sizeof o, &taken);
+        CHECK(n == 3 && o[0] == 0xBF && o[1] == 0xFF && o[2] == 0xF8, "pack: ts 0x3FFF -> 13 bits 1FFF");
+        n = ble_midi_pack(msg, len, 1, 0x2005, o, sizeof o, &taken);
+        CHECK(n == 3 && o[0] == 0x80 && o[1] == 0x85, "pack: ts wraps at 13 bits");
+    }
+    {   /* no room for a whole message: nothing packed */
+        static const uint8_t msg[1][3] = {{0x90, 0x3C, 0x7F}}, len[1] = {3};
+        uint8_t o[20];
+        uint32_t taken = 9, n = ble_midi_pack(msg, len, 1, 0, o, 4, &taken);
+        CHECK(n == 0 && taken == 0, "pack: max < 5 holds no 3-byte message");
+        n = ble_midi_pack(msg, len, 0, 0, o, sizeof o, &taken);
+        CHECK(n == 0 && taken == 0, "pack: no messages, no packet");
+    }
+    {   /* round trip: what the packer makes, the parser reads back */
+        static const uint8_t msg[4][3] = {{0x90, 0x3C, 0x7F}, {0xC1, 0x05, 0}, {0xF8, 0, 0}, {0xE2, 0x00, 0x40}};
+        static const uint8_t len[4] = {3, 2, 1, 3};
+        uint8_t o[20];
+        uint32_t taken, n = ble_midi_pack(msg, len, 4, 77, o, sizeof o, &taken);
+        ble_midi_reset(&m); ngot = 0; run(&m, o, n);
+        CHECK(taken == 4 && n == 1 + 4 + 3 + 2 + 4 && ngot == 4 && !m.errors && got[0] == PKT(0x09, 0x90, 0x3C, 0x7F) &&
+              got[1] == PKT(0x0C, 0xC1, 0x05, 0) && got[2] == PKT(0x0F, 0xF8, 0, 0) &&
+              got[3] == PKT(0x0E, 0xE2, 0x00, 0x40), "pack -> parse round trip");
+    }
     printf(fails ? "ble_midi: %d FAILED\n" : "ble_midi: all checks passed\n", fails);
     return fails != 0;
 }

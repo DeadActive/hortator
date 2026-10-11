@@ -39,8 +39,8 @@ static void body_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 static void k909_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(52), p[0]);
-    v->x[0] = (int32_t)inc_tune(HZ(4) * (uint32_t)p[2], p[0]);   /* up to ~500 Hz above */
+    v->inc[0] = inc_tune(HZ(52), dm_tune(t));
+    v->x[0] = (int32_t)inc_tune(HZ(4) * (uint32_t)p[2], dm_tune(t));   /* up to ~500 Hz above */
     v->env[0] = v->env[1] = v->env[2] = ENV1;
     v->k[0] = dk(50 + p[1] * 60 / 127);
     v->k[1] = dk(10 + p[4] * 50 / 127);
@@ -54,7 +54,7 @@ static void k909_trigger(track_t *t, dvoice_t *v)
 static void k808_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(49), p[0]);
+    v->inc[0] = inc_tune(HZ(49), dm_tune(t));
     v->x[0] = (int32_t)(v->inc[0] / 200u * (uint32_t)p[3]);      /* starts up to ~60 % higher */
     v->inc[1] = v->inc[0] * 24u;                                  /* ~1.2 kHz blip */
     v->env[0] = v->env[1] = v->env[2] = ENV1;
@@ -159,7 +159,7 @@ static int32_t kboom_tick(kboom_t *k)
 static void kboom_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    kboom_start(&v->ms.kb, KBOOM_NOTE + p[0], p[2], p[1], p[3], v->vel);
+    kboom_start(&v->ms.kb, KBOOM_NOTE + dm_tune(t), p[2], p[1], p[3], v->vel);
 }
 
 static void kboom_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
@@ -257,7 +257,7 @@ static int32_t kpunc_tick(kpunc_t *k)
 static void kpunc_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    kpunc_start(&v->ms.kp, KPUNC_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+    kpunc_start(&v->ms.kp, KPUNC_NOTE + dm_tune(t), p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
 }
 
 static void kpunc_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)

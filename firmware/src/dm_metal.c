@@ -46,8 +46,8 @@ static void hat_start(track_t *t, dvoice_t *v, int32_t dec)
     const int16_t *p = &t->p[P_E0];
     v->env[0] = ENV1;
     v->k[0] = dk(dec);
-    dsvf_coef(&v->c[0], CUT_7100 + p[0] * CUT_ST + (p[2] - 64) * 60, 30);
-    dsvf_coef(&v->c[1], CUT_6000 + p[0] * CUT_ST + (p[3] - 64) * 60, 0);
+    dsvf_coef(&v->c[0], CUT_7100 + dm_tune(t) * CUT_ST + (p[2] - 64) * 60, 30);
+    dsvf_coef(&v->c[1], CUT_6000 + dm_tune(t) * CUT_ST + (p[3] - 64) * 60, 0);
 }
 
 /* HAT C / HAT O: TUNE (filters) DECAY TONE (band) BRIGHT (high-pass) */
@@ -77,7 +77,7 @@ static void cymb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 static void cymb_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    int32_t sh = p[0] * CUT_ST + (p[2] - 64) * 60;
+    int32_t sh = dm_tune(t) * CUT_ST + (p[2] - 64) * 60;
     v->env[0] = v->env[1] = ENV1;
     v->k[0] = dk(80 + p[1] * 24 / 127);
     v->k[1] = dk(75);
@@ -113,14 +113,14 @@ static void cowb_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
     v->ph[0] = v->ph[1] = 0;
-    v->inc[0] = inc_tune(HZ(540.0), p[0]);
-    v->inc[1] = inc_tune(HZ(800.0), p[0]);
+    v->inc[0] = inc_tune(HZ(540.0), dm_tune(t));
+    v->inc[1] = inc_tune(HZ(800.0), dm_tune(t));
     v->env[0] = v->env[1] = ENV1;
     v->k[0] = dk(14);
     v->k[1] = dk(40 + p[1] * 50 / 127);
     v->x[0] = 32767 - p[3] * 150;
     v->x[1] = 6000 + p[3] * 150;
-    dsvf_coef(&v->c[0], CUT_880 + p[0] * CUT_ST + (p[2] - 64) * 40, 70);
+    dsvf_coef(&v->c[0], CUT_880 + dm_tune(t) * CUT_ST + (p[2] - 64) * 40, 70);
 }
 
 #define DM_HATC_DEF {"HATC", 1, 1, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
@@ -266,13 +266,13 @@ static int32_t hh_tick(hh_t *k)
 static void hmetl_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    hh_start(&v->ms.hh, 0, HMETL_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+    hh_start(&v->ms.hh, 0, HMETL_NOTE + dm_tune(t), p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
 }
 
 static void hnois_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    hh_start(&v->ms.hh, 1, HNOIS_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+    hh_start(&v->ms.hh, 1, HNOIS_NOTE + dm_tune(t), p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
 }
 
 static void hh_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)

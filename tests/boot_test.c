@@ -222,6 +222,136 @@ static int settings_oversize_refused(void)
     return settings.palette == 4u;
 }
 
+/* spec 2026-10-10 §8: an older record (no Bluetooth bits) loads exactly as before: SPEAKER EQ BASS+ stays, no device,
+ * MODE AUTO */
+static int settings_old_record(void)
+{
+    persist_t p;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();                                  /* finds the flash */
+    memset(&p, 0, sizeof p);
+    p.magic = PERSIST_MAGIC;
+    p.palette = 2;
+    p.lowcut = 2;                                    /* BASS+ */
+    p.zoom = 1u | 1u << 1 | 1u << 3 | 1u << 4;       /* ZOOM, NEXT BAR, USB FIXED, PERFORM PAGE (bits 0..4) */
+    p.panel = PANEL_DEFAULT;
+    st_save(OBJ_SETTINGS, &p, sizeof p);
+    rfill(&settings, sizeof settings);               /* power off: .noinit is anything */
+    rfill(&btset, sizeof btset);                     /* (the load replaces whatever was there) */
+    persist_boot();
+    settings_init();
+    return settings.lowcut == 2u && fx_lowcut == 2u && settings.zoom == 1u && settings.mutebar == 1u && settings.accel == 1u &&
+           settings.usbfix == 1u && settings.perfpage == 1u && settings.palette == 2u && btset.btmode == 0u &&
+           btset.bt_type == 0u && btset.bt_lo == 0u && btset.bt_hi == 0u;
+}
+
+/* the remembered device (address, type) and MODE survive a save and a load in zoom's and lowcut's spare bits; lowcut
+ * and the zoom flags keep their values */
+static int settings_bt_round_trip(void)
+{
+    uint32_t m, ok = 1;
+    for (m = 0; m < 3u; m++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = 3;
+        settings.lowcut = m;                         /* FLAT LOWCUT BASS+ */
+        settings.zoom = 1;
+        settings.mutebar = 0;
+        settings.accel = 1;
+        settings.usbfix = 1;
+        settings.perfpage = 0;
+        btset.btmode = m;                            /* AUTO SMC MIDI */
+        btset.bt_type = m & 1u;
+        btset.bt_lo = 0xA1B2C3u + m;                 /* address bytes 0..2 */
+        btset.bt_hi = 0xFFEEDDu - m;                 /* .. 3..5 */
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= p.zoom >> 8 == 0xA1B2C3u + m && p.lowcut >> 8 == 0xFFEEDDu - m && (p.lowcut & 0xFFu) == m &&
+              ((p.zoom >> 5) & 3u) == m && ((p.zoom >> 7) & 1u) == (m & 1u) && (p.zoom & 0x1Fu) == (1u | 1u << 3);
+        rfill(&settings, sizeof settings);           /* power off */
+        memset(&btset, 0, sizeof btset);             /* (.bss) */
+        persist_boot();
+        settings_init();
+        ok &= btset.btmode == m && btset.bt_type == (m & 1u) && btset.bt_lo == 0xA1B2C3u + m &&
+              btset.bt_hi == 0xFFEEDDu - m && settings.lowcut == m && fx_lowcut == m && settings.zoom == 1u &&
+              settings.mutebar == 0u && settings.accel == 1u && settings.usbfix == 1u && settings.perfpage == 0u &&
+              settings.palette == 3u;
+    }
+    return (int)ok;
+}
+
+/* an update keeps .noinit where it was: `settings` stays Felucca's 32 B (the RAM project slots after it are found
+ * again); the Bluetooth fields are outside it, from the flash record only: none -> no device, MODE AUTO, the .noinit
+ * settings kept */
+static int settings_bt_after_update(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);             /* no settings record */
+    host_init();
+    settings.magic = SETTINGS_MAGIC;
+    settings.palette = 2;
+    settings.lowcut = 1;
+    settings.zoom = 1;
+    settings.mutebar = 1;
+    settings.accel = 1;
+    settings.usbfix = 0;
+    settings.perfpage = 0;
+    rfill(&btset, sizeof btset);                     /* (anything before: a record-less boot clears it) */
+    persist_boot();
+    settings_init();
+    return sizeof settings == 32u && btset.btmode == 0u && btset.bt_type == 0u && btset.bt_lo == 0u &&
+           btset.bt_hi == 0u && settings.palette == 2u && settings.lowcut == 1u && settings.zoom == 1u &&
+           settings.mutebar == 1u;
+}
+
+/* a record whose MODE bits read 3 (no such MODE): AUTO; the address kept */
+static int settings_bt_mode_range(void)
+{
+    persist_t p;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    memset(&p, 0, sizeof p);
+    p.magic = PERSIST_MAGIC;
+    p.palette = 2;
+    p.zoom = 3u << 5 | 1u << 7 | 0x123456u << 8;
+    p.lowcut = 0x654321u << 8;
+    p.panel = PANEL_DEFAULT;
+    st_save(OBJ_SETTINGS, &p, sizeof p);
+    persist_boot();
+    settings_init();
+    return btset.btmode == 0u && btset.bt_type == 1u && btset.bt_lo == 0x123456u && btset.bt_hi == 0x654321u &&
+           settings.lowcut == 0u;
+}
+
+/* spec 2026-10-10 §4: a project saved with CLK BLE (3) loads as CLK INT in a build whose CLK ends at TRS (2), not as
+ * TRS; a value inside the range is kept */
+static int clock_beyond_range_is_int(void)
+{
+    project_t *p = &proj_slot[0];
+    uint32_t ok;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    project_save(0);
+    p->g[G_CLOCK] = 3;
+    p->sum = proj_sum(p);
+    song.g[G_CLOCK] = 1;
+    project_load(0);
+    ok = GP[G_CLOCK].max == 2 && song.g[G_CLOCK] == 0;
+    p->g[G_CLOCK] = 2;
+    p->sum = proj_sum(p);
+    project_load(0);
+    ok &= song.g[G_CLOCK] == 2;
+    p->g[G_CLOCK] = -1;
+    p->sum = proj_sum(p);
+    project_load(0);
+    return (int)(ok & (song.g[G_CLOCK] == 0));
+}
+
 /* an M1 project in flash ("FDR1") loads: its steps and settings; PROB 100 %, 1 hit, SRC STEP, Grids defaults */
 static int fdr1_converts(void)
 {
@@ -252,6 +382,31 @@ static int fdr1_converts(void)
     return trk[3].p[P_SLEN] == 23 && trk[3].step[5].on && trk[3].step[5].acc && trk[3].step[5].cond == 0 &&
            trk[3].step[5].rat == 0 && !trk[3].step[6].on && trk[3].p[P_SRC] == 0 && song.g[G_BPM] == 133 &&
            song.g[G_GLEN2] == 12 && song.g[G_GMODE] == 0 && song.sel == 2;
+}
+
+/* an FDR1 step byte of 2 (any non-zero is set) loads as on / acc, not as its low bit */
+static int fdr1_flags_nonzero(void)
+{
+    project_v1_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_V1;
+    v.size = sizeof v;
+    for (i = 0; i < G_GMODE; i++)
+        v.g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_SRC; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[2].step[4].on = 2;
+    v.t[2].step[4].acc = 2;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(1);
+    return trk[2].step[4].on && trk[2].step[4].acc;
 }
 
 /* an M2 project in flash ("FDR2") loads: everything it has, COMP off, DUCK off */
@@ -574,6 +729,112 @@ static int fdra_clamps(void)
     project_load(0);
     return trk[4].p[P_FTYPE] == FT_N - 1 && trk[4].p[P_FCUT] == 127 && trk[4].p[P_FENV] == -64;
 }
+/* FDRB (ACID): the step's bytes: byte 0 = on | acc << 1 | slide << 2 | tie << 3 | rat << 4, byte 1 cond, byte 2 nt */
+static int fdrb_step_layout(void)
+{
+    step_t s;
+    const uint8_t *b = (const uint8_t *)&s;
+    memset(&s, 0, sizeof s);
+    s.on = 1;
+    s.tie = 1;
+    s.rat = 2;
+    s.cond = 5;
+    s.nt = -3;
+    return sizeof(step_t) == 4u && b[0] == (1u | 8u | 0x20u) && b[1] == 5u && (int8_t)b[2] == -3 && b[3] == 0u &&
+           sizeof(project_t) == 3672u;
+}
+/* an FDRA record in flash (same size as FDRB: told by its marker): steps into the flags, NOTE C4, no SLIDE / TIE */
+static int fdra_flash_converts(void)
+{
+    static project_va_t v;
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(&v, 0, sizeof v);
+    v.magic = PROJ_MAGIC_VA;
+    v.size = sizeof v;
+    for (i = 0; i < G_COUNT; i++)
+        v.g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v.t[k].p[i] = trk[k].p[i];
+    v.t[3].p[P_FCUT] = 33;
+    v.t[3].step[7] = (step_v9_t){1, 1, 5, 2};
+    v.t[3].step[8] = (step_v9_t){0, 1, 0, 0};
+    memcpy(v.name, "FDRA ONE", 8);
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 2u, &v, sizeof v);
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(2);
+    return sizeof v == 3672u && trk[3].p[P_FCUT] == 33 && trk[3].step[7].on && trk[3].step[7].acc &&
+           trk[3].step[7].cond == 5u && trk[3].step[7].rat == 2u && trk[3].step[7].nt == 0 && !trk[3].step[7].slide &&
+           !trk[3].step[7].tie && !trk[3].step[8].on && trk[3].step[8].acc && str_eq(chain.name, "FDRA ONE");
+}
+/* an FDRA image left in a RAM slot by the previous firmware (.noinit): converted at boot, not dropped */
+static int fdra_ram_converts(void)
+{
+    project_va_t *v = (project_va_t *)(void *)&proj_slot[1];
+    uint32_t i, k;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    v->magic = PROJ_MAGIC_VA;
+    v->size = sizeof *v;
+    for (i = 0; i < G_COUNT; i++)
+        v->g[i] = song.g[i];
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < P_COUNT; i++)
+            v->t[k].p[i] = trk[k].p[i];
+    v->g[G_BPM] = 133;
+    v->t[6].p[P_FCUT] = 33;
+    v->t[6].step[3] = (step_v9_t){1, 0, 0, 3};
+    v->t[7].step[NSTEP - 1u] = (step_v9_t){2, 1, 4, 1};   /* the last step; on 2: set */
+    memcpy(v->name, "RAM FDRA", 8);
+    v->sum = proj_hash(v, sizeof *v - 4u);
+    persist_boot();
+    project_load(1);
+    return trk[6].step[3].on && trk[6].step[3].rat == 3u && trk[6].step[3].nt == 0 && song.g[G_BPM] == 133 &&
+           trk[6].p[P_FCUT] == 33 && trk[7].step[NSTEP - 1u].on && trk[7].step[NSTEP - 1u].acc &&
+           trk[7].step[NSTEP - 1u].cond == 4u && trk[7].step[NSTEP - 1u].rat == 1u && !trk[7].step[NSTEP - 1u].tie &&
+           !trk[6].step[4].on && str_eq(chain.name, "RAM FDRA");
+}
+/* FDRB: SLIDE, TIE and the note through a save and a load (flash) */
+static int fdrb_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[2].step[4].on = 1;
+    trk[2].step[4].slide = 1;
+    trk[2].step[4].nt = -12;
+    trk[2].step[5].tie = 1;
+    project_save(0);
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(0);
+    return trk[2].step[4].on && trk[2].step[4].slide && trk[2].step[4].nt == -12 && trk[2].step[5].tie &&
+           !trk[2].step[5].on;
+}
+/* Review Focus 5: a stored step's reserved bits / byte and an out-of-range note: cleared and clamped on load */
+static int fdrb_clamps(void)
+{
+    project_t *p = &proj_slot[0];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    project_save(0);
+    ((uint8_t *)&p->t[4].step[2])[0] = 0xFFu;        /* every flag, the reserved bits too */
+    ((uint8_t *)&p->t[4].step[2])[3] = 0x5Au;
+    p->t[4].step[3].nt = 100;                        /* past NT_MAX (C4 + 67 = G9) */
+    p->t[4].step[5].nt = -100;
+    p->sum = proj_sum(p);
+    project_load(0);
+    return trk[4].step[2].on && trk[4].step[2].acc && trk[4].step[2].slide && trk[4].step[2].tie &&
+           trk[4].step[2].rat == 3u && ((const uint8_t *)&trk[4].step[2])[0] == 0x3Fu &&
+           ((const uint8_t *)&trk[4].step[2])[3] == 0u && trk[4].step[3].nt == NT_MAX && trk[4].step[5].nt == NT_MIN;
+}
 /* an FDR8 record (3544 B): its motion, an empty song, no name */
 static int fdr8_converts(void)
 {
@@ -738,6 +999,7 @@ int main(void)
     char what[96];
     int k, s, seq;
     check("project: an M1 record (FDR1) loads with PROB 100 %, 1 hit, SRC STEP, Grids defaults", fdr1_converts());
+    check("project: an FDR1 step's on / acc of 2 load set (not their low bit)", fdr1_flags_nonzero());
     check("project: an M2 record (FDR2) loads with COMP off and DUCK off", fdr2_converts());
     check("project: an M3 record (FDR3) loads with the LFOs off", fdr3_converts());
     check("project: an FDR4 record loads with RESON off", fdr4_converts());
@@ -752,6 +1014,11 @@ int main(void)
     check("project: an FDR9 record loads, the filter OFF", fdr9_converts());
     check("project: FDRA keeps the five filter knobs through a save and a load", fdra_round_trip());
     check("project: out-of-range filter values are clamped on load", fdra_clamps());
+    check("project: FDRB's step layout (flags, cond, note offset) in 4 bytes", fdrb_step_layout());
+    check("project: an FDRA record in flash converts (NOTE C4, no SLIDE / TIE)", fdra_flash_converts());
+    check("project: an FDRA image in a RAM slot converts at boot", fdra_ram_converts());
+    check("project: FDRB keeps SLIDE, TIE and the note through a save and a load", fdrb_round_trip());
+    check("project: a stored step's reserved bits are cleared, its note clamped", fdrb_clamps());
     check("project: an FDR8 record (3544 B) loads with its motion, no song, no name", fdr8_converts());
     check("project: a broken song or name is dropped, the project loads", fdr9_bad_song_name_dropped());
     check("song: an empty slot refused; a slot's garbage made safe (ASan)", song_garbage_slot());
@@ -762,6 +1029,14 @@ int main(void)
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());
     check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());
+    check("settings: an older record (no Bluetooth bits) loads as before (SPEAKER EQ BASS+ stays, no device)",
+          settings_old_record());
+    check("settings: the remembered device and MODE survive a power cycle in the spare bits; SPEAKER EQ keeps its value",
+          settings_bt_round_trip());
+    check("settings: a record's MODE bits beyond MIDI load AUTO", settings_bt_mode_range());
+    check("settings: .noinit's settings stay 32 B (an update finds the RAM projects); no record: no device",
+          settings_bt_after_update());
+    check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {

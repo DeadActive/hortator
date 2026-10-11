@@ -499,6 +499,31 @@ static void write_fm(const char *dir)
     fm_one(dir, "fm_kick.wav", KICK, "x...x...x...x...");
 }
 
+/* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
+ * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
+static void acid_kit(int sqr)
+{
+    static const int8_t NT[16] = {-36, -24, -22, -24, 0, -29, -27, -24, -36, -34, 0, -24, -19, -24, -22, -31};
+    static const uint8_t FL[16] = {1, 2, 0, 4, 8, 0, 3, 0, 0, 1, 8, 2, 0, 1, 4, 2};
+    uint32_t k;
+    host_init();
+    drum_set_model(&trk[0], DM_ACID);
+    for (k = 0; k < 16u; k++) {
+        trk[0].step[k].on = !(FL[k] & 12u);
+        trk[0].step[k].acc = FL[k] & 1u;
+        trk[0].step[k].slide = (FL[k] >> 1) & 1u;
+        trk[0].step[k].tie = (FL[k] >> 2) & 1u;
+        trk[0].step[k].nt = NT[k];
+    }
+    trk[0].p[P_E6] = (int16_t)sqr;
+}
+
+static void acid_reso_bar(uint32_t b)
+{
+    trk[0].p[P_E2] = 30;
+    trk[0].p[P_E3] = (int16_t)(b * 127u / 15u);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -599,6 +624,12 @@ int main(int argc, char **argv)
     write_demo(dir, "reson_sweep.wav", 4, reson_none_bar);
     reson_kit(RS_PIPE);
     write_demo(dir, "reson_dist.wav", 4, reson_dist_bar);      /* RESON into DIST, every other bar */
+    acid_kit(0);
+    write_demo(dir, "acid_line.wav", 8, reson_none_bar);
+    acid_kit(0);
+    write_demo(dir, "acid_reso.wav", 16, acid_reso_bar);
+    acid_kit(1);
+    write_demo(dir, "acid_sqr.wav", 8, reson_none_bar);
     write_sound_pack(dir);
     write_perform(dir);
     write_motion(dir);

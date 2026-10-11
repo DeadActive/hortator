@@ -60,6 +60,9 @@ void ble_service(void)                             /* the main loop (ed_service)
     ble_diag.heap_high = ble_os_heap_high();       /* (.noinit: kept over a crash reboot, for the heap's size) */
     ble_diag.alloc_fails = ble_os_alloc_fails();
     ble_tick();                                    /* deadlines: scan end, start / connect / discovery timeouts */
-    while (ble_midi_take(&pkt))                    /* counted and parsed (`msgs`), not played yet: part 2 */
-        ;
+    ble_auto();                                    /* link up / down to the core; reconnecting (ble_auto_step) */
+    ble_out_flush();                               /* MIDI out (ble_midi_send) as write-without-response packets */
+    while (ble_midi_take(&pkt))                    /* to the core while linked (after core_ble_link(1)); a drop's */
+        if (ble_linked())                          /* leftovers are discarded (the core heard core_ble_link(0)) */
+            core_ble_midi_in(pkt);
 }

@@ -10,11 +10,15 @@
 #    the notes of CHANGELOG.md (a release already there: its files replaced)
 # 4. GitHub Pages: that build's site (landing page + simulator, web installer, editor) as the next commit of the
 #    gh-pages branch (Pages turned on from it the first time)
+# BLE=1: two versions in one release (2026-10-09): the Bluetooth build too (FELUCCA_BLE=1, every BLE gate), as
+#    hortator-<version>-bluetooth.fwsc in the release and a choice in the web installer. Off until Bluetooth part 2
+#    (the user: the first two-version release is part 2's).
 # Needs gh, logged in.
 set -e
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 REMOTE=${REMOTE:-origin}
+BLE=${BLE:-0}
 TAG=${1:-drum-v$(cat VERSION.txt)}
 case "$TAG" in drum-v*) ;; *) echo "publish: $TAG is not a drum-v* tag"; exit 1 ;; esac
 V=${TAG#drum-v}
@@ -33,19 +37,26 @@ mkdir -p "$D"
 git worktree add -q --detach "$S" "$TAG"
 trap 'cd "$ROOT"; git worktree remove --force "$S" 2>/dev/null; git worktree remove --force "$W" 2>/dev/null; true' EXIT
 [ "$(cat "$S/VERSION.txt")" = "$V" ] || { echo "publish: $TAG's VERSION.txt is $(cat "$S/VERSION.txt")"; exit 1; }
-(cd "$S" && tools/build_sim.sh && DRUM_PACKAGE=1 ./build.sh)
+(cd "$S" && tools/build_sim.sh && DRUM_PACKAGE=1 DRUM_BUNDLE=$BLE ./build.sh)
 PKG=$(ls "$S"/build/site/firmware/felucca-drum-"$V"-"$SHA".fwsc 2>/dev/null | head -1)
 [ -n "$PKG" ] || { echo "publish: the build made no package felucca-drum-$V-$SHA.fwsc"; exit 1; }
+PKGB="$S/build/site/firmware/felucca-drum-$V-$SHA-ble.fwsc"
+if [ "$BLE" = 1 ]; then
+    [ -f "$PKGB" ] || { echo "publish: BLE=1 but the build made no felucca-drum-$V-$SHA-ble.fwsc"; exit 1; }
+elif [ -e "$PKGB" ]; then
+    echo "publish: a Bluetooth package without BLE=1"; exit 1
+fi
 [ -f "$S/build/site/fm1sim.wasm" ] || { echo "publish: the site has no landing page (simulator)"; exit 1; }
 
 mkdir -p "$D/files"
 rm -f "$D"/files/*
 cp "$PKG" "$D/files/hortator-$V.fwsc"
+if [ "$BLE" = 1 ]; then cp "$PKGB" "$D/files/hortator-$V-bluetooth.fwsc"; fi
 cp "$S/LICENSE" "$S/LICENSING.md" "$D/files/"
 (cd "$S/build/site/firmware" && zip -qr "$D/files/LICENSES.zip" LICENSES)
-python3 - "$V" "$REPO" "$S/CHANGELOG.md" > "$D/notes.md" <<'PY'
+python3 - "$V" "$REPO" "$S/CHANGELOG.md" "$BLE" > "$D/notes.md" <<'PY'
 import re, sys
-v, repo, log = sys.argv[1:4]
+v, repo, log, ble = sys.argv[1:5]
 out, on = [], False
 for line in open(log, encoding="utf-8"):
     m = re.match(r"## (\S+)", line)
@@ -60,6 +71,10 @@ print()
 print(f"Install: https://{owner.lower()}.github.io/{name}/webapp/installer/ (Chrome or Edge, USB), or "
       "tools/fm1_install.py with the .fwsc below. The package holds JieLi SDK files under Apache-2.0: LICENSING.md, "
       "LICENSES.zip.")
+if ble == "1":
+    print()
+    print(f"Two versions: hortator-{v}.fwsc, and hortator-{v}-bluetooth.fwsc, the same Hortator with Bluetooth MIDI "
+          "(experimental; off at every power-on). The web installer offers both.")
 PY
 
 # 2. the code
@@ -68,6 +83,7 @@ git push "$REMOTE" main "refs/tags/$TAG"
 
 # 3. the release
 set -- "$D/files/hortator-$V.fwsc" "$D/files/LICENSE" "$D/files/LICENSING.md" "$D/files/LICENSES.zip"
+if [ "$BLE" = 1 ]; then set -- "$@" "$D/files/hortator-$V-bluetooth.fwsc"; fi
 if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
     gh release upload "$TAG" "$@" -R "$REPO" --clobber
     gh release edit "$TAG" -R "$REPO" --title "Hortator $V" --notes-file "$D/notes.md"

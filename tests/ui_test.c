@@ -43,7 +43,10 @@ static void test_families(void)
     press(B_SCL);
     ui_frame();
     release_all();
-    check("ENV and SCL do nothing (free)", !ui.home && cur_page()->fam == FAM_LFO);
+    check("ENV does nothing (free); SCL toggles KEYS, the page stays", !ui.home && cur_page()->fam == FAM_LFO && ui.keys);
+    press(B_SCL);                                    /* KEYS off again */
+    ui_frame();
+    release_all();
     press(B_EDIT);
     ui_frame();
     release_all();
@@ -567,6 +570,38 @@ static void test_comp_ghost_knob(void)
     project_load(0);
     check("GHOST is saved with the project (FDR6)", song.g[G_CGHOST] == CG_HIDE);
     memset(&proj_slot[0], 0, sizeof proj_slot[0]);  /* the slot empty again for the project tests */
+}
+
+/* ACID on 2 tracks at most (like RESON's cap): a 3rd track's MODEL knob skips ACID with the message; a project
+ * with 4 ACID tracks loads with the first 2, the others back to their power-on kit model */
+static void test_acid_cap(void)
+{
+    uint32_t k, n;
+    ui_host_init();
+    drum_set_model(&trk[0], DM_ACID);
+    drum_set_model(&trk[1], DM_ACID);
+    song.sel = 2;
+    drum_set_model(&trk[2], DM_FM);
+    model_step(1);
+    check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the first model",
+          trk[2].p[P_MODEL] == DM_K808 && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
+    model_step(-1);
+    check("ACID cap: back down, past ACID (full) to FM", trk[2].p[P_MODEL] == DM_FM);
+    drum_set_model(&trk[1], DM_K808);                /* a place frees */
+    model_step(1);
+    check("ACID cap: once a place frees, the 3rd track gets ACID", trk[2].p[P_MODEL] == DM_ACID);
+    ui_host_init();
+    for (k = 0; k < 4u; k++)
+        drum_set_model(&trk[k], DM_ACID);
+    project_save(0);
+    project_load(0);
+    for (k = 0, n = 0; k < NTRK; k++)
+        n += trk[k].p[P_MODEL] == DM_ACID;
+    check("ACID cap on load: the first two ACID tracks keep it, the others fall back to their kit model",
+          n == 2u && trk[0].p[P_MODEL] == DM_ACID && trk[1].p[P_MODEL] == DM_ACID &&
+              trk[2].p[P_MODEL] == KIT_DEF[2][0] && trk[3].p[P_MODEL] == KIT_DEF[3][0] &&
+              trk[2].model == KIT_DEF[2][0] && trk[2].p[P_E0] == DMODELS[KIT_DEF[2][0]].edit[0].def);
+    memset(&proj_slot[0], 0, sizeof proj_slot[0]);
 }
 
 /* COMP pages: white keys toggle DUCK (lit = ducked), not on the source; with SRC OFF too; elsewhere they play */
@@ -1370,15 +1405,28 @@ static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows 
     return n;
 }
 
-/* the start screen (main.c fm1_main): the HortatoR logo and DRUM MACHINE, nothing above or below */
+/* the start screen (main.c fm1_main): assets/boot.png, every pixel, in the chosen palette */
 static void test_boot_title(void)
 {
-    memset(fb, 0, sizeof fb);
-    draw_boot_title();
-    shot("build/ui_shots/00_boot.ppm");
-    check("boot: the logo", fb_lit(BOOT_Y, BOOT_Y + LOGO_H) > 3000);
-    check("boot: DRUM MACHINE under it", fb_lit(BOOT_Y + LOGO_H, BOOT_Y + LOGO_H + 24) > 100);
-    check("boot: nothing else", fb_lit(0, BOOT_Y) + fb_lit(BOOT_Y + LOGO_H + 24, 240) == 0);
+    static const uint32_t PALS[2] = {0, 3};         /* GREEN, RED */
+    uint32_t p, i;
+    for (p = 0; p < 2u; p++) {
+        uint32_t bad = 0;
+        palette_set(PALS[p]);
+        memset(fb, 0, sizeof fb);
+        draw_boot_title();
+        if (p == 0)
+            shot("build/ui_shots/00_boot.ppm");
+        for (i = 0; i < 240u * 240u; i++) {
+            uint32_t v = (BOOT_DATA[i / 2u] >> ((i & 1u) ? 0 : 4)) & 15u;
+            bad += fb[i] != (v == 0 ? C_BLACK : v == 6u ? C_WHITE : pal[v - 1u]);
+        }
+        check(p ? "boot: the same screen in RED" : "boot: every pixel is assets/boot.png in GREEN", bad == 0);
+    }
+    palette_set(settings.palette);
+    check("boot: the collapse frames fill the middle", fb_lit(40, 200) > 8000);
+    check("boot: the white scan line across the middle", fb[119u * 240u + 120u] == C_WHITE &&
+                                                          fb[120u * 240u + 60u] == C_WHITE);
 }
 
 static void snap_page(const char *name)
@@ -1749,9 +1797,9 @@ static void test_project_rejects(void)
     project_save(0);
     proj_slot[0].t[3].p[P_MODEL] = 99;               /* corrupt the stored data, fix the checksum */
     proj_slot[0].t[3].p[P_E1] = 30000;
-    proj_slot[0].t[3].step[0].on = 7;
+    ((uint8_t *)&proj_slot[0].t[3].step[0])[0] = 0xC1u;   /* on + both reserved bits */
     proj_slot[0].t[3].step[1].cond = 200;
-    proj_slot[0].t[3].step[1].rat = 9;
+    ((uint8_t *)&proj_slot[0].t[3].step[1])[0] = 0x30u;   /* rat 3 */
     proj_slot[0].t[3].p[P_SRC] = 40;
     proj_slot[0].g[G_GLEN1] = -5;
     proj_slot[0].g[G_CSRC] = 77;
@@ -2860,6 +2908,44 @@ static void test_perform_knobs_follow_screen(void)
     check("PERFORM shown (FX or a layer key held, or PAGE): the knobs are its macros, not the page under it", !ch);
 }
 
+/* bug 2026-10-10 ("the PERFORM knobs change the page's knobs"): FX and a layer key held into the menu, the menu
+ * closed with both still held: FX is dead (no map), the key keeps the screen and the knobs. A knob turn then must not
+ * mark the dead FX open: once the key is let go the screen goes with it, and the knobs edit the page again with the
+ * page shown (never the page under a PERFORM screen) */
+static void test_perform_dead_knob(void)
+{
+    uint32_t mode, i, bad = 0;
+    for (mode = 0; mode < 2u; mode++) {
+        int16_t tb[P_COUNT];
+        ui_host_init();
+        settings.perfpage = mode;
+        tap(B_EDIT);                                 /* SOUND under it */
+        keys(1u << 1);                               /* FX + a black key: the layer's (REPEAT 1/8) */
+        fx_hold_frames(3);
+        for (i = 0; i < 1000u && !ui.menu; i++) {    /* HOME held too: the menu */
+            fm1_in.buttons |= 1u << panel.btn[B_HOME];
+            fx_hold_frames(1);
+        }
+        fm1_in.buttons &= ~(1u << panel.btn[B_HOME]);
+        fx_hold_frames(2);
+        menu_close();
+        fx_hold_frames(3);                           /* FX still held (dead), the key still held */
+        turn(EN_K2, 3);                              /* the key's screen: CRUSH */
+        fx_hold_frames(2);
+        keys(0);                                     /* the key let go, FX still held */
+        fx_hold_frames(3);
+        memcpy(tb, TSEL->p, sizeof tb);
+        turn(EN_K1, 3);
+        fx_hold_frames(2);
+        for (i = 0; i < P_COUNT; i++)
+            bad |= ui.layer && TSEL->p[i] != tb[i];
+        bad |= ui.layer;                             /* a dead FX hold shows no map */
+        release_all();
+        ui_frame();
+    }
+    check("FX dead (held through the menu), its layer key let go: no PERFORM screen over the page the knobs edit", !bad);
+}
+
 /* user 2026-10-08: on every SEQ page (STEP PATTERN MOTION SONG) and on TRACKS (not armed) the 16 white keys are the
  * selected track's steps in the bank (a tap: on / off, a hold: accent); they play nothing and select nothing;
  * OCT+ / OCT- change the bank; the key LEDs show the steps. The track: ALGO (or TRACKS' KNOB 1) */
@@ -3037,6 +3123,1470 @@ static void test_fm_screens(void)
           str_eq(page_desc(cur_page(), 0, &vp)->label, "RATIO") && str_eq(page_desc(cur_page(), 3, &vp)->label, "FBK"));
 }
 
+/* ---- ACID plan B: KEYS (spec §5) */
+/* an SCL tap turns KEYS on (its LED, the top bar KEYS F3) and off; the 27 keys play the selected track chromatically
+ * (a drum transposed: nt = NOTE - 60, F3 = 53); OCT- / OCT+ shift by an octave, -2..+2; KEYS selects no track */
+static void test_keys_map_oct(void)
+{
+    char b[16];
+    uint32_t k, a, ok = 1;
+    ui_host_init();
+    tap(B_SCL);
+    check("KEYS: an SCL tap turns it on: the SCL LED lit, the top bar KEYS F3, the keys KEYS' (seq_mode 3)",
+          ui.keys && led_on(panel.btn[B_SCL]) && head_mode(b) && str_eq(b, "KEYS F3") && song.seq_mode == 3u);
+    for (k = 0; k < 27u; k++) {
+        a = hit_age(&trk[0]);
+        keys(1u << k);
+        ui_frame();
+        keys(0);
+        ui_frame();
+        ok &= hit_age(&trk[0]) != a && trk[0].nt == (int32_t)k - 7;
+    }
+    check("KEYS: key k (0 = F3) hits the selected drum transposed to NOTE 53 + k (nt k - 7), every key", ok);
+    check("KEYS: the keys select no track (HOME)", song.sel == 0);
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    keys(1u);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: OCT+ three times: +2 octaves at most (F3's key plays F5, nt +17), KEYS F5, OCT+ lit",
+          song.octave == 2 && trk[0].nt == 17 && head_mode(b) && str_eq(b, "KEYS F5") && led_on(panel.btn[B_OCTUP]));
+    for (k = 0; k < 5u; k++)
+        tap(B_OCTDN);
+    keys(1u);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: OCT- five times: -2 octaves at most (F1, nt -31), KEYS F1",
+          song.octave == -2 && trk[0].nt == -31 && head_mode(b) && str_eq(b, "KEYS F1"));
+    tap(B_SCL);
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS off: the LED dark, no KEYS in the top bar, the keys select and hit tracks again",
+          !ui.keys && !led_on(panel.btn[B_SCL]) && !head_mode(b) && song.sel == 3 && song.seq_mode == 0u);
+}
+
+/* ACID under KEYS: mono, the last key wins; held: the gate stays open past GATE; a key over the sounding one slides
+ * (same voice); the sounding key's release closes the gate, an earlier key's does nothing */
+static void test_keys_acid_mono(void)
+{
+    track_t *t = &trk[0];
+    uint32_t age, k;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    tap(B_SCL);
+    keys(1u << 7);                                   /* C4 */
+    ui_frame();
+    age = t->v[0].age;
+    check("KEYS, ACID: a key starts its note (C4), the gate open",
+          t->v[0].active && (t->v[0].x[2] & 1) && t->v[0].x[1] == 60 * 16);
+    for (k = 0; k < 400u; k++)                       /* 400 blocks, 290 ms: well past GATE (half a 1/16) */
+        ui_frame();
+    check("KEYS, ACID: held past GATE the gate stays open (the key holds it)", (t->v[0].x[2] & 1) != 0);
+    keys(1u << 7 | 1u << 12);                        /* F4 over it */
+    ui_frame();
+    check("KEYS, ACID: a key over the sounding one slides to it (same voice, no restart)",
+          t->v[0].age == age && t->v[0].x[1] == 65 * 16 && (t->v[0].x[2] & 1));
+    keys(1u << 12);                                  /* C4 (no longer sounding) let go */
+    ui_frame();
+    check("KEYS, ACID: an earlier key let go: the note goes on", (t->v[0].x[2] & 1) != 0);
+    keys(0);
+    ui_frame();
+    check("KEYS, ACID: the sounding key let go: the gate closes", !(t->v[0].x[2] & 1));
+    keys(1u << 9);                                   /* D4 after all were let go */
+    ui_frame();
+    check("KEYS, ACID: a key after all were let go starts a new note", t->v[0].age != age && t->v[0].x[1] == 62 * 16);
+    keys(0);
+    ui_frame();
+}
+
+/* Review Focus 1: a key's ACID note ends on its release wherever the keys went meanwhile */
+static void test_keys_release_anywhere(void)
+{
+    ui_host_init();
+    drum_set_model(&trk[0], DM_ACID);
+    drum_set_model(&trk[1], DM_ACID);
+    tap(B_SCL);
+    keys(1u << 7);                                   /* C4 on track 1 */
+    ui_frame();
+    tap(B_SCL);                                      /* KEYS off, C4 still held */
+    keys(0);
+    ui_frame();
+    check("KEYS turned off while a key holds an ACID note: its release still ends it",
+          !(trk[0].v[0].x[2] & 1) && song.seq_mode == 0u);
+    tap(B_SCL);
+    keys(1u << 7);
+    ui_frame();
+    turn(EN_ALGO, 1);                                /* track 2 selected while C4 holds track 1's note */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: the track changed while held: the release ends track 1's note", song.sel == 1 && !(trk[0].v[0].x[2] & 1));
+    keys(1u << 7);                                   /* C4 on track 2 */
+    ui_frame();
+    press(B_REC);                                    /* a REC tap: TRACKS (its own keys) */
+    ui_frame();
+    release_all();
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS: TRACKS opened while held: the release ends the note", mix_mode() && song.seq_mode == 1u &&
+          !(trk[1].v[0].x[2] & 1));
+    tap(B_HOME);
+    keys(1u << 7);                                   /* C4 on track 2, held */
+    ui_frame();
+    turn(EN_ALGO, -1);                               /* track 1 */
+    ui_frame();
+    keys(1u << 7 | 1u << 9);                         /* D4 on track 1 while C4 still holds track 2's note */
+    ui_frame();
+    check("KEYS: a key on another track ends the held note (mono over the keys)",
+          !(trk[1].v[0].x[2] & 1) && (trk[0].v[0].x[2] & 1) && trk[0].v[0].x[1] == 62 * 16);
+    keys(0);
+    ui_frame();
+    check("KEYS: ... and its own release ends the new one", !(trk[0].v[0].x[2] & 1));
+}
+
+/* Review Focus 3: with KEYS on, FX held (PERFORM), TRACKS, COMP, the menu and NAME keep their keys */
+static void test_keys_owners(void)
+{
+    uint32_t a;
+    int16_t duck;
+    ui_host_init();
+    drum_set_model(&trk[0], DM_ACID);
+    tap(B_SCL);
+    press(B_FX);
+    ui_frame();
+    keys(1u << 4);                                   /* A3 with FX held */
+    fx_hold_frames(2);
+    check("KEYS + FX held: the key is PERFORM's (track 3 muted while held), no note",
+          ((perf_held >> (PF_M1 + 2u)) & 1u) && !trk[0].v[0].active);
+    keys(0);
+    fx_hold_frames(1);
+    release_all();
+    ui_frame();
+    press(B_REC);                                    /* TRACKS, nothing armed: its step grid */
+    ui_frame();
+    release_all();
+    ui_frame();
+    keys(1u << STEP_KEY[2]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS + TRACKS: a white key is the track's step (seq_mode 1), no note",
+          mix_mode() && song.seq_mode == 1u && trk[0].step[2].on && !trk[0].v[0].active);
+    open_comp(0);
+    duck = trk[3].p[P_DUCK];
+    keys(1u << KEY_TRK_KEY[3]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("KEYS + COMP: a white key ducks its track, no note", comp_mode() && trk[3].p[P_DUCK] != duck &&
+          !trk[0].v[0].active);
+    hold(B_HOME);                                    /* the menu */
+    check("KEYS + the menu: the keys are not KEYS' (as without it)", ui.menu && !keys_mode() && song.seq_mode == 0u);
+    hold(B_HOME);
+    project_page();
+    project_save(0);
+    name_open(NK_RENAME, 0);
+    a = trk[0].v[0].age;
+    name_type(7);                                    /* C4 */
+    check("KEYS + NAME: the keys type, no note", name_on() && song.seq_mode == 1u && trk[0].v[0].age == a);
+    name_close();
+}
+
+/* main.c's UBOOT (OCT- + OCT+ held 5 s): under KEYS both buttons stay visible; pressed together the octave is back */
+static void test_keys_oct_uboot(void)
+{
+    uint32_t both;
+    ui_host_init();
+    tap(B_SCL);
+    seq_open("STEP");
+    both = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
+    press(B_OCTDN);
+    press(B_OCTUP);
+    ui_input();
+    check("KEYS: OCT- + OCT+ together: the octave back where it was, both buttons visible to main.c (UBOOT), no bank",
+          song.octave == 0 && (fm1_in.buttons & both) == both && ui.bank == 0);
+    release_all();
+}
+
+/* ---- ACID plan B: live record (spec §6) */
+/* armed and playing, KEYS on ACID: a key writes the nearest step (ON + NOTE), TIE on each later step it is held past
+ * the middle of, a legato key SLIDE on the held note's last step */
+static void test_keys_live_rec(void)
+{
+    track_t *t = &trk[0];
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    tap(B_SCL);                                      /* KEYS, HOME */
+    song.rec = 1u;                                   /* track 1 armed (as TRACKS' REC tap) */
+    transport_req = 1;
+    seq_play_to(0, 2);                               /* step 3 just started */
+    keys(1u << 7);                                   /* C4 */
+    ui_frame();
+    seq_play_to(0, 5);                               /* held through steps 4 and 5's middles */
+    keys(1u << 7 | 1u << 11);                        /* E4 over it: legato */
+    ui_frame();
+    keys(1u << 11);                                  /* C4 let go */
+    ui_frame();
+    keys(0);                                         /* E4 let go at once */
+    ui_frame();
+    seq_play_to(0, 7);
+    check("KEYS live record: the key's note on the nearest step (ON + C4)", t->step[2].on && !t->step[2].tie &&
+          t->step[2].nt == 0);
+    check("KEYS live record: held into the later steps: TIE on them", t->step[3].tie && !t->step[3].on &&
+          t->step[4].tie && !t->step[4].on);
+    check("KEYS live record: a legato key: SLIDE on the held note's last step, its own note (E4) next",
+          t->step[4].slide && !t->step[2].slide && !t->step[3].slide && t->step[5].on && t->step[5].nt == 4 &&
+          !t->step[5].slide);
+    check("KEYS live record: let go before the next step's middle: nothing there", !t->step[6].tie && !t->step[6].on);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review Focus 4: pressed past the middle of the last step: the next one across the wrap (LEN 4), which then does not
+ * hit a second time; the TIE follows across it */
+static void test_keys_live_rec_wrap(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, age;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 4;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 3);
+    for (k = 0; k < 120u; k++)                       /* 70 % into step 4 (172 blocks a 1/16 at 120 BPM) */
+        ui_frame();
+    keys(1u << 9);                                   /* D4 */
+    ui_frame();
+    age = t->v[0].age;
+    check("KEYS live record past mid-step: the next step across the wrap (step 1: ON + D4), step 4 untouched",
+          t->step[0].on && t->step[0].nt == 2 && !t->step[3].on && !t->step[3].tie && t->rskip && t->rskip_idx == 0u);
+    seq_play_to(0, 2);                               /* held through step 1 and step 2's middle */
+    check("KEYS live record: the written step does not hit again, the note holds (same voice); TIE on step 2",
+          t->v[0].age == age && (t->v[0].x[2] & 1) && t->step[1].tie && t->step[0].on && !t->step[0].tie);
+    keys(0);
+    ui_frame();
+    seq_play_to(0, 3);
+    check("KEYS live record: let go at step 3's start: no TIE there", !t->step[2].tie && !t->step[2].on);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review Focus 4, the block a held note passes a step's middle in: a legato key pressed in that very block still finds
+ * the TIE there (keys_tie before the presses), so the SLIDE goes on it and no rest is left between the two notes */
+static void test_keys_live_rec_mid_block(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, half;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 2);
+    keys(1u << 7);                                   /* C4 on step 3 */
+    ui_frame();
+    seq_play_to(0, 3);
+    half = step_samples(t, div_period((uint32_t)t->p[P_SDIV], t->seq_rem), t->seq_cnt) / 2u;
+    for (k = 0; k < 400u && t->seq_pos <= half; k++)  /* the block that passes step 4's middle has just run */
+        ui_frame();
+    keys(1u << 7 | 1u << 11);                        /* E4 over it in the next block */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    seq_play_to(0, 6);
+    check("KEYS live record: a legato key in the block that passes the middle: TIE + SLIDE on step 4, E4 on step 5",
+          t->step[2].on && t->step[2].nt == 0 && t->step[3].tie && t->step[3].slide && t->step[4].on &&
+          t->step[4].nt == 4);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review fix: a note held longer than LEN stops recording at the phrase's start: its TIEs never reach the step the key
+ * wrote (it stays ON with its note); a later legato note does not move that start */
+static void test_keys_live_rec_long_hold(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, ok = 1;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 4;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 1);                               /* step 2 just started */
+    keys(1u << 7);                                   /* C4 on step 2 */
+    ui_frame();
+    seq_play_to(0, 3);
+    seq_play_to(0, 1);                               /* across the wrap */
+    seq_play_to(0, 3);                               /* held through 5 steps' middles */
+    keys(0);
+    ui_frame();
+    for (k = 0; k < 4u; k++)
+        ok &= k == 1u || (t->step[k].tie && !t->step[k].on && t->step[k].nt == 0);
+    check("KEYS live record, held longer than LEN: the start step stays ON with its note (C4), TIEs on the others",
+          t->step[1].on && !t->step[1].tie && t->step[1].nt == 0 && ok);
+    transport_req = 2;
+    ui_frame();
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 4;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 1);
+    keys(1u << 7);                                   /* C4 on step 2 */
+    ui_frame();
+    seq_play_to(0, 3);                               /* TIE on step 3 */
+    keys(1u << 7 | 1u << 11);                        /* E4 over it on step 4: legato */
+    ui_frame();
+    keys(1u << 11);
+    ui_frame();
+    seq_play_to(0, 1);
+    seq_play_to(0, 3);                               /* E4 held round to the phrase's start and past it */
+    keys(0);
+    ui_frame();
+    check("KEYS live record, a legato note held round the loop: the phrase's start (C4) kept, step 3 TIE + SLIDE kept",
+          t->step[1].on && !t->step[1].tie && t->step[1].nt == 0 && t->step[2].tie && t->step[2].slide &&
+          t->step[2].nt == 0 && t->step[3].on && t->step[3].nt == 4 && t->step[0].tie && t->step[0].nt == 4);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* Review fix: a step held through becomes a plain TIE: its PROB, RATCH, ACC (and SLIDE) cleared, as rec_hit's step */
+static void test_keys_live_rec_tie_clean(void)
+{
+    track_t *t = &trk[0];
+    step_t *s = &t->step[3];
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    s->on = 1;
+    s->acc = 1;
+    s->slide = 1;
+    s->cond = 5;
+    s->rat = 2;
+    s->nt = -7;
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 2);
+    keys(1u << 7);                                   /* C4 on step 3, held through step 4 */
+    ui_frame();
+    seq_play_to(0, 4);
+    keys(0);
+    ui_frame();
+    check("KEYS live record: a step held through is a plain TIE (no ACC, PROB, RATCH, SLIDE; the held note)",
+          s->tie && !s->on && !s->acc && !s->slide && s->cond == 0 && s->rat == 0 && s->nt == 0);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* a drum track records ON + NOTE only: holding its key writes no TIE */
+static void test_keys_live_rec_drum(void)
+{
+    track_t *t = &trk[0];
+    ui_host_init();
+    memset(t->step, 0, sizeof t->step);
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 2);
+    keys(1u << 9);                                   /* D4, held into step 6 */
+    ui_frame();
+    seq_play_to(0, 5);
+    keys(0);
+    ui_frame();
+    check("KEYS live record, a drum: ON + NOTE (D4: nt +2) on the nearest step, no TIE on the steps held through",
+          t->step[2].on && t->step[2].nt == 2 && !t->step[3].tie && !t->step[3].on && !t->step[4].tie &&
+          !t->step[4].on);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* spec §2: a step the grid keys turn on gets the track's last played / recorded note (C4 at first); a TIE step turned
+ * on plays (its TIE cleared) */
+static void test_step_key_note(void)
+{
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    open_step_page();
+    grid_hold(WHITE[0], 0);
+    check("grid: a new step, nothing played yet: C4", t->step[0].on && t->step[0].nt == 0);
+    tap(B_SCL);                                      /* KEYS: F4 played */
+    keys(1u << 12);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    tap(B_SCL);
+    check("KEYS: the track's last key note kept (F4, nt +5)", t->key_nt == 5);
+    grid_hold(WHITE[1], 0);
+    check("grid: a new step gets the track's last key note (F4)", t->step[1].on && t->step[1].nt == 5);
+    t->step[2].tie = 1;
+    t->step[2].nt = -3;
+    grid_hold(WHITE[2], 0);
+    check("grid: a TIE step turned on plays: ON, TIE cleared, the last key note", t->step[2].on && !t->step[2].tie &&
+          t->step[2].nt == 5);
+    t->step[3].tie = 1;
+    grid_hold(WHITE[3], 600);
+    check("grid: a TIE step held into an accent: ON + ACC, TIE cleared", t->step[3].on && t->step[3].acc &&
+          !t->step[3].tie && t->step[3].nt == 5);
+}
+
+/* bug 2026-10-10 (user: "ACID only"): the last KEYS note goes to the steps the grid keys turn on only on a gated
+ * (ACID) track; on a drum the new step is C4 (tap, hold, hold + knob) */
+static void test_step_key_note_drum(void)
+{
+    track_t *t;
+    uint32_t pass;
+    for (pass = 0; pass < 2u; pass++) {              /* 0: a drum (the kick), 1: ACID */
+        int8_t want;
+        ui_host_init();
+        t = TSEL;
+        if (pass)
+            drum_set_model(t, DM_ACID);
+        memset(t->step, 0, sizeof t->step);
+        tap(B_SCL);                                  /* KEYS: D4 played */
+        keys(1u << 9);
+        ui_frame();
+        keys(0);
+        ui_frame();
+        tap(B_SCL);
+        open_step_page();
+        grid_hold(WHITE[0], 0);                      /* tap */
+        grid_hold(WHITE[1], 600);                    /* hold: an accent */
+        grid_hold_turn(WHITE[2], 0, -2);             /* hold + KNOB 1 */
+        keys(0);
+        ui_frame();
+        want = pass ? 2 : 0;
+        check(pass ? "ACID: a step the grid keys turn on (tap, hold, hold + knob) gets the last KEYS note (D4)"
+                   : "drum: a step the grid keys turn on (tap, hold, hold + knob) is C4 after KEYS played D4",
+              t->step[0].on && t->step[1].on && t->step[2].on && t->step[0].nt == want && t->step[1].nt == want &&
+                  t->step[2].nt == want);
+    }
+}
+
+/* bug 2026-10-10: no last KEYS note carries over a LOAD or a cleared pattern */
+static void test_key_note_reset(void)
+{
+    uint32_t k, ok = 1;
+    ui_host_init();
+    project_save(0);
+    for (k = 0; k < NTRK; k++)
+        trk[k].key_nt = 5;
+    project_load(0);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].key_nt == 0;
+    check("LOAD: every track's last KEYS note back to C4", ok);
+    trk[2].key_nt = 5;
+    track_clear(&trk[2]);
+    check("a track's pattern cleared (CLEAR TRACK, CLR PATTERN): its last KEYS note back to C4", trk[2].key_nt == 0);
+    for (k = 0; k < NTRK; k++)
+        trk[k].key_nt = 5;
+    seq_clear_all();
+    for (ok = 1, k = 0; k < NTRK; k++)
+        ok &= trk[k].key_nt == 0;
+    check("CLR*: every track's last KEYS note back to C4", ok);
+}
+
+/* bug 2026-10-10: live record of a drum key (or MIDI) writes the step's NOTE as C4 (the hit sounded at C4): a NOTE
+ * left on an off step (a step-record REST, TIME -> REST) does not come back */
+static void test_rec_hit_drum_note(void)
+{
+    track_t *t = &trk[0];
+    ui_host_init();
+    memset(t->step, 0, sizeof t->step);
+    t->step[3].nt = 7;                               /* off, a NOTE left on it */
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 3);
+    keys(1u << 0);                                   /* F3: track 1's key (HOME, KEYS off) */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("drum live record onto a step holding a NOTE: ON at C4", t->step[3].on && t->step[3].nt == 0);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* ---- ACID plan B: step record (spec §6) */
+static void srec_open(void)                          /* ACID on track 1, KEYS, STEP, stopped; a REC tap: step record */
+{
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    memset(TSEL->step, 0, sizeof TSEL->step);
+    tap(B_SCL);
+    seq_open("STEP");
+    tap(B_REC);
+}
+static void srec_turn(uint32_t knob, int32_t d)      /* one detent, 0.1 s after the last (no acceleration) */
+{
+    turn(EN_K1 + knob, d);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+}
+
+static void test_srec_keys(void)
+{
+    char b[16];
+    track_t *t;
+    srec_open();
+    t = TSEL;
+    check("step record: a REC tap on STEP (KEYS, stopped) starts it at step 1: STEP REC 01, REC lit, still STEP, nothing armed",
+          ui.srec && ui.sr_cur == 0u && head_mode(b) && str_eq(b, "STEP REC 01") && led_on(panel.btn[B_REC]) &&
+          !ui.home && cur_page()->scope == SC_GRID && song.rec == 0u);
+    keys(1u << 7);                                   /* C4 */
+    ui_frame();
+    check("step record: a key writes its note to the cursor step (ON, C4), the cursor waits for its release",
+          t->step[0].on && !t->step[0].tie && t->step[0].nt == 0 && ui.sr_cur == 0u);
+    keys(0);
+    ui_frame();
+    check("step record: let go: the cursor moves on (STEP REC 02)", ui.sr_cur == 1u && head_mode(b) &&
+          str_eq(b, "STEP REC 02"));
+    keys(1u << 9);                                   /* D4 */
+    ui_frame();
+    keys(1u << 9 | 1u << 11);                        /* E4 before D4 is let go */
+    ui_frame();
+    check("step record: a key before the last one is let go: SLIDE on that step, the new note on the next",
+          t->step[1].nt == 2 && t->step[1].slide && t->step[2].on && t->step[2].nt == 4 && !t->step[2].slide &&
+          ui.sr_cur == 2u);
+    keys(1u << 9);                                   /* E4 (the cursor's) let go */
+    ui_frame();
+    keys(0);                                         /* D4 let go */
+    ui_frame();
+    check("step record: the cursor's key let go moves it on, the earlier one does nothing", ui.sr_cur == 3u);
+    tap(B_OCTUP);
+    keys(1u << 7);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("step record: OCT+ (KEYS): C5 on step 4, the track's last note C5", t->step[3].on && t->step[3].nt == 12 &&
+          ui.sr_cur == 4u && song.octave == 1 && t->key_nt == 12);
+}
+
+static void test_srec_knobs(void)
+{
+    track_t *t;
+    srec_open();
+    t = TSEL;
+    t->step[2].on = 1;
+    srec_turn(0, 1);
+    srec_turn(0, 1);
+    check("step record: KNOB 1 moves the cursor (step 3)", ui.sr_cur == 2u);
+    srec_turn(1, 1);
+    srec_turn(1, 1);
+    srec_turn(1, 1);
+    check("step record: KNOB 2 the cursor step's NOTE (+3: D#4)", t->step[2].nt == 3);
+    srec_turn(2, 1);
+    check("step record: KNOB 3 TIME: NOTE -> TIE", !t->step[2].on && t->step[2].tie);
+    srec_turn(2, 1);
+    check("step record: TIME: TIE -> REST", !t->step[2].on && !t->step[2].tie);
+    srec_turn(2, 1);
+    check("step record: TIME: REST is the end", !t->step[2].on && !t->step[2].tie);
+    srec_turn(2, -1);
+    srec_turn(2, -1);
+    check("step record: TIME: back to NOTE", t->step[2].on && !t->step[2].tie);
+    srec_turn(3, 1);
+    check("step record: KNOB 4 FLAG: - -> ACC", t->step[2].acc && !t->step[2].slide);
+    srec_turn(3, 1);
+    check("step record: FLAG: ACC -> SLD", !t->step[2].acc && t->step[2].slide);
+    srec_turn(3, 1);
+    check("step record: FLAG: SLD -> A+S", t->step[2].acc && t->step[2].slide);
+    srec_turn(3, -1);
+    srec_turn(3, -1);
+    srec_turn(3, -1);
+    check("step record: FLAG: back to -", !t->step[2].acc && !t->step[2].slide);
+    tap(B_EDIT);
+    check("step record: an EDIT tap writes a rest and moves on (no SOUND page)", !t->step[2].on && !t->step[2].tie &&
+          ui.sr_cur == 3u && ui.srec && cur_page()->scope == SC_GRID);
+    keys(1u << 7);                                   /* C4 on step 4, held ... */
+    ui_frame();
+    srec_turn(0, -1);                                /* ... while KNOB 1 moves the cursor back */
+    keys(0);
+    ui_frame();
+    check("step record: a key let go after KNOB 1 moved the cursor moves it no further", ui.sr_cur == 2u &&
+          t->step[3].on && t->step[3].nt == 0);
+}
+
+/* Review Focus 5: every way out ends step record; nothing is written after it */
+static void test_srec_exits(void)
+{
+    track_t *t;
+    uint32_t i;
+    srec_open();
+    tap(B_REC);
+    check("step record ends: a REC tap (STEP stays, TRACKS not opened, nothing armed)", !ui.srec &&
+          cur_page()->scope == SC_GRID && song.rec == 0u);
+    srec_open();
+    press(B_PLAY);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("step record ends: PLAY (the transport starts)", !ui.srec && song.playing);
+    srec_open();
+    press(B_SEQ);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("step record ends: leaving the page (SEQ: PATTERN)", !ui.srec && cur_page()->graph == GR_STEPS);
+    srec_open();
+    tap(B_HOME);
+    check("step record ends: HOME", !ui.srec && ui.home);
+    srec_open();
+    tap(B_SCL);
+    check("step record ends: KEYS off", !ui.srec && !ui.keys);
+    srec_open();
+    turn(EN_ALGO, 1);
+    ui_frame();
+    check("step record ends: another track", !ui.srec && song.sel == 1);
+    srec_open();
+    transport_req = 1;                               /* as a MIDI Start or a song would */
+    ui_frame();
+    ui_frame();
+    check("step record ends: the transport started elsewhere", !ui.srec && song.playing);
+    srec_open();
+    t = TSEL;
+    keys(1u << 7);                                   /* C4 held ... */
+    ui_frame();
+    tap(B_REC);                                      /* ... over the end */
+    keys(0);
+    ui_frame();
+    keys(1u << 9);                                   /* a key after the end */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("step record: after its end no key writes a step (only C4 on step 1)", !ui.srec && t->step[0].on &&
+          t->step[0].nt == 0 && !t->step[1].on && !t->step[1].tie);
+    srec_open();
+    for (i = 0; i < 1000u && !ui.menu; i++) {        /* HOME held: the menu */
+        fm1_in.buttons |= 1u << panel.btn[B_HOME];
+        ui_frame();
+    }
+    release_all();
+    ui_frame();
+    check("step record ends: the menu opened (REC dark under it)", ui.menu && !ui.srec && !led_on(panel.btn[B_REC]));
+    menu_close();
+    ui_frame();
+    srec_open();
+    press(B_FX);
+    fx_hold_frames(500);                             /* PERFORM's layer: its keys, its knobs */
+    check("step record ends: FX held (PERFORM's layer)", ui.layer && !ui.srec);
+    release_all();
+    ui_frame();
+    check("step record: FX let go: still off, still STEP", !ui.srec && cur_page()->scope == SC_GRID);
+    srec_open();
+    name_open(NK_RENAME, 0);
+    ui_frame();
+    check("step record ends: NAME", !ui.srec);
+    name_close();
+    ui_frame();
+    ui_host_init();
+    seq_open("STEP");
+    tap(B_REC);
+    check("KEYS off: a REC tap on STEP opens TRACKS (as before)", !ui.srec && mix_mode());
+    ui_host_init();
+    tap(B_SCL);
+    seq_open("STEP");
+    transport_req = 1;
+    ui_frame();
+    tap(B_REC);
+    check("KEYS on, playing: a REC tap on STEP opens TRACKS (as before)", !ui.srec && mix_mode());
+    transport_req = 2;
+    ui_frame();
+}
+
+/* ---- ACID plan B: the display (spec §7) */
+static uint16_t gpx(int32_t x, int32_t gy)          /* the screen pixel at x, graph row gy */
+{
+    return fb[(uint32_t)(Y_GRAPH + G_OY + gy) * 240u + (uint32_t)x];
+}
+static void acid_line(track_t *t)                    /* C4 ACC, D4 SLIDE, E4, TIE, G4 RATCH 2, a rest */
+{
+    memset(t->step, 0, sizeof t->step);
+    t->step[0].on = 1;
+    t->step[0].acc = 1;
+    t->step[1].on = 1;
+    t->step[1].nt = 2;
+    t->step[1].slide = 1;
+    t->step[2].on = 1;
+    t->step[2].nt = 4;
+    t->step[3].tie = 1;
+    t->step[4].on = 1;
+    t->step[4].nt = 7;
+    t->step[4].rat = 1;
+}
+
+static void test_roll_draw(void)
+{
+    int32_t x, k, yc, yd, ye, yg, xx, yy, ok = 1, amb = 0, rest = 0, lab = 0;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    seq_open("STEP");
+    ui.force = 1;
+    ui_frame();
+    yc = pr_row_y(60);
+    yd = pr_row_y(62);
+    ye = pr_row_y(64);
+    yg = pr_row_y(67);
+    check("roll: an ACID track's STEP page: the view holds the bank's notes (C4..G4)", proll.lo <= 60 &&
+          proll.lo + PR_ROWS > 67);
+    for (k = 0; k < PR_RH; k++)
+        ok &= gpx(PR_X0 + 4, yc + k) == C_WHITE;
+    check("roll: an accented note (C4) WHITE, its row's full height", ok);
+    x = PR_X0 + 2 * PR_CW + 4;
+    check("roll: a plain note (E4) a 2 px HI bar inside its row", gpx(x, ye + 1) == C_HI && gpx(x, ye + 2) == C_HI &&
+          gpx(x, ye) != C_HI && gpx(x, ye + 3) != C_HI);
+    check("roll: a TIE carries the note before through its column, across the step line",
+          gpx(PR_X0 + 3 * PR_CW, ye + 1) == C_HI && gpx(PR_X0 + 3 * PR_CW + 6, ye + 1) == C_HI);
+    x = PR_X0 + 4 * PR_CW + 2;
+    check("roll: RATCH 2 splits the bar in two, 1 px apart", gpx(x + 3, yg + 1) == C_HI && gpx(x + 4, yg + 1) != C_HI &&
+          gpx(x + 5, yg + 1) == C_HI);
+    for (xx = PR_X0 + PR_CW + 11; xx <= PR_X0 + PR_CW + 14; xx++)
+        for (yy = ye; yy <= yd + 2; yy++)
+            amb += gpx(xx, yy) == C_AMB;
+    check("roll: SLIDE an AMB line from D4's bar into E4", amb > 0);
+    for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
+        rest += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_HI || gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_WHITE;
+    check("roll: a rest is empty", rest == 0);
+    for (yy = yc - 6; yy < yc + 10; yy++)
+        for (xx = 0; xx < 20; xx++)
+            lab += gpx(xx, yy) != 0;
+    check("roll: the C row named on the left (C4)", lab > 10);
+}
+
+static void test_roll_follow(void)
+{
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->step[0].on = t->step[1].on = 1;
+    t->step[0].nt = 30;                              /* F#6, A#6 */
+    t->step[1].nt = 34;
+    seq_open("STEP");
+    ui_frame();
+    check("roll: the view follows the notes up (F#6, A#6 in view)", proll.lo <= 90 && proll.lo + PR_ROWS > 94);
+    t->step[0].nt = -30;                             /* F#1, A#1 */
+    t->step[1].nt = -26;
+    ui_frame();
+    check("roll: ... and down (F#1, A#1)", proll.lo <= 30 && proll.lo + PR_ROWS > 34);
+    t->step[0].nt = -40;                             /* G#0 .. E7: wider than the view */
+    t->step[1].nt = 40;
+    ui_frame();
+    check("roll: notes wider than the view, one each: the lowest window (G#0 on the bottom row), the other a mark on "
+          "the top edge", proll.lo == 20 && gpx(PR_X0 + PR_CW + 4, PR_Y0) == C_HI);
+}
+
+/* fix round 1: the roll's view (the coordinator's ruling): the 24-row window holding the most of the bank's sounding
+ * notes (a TIE counts its source's), the lowest of equals, kept while it holds as many as the best; step record
+ * shifts it only as far as the cursor's sounding note needs (a rest: nothing); neither the playhead nor a KEYS key
+ * moves it (a key outside: the strip's edge row lit) */
+static void roll_notes(track_t *t, const int8_t *nt, uint32_t n)   /* steps 1..n ON at C4 + nt; 99: a TIE, 100: a rest */
+{
+    uint32_t i;
+    memset(t->step, 0, sizeof t->step);
+    for (i = 0; i < n; i++) {
+        t->step[i].tie = nt[i] == 99;
+        t->step[i].on = nt[i] < 99;
+        t->step[i].nt = (int8_t)(nt[i] < 99 ? nt[i] : 0);
+    }
+}
+static void roll_open(track_t *t)                    /* STEP on an ACID track, the view chosen afresh */
+{
+    proll.trk = 0;
+    seq_open("STEP");
+    ui.force = 1;
+    ui_frame();
+    (void)t;
+}
+
+static void test_roll_view_most(void)
+{
+    static const int8_t L[11] = {-24, 0, 2, 3, 5, 7, 10, -24, 28, 99, 100};   /* C2 x2, C4..A#4 (6), E6 + its TIE */
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 11);
+    roll_open(t);
+    check("roll view: a line wider than 24 rows: the window holding the most notes (C4 up: 6; C2 up 2, D4 up 5)",
+          proll.lo == 60);
+    t->step[11].on = t->step[12].on = 1;             /* C#6, C6: D4 up and F4 up now hold 7, C4 up 6 */
+    t->step[11].nt = 25;
+    t->step[12].nt = 24;
+    ui_frame();
+    check("roll view: ... notes added: the window moves to the lowest holding the most (D4 up)", proll.lo == 62);
+    t->step[11].on = 0;                              /* C#6 gone: C4 up, D4 up, F4 up hold 6 each */
+    t->step[11].nt = 0;
+    ui_frame();
+    check("roll view: ... one removed: C4 up holds as many as D4 up: the view stays (no jump)", proll.lo == 62);
+    roll_open(t);
+    check("roll view: ... opened afresh: the lowest of the equal windows (C4 up)", proll.lo == 60);
+}
+
+static void test_roll_view_low_note(void)
+{
+    static const int8_t L[8] = {12, 14, 15, 17, 19, -24, 15, 12};   /* a riff at C5..G5, one C2 under it */
+    track_t *t;
+    int32_t yy, edge = 0;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 8);
+    roll_open(t);
+    for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
+        edge += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_HI;
+    check("roll view: one low note under a high riff: the riff stays in view (C5 on the bottom row)", proll.lo == 72);
+    check("roll view: ... the low note a 1 px mark on the bottom edge",
+          edge == 1 && gpx(PR_X0 + 5 * PR_CW + 4, PR_Y0 + PR_ROWS * PR_RH - 1) == C_HI);
+}
+
+static void test_roll_view_srec(void)
+{
+    static const int8_t L[8] = {0, 2, 4, 5, 7, 36, 100, 7};   /* C4 D4 E4 F4 G4, C7, a rest, G4 */
+    track_t *t;
+    uint32_t lo0;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 8);
+    tap(B_SCL);
+    roll_open(t);
+    lo0 = proll.lo;
+    tap(B_REC);
+    ui_frame();
+    check("roll view, step record: the cursor's note (C4) in the view: no move", ui.srec && ui.sr_cur == 0u &&
+          proll.lo == lo0 && lo0 == 60u);
+    turn(EN_K1, 4);
+    ui_frame();
+    check("roll view, step record: ... G4 still in it: no move", ui.sr_cur == 4u && proll.lo == lo0);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("roll view, step record: ... C7 out of it: the view moves only as far as C7 needs (C7 the top row)",
+          ui.sr_cur == 5u && proll.lo == 96u - PR_ROWS + 1u);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("roll view, step record: ... a rest moves nothing", ui.sr_cur == 6u && proll.lo == 96u - PR_ROWS + 1u);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("roll view, step record: ... G4 out of it again: back to the best window, G4 in it", ui.sr_cur == 7u &&
+          proll.lo == lo0);
+    tap(B_REC);
+    tap(B_SCL);
+    ui_frame();
+}
+
+static void test_roll_view_key_out(void)
+{
+    track_t *t;
+    uint32_t lo0;
+    int32_t ybot = PR_Y0 + (PR_ROWS - 1) * PR_RH;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    acid_line(t);
+    tap(B_SCL);
+    roll_open(t);
+    lo0 = proll.lo;
+    keys(1u << 0);                                   /* F3: under the view (C4 up) */
+    ui_frame();
+    ui_frame();                                      /* (the key sounds in the frame's audio, the graph shows it next) */
+    check("roll view: a KEYS key under the view: the view stays, the strip's bottom row lit",
+          kz.key && proll.lo == lo0 && lo0 == 60u && gpx(PR_KX + 1, ybot) == C_WHITE && gpx(PR_KX + 1, PR_Y0) != C_WHITE);
+    keys(0);
+    ui_frame();
+    ui_frame();
+    check("roll view: ... let go: the bottom row back to its key", gpx(PR_KX + 1, ybot) != C_WHITE);
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    keys(1u << 26);                                  /* G7 (two octaves up): over the view */
+    ui_frame();
+    ui_frame();
+    check("roll view: a KEYS key over the view: the strip's top row lit, the view stays",
+          kz.key && proll.lo == lo0 && gpx(PR_KX + 1, PR_Y0) == C_WHITE && gpx(PR_KX + 1, ybot) != C_WHITE);
+    keys(0);
+    tap(B_OCTDN);
+    tap(B_OCTDN);
+    tap(B_SCL);
+    ui_frame();
+}
+
+static void test_roll_view_idle(void)
+{
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    roll_open(TSEL);
+    ui_frame();
+    proll.lo = 3;                                    /* a mark: an idle frame does not choose the view again */
+    ui_frame();
+    ui_frame();
+    check("roll view: chosen only when the graph changes, not every idle frame", proll.lo == 3);
+    TSEL->step[5].on = 1;
+    ui_frame();
+    check("roll view: ... a step changed: chosen again", proll.lo == 60);
+}
+
+static void test_roll_label_slide_edges(void)
+{
+    static const int8_t L[16] = {-60, -58, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, -58};
+    track_t *t;
+    int32_t xx, yy, lit0 = 0, whole = 0, amb = 0, yc;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    roll_notes(t, L, 16);
+    t->step[15].slide = 1;                           /* step 16 slides into step 1 (the wrap) */
+    roll_open(t);
+    yc = pr_row_y(0);
+    for (yy = yc - 6; yy < H_GRAPH - G_OY; yy++)    /* the label: from its row's y - 6 down */
+        for (xx = 0; xx < PR_KX; xx++)
+            lit0 += gpx(xx, yy) != 0;
+    cv_begin(240, 40, C_BLACK);                      /* the label whole, for reference */
+    cv_text(0, 0, &FONT_S, "C-1", C_GRAY);
+    for (yy = 0; yy < 40 * 240; yy++)
+        whole += cv_px[yy] != 0 && yy % 240 < PR_KX;
+    ui.force = 1;
+    ui_frame();
+    check("roll: C-1 (NOTE 0) on the bottom row, its label whole (from x 0, not clipped)", proll.lo == 0u &&
+          PR_KX - 2 - text_w(&FONT_S, "C-1") < 0 && whole > 20 && lit0 == whole);
+    for (yy = PR_Y0 - 2; yy < PR_Y0 + PR_ROWS * PR_RH + 2; yy++)
+        for (xx = PR_X0 + 16 * PR_CW + 1; xx < 240; xx++)
+            amb += gpx(xx, yy) == C_AMB;
+    check("roll: a slide out of the bank's last column stays inside the grid", amb == 0);
+}
+
+/* the footer reads the steps the roll and the grid show: a song's row while a song runs */
+static void test_foot_note_song(void)
+{
+    static step_t row[NSTEP];
+    const step_t *keep;
+    char b[16];
+    track_t *t;
+    ui_host_init();
+    t = TSEL;
+    memset(t->step, 0, sizeof t->step);
+    t->step[3].on = 1;                               /* the track's own step 4: C4 */
+    memset(row, 0, sizeof row);
+    row[3].on = 1;                                   /* the song row's step 4: F4 SLD */
+    row[3].nt = 5;
+    row[3].slide = 1;
+    keep = chain.src[0].step[0];
+    chain.src[0].step[0] = row;
+    chain.slot = 0;
+    chain.running = 1;
+    ui.srec = 1;
+    ui.sr_cur = 3;
+    check("footer: in a song, the row's step (as the roll / grid show it): F4 SLD", foot_note(b) && str_eq(b, "F4 SLD"));
+    ui.srec = 0;
+    chain.running = 0;
+    chain.src[0].step[0] = keep;
+    check("footer: ... no song: the track's own (no note shown without step record or a held step)", !foot_note(b));
+}
+
+static void test_roll_cursor_playhead(void)
+{
+    int32_t x;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    tap(B_SCL);
+    seq_open("STEP");
+    tap(B_REC);
+    turn(EN_K1, 2);
+    ui_frame();
+    x = PR_X0 + 2 * PR_CW;
+    check("roll: step record's cursor framed WHITE (step 3)", ui.srec && gpx(x + 5, PR_Y0 - 2) == C_WHITE &&
+          gpx(x, 50) == C_WHITE && gpx(x + PR_CW, 50) == C_WHITE);
+    tap(B_REC);
+    transport_req = 1;
+    seq_play_to(0, 4);
+    ui_frame();
+    x = PR_X0 + 4 * PR_CW;
+    check("roll: the playhead a 1 px WHITE line through the playing step (5)", gpx(x + 6, PR_Y0 + 1) == C_WHITE &&
+          gpx(x + 5, PR_Y0 + 1) != C_WHITE);
+    transport_req = 2;
+    ui_frame();
+}
+
+static uint32_t foot_lit(void)                       /* lit pixels where the footer's note goes (x 80..167) */
+{
+    uint32_t n = 0, x, y;
+    for (y = Y_FOOT + 20u; y < Y_FOOT + 36u; y++)
+        for (x = 80u; x < 168u; x++)
+            n += fb[y * 240u + x] != 0;
+    return n;
+}
+
+/* the footer: the step held on the grid, or step record's cursor step: its note, + ACC SLD, or TIE; a drum's grid
+ * shows step record's cursor framed */
+static void test_foot_note(void)
+{
+    char b[16];
+    uint32_t ms;
+    track_t *t;
+    ui_host_init();
+    t = TSEL;                                        /* track 1, a drum */
+    t->key_nt = 1;
+    open_step_page();
+    keys(1u << WHITE[1]);
+    ui_frame();
+    check("footer: a step held on the grid shows its note (a drum's new step: C4, not the last key note)",
+          foot_note(b) && str_eq(b, "C4") && foot_lit() > 0u);
+    for (ms = 0; ms < 500u; ms += 50u) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+    check("footer: held into its accent: C4 ACC", foot_note(b) && str_eq(b, "C4 ACC"));
+    keys(0);
+    ui_frame();
+    check("footer: nothing held: no note", !foot_note(b) && !b[0] && foot_lit() == 0u);
+    t->step[1].nt = 1;                               /* C#4 (as KEYS record writes it) */
+    t->step[2].tie = 1;
+    t->step[2].nt = -11;
+    t->step[3].on = 1;
+    t->step[3].slide = 1;
+    tap(B_SCL);
+    tap(B_REC);
+    turn(EN_K1, 2);
+    ui_frame();
+    check("footer: step record's cursor step, a TIE: the note it holds (step 2's C#4, not its own unused C#3)",
+          foot_note(b) && str_eq(b, "C#4 TIE"));
+    check("drum grid: step record's cursor framed WHITE (step 3)", gpx(4 + 2 * 14 - 2, 40) == C_WHITE);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("footer: ... a slide: C4 SLD", foot_note(b) && str_eq(b, "C4 SLD"));
+    tap(B_REC);
+}
+
+static void test_grid_transposed_mark(void)
+{
+    ui_host_init();
+    memset(TSEL->step, 0, sizeof TSEL->step);
+    TSEL->step[1].on = 1;
+    TSEL->step[1].nt = 3;
+    TSEL->step[2].on = 1;
+    open_step_page();
+    ui.force = 1;
+    ui_frame();
+    check("drum grid: a transposed step (NOTE != C4) a small AMB mark under its bar; a C4 step none",
+          gpx(4 + 14 + 4, 30 + 42) == C_AMB && gpx(4 + 2 * 14 + 4, 30 + 42) != C_AMB);
+}
+
+static int32_t acid_peak_x(void)                    /* the leftmost lit x (100..235) above the 0 dB line; -1 none */
+{
+    uint32_t x, y;
+    for (x = 100u; x < 236u; x++)
+        for (y = Y_GRAPH + G_OY + 2u; y < Y_GRAPH + G_OY + ACID_GY; y++)
+            if (fb[y * 240u + x])
+                return (int32_t)x;
+    return -1;
+}
+static uint32_t acid_hi(uint32_t y0, uint32_t y1)   /* HI pixels at x 110..235 (past the first 10 px) of graph rows
+                                                     * y0..y1 */
+{
+    uint32_t n = 0, x, y;
+    for (y = Y_GRAPH + G_OY + y0; y < Y_GRAPH + G_OY + y1; y++)
+        for (x = 110u; x < 236u; x++)
+            n += fb[y * 240u + x] == C_HI;
+    return n;
+}
+static void test_acid_edit_graph(void)
+{
+    uint32_t k, flat, peak, shortd, longd;
+    int32_t x40, x100;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    TSEL->p[P_E0 + 4] = 0;                           /* ENVMD 0: no reach line */
+    TSEL->p[P_E0 + 3] = 0;
+    ui.force = 1;
+    ui_frame();
+    flat = fm_graph_area(G_OY + 2u, G_OY + ACID_GY);
+    TSEL->p[P_E0 + 3] = 127;
+    ui_frame();
+    peak = fm_graph_area(G_OY + 2u, G_OY + ACID_GY);
+    check("ACID graph: RESO 0 nothing over 0 dB, RESO 127 a peak at the cutoff", flat == 0u && peak > 0u);
+    TSEL->p[P_E0 + 2] = 40;
+    ui_frame();
+    x40 = acid_peak_x();
+    TSEL->p[P_E0 + 2] = 100;
+    ui_frame();
+    x100 = acid_peak_x();
+    check("ACID graph: the peak follows CUTOF (40 -> 100: right)", x40 > 0 && x100 > x40 + 40);
+    TSEL->p[P_E0 + 1] = 0;
+    ui_frame();
+    shortd = acid_hi(ACID_EY, ACID_EY + 18u);
+    TSEL->p[P_E0 + 1] = 127;
+    ui_frame();
+    longd = acid_hi(ACID_EY, ACID_EY + 18u);
+    check("ACID graph: the filter envelope falls over DECAY (30 ms: down within 10 px; 3 s: still in the upper half)",
+          shortd == 0u && longd > 20u);
+}
+
+static void test_roll_frame_cost(void)
+{
+    uint64_t i0 = 0, worst = 0, c;
+    uint32_t i;
+    ui_host_init();
+    drum_set_model(TSEL, DM_ACID);
+    acid_line(TSEL);
+    seq_open("STEP");
+    transport_req = 1;
+    for (i = 0; i < 400u; i++) {
+        ui.force = i % 50u == 0u;
+        i0 = instr_now();
+        ui_input();
+        ui_leds();
+        ui_draw();
+        c = instr_now() - i0;
+        worst = c > worst ? c : worst;
+        render_mix(0, 0, CTL);
+    }
+    printf("     ui: heaviest frame %llu host instructions (STEP, the ACID piano roll, playing)\n",
+           (unsigned long long)worst);
+    check("ui frame cost, the piano roll: under 4,000,000 host instructions (as every page)", !i0 || worst < 4000000u);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* ---- ACID plan B: the final review's fixes */
+static uint32_t pr_bar_lit(int32_t x, int32_t y)    /* a plain bar's pixels lit (of its 9 x 2: graph_roll's pr_bar) */
+{
+    uint32_t n = 0;
+    int32_t xx, yy;
+    for (yy = y + 1; yy < y + PR_RH - 1; yy++)
+        for (xx = x; xx < x + 9; xx++)
+            n += gpx(xx, yy) != C_BLACK;
+    return n;
+}
+
+/* final review 1: an ACID track's STEP page (the roll), KEYS off: a held step's line (STEP n  PROB  RATCH n) in the band
+ * above the roll (screen y 74..97), gone when let go; a PROB bar hatched */
+static void test_roll_held_prob(void)
+{
+    track_t *t = TSEL;
+    uint32_t k, band0, band1, band2, lit0, lit1;
+    int32_t y;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    for (k = 0; k < 16u; k += 2u) {
+        t->step[k].on = 1;
+        t->step[k].nt = (int8_t)(k % 5u);
+    }
+    seq_open("STEP");
+    ui.force = 1;
+    ui_frame();
+    y = pr_row_y(62);                                /* step 3: D4 */
+    band0 = fb_lit(Y_GRAPH, Y_GRAPH + G_OY);
+    lit0 = pr_bar_lit(PR_X0 + 2 * PR_CW + 2, y);
+    keys(1u << STEP_KEY[2]);                         /* step 3 held ... */
+    ui_frame();
+    band1 = fb_lit(Y_GRAPH, Y_GRAPH + G_OY);
+    for (k = 0; k < 3u; k++)                         /* ... KNOB 1: its PROB */
+        srec_turn(0, -1);
+    lit1 = pr_bar_lit(PR_X0 + 2 * PR_CW + 2, y);
+    check("roll, KEYS off: KNOB 1 with step 3 held sets its PROB", t->step[2].cond != 0u);
+    check("roll: nothing held: the band above the roll empty", band0 == 0u);
+    check("roll: a step held: its line (STEP 3  100%  RATCH 1) in the band above the roll", band1 > 40u);
+    check("roll: a plain bar whole (9 x 2 px)", lit0 == 18u);
+    check("roll: a PROB bar hatched (some of its pixels dark)", lit1 > 4u && lit1 < 18u);
+    keys(0);
+    ui_frame();
+    band2 = fb_lit(Y_GRAPH, Y_GRAPH + G_OY);
+    check("roll: the step let go: the band cleared", band2 == 0u);
+    t->step[2].cond = 0;
+}
+
+/* final review 2: KEYS off, armed: a hit recorded onto a TIE step plays (on, no TIE: acid_step reads TIE first) */
+static void test_rec_hit_on_tie(void)
+{
+    track_t *t = &trk[0];
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->step[3].tie = 1;
+    t->step[3].nt = 7;
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 3);
+    keys(1u << 0);                                   /* F3: track 1's key (HOME, KEYS off) */
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("live record onto a TIE step: ON, the TIE cleared", t->step[3].on && !t->step[3].tie);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* final review 3: LEN cut under a recording key's phrase start (8 -> 4, the key from step 7): the recording ends, the
+ * loop's notes stay (no TIEs round and round) */
+static void test_keys_live_rec_len_cut(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k, ok = 1;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->p[P_SLEN] = 8;
+    for (k = 0; k < 4u; k++) {
+        t->step[k].on = 1;
+        t->step[k].nt = (int8_t)k;
+    }
+    tap(B_SCL);
+    song.rec = 1u;
+    transport_req = 1;
+    seq_play_to(0, 6);
+    keys(1u << 7);                                   /* C4 on step 7, held */
+    ui_frame();
+    t->p[P_SLEN] = 4;
+    for (k = 0; k < 1200u; k++)                      /* held over the 4 steps twice */
+        ui_frame();
+    keys(0);
+    ui_frame();
+    for (k = 0; k < 4u; k++)
+        ok &= t->step[k].on && !t->step[k].tie && t->step[k].nt == (int8_t)k;
+    check("KEYS live record: LEN cut under the held note's start: the loop's notes stay", ok);
+    check("KEYS live record: ... the key's own note on step 7", t->step[6].on && t->step[6].nt == 0);
+    t->p[P_SLEN] = 16;
+    transport_req = 2;
+    ui_frame();
+}
+
+/* final review 4: step record's EDIT rest clears the step's PROB RATCH ACC SLIDE (a later key: a plain note) */
+static void test_srec_rest_clears(void)
+{
+    track_t *t;
+    srec_open();
+    t = TSEL;
+    t->step[0].on = 1;
+    t->step[0].cond = 5;
+    t->step[0].rat = 2;
+    t->step[0].acc = 1;
+    t->step[0].slide = 1;
+    tap(B_EDIT);
+    check("step record: EDIT's rest clears PROB, RATCH, ACC, SLIDE", !t->step[0].on && !t->step[0].tie &&
+          !t->step[0].cond && !t->step[0].rat && !t->step[0].acc && !t->step[0].slide && ui.sr_cur == 1u);
+    srec_turn(0, -1);
+    keys(1u << 7);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("step record: a key on that rest: a plain note (no old PROB / RATCH)", t->step[0].on && !t->step[0].cond &&
+          !t->step[0].rat);
+    tap(B_REC);
+}
+
+/* final review 6: KEYS, STEP, a drum track: "REC: STEP RECORD" only where a REC tap starts it (stopped); playing (a REC
+ * tap opens TRACKS): KEYS alone */
+static uint32_t hint_lit(int32_t x0)               /* the STEP grid's hint row (graph y 84..95) lit from x0 */
+{
+    uint32_t n = 0;
+    int32_t x, y;
+    for (y = 84; y < 96; y++)
+        for (x = x0; x < 240; x++)
+            n += gpx(x, y) != C_BLACK;
+    return n;
+}
+static void test_keys_hint_playing(void)
+{
+    uint32_t stopped, playing;
+    int32_t x0;
+    ui_host_init();
+    tap(B_SCL);
+    seq_open("STEP");
+    ui.force = 1;
+    ui_frame();
+    x0 = text_w(&FONT_S, "KEYS") + 6;
+    stopped = hint_lit(x0);
+    transport_req = 1;
+    ui_frame();
+    ui_frame();
+    playing = hint_lit(x0);
+    check("KEYS, STEP, stopped: the hint names REC: STEP RECORD", stopped > 40u);
+    check("KEYS, STEP, playing: no REC: STEP RECORD (a REC tap opens TRACKS)", playing == 0u);
+    transport_req = 2;
+    ui_frame();
+    ui_frame();
+}
+
+/* final review 7: step record, two keys in one frame: one note, the highest (as the ISR sounds), no SLIDE */
+static void test_srec_chord(void)
+{
+    track_t *t;
+    srec_open();
+    t = TSEL;
+    keys(1u << 7 | 1u << 11);                        /* C4 + E4 at once */
+    ui_frame();
+    check("step record: a chord in one frame writes one step: the highest key (E4), no SLIDE",
+          t->step[0].on && t->step[0].nt == 4 && !t->step[0].slide && !t->step[1].on && ui.sr_cur == 0u);
+    keys(1u << 7);                                   /* E4 (the cursor's) let go */
+    ui_frame();
+    check("step record: ... its release moves the cursor on", ui.sr_cur == 1u);
+    keys(0);
+    ui_frame();
+    check("step record: ... the other key's release moves nothing", ui.sr_cur == 1u && !t->step[1].on);
+    tap(B_REC);
+}
+
+/* final review 8 (plan rulings: the sequencer and a key on one ACID voice): rests leave a key's gate open; an ON step
+ * takes the voice over (its gate counts); the sequencer's gate closes while the key is still held; the release then
+ * does nothing */
+static void test_keys_seq_takeover(void)
+{
+    track_t *t = &trk[0];
+    uint32_t age;
+    ui_host_init();
+    drum_set_model(t, DM_ACID);
+    memset(t->step, 0, sizeof t->step);
+    t->step[4].on = 1;                               /* one ON step (5: G4), rests elsewhere */
+    t->step[4].nt = 7;
+    tap(B_SCL);
+    transport_req = 1;
+    seq_play_to(0, 1);
+    keys(1u << 7);                                   /* C4 held */
+    ui_frame();
+    seq_play_to(0, 3);
+    check("KEYS + sequencer: rests leave the key's gate open", (t->v[0].x[2] & 1) && t->gate_n == 0u);
+    age = t->v[0].age;
+    seq_play_to(0, 4);
+    ui_frame();
+    check("KEYS + sequencer: an ON step takes the voice over: restarted (no glide from the key's note), G4, its gate counting",
+          t->v[0].age != age && t->v[0].x[1] == 67 * 16 && t->gate_n != 0u);
+    seq_play_to(0, 6);
+    check("KEYS + sequencer: the step's gate closes, the key still held", !(t->v[0].x[2] & 1));
+    keys(0);
+    ui_frame();
+    check("KEYS + sequencer: the key let go then: nothing (gate closed, nothing counting)",
+          !(t->v[0].x[2] & 1) && t->gate_n == 0u);
+    transport_req = 2;
+    ui_frame();
+}
+
+/* the screens, for the user's eye: build/ui_shots/acid/ */
+static void test_acid_screens(void)
+{
+    track_t *t;
+    uint32_t k;
+    ui_host_init();
+    t = TSEL;
+    drum_set_model(t, DM_ACID);
+    acid_line(t);
+    t->step[6].on = 1;
+    t->step[6].nt = -5;
+    t->step[7].on = 1;
+    t->step[7].nt = 7;
+    t->step[7].acc = 1;
+    t->step[7].slide = 1;
+    t->step[8].on = 1;
+    t->step[8].nt = 12;
+    t->step[9].tie = 1;
+    t->step[10].tie = 1;
+    t->step[12].on = 1;
+    t->step[12].nt = -12;
+    t->step[12].rat = 2;
+    t->step[14].on = 1;
+    t->step[14].nt = 3;
+    t->step[14].acc = 1;
+    tap(B_SCL);
+    snap_page("acid/01_home_keys_f3");
+    tap(B_OCTUP);
+    snap_page("acid/02_home_keys_f4");
+    tap(B_OCTDN);
+    seq_open("STEP");
+    snap_page("acid/03_roll");
+    keys(1u << 11);                                  /* E4 held: its row lit on the keyboard strip */
+    snap_page("acid/04_roll_key_held");
+    keys(0);
+    ui_frame();
+    tap(B_REC);                                      /* step record, the cursor on step 5 */
+    turn(EN_K1, 4);
+    snap_page("acid/05_step_rec_05");
+    tap(B_REC);
+    transport_req = 1;
+    seq_play_to(0, 7);
+    snap_page("acid/06_roll_play_step08");
+    seq_play_to(0, 12);
+    snap_page("acid/07_roll_play_step13");
+    transport_req = 2;
+    ui_frame();
+    tap(B_SCL);                                      /* KEYS off */
+    seq_select(1);                                   /* track 2, a drum: its transposed steps marked */
+    for (k = 0; k < 16u; k++) {
+        trk[1].step[k].on = k % 4u == 0u || k == 6u || k == 14u;
+        trk[1].step[k].nt = (int8_t)(k == 4u ? 5 : k == 6u ? -7 : k == 14u ? 12 : 0);
+    }
+    snap_page("acid/08_drum_grid_transposed");
+    trk[1].key_nt = 3;
+    keys(1u << WHITE[1]);                            /* step 2 held into its accent: the footer's note */
+    for (k = 0; k < 10u; k++) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+    snap_page("acid/09_footer_held_step");
+    keys(0);
+    ui_frame();
+    seq_select(0);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    snap_page("acid/10_edit_acid");
+    t->p[P_E0 + 3] = 127;
+    t->p[P_E0 + 2] = 70;
+    snap_page("acid/11_edit_acid_reso127");
+    t->p[P_E0 + 1] = 127;
+    t->p[P_E0 + 7] = 127;
+    snap_page("acid/12_edit_acid_decay_gate");
+    seq_select(1);                                   /* track 2, a drum, on STEP: KEYS on, then step record */
+    seq_open("STEP");
+    tap(B_SCL);
+    snap_page("acid/13_drum_grid_keys");
+    tap(B_REC);                                      /* the cursor on step 5 (F4, transposed): the footer's note */
+    turn(EN_K1, 4);
+    snap_page("acid/14_drum_grid_step_rec");
+    tap(B_REC);
+    seq_select(0);                                   /* the ACID roll: a KEYS key over the view */
+    seq_open("STEP");
+    tap(B_OCTUP);
+    tap(B_OCTUP);
+    keys(1u << 26);                                  /* G7 */
+    snap_page("acid/15_roll_key_over_view");
+    keys(0);
+    tap(B_OCTDN);
+    tap(B_OCTDN);
+    tap(B_SCL);
+    ui_frame();
+    t->step[8].cond = 3;                             /* KEYS off: C5 (tied) at PROB 10 %; step 5 (G4, RATCH 2) held, */
+    keys(1u << STEP_KEY[4]);                         /* KNOB 1: its PROB (85 %) */
+    ui_frame();
+    for (k = 0; k < 3u; k++)
+        srec_turn(0, -1);
+    snap_page("acid/16_roll_held_prob");
+    keys(0);
+    ui_frame();
+    t->step[8].cond = t->step[4].cond = 0;
+    printf("     acid: screens in build/ui_shots/acid\n");
+}
+
 int main(void)
 {
     test_safe_start();
@@ -3062,6 +4612,7 @@ int main(void)
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
     test_reson_pages();
+    test_acid_cap();
     test_preset_pages();
     test_global_mute_setting();
     test_comp_pages();
@@ -3109,10 +4660,51 @@ int main(void)
     test_filter_screens();
     test_initsnd_filter();
     test_perform_knobs_follow_screen();
+    test_perform_dead_knob();
     test_step_keys_everywhere();
     test_tracks_rec_mutes();
     test_fm_screens();
     test_fm_graph_clear();
+    test_keys_map_oct();
+    test_keys_acid_mono();
+    test_keys_release_anywhere();
+    test_keys_owners();
+    test_keys_oct_uboot();
+    test_keys_live_rec();
+    test_keys_live_rec_wrap();
+    test_keys_live_rec_mid_block();
+    test_keys_live_rec_long_hold();
+    test_keys_live_rec_tie_clean();
+    test_keys_live_rec_drum();
+    test_step_key_note();
+    test_step_key_note_drum();
+    test_key_note_reset();
+    test_rec_hit_drum_note();
+    test_srec_keys();
+    test_srec_knobs();
+    test_srec_exits();
+    test_roll_draw();
+    test_roll_follow();
+    test_roll_view_most();
+    test_roll_view_low_note();
+    test_roll_view_srec();
+    test_roll_view_key_out();
+    test_roll_view_idle();
+    test_roll_label_slide_edges();
+    test_foot_note_song();
+    test_roll_cursor_playhead();
+    test_foot_note();
+    test_grid_transposed_mark();
+    test_acid_edit_graph();
+    test_roll_frame_cost();
+    test_roll_held_prob();
+    test_rec_hit_on_tie();
+    test_keys_live_rec_len_cut();
+    test_srec_rest_clears();
+    test_keys_hint_playing();
+    test_srec_chord();
+    test_keys_seq_takeover();
+    test_acid_screens();
     test_boot_title();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

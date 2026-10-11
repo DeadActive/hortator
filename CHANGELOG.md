@@ -5,6 +5,44 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.16.0 - 2026-10-11
+
+- ACID: every step holds a note, SLIDE and TIE (format FDRB; older projects load and play as before, but projects
+  saved by this build can't be read by 0.15.0); drum tracks play their steps transposed; ACID, a 303-style bass voice
+  (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE), plays them with accent, slide and tie on up to two tracks ("ACID: 2
+  TRACKS MAX"). KEYS (an SCL tap): the keys play the selected track chromatically, OCT- / OCT+ the octave (-2 to +2;
+  LAYER from EDIT and the LFO pages' OCT buttons need KEYS off, the STEP bank stays on KNOB 1, TRACKS keeps OCT as its bank); KEYS notes
+  send no MIDI out; an ACID note (or a tied chain) over 5.5 s is cut. Live record (a REC tap on TRACKS arms the track,
+  and starts the transport when stopped): a key writes the nearest step, a held key TIEs the later steps, a legato
+  overlap SLIDEs (TIE / SLIDE on ACID tracks only). Step
+  record: KEYS on, STEP page, stopped, a REC tap (KNOB 1..4 STEP NOTE TIME FLAG, EDIT a rest; REC, PLAY or leaving
+  the page ends it). A loaded project keeps ACID on its first two ACID tracks, the others return as their power-on
+  kit drum. A step the white keys turn on takes the last KEYS note on an ACID track, C4 on a drum (the last note
+  resets on LOAD and on clearing the pattern). An ACID track's STEP page is a piano roll, the note shows in the footer; ACID's SOUND page shows its filter
+  and the note's shape.
+- A new start screen, CRT COLLAPSE: the HortatoR logo squashed through five dithered frames into one white scan line
+  that bursts sideways, in the chosen COLOR (`assets/boot.png`, made by `tools/boot_variants.py --ship`; the study's
+  other screens: `tools/boot_variants.py OUTDIR`). The logo, there and on ABOUT, is now UnifrakturMaguntia (SIL OFL).
+- Releases can carry two versions: the plain firmware and the same build with Bluetooth MIDI. The web installer
+  offers a choice (the plain one by default), the release a second file `hortator-X.Y.Z-bluetooth.fwsc`
+  (`BLE=1 tools/publish.sh`; first used for the Bluetooth version with parts 2, 3 and 5).
+- Bluetooth MIDI (the Bluetooth version only): MENU (HOME held) > BLUETOOTH turns Bluetooth on (off at every
+  power-on), scans, lists the devices found (BLE-MIDI ones first) and connects to the one picked. It remembers it
+  (saved) and reconnects whenever it is in range, also after a power-on once BLUETOOTH is ON; KNOB 1 left on DEVICE
+  forgets it. MODE (saved): AUTO (SMC DAW for a device named `SMC…`, else MIDI), SMC DAW, MIDI. `BT CONNECTED` /
+  `BT LOST` in the top bar. The console's `ble` stays for testing.
+- The M-VAVE SMC-Mixer in its DAW mode: faders 1–8 = the track levels (pickup: a fader acts once it reaches the
+  level; the mixer blinks it until then), knobs 1–4 = the selected track's first four knobs, MUTE / SOLO / REC /
+  SELECT per track, PLAY / STOP / REC, BANK / CHANNEL ◀ ▶ the track; its LEDs show the mutes, solos, armed tracks,
+  the selected track and the transport. Fader and knob moves record as motion on the selected track while armed.
+- MIDI mode: the device's notes on the drum channel play the tracks, as USB and TRS; GLO CLK BLE follows its clock (a
+  project saved with CLK BLE loads with CLK INT in the plain version).
+- SOLO (from the SMC-Mixer): while any track is soloed only the soloed ones are heard; not saved, cleared by INIT,
+  and cleared (nothing cut) when the SMC-Mixer disconnects or MODE leaves SMC DAW, as the FM-1 has no unsolo. Leaving
+  SMC DAW while connected turns the mixer's LEDs off.
+- MODE and the remembered device are kept in spare bits of the device settings, in both versions. Going back to an
+  older Hortator after picking a device: its SPEAKER EQ reads FLAT.
+
 ## 0.15.0 - 2026-10-09
 
 - Bluetooth MIDI, part 1 (a separate build, `FELUCCA_BLE=1`; the normal firmware does not contain it, gate 5): the

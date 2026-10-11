@@ -279,7 +279,8 @@ static void con_exec(const char *p)
     if (con_word(&p, "help") || con_word(&p, "?")) {
         con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  bench yes  uboot yes\r\n");
 #if FELUCCA_BLE
-        con_puts("ble [start | scan | list | connect N | stop]: Bluetooth MIDI (part 1: the console only)\r\n");
+        con_puts("ble [start | scan | list | connect N | stop]: Bluetooth status and tests "
+                 "(the page: MENU > BLUETOOTH)\r\n");
 #endif
     }
     else if (con_word(&p, "status"))

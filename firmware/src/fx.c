@@ -338,8 +338,8 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_
 
 /* one track into the dry mix and the sends; a track with no voice sounding costs the LFO tick and a cleared
  * buffer only (after the DIST tail has run out). src: the COMP source (NTRK = off). The source's block (after
- * DIST / SLICER, before LEVEL and MUTE) feeds the compressor; a muted source is heard by it only (ghost key) with
- * GHOST KEEP, by nobody with MUTE; with HIDE the source is never heard in the mix (G_CGHOST). A DUCK track is multiplied by the compressor's gain before its level, pan and sends. */
+ * DIST / SLICER, before LEVEL and MUTE) feeds the compressor; a muted source (trk_silent: SOLO too) is heard by it
+ * only (ghost key) with GHOST KEEP, by nobody with MUTE; with HIDE the source is never heard in the mix (G_CGHOST). A DUCK track is multiplied by the compressor's gain before its level, pan and sends. */
 static void mix_part(track_t *t, uint32_t n, uint32_t src)
 {
     int32_t *b = part_buf;
@@ -353,7 +353,7 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
             perf_mute_idle((uint32_t)(t - trk));        /* perform.c: a white key in the FX layer */
         if (is_src) {
             comp_block(0, n);                           /* silence: the detector decays */
-            t->gfade = t->p[P_MUTE] || song.g[G_CGHOST] == CG_HIDE ? 32767u : 0u;   /* nothing sounds: at once */
+            t->gfade = trk_silent(t) || song.g[G_CGHOST] == CG_HIDE ? 32767u : 0u;   /* nothing sounds: at once */
         }
         return;
     }
@@ -368,8 +368,8 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         if ((pf.mute >> (t - trk)) & 1u)
             perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a white key in the FX layer */
         if (is_src) {
-            int hide = t->p[P_MUTE] || song.g[G_CGHOST] == CG_HIDE;
-            comp_block(t->p[P_MUTE] && song.g[G_CGHOST] == CG_MUTE ? 0 : b, n);   /* GHOST MUTE: muted keys nothing */
+            int sil = trk_silent(t), hide = sil || song.g[G_CGHOST] == CG_HIDE;
+            comp_block(sil && song.g[G_CGHOST] == CG_MUTE ? 0 : b, n);   /* GHOST MUTE: muted keys nothing */
             if (hide || t->gfade) {                     /* ghost key: the compressor hears it, the mix does not;
                                                          * a mute / unmute / GHOST change fades over 5 ms */
                 int32_t g = t->gfade, to = hide ? 32767 : 0;

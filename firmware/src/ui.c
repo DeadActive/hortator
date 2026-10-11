@@ -39,7 +39,7 @@ static struct {
     uint8_t fam_last[FAM_COUNT]; /* last page used per family */
     uint8_t bank;                /* STEP grid: 16-step bank shown on the keys */
     uint8_t hot_col, hot_t;      /* column whose knob was just turned (drawn white) */
-    uint8_t menu;                /* 0 off, 1 list, 2 about (HOME held) */
+    uint8_t menu;                /* 0 off, 1 list, 2 about (HOME held), 3 Bluetooth (BLE build: bt_page.c) */
     uint8_t menu_sel;
     uint32_t menu_sig, home_t0;
     uint8_t force;               /* full redraw pending */
@@ -67,6 +67,8 @@ static struct {
     uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
     uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
+    uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
+    uint8_t srec, sr_cur, sr_key;   /* step record (spec §6): on; its cursor; the key whose note is on it + 1 */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
@@ -102,11 +104,27 @@ static int song_lock(void)                          /* a song plays (or is armed
 static int grid_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_GRID; }
 static int mix_mode(void) { return !ui.home && !ui.menu && cur_page()->scope == SC_MIX; }   /* TRACKS: keys mute */
 static int comp_mode(void) { return !ui.home && !ui.menu && cur_page()->graph == GR_COMP; }   /* COMP: keys DUCK */
-/* the white keys are the selected track's steps (the bank's 16): every SEQ page, and TRACKS while nothing is armed
- * (user, 2026-10-08) */
+/* KEYS (spec §5): the keys a chromatic keyboard of the selected track on every page but TRACKS and COMP (their mute /
+ * duck keys); NAME and the menu keep theirs, and FX held takes its keys first (seq.c keyboard_block) */
+static int keys_mode(void)
+{
+    return ui.keys && !ui.menu && !name_on() &&
+           (ui.home || (cur_page()->scope != SC_MIX && cur_page()->graph != GR_COMP));
+}
+/* the white keys are the selected track's steps (the bank's 16): every SEQ page while KEYS is off, and TRACKS while
+ * nothing is armed (user, 2026-10-08) */
 static int step_keys(void)
 {
-    return !ui.home && !ui.menu && (cur_page()->fam == FAM_SEQ || (cur_page()->scope == SC_MIX && !song.rec));
+    return !ui.home && !ui.menu &&
+           ((cur_page()->fam == FAM_SEQ && !keys_mode()) || (cur_page()->scope == SC_MIX && !song.rec));
+}
+/* seq.c keyboard_block: whose the keys' presses are: 0 the drum keys (hits, MIDI), 1 the UI's (the STEP grid, COMP,
+ * TRACKS, NAME), 2 TRACKS armed (hits and recording; REC held: the mutes), 3 KEYS */
+static uint8_t seq_mode_now(void)
+{
+    if (keys_mode())
+        return 3u;
+    return (uint8_t)(step_keys() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);
 }
 
 /* a held grid key lets go of its step (another track or page): keys still held edit nothing, flip no accent */
@@ -122,12 +140,32 @@ static void grid_drop_holds(void)
 
 static void page_entered(void)
 {
+    ui.srec = 0;                                       /* step record ends (leaving the page, another track) */
     grid_drop_holds();
-    song.seq_mode = (uint8_t)(step_keys() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);   /* seq.c: the keys
-                                                     * belong to the steps / the ducks / TRACKS (armed: play, REC held: mute) */
+    song.seq_mode = seq_mode_now();                    /* seq.c: whose the keys are */
     ui.hot_t = 0;
     ui.force = 1;
 }
+
+/* SCL: KEYS on / off (a key still held: its release still ends its note, seq.c keyboard_block) */
+static void keys_toggle(void)
+{
+    ui.keys ^= 1u;
+    grid_drop_holds();                                 /* a grid key held edits nothing more */
+    song.seq_mode = seq_mode_now();
+    ui.force = 1;
+}
+/* OCT- / OCT+ while KEYS has the keys: the keyboard an octave down / up, -2..+2 (seq.c keys_nt) */
+static void keys_octave(int32_t d) { song.octave = (int8_t)clamp(song.octave + d, -2, 2); }
+/* a note (MIDI, 60 = C4) by name: "C4", "F#3", "C-1" */
+static void note_text(char *b, int32_t n)
+{
+    n = clamp(n, 0, 127);
+    str_cpy(b, N_NOTE[n % 12], 4);
+    fmt_int(b + str_len(b), n / 12 - 1);
+}
+/* step record's TIME of a step: 0 NOTE (ON), 1 TIE, 2 REST */
+static uint32_t srec_time(const step_t *s) { return s->tie ? 1u : s->on ? 0u : 2u; }
 
 /* a page with nothing to edit for the selected track: an EDIT page past the end of its engine's sound list */
 static int page_hidden(uint32_t i)
@@ -173,9 +211,10 @@ static void open_family(uint32_t fam)
 
 static void go_home(void)
 {
+    ui.srec = 0;                                       /* step record ends (leaving the page, another track) */
     ui.home = 1;
     ui.hot_t = 0;
-    song.seq_mode = 0;
+    song.seq_mode = seq_mode_now();
     ui.force = 1;
 }
 
@@ -229,7 +268,7 @@ static uint32_t view_len(const track_t *t)
 static step_t view_step(const track_t *t, uint32_t si)
 {
     uint32_t s = view_src(t), b;
-    step_t r = {0, 0, 0, 0};
+    step_t r = {0};
     if (!s)
         return seq_steps(t)[si % NSTEP];             /* (a song: its row's) */
     b = grids_preview(s - 1u, si);
@@ -247,6 +286,10 @@ static void bank_fix(void)                             /* LEN shortened (knob, p
     if (ui.bank >= bank_count())
         bank_set((int32_t)bank_count() - 1);
 }
+
+/* the NOTE of a step the grid keys turn on (spec §2, user 2026-10-10): a gated (ACID) track's last KEYS / recorded
+ * note; a drum's C4 (its steps transposed only by KEYS record, step record's NOTE or the roll) */
+static int8_t new_step_nt(const track_t *t) { return trk_model(t)->gate ? t->key_nt : 0; }
 
 /* key k of the grid pressed: step bank * 16 + k turns on, or off (then plain again: no accent, PROB 100 %,
  * 1 hit), inside LEN only; the step before the press is kept for a hold / a knob turn */
@@ -267,6 +310,8 @@ static void step_press(uint32_t k)
     } else {
         s->on = 1;
         s->acc = 0;
+        s->tie = 0;                                   /* a TIE step turned on plays (acid_step reads TIE first) */
+        s->nt = new_step_nt(TSEL);                    /* spec §2: ACID's last played / recorded note, a drum's C4 */
     }
 }
 
@@ -279,12 +324,16 @@ static void step_hold(uint32_t k)
     s = &TSEL->step[ui.step_si[k]];
     *s = ui.step_prev[k];
     s->on = 1;
+    s->tie = 0;
+    if (!ui.step_prev[k].on)
+        s->nt = new_step_nt(TSEL);
     s->acc = (uint8_t)!ui.step_prev[k].acc;
 }
 
-static void track_clear(track_t *t)               /* its steps and its motion */
+static void track_clear(track_t *t)               /* its steps and its motion; its last KEYS note C4 again */
 {
     memset(t->step, 0, sizeof t->step);
+    t->key_nt = 0;
     motion_clear((uint32_t)(t - trk));
 }
 
@@ -318,6 +367,7 @@ static void init_all(void)
     song.master_q12 = master;
     song.playing = 0;
     song.rec = 0;
+    song.solo = 0;
     memset(&mo, 0, sizeof mo);                     /* no motion */
     memset(&chain, 0, sizeof chain);               /* no song, no name */
     fm1_irq_on();
@@ -342,6 +392,20 @@ static void track_mute_toggle(uint32_t k)
         panic_req |= (uint8_t)(1u << k);
 }
 
+/* SOLO (the SMC-Mixer): track k soloed / not; the tracks this silences cut what they play, as a mute does */
+static void track_solo_toggle(uint32_t k)
+{
+    uint32_t i, was = 0;
+    if (k >= NTRK)
+        return;
+    for (i = 0; i < NTRK; i++)
+        was |= (uint32_t)trk_silent(&trk[i]) << i;
+    song.solo ^= (uint8_t)(1u << k);
+    for (i = 0; i < NTRK; i++)
+        if (trk_silent(&trk[i]) && !((was >> i) & 1u))
+            panic_req |= (uint8_t)(1u << i);
+}
+
 /* COMP: white key k turns DUCK of track k on / off (not the source's: it is never ducked) */
 static void track_duck_toggle(uint32_t k)
 {
@@ -354,6 +418,7 @@ static void track_select(uint32_t i)
 {
     if (i >= NTRK || i == song.sel)
         return;
+    ui.srec = 0;                                       /* step record ends (leaving the page, another track) */
     song.sel = (uint8_t)i;
     grid_drop_holds();
     ui.bank = 0;
@@ -387,11 +452,17 @@ static void drum_boot_init(void)
 static void model_step(int32_t dir)
 {
     uint32_t m = ((uint32_t)TSEL->p[P_MODEL] + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
+    int capped = m == DM_ACID && acid_tracks(TSEL) >= ACID_MAXTRK;   /* ACID on 2 tracks at most: the list skips it */
+    if (capped)
+        m = (m + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
     fm1_irq_off();
     drum_set_model(TSEL, m);
     motion_rebase(song.sel);                        /* motion.c: the new sound is the base */
     fm1_irq_on();
-    ui_say("MODEL ", N_MODEL[m]);
+    if (capped)
+        ui_message("ACID: 2 TRACKS MAX");
+    else
+        ui_say("MODEL ", N_MODEL[m]);
     ui.force = 1;
 }
 

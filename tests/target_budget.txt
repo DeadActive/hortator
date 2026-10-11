@@ -17,7 +17,7 @@ kpunc_render 391
 ssnap_render 448
 scrak_render 308
 hh_render 288
-mix_part 687
+mix_part 731
 comp_block 133
 lfo_track 424
 reson_block 588
@@ -35,3 +35,4 @@ px_memb_block 106
 px_modal_block_q 113
 trk_filter 228
 fm_render 83
+acid_render 326

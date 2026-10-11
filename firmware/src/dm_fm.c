@@ -18,7 +18,7 @@ static const char *const N_FMRATIO[16] = {"0.5", "1", "1.41", "1.5", "2", "2.76"
 static void fm_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(220), p[0]);
+    v->inc[0] = inc_tune(HZ(220), dm_tune(t));
     v->inc[1] = (uint32_t)(((uint64_t)v->inc[0] * FM_RATIO_Q8[(uint32_t)clamp(p[3], 0, 15)]) >> 8);
     v->ph[0] = v->ph[1] = 0;
     v->env[0] = v->env[1] = ENV1;

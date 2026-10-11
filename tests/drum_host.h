@@ -56,6 +56,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     dvage = 0;
     mi_r = mi_w = 0;
     kb_prev = 0;
+    memset(&kz, 0, sizeof kz);                      /* KEYS: no key sounding */
     fm1_in.notes = 0;
     transport_req = panic_req = 0;
     memset(metal_ph, 0, sizeof metal_ph);
@@ -98,6 +99,16 @@ static void render_track(track_t *t, int32_t *dst, uint32_t frames)   /* one tra
             if (dst)
                 dst[f + i] = blk[i];
     }
+}
+
+static void dm_render_n(track_t *t, int32_t *out, uint32_t n)   /* the track's model voices only, CTL blocks (added to
+                                                                  * out; no mix, no tail) */
+{
+    uint32_t i, k;
+    for (i = 0; i + CTL <= n; i += CTL)
+        for (k = 0; k < NDV; k++)
+            if (t->v[k].active)
+                DMODELS[t->model].render(t, &t->v[k], out + i, CTL);
 }
 
 static int32_t mixo[2 * CTL];

@@ -72,12 +72,13 @@ _Static_assert(__builtin_offsetof(att_data_report_t, conn_handle) == BLE_SDK_OFF
 #endif
 _Static_assert(sizeof(struct bt_event) == BLE_SDK_SZ_BT_EVENT, "bt_event");
 
-/* the ble_op_* macros (ble_api.h:513, 542, 639, 973) and the scan / connect ones (ble_api.h, same form) */
+/* the ble_op_* macros (ble_api.h:513, 542, 610, 639, 973) and the scan / connect ones (ble_api.h, same form) */
 #define ble_op_disconnect(h) ble_user_cmd_prepare(BLE_SDK_CMD_DISCONNECT, 1, (int)(h))
 #define ble_op_att_send_init(h, ram, size, payload) \
     ble_user_cmd_prepare(BLE_SDK_CMD_ATT_SEND_INIT, 4, (int)(h), (ram), (int)(size), (int)(payload))
 #define ble_op_att_send_data(handle, data, len, op) \
     ble_user_cmd_prepare(BLE_SDK_CMD_ATT_SEND_DATA, 4, (int)(handle), (data), (int)(len), (int)(op))
+#define ble_op_att_get_remain(remain_size_ptr) ble_user_cmd_prepare(BLE_SDK_CMD_ATT_VAILD_LEN, 1, (remain_size_ptr))
 #define ble_op_set_scan_param(type, interval, window) \
     ble_user_cmd_prepare(BLE_SDK_CMD_SCAN_PARAM, 3, (int)(type), (int)(interval), (int)(window))
 #define ble_op_scan_enable2(en, filter_dup) ble_user_cmd_prepare(BLE_SDK_CMD_SCAN_ENABLE2, 2, (int)(en), (int)(filter_dup))

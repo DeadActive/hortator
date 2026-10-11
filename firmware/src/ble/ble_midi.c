@@ -151,3 +151,21 @@ void ble_midi_parse(ble_midi_t *m, const uint8_t *p, uint32_t n, ble_midi_out_fn
         }
     }
 }
+
+/* MIDI out: header 80|ts[12:7], then per message a timestamp 80|ts[6:0] and the whole message (no running status,
+ * so every message stands alone); ts = milliseconds, 13 bits */
+uint32_t ble_midi_pack(const uint8_t (*msg)[3], const uint8_t *len, uint32_t n, uint32_t ts_ms, uint8_t *out,
+                       uint32_t max, uint32_t *taken)
+{
+    uint32_t i, k, o = 1;
+    for (i = 0; i < n && o + 1u + len[i] <= max; i++) {
+        out[o++] = (uint8_t)(0x80u | (ts_ms & 0x7Fu));
+        for (k = 0; k < len[i]; k++)
+            out[o++] = msg[i][k];
+    }
+    *taken = i;
+    if (!i)
+        return 0;
+    out[0] = (uint8_t)(0x80u | (ts_ms >> 7 & 0x3Fu));
+    return o;
+}

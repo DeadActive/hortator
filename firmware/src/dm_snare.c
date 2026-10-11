@@ -36,8 +36,8 @@ static void snare_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 static void s808_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(173), p[0]);
-    v->inc[1] = inc_tune(HZ(336), p[0]);
+    v->inc[0] = inc_tune(HZ(173), dm_tune(t));
+    v->inc[1] = inc_tune(HZ(336), dm_tune(t));
     v->env[0] = v->env[1] = v->env[2] = ENV1;
     v->k[0] = v->k[1] = dk(33);                      /* ~29 ms, as measured on a TR-808 */
     v->k[2] = dk(40 + p[1] * 50 / 127);
@@ -52,8 +52,8 @@ static void s808_trigger(track_t *t, dvoice_t *v)
 static void s909_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    v->inc[0] = inc_tune(HZ(185), p[0]);
-    v->inc[1] = inc_tune(HZ(330), p[0]);
+    v->inc[0] = inc_tune(HZ(185), dm_tune(t));
+    v->inc[1] = inc_tune(HZ(330), dm_tune(t));
     v->env[0] = v->env[1] = v->env[2] = ENV1;
     v->k[0] = dk(38);
     v->k[1] = dk(30);
@@ -119,7 +119,7 @@ static void c808_trigger(track_t *t, dvoice_t *v)
     clap_start(v, 441, 3, 0);                        /* 3 x 10 ms */
     v->k[1] = dk(40 + p[1] * 40 / 127);
     v->x[2] = p[3] * 200;
-    dsvf_coef(&v->c[0], CUT_1000 + (p[2] - 64) * 80 + p[0] * CUT_ST, 60);
+    dsvf_coef(&v->c[0], CUT_1000 + (p[2] - 64) * 80 + dm_tune(t) * CUT_ST, 60);
 }
 
 /* 909 CLAP: TUNE DECAY TONE SPREAD */
@@ -129,7 +129,7 @@ static void c909_trigger(track_t *t, dvoice_t *v)
     clap_start(v, 353, 3, (uint32_t)p[3] * 2u);      /* 3 x ~8 ms, randomised */
     v->k[1] = dk(35 + p[1] * 40 / 127);
     v->x[2] = 9000;
-    dsvf_coef(&v->c[0], CUT_1200 + (p[2] - 64) * 80 + p[0] * CUT_ST, 70);
+    dsvf_coef(&v->c[0], CUT_1200 + (p[2] - 64) * 80 + dm_tune(t) * CUT_ST, 70);
 }
 
 #define DM_S808_DEF {"S808", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
@@ -230,7 +230,7 @@ static int32_t ssnap_tick(ssnap_t *k)
 static void ssnap_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    ssnap_start(&v->ms.ss, SSNAP_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+    ssnap_start(&v->ms.ss, SSNAP_NOTE + dm_tune(t), p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
 }
 
 static void ssnap_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
@@ -324,7 +324,7 @@ static int32_t scrak_tick(scrak_t *k)
 static void scrak_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
-    scrak_start(&v->ms.sc, SCRAK_NOTE + p[0], p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
+    scrak_start(&v->ms.sc, SCRAK_NOTE + dm_tune(t), p[2], p[1], p[3], v->vel, (uint32_t)v->rng);
 }
 
 static void scrak_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)

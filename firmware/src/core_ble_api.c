@@ -47,3 +47,10 @@ void core_con_puts(const char *s)
     (void)s;
 #endif
 }
+void core_ble_midi_in(uint32_t pkt) { bt_midi_in(pkt); }
+uint32_t core_ble_in_drops(void) { return bt_in.drops; }
+void core_ble_link(int up)
+{
+    bt_link(up);                                /* first: smc_link's frame needs the mode */
+    smc_link(up);
+}

@@ -2,7 +2,7 @@
  * BLE MIDI test: 2026 DEADACTIVE
  * Drum machine fork: 2026 DEADACTIVE */
 /* BLE-MIDI central on the JieLi SDK's ble_op_* API (reference: SDK apps/common/ble/le_net_central.c). The state
- * machine at the top is pure and host-tested (tests/ble/ble_central_test.c); the SDK glue below it. */
+ * machine and the MIDI out queue at the top are host-tested (tests/ble/ble_central_test.c); the SDK glue below. */
 #include "ble_scan.h"
 enum { BLE_OFF, BLE_STARTING, BLE_IDLE, BLE_SCANNING, BLE_CONNECTING, BLE_DISCOVERING, BLE_SUBSCRIBED,
        BLE_RECEIVING, BLE_FAILED };
@@ -184,6 +184,123 @@ void ble_loop_note(ble_loop_t *l, uint32_t frames, uint32_t now_ms)
     l->at_ms = now_ms;
 }
 
+/* MIDI out (ble_midi_send, called by the core's main loop): whole messages of 1..3 bytes, queued only while
+ * connected; ble_service sends them (ble_out_flush). A disconnect empties the queue (ble_ev). */
+static uint32_t st;                                 /* BLE_OFF ... BLE_FAILED */
+static struct {
+    uint8_t msg[64][3], len[64];
+    uint32_t h, t, sent, drops;                     /* sent / drops: the console's `out` / `out_drops` */
+} mo;
+static int ble_linked(void) { return st == BLE_SUBSCRIBED || st == BLE_RECEIVING; }
+static void ble_ev(ble_ev_t ev)                     /* every event's state change; the queue lives only while linked */
+{
+    st = ble_next(st, ev);
+    if (!ble_linked())
+        mo.t = mo.h;
+}
+int ble_midi_send(const uint8_t *m, uint32_t n)    /* 1 = queued, 0 = dropped (not connected, or the queue full) */
+{
+    uint32_t i;
+    if (!ble_linked() || n - 1u > 2u)
+        return 0;
+    if (mo.h - mo.t >= 64u) {
+        mo.drops++;
+        return 0;
+    }
+    for (i = 0; i < n; i++)
+        mo.msg[mo.h & 63u][i] = m[i];
+    mo.len[mo.h & 63u] = (uint8_t)n;
+    mo.h++;
+    return 1;
+}
+uint32_t ble_midi_room(void) { return ble_linked() ? 64u - (mo.h - mo.t) : 0u; }   /* free entries; 0 unlinked */
+/* the queue as packets while tx takes them (0 = sent): ble_service's ble_out_flush. A handler run inside tx may
+ * empty the queue (a disconnect: ble_ev), so the tail moves only over messages still queued. */
+static void ble_out_drain(uint32_t now_ms, int (*tx)(const uint8_t *pkt, uint32_t len))
+{
+    uint8_t pkt[20];                                /* the default ATT MTU's payload: at most 4 three-byte messages */
+    while (mo.h != mo.t && ble_linked()) {
+        uint32_t i = mo.t & 63u, n = mo.h - mo.t, len, taken;
+        if (n > 64u - i)
+            n = 64u - i;                            /* up to the ring's end: the rest in the next packet */
+        len = ble_midi_pack(&mo.msg[i], &mo.len[i], n, now_ms, pkt, sizeof pkt, &taken);
+        if (tx(pkt, len))
+            return;                                 /* no room (or refused): the next pass */
+        if (mo.h - mo.t < taken)
+            return;                                 /* emptied by a disconnect inside tx */
+        mo.t += taken;
+        mo.sent += taken;
+    }
+}
+
+/* ---- reconnecting (spec 3): one decision per ble_service pass, applied by ble_auto (the glue) ---- */
+enum { BA_NONE, BA_SCAN, BA_CONNECT, BA_STOP_SCAN, BA_DISCONNECT };
+typedef struct {
+    uint8_t want;                                   /* the page's BLUETOOTH ON (ble_ui_want) */
+    uint8_t paused;                                 /* the page's manual scan: no auto scan / connect until a pick */
+    uint8_t have, addr[6], type;                    /* the remembered device (ble_ui_target) */
+    uint8_t manual;                                 /* the running scan is the page's or the console's: never cut */
+    uint8_t scan_req;                               /* ble_ui_scan: a manual scan once IDLE (after a disconnect) */
+    uint8_t tried;                                  /* a connect tried since the last scan start: one per sighting */
+    uint8_t console;                                /* the link is the console's `ble connect`: want leaves it */
+    uint8_t dropping;                               /* a disconnect asked for this link: not again */
+    uint8_t sighted;                                /* the target listed in this scan, since sighted_ms */
+    uint32_t seen;                                  /* the state at the last ble_watch */
+    uint32_t sighted_ms;
+    uint32_t rest_ms;                               /* the last scan end / link drop: auto scans 2 s after it */
+} ble_auto_t;
+static int ble_live(uint32_t s) { return s >= BLE_CONNECTING && s <= BLE_RECEIVING; }
+/* how ble_disconnect asks: CONNECTING cancels the connect (con_handle may still hold a failed link's handle until
+ * its disconnection-complete event); DISCOVERING..RECEIVING disconnect the handle */
+enum { BD_NONE, BD_CANCEL, BD_DISC };
+uint32_t ble_disc_how(uint32_t s, uint32_t handle)
+{
+    return s == BLE_CONNECTING ? BD_CANCEL : ble_live(s) && handle ? BD_DISC : BD_NONE;
+}
+/* target_listed: 0 no, 1 listed without a name yet, 2 listed with its name. An auto scan stops for the target once
+ * its name is in (the scan response, which AUTO's SMC test reads at link up) or 500 ms after its first listing */
+uint32_t ble_auto_step(const ble_auto_t *a, uint32_t state, int target_listed, uint32_t now_ms)
+{
+    if (state == BLE_IDLE && a->scan_req)
+        return BA_SCAN;
+    if (!a->want)
+        return ble_live(state) && !a->console && !a->dropping ? BA_DISCONNECT : BA_NONE;
+    if (!a->have || a->paused)
+        return BA_NONE;
+    if (state == BLE_IDLE)
+        return target_listed && !a->tried ? BA_CONNECT : now_ms - a->rest_ms >= 2000u ? BA_SCAN : BA_NONE;
+    if (state == BLE_SCANNING && !a->manual && target_listed && !a->tried &&
+        (target_listed > 1 || (a->sighted && now_ms - a->sighted_ms >= 500u)))
+        return BA_STOP_SCAN;
+    return BA_NONE;
+}
+void ble_sight(ble_auto_t *a, int listed, uint32_t now_ms)   /* ble_service, scanning: the target's first listing */
+{
+    if (listed && !a->sighted) {
+        a->sighted = 1;
+        a->sighted_ms = now_ms;
+    }
+}
+/* ble_service, before the step: link up / down to the core (core_ble_link, once each), the rest times, the flags
+ * that end with a scan or a link */
+static void ble_watch(ble_auto_t *a, uint32_t now_ms)
+{
+    uint32_t was = a->seen, up = ble_linked(), wasup = was == BLE_SUBSCRIBED || was == BLE_RECEIVING;
+    if (up != wasup)
+        core_ble_link((int)up);
+    if (st == BLE_SCANNING && was != BLE_SCANNING)
+        a->tried = a->sighted = 0;
+    if (was == BLE_SCANNING && st != BLE_SCANNING) {
+        a->rest_ms = now_ms;
+        a->manual = 0;
+    }
+    if (ble_live(was) && !ble_live(st))
+        a->rest_ms = now_ms;
+    if (!ble_live(st))
+        a->console = a->dropping = 0;
+    a->seen = st;
+}
+
 #ifndef BLE_CENTRAL_STATE_ONLY
 /* ---- the SDK glue: in ble.c's unit, after ble_heap / ble_on / ble_mac. The stack calls ble_profile_init and the
  * three handlers below from its own task (ble_os.c); the main loop calls ble_start / ble_scan / ble_connect /
@@ -191,7 +308,6 @@ void ble_loop_note(ble_loop_t *l, uint32_t frames, uint32_t now_ms)
 #include "ble/ble_sdk.h"
 #define ATT_MTU 128u                                /* le_net_central.c ATT_LOCAL_MTU_SIZE */
 
-static uint32_t st;                                 /* BLE_OFF ... BLE_FAILED */
 static ble_scan_t scan;
 static ble_midi_t bm;
 static uint16_t con_handle, midi_handle;
@@ -244,7 +360,7 @@ static void cbk_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
         if (packet[3]) {
             if (st == BLE_CONNECTING) {
                 set_err("CONNECT FAILED", packet[3]);
-                st = ble_next(st, EV_CONN_FAIL);
+                ble_ev(EV_CONN_FAIL);
             }
             break;
         }
@@ -258,7 +374,7 @@ static void cbk_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
         ble_op_att_send_init(con_handle, att_ram, sizeof att_ram, ATT_MTU);
         user_client_init(con_handle, search_ram, sizeof search_ram);
         ble_op_search_profile_all();
-        st = ble_next(st, EV_CONNECTED);
+        ble_ev(EV_CONNECTED);
         set_deadline(10000);
         break;
     case BLE_SDK_HCI_EVENT_DISCONNECTION_COMPLETE:   /* le_net_central.c 917: reason packet[5] */
@@ -267,7 +383,7 @@ static void cbk_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
         con_handle = 0;
         midi_handle = 0;
         ble_op_att_send_init(0, 0, 0, 0);
-        st = ble_next(st, EV_DISCONNECTED);
+        ble_ev(EV_DISCONNECTED);
         break;
     default:
         break;
@@ -297,7 +413,7 @@ static void ble_on_event(int from, struct bt_event *e)  /* bt_event_notify (ble_
 {
     if (from == BLE_SDK_BT_EVENT_FROM_CON && e->event == BLE_SDK_BT_STATUS_INIT_OK && st == BLE_STARTING) {
         ble_stage(7);
-        st = ble_next(st, EV_INIT_OK);
+        ble_ev(EV_INIT_OK);
     }
 }
 
@@ -310,11 +426,11 @@ void user_client_report_search_result(search_result_t *r)
         if (midi_handle) {
             static const uint8_t on[2] = {1, 0};   /* notifications on: the CCCD after the value */
             ble_op_att_send_data(midi_handle + 1u, (void *)on, 2, BLE_SDK_ATT_OP_WRITE);
-            st = ble_next(st, EV_FOUND_MIDI);
+            ble_ev(EV_FOUND_MIDI);
         } else {
             set_err("NO BLE-MIDI SERVICE", 0);
             ble_op_disconnect(con_handle);
-            st = ble_next(st, EV_NO_MIDI);
+            ble_ev(EV_NO_MIDI);
         }
         return;
     }
@@ -327,7 +443,7 @@ void user_client_report_data_callback(att_data_report_t *d)
     if (d->packet_type == BLE_SDK_GATT_EVENT_NOTIFICATION && midi_handle && d->value_handle == midi_handle &&
         (st == BLE_SUBSCRIBED || st == BLE_RECEIVING)) {
         ble_midi_parse(&bm, d->blob, d->blob_length, ring_put, 0);
-        st = ble_next(st, EV_NOTIFY);
+        ble_ev(EV_NOTIFY);
     }
 }
 
@@ -396,11 +512,12 @@ void ble_connect(uint32_t sorted_index)
 
 void ble_disconnect(void)
 {
-    if (con_handle) {
-        ble_op_disconnect(con_handle);
-    } else if (st == BLE_CONNECTING) {
+    uint32_t how = ble_disc_how(st, con_handle);
+    if (how == BD_CANCEL) {
         ble_op_create_connection_cancel();
-        st = ble_next(st, EV_CONN_FAIL);
+        ble_ev(EV_CONN_FAIL);
+    } else if (how == BD_DISC) {
+        ble_op_disconnect(con_handle);
     }
 }
 
@@ -413,23 +530,162 @@ static void ble_tick(void)                         /* the deadlines of the waiti
     switch (st) {
     case BLE_SCANNING:
         ble_op_scan_enable2(0, 0);
-        st = ble_next(st, EV_SCAN_DONE);
+        ble_ev(EV_SCAN_DONE);
         break;
     case BLE_STARTING:
         set_err("BT START TIMEOUT", 0);
-        st = ble_next(st, EV_TIMEOUT);
+        ble_ev(EV_TIMEOUT);
         break;
     case BLE_CONNECTING:
         ble_op_create_connection_cancel();
         set_err("CONNECT TIMEOUT", 0);
-        st = ble_next(st, EV_TIMEOUT);
+        ble_ev(EV_TIMEOUT);
         break;
     default:                                       /* BLE_DISCOVERING */
         ble_op_disconnect(con_handle);
         set_err("DISCOVERY TIMEOUT", 0);
-        st = ble_next(st, EV_TIMEOUT);
+        ble_ev(EV_TIMEOUT);
         break;
     }
+}
+
+static int ble_out_tx(const uint8_t *pkt, uint32_t len)   /* ble_out_drain's sender: 0 = sent */
+{
+    uint32_t room = 0;
+    return !midi_handle || ble_op_att_get_remain(&room) || room < len ||
+           ble_op_att_send_data(midi_handle, (void *)pkt, len, BLE_SDK_ATT_OP_WRITE_WITHOUT_RESPOND);
+}
+static void ble_out_flush(void) { ble_out_drain(core_ms(), ble_out_tx); }   /* ble_service: MIDI out */
+
+/* ---- reconnecting and the Bluetooth page's entry points (ble_core.h ble_ui_*; the core's main loop). None of
+ * them starts the stack: the page calls ble_user_start (gate 3). ---- */
+_Static_assert(BLE_ST_OFF == BLE_OFF && BLE_ST_STARTING == BLE_STARTING && BLE_ST_IDLE == BLE_IDLE &&
+               BLE_ST_SCANNING == BLE_SCANNING && BLE_ST_CONNECTING == BLE_CONNECTING &&
+               BLE_ST_DISCOVERING == BLE_DISCOVERING && BLE_ST_SUBSCRIBED == BLE_SUBSCRIBED &&
+               BLE_ST_RECEIVING == BLE_RECEIVING && BLE_ST_FAILED == BLE_FAILED, "ble_core.h's states");
+static ble_auto_t au;
+static uint32_t ble_listed(void)
+{
+    uint8_t idx[BLE_SCAN_MAX];
+    return ble_scan_sorted(&scan, idx);
+}
+static int ble_target_at(int *named)               /* the target's index in ble_scan_sorted's order; -1 not listed */
+{
+    uint8_t idx[BLE_SCAN_MAX];
+    uint32_t i, n;
+    *named = 0;
+    if (!au.have)
+        return -1;                                 /* (no sort per pass without a target) */
+    n = ble_scan_sorted(&scan, idx);
+    for (i = 0; i < n; i++)
+        if (scan.dev[idx[i]].addr_type == au.type && !memcmp(scan.dev[idx[i]].addr, au.addr, 6)) {
+            *named = scan.dev[idx[i]].name[0] != 0;
+            return (int)i;
+        }
+    return -1;
+}
+static void ble_drop(void)                         /* disconnect the link or cancel the connect, once */
+{
+    if (ble_live(st) && !au.dropping) {
+        au.dropping = 1;
+        ble_disconnect();
+    }
+}
+static void ble_scan_stop(void)
+{
+    if (st == BLE_SCANNING) {
+        ble_op_scan_enable2(0, 0);
+        ble_ev(EV_SCAN_DONE);
+    }
+}
+static void ble_auto(void)                         /* ble_service: the step applied */
+{
+    int named, at = ble_target_at(&named);
+    ble_watch(&au, core_ms());
+    if (st == BLE_SCANNING)
+        ble_sight(&au, at >= 0, core_ms());
+    switch (ble_auto_step(&au, st, at < 0 ? 0 : named ? 2 : 1, core_ms())) {
+    case BA_SCAN:
+        au.manual = au.scan_req;
+        au.scan_req = 0;
+        ble_scan();
+        break;
+    case BA_CONNECT:                               /* (BA_CONNECT only when listed: at >= 0) */
+        au.tried = 1;
+        ble_connect((uint32_t)at);
+        break;
+    case BA_STOP_SCAN:                             /* IDLE now: the next pass connects */
+        ble_scan_stop();
+        break;
+    case BA_DISCONNECT:
+        ble_drop();
+        break;
+    default:
+        break;
+    }
+}
+uint32_t ble_ui_state(void) { return st; }
+const char *ble_ui_err(uint32_t *code) { return ble_err(code); }
+uint32_t ble_ui_scan_left(void)                    /* whole seconds, rounded up */
+{
+    int32_t left = (int32_t)(deadline_ms - core_ms());
+    return st == BLE_SCANNING && left > 0 ? ((uint32_t)left + 999u) / 1000u : 0;
+}
+uint32_t ble_ui_devs(void) { return ble_listed(); }
+int ble_ui_dev(uint32_t i, ble_ui_dev_t *out)
+{
+    uint8_t idx[BLE_SCAN_MAX];
+    const ble_dev_t *d;
+    if (i >= ble_scan_sorted(&scan, idx))
+        return 0;
+    d = &scan.dev[idx[i]];
+    memcpy(out->addr, d->addr, 6);
+    out->type = d->addr_type;
+    out->midi = d->midi;
+    out->rssi = d->rssi;
+    memcpy(out->name, d->name, sizeof out->name);
+    return 1;
+}
+void ble_ui_scan(void)                             /* a manual scan once IDLE; pauses reconnecting */
+{
+    au.paused = au.scan_req = 1;
+    ble_scan_stop();                               /* (a running scan restarts: the full 10 s, a fresh list) */
+    ble_drop();
+}
+void ble_ui_target(const uint8_t addr[6], uint32_t type)
+{
+    uint32_t i, any = 0;
+    for (i = 0; i < 6u; i++)
+        any |= addr[i];
+    au.have = any != 0;
+    memcpy(au.addr, addr, 6);
+    au.type = (uint8_t)type;
+    au.paused = au.manual = au.tried = 0;          /* a pick ends the pause; a running scan stops once it is seen */
+    if (ble_live(st) && (!au.have || scan.dev[conn_dev].addr_type != au.type ||
+                         memcmp(scan.dev[conn_dev].addr, au.addr, 6)))
+        ble_drop();                                /* another device than the one connected */
+}
+void ble_ui_want(int on)
+{
+    au.want = on != 0;
+    if (!on) {
+        au.scan_req = 0;
+        ble_scan_stop();
+        ble_drop();
+    }
+}
+void ble_ui_pause(int on)
+{
+    au.paused = on != 0;
+    if (!on)
+        au.manual = 0;                             /* the page closed: the list need not stay */
+}
+int ble_ui_conn_name(char out[24])
+{
+    if (!ble_linked())
+        return 0;
+    memcpy(out, scan.dev[conn_dev].name, 24);      /* (no scan while connected: the entry stays) */
+    return 1;
 }
 
 /* ---- the console's `ble` (moved here from fm1-lsdj's ble_ui.c: Hortator has no BLE screen) ---- */
@@ -471,6 +727,9 @@ void ble_status(void)                              /* console `ble` */
     o = put_u(put_s(o, " pkts "), bm.packets);
     o = put_u(put_s(o, " errs "), bm.errors);
     o = put_u(put_s(o, " lost "), ring_lost);
+    o = put_u(put_s(o, " out "), mo.sent);
+    o = put_u(put_s(o, " out_drops "), mo.drops);
+    o = put_u(put_s(o, " in_drops "), core_ble_in_drops());
     o = put_u(put_s(o, " audio_late "), core_audio_late());
     o = put_s(o, "\r\n");
     *o = 0;
@@ -555,11 +814,6 @@ void ble_status(void)                              /* console `ble` */
 }
 
 /* ---- the console (part 1b): the core's `ble …` line comes here (ble_core.h ble_console) ---- */
-static uint32_t ble_listed(void)
-{
-    uint8_t idx[BLE_SCAN_MAX];
-    return ble_scan_sorted(&scan, idx);
-}
 /* the user's trigger, the only way to ble_start (gate 3: tools/check_ble_boot.py); not inlined, so the gate sees it */
 __attribute__((noinline)) void ble_user_start(void) { ble_start(); }
 static void say_state(void)
@@ -587,8 +841,11 @@ void ble_console(const char *args)
     case BLE_CMD_STATUS: ble_status(); return;
     case BLE_CMD_LIST: ble_list(); return;
     case BLE_CMD_START: ble_user_start(); break;
-    case BLE_CMD_SCAN: ble_scan(); break;
-    case BLE_CMD_CONNECT: ble_connect(n - 1u); break;
+    case BLE_CMD_SCAN: au.manual = 1; ble_scan(); break;          /* (the console's scan runs its 10 s) */
+    case BLE_CMD_CONNECT:                          /* want leaves it; a drop reconnects after a scan (tried) */
+        au.console = au.tried = 1;
+        ble_connect(n - 1u);
+        break;
     case BLE_CMD_STOP: ble_disconnect(); break;
     default:
         core_con_puts("ble [start | scan | list | connect N | stop]\r\n");

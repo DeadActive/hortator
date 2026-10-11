@@ -6,8 +6,8 @@
 #   tools/check_default_build.sh
 set -e
 cd "$(dirname "$0")/.."
-BT="firmware/src/ble firmware/src/core_ble_api.c firmware/hal/fm1_ble_hal.h firmware/hal/fm1_ctx.h
-    firmware/hal/fm1_ctx.S firmware/app_ble.ld"
+BT="firmware/src/ble firmware/src/core_ble_api.c firmware/src/bt_midi.c firmware/src/smc.c firmware/src/bt_page.c firmware/hal/fm1_ble_hal.h
+    firmware/hal/fm1_ctx.h firmware/hal/fm1_ctx.S firmware/app_ble.ld"
 bld() {                                         # a build, retried (up to 5) on Docker's "exec format error"
     for i in 1 2 3 4 5; do
         if out=$("$@" 2>&1); then return 0; fi

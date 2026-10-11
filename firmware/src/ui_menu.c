@@ -1,10 +1,22 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, ABOUT. */
+/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
 /* ------------------------------------------------------------ menu --- */
+#if FELUCCA_BLE                                     /* the Bluetooth page's row (bt_page.c) before ABOUT */
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
+                                              "HARDWARE CALIBRATION", "BLUETOOTH", "ABOUT", "BACK"};
+#define MENU_DY 16                                  /* ten rows above the hints */
+static void bt_page_open(void);                     /* bt_page.c (after ble/ble_core.h): ui.menu 3 */
+static void bt_page_close(void);
+static void bt_page_draw(void);
+static void bt_page_input(uint32_t pressed);
+#else
 enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
                                               "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+#define MENU_DY 18                                  /* nine rows above the hints */
+#endif
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
@@ -16,6 +28,12 @@ static void draw_menu(void)
     uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u +
                             settings.perfpage * 49979687u;
+#if FELUCCA_BLE
+    if (ui.menu == 3u) {                            /* the Bluetooth page: its own drawing and signature */
+        bt_page_draw();
+        return;
+    }
+#endif
     if (!ui.force && sig == ui.menu_sig)
         return;
     ui.menu_sig = sig;
@@ -39,12 +57,12 @@ static void draw_menu(void)
             cv_text(4, 129, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
             cv_text(4, 142, &FONT_S, "GITHUB.COM/HUGELTON/FELUCCA", C_AMB);
             cv_text(4, 155, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
-            cv_text(4, 168, &FONT_S, "LOGO: UNIFRAKTURCOOK (OFL)", C_DIM);
+            cv_text(4, 168, &FONT_S, "LOGO: UNIFRAKTURMAGUNTIA OFL", C_DIM);   /* 28 cells: (OFL) would clip */
             cv_text(4, 181, &FONT_S, "SAMPLES: VERSILIAN (CC0)", C_DIM);
             cv_text(4, 194, &FONT_S, "+ H\xDCGELTON SAMPLE PACK", C_DIM);
         } else {
             for (i = 0; i < MI_COUNT; i++) {
-                int32_t y = 4 + (int32_t)i * 18;   /* nine rows above the hints */
+                int32_t y = 4 + (int32_t)i * MENU_DY;
                 int sel = i == ui.menu_sel;
                 if (sel)
                     cv_rect(4, y + 6, 3, 3, C_WHITE);
@@ -77,20 +95,26 @@ static void enc_drop(void)                             /* knob turns nobody take
 
 static void menu_close(void)
 {
+#if FELUCCA_BLE
+    if (ui.menu == 3u)                                 /* HOME held on the Bluetooth page: it closes too */
+        bt_page_close();
+#endif
     settings_save();                                   /* palette / panel table, if changed */
     ui.menu = 0;
     ui.force = 1;
     go_home();
 }
 
-/* the start screen (main.c fm1_main, right after lcd_init): the logo, DRUM MACHINE under it */
-#define BOOT_Y 80u
+/* the start screen (main.c fm1_main, right after lcd_init): CRT COLLAPSE, the logo squashed into a scan line
+ * (assets/boot.png), in the chosen COLOR; the canvas holds 124 rows, so two bands of 120 */
 static void draw_boot_title(void)
 {
-    cv_begin(240, LOGO_H, C_BLACK);
-    cv_logo((240 - LOGO_W) / 2, 0, C_HI);
-    cv_blit(0, BOOT_Y);
-    draw_text_box(0, BOOT_Y + LOGO_H + 6u, 240, &FONT_S, "DRUM MACHINE", C_GRAY, 1);
+    uint32_t y;
+    for (y = 0; y < BOOT_H; y += BOOT_H / 2u) {
+        cv_begin(BOOT_W, BOOT_H / 2u, C_BLACK);
+        cv_boot(y);
+        cv_blit(0, y);
+    }
 }
 
 /* menu: PRESETS moves, OCT+ confirms, OCT- cancels (ABOUT -> list -> close) */
@@ -98,6 +122,13 @@ static void menu_input(uint32_t pressed)
 {
     int32_t s;
     uint32_t ok = (pressed >> panel.btn[B_OCTUP]) & 1u, back = (pressed >> panel.btn[B_OCTDN]) & 1u;
+#if FELUCCA_BLE
+    if (ui.menu == 3u) {                               /* the Bluetooth page (OCT-: back to the list) */
+        bt_page_input(pressed);
+        enc_drop();
+        return;
+    }
+#endif
     if (back) {
         if (ui.menu == 2)
             ui.menu = 1, ui.force = 1;
@@ -137,6 +168,11 @@ static void menu_input(uint32_t pressed)
             panel_setup();
             ui.force = 1;
             break;
+#if FELUCCA_BLE
+        case MI_BT:
+            bt_page_open();
+            break;
+#endif
         case MI_ABOUT:
             ui.menu = 2;
             ui.force = 1;

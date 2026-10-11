@@ -132,6 +132,43 @@ static void test_mute(void)
     check("mute: a muted track ignores hits", !trk[0].v[0].active && !trk[0].v[1].active);
 }
 
+static int any_voice(const track_t *t)
+{
+    uint32_t i;
+    for (i = 0; i < NDV; i++)
+        if (t->v[i].active)
+            return 1;
+    return 0;
+}
+
+/* SOLO (song.solo, spec 2026-10-10 §7): a track is silent when muted, or when any track is soloed and it is not */
+static void test_solo(void)
+{
+    int a, b;
+    host_init();
+    song.solo = 1u << 1;                             /* track 2 soloed */
+    drum_hit(&trk[0], 127);
+    drum_hit(&trk[1], 127);
+    check("solo: with track 2 soloed track 1's hit is silent (no voice), track 2 plays",
+          !any_voice(&trk[0]) && any_voice(&trk[1]));
+    host_init();
+    drum_hit(&trk[0], 127);
+    drum_hit(&trk[1], 127);
+    a = any_voice(&trk[0]);
+    b = any_voice(&trk[1]);
+    check("solo: none soloed -> both play", a && b);
+    host_init();
+    song.solo = 1u << 1;
+    trk[1].p[P_MUTE] = 1;
+    drum_hit(&trk[1], 127);
+    check("solo: a soloed and muted track is silent", !any_voice(&trk[1]));
+    a = trk_silent(&trk[1]) && trk_silent(&trk[0]) && trk_silent(&trk[2]);   /* T2 muted, T1 and T3 not soloed */
+    song.solo = 0;
+    trk[1].p[P_MUTE] = 0;
+    check("solo: trk_silent = MUTE, or another track soloed and not this one",
+          a && !trk_silent(&trk[0]) && !trk_silent(&trk[1]));
+}
+
 static void test_empty_slot(void)
 {
     host_init();
@@ -815,6 +852,80 @@ static uint32_t fnv(const int32_t *x, uint32_t n)
     return h;
 }
 
+/* ACID spec §3: a drum step's note transposes the model as TUNE does: nt = +7 with TUNE 0 renders exactly as nt 0
+ * with TUNE 7 (every model), and the transpose is clamped to +-24 */
+static void test_drum_transpose(void)
+{
+    static int32_t a[SECS(0.5)];
+    uint32_t mi, ok = 1, clamp_ok = 1;
+    for (mi = 0; mi < NMODELS; mi++) {
+        if (mi == DM_ACID)                           /* ACID plays the note itself, unclamped (acid_test) */
+            continue;
+        host_init();
+        drum_set_model(&trk[0], mi);
+        trk[0].p[P_E0] = 0;
+        drum_play(&trk[0], 96, 7);
+        render_track(&trk[0], a, SECS(0.5));
+        host_init();
+        drum_set_model(&trk[0], mi);
+        trk[0].p[P_E0] = 7;
+        drum_play(&trk[0], 96, 0);
+        render_track(&trk[0], wl, SECS(0.5));
+        if (memcmp(a, wl, sizeof a)) {
+            printf("     %s: nt +7 != TUNE +7\n", N_MODEL[mi]);
+            ok = 0;
+        }
+    }
+    trk[0].nt = 40;
+    clamp_ok = dm_tune(&trk[0]) == trk[0].p[P_E0] + 24;
+    trk[0].nt = -40;
+    clamp_ok &= dm_tune(&trk[0]) == trk[0].p[P_E0] - 24;
+    check("drum transpose: a step's note = TUNE by as many semitones, every model", ok);
+    check("drum transpose: clamped to +-24 semitones", clamp_ok);
+}
+
+/* a transposed step moves the sample layer as it moves the model: nt +7 = LTUNE + 7 (and TUNE + 7) at nt 0 */
+static void test_layer_transpose(void)
+{
+    static int32_t a[SECS(0.5)];
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_E0] = 0;
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    trk[0].p[P_LTUNE] = 0;
+    drum_play(&trk[0], 96, 7);
+    render_track(&trk[0], a, SECS(0.5));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_E0] = 7;
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    trk[0].p[P_LTUNE] = 7;
+    drum_play(&trk[0], 96, 0);
+    render_track(&trk[0], wl, SECS(0.5));
+    check("layer transpose: a step's note moves the layer as LTUNE + 7 (bit-identical)", !memcmp(a, wl, sizeof a));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    drum_play(&trk[0], 96, 40);
+    render_track(&trk[0], a, SECS(0.5));
+    host_init();
+    drum_set_model(&trk[0], DM_K909);
+    trk[0].p[P_E0] = 24;
+    trk[0].p[P_LLEVEL] = 100;
+    trk[0].p[P_LSET] = 0;
+    trk[0].p[P_LKEY] = 38;
+    trk[0].p[P_LTUNE] = 24;
+    drum_play(&trk[0], 96, 0);
+    render_track(&trk[0], wl, SECS(0.5));
+    check("layer transpose: clamped to +-24 as the model", !memcmp(a, wl, sizeof a));
+}
+
 static void test_golden(void)
 {
     FILE *f;
@@ -1309,7 +1420,7 @@ static void test_len_change_sync(void)
 static uint32_t chance_hits(uint32_t ti, uint32_t pct, uint32_t n, uint64_t *bits)
 {
     track_t *t = &trk[ti];
-    step_t s = {1, 0, 0, 0};
+    step_t s = {.on = 1};
     uint32_t k, hits = 0;
     s.cond = (uint8_t)cond_store(pct / 5u);
     seq_start();                                     /* seeds the tracks' random sequences */
@@ -1351,7 +1462,7 @@ static void test_cond_loops(void)
     r0 = t->rng;
     for (b = 2; b <= 8u; b++)
         for (a = 1; a <= b; a++, n++) {
-            step_t s = {1, 0, 0, 0};
+            step_t s = {.on = 1};
             s.cond = (uint8_t)(22u + n);
             for (loop = 0; loop < 2u * 8u * 8u; loop++) {
                 t->seq_cnt = loop * len + 1u;        /* step 1 of each loop */
@@ -1360,7 +1471,7 @@ static void test_cond_loops(void)
         }
     check("PROB: every A/B condition plays exactly on loop A of every B (128 loops)", ok && t->rng == r0);
     {
-        step_t s = {1, 0, COND_1SHOT, 0};
+        step_t s = {.on = 1, .cond = COND_1SHOT};
         ok = 1;
         for (loop = 0; loop < 16u; loop++) {
             t->seq_cnt = loop * len;
@@ -1369,7 +1480,7 @@ static void test_cond_loops(void)
         check("PROB: 1-SHOT plays only on the first loop after PLAY", ok);
     }
     {
-        step_t s = {1, 0, 22, 0};                    /* 1/2 */
+        step_t s = {.on = 1, .cond = 22};                    /* 1/2 */
         t->seq_cnt = 9;                              /* LEN 4: loop 2 (plays); LEN 3: loop 3 (does not) */
         check("PROB: conditions count loops with the LEN of the moment", step_plays(t, &s, 4) && !step_plays(t, &s, 3));
     }
@@ -1753,6 +1864,7 @@ static void test_comp_formats(void)
 /* (src_before: the SRC during the first 0.25 s, then src; src_duck: DUCK on the source itself) */
 typedef struct { int32_t after, late, send, src_peak; } comp_meas_t;
 static int16_t scene_ghost = CG_KEEP;               /* GHOST for comp_scene */
+static uint8_t scene_solo;                           /* song.solo for comp_scene */
 static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, int src_duck, int src_before)
 {
     comp_meas_t m = {0, 0, 0, 0};
@@ -1766,6 +1878,7 @@ static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, 
     trk[1].p[P_DUCK] = (int16_t)duck;
     trk[0].p[P_DUCK] = (int16_t)src_duck;
     trk[0].p[P_MUTE] = (int16_t)src_muted;
+    song.solo = scene_solo;
     if (src_level0)
         trk[0].p[P_LEVEL] = 0;
     drum_hit(&trk[1], 127);
@@ -1834,6 +1947,11 @@ static void test_comp_ghost(void)
     check("COMP ghost key: a muted source is silent and still ducks exactly as heard",
           ghost.src_peak == 0 && ghost.after == heard.after && ghost.late == heard.late);
     check("COMP: a source at LEVEL 0 still ducks exactly as heard", quiet.after == heard.after);
+    scene_solo = 1u << 1;                            /* T2 soloed: the source (T1) silent, as muted */
+    ghost = comp_scene(1, 1, 0, 0, 0, 1);
+    scene_solo = 0;
+    check("COMP ghost key: a source silenced by another track's SOLO is silent and still ducks exactly as heard",
+          ghost.src_peak == 0 && ghost.after == heard.after && ghost.late == heard.late);
 }
 
 /* GHOST: MUTE (a muted source is muted: silent, ducks nothing), KEEP (above), HIDE (never heard, always ducks) */
@@ -2420,6 +2538,31 @@ static void test_mute_next_bar(void)
         snprintf(what, sizeof what, "unmute on the bar (%s): the kick's full attack", WHO[src]);
         check(what, pb * 10 >= pr * 9);
     }
+}
+
+/* the COMP source (GHOST KEEP) silenced by another track's SOLO: a mute and an unmute on the bar leave it silent in
+ * the mix (no 5 ms of the unmuted bar's kick) */
+static void test_mute_next_bar_solo(void)
+{
+    uint32_t f;
+    int32_t peak = 0;
+    host_init();
+    trk[0].step[0].on = trk[0].step[15].on = 1;
+    song.g[G_CSRC] = 1;
+    song.g[G_CGHOST] = CG_KEEP;
+    trk[1].p[P_DUCK] = 1;
+    song.solo = 1u << 1;                             /* T2 soloed: T1, the source, silent */
+    render_mix(0, 0, 4 * CTL);
+    play();
+    for (f = 0; f < 4u * MBAR; f += CTL) {
+        if (f / CTL == (MBAR + MBAR / 2) / CTL || f / CTL == (2 * MBAR + MBAR / 2) / CTL)
+            song.mute_q |= 1;                        /* mute for bar 2, unmute for bar 3 */
+        render_mix(mb_out + f, 0, CTL);
+    }
+    for (f = 0; f < 4u * MBAR; f++)
+        peak = abs(mb_out[f]) > peak ? abs(mb_out[f]) : peak;
+    printf("     COMP source silenced by SOLO, muted and unmuted on the bar: mix peak %d\n", (int)peak);
+    check("unmute on the bar of a COMP source another track's SOLO silences: still silent in the mix", peak == 0);
 }
 
 /* RESON parameters (params.c): TUNE as a note, DECAY as a time, STRCT named CHORD (with chord names) on CHORD */
@@ -3232,6 +3375,7 @@ int main(void)
     test_lfo_random_phase_restart();
     test_lfo_activate_on_bar();
     test_mute_next_bar();
+    test_mute_next_bar_solo();
     test_reson_params();
     test_swing_cap();
     test_reson_pitch();
@@ -3254,6 +3398,7 @@ int main(void)
     test_two_voices();
     test_choke();
     test_mute();
+    test_solo();
     test_empty_slot();
     test_mix_health();
     test_seq_timing();
@@ -3296,6 +3441,8 @@ int main(void)
     test_cost();
     test_boot_cost();
     test_golden();
+    test_drum_transpose();
+    test_layer_transpose();
     test_voice_cap();
     test_heavy_cap();
     test_swing_grid();

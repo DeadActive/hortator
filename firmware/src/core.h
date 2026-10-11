@@ -110,14 +110,23 @@ typedef struct {
     void (*trigger)(struct track *t, dvoice_t *v);
     void (*render)(struct track *t, dvoice_t *v, int32_t *out, uint32_t n);
     uint8_t weight;              /* what a voice counts toward DRUM_MAXV: 0 / 1 = 1, 2 = a heavy model (M1-C) */
+    void (*glide)(struct track *t, dvoice_t *v);         /* ACID: the voice moves to the track's note, no restart */
+    void (*gate)(struct track *t, dvoice_t *v, int open); /* ACID: 0 = the gate closes (release) */
 } dmodel_t;
 
 /* ------------------------------------------------------------ track --- */
-typedef struct {                 /* one sequencer step; all zero = a plain step, off */
-    uint8_t on, acc;             /* hit; accent (velocity 127, else 96) */
+typedef struct {                 /* one sequencer step (4 B, stored as is); all zero = a plain step, off, at C4 */
+    uint8_t on : 1, acc : 1;     /* hit; accent (velocity 127, else 96) */
+    uint8_t slide : 1, tie : 1;  /* ACID: glide into the next note / hold the sounding note through this step */
+    uint8_t rat : 2;             /* RATCH: hits - 1 (0..3) */
+    uint8_t : 2;
     uint8_t cond;                /* PROB: 0 = 100 %, 1..20 = 0..95 %, 21 = 1-SHOT, 22..56 = A/B (params.c cond_*) */
-    uint8_t rat;                 /* RATCH: hits - 1 (0..3) */
+    int8_t nt;                   /* NOTE - 60 (C4 = 0): a drum's transpose, ACID's note (NT_MIN..NT_MAX) */
+    uint8_t rsv;                 /* 0 */
 } step_t;
+#define NT_MIN (-60)
+#define NT_MAX 67
+#define GATE_HELD 0xFFFFFFFFu     /* track_t.gate_n: the gate stays open, the next step decides (seq.c acid_step) */
 
 typedef struct { uint32_t ph, sub; int32_t out, from, to; uint8_t fresh; } lfo_state_t;   /* lfo.c: phase, sub-phase,
                                                                            * outputs, restarted */
@@ -141,6 +150,11 @@ typedef struct track {
     int32_t dtail;               /* declick: last output of cut voices, decaying */
     /* sequencer */
     step_t step[NSTEP];
+    int8_t nt;                   /* the playing note's offset from C4 (the step's, 0 for MIDI, keys): models read TUNE through dm_tune */
+    uint32_t gate_n;             /* ACID: samples until its gate closes, GATE_HELD while the next step decides, 0 closed */
+    uint8_t slide_in;            /* ACID: the previous step slides into this one */
+    int8_t rat_nt;               /* RATCH: the roll's note (a live hit between its hits leaves it) */
+    int8_t key_nt;               /* the note KEYS played or recorded last on this track (0 = C4): a new step's (§2) */
     uint32_t seq_pos;            /* samples into the current step */
     uint16_t seq_idx;
     uint32_t seq_cnt;            /* steps played since PLAY: swing pairs follow it, so any length stays on the bar */
@@ -164,6 +178,8 @@ typedef struct track {
     int32_t fs[2];               /* FILTER (filter.c): the SVF's states */
     int32_t fenv;                /* its envelope, Q24 (a hit: 1 << 24) */
     uint8_t fvel, fmode, fring;  /* the hit's velocity, the TYPE running (a change: from silence), ringing */
+    int32_t wow;                 /* ACID: the accent smoother, Q24 (accented notes charge it, track_render decays it
+                                  * every block: it carries over consecutive accents, as the 303's) */
 } track_t;
 
 typedef struct {
@@ -173,7 +189,7 @@ typedef struct {
                                   * 2026-10-08, the mute key) is held */
     uint8_t rec;                 /* live recording armed: bit per track */
     uint8_t sel;                 /* selected track 0..NTRK-1: keys, pages, editor */
-    int8_t octave;
+    int8_t octave;               /* KEYS: the keyboard's octave, -2..+2 (OCT- / OCT+), never stored */
     uint32_t tick;               /* blocks since play */
     uint32_t cpu_q8;             /* audio ISR load, 1/256 */
     uint32_t cpu_rem;            /* its average's remainder (audio.c) */
@@ -182,6 +198,7 @@ typedef struct {
     int16_t act[3];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
                                   * copy of settings.mutebar */
     uint8_t mute_q;              /* TRACKS: mutes to flip on the next bar (bit per track; seq.c) */
+    uint8_t solo;                /* SOLO (the SMC-Mixer): bit per track, runtime only (trk_silent) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */
     uint8_t lsel;                /* the LFO pages show LFO 1 / 2 (OCT-): screen state, never stored */
 } song_t;

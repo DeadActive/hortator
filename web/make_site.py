@@ -9,11 +9,13 @@
                               source.tar.gz); a redirect to the installer otherwise
   firmware/felucca-VER.fwsc   the package (+ LICENSE, LICENSING.md, LICENSES/: the package holds
                               JieLi SDK files under Apache-2.0, see LICENSING.md)
+  firmware/felucca-VER-ble.fwsc  with a second package (the Bluetooth build, FELUCCA_BLE=1): the installer offers
+                              both, the plain one first (2026-10-09)
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
   src/                        not touched
 
-  web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR
+  web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR [build/felucca-ble-X.Y.fwsc]
 
 The package identity (FM-1_9xx) is read from the package; the device reports it
 after the install.
@@ -39,20 +41,33 @@ def product_of(raw):
     return "".join(chr((m - i - 1) & 0xFF) for i in range(BLOCKS) if (m := raw[i * BLK + KEEP]) != 0x7D)
 
 
-def main(pkg, version, out):
-    pkg, out = Path(pkg), Path(out)
-    raw = pkg.read_bytes()
+def checked(pkg):
+    """the package's bytes and identity, or a stop: only fm1pkg_make.py packages of a Felucca identity"""
+    raw = Path(pkg).read_bytes()
     product = product_of(raw)
     if not re.fullmatch(r"FM-1_9\d\d", product):
         raise SystemExit(f"{pkg}: identity {product!r} is not a Felucca package (FM-1_9xx)")
     if b"FELUCCA-LOADER-1" not in raw:              # Felucca loader marker: never publish a package with vendor files
         raise SystemExit(f"{pkg}: no Felucca loader in it; the site ships only fm1pkg_make.py packages "
                          "(a package patched from an official one carries vendor files)")
+    return raw, product
+
+
+def main(pkg, version, out, ble_pkg=None):
+    pkg, out = Path(pkg), Path(out)
+    raw, product = checked(pkg)
+    if ble_pkg is not None and checked(ble_pkg)[1] != product:
+        raise SystemExit(f"{ble_pkg}: identity {checked(ble_pkg)[1]} is not {product}'s")
     html = (HERE / "index_pkg.html").read_text(encoding="utf-8")
     lib = strip_module((HERE / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
         strip_module((HERE / "fm1ota.js").read_text(encoding="utf-8"))
     name = f"felucca-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"
-    meta = json.dumps({"version": version, "product": product, "pkg": "../../firmware/" + name})
+    info = {"version": version, "product": product, "pkg": "../../firmware/" + name}
+    ble_name = name.replace(".fwsc", "-ble.fwsc")
+    if ble_pkg is not None:                         # the installer's choice: the plain version first, the default
+        info["variants"] = [{"id": "std", "version": version, "pkg": info["pkg"]},
+                            {"id": "ble", "version": version + "+ble", "pkg": "../../firmware/" + ble_name}]
+    meta = json.dumps(info)
     for mark in ("/*LIB*/", "/*META*/"):
         if html.count(mark) != 1:
             raise SystemExit(f"index_pkg.html must contain {mark} once; update make_site.py")
@@ -60,10 +75,12 @@ def main(pkg, version, out):
     inst, ed, fw = out / "webapp" / "installer", out / "webapp" / "editor", out / "firmware"
     for d in (inst, ed, fw):
         d.mkdir(parents=True, exist_ok=True)
-    for old in fw.glob("felucca-*.fwsc"):          # one package: the current one
+    for old in fw.glob("felucca-*.fwsc"):          # the current package(s) only
         old.unlink()
     (inst / "index.html").write_text(html, encoding="utf-8")
     shutil.copy(pkg, fw / name)
+    if ble_pkg is not None:
+        shutil.copy(ble_pkg, fw / ble_name)
     lic = HERE.parent / "LICENSES"                  # (upstream 1.0) the package holds JieLi SDK files (Apache-2.0):
     (fw / "LICENSES").mkdir(exist_ok=True)          # their licence travels next to it, with the others we ship
     names = sorted(f.name for f in lic.glob("*.txt"))
@@ -87,7 +104,7 @@ def main(pkg, version, out):
             '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
             '<a href="webapp/installer/">Hortator installer</a>\n', encoding="utf-8")
     print(f"site: {out}: {landing or 'index.html (redirect)'}, webapp/installer ({len(html)} B), webapp/editor, "
-          f"firmware/{name} ({len(raw)} B, {product})")
+          f"firmware/{name} ({len(raw)} B, {product})" + (f" + {ble_name}" if ble_pkg is not None else ""))
 
 
 SIM = HERE.parent / "build" / "sim"
@@ -112,6 +129,6 @@ def sim_page(out):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         sys.exit(__doc__)
-    main(*sys.argv[1:4])
+    main(*sys.argv[1:5])
