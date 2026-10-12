@@ -84,6 +84,8 @@ A second version of each release, **Hortator + Bluetooth MIDI** (experimental): 
 plain one, and the release has it as `hortator-X.Y.Z-bluetooth.fwsc`. Everything above works the same in it.
 Bluetooth is **off at every power-on**; it runs only after you turn it on, until the FM-1 is switched off.
 
+Please credit me if you using bluetooth code in your firmware🙏🏻
+
 ### The Bluetooth page
 
 MENU (hold HOME), PRESETS to **BLUETOOTH**, OCT+. PRESETS moves the cursor, KNOB 1 changes the row, OCT+ acts on it,
