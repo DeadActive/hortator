@@ -366,7 +366,7 @@ Report what you saw first; we'll go through it together.
 ### MIDI LEARN (check on the FM-1)
 
 - Hold GLO, press G4: `G4 LEARN: ON` on the MUTE screen (`build/ui_shots/learn/mute_learn_on.png`), G4 lit, no
-  sound. Let go: the footer says `LEARN: TURN A KNOB`.
+  sound. Let go: the footer says `LEARN: TURN OR PRESS`.
 - On HOME, turn KNOB 2: `T1 DECAY: SEND A CC`. Move a knob on a USB MIDI controller (or a DAW's CC lane): the top bar
   says `CC.. -> T1 DECAY`. Move it: track 1's DECAY follows over its whole range, also with track 3 selected. Same from
   the TRS jack, and from a Bluetooth MIDI controller in MIDI mode (the Bluetooth build); with the SMC-Mixer in SMC DAW
@@ -377,6 +377,10 @@ Report what you saw first; we'll go through it together.
   OCT+: `LEARN DONE`; the CCs still work.
 - Learn while playing, stop, power off and on: the CCs still work (LEARN itself off). No audio glitch from moving a
   learned knob quickly while a dense pattern plays (`status`: `audio_late 0`).
+- Actions: with LEARN on, press PLAY (nothing plays; `PLAY: SEND CC/NOTE`), hit a pad: `NOTE36 -> PLAY`. Do the same
+  for REC, ALGORITHM right, FX + G#3 (`FX R1/16`) and FX + A3 (`FX MUTE T3`) with buttons, and FX + KNOB 1 with a
+  knob (`FX FILTER`). OCT+: the pad starts / stops, its drum silent; the buttons arm, step the track, hold REPEAT and
+  the mute while held; HOME held (the menu) ends a held REPEAT, which stays off after the menu.
 
 ### BENCH: the performance cases on the FM-1
 

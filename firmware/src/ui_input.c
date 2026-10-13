@@ -476,6 +476,7 @@ static void fx_layer(uint32_t now, int home_tap)
                 if (!k && perf_k[0] && (v < 0) != (perf_k[0] < 0))
                     v = 0;                              /* FILTER: a turn across 0 stops at 0, its off point */
                 perf_k[k] = (int8_t)v;
+                ml_pick_act(ML_A_MAC + k);              /* (MIDI LEARN: the macro picked, as a knob's parameter) */
                 if (down && !(*t0 & FX_DEAD))
                     *t0 |= FX_OPEN;                     /* (a dead hold stays dead: a held layer key's turn
                                                          * opens no map that outlives the key) */
@@ -664,8 +665,8 @@ static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
-    uint32_t rec = btn_hold(&ui.rec_t0, B_REC, now, !ui.menu && fam == FAM_SEQ);
-    int32_t s;
+    uint32_t rec = btn_hold(&ui.rec_t0, B_REC, now, !ui.menu && fam == FAM_SEQ), acts;
+    int32_t s, dt;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
 #if FELUCCA_BLE
@@ -675,7 +676,23 @@ static void ui_input(void)
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
     ml_guard();                                         /* MIDI LEARN: off in the menu, NAME, another confirm */
-    ml_poll();                                          /* .. a CC came for the picked parameter */
+    ml_poll();                                          /* .. a CC / note came for the picked one */
+    if (ui.ml.on && !ui.confirm) {                      /* .. PLAY / REC pick their action, and do nothing else */
+        if ((pressed >> panel.btn[B_PLAY]) & 1u) {
+            pressed &= ~(1u << panel.btn[B_PLAY]);
+            ml_pick_act(ML_A_PLAY);
+        }
+        if ((pressed >> panel.btn[B_REC]) & 1u) {
+            ui.rec_t0 |= 2u;                            /* (no tap, no hold) */
+            ml_pick_act(ML_A_REC);
+        }
+    }
+    acts = ml_drain(&dt);                               /* .. learned buttons pressed: PLAY and REC as their taps,
+                                                         * NEXT / PREV TRACK as ALGORITHM (each where the button acts) */
+    if (acts & 1u)
+        pressed |= 1u << panel.btn[B_PLAY];
+    if ((acts & 2u) && rec == BT_NONE)
+        rec = BT_TAP;
     if (ui.mute) {                                      /* the MUTE screen owns the panel (its keys: glo_input), PLAY
                                                          * aside; a HOME / REC press under it is no tap or hold */
         if ((pressed >> panel.btn[B_PLAY]) & 1u)
@@ -858,8 +875,14 @@ static void ui_input(void)
                 track_select(k);
     }
     panel_enc(EN_PRESET);                             /* PRESETS: nothing (spec §2: free) */
-    if ((s = panel_enc(EN_ALGO)) != 0)
-        track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    if ((s = panel_enc(EN_ALGO)) != 0) {
+        if (ui.ml.on)
+            ml_pick_act(s > 0 ? ML_A_NEXT : ML_A_PREV);   /* MIDI LEARN: NEXT / PREV TRACK picked, no track change */
+        else
+            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    }
+    if (dt)                                             /* NEXT / PREV TRACK learned (MIDI LEARN) */
+        track_select((uint32_t)clamp((int32_t)song.sel + dt, 0, NTRK - 1));
     if ((s = panel_enc(EN_SELECT)) != 0) {              /* SELECT: the section's pages; HOME's TRACKS mode: BPM */
         if (!mix_mode())
             page_turn(s > 0 ? 1 : -1);

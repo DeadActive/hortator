@@ -157,7 +157,9 @@ static void bench_reset(void)
     pf.lc = PF_TOP;
     for (k = 0; k < NTRK; k++)
         pf.mg[k] = 32768;
-    perf_mask = kb_layer = perf_held = perf_act = 0;
+    perf_mask = kb_layer = perf_held = perf_act = perf_kh = perf_mh = 0;
+    ml_down = 0;                                    /* (MIDI LEARN: no button down, none queued) */
+    ml_qr = ml_qw;
     perf_kill = 0;
     perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
     perf_seq = 0;

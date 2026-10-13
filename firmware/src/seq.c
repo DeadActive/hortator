@@ -13,6 +13,8 @@ static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen m
                                        * none; armed before GLO is pressed (a key struck with it is the screen's) */
 static volatile uint32_t kb_mute;     /* ISR: the keys held that are the MUTE screen's (pressed with GLO) */
 static volatile uint32_t kb_mute_hit; /* ISR -> main: those presses, until the UI takes them */
+static volatile uint8_t ml_keys;      /* main: MIDI LEARN is on (ui_learn.c): a PERFORM layer key picks its effect */
+static volatile uint32_t ml_kb_hit;   /* ISR -> main: those presses (no effect played), until the UI takes them */
 /* key index (0 = F3, the lowest key) of the white keys F3 G3 A3 B3 C4 D4 E4 F4 -> tracks 1..8 */
 static const uint8_t KEY_TRK_KEY[NTRK] = {0, 2, 4, 6, 7, 9, 11, 12};
 #define KEY_LEARN 14u                    /* G4, the first white key above F4: MIDI LEARN on the MUTE screen (ui_learn.c) */
@@ -412,7 +414,11 @@ static void keyboard_block(void)
         if (cur & bit) {
             if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE)) {
                 kb_layer |= bit;
-                perf_press(perf_key(key), 1);
+                if (ml_keys)
+                    ml_kb_hit |= bit;                   /* MIDI LEARN: the key picks its effect (ui_learn.c), plays
+                                                         * none (its release: perf_press of an effect not held) */
+                else
+                    perf_press(perf_key(key), 1);
                 ch &= ~bit;
             } else if (fm1_in.buttons & mute_mask) {   /* GLO held: the MUTE screen's until let go (ui_input.c
                                                          * glo_input takes kb_mute_hit): no note, no MIDI */
@@ -468,9 +474,12 @@ static void midi_drop(void)
 static void midi_clock_pulse(uint32_t ms);                   /* midi_clock.c */
 static void midi_clock_transport(uint32_t status, uint32_t ms);
 static void learn_cc(uint32_t cc, uint32_t v);                /* midi_learn.c: MIDI LEARN */
+static int learn_note(uint32_t n, uint32_t on);
+static void learn_block(void);
 
 static void midi_block(void)
 {
+    learn_block();                                  /* (MIDI LEARN: PERFORM off ends the effects MIDI holds) */
     if (midi_in_overflow) {                         /* (upstream 1.0, usb_app.c) the ring overflowed: the stream is
                                                      * broken, drop the backlog */
         midi_drop();
@@ -494,6 +503,8 @@ static void midi_block(void)
             learn_cc(d1, d2);
             continue;
         }
+        if ((st == 0x90u || st == 0x80u) && learn_note(d1, st == 0x90u && d2))
+            continue;                               /* a learned note (any channel): its action, no drum */
         if (st != 0x90u || !d2 || ch != drum_ch())
             continue;                               /* note-offs: one-shots ignore them */
         for (i = 0; i < NTRK; i++)
@@ -505,7 +516,8 @@ static void midi_block(void)
 #include "motion.c"                 /* knob moves per step (upstream 1.0's motion recording) */
 static void seq_stop(void);
 #include "song.c"                   /* SONG: rows of the four slots (upstream 1.0's song chain) */
-#include "midi_learn.c"             /* MIDI LEARN: a learned CC sets its parameter (upstream 1.5's, adapted) */
+#include "midi_learn.c"             /* MIDI LEARN: a learned CC sets its parameter, a CC / note its action (upstream
+                                     * 1.5's, adapted) */
 
 static void seq_start(void)
 {

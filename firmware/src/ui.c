@@ -81,7 +81,8 @@ static struct {
     uint8_t srec, sr_cur, sr_key;   /* step record (spec §6): on; its cursor; the key whose note is on it + 1 */
     struct {                     /* MIDI LEARN (ui_learn.c; GLO + G4): never stored */
         uint8_t on;              /* LEARN is on */
-        uint8_t pick, trk, id;   /* a parameter picked: track trk's P_* id (a CC is awaited: midi_learn.c ml_arm) */
+        uint8_t pick, trk, id;   /* something picked: track trk's P_* id (a CC is awaited: midi_learn.c ml_arm) .. */
+        uint8_t act;             /* .. or, not 0, an action (midi_learn.c ML_A_*: a CC or a note awaited) */
         uint8_t save;            /* the map changed while playing: saved once stopped (project.c learn_save) */
     } ml;
 } ui;

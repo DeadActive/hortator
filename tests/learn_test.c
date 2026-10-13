@@ -149,7 +149,7 @@ static void test_flow(void)
     glo_up();
     check("GLO let go: HOME again, LEARN still on", !ui.mute && ui.home && ui.ml.on);
     ml_line(ln);
-    check("the line: LEARN: TURN A KNOB", same(ln, "LEARN: TURN A KNOB"));
+    check("the line: LEARN: TURN OR PRESS", same(ln, "LEARN: TURN OR PRESS"));
     snap("line_turn_a_knob");
     v = (uint32_t)trk[0].p[P_E1];
     knob(1, 1);
@@ -164,7 +164,7 @@ static void test_flow(void)
     snprintf(want, sizeof want, "CC74 -> T1 %s", label(0, P_E1));
     check("the next CC (any channel) is bound: CC74 -> T1 <knob>; it set nothing while picked",
           cc_of(0, P_E1) == 75u && same(ui.msg, want) && (uint32_t)trk[0].p[P_E1] == v + 1u);
-    check("the pick ends: TURN A KNOB again", !ui.ml.pick && !ml_arm);
+    check("the pick ends: TURN OR PRESS again", !ui.ml.pick && !ml_arm);
     usb_cc(5, 74, 0);
     frames(2);
     check("CC74 value 0 (another channel): the knob's minimum", trk[0].p[P_E1] == track_desc(&trk[0], P_E1)->min);
@@ -229,21 +229,21 @@ static void test_full(void)
     uint32_t k, i;
     fresh();
     learn_toggle();
-    for (k = 0; k < 4u; k++) {                       /* 4 tracks x 4 HOME knobs = 16 */
+    for (k = 0; k < NTRK; k++) {                     /* 8 tracks x 4 HOME knobs = 32 */
         track_select(k);
         for (i = 0; i < 4u; i++)
-            learn_home(i, 40u + k * 4u + i);   /* (CC40..55) */
+            learn_home(i, 40u + k * 4u + i);   /* (CC40..71) */
     }
-    if (!check("16 learned", count() == 16u))
+    if (!check("32 learned", count() == 32u))
         printf("    %u learned\n", (unsigned)count());
-    track_select(4);
-    knob(0, 1);
+    tap(B_PLAY);                                     /* (an action: PLAY picked) */
     ui.msg_t = 0;
-    send_cc(60, 1);
-    check("a 17th: LEARN FULL, nothing replaced, the pick stays", same(ui.msg, "LEARN FULL") && count() == 16u &&
-          !cc_of(4, P_E0) && ui.ml.pick);
-    send_cc(40, 1);                                  /* a learned CC: it moves here */
-    check("full, a learned CC to another parameter: it moves", cc_of(4, P_E0) == 41u && !cc_of(0, P_E0) && count() == 16u);
+    send_cc(80, 127);
+    check("a 33rd: LEARN FULL, nothing replaced, the pick stays", same(ui.msg, "LEARN FULL") && count() == 32u &&
+          !ml_src_of(0, ML_A_PLAY) && ui.ml.pick && ui.ml.act == ML_A_PLAY);
+    send_cc(40, 127);                                /* a learned CC: it moves here */
+    check("full, a learned CC to an action: it moves", ml_src_of(0, ML_A_PLAY) == 41u && !cc_of(0, P_E0) &&
+          count() == 32u);
 }
 
 /* OCT- clears the picked parameter's CC; with nothing picked asks CLEAR ALL LEARNED? */
@@ -321,7 +321,15 @@ static void test_ends(void)
     learn_toggle();
     tap(B_SEQ);                                      /* STEP */
     hold(B_REC);
-    check("REC held on SEQ (CLEAR TRACK?): LEARN off", ui.confirm == 1u && !ui.ml.on);
+    check("REC held on SEQ while learning: REC picked (no CLEAR TRACK?)", !ui.confirm && ui.ml.on &&
+          ui.ml.act == ML_A_REC);
+    mo.s.ev[0] = (motion_event_t){0, 4, P_PAN, 40};  /* (a motion event: MOTION's CLEAR asks) */
+    mo.s.count = 1;
+    for (k = 0; k < 6u && cur_page()->graph != GR_MOTION; k++)
+        tap(B_SEQ);
+    knob(3, 1);
+    frames(1);
+    check("another confirm (MOTION's CLEAR MOTION T1?): LEARN off", ui.confirm == 2u && !ui.ml.on);
     oct(B_OCTDN);
     project_save(0);                                 /* (slot A used: NAME renames it) */
     learn_toggle();
@@ -363,8 +371,8 @@ static void test_model_drop(void)
     for (i = 0; i < 64u && label(0, P_E5)[0] != '-'; i++)
         knob(0, 1);                                  /* MODEL */
     ml_line(ln);
-    check("MODEL to one without the picked knob: the pick dropped, the footer TURN A KNOB",
-          label(0, P_E5)[0] == '-' && !ui.ml.pick && !ml_arm && same(ln, "LEARN: TURN A KNOB"));
+    check("MODEL to one without the picked knob: the pick dropped, the footer TURN OR PRESS",
+          label(0, P_E5)[0] == '-' && !ui.ml.pick && !ml_arm && same(ln, "LEARN: TURN OR PRESS"));
     send_cc(74, 64);
     check("(a CC then learns nothing)", !count() && ui.ml.on);
 }
@@ -598,6 +606,11 @@ static void test_inputs(void)
 }
 
 /* ---- the flash record */
+typedef struct {                                     /* version 1's record */
+    uint32_t magic;
+    uint16_t ver, n;
+    ml_ent_t e[16];
+} ml_rec1_t;
 static ml_rec_t rec_read(int *ok)
 {
     ml_rec_t r;
@@ -624,8 +637,8 @@ static void test_storage(void)
     learn_toggle();
     learn_home(1, 74);
     r = rec_read(&ok);
-    check("a learn is saved: its own object (HLRN, version 1, 16 entries)", ok && r.magic == ML_MAGIC && r.ver == 1u &&
-          r.n == ML_N && r.e[0].cc == 74u && r.e[0].trk == 0u && r.e[0].code == P_E1 + 1u);
+    check("a learn is saved: its own object (HLRN, version 2, 32 entries)", ok && r.magic == ML_MAGIC && r.ver == 2u &&
+          r.n == 32u && r.e[0].num == 74u && r.e[0].trk == 0u && r.e[0].code == P_E1 + 1u && r.e[0].src == ML_CC);
     track_select(5);
     knob(3, 1);
     send_cc(75, 1);
@@ -645,7 +658,7 @@ static void test_storage(void)
     transport_req = 2;
     frames(3);
     r = rec_read(&ok);
-    check("STOP: saved", ok && r.e[2].cc == 76u && r.e[2].trk == 5u && r.e[2].code == P_E2 + 1u);
+    check("STOP: saved", ok && r.e[2].num == 76u && r.e[2].trk == 5u && r.e[2].code == P_E2 + 1u);
     {
         uint32_t seq0;
         st_hdr_t h;
@@ -677,28 +690,56 @@ static void test_storage(void)
         check("another record in the object (Felucca's presets): nothing learned", !count());
         memset(&r, 0, sizeof r);
         r.magic = ML_MAGIC;
-        r.ver = 2;
+        r.ver = 3;
         r.n = ML_N;
         r.e[0] = (ml_ent_t){74, 0, P_E1 + 1u, 0};
         st_save(OBJ_UPRESET0, &r, sizeof r);
         power_cycle();
         check("a later version: nothing learned", !count());
-        r.ver = 1;
-        r.e[1] = (ml_ent_t){0, 0, P_E2 + 1u, 0};    /* bank select */
-        r.e[2] = (ml_ent_t){75, 8, P_E2 + 1u, 0};   /* track 9 */
-        r.e[3] = (ml_ent_t){76, 0, P_COUNT + 1u, 0}; /* a parameter this build does not know */
-        r.e[4] = (ml_ent_t){77, 0, P_MODEL + 1u, 0}; /* MODEL */
-        r.e[5] = (ml_ent_t){74, 1, P_E3 + 1u, 0};   /* CC74 twice */
-        r.e[6] = (ml_ent_t){78, 0, P_E1 + 1u, 0};   /* T1's knob twice */
-        r.e[7] = (ml_ent_t){79, 2, P_PAN + 1u, 0};  /* good */
+        {
+            ml_rec1_t r1;                            /* version 1 (16 entries, 72 B) with broken entries */
+            memset(&r1, 0, sizeof r1);
+            r1.magic = ML_MAGIC;
+            r1.ver = 1;
+            r1.n = 16;
+            r1.e[0] = (ml_ent_t){74, 0, P_E1 + 1u, 0};
+            r1.e[1] = (ml_ent_t){0, 0, P_E2 + 1u, 0};    /* bank select */
+            r1.e[2] = (ml_ent_t){75, 8, P_E2 + 1u, 0};   /* track 9 */
+            r1.e[3] = (ml_ent_t){76, 0, P_COUNT + 1u, 0}; /* a parameter this build does not know */
+            r1.e[4] = (ml_ent_t){77, 0, P_MODEL + 1u, 0}; /* MODEL */
+            r1.e[5] = (ml_ent_t){74, 1, P_E3 + 1u, 0};   /* CC74 twice */
+            r1.e[6] = (ml_ent_t){78, 0, P_E1 + 1u, 0};   /* T1's knob twice */
+            r1.e[7] = (ml_ent_t){79, 2, P_PAN + 1u, 0};  /* good */
+            r1.e[8] = (ml_ent_t){80, 0, P_E4 + 1u, 1};   /* (version 1: the reserved byte not 0) */
+            st_save(OBJ_UPRESET0, &r1, sizeof r1);
+            power_cycle();
+            check("version 1: broken entries dropped, the good ones kept", count() == 2u && cc_of(0, P_E1) == 75u &&
+                  cc_of(2, P_PAN) == 80u);
+            r1.n = 17;
+            st_save(OBJ_UPRESET0, &r1, sizeof r1);
+            power_cycle();
+            check("a wrong count: nothing learned", !count());
+        }
+        memset(&r, 0, sizeof r);                     /* version 2's broken entries */
+        r.magic = ML_MAGIC;
+        r.ver = 2;
+        r.n = ML_N;
+        r.e[0] = (ml_ent_t){36, 0, ML_A_PLAY, ML_NOTE};       /* good */
+        r.e[1] = (ml_ent_t){37, 0, P_E1 + 1u, ML_NOTE};       /* a note on a parameter */
+        r.e[2] = (ml_ent_t){38, 0, ML_A_MAC, ML_NOTE};        /* .. on a macro */
+        r.e[3] = (ml_ent_t){39, 0, 0x84u, ML_NOTE};           /* an action this build does not know */
+        r.e[4] = (ml_ent_t){40, 0, ML_A_REC, 2};              /* a source this build does not know */
+        r.e[5] = (ml_ent_t){41, 3, ML_A_NEXT, ML_NOTE};       /* an action with a track */
+        r.e[6] = (ml_ent_t){36, 0, ML_A_REC, ML_NOTE};        /* NOTE36 twice */
+        r.e[7] = (ml_ent_t){20, 0, ML_A_PLAY, ML_CC};         /* PLAY twice */
+        r.e[8] = (ml_ent_t){0, 0, ML_A_REC, ML_CC};           /* CC0 */
+        r.e[9] = (ml_ent_t){36, 0, ML_A_MAC + 1u, ML_CC};     /* good: CC36 (not NOTE36) -> CRUSH */
+        r.e[31] = (ml_ent_t){37, 0, ML_A_FX + PF_M1 + 7u, ML_NOTE};   /* good: the last entry, T8's mute */
         st_save(OBJ_UPRESET0, &r, sizeof r);
         power_cycle();
-        check("broken entries dropped, the good ones kept", count() == 2u && cc_of(0, P_E1) == 75u &&
-              cc_of(2, P_PAN) == 80u);
-        r.n = 17;
-        st_save(OBJ_UPRESET0, &r, sizeof r);
-        power_cycle();
-        check("a wrong count: nothing learned", !count());
+        check("version 2: broken entries dropped, the good ones kept (the 32nd too)", count() == 3u &&
+              ml_src_of(0, ML_A_PLAY) == (ML_NOTE << 8 | 36u) + 1u && ml_src_of(0, ML_A_MAC + 1u) == 37u &&
+              ml_src_of(0, ML_A_FX + PF_M1 + 7u) == (ML_NOTE << 8 | 37u) + 1u);
     }
     memset(hflash, 0xFF, sizeof hflash);
     learn_toggle();
@@ -713,6 +754,467 @@ static void test_storage(void)
     frames(2);
     check("(and sets)", trk[0].p[P_E1] == track_desc(&trk[0], P_E1)->min);
     host_jedec = 0x856014u;
+}
+
+/* ---- the actions (spec §7) */
+static void usb_note(uint32_t ch, uint32_t n, uint32_t v)   /* a note on (v > 0) / note on velocity 0 */
+{
+    midi_in_event(0x09u | (0x90u | ch) << 8 | n << 16 | v << 24);
+}
+static void usb_noff(uint32_t ch, uint32_t n) { midi_in_event(0x08u | (0x80u | ch) << 8 | n << 16 | 64u << 24); }
+static void send_note(uint32_t n, uint32_t v)        /* USB, channel 1; then two frames */
+{
+    usb_note(0, n, v);
+    frames(2);
+}
+#define SRC_NOTE(n) ((ML_NOTE << 8 | (n)) + 1u)          /* ml_src_of of a note */
+static uint32_t fx_bit(void) { return 1u << panel.btn[B_FX]; }
+static void fx_key(uint32_t key)                     /* FX held, a key tapped, FX let go (the PERFORM layer) */
+{
+    uint32_t i;
+    press(B_FX);
+    ui_frame();
+    keys(1u << key);
+    for (i = 0; i < 2u; i++) {
+        fm1_in.buttons |= fx_bit();
+        ui_frame();
+    }
+    keys(0);
+    fm1_in.buttons |= fx_bit();
+    ui_frame();
+    release_all();
+    ui_frame();
+}
+#define KEY_GS3 3u                                   /* G#3: the second black key, REPEAT 1/16 */
+#define KEY_A3 4u                                    /* A3: the third white key, track 3's mute */
+#define KEY_D4 10u                                   /* D#4: TAPE */
+static void test_act_learn(void)
+{
+    char ln[32];
+    uint32_t a;
+    fresh();
+    learn_toggle();
+    ml_line(ln);
+    check("LEARN on: the line LEARN: TURN OR PRESS", same(ln, "LEARN: TURN OR PRESS"));
+    tap(B_PLAY);
+    check("PLAY while learning: PLAY picked, nothing plays", ui.ml.pick && ui.ml.act == ML_A_PLAY && !song.playing &&
+          !transport_req);
+    ml_line(ln);
+    check("the line: PLAY: SEND CC/NOTE", same(ln, "PLAY: SEND CC/NOTE"));
+    ui.msg_t = 0;
+    snap("act_play_send");
+    a = hit_age(&trk[0]);
+    usb_note(9, (uint32_t)trk[0].p[P_NOTE], 100);    /* (track 1's note, on the drum channel) */
+    frames(2);
+    {
+        char want[24];
+        snprintf(want, sizeof want, "NOTE%d -> PLAY", trk[0].p[P_NOTE]);
+        check("a note binds it: NOTE<n> -> PLAY; the note played no drum, PLAY did nothing",
+              ml_src_of(0, ML_A_PLAY) == SRC_NOTE((uint32_t)trk[0].p[P_NOTE]) && same(ui.msg, want) &&
+              hit_age(&trk[0]) == a && !song.playing && !ui.ml.pick);
+    }
+    snap("act_play_learned");
+    usb_noff(9, (uint32_t)trk[0].p[P_NOTE]);
+    frames(2);
+    check("(its note off after: nothing)", !song.playing && !ui.ml.pick);
+    tap(B_REC);
+    frames(1);
+    check("REC while learning: REC picked, nothing armed", ui.ml.act == ML_A_REC && !song.rec && !song.playing);
+    send_cc(20, 127);
+    check("a CC binds it: CC20 -> REC", ml_src_of(0, ML_A_REC) == 21u && same(ui.msg, "CC20 -> REC") && !song.rec);
+    send_cc(20, 0);
+    turn(EN_ALGO, 1);
+    ui_frame();
+    check("ALGORITHM right while learning: NEXT TRACK picked, the track stays", ui.ml.act == ML_A_NEXT &&
+          song.sel == 0u);
+    send_cc(21, 127);
+    check("CC21 -> NEXT TRACK", ml_src_of(0, ML_A_NEXT) == 22u && same(ui.msg, "CC21 -> NEXT TRACK") && !song.sel);
+    send_cc(21, 0);
+    turn(EN_ALGO, -1);
+    ui_frame();
+    check("ALGORITHM left: PREV TRACK picked", ui.ml.act == ML_A_PREV && song.sel == 0u);
+    send_note(40, 90);
+    check("NOTE40 -> PREV TRACK", ml_src_of(0, ML_A_PREV) == SRC_NOTE(40u) && same(ui.msg, "NOTE40 -> PREV TRACK"));
+    usb_noff(0, 40);
+    fx_key(KEY_GS3);
+    ml_line(ln);
+    check("FX held + G#3 while learning: FX R1/16 picked, the effect not played", ui.ml.act == ML_A_FX + PF_R16 &&
+          !perf_held && !perf_act && same(ln, "FX R1/16: SEND CC/NOTE"));
+    ui.msg_t = 0;
+    snap("act_fx_send");
+    send_cc(22, 127);
+    check("CC22 -> FX R1/16 (bound: the effect not held by the learning press)", ml_src_of(0, ML_A_FX + PF_R16) == 23u &&
+          same(ui.msg, "CC22 -> FX R1/16") && !perf_held);
+    send_cc(22, 0);
+    check("(its release after: nothing held)", !perf_held);
+    fx_key(KEY_A3);
+    check("FX held + A3: FX MUTE T3 picked, T3 not muted", ui.ml.act == ML_A_FX + PF_M1 + 2u && !perf_held);
+    send_note(41, 100);
+    check("NOTE41 -> FX MUTE T3", ml_src_of(0, ML_A_FX + PF_M1 + 2u) == SRC_NOTE(41u) &&
+          same(ui.msg, "NOTE41 -> FX MUTE T3"));
+    usb_noff(0, 41);
+    frames(1);
+    press(B_FX);
+    ui_frame();
+    fm1_in.buttons |= fx_bit();
+    turn(EN_K1, 3);
+    ui_frame();
+    ml_line(ln);
+    check("the PERFORM screen (FX held), KNOB 1: FX FILTER picked (and turned, as a knob is)", ui.ml.act == ML_A_MAC &&
+          perf_k[0] > 0 && same(ln, "FX FILTER: SEND A CC"));
+    ui.msg_t = 0;
+    snap("act_macro_send");
+    release_all();
+    ui_frame();
+    send_note(42, 100);
+    check("a note does not bind a macro (a CC does)", ui.ml.pick && !ml_src_of(0, ML_A_MAC));
+    usb_noff(0, 42);
+    send_cc(23, 64);
+    check("CC23 -> FX FILTER", ml_src_of(0, ML_A_MAC) == 24u && same(ui.msg, "CC23 -> FX FILTER"));
+    perf_k[0] = 0;
+    press(B_FX);
+    ui_frame();
+    fm1_in.buttons |= fx_bit();
+    turn(EN_K3, 2);
+    ui_frame();
+    release_all();
+    ui_frame();
+    send_cc(24, 0);
+    check("KNOB 3 on it: CC24 -> FX THROW", ml_src_of(0, ML_A_MAC + 2u) == 25u && same(ui.msg, "CC24 -> FX THROW"));
+    perf_k[2] = 0;
+    tap(B_PLAY);
+    ml_line(ln);
+    {
+        char want[32];
+        snprintf(want, sizeof want, "PLAY = NOTE%d", trk[0].p[P_NOTE]);
+        check("PLAY again: the line PLAY = NOTE<n>", same(ln, want));
+    }
+    oct(B_OCTDN);
+    check("OCT- with PLAY picked: its note cleared (PLAY CLEARED)", !ml_src_of(0, ML_A_PLAY) &&
+          same(ui.msg, "PLAY CLEARED") && ui.ml.pick);
+    ui.msg_t = 0;
+    oct(B_OCTDN);
+    check("OCT- again: NOTHING TO CLEAR", same(ui.msg, "NOTHING TO CLEAR"));
+    send_note(36, 100);
+    check("(a note binds it again)", ml_src_of(0, ML_A_PLAY) == SRC_NOTE(36u));
+    usb_noff(0, 36);
+    oct(B_OCTUP);
+    check("OCT+: LEARN done", !ui.ml.on && !ml_keys);
+    tap(B_PLAY);
+    frames(1);
+    check("OCT+ done: PLAY plays again", song.playing);
+    tap(B_PLAY);
+    frames(1);
+    tap(B_REC);
+    frames(1);
+    check(".. REC arms again", song.rec == 1u);
+    tap(B_REC);
+    song.rec = 0;
+    transport_req = 2;
+    frames(1);
+    turn(EN_ALGO, 1);
+    ui_frame();
+    check(".. ALGORITHM selects again", song.sel == 1u);
+    fx_key(KEY_GS3);
+    press(B_FX);
+    ui_frame();
+    keys(1u << KEY_GS3);
+    fm1_in.buttons |= fx_bit();
+    ui_frame();
+    check(".. FX + G#3 holds REPEAT 1/16 again", (perf_held >> PF_R16) & 1u);
+    keys(0);
+    release_all();
+    ui_frame();
+    check("(let go: nothing held)", !perf_held);
+}
+
+/* bindings made directly: NOTE36 PLAY, CC20 REC, CC21 NEXT, NOTE40 PREV, CC22 R1/16, NOTE41 T3's mute, CC23 FILTER,
+ * CC24 THROW, CC25 PLAY (a second test) */
+static void act_map(void)
+{
+    ml_bind(ML_NOTE << 8 | 36u, 0, ML_A_PLAY);
+    ml_bind(20, 0, ML_A_REC);
+    ml_bind(21, 0, ML_A_NEXT);
+    ml_bind(ML_NOTE << 8 | 40u, 0, ML_A_PREV);
+    ml_bind(22, 0, ML_A_FX + PF_R16);
+    ml_bind(ML_NOTE << 8 | 41u, 0, ML_A_FX + PF_M1 + 2u);
+    ml_bind(23, 0, ML_A_MAC);
+    ml_bind(24, 0, ML_A_MAC + 2u);
+}
+static void test_act_trigger(void)
+{
+    uint32_t a;
+    fresh();
+    act_map();
+    check("(8 bound)", count() == 8u);
+    send_note(36, 100);
+    check("a learned note on: PLAY (plays)", song.playing);
+    usb_noff(0, 36);
+    frames(2);
+    check("its note off: nothing", song.playing);
+    usb_note(0, 36, 100);
+    usb_note(0, 36, 0);                              /* (velocity 0: a note off) */
+    frames(2);
+    check("on again: PLAY (stops); velocity 0 is a note off", !song.playing);
+    ml_bind(25, 0, ML_A_PLAY);
+    check("PLAY learned to CC25: NOTE36 freed", ml_src_of(0, ML_A_PLAY) == 26u && count() == 8u);
+    send_cc(25, 127);
+    check("a learned CC >= 64: PLAY", song.playing);
+    send_cc(25, 100);
+    check("still >= 64: no edge, nothing", song.playing);
+    send_cc(25, 10);
+    check("< 64: let go, nothing", song.playing);
+    send_cc(25, 64);
+    check("64 again: PLAY (stops)", !song.playing);
+    send_cc(25, 0);
+    send_cc(20, 127);
+    check("CC20 (REC): the selected track armed (and play starts, as REC's tap)", song.rec == 1u && song.playing);
+    send_cc(20, 0);
+    send_cc(20, 127);
+    check("again: disarmed", !song.rec);
+    send_cc(20, 0);
+    transport_req = 2;
+    frames(1);
+    send_cc(21, 127);
+    send_cc(21, 0);
+    check("CC21 (NEXT TRACK): T2 selected", song.sel == 1u);
+    send_cc(21, 127);
+    check("NEXT again: T3", song.sel == 2u);
+    send_cc(21, 0);
+    send_note(40, 1);
+    usb_noff(0, 40);
+    check("NOTE40 (PREV TRACK): T2", song.sel == 1u);
+    track_select(7);
+    send_cc(21, 127);
+    send_cc(21, 0);
+    check("NEXT at T8: stays (clamped)", song.sel == 7u);
+    track_select(0);
+    send_note(40, 100);
+    usb_noff(0, 40);
+    check("PREV at T1: stays", song.sel == 0u);
+    frames(1);
+    send_cc(22, 127);
+    check("CC22 >= 64: REPEAT 1/16 held (as its key in the layer, FX not held)", perf_held == PF_BIT(PF_R16) &&
+          ((perf_act >> PF_R16) & 1u));
+    send_cc(22, 0);
+    check("CC22 < 64: let go", !perf_held);
+    send_note(41, 100);
+    check("NOTE41: T3 muted while held", perf_held == PF_BIT(PF_M1 + 2u));
+    usb_noff(0, 41);
+    frames(2);
+    check("its note off: open again", !perf_held);
+    send_cc(23, 0);
+    check("CC23 0: FILTER -100 (the LPF end)", perf_k[0] == -100);
+    send_cc(23, 64);
+    check("CC23 64: FILTER 0 (off)", perf_k[0] == 0);
+    send_cc(23, 63);
+    check("CC23 63: just under (LPF)", perf_k[0] < 0 && perf_k[0] > -5);
+    send_cc(23, 127);
+    check("CC23 127: FILTER 100 (HPF)", perf_k[0] == 100);
+    send_cc(24, 127);
+    check("CC24 127: THROW 100", perf_k[2] == 100);
+    send_cc(24, 0);
+    check("CC24 0: THROW 0", perf_k[2] == 0);
+    send_cc(23, 64);
+    a = hit_age(&trk[0]);
+    ml_bind(ML_NOTE << 8 | (uint32_t)trk[0].p[P_NOTE], 0, ML_A_REC);
+    usb_note(9, (uint32_t)trk[0].p[P_NOTE], 100);
+    frames(2);
+    check("a learned note on the drum channel: its action, its drum does not play", hit_age(&trk[0]) == a &&
+          song.rec == 1u);
+    usb_noff(9, (uint32_t)trk[0].p[P_NOTE]);
+    song.rec = 0;
+    transport_req = 2;
+    frames(1);
+    usb_note(9, (uint32_t)trk[1].p[P_NOTE], 100);
+    frames(2);
+    check("(a note not learned still plays its drum)", hit_age(&trk[1]) != 0u);
+    ml_bind(ML_NOTE << 8 | 36u, 0, ML_A_REC);
+    a = count();
+    ml_bind(ML_NOTE << 8 | 36u, 0, ML_A_PLAY);
+    check("a note is bound once: NOTE36 from REC to PLAY, REC left with none, PLAY's CC25 gone",
+          ml_src_of(0, ML_A_PLAY) == SRC_NOTE(36u) && !ml_src_of(0, ML_A_REC) && count() == a - 1u);
+    check("a note never binds a parameter", ml_bind(ML_NOTE << 8 | 50u, 0, P_E1 + 1u) == 2u &&
+          ml_bind(ML_NOTE << 8 | 50u, 0, ML_A_MAC) == 2u && ml_bind(0, 0, ML_A_PLAY) == 2u &&
+          ml_bind(120, 0, ML_A_REC) == 2u);
+    learn_toggle();
+    knob(1, 1);
+    a = hit_age(&trk[0]);
+    usb_note(9, (uint32_t)trk[0].p[P_NOTE] + 0u, 100);   /* (now REC's: test with another track's note) */
+    usb_note(9, (uint32_t)trk[2].p[P_NOTE], 100);
+    frames(2);
+    check("a parameter picked: a note binds nothing and plays as usual", ui.ml.pick && !cc_of(0, P_E1) &&
+          hit_age(&trk[2]) != 0u);
+}
+
+/* PERFORM held by MIDI renders as its key (perform_test style: the whole mix, bit for bit) */
+#define ACT_B 512u                                  /* blocks rendered; the effect held from ACT_ON to ACT_OFF */
+#define ACT_ON 64u
+#define ACT_OFF 384u
+static int32_t AL[CTL * ACT_B], AR[CTL * ACT_B], BL2[CTL * ACT_B], BR2[CTL * ACT_B];
+static void act_kit(void)
+{
+    uint32_t k;
+    for (k = 0; k < 16u; k++) {
+        trk[0].step[k].on = (k & 3u) == 0u;
+        trk[1].step[k].on = (k & 7u) == 4u;
+        trk[2].step[k].on = (k & 1u) == 0u;
+    }
+    song.g[G_BPM] = 120;
+}
+static void act_render(int midi, uint32_t key, uint32_t src, int32_t *l, int32_t *r)
+{
+    uint32_t b;
+    fresh();
+    act_kit();
+    if (midi)
+        ml_bind(src, 0, ML_A_FX + perf_key(key));
+    transport_req = 1;
+    for (b = 0; b < ACT_B; b++) {
+        if (b == ACT_ON || b == ACT_OFF) {
+            int on = b == ACT_ON;
+            if (!midi) {
+                perf_mask = fx_bit();
+                fm1_in.buttons = on ? fx_bit() : 0u;
+                fm1_in.notes = on ? 1u << key : 0u;
+            } else if (src >> 8) {
+                if (on)
+                    usb_note(0, src & 127u, 100);
+                else
+                    usb_noff(0, src & 127u);
+            } else {
+                usb_cc(0, src, on ? 127u : 0u);
+            }
+        }
+        render_mix(l + b * CTL, r + b * CTL, CTL);
+    }
+}
+static void test_act_render(void)
+{
+    static const uint8_t KEY[3] = {KEY_GS3, KEY_A3, KEY_D4};
+    static const char *const WHAT[3] = {"REPEAT 1/16 held by a CC renders bit for bit as its key",
+                                        "T3's mute held by a note: as its key", "TAPE held by a CC: as its key"};
+    uint32_t i;
+    for (i = 0; i < 3u; i++) {
+        act_render(0, KEY[i], 0, AL, AR);
+        act_render(1, KEY[i], i == 1u ? ML_NOTE << 8 | 41u : 22u, BL2, BR2);
+        check(WHAT[i], !memcmp(AL, BL2, sizeof AL) && !memcmp(AR, BR2, sizeof AR));
+    }
+    {
+        double e = 0;
+        uint32_t j;
+        act_render(0, KEY[0], 0, AL, AR);
+        fresh();
+        act_kit();
+        transport_req = 1;
+        render_mix(BL2, BR2, CTL * ACT_B);
+        for (j = ACT_ON * CTL; j < ACT_OFF * CTL; j++)
+            e += fabs((double)AL[j] - BL2[j]);
+        check("(and the effect changes the mix)", e > 0);
+    }
+}
+
+/* no effect stuck: let go, the menu, a confirm, NAME, the binding cleared while held; key and MIDI together */
+static void test_act_stuck(void)
+{
+    fresh();
+    act_map();
+    send_cc(22, 127);
+    check("(R1/16 held by CC22)", perf_held == PF_BIT(PF_R16));
+    hold(B_HOME);
+    check("the menu opens: the MIDI-held effect ends", ui.menu && !perf_mh && !perf_held);
+    hold(B_HOME);
+    frames(2);
+    check("the menu closed: it does not come back (the controller still down)", !ui.menu && !perf_held);
+    send_cc(22, 0);
+    check("(its release: nothing)", !perf_held);
+    send_cc(22, 127);
+    check("pressed again: held again", perf_held == PF_BIT(PF_R16));
+    send_note(41, 100);
+    tap(B_SEQ);
+    hold(B_REC);
+    check("a confirm (CLEAR TRACK?): both end", ui.confirm == 1u && !perf_held);
+    oct(B_OCTDN);
+    frames(2);
+    send_cc(22, 0);
+    usb_noff(0, 41);
+    frames(2);
+    check("(the confirm gone, released: nothing)", !perf_held);
+    send_cc(22, 127);
+    press(B_FX);
+    ui_frame();
+    keys(1u << KEY_GS3);
+    fm1_in.buttons |= fx_bit();
+    ui_frame();
+    keys(0);
+    fm1_in.buttons |= fx_bit();
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("held by CC22 and its key: the key let go, the CC still holds it", perf_held == PF_BIT(PF_R16));
+    send_cc(22, 0);
+    check("the CC let go: ended", !perf_held);
+    learn_toggle();                                  /* (GLO held: the MUTE screen ends PERFORM's effects) */
+    send_cc(22, 0);
+    send_cc(22, 127);
+    fx_key(KEY_GS3);
+    check("(learning: FX R1/16 picked, still held by CC22)", ui.ml.act == ML_A_FX + PF_R16 &&
+          perf_held == PF_BIT(PF_R16));
+    oct(B_OCTDN);
+    check("its binding cleared while held: the effect ends", !ml_src_of(0, ML_A_FX + PF_R16) && !perf_held);
+    oct(B_OCTUP);
+    send_cc(22, 0);
+    send_cc(22, 127);
+    check("(CC22 now nothing)", !perf_held);
+    ml_bind(22, 0, ML_A_FX + PF_R16);
+    send_cc(22, 127);
+    ml_bind(22, 0, ML_A_FX + PF_TAPE);
+    check("CC22 learned again (to TAPE) while R1/16 held: R1/16 ends, TAPE waits for a press", !perf_held);
+    send_cc(22, 0);
+    send_cc(22, 127);
+    check("(pressed: TAPE)", perf_held == PF_BIT(PF_TAPE));
+    send_cc(22, 0);
+    send_cc(22, 127);
+    project_save(0);
+    for (perf_kill = 0; cur_page()->graph != GR_SLOTS;)
+        tap(B_SAVE);
+    knob(1, 1);
+    frames(1);
+    check("NAME opens: ended", name_on() && !perf_held);
+    name_close();
+    frames(2);
+    send_cc(22, 0);
+    check("(released after: nothing)", !perf_held);
+}
+
+/* a version 1 record (the first MIDI LEARN) loads into version 2, and the next save writes version 2 */
+static void test_v1_load(void)
+{
+    ml_rec1_t r1;
+    ml_rec_t r;
+    int ok;
+    fresh();
+    memset(&r1, 0, sizeof r1);
+    r1.magic = ML_MAGIC;
+    r1.ver = 1;
+    r1.n = 16;
+    r1.e[0] = (ml_ent_t){74, 0, P_E1 + 1u, 0};
+    r1.e[15] = (ml_ent_t){75, 5, P_PAN + 1u, 0};
+    st_save(OBJ_UPRESET0, &r1, sizeof r1);
+    power_cycle();
+    check("version 1 (72 B, 16 entries): its CCs loaded", count() == 2u && cc_of(0, P_E1) == 75u &&
+          cc_of(5, P_PAN) == 76u);
+    send_cc(75, 0);
+    check("(and set)", trk[5].p[P_PAN] == -64);
+    learn_toggle();
+    tap(B_PLAY);
+    send_note(36, 100);
+    r = rec_read(&ok);
+    check("a learn after: saved as version 2 (32 entries), the old CCs kept", ok && r.ver == 2u && r.n == 32u &&
+          r.e[0].num == 74u && r.e[1].num == 75u && r.e[1].trk == 5u && r.e[2].code == ML_A_PLAY &&
+          r.e[2].src == ML_NOTE && r.e[2].num == 36u);
+    power_cycle();
+    check("power cycle: all three back", count() == 3u && ml_src_of(0, ML_A_PLAY) == SRC_NOTE(36u));
 }
 
 static void test_screens(void)
@@ -775,6 +1277,11 @@ int main(void)
     test_motion_base();
     test_inputs();
     test_storage();
+    test_act_learn();
+    test_act_trigger();
+    test_act_render();
+    test_act_stuck();
+    test_v1_load();
     test_screens();
     printf(fails ? "learn_test: %d FAILED\n" : "learn_test: all passed\n", fails);
     return fails ? 1 : 0;

@@ -52,7 +52,8 @@ firmware ([below](#back-to-the-official-firmware)).
   until you turn them back.
 - **Metronome.** GLOBAL 3/3 METRO: a click on every quarter note while playing, the bar's first higher.
 - **Key backlight.** MENU BACKLIGHT ON: the keys glow dimly while unlit, the steps 1, 5, 9 and 13 a little brighter.
-- **MIDI LEARN.** Up to 16 CCs from any controller, each moving one knob of one track ([below](#midi-learn)).
+- **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
+  REC, next / previous track, or holds a PERFORM effect ([below](#midi-learn)).
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
   into a DAW over its USB cable. The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
   keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
@@ -96,30 +97,50 @@ buttons rest, PLAY aside. Let go of GLO: back to the page you were on.
 
 ### MIDI LEARN
 
-A controller's knobs and faders (MIDI CCs) can each move one knob of one track: up to 16 of them.
+A controller's knobs, faders, buttons and pads can each be learned: up to 32 of them.
+
+| Learn | How to pick it (LEARN on) | What it takes | What it does |
+| --- | --- | --- | --- |
+| a knob of a track | turn the knob (it edits as usual) | a CC | moves that knob of that track, 0..127 over its range |
+| PLAY | press PLAY (nothing plays) | a CC or a note | a press = a PLAY tap: play / stop (on SONG: the song) |
+| REC | press REC (nothing arms) | a CC or a note | a press = a REC tap: arm / disarm the selected track (step record as the button) |
+| NEXT TRACK / PREV TRACK | turn ALGORITHM right / left (the track stays) | a CC or a note | a press selects the next / previous track |
+| a PERFORM effect | hold FX, press its black key (nothing plays) | a CC or a note | held while the controller's button is held, as the key (FX need not be held) |
+| a track's PERFORM mute | hold FX, press its white key F3..F4 | a CC or a note | the track silent while held |
+| a PERFORM macro | on the PERFORM screen, turn KNOB 1..4 (it turns as usual) | a CC | FILTER (0 at 64: left LPF, right HPF), CRUSH, THROW, DEPTH; stays on, as the knob |
 
 - **Turn it on:** hold GLO (the MUTE screen) and press **G4**: `G4 LEARN: ON`, and `MIDI LEARN ON` in the top bar.
-  Let go of GLO: the footer's first row (where the steps are) shows `LEARN: TURN A KNOB`.
+  Let go of GLO: the footer's first row (where the steps are) shows `LEARN: TURN OR PRESS`.
 - **Pick a knob:** turn a knob of the selected track on any page: HOME, EDIT (SOUND, LAYER), FX (FILTER, the sends,
   SLICER, RESON), LFO, PATTERN, or LEVEL / LEN / PAN on HOME's TRACKS mode. It edits as usual and the footer says
   `T3 DECAY: SEND A CC`.
-- **Move the controller's knob:** the first CC that arrives (any channel; over USB, the TRS jack, or Bluetooth in MIDI
-  mode) is learned: `CC74 -> T3 DECAY`. Then pick the next knob. A knob already learned shows `T3 DECAY = CC74`;
-  sending another CC replaces it.
+- **Or pick an action:** while LEARN is on, PLAY, REC, ALGORITHM and the PERFORM keys pick their action instead of
+  doing their job (they work again after OCT+): the footer says `PLAY: SEND CC/NOTE`, `FX R1/16: SEND CC/NOTE`,
+  `FX MUTE T3: SEND CC/NOTE`; a PERFORM knob `FX FILTER: SEND A CC`.
+- **Move the controller's knob, or press its button or pad:** the first CC (or, for an action, note) that arrives
+  (any channel; over USB, the TRS jack, or Bluetooth in MIDI mode) is learned: `CC74 -> T3 DECAY`,
+  `NOTE36 -> PLAY`, `CC20 -> FX FILTER`. Then pick the next one. One already learned shows `T3 DECAY = CC74` or
+  `PLAY = NOTE36`; sending another replaces it.
 - **The binding is to that track:** CC74 moves track 3's DECAY whichever track is selected later.
-- **One CC, one knob:** learning a CC again moves it to the new knob; learning a knob again replaces its CC.
-  `LEARN FULL` after 16. CC 0 and 32 (bank select) and 120 to 127 (channel mode) are never learned
+- **One control, one thing:** learning a CC or note again moves it to the new pick; learning a pick again replaces
+  its CC or note. `LEARN FULL` after 32. CC 0 and 32 (bank select) and 120 to 127 (channel mode) are never learned
   (`CC NOT LEARNABLE`). MODEL and RESON's MODEL can't be learned (`NOT LEARNABLE`).
-- **While LEARN is on, OCT- and OCT+ are its own:** OCT- clears the picked knob's CC (`T3 DECAY CC CLEARED`); with
-  no knob picked it asks `CLEAR ALL LEARNED?` (OCT+ yes, OCT- no). **OCT+ ends LEARN** (`LEARN DONE`), as GLO + G4
-  does. So pick the page first (LAYER, LFO 2, the step bank), then turn LEARN on. The menu, a confirm, or NAME also
-  end it; it is always off at power-on.
-- **What a CC does:** 0 to 127 spans the knob's whole range; a centred knob (PAN, an LFO's DEPTH, FILTER ENV) is 0 at
-  64; a list (FILTER TYPE, DIV, WAVE) steps through it in its order. A model's knob follows the track's model (a
-  model without that knob ignores it). An LFO on the same knob keeps moving it around the new value. During a song,
-  PATTERN's knobs stay as they are. CC moves are not recorded as motion.
-- Learned CCs act whether LEARN is on or off, on every input but Bluetooth in SMC DAW mode (the SMC-Mixer's layout
-  keeps its own controls). They are saved in the FM-1's flash (not in projects) after each change, when stopped.
+- **While LEARN is on, OCT- and OCT+ are its own:** OCT- clears the pick's CC or note (`T3 DECAY CC CLEARED`,
+  `PLAY CLEARED`); with nothing picked it asks `CLEAR ALL LEARNED?` (OCT+ yes, OCT- no). **OCT+ ends LEARN**
+  (`LEARN DONE`), as GLO + G4 does. So pick the page first (LAYER, LFO 2, the step bank), then turn LEARN on. The
+  menu, a confirm, or NAME also end it; it is always off at power-on.
+- **What a CC does on a knob:** 0 to 127 spans the knob's whole range; a centred knob (PAN, an LFO's DEPTH, FILTER
+  ENV) is 0 at 64; a list (FILTER TYPE, DIV, WAVE) steps through it in its order. A model's knob follows the track's
+  model (a model without that knob ignores it). An LFO on the same knob keeps moving it around the new value. During
+  a song, PATTERN's knobs stay as they are. CC moves are not recorded as motion.
+- **A button:** a CC of 64 or more is a press, under 64 a release (only the change counts: a knob swept past 64
+  presses once); a note on is a press, its note off (or velocity 0) the release. A learned note plays no drum. A
+  PERFORM effect held this way follows the keys' rules (the last pressed buffer effect plays) and ends with the
+  release, or when the menu, a confirm, NAME or the MUTE screen comes up (press again after).
+- Learned CCs and notes act whether LEARN is on or off, on every input but Bluetooth in SMC DAW mode (the
+  SMC-Mixer's layout keeps its own controls). PLAY, REC and the track buttons act where the FM-1's own would (not in
+  the menu or a confirm). They are saved in the FM-1's flash (not in projects) after each change, when stopped; the
+  16 CCs of the first MIDI LEARN load as they were.
 
 ### PERFORM
 

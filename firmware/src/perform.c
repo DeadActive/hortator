@@ -52,7 +52,9 @@ static volatile uint8_t perf_kill;    /* main: every key effect off (the menu, a
 static volatile int8_t perf_k[4];     /* main: the knob macros, 0 = untouched: FILTER -100..100 (- LPF, + HPF),
                                        * CRUSH 0..100, THROW 0..100, DEPTH cut 0..100 (the buffer effects' level) */
 static volatile uint32_t kb_layer;    /* ISR: the keys held that are the layer's, a bit per key */
-static volatile uint32_t perf_held;   /* ISR: the effects held (PF_*) */
+static volatile uint32_t perf_held;   /* ISR: the effects held (PF_*): perf_kh | perf_mh */
+static volatile uint32_t perf_kh;     /* ISR: .. by the layer's keys */
+static volatile uint32_t perf_mh;     /* ISR: .. by learned MIDI buttons (midi_learn.c ml_holds) */
 static volatile uint32_t perf_act;    /* ISR: .. running (a 1/16 one from its start on) */
 static uint32_t perf_ord[PF_N], perf_seq;   /* press order: the last pressed buffer effect plays */
 
@@ -112,17 +114,19 @@ static uint32_t perf_avail(void)
     return m;
 }
 
-/* seq.c keyboard_block: a layer key down / up (e: PF_*, PF_N = no effect) */
+/* seq.c keyboard_block: a layer key down / up (e: PF_*, PF_N = no effect). An effect a MIDI button holds as well
+ * (MIDI LEARN) stays held while either does */
 static void perf_press(uint32_t e, int down)
 {
     if (e >= PF_N)
         return;
     if (down) {
-        perf_held |= PF_BIT(e);
+        perf_kh |= PF_BIT(e);
         perf_ord[e] = ++perf_seq;
     } else {
-        perf_held &= ~PF_BIT(e);
+        perf_kh &= ~PF_BIT(e);
     }
+    perf_held = perf_kh | perf_mh;
 }
 
 /* the layer's keys (user, 2026-10-07): the black keys from F#3 the effects in this order, the white keys F3 .. F4

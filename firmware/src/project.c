@@ -459,44 +459,63 @@ static persist_t persist_saved;
 #endif
 
 /* MIDI LEARN's map (midi_learn.c ml_map), its own flash object OBJ_UPRESET0 (storage.c's user-preset object, unused
- * by Hortator; 0xDC000..0xDDFFF): "HLRN", version 1, ML_N entries {cc, trk, code = P_* id + 1, 0}. Anything else there
- * (none, Felucca's user presets, another version) reads as nothing learned; a broken entry is dropped (spec
- * 2026-10-13 §5) */
+ * by Hortator; 0xDC000..0xDDFFF): "HLRN", version 2, ML_N (32) entries {num, trk, code, src} (code: a P_* id + 1 or
+ * an action, ML_A_*). Version 1 (16 entries, CCs and parameters only, 72 B) loads into it. Anything else there (none,
+ * Felucca's user presets, another version) reads as nothing learned; a broken entry is dropped (spec 2026-10-13 §5,
+ * §7) */
 #define ML_MAGIC 0x4E524C48u                       /* "HLRN" */
+#define ML_N1 16u                                  /* version 1's entries */
 typedef struct {
     uint32_t magic;
     uint16_t ver, n;
     ml_ent_t e[ML_N];
 } ml_rec_t;
-typedef char ml_rec_size[sizeof(ml_rec_t) == 72u ? 1 : -1];
+typedef char ml_rec_size[sizeof(ml_rec_t) == 136u && 8u + 4u * ML_N1 == 72u ? 1 : -1];
 #if FELUCCA_FLASH
 static ml_rec_t ml_saved;                           /* what the flash holds (a save of the same map writes nothing) */
 static void ml_rec_make(ml_rec_t *r)
 {
     memset(r, 0, sizeof *r);
     r->magic = ML_MAGIC;
-    r->ver = 1;
+    r->ver = 2;
     r->n = ML_N;
     memcpy(r->e, ml_map, sizeof r->e);
 }
 #endif
-/* persist_boot (IRQs off, the map cleared): the map from flash, its broken entries dropped */
+/* persist_boot (IRQs off, the map cleared): the map from flash (version 2, or 1), its broken entries dropped: a source
+ * or a code this build does not know or cannot learn, a note on a parameter or a macro, a track past 8 (an action:
+ * not 0), a source or a code already in an earlier entry */
 static void learn_load(void)
 {
 #if FELUCCA_FLASH
     memset(&ml_saved, 0, sizeof ml_saved);
     {
         ml_rec_t r;
-        uint32_t i, j, n = 0;
-        if (!flash_ok || st_load(OBJ_UPRESET0, &r, sizeof r) != (int)sizeof r || r.magic != ML_MAGIC || r.ver != 1u ||
-            r.n != ML_N)
+        uint32_t i, j, n = 0, len;
+        int got;
+        memset(&r, 0, sizeof r);
+        got = flash_ok ? st_load(OBJ_UPRESET0, &r, sizeof r) : -1;
+        if (got < 0 || r.magic != ML_MAGIC)
             return;
+        len = (uint32_t)got;
+        if (r.ver == 1u && r.n == ML_N1 && len == 8u + 4u * ML_N1) {
+            for (i = 0; i < ML_N1; i++)                 /* (version 1: src was a reserved 0, CC) */
+                if (r.e[i].src)
+                    r.e[i].code = 0;
+            r.ver = 2;                                  /* (as a version 2 of the same map: no write for it) */
+            r.n = ML_N;
+        } else if (r.ver != 2u || r.n != ML_N || len != sizeof r) {
+            return;
+        }
         ml_saved = r;
         for (i = 0; i < ML_N; i++) {
             const ml_ent_t *e = &r.e[i];
-            int ok = e->code && ml_free_cc(e->cc) && e->trk < NTRK && ml_param_ok(e->code - 1u) && !e->rsv;
+            uint32_t s = (uint32_t)(e->num | e->src << 8);
+            int ok = e->code && e->src <= ML_NOTE && ml_src_ok(s) && ml_code_ok(e->trk, e->code) &&
+                     (e->src != ML_NOTE || ml_btn(e->code));
             for (j = 0; ok && j < n; j++)
-                ok = ml_map[j].cc != e->cc && !(ml_map[j].code == e->code && ml_map[j].trk == e->trk);
+                ok = (uint32_t)(ml_map[j].num | ml_map[j].src << 8) != s &&
+                     !(ml_map[j].code == e->code && ml_map[j].trk == e->trk);
             if (ok)
                 ml_map[n++] = *e;
         }
@@ -514,7 +533,7 @@ static void learn_save(void)
     ui.ml.save = 0;
 #if FELUCCA_FLASH
     {
-        ml_rec_t r;
+        static ml_rec_t r;                          /* (static: 136 B off the main path's deepest stack) */
         if (!flash_ok)
             return;
         ml_rec_make(&r);

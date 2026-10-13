@@ -13,6 +13,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   LFO on the knob keeps modulating around it. One CC per knob, one knob per CC; CC 0, 32 and 120..127 are never
   learned. While on, OCT- clears the picked knob's CC (nothing picked: `CLEAR ALL LEARNED?`), OCT+ ends it. Saved in
   the FM-1's flash (its own record, not in projects), after each change once stopped; off at power-on.
+- MIDI LEARN: actions and 32 controls. While LEARN is on, PLAY, REC, ALGORITHM right / left (NEXT / PREV TRACK),
+  FX + a black key (a PERFORM effect) and FX + a white key F3..F4 (that track's PERFORM mute) pick their action
+  instead of doing their job; a PERFORM knob (FILTER CRUSH THROW DEPTH) picks its macro. A CC or a note is bound to
+  an action (`NOTE36 -> PLAY`, `CC22 -> FX R1/16`), a CC to a macro (`CC20 -> FX FILTER`, 0 at 64). A press (a CC
+  rising to 64 or more, a note on) taps PLAY / REC or steps the track; a PERFORM effect or mute is held while the
+  controller's button is (as its key, FX not held) and ends on release or when the menu, a confirm, NAME or the
+  MUTE screen comes up. A learned note plays no drum. 32 bindings (was 16); the saved 16 load as they were.
 
 ## 0.17.0 - 2026-10-13
 

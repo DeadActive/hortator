@@ -71,7 +71,13 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     pf.lc = PF_TOP;
     for (k = 0; k < NTRK; k++)
         pf.mg[k] = 32768;
-    perf_mask = kb_layer = perf_held = perf_act = 0;
+    perf_mask = kb_layer = perf_held = perf_act = perf_kh = perf_mh = 0;
+    ml_down = 0;                                    /* MIDI LEARN (midi_learn.c): no button down, nothing queued */
+    ml_qr = ml_qw;
+    ml_arm = 0;
+    ml_heard = 0;
+    ml_keys = 0;
+    ml_kb_hit = 0;
     mute_mask = kb_mute = kb_mute_hit = 0;          /* the MUTE screen's keys (seq.c): none */
     perf_kill = 0;
     perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;

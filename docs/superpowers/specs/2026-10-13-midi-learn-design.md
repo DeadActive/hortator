@@ -46,7 +46,7 @@ channel (no channel stored), 16 bindings (upstream's `ML_N`), in their own flash
 - **Names:** `T<track> <label>`; a knob whose label is on other pages too carries its section: `L1.` / `L2.` (the
   LFOs), `F.` (FILTER), `R.` (RESON), `S.` (SLICER): `T3 L1.DEPTH`, `T3 F.DECAY`.
 - **Rules** (upstream `ml_learn` / `ml_drop`): one CC sets one parameter, a parameter has one CC: learning a CC
-  again, or a parameter again, replaces both old bindings. 16 bindings at most: a 17th says `LEARN FULL`. CC 0 and 32
+  again, or a parameter again, replaces both old bindings. 16 bindings at most: a 17th says `LEARN FULL` (32 / a 33rd since §7). CC 0 and 32
   (bank select) and 120..127 (channel mode) are never learned: `CC NOT LEARNABLE`. (Hortator gives no other CC a
   meaning: `seq.c` `midi_block` dropped every CC.)
 - **OCT- / OCT+ are LEARN's while it is on** (their page uses wait: pick the page first, LAYER, LFO 2, the step
@@ -56,7 +56,8 @@ channel (no channel stored), 16 bindings (upstream's `ML_N`), in their own flash
   - OCT- with nothing picked: the confirm `CLEAR ALL LEARNED?` (`OCT- NO  OCT+ YES`; YES: `LEARN CLEARED`); nothing
     learned: `NOTHING LEARNED`, no confirm. LEARN stays on through its own confirm;
   - OCT+: done (`LEARN DONE`), as GLO + G4.
-- **The footer's first row** (the steps' row) shows LEARN's line, as upstream's `ml_line`: `LEARN: TURN A KNOB`,
+- **The footer's first row** (the steps' row) shows LEARN's line, as upstream's `ml_line`: `LEARN: TURN A KNOB` (§7:
+  `LEARN: TURN OR PRESS`),
   `T3 DECAY: SEND A CC`, `T3 DECAY = CC74` (a picked parameter already learned: a new CC replaces it).
 
 ## 4. A learned CC
@@ -77,7 +78,7 @@ channel (no channel stored), 16 bindings (upstream's `ML_N`), in their own flash
 
 ## 5. The map and its storage
 
-- 16 entries in RAM, `{cc, track, code, 0}` (4 B each, the code 0 = empty), read by the interrupt, written by the UI
+- 16 entries in RAM (32 since §7, with the actions' codes and a note source), `{cc, track, code, 0}` (4 B each, the code 0 = empty), read by the interrupt, written by the UI
   with the interrupts off.
 - **The code is the parameter's P_* id + 1.** Hortator's P_* ids never move: projects store every track's
   parameters by id (FDR1 .. FDRC), so new parameters are only ever appended before `P_COUNT` (FDRC added P_PRIO at the
@@ -109,3 +110,50 @@ channel (no channel stored), 16 bindings (upstream's `ML_N`), in their own flash
 
 Hard rules as every release: frozen files unchanged (`check_untouched`, gates 2a / 2b), H2 / H3, the budgets, gate
 5, integer only.
+
+## 7. Actions (amendment, 2026-10-13)
+
+User: "i also want to map buttons, like play and rec, as well as current track change, and performance".
+
+- **Learnable actions** besides parameters. While LEARN is on, the FM-1 control picks its action instead of doing
+  its job (it works again after OCT+):
+  - PLAY pressed: `PLAY` (a press = a PLAY tap: play / stop, SONG as ui_input's B_PLAY);
+  - REC pressed: `REC` (a press = a REC tap: arm / disarm the selected track, step record as the button; REC held
+    while learning is no CLEAR TRACK);
+  - ALGORITHM right / left: `NEXT TRACK` / `PREV TRACK` (a press = track_select +- 1, clamped);
+  - FX held (or the PERFORM page) + a black key: that effect, `FX R1/16`, `FX TAPE`..; + a white key F3..F4: that
+    track's PERFORM mute, `FX MUTE T3`. The key plays nothing while learning (seq.c keyboard_block: `ml_keys`, the
+    press handed to the UI in `ml_kb_hit`);
+  - on the PERFORM screen a macro knob: `FX FILTER`, `FX CRUSH`, `FX THROW`, `FX DEPTH`. Like a parameter's knob it
+    still turns its macro.
+- **Sources.** A button action takes a CC (any channel; a press when it rises to >= 64, a release when it falls
+  below 64: edges only) or a note (any channel; note on with velocity > 0 a press, note off / velocity 0 the
+  release; every note on is a press). A parameter or a macro takes a CC only (a note while one is picked plays as
+  usual and binds nothing). A learned note is consumed (no drum plays it). CC 0, 32, 120..127 are never learned.
+  One source, one thing; a thing has one source (learning replaces both, as §3).
+- **Names:** top bar `NOTE36 -> PLAY`, `CC22 -> FX R1/16`, `CC20 -> FX FILTER`; footer `PLAY: SEND CC/NOTE`, `FX
+  FILTER: SEND A CC`, `PLAY = NOTE36`; idle `LEARN: TURN OR PRESS`. OCT- clears the picked action's source (`PLAY
+  CLEARED`, none: `NOTHING TO CLEAR`).
+- **Where they run.** PLAY, REC, NEXT / PREV need the UI: the audio interrupt queues their presses (`ml_q`, 8 deep,
+  codes only); the UI drains it each frame and runs them as the button would on that screen (PLAY: its press bit;
+  REC: a REC tap; NEXT / PREV: as an ALGORITHM step). So none acts in the menu or a confirm, PLAY acts on the MUTE
+  screen and in NAME as the button does. PERFORM effects and macros are set in the audio interrupt, as the layer's
+  keys are: `perf_held` = the keys' (`perf_kh`) | MIDI's (`perf_mh`, ml_holds: the entries whose button is down);
+  `perf_ord` takes the press (the last pressed buffer effect plays); a macro CC writes `perf_k` (FILTER -100..100,
+  0 at 64; the others 0..100) and stays, as the knob's.
+- **Never stuck.** A MIDI-held effect ends on its release; while PERFORM's effects are off (`perf_kill`: the menu, a
+  confirm, NAME, the MUTE screen) no press holds one and each block drops those held (learn_block): none comes back
+  after, until pressed again. A binding cleared or replaced while held releases its hold (ml_put). Safe start reads
+  no MIDI (mix_block drops it). STOP does not end them (as the keys).
+- **The map:** 32 entries `{num, trk, code, src}` (src 0 CC, 1 note; the byte version 1 kept 0). Codes: a parameter
+  P_* id + 1 (1..P_COUNT, kept under 0x80), PLAY 0x80, REC 0x81, NEXT TRACK 0x82, PREV TRACK 0x83, a PERFORM
+  effect / mute 0x90 + PF_* (0x90..0xA1: PF_* pinned by a build check), a macro 0xB0 + 0..3. An action's track is 0.
+- **Flash:** version 2, count 32 (136 B). A version 1 record (count 16, 72 B) loads into it (its entries as CCs);
+  the next change saves version 2. Dropped at load as §5, and: a note on a parameter or a macro, a source kind
+  past 1, an action this build does not know, an action with a track.
+- **Tests** (`tests/learn_test.c`): learning each action by its control (PLAY, REC, ALGORITHM +-, FX + a black key,
+  FX + a white key, a PERFORM knob) and that the control does nothing else while learning; a CC button and a note
+  button trigger them (press edges only, the release ends a hold); a learned note plays no drum; a MIDI-held effect
+  renders bit for bit as its key (REPEAT, a mute, TAPE); none stuck after the release, the menu, a confirm, NAME, a
+  binding cleared or replaced; key and MIDI holding one effect; version 1 loads into version 2; 32 entries, a 33rd
+  `LEARN FULL`; OCT+ gives the buttons back.
