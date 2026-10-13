@@ -32,6 +32,7 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 
 #include "ui_name.c"                               /* NAME: naming a project */
+#include "ui_learn.c"                              /* MIDI LEARN: GLO + G4, a knob, a CC */
 
 static void ui_leds(void)
 {
@@ -61,6 +62,7 @@ static void ui_leds(void)
             led_put(nl, 14u + KEY_TRK_KEY[k], !trk[k].p[P_MUTE] ^ (((song.mute_q >> k) & 1u) && blink));
         led_put(nl, 14u + 20u, !settings.mutebar);
         led_put(nl, 14u + 22u, settings.mutebar);
+        led_put(nl, 14u + KEY_LEARN, ui.ml.on);       /* G4: MIDI LEARN */
         led_put(nl, panel.btn[B_GLO], 1);
     } else if (name_on()) {                           /* NAME: the keys that type */
         uint32_t m = name_leds(fm1_ticks());
@@ -181,6 +183,7 @@ static void tracks_edit(uint32_t slot, int32_t steps)
     }
     if (slot == 1u && t->p[P_MUTE]) {
         t->p[P_MUTE] = 0;
+        ml_knob(song.sel, P_LEVEL);                 /* (MIDI LEARN: picked) */
         return;
     }
     if (slot == 2u && song_lock())                  /* LEN: a song's row */
@@ -188,6 +191,7 @@ static void tracks_edit(uint32_t slot, int32_t steps)
     id = slot == 1u ? P_LEVEL : slot == 2u ? P_SLEN : P_PAN;
     t->p[id] = (int16_t)clamp(t->p[id] + accel(EN_K1 + slot, steps, TP[id].max - TP[id].min), TP[id].min, TP[id].max);
     motion_capture(t, id);                          /* motion.c: LEVEL / PAN recorded (LEN never) */
+    ml_knob(song.sel, id);                          /* (MIDI LEARN: picked) */
 }
 
 static void mute_bar_set(uint32_t on)                  /* the mutes: at once / on the next bar (device setting) */
@@ -304,6 +308,7 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
     if (pg->scope == SC_TRACK && id == P_MODEL) {     /* a model comes with its default sound */
         model_step(steps);
+        ml_knob(song.sel, P_MODEL);                   /* (MIDI LEARN: NOT LEARNABLE) */
         return;
     }
     if (pg->graph == GR_STEPS && song_lock())         /* PATTERN: a song's row */
@@ -335,8 +340,10 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
 
     *vp = (int16_t)v;
-    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
         motion_capture(TSEL, (uint32_t)(vp - TSEL->p));   /* motion.c: recorded when armed and playing */
+        ml_knob(song.sel, (uint32_t)(vp - TSEL->p));      /* (MIDI LEARN: picked) */
+    }
     if (pg->scope == SC_GLOBAL && id == G_MUTEBAR) {
         mute_bar_set((uint32_t)v);
         return;
@@ -490,9 +497,10 @@ static void fx_layer(uint32_t now, int home_tap)
 
 /* GLO (spec §5): a tap (let go within GLO_HOLD_MS, no key pressed meanwhile) = the GLOBAL pages, on the release; held
  * GLO_HOLD_MS, or a key pressed with it = the MUTE screen while GLO is held: the white keys F3..F4 toggle the tracks'
- * mutes (track_mute_toggle: NOW / NEXT BAR), top C# / D# the mode. Every key pressed with GLO is the screen's until
- * let go (seq.c keyboard_block, mute_mask: no note, no MIDI, nothing recorded). Pressed in the menu, NAME or a confirm:
- * dead until let go; with the PERFORM layer up or FX held: a plain button (the release opens GLOBAL) */
+ * mutes (track_mute_toggle: NOW / NEXT BAR), top C# / D# the mode, G4 MIDI LEARN on / off (ui_learn.c). Every key
+ * pressed with GLO is the screen's until let go (seq.c keyboard_block, mute_mask: no note, no MIDI, nothing
+ * recorded). Pressed in the menu, NAME or a confirm: dead until let go; with the PERFORM layer up or FX held: a plain
+ * button (the release opens GLOBAL) */
 #define GLO_HOLD_MS 400u
 #define GLO_DOWN 1u
 #define GLO_OPEN 2u
@@ -509,6 +517,8 @@ static void mute_keys(uint32_t hits)                   /* the keys the ISR gave 
         mute_bar_set(0);
     if ((hits >> 22) & 1u)                             /* top D#: NEXT BAR */
         mute_bar_set(1);
+    if ((hits >> KEY_LEARN) & 1u)                      /* G4: MIDI LEARN on / off (ui_learn.c) */
+        ml_toggle();
 }
 static void glo_input(uint32_t now, uint32_t notes)
 {
@@ -664,6 +674,8 @@ static void ui_input(void)
 #endif
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
+    ml_guard();                                         /* MIDI LEARN: off in the menu, NAME, another confirm */
+    ml_poll();                                          /* .. a CC came for the picked parameter */
     if (ui.mute) {                                      /* the MUTE screen owns the panel (its keys: glo_input), PLAY
                                                          * aside; a HOME / REC press under it is no tap or hold */
         if ((pressed >> panel.btn[B_PLAY]) & 1u)
@@ -737,6 +749,9 @@ static void ui_input(void)
             } else if (ui.confirm == 5u) {              /* the last project failed to load: forget it (saved) */
                 lastp.set = 0;
                 settings_save();
+            } else if (ui.confirm == ML_CONFIRM) {      /* MIDI LEARN: CLEAR ALL LEARNED? (LEARN stays on) */
+                ml_clear_all();
+                ui_message("LEARN CLEARED");
             } else if (ui.confirm == 2u) {              /* the MOTION page's CLEAR */
                 motion_clear(ui.confirm_trk % NTRK);
                 ui_message("MOTION CLEARED");
@@ -785,7 +800,9 @@ static void ui_input(void)
             break;
         case B_OCTDN:
         case B_OCTUP:                                   /* the STEP grid's bank; EDIT: into / out of the layer */
-            if (keys_mode()) {
+            if (ui.ml.on) {                             /* MIDI LEARN: OCT- clear, OCT+ done (the page's wait) */
+                ml_oct(b == B_OCTUP);
+            } else if (keys_mode()) {
                 keys_octave(b == B_OCTUP ? 1 : -1);
             } else if (step_keys()) {
                 bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
@@ -875,8 +892,10 @@ static void ui_input(void)
             const param_desc_t *d = home_param(k, &vp);
             if (d->max > d->min) {
                 *vp = (int16_t)param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
-                if (vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+                if (vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
                     motion_capture(TSEL, (uint32_t)(vp - TSEL->p));
+                    ml_knob(song.sel, (uint32_t)(vp - TSEL->p));   /* (MIDI LEARN: picked) */
+                }
             }
         } else {
             edit_param(k, s);

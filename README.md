@@ -52,6 +52,7 @@ firmware ([below](#back-to-the-official-firmware)).
   until you turn them back.
 - **Metronome.** GLOBAL 3/3 METRO: a click on every quarter note while playing, the bar's first higher.
 - **Key backlight.** MENU BACKLIGHT ON: the keys glow dimly while unlit, the steps 1, 5, 9 and 13 a little brighter.
+- **MIDI LEARN.** Up to 16 CCs from any controller, each moving one knob of one track ([below](#midi-learn)).
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
   into a DAW over its USB cable. The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
   keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
@@ -68,7 +69,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs |
 | **REC** | arms / disarms the selected track for recording, on any screen (arming while stopped starts play). On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
-| **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes)) |
+| **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
 | **SAVE** | projects (save, load, name) and tools |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
 
@@ -89,8 +90,36 @@ Hold GLO: the **MUTE screen**, up while GLO is held (a quick GLO tap opens GLOBA
 is down opens the screen at once). The eight tracks are boxes, **filled = heard, outline = muted**, each with its
 number and model, and under it the key that toggles it (F3 to F4, the white keys; their LEDs lit for the heard
 tracks). The top C# sets `MUTE: NOW`, the top D# `MUTE: NEXT BAR` (the same setting as GLOBAL 3/3 MUTE): with NEXT
-BAR, a mute made while playing blinks, then lands on the next downbeat. While the screen is up the keys play
-nothing and the knobs and the other buttons rest, PLAY aside. Let go of GLO: back to the page you were on.
+BAR, a mute made while playing blinks, then lands on the next downbeat. G4 (the next white key up) turns
+[MIDI LEARN](#midi-learn) on and off. While the screen is up the keys play nothing and the knobs and the other
+buttons rest, PLAY aside. Let go of GLO: back to the page you were on.
+
+### MIDI LEARN
+
+A controller's knobs and faders (MIDI CCs) can each move one knob of one track: up to 16 of them.
+
+- **Turn it on:** hold GLO (the MUTE screen) and press **G4**: `G4 LEARN: ON`, and `MIDI LEARN ON` in the top bar.
+  Let go of GLO: the footer's first row (where the steps are) shows `LEARN: TURN A KNOB`.
+- **Pick a knob:** turn a knob of the selected track on any page: HOME, EDIT (SOUND, LAYER), FX (FILTER, the sends,
+  SLICER, RESON), LFO, PATTERN, or LEVEL / LEN / PAN on HOME's TRACKS mode. It edits as usual and the footer says
+  `T3 DECAY: SEND A CC`.
+- **Move the controller's knob:** the first CC that arrives (any channel; over USB, the TRS jack, or Bluetooth in MIDI
+  mode) is learned: `CC74 -> T3 DECAY`. Then pick the next knob. A knob already learned shows `T3 DECAY = CC74`;
+  sending another CC replaces it.
+- **The binding is to that track:** CC74 moves track 3's DECAY whichever track is selected later.
+- **One CC, one knob:** learning a CC again moves it to the new knob; learning a knob again replaces its CC.
+  `LEARN FULL` after 16. CC 0 and 32 (bank select) and 120 to 127 (channel mode) are never learned
+  (`CC NOT LEARNABLE`). MODEL and RESON's MODEL can't be learned (`NOT LEARNABLE`).
+- **While LEARN is on, OCT- and OCT+ are its own:** OCT- clears the picked knob's CC (`T3 DECAY CC CLEARED`); with
+  no knob picked it asks `CLEAR ALL LEARNED?` (OCT+ yes, OCT- no). **OCT+ ends LEARN** (`LEARN DONE`), as GLO + G4
+  does. So pick the page first (LAYER, LFO 2, the step bank), then turn LEARN on. The menu, a confirm, or NAME also
+  end it; it is always off at power-on.
+- **What a CC does:** 0 to 127 spans the knob's whole range; a centred knob (PAN, an LFO's DEPTH, FILTER ENV) is 0 at
+  64; a list (FILTER TYPE, DIV, WAVE) steps through it in its order. A model's knob follows the track's model (a
+  model without that knob ignores it). An LFO on the same knob keeps moving it around the new value. During a song,
+  PATTERN's knobs stay as they are. CC moves are not recorded as motion.
+- Learned CCs act whether LEARN is on or off, on every input but Bluetooth in SMC DAW mode (the SMC-Mixer's layout
+  keeps its own controls). They are saved in the FM-1's flash (not in projects) after each change, when stopped.
 
 ### PERFORM
 

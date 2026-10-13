@@ -5,6 +5,15 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- MIDI LEARN: up to 16 CCs from any controller, each set to one knob of one track. Hold GLO (the MUTE screen) and
+  press G4 to turn it on; turn a knob of the selected track (HOME, EDIT, LAYER, FILTER, FX, SLICER, RESON, LFO,
+  PATTERN, TRACKS' LEVEL / LEN / PAN), then move the controller's knob: `CC74 -> T3 DECAY`. The footer shows what is
+  picked and its CC. The CC moves that track's knob whichever track is selected, from USB, TRS or Bluetooth in MIDI
+  mode (not SMC DAW mode), on any channel, over the knob's whole range (centred knobs 0 at 64, lists by step); an
+  LFO on the knob keeps modulating around it. One CC per knob, one knob per CC; CC 0, 32 and 120..127 are never
+  learned. While on, OCT- clears the picked knob's CC (nothing picked: `CLEAR ALL LEARNED?`), OCT+ ends it. Saved in
+  the FM-1's flash (its own record, not in projects), after each change once stopped; off at power-on.
+
 ## 0.17.0 - 2026-10-13
 
 - SELECT turns the pages: SELECT does what PRESETS did (a section's pages, HOME 1/3 to COMP 2/3 and 3/3, the page

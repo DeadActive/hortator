@@ -363,6 +363,21 @@ Report what you saw first; we'll go through it together.
   dense pattern playing and while turning knobs; the playhead still reads. The MUTE screen and PERFORM: unlit keys
   dim. OFF: the LEDs exactly as before. Survives a power cycle; a safe start keeps every LED dark.
 
+### MIDI LEARN (check on the FM-1)
+
+- Hold GLO, press G4: `G4 LEARN: ON` on the MUTE screen (`build/ui_shots/learn/mute_learn_on.png`), G4 lit, no
+  sound. Let go: the footer says `LEARN: TURN A KNOB`.
+- On HOME, turn KNOB 2: `T1 DECAY: SEND A CC`. Move a knob on a USB MIDI controller (or a DAW's CC lane): the top bar
+  says `CC.. -> T1 DECAY`. Move it: track 1's DECAY follows over its whole range, also with track 3 selected. Same from
+  the TRS jack, and from a Bluetooth MIDI controller in MIDI mode (the Bluetooth build); with the SMC-Mixer in SMC DAW
+  mode its knobs keep their layout.
+- An LFO on that knob (DEST DECAY): it keeps modulating while the controller moves it. A centred knob (PAN): the
+  controller's middle is centre.
+- OCT- with the knob picked: `T1 DECAY CC CLEARED`; OCT- with nothing picked: `CLEAR ALL LEARNED?` (OCT- keeps).
+  OCT+: `LEARN DONE`; the CCs still work.
+- Learn while playing, stop, power off and on: the CCs still work (LEARN itself off). No audio glitch from moving a
+  learned knob quickly while a dense pattern plays (`status`: `audio_late 0`).
+
 ### BENCH: the performance cases on the FM-1
 
 `tools/fm1_bench.py --yes` (FM-1 on USB, running a build of this tree) sends `bench yes` to the USB console: the

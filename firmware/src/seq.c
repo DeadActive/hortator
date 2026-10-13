@@ -15,6 +15,7 @@ static volatile uint32_t kb_mute;     /* ISR: the keys held that are the MUTE sc
 static volatile uint32_t kb_mute_hit; /* ISR -> main: those presses, until the UI takes them */
 /* key index (0 = F3, the lowest key) of the white keys F3 G3 A3 B3 C4 D4 E4 F4 -> tracks 1..8 */
 static const uint8_t KEY_TRK_KEY[NTRK] = {0, 2, 4, 6, 7, 9, 11, 12};
+#define KEY_LEARN 14u                    /* G4, the first white key above F4: MIDI LEARN on the MUTE screen (ui_learn.c) */
 /* the STEP grid: steps 1..16 of a bank on the 16 white keys F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5
  * (key index from F3); the black keys do nothing there */
 static const uint8_t STEP_KEY[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
@@ -466,6 +467,7 @@ static void midi_drop(void)
 
 static void midi_clock_pulse(uint32_t ms);                   /* midi_clock.c */
 static void midi_clock_transport(uint32_t status, uint32_t ms);
+static void learn_cc(uint32_t cc, uint32_t v);                /* midi_learn.c: MIDI LEARN */
 
 static void midi_block(void)
 {
@@ -488,6 +490,10 @@ static void midi_block(void)
             }
             continue;
         }
+        if (st == 0xB0u) {                          /* a CC, any channel: MIDI LEARN's (midi_learn.c) */
+            learn_cc(d1, d2);
+            continue;
+        }
         if (st != 0x90u || !d2 || ch != drum_ch())
             continue;                               /* note-offs: one-shots ignore them */
         for (i = 0; i < NTRK; i++)
@@ -499,6 +505,7 @@ static void midi_block(void)
 #include "motion.c"                 /* knob moves per step (upstream 1.0's motion recording) */
 static void seq_stop(void);
 #include "song.c"                   /* SONG: rows of the four slots (upstream 1.0's song chain) */
+#include "midi_learn.c"             /* MIDI LEARN: a learned CC sets its parameter (upstream 1.5's, adapted) */
 
 static void seq_start(void)
 {

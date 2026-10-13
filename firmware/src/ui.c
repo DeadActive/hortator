@@ -18,6 +18,8 @@ static int transport_busy(void);
 static int name_on(void);                  /* ui_name.c (NAME) */
 static void draw_name(void);
 static void panel_setup(void);
+static void learn_save(void);              /* project.c: MIDI LEARN's map to flash (deferred while playing) */
+static void ml_line(char *b);              /* ui_learn.c: MIDI LEARN's footer line */
 
 #define ACC C_HI
 #define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)
@@ -54,7 +56,8 @@ static struct {
     step_t step_prev[16];        /* that step before the press (a hold or a knob turn restores it) */
     uint8_t held;                /* the grid key pressed last (valid while step_t0[held] is set) */
     uint8_t confirm;             /* 1 "CLEAR TRACK n?", 2 CLEAR MOTION, 3 DELETE ROW, 4 CLEAR SONG, 5 the last project
-                                  * failed to load (START NEW PROJECT?; confirm_trk its slot) */
+                                  * failed to load (START NEW PROJECT?; confirm_trk its slot), 6 CLEAR ALL LEARNED?
+                                  * (MIDI LEARN: ui_learn.c) */
     uint8_t confirm_trk;
     char msg[24];
     uint32_t enc_t[NE];
@@ -76,6 +79,11 @@ static struct {
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
     uint8_t srec, sr_cur, sr_key;   /* step record (spec §6): on; its cursor; the key whose note is on it + 1 */
+    struct {                     /* MIDI LEARN (ui_learn.c; GLO + G4): never stored */
+        uint8_t on;              /* LEARN is on */
+        uint8_t pick, trk, id;   /* a parameter picked: track trk's P_* id (a CC is awaited: midi_learn.c ml_arm) */
+        uint8_t save;            /* the map changed while playing: saved once stopped (project.c learn_save) */
+    } ml;
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }

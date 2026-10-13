@@ -458,6 +458,74 @@ typedef struct {
 static persist_t persist_saved;
 #endif
 
+/* MIDI LEARN's map (midi_learn.c ml_map), its own flash object OBJ_UPRESET0 (storage.c's user-preset object, unused
+ * by Hortator; 0xDC000..0xDDFFF): "HLRN", version 1, ML_N entries {cc, trk, code = P_* id + 1, 0}. Anything else there
+ * (none, Felucca's user presets, another version) reads as nothing learned; a broken entry is dropped (spec
+ * 2026-10-13 §5) */
+#define ML_MAGIC 0x4E524C48u                       /* "HLRN" */
+typedef struct {
+    uint32_t magic;
+    uint16_t ver, n;
+    ml_ent_t e[ML_N];
+} ml_rec_t;
+typedef char ml_rec_size[sizeof(ml_rec_t) == 72u ? 1 : -1];
+#if FELUCCA_FLASH
+static ml_rec_t ml_saved;                           /* what the flash holds (a save of the same map writes nothing) */
+static void ml_rec_make(ml_rec_t *r)
+{
+    memset(r, 0, sizeof *r);
+    r->magic = ML_MAGIC;
+    r->ver = 1;
+    r->n = ML_N;
+    memcpy(r->e, ml_map, sizeof r->e);
+}
+#endif
+/* persist_boot (IRQs off, the map cleared): the map from flash, its broken entries dropped */
+static void learn_load(void)
+{
+#if FELUCCA_FLASH
+    memset(&ml_saved, 0, sizeof ml_saved);
+    {
+        ml_rec_t r;
+        uint32_t i, j, n = 0;
+        if (!flash_ok || st_load(OBJ_UPRESET0, &r, sizeof r) != (int)sizeof r || r.magic != ML_MAGIC || r.ver != 1u ||
+            r.n != ML_N)
+            return;
+        ml_saved = r;
+        for (i = 0; i < ML_N; i++) {
+            const ml_ent_t *e = &r.e[i];
+            int ok = e->code && ml_free_cc(e->cc) && e->trk < NTRK && ml_param_ok(e->code - 1u) && !e->rsv;
+            for (j = 0; ok && j < n; j++)
+                ok = ml_map[j].cc != e->cc && !(ml_map[j].code == e->code && ml_map[j].trk == e->trk);
+            if (ok)
+                ml_map[n++] = *e;
+        }
+    }
+#endif
+}
+/* after a learn / clear (main loop): the map saved when it changed; while playing (or PLAY pending) once stopped
+ * (settings_poll): a write erases a sector with the audio silenced */
+static void learn_save(void)
+{
+    if (transport_busy()) {
+        ui.ml.save = 1;
+        return;
+    }
+    ui.ml.save = 0;
+#if FELUCCA_FLASH
+    {
+        ml_rec_t r;
+        if (!flash_ok)
+            return;
+        ml_rec_make(&r);
+        if (!memcmp(&r, &ml_saved, sizeof r))
+            return;
+        if (st_save(OBJ_UPRESET0, &r, sizeof r) == 0)
+            ml_saved = r;
+    }
+#endif
+}
+
 /* the stored lowcut word's bits 0..7 (bits 8..31: btset.bt_hi): 0..1 SPEAKER EQ, 2..4 the last project (2 set, 3..4
  * its slot), 5..6 METRO (spec 2026-10-11 §9), 7 BACKLIGHT (§12). An older firmware reads SPEAKER EQ FLAT from a record
  * with any of 2..7 set */
@@ -483,6 +551,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     memset(&lastp, 0, sizeof lastp);                  /* no last project, unless the flash record has one */
     fx_metro = 0;                                     /* METRO OFF, as well */
     backlight = 0;                                    /* BACKLIGHT OFF, as well */
+    memset(ml_map, 0, sizeof ml_map);                 /* MIDI LEARN: nothing learned, as well */
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();
@@ -516,6 +585,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             panel = p.panel;
         persist_saved = p;
     }
+    learn_load();                                     /* MIDI LEARN's map (its own object) */
     {
         uint32_t i;
         for (i = 0; i < 4u; i++)
@@ -627,6 +697,8 @@ static void settings_poll(void)                    /* every UI frame: a settings
 {
     if (ui.persist_pending && !transport_busy())
         settings_save();
+    if (ui.ml.save && !transport_busy())             /* .. and MIDI LEARN's map */
+        learn_save();
 }
 
 #if FELUCCA_FLASH

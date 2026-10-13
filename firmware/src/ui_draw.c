@@ -1154,11 +1154,12 @@ static void graph_perf(void)
 #define MU_BX(k) (4u + (k) % 4u * 59u)
 #define MU_BY(k) (MU_Y + 4u + (k) / 4u * 60u)
 /* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber); in each the track and its
- * model, under it the key that toggles it; below, the mode and its keys. The top bar as everywhere */
+ * model, under it the key that toggles it; below, the mode and its keys, and G4's MIDI LEARN. The top bar as
+ * everywhere */
 static void draw_mute(void)
 {
     uint32_t k, blink = (fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u;
-    uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u;
+    uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u + ui.ml.on * 5003u;
     char b[24];
     for (k = 0; k < NTRK; k++)
         sig = (sig ^ ((uint32_t)(trk[k].p[P_MUTE] != 0) + (uint32_t)trk[k].p[P_MODEL] * 2u)) * 16777619u;
@@ -1194,12 +1195,15 @@ static void draw_mute(void)
         cv_text(x + ((int32_t)MU_BW - text_w(&FONT_S, b)) / 2, y + (int32_t)MU_BH + 2, &FONT_S, b, C_DIM);
     }
     cv_blit(0, MU_Y);
-    cv_begin(240, 40, C_BLACK);                       /* "MUTE: NOW", "C# NOW  D# NEXT BAR" (the mode's key lit) */
+    cv_begin(240, 62, C_BLACK);                       /* "MUTE: NOW", "C# NOW  D# NEXT BAR" (the mode's key lit),
+                                                       * "G4 LEARN: OFF" / "G4 LEARN: ON" (MIDI LEARN, ui_learn.c) */
     str_cpy(b, settings.mutebar ? "MUTE: NEXT BAR" : "MUTE: NOW", sizeof b);
     cv_text((240 - text_w(&FONT_S, b)) / 2, 0, &FONT_S, b, C_WHITE);
     k = (uint32_t)cv_text((240 - text_w(&FONT_S, "C# NOW  D# NEXT BAR")) / 2, 22, &FONT_S, "C# NOW",
                           settings.mutebar ? C_DIM : C_HI);
     cv_text((int32_t)k + 16, 22, &FONT_S, "D# NEXT BAR", settings.mutebar ? C_HI : C_DIM);
+    str_cpy(b, ui.ml.on ? "G4 LEARN: ON" : "G4 LEARN: OFF", sizeof b);
+    cv_text((240 - text_w(&FONT_S, b)) / 2, 44, &FONT_S, b, ui.ml.on ? C_WHITE : C_DIM);
     cv_blit(0, 164);
 }
 /* PERFORM: KNOB 1..4 FILTER CRUSH THROW DEPTH (SHIMMER while OCT UP / DN plays) */
@@ -1483,7 +1487,7 @@ static int foot_note(char *b)
 /* footer: the bank's 16 steps; the model, track and page */
 static void draw_foot(void)
 {
-    char ti[20], tn[4], fn[16];
+    char ti[20], tn[4], fn[16], ml[32];
     const track_t *t = TSEL;
     const page_t *pg = cur_page();
     const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];
@@ -1510,11 +1514,24 @@ static void draw_foot(void)
     tn[2] = 0;
     sig = str_hash(str_hash(0x9E3779B9u, ti), mn) + song.sel * 7u + steps_hash(t) + ui.bank * 3001u +
           (song.playing && view_idx(t) / 16u == ui.bank ? view_idx(t) + 1u : 0u) * 97u + str_hash(0x51u, fn) * 3u;
+    ml[0] = 0;
+    if (ui.ml.on) {                                  /* MIDI LEARN (ui_learn.c): its line in the steps' row */
+        ml_line(ml);
+        sig += str_hash(0x1EA2u, ml);
+    }
     if (!ui.force && sig == ui.foot_sig)
         return;
     ui.foot_sig = sig;
     cv_begin(240, H_FOOT, C_BLACK);
-    for (i = 0; i < 16u; i++) {
+    i = 0;
+    if (ml[0]) {                                     /* row 1: "T3 DECAY: SEND A CC", OCT+ DONE at the right where
+                                                       * it fits */
+        int32_t hx = 236 - text_w(&FONT_S, "OCT+ DONE");
+        if (cv_text(4, 0, &FONT_S, ml, C_WHITE) + 8 <= hx)
+            cv_text(hx, 0, &FONT_S, "OCT+ DONE", C_GRAY);
+        i = 16u;
+    }
+    for (; i < 16u; i++) {
         uint32_t si = ui.bank * 16u + i;
         int32_t sx = 6 + (int32_t)i * 14 + (int32_t)(i / 4u) * 4;
         step_t sv = view_step(t, si);
@@ -1681,6 +1698,8 @@ __attribute__((always_inline)) static inline void ui_draw(void)
                 str_cpy(b + str_len(b), "?", 4);
             } else if (ui.confirm == 4u) {
                 str_cpy(b, "CLEAR SONG?", sizeof b);
+            } else if (ui.confirm == 6u) {              /* MIDI LEARN (ui_learn.c ML_CONFIRM) */
+                str_cpy(b, "CLEAR ALL LEARNED?", sizeof b);
             } else if (ui.confirm == 5u) {              /* the power-on load failed (project.c project_boot) */
                 str_cpy(b, "LOAD FAILED: SLOT A", sizeof b);
                 b[18] = (char)('A' + ui.confirm_trk % 4u);
