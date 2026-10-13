@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.17.0 - 2026-10-13
+
 - SELECT turns the pages: SELECT does what PRESETS did (a section's pages, HOME 1/3 to COMP 2/3 and 3/3, the page
   under PERFORM, the menu's cursor, the Bluetooth page's rows), except on HOME's TRACKS mode, where it sets the
   tempo. PRESETS does nothing; ALGORITHM still picks the track.
