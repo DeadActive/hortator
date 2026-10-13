@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.18.0 - 2026-10-14
+
 - MIDI LEARN: up to 16 CCs from any controller, each set to one knob of one track. Hold GLO (the MUTE screen) and
   press G4 to turn it on; turn a knob of the selected track (HOME, EDIT, LAYER, FILTER, FX, SLICER, RESON, LFO,
   PATTERN, TRACKS' LEVEL / LEN / PAN), then move the controller's knob: `CC74 -> T3 DECAY`. The footer shows what is
