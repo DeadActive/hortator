@@ -361,3 +361,240 @@ test('published page: every local file it loads carries the build stamp (?v=), s
   }
   assert.ok(js.includes(`worklet.js?v=${stamp}`) && js.includes(`fm1sim.wasm?v=${stamp}`));
 });
+
+// ---- lab.js: the feature pieces' engine (the analyser in the page; the player is the same calls in a worklet)
+import { Lab } from '../web/sim/lab.js';
+
+test('lab: ids from the firmware, a voice rendered, the Grids lanes, the probes parsed', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  assert.equal(ids.models.length > 20, true);
+  lab.reset();
+  lab.model(0, ids.DM.K808);
+  const hit = lab.voice(ids.fs / 2, false);
+  assert.equal(hit.length, ids.fs / 2);
+  assert.ok(Math.max(...hit.map(Math.abs)) > 0.01, 'the 808 kick is heard');
+  lab.global(ids.G.GX, 0);
+  const a = lab.grids();
+  lab.global(ids.G.GX, 127);
+  const b = lab.grids();
+  assert.equal(a.length, 96);
+  assert.notDeepEqual(Array.from(a), Array.from(b));
+  lab.model(0, ids.DM.K909);
+  for (let s = 0; s < 16; s += 4) lab.step(0, s, true);
+  lab.play(true);
+  lab.probeClear();
+  lab.renderMono(ids.fs);
+  const probes = lab.probes();
+  assert.ok(probes.length > 100);
+  assert.ok(probes.some(p => p.fired & 1), 'the kick fired');
+  assert.equal(probes[0].lfo.length, 8);
+});
+
+// ---- the pieces' measurements (lab_dsp.js) on what the firmware rendered
+import { fft, spectrum, tailLength } from '../web/sim/lab_dsp.js';
+
+test('lab_dsp: the FFT finds a sine at its bin; a 909 kick is low, a closed hat high; decay lengthens the tail', async () => {
+  const n = 1024, re = new Float64Array(n), im = new Float64Array(n);
+  for (let i = 0; i < n; i++) re[i] = Math.sin(2 * Math.PI * 37 * i / n);
+  fft(re, im);
+  const mag = Array.from(re, (r, k) => Math.hypot(r, im[k])).slice(0, n / 2);
+  assert.equal(mag.indexOf(Math.max(...mag)), 37);
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const centroid = m => {                             // the spectrum's centre of mass, Hz
+    lab.reset();
+    lab.model(0, m);
+    const db = spectrum(lab.voice(8192, false));
+    let s = 0, w = 0;
+    db.forEach((d, k) => { const p = 10 ** (d / 10); s += p * k; w += p; });
+    return s / w * ids.fs / 8192;
+  };
+  const kick = centroid(ids.DM.K909), hat = centroid(ids.DM.HATC);
+  assert.ok(kick < 400 && hat > 3000, `kick ${kick.toFixed(0)} Hz, hat ${hat.toFixed(0)} Hz`);
+  lab.reset();
+  lab.model(0, ids.DM.K808);
+  lab.param(0, ids.P.E1, 10);
+  const short = tailLength(lab.voice(ids.fs, false));
+  lab.param(0, ids.P.E1, 120);
+  assert.ok(tailLength(lab.voice(ids.fs, false)) > short * 1.5);
+});
+
+test('lab: a string tuned to A3 rings on the harmonics of 220 Hz; MIX 0 leaves the dry hit', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  assert.ok(ids.tp.RSTRCT, 'STRCT from the firmware');
+  const hit = (model, mix) => {
+    lab.reset();
+    lab.model(0, ids.DM.RIM);
+    lab.param(0, ids.P.RMODEL, model);
+    lab.param(0, ids.P.RTUNE, 57);
+    lab.param(0, ids.P.RDECAY, 100);
+    lab.param(0, ids.P.RMIX, mix);
+    return lab.voice(ids.fs, true);
+  };
+  const db = spectrum(hit(ids.RS.STRNG, 127).subarray(4096), 16384);   // the ring, after the attack
+  const hz = k => k * ids.fs / 16384;
+  let best = 0;
+  for (let k = 1; k < db.length; k++) if (hz(k) > 100 && hz(k) < 3000 && db[k] > db[best]) best = k;
+  const ratio = hz(best) / 220;
+  assert.ok(Math.abs(ratio - Math.round(ratio)) < 0.04, `the loudest partial at ${hz(best).toFixed(1)} Hz`);
+  const dry = hit(ids.RS.OFF, 127), none = hit(ids.RS.STRNG, 0);
+  assert.ok(tailLength(none) < tailLength(hit(ids.RS.STRNG, 127)) / 2, 'MIX 0: no ring');
+  assert.ok(Math.abs(tailLength(none) - tailLength(dry)) < ids.fs / 20, 'MIX 0 is the dry hit');
+});
+
+test('lab: the pump: keyed by the kick it ducks; the kick muted, GHOST MUTE stops it, KEEP keeps it', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const { P, G, DM } = ids, bar = ids.fs * 2;
+  const run = (src, muted, ghost) => {
+    lab.reset();
+    lab.model(0, DM.K909);
+    lab.model(1, DM.HATO);
+    for (let s = 0; s < 16; s++) { lab.step(0, s, s % 4 === 0); lab.step(1, s, true); }
+    lab.param(1, P.DUCK, 1);
+    lab.global(G.CSRC, src);
+    lab.global(G.CTHR, 20);
+    lab.global(G.CRAT, 90);
+    lab.global(G.CGHOST, ghost);
+    lab.param(0, P.MUTE, muted ? 1 : 0);
+    lab.play(true);
+    lab.renderMono(bar);
+    lab.probeClear();
+    lab.renderMono(bar);
+    return Math.min(...lab.probes().map(p => p.gr)) * 241 / 327680;
+  };
+  const [MUTE, KEEP] = [ids.names.ghost.indexOf('MUTE'), ids.names.ghost.indexOf('KEEP')];
+  assert.ok(run(1, false, KEEP) < -3, 'keyed: it ducks');
+  assert.equal(run(0, false, KEEP), 0, 'SRC OFF: nothing');
+  assert.ok(run(1, true, MUTE) > -0.5, 'the kick muted, GHOST MUTE: no pump');
+  assert.ok(run(1, true, KEEP) < -3, 'the kick muted, GHOST KEEP: the pump goes on');
+});
+
+test('lab: an LFO on the hats\' DECAY: the tails differ hit to hit; at DEPTH 0 they do not', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  assert.equal(ids.names.lsync[3], '1BAR');
+  const tails = depth => {
+    lab.reset();
+    lab.model(0, ids.DM.HATC);
+    for (let s = 0; s < 16; s++) lab.step(0, s, s % 4 === 0);   // quarters: room for each tail
+    lab.param(0, ids.P.LFO1 + ids.LF.DEST, 2);                   // DECAY
+    lab.param(0, ids.P.LFO1 + ids.LF.WAVE, ids.names.lwave.indexOf('SAW'));
+    lab.param(0, ids.P.LFO1 + ids.LF.RATE, 23);                  // 1 bar
+    lab.param(0, ids.P.LFO1 + ids.LF.DEPTH, depth);
+    lab.play(true);
+    const a = lab.renderMono(ids.fs * 2), q = ids.fs / 2;
+    return [0, 1, 2, 3].map(b => tailLength(a.subarray(b * q + 64, (b + 1) * q)));
+  };
+  const flat = tails(0), moved = tails(60);
+  assert.ok(Math.max(...flat) - Math.min(...flat) < ids.fs / 200, `DEPTH 0: ${flat}`);
+  assert.ok(Math.max(...moved) - Math.min(...moved) > ids.fs / 50, `DEPTH 60: ${moved}`);
+});
+
+test('lab: the dice over 8 bars: 1/2 plays on bars 1, 3, 5, 7; 1-SHOT on bar 1; RATCH 4 hits; 100% always; the same after PLAY', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const c = name => ids.conds.find(x => x.name === name).store;
+  const run = () => {
+    lab.reset();
+    lab.model(1, ids.DM.HATC);
+    lab.step(1, 0, true, false, c('100%'), 3);
+    lab.step(1, 4, true, false, c('1/2'));
+    lab.step(1, 8, true, false, c('1-SHOT'));
+    lab.step(1, 12, true, false, c('50%'));
+    lab.play(true);
+    return lab.dice(1, 8);
+  };
+  const d = run();
+  assert.deepEqual(d.map(b => b[0]), [4, 4, 4, 4, 4, 4, 4, 4], 'RATCH 4 at 100%');
+  assert.deepEqual(d.map(b => b[4]), [1, 0, 1, 0, 1, 0, 1, 0], '1/2');
+  assert.deepEqual(d.map(b => b[8]), [1, 0, 0, 0, 0, 0, 0, 0], '1-SHOT');
+  const half = d.map(b => b[12]);
+  assert.ok(half.some(Boolean) && !half.every(Boolean), `50%: ${half}`);
+  assert.deepEqual(run(), d, 'the same 8 bars after every PLAY');
+});
+
+test('lab: tracks following Grids play what its lanes show (no chaos); FILL 0 empties a lane', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const { G, P, DM } = ids;
+  lab.reset();
+  [DM.K909, DM.S909, DM.HATC].forEach((m, t) => { lab.model(t, m); lab.param(t, P.SRC, t + 1); });
+  lab.global(G.GX, 40);
+  lab.global(G.GY, 90);
+  for (const f of [G.GFILL1, G.GFILL2, G.GFILL3]) lab.global(f, 90);
+  const lanes = lab.grids();
+  lab.play(true);
+  const played = [0, 1, 2].map(() => []);
+  lab.probeClear();
+  lab.renderMono(ids.fs * 2);                         // a bar = Grids' 32 steps (32nds, seq.c grids_tick)
+  const pr = lab.probes();
+  for (const t of [0, 1, 2]) {                        // the 32nd of each hit (the first half that fired)
+    let prev = false;
+    pr.forEach((p, i) => {
+      const f = !!((p.fired >> t) & 1);
+      const at = Math.floor(((i + 1) * 256 + 128) / (ids.fs / 16));   // a hit is set up a block ahead of its sound
+      if (f && !prev && at < 32) played[t].push(at);
+      prev = f;
+    });
+  }
+  for (const t of [0, 1, 2]) {
+    const want = [...Array(32).keys()].filter(i => lanes[t * 32 + i] & 1);
+    assert.ok(want.length > 0, `lane ${t} has hits`);
+    assert.deepEqual(played[t], want, `lane ${t}`);
+  }
+  lab.global(G.GFILL2, 0);
+  assert.equal(lab.grids().slice(32, 64).filter(b => b & 1).length, 0, 'FILL 0: no snare');
+});
+
+test('lab: every PERFORM key held changes the mix; each chain stage on changes the rimshot\'s bar', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const { P, DM, PF } = ids, n = ids.fs;
+  const loop = (params = [], key = null) => {
+    lab.reset();
+    lab.model(0, DM.K909);
+    lab.model(1, DM.RIM);
+    for (let s = 0; s < 16; s++) { lab.step(0, s, s % 4 === 0); lab.step(1, s, [0, 3, 6, 10, 11, 14].includes(s)); }
+    for (const [p, v] of params) lab.param(1, p, v);
+    lab.play(true);
+    lab.renderMono(n);
+    if (key) lab.perf(PF[key], true);
+    const a = lab.renderMono(n);
+    if (key) lab.perf(PF[key], false);
+    return a;
+  };
+  const same = (a, b) => a.every((v, i) => v === b[i]);
+  const base = loop();
+  for (const k of ['R8', 'R16', 'R32', 'REV', 'TAPE', 'LPF', 'HPF', 'FRZ', 'OUP', 'ODN'])
+    assert.ok(!same(loop([], k), base), `${k} held changes the output`);
+  const ft = ids.names.ftype.indexOf('LP');
+  for (const [name, params] of [['FILTER', [[P.FTYPE, ft], [P.FCUT, 40]]], ['RESON', [[P.RMODEL, ids.RS.CHORD]]],
+    ['DIST', [[P.DIST, 90]]], ['SLICER', [[P.SLCR, 1], [P.SLPAT, 5]]], ['DELAY', [[P.DLY, 60]]], ['REVERB', [[P.REV, 60]]],
+    ['CHORUS', [[P.CHOR, 70]]]])
+    assert.ok(!same(loop(params), base), `${name} changes the bar`);
+});
+
+test('features reel: a clip per chapter (not Bluetooth: no page), each over 5 s, replayable to the end, small', async () => {
+  const gz = readFileSync(join(DIR, 'features.bin.gz'));
+  assert.ok(gz.length < 6e5, `features.bin.gz is ${gz.length} B`);
+  const { gunzipSync } = await import('node:zlib');
+  const b = gunzipSync(gz), reel = parseReel(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
+  const list = JSON.parse(readFileSync(join(DIR, 'features.json'), 'utf8'));
+  assert.deepEqual(list.map(c => c.name), ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
+  let at = 0;
+  for (const c of list) {
+    assert.equal(c.from, at, `${c.name} follows on`);
+    assert.ok((c.to - c.from) / reel.fps >= 5, `${c.name}: ${(c.to - c.from) / reel.fps} s`);
+    at = c.to;
+  }
+  assert.equal(at, reel.frames);
+  const fb = new Uint16Array(240 * 240), seen = new Set();
+  for (let i = 0; i < reel.frames; i++) {             // the screen keeps changing: knobs turning, not a still
+    reel.apply(i, fb);
+    if (i % 15 === 0) seen.add(fb.reduce((h, v) => (h * 31 + v) >>> 0, 7));
+  }
+  assert.ok(seen.size > reel.frames / 15 * 0.9, `${seen.size} different screens in ${reel.frames / 15} s`);
+});

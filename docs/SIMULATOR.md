@@ -42,8 +42,9 @@ Everything the script writes goes under `build/sim/`:
 
 ## The site: landing page and installer
 
-`web/sim/index.html` is the project's landing page: the name and one sentence, the simulator as the hero, what the
-firmware does (with where to find it on the panel), how to install, credits and the source link.
+`web/sim/index.html` is the project's landing page: the name and one sentence, the simulator as the hero, the
+features as eight interactive pieces on the firmware's own DSP (the features lab, below), how to install, credits and
+the source link.
 
 `web/index_pkg.html` is the installer page, restyled to match, in English only and named Hortator (the firmware's name since 2026-10-07). This was a
 user-granted exception to the simulator's file rules (2026-10-07). Its script is `main`'s at 12a1ba0 with exactly
@@ -60,6 +61,23 @@ To preview with a real firmware package, pass one the firmware session already b
 (the original is never touched), and the preview is assembled by `make_site.main` itself, labelled from the file
 name (`drum-X.Y.Z+<commit>`). Use the package's own commit as `--ref` so the simulator and the firmware match. That
 preview's installer *can* flash an FM-1.
+
+### The look
+
+The page is drawn as the FM-1's screen draws its pages:
+
+- **Colour:** only the firmware's MONO palette (`firmware/src/gfx.c`: five greys and white), in the firmware's roles:
+  `#282828` rules, `#505050` inactive, `#828282` labels, `#bababa` secondary text, `#e2e2e2` values and text, white
+  only for what is touched or where you are. The device keeps its own neutral greys. `tests/sim_site.mjs` fails on any
+  colour with a hue.
+- **Type:** the firmware's own Terminus 8 × 16. `tests/sim_font.mjs` turns `assets/fonts/ter-u16n.bdf` into
+  `terminus.woff` at build time (pixel squares, 64 units each; 210 glyphs, about 5 KB), published with its OFL
+  licence. Sizes are whole multiples of 16 px, so every pixel lands on the grid. Silkscreen remains for the device's
+  printed labels.
+- **Dither:** blends are ordered dithering (Bayer 4 × 4, 2 px cells, `web/sim/dither.js`): the glow behind the device,
+  the band above the footer, the pieces' area fills.
+- **Glitch:** headings tear into offset slices once as they arrive; the hero's title now and then. Reduced motion
+  turns it off.
 
 ## How it works
 
@@ -82,6 +100,29 @@ here: `fm1_wdt_feed` moves the clock on, so it times out at once (SETUP CANCELLE
 The build also writes `build/sim/source.tar.gz` (`git archive HEAD`), which the page's footer links: a public copy
 of the page offers the GPL-3.0 source it was built from. Commit before building a copy to publish (the script warns
 otherwise).
+
+### The features lab
+
+The features section (`docs/superpowers/specs/2026-10-09-websim-features-lab-design.md`) drives the firmware's DSP
+directly, not through the panel: each piece sets a track's model, knobs and steps, the globals and the transport, and
+draws what the firmware computes.
+
+| Unit | File | Job |
+|---|---|---|
+| Lab C | `tests/sim_lab.c` (in `sim_core.c`'s translation unit) | a blank project at 120 BPM; models, parameters, steps (PROB, RATCH), globals, the transport, a hit, a PERFORM key held; one track's hit rendered alone (`lab_voice`, with or without its RESON and FILTER); the mix; the Grids lanes; TRACKS' mute (now or on the bar); MOTION (armed, a knob turned through `motion_capture`); per audio half a probe: the compressor's gain reduction, both LFOs of every track, the tracks that fired, each track's step, the waiting and applied mutes, a watched knob |
+| Ids | `tests/sim_ids.c` → `lab_ids.json` | the parameter, global, model, PERFORM and RESON ids with their labels, ranges, defaults and name tables, the PROB list (`cond_store` / `cond_format`) and the LFO SYNC names, printed from the firmware at build time: the page never copies a number |
+| Analyser | `web/sim/lab.js` `Lab` | a second wasm instance in the page, silent; started when the section nears the screen; `voice`, `renderMono`, `grids`, `probes`, `dice` |
+| Player | `web/sim/lab.js` `LabPlayer`, `worklet.js` `fm1lab` | a third instance in an AudioWorklet, started by the first Play (one AudioContext): the same calls as messages (a whitelist), probes posted back about 60 times a second, an AnalyserNode on its output |
+| Screens' clips | `tests/sim_feature_reel.c` (+ `sim_reel.h`, shared with `sim_record.c`) → `features.bin.gz`, `features.json` | a clip per chapter: from a fresh demo 1, playing, the chapter's page while a scripted hand turns its knobs to their ends (models and waves stepped through, ranges swept, PERFORM keys held); FM1R at 15 fps |
+| Frame | `web/sim/features.js` | the chapters, each with the FM-1's own screen beside the text: its clip looped while in view; a change in the piece shows the live screen for 5 s (`Lab.screen`: the panel moves that open the page, run on the analyser's state), then the clip again; one piece plays at a time; a piece off screen or a hidden tab stops; `audition()` starts a piece's sound from a pad or a key without its loop; diagrams (Bluetooth) mount without the analyser |
+| Parts | `lab_ui.js`, `lab_dsp.js`, `lab_draw.js` | knobs (drag, arrows, Page, Home / End), chips, the pad, canvases at the pixel ratio; the FFT, spectrum and tail; the traces |
+| Pieces | `lab_voices.js`, `lab_reson.js`, `lab_comp.js`, `lab_lfo.js`, `lab_seq.js`, `lab_grids.js`, `lab_fx.js`, `lab_ble.js` | drum voices, resonators, the pump compressor, two LFOs, the sequencer's chance and live hands, Grids, effects and PERFORM, Bluetooth MIDI (an animated diagram of part 1, from `docs/ble/DEVICE_STEPS.md`) |
+
+`lab_reset` stops a transport another piece left running, so each piece starts from its own PLAY, and clears the pages each family remembers (`ui.fam_last`), as at power-on. The lab's styles are scoped to `.plate` (an unscoped `.knob` once restyled the power switch's thumb; `tests/sim_site.mjs` guards it).
+
+Knob drags redraw at most once a frame (each piece coalesces its renders). Three firmware facts the pictures follow:
+a hit is set up a block ahead of its sound (the probes see it up to one half early); Grids' 32 steps are one bar of
+32nds; PROB's dice are seeded at PLAY, so the first 8 bars are the same after every PLAY (no re-roll on the page).
 
 ### Storage
 
@@ -137,6 +178,17 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
   - the IndexedDB store against a fake database (lost connection, repeated failures, blocked storage, reset);
   - resuming the AudioContext and the iOS playback session;
   - the footer links `source.tar.gz`, which holds the firmware and the sim.
+
+- `tests/sim_lab_test.c` (built and run by `tools/build_sim.sh`) checks the lab on the firmware: every model is
+  heard and models differ, DECAY lengthens a hit, RESON rings longer than dry, Grids' lanes follow X / Y, the
+  compressor reduces gain when keyed, the LFO probes move, PROB 50 % fires sometimes, PERFORM changes the output, a
+  mute waits for the bar line, a recorded knob move plays back at its step.
+- `tests/sim_glue.mjs`'s lab tests run the page's own `lab.js` / `lab_dsp.js` on the built wasm: the ids, the FFT (a
+  909 kick low, a closed hat high), a string tuned to A3 ringing on 220 Hz's harmonics, GHOST MUTE / KEEP, an LFO on
+  DECAY, the 8-bar dice (1/2, 1-SHOT, RATCH 4, the same after PLAY), tracks following Grids playing exactly its lanes,
+  every PERFORM key and chain stage changing the output.
+- `tests/sim_site.mjs` checks the page: the eight chapters, each with its plate and a panel hint that names real
+  controls.
 
 ## Requests for the firmware session
 

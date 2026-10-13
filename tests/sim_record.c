@@ -48,52 +48,7 @@ static const act_t SCRIPT[] = {                           /* HOME's scope first;
 };
 #define NACT (sizeof SCRIPT / sizeof SCRIPT[0])
 
-static uint16_t prev[240 * 240];
-
-static void put16(FILE *f, uint32_t v) { uint8_t b[2] = {(uint8_t)v, (uint8_t)(v >> 8)}; fwrite(b, 1, 2, f); }
-static void put32(FILE *f, uint32_t v) { put16(f, v & 0xFFFFu); put16(f, v >> 16); }
-
-static void write_frame(FILE *f, const int8_t enc[8], int full)
-{
-    const uint16_t *cur = sim_fb();
-    uint32_t i, runs = 0, starts[2048], lens[2048];
-    for (i = 0; i < 240u * 240u && !full;) {              /* changed pixels; gaps under 4 pixels joined */
-        uint32_t s, last;
-        if (cur[i] == prev[i]) {
-            i++;
-            continue;
-        }
-        s = last = i;
-        while (i < 240u * 240u && (cur[i] != prev[i] || i - last < 4u)) {
-            if (cur[i] != prev[i])
-                last = i;
-            i++;
-        }
-        if (runs == 2048u) {                              /* too scattered: one run over the rest */
-            lens[runs - 1u] = 240u * 240u - starts[runs - 1u];
-            break;
-        }
-        starts[runs] = s;
-        lens[runs++] = last - s + 1u;
-    }
-    if (full) {
-        starts[0] = 0;
-        lens[0] = 240u * 240u;
-        runs = 1;
-    }
-    put32(f, sim_leds());
-    put32(f, sim_key_leds());
-    fwrite(enc, 1, 8, f);
-    put32(f, runs);
-    for (i = 0; i < runs; i++) {
-        uint32_t k;
-        put16(f, starts[i]);
-        put16(f, lens[i]);
-        for (k = 0; k < lens[i]; k++)
-            put16(f, cur[starts[i] + k]);
-    }
-    memcpy(prev, cur, sizeof prev);
-}
+#include "sim_reel.h"
 
 static void hold_for(uint32_t samples)
 {
@@ -102,13 +57,6 @@ static void hold_for(uint32_t samples)
         sim_render(n);
         samples -= n;
     }
-}
-
-static void tap_btn(uint32_t b)                          /* held 0.12 s, as a finger: HOME / REC read the level */
-{
-    sim_btn(b, 1);
-    hold_for(FS * 12u / 100u);
-    sim_btn(b, 0);
 }
 
 static void tap_key(uint32_t k)                          /* a note key, held 0.12 s */

@@ -16,6 +16,7 @@ static int32_t sim_knob = 512 * 16;                       /* main.c's MASTER fil
 static uint32_t sim_master_raw = 800;
 
 static void sim_demo_install(void);
+static void (*sim_half_hook)(void);                     /* after each audio half: the lab's probes (sim_lab.c) */
 
 void sim_frame(void)                                     /* main.c's loop body, minus the hardware */
 {
@@ -82,6 +83,8 @@ uint32_t sim_render(uint32_t frames)                     /* interleaved float st
             fm1_alnk0_irq();
             sim_samples += HALF_FRAMES;
             sim_ms_update();
+            if (sim_half_hook)
+                sim_half_hook();
             sim_pos = 0;
         }
         h = &abuf[sim_half * HALF_WORDS];
@@ -161,3 +164,4 @@ uint32_t *sim_flash_dirty(void) { return sim_dirty; }
 void sim_flash_clean(void) { memset(sim_dirty, 0, sizeof sim_dirty); }
 
 #include "sim_demo.c"
+#include "sim_lab.c"

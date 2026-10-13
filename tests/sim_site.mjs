@@ -138,21 +138,25 @@ test('hero pose: the shine never plays while the scene is blurred (a blur filter
     }
 });
 
-// ---- the features: a sticky screen plays each feature's clip; the panel locator lights the controls to press
+// ---- the features: eight chapters, each a piece on the firmware's own DSP (features.js), each telling where it is on
+// the panel (Bluetooth, a separate test build, has no panel control yet)
 import { BTN, ENC } from '../web/sim/controls.js';
 
-test('features: each names a recorded clip and real panel controls', () => {
+test('features: eight chapters with a plate each; every panel hint names real controls', () => {
   const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
-  const feats = [...sec.matchAll(/<li class="feat"[^>]*data-clip="(\w+)"[^>]*data-press="([^"]+)"/g)];
-  assert.ok(feats.length >= 6, `${feats.length} features`);
-  const clips = new Set(['home', 'seq', 'sound', 'fx', 'grids', 'comp', 'tracks', 'lfo', 'end']);   // tests/sim_record.c
+  const ids = [...sec.matchAll(/<article class="chapter" id="f-(\w+)"/g)].map(m => m[1]);
+  assert.deepEqual(ids, ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
   const labels = new Set([...BTN.map(b => b.label), ...ENC.map(e => e.label)]);
-  for (const [, clip, press] of feats) {
-    assert.ok(clips.has(clip), `clip ${clip}`);
-    for (const l of press.split(' ')) assert.ok(labels.has(l), `${clip}: ${l} is not on the panel`);
+  for (const ch of sec.split('<article').slice(1)) {
+    const id = ch.match(/id="f-(\w+)"/)[1];
+    assert.match(ch, new RegExp(`<div class="plate" data-piece="${id}">`), `${id}: its plate`);
+    const where = ch.match(/<p class="where">([\s\S]*?)<\/p>/)?.[1];
+    assert.ok(where, `${id}: where it is on the panel`);
+    const keys = [...where.matchAll(/<b>([^<]+)<\/b>/g)].map(m => m[1]);
+    if (id !== 'ble') assert.ok(keys.length, `${id}: names a control`);
+    for (const k of keys) assert.ok(labels.has(k), `${id}: ${k} is not on the panel`);
   }
-  assert.match(sec, /id="manual-screen"/, 'the sticky screen');
-  assert.match(sec, /id="locator"/, 'the panel locator');
+  assert.doesNotMatch(LANDING, /manual-screen|id="locator"/, 'the old sticky screen is gone');
 });
 
 test('install: the version and what is new, the connection diagram, the installer, the way back and the recovery', () => {
@@ -209,7 +213,10 @@ test('make_site: the front page is the landing page with the simulator beside it
   assert.match(front, /app\.js\?v=[0-9a-f]+/, 'the stamped build');
   for (const f of ['fm1sim.wasm', 'app.js', 'worklet.js', 'reel.bin.gz', 'reel.json', 'version.json', 'source.tar.gz'])
     assert.ok(existsSync(`${out}/${f}`), f);
-  for (const f of ['reel.bin', 'reel.hash', 'package.fwsc']) assert.ok(!existsSync(`${out}/${f}`), `${f} is not published`);
+  for (const f of ['features.js', 'lab_voices.js', 'dither.js', 'lab_ids.json', 'features.bin.gz', 'features.json',
+    'terminus.woff', 'terminus-license.txt'])        // the pieces, the screens' clips, the typeface and its licence
+    assert.ok(existsSync(`${out}/${f}`), `${f} is published`);
+  for (const f of ['reel.bin', 'features.bin', 'reel.hash', 'package.fwsc']) assert.ok(!existsSync(`${out}/${f}`), `${f} is not published`);
   assert.match(readFileSync(`${out}/webapp/installer/index.html`, 'utf8'), /Install Hortator/);
   rmSync(out, { recursive: true, force: true });
 });
@@ -264,4 +271,43 @@ test('Controls opens beside the device on wide screens: the stage gives the pane
   assert.match(css, /\.hero-stage\.help-open \.help\s*{[^}]*right:/, 'the panel on the right');
   assert.match(css, /\.hero-stage\.help-open \.scene\s*{[^}]*padding-right:/, 'the device keeps out of its way');
   assert.match(app, /HELP_W/, 'the device is fitted to the width left beside the panel');
+});
+
+test('every chapter shows the FM-1\'s own screen (a 240 x 240 LCD the firmware draws)', () => {
+  const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
+  for (const ch of sec.split('<article').slice(1))
+    assert.match(ch, /<figure class="device-screen">\s*<canvas width="240" height="240"/, ch.match(/id="f-(\w+)"/)[1]);
+});
+
+test('the lab\'s styles stay in its plates: the power switch\'s knob is styled by the switch alone', () => {
+  const css = readFileSync('web/sim/sim.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const [, sel] of css.matchAll(/([^{}]+)\{/g))
+    for (const part of sel.split(','))
+      if (/\.knob\b/.test(part)) assert.match(part.trim(), /^(\.plate|\.power-toggle|@)/, part.trim());
+});
+
+test('the page is the screen\'s monochrome: every colour in sim.css is a grey (the firmware\'s MONO palette and the device)', () => {
+  const css = readFileSync('web/sim/sim.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/url\("data:[^"]*"\)/g, '');
+  const hues = [];
+  for (const [m, h] of css.matchAll(/#([0-9a-f]{6}|[0-9a-f]{3})\b/gi)) {
+    const v = h.length === 3 ? h.split('').map(c => c + c) : [h.slice(0, 2), h.slice(2, 4), h.slice(4, 6)];
+    if (new Set(v.map(x => x.toLowerCase())).size > 1) hues.push(m);
+  }
+  for (const [m, r, g, b] of css.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)/g)) if (r !== g || g !== b) hues.push(m);
+  assert.deepEqual(hues, []);
+  for (const tone of ['#282828', '#505050', '#828282', '#bababa', '#e2e2e2'])   // firmware/src/gfx.c MONO
+    assert.match(css, new RegExp(tone), tone);
+});
+
+import { parseBdf, buildFont, woff, WANT } from './sim_font.mjs';
+test('the type is the firmware\'s: Terminus from its BDF as a web font, every character the page uses', () => {
+  const bdf = parseBdf(readFileSync('assets/fonts/ter-u16n.bdf', 'utf8'));
+  const tables = buildFont(bdf), font = woff(tables);
+  assert.equal(font.subarray(0, 4).toString(), 'wOFF');
+  const cps = new Set(bdf.glyphs.map(g => g.cp).filter(WANT));   // what the web font carries
+  const page = LANDING.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ');
+  const missing = [...new Set(page)].filter(ch => ch.trim() && !cps.has(ch.codePointAt(0)));
+  assert.deepEqual(missing, [], 'characters Terminus lacks');
+  assert.doesNotMatch(LANDING, /Archivo|IBM\+Plex/, 'no other typeface');
+  assert.match(readFileSync('web/sim/sim.css', 'utf8'), /@font-face\s*{[^}]*terminus\.woff/);
 });

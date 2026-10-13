@@ -108,7 +108,8 @@ def main(pkg, version, out, ble_pkg=None):
 
 
 SIM = HERE.parent / "build" / "sim"
-SIM_PUBLISHED = (".html", ".js", ".css", ".wasm", ".gz", ".json")   # not reel.bin / reel.hash / package.fwsc / logs
+SIM_PUBLISHED = (".html", ".js", ".css", ".wasm", ".gz", ".json",   # not reel.bin / reel.hash / package.fwsc / logs
+                 ".woff", ".txt")                                    # the typeface (terminus.woff) and its licence
 
 
 def sim_page(out):
