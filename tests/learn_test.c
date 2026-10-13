@@ -287,6 +287,16 @@ static void test_clear(void)
           same(ui.msg, "LEARN CLEARED"));
     oct(B_OCTDN);
     check("OCT- with nothing learned: NOTHING LEARNED, no confirm", !ui.confirm && same(ui.msg, "NOTHING LEARNED"));
+    learn_home(1, 74);
+    press(B_OCTDN);                                  /* OCT- and OCT+ in one frame (or held: the UPDATE combo) */
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("OCT- + OCT+ in one frame: LEARN done, no confirm left up, nothing cleared", !ui.ml.on && !ui.confirm &&
+          count() == 1u);
+    oct(B_OCTUP);
+    check("(a later OCT+ clears nothing)", count() == 1u);
 }
 
 /* LEARN ends when the menu, NAME or another confirm opens; MODEL picks nothing */
@@ -336,6 +346,27 @@ static void test_ends(void)
     glo_hold_frames(1);
     check("the MUTE screen's knobs pick nothing", !ui.ml.pick);
     glo_up();
+}
+
+/* a MODEL turn to a model without the picked knob: the pick goes (no "T1 -: SEND A CC") */
+static void test_model_drop(void)
+{
+    char ln[32];
+    uint32_t i;
+    fresh();
+    tap(B_EDIT);                                     /* SOUND 1: MODEL */
+    learn_toggle();
+    for (i = 0; i < 64u && label(0, P_E5)[0] == '-'; i++)
+        model_step(1);
+    ml_knob(0, P_E5);
+    check("(a model with E5: picked)", ui.ml.pick && ui.ml.id == P_E5);
+    for (i = 0; i < 64u && label(0, P_E5)[0] != '-'; i++)
+        knob(0, 1);                                  /* MODEL */
+    ml_line(ln);
+    check("MODEL to one without the picked knob: the pick dropped, the footer TURN A KNOB",
+          label(0, P_E5)[0] == '-' && !ui.ml.pick && !ml_arm && same(ln, "LEARN: TURN A KNOB"));
+    send_cc(74, 64);
+    check("(a CC then learns nothing)", !count() && ui.ml.on);
 }
 
 /* the pages: each picks the parameter it edits on the selected track */
@@ -476,6 +507,35 @@ static void test_lfo(void)
     for (i = 0; i < 4u; i++)
         render_mix(0, 0, CTL);
     check("(and stays)", t->p[P_PAN] == -64);
+    t->p[P_LFO1 + LF_DEPTH] = 32;                    /* (in a block: the LFO holds PAN) */
+    render_mix(0, 0, CTL);
+    lfo_apply(0);
+    {
+        int16_t mv = t->p[P_PAN], sv = mv == 5 ? 6 : 5;
+        t->p[P_PAN] = sv;                            /* (what a restore and a re-apply would overwrite) */
+        learn_cc(80, 0);                             /* -64: the base as it is */
+        check("a CC to the value the base has: nothing done (no restore, no re-apply)", t->p[P_PAN] == sv &&
+              t->lnum == 1u && t->lsave[0] == -64);
+        t->p[P_PAN] = mv;
+    }
+    lfo_restore();
+    t = &trk[1];                                     /* no LFO on */
+    ml_learn(82, 1, P_PAN);
+    lfo_apply(0);
+    t->rfine = 77;                                   /* (lfo_track zeroes it) */
+    learn_cc(82, 127);
+    check("a CC on a track with no LFO on: set, the LFOs not re-applied", t->p[P_PAN] == 63 && t->rfine == 77);
+    lfo_restore();
+    t = &trk[2];                                     /* an LFO on PAN at DEPTH 0: a CC on its DEPTH turns it on */
+    t->p[P_LFO1 + LF_DEST] = 10;
+    t->p[P_LFO1 + LF_DEPTH] = 0;
+    t->p[P_LFO1 + LF_WAVE] = LW_SQUARE;
+    ml_learn(83, 2, P_LFO1 + LF_DEPTH);
+    lfo_apply(0);
+    learn_cc(83, 127);
+    check("a CC on an off LFO's DEPTH: it holds PAN in that block", t->p[P_LFO1 + LF_DEPTH] == 64 && t->lnum == 1u &&
+          t->lpid[0] == P_PAN);
+    lfo_restore();
 }
 
 static void test_motion_base(void)
@@ -707,6 +767,7 @@ int main(void)
     test_full();
     test_clear();
     test_ends();
+    test_model_drop();
     test_pages();
     test_ranges();
     test_bound_track();

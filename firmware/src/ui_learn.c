@@ -79,11 +79,24 @@ static int ml_clear_all(void)                      /* every CC forgotten, saved;
     return n != 0u;
 }
 
-static void ml_off(void)
+static void ml_off(void)                          /* (its CLEAR ALL LEARNED? goes with it: never a YES after) */
 {
     ui.ml.on = ui.ml.pick = 0;
     ml_arm = 0;
     ml_heard = 0;
+    if (ui.confirm == ML_CONFIRM) {
+        ui.confirm = 0;
+        ui.force = 1;
+    }
+}
+/* the picked knob gone (a MODEL without it): nothing picked */
+static void ml_pick_check(void)
+{
+    if (ui.ml.pick && !ml_knob_real(track_desc(&trk[ui.ml.trk % NTRK], ui.ml.id))) {
+        ui.ml.pick = 0;
+        ml_arm = 0;
+        ml_heard = 0;
+    }
 }
 static void ml_toggle(void)                        /* GLO + G4 */
 {
@@ -103,11 +116,12 @@ static void ml_knob(uint32_t k, uint32_t id)
     if (!ui.ml.on || k >= NTRK || id >= P_COUNT)
         return;
     if (!ml_param_ok(id)) {
+        ml_pick_check();                             /* (MODEL: the picked knob may be gone) */
         ui_message("NOT LEARNABLE");                 /* (MODEL, RESON's MODEL) */
         return;
     }
     d = track_desc(&trk[k], id);
-    if (d->max <= d->min || !d->label || d->label[0] == '-')
+    if (!ml_knob_real(d))
         return;
     ui.ml.trk = (uint8_t)k;
     ui.ml.id = (uint8_t)id;
@@ -129,11 +143,13 @@ static void ml_name(char *b)
     str_cpy(b + 3, pre, 4);
     str_cpy(b + str_len(b), track_desc(&trk[k], id)->label, 8);
 }
-/* every frame: a CC heard for the picked parameter is learned */
+/* every frame: a CC heard for the picked parameter is learned (the picked knob still there) */
 static void ml_poll(void)
 {
-    uint32_t cc = ml_heard, r;
+    uint32_t cc, r;
     char a[16], b[16];
+    ml_pick_check();                                  /* (a MODEL changed otherwise: a load, a song's row) */
+    cc = ml_heard;
     if (!cc)
         return;
     ml_heard = 0;

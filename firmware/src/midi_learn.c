@@ -25,6 +25,9 @@ static int ml_param_ok(uint32_t id)
     return id < P_COUNT && id != P_MODEL && id != P_RMODEL && id != P_MUTE && id != P_DUCK;
 }
 
+/* d is a knob the model has (not "-", no range: lfo_track's test) */
+static int ml_knob_real(const param_desc_t *d) { return d->max > d->min && d->label && d->label[0] && d->label[0] != '-'; }
+
 /* CC value v (0..127) -> d's range: a bipolar knob (min < 0 < max) has its 0 at 64; an enum steps over its shown
  * order (DIV: enum_order) */
 static int32_t ml_value(const param_desc_t *d, uint32_t v)
@@ -37,27 +40,32 @@ static int32_t ml_value(const param_desc_t *d, uint32_t v)
     return o ? o[pos] + d->min : d->min + pos;
 }
 
-/* a learned CC sets parameter id of t (in the block: after lfo_apply, before the tracks render). The base gets it: the
- * LFOs' copies put back first, applied again after (no advance), so lfo_restore keeps the new value and an LFO on the
- * knob modulates around it; while motion plays it is the knob's new base (as a turn) */
+/* a learned CC sets parameter id of t (in the block: after lfo_apply, before the tracks render). The base gets it
+ * (motion_slot: an LFO's held knob its saved value); the base as it is: nothing more (as upstream). An LFO on the
+ * track, or the knob one of an LFO's own: the LFOs' copies put back first, applied again after (no advance), so
+ * lfo_restore keeps the new value and an LFO on the knob modulates around it (or starts / stops at once); while
+ * motion plays it is the knob's new base (as a turn) */
 static __attribute__((noinline)) void ml_set(track_t *t, uint32_t id, uint32_t v)
 {
     const param_desc_t *d = track_desc(t, id);
-    uint32_t k = (uint32_t)(t - trk);
+    uint32_t k = (uint32_t)(t - trk), lf;
     int32_t nv;
-    if (d->max <= d->min || !d->label || d->label[0] == '-')
+    if (!ml_knob_real(d))
         return;                                     /* the model has no such knob */
     if (id >= P_SLEN && id <= P_SSWING && chain_busy())
         return;                                     /* PATTERN while a song plays (or is armed): its rows' */
     if (id == P_SRC && chain_busy())
         return;
     nv = ml_value(d, v);
-    if (song.lfo_in)
-        lfo_restore_track(t);
-    t->p[id] = (int16_t)nv;
     if ((mo.base_ok >> k) & 1u)
         mo.base[k][id] = (int16_t)nv;
-    if (song.lfo_in)
+    if (*motion_slot(t, id) == nv)
+        return;
+    lf = song.lfo_in && (t->lon || (id >= P_LFO1 && id < P_LFO2 + LF_N));   /* (lfo_track: lon, the LFOs on) */
+    if (lf)
+        lfo_restore_track(t);
+    t->p[id] = (int16_t)nv;
+    if (lf)
         lfo_track(t, 0);
 }
 
