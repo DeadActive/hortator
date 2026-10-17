@@ -87,7 +87,7 @@ static int32_t rs_t2(const int16_t t[3][10], uint32_t i, uint32_t j, int32_t fp,
     int32_t b = t[i + 1][j] * 256 + (int32_t)(((int64_t)(t[i + 1][j + 1] - t[i + 1][j]) * fx) >> 8);
     return a + (int32_t)(((int64_t)(b - a) * fp) >> 16);
 }
-static uint32_t rs_warp(const rstrx_t *r, uint32_t th)   /* the warped phase of th in [0, pi) (pi = 2^31) */
+static inline uint32_t rs_warp(const rstrx_t *r, uint32_t th)   /* the warped phase of th in [0, pi) (pi = 2^31) */
 {
     return th < r->tj ? (uint32_t)(((uint64_t)th * r->kk) >> 16) : r->d0 + (uint32_t)(((uint64_t)(th - r->tj) * r->mm) >> 16);
 }
@@ -141,8 +141,8 @@ static void rstrx_trigger(track_t *t, dvoice_t *v)
             s += (y * sine_i(th)) >> 15;
         }
         n = rs_isqrt((uint64_t)((int64_t)c * c + (int64_t)s * s)) >> 5;   /* Q15 */
-        r->g = (int32_t)(((((int64_t)rs_t2(RS_FG, i, j, fp, fx) * 13421) >> 6)) / (int32_t)(n ? n : 1u));   /* FG
-                                                         * over it, Q14 */
+        r->g = (int32_t)(((int64_t)rs_t2(RS_FG, i, j, fp, fx) * 13421) >> 6) / (int32_t)(n ? n : 1u);   /* FG over
+                                                         * it, Q14 (a 32-bit divide: FG x 2^29 / 10^4 < 2^30) */
     }
 }
 
