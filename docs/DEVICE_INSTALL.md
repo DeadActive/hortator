@@ -342,6 +342,19 @@ Report what you saw first; we'll go through it together.
   (zaps, toms); FBK adds grit up to noise; accented steps are brighter (VEL).
 - `tools/fm1_bench.py --yes`: the cases FM and FM+fx (8 tracks of the model).
 
+### KTRX (check on the FM-1)
+
+- A track to MODEL KTRX (the last model, after ACID): SOUND 1/4 MODEL TUNE DECAY SWEEP, 2/4 SDEC PUNCH NOISE SUB,
+  3/4 CLIP LVL PAN NOTE; the graph shows the pitch (falling from SWEEP over SDEC) and the level over 300 ms
+  (`build/ui_shots/ktrx/sound_1.png`, `sweep127.png`).
+- By ear against the A/B files (`~/Desktop/hortator-md/ktrx-ab`: the emulator, then KTRX): the defaults a round
+  61 Hz kick with a short click; SWEEP up a deeper zap (SDEC longer); PUNCH a harder first cycle; NOISE a short hiss;
+  SUB a growl an octave down that fades; CLIP above 64 a buzzy square that gets quieter towards 127.
+- The demo WAVs (`build/drum_renders/ktrx_*.wav`; TUNE DECAY SWEEP SDEC PUNCH NOISE SUB CLIP): default 0 64 64 32 0 0 0
+  0; boom_sub -5 100 40 90 0 0 90 0; punch_noise 3 50 80 20 127 70 0 0; zap 7 60 127 50 0 0 0 0; clip 0 70 60 30 60
+  40 0 120.
+- `tools/fm1_bench.py --yes`: the cases KTRX and KTRX+fx (8 tracks of the model).
+
 ### Fixes after 0.16.0 (check on the FM-1)
 
 - Last project: SAVE to slot B (stopped), power off and on: B loads by itself (`LOADED`, stopped; PROJECT's SLOT

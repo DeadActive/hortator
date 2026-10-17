@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- KTRX: a sine kick measured from a classic digital drum machine's (an emulator's renders, knob by knob; only the
+  measured laws, no code or data of it). TUNE DECAY SWEEP SDEC, PUNCH NOISE SUB CLIP: the pitch with its built-in
+  drop, SWEEP's cubic rise over SDEC, a short transient at the hit; PUNCH a square first cycle; NOISE a burst; SUB
+  half-harmonics (alternate cycles long and short, fading on their own); CLIP a hard clip at a falling threshold.
+  DECAY and SDEC follow the measured laws (DECAY up to 4 s to -60 dB, as every voice). 1 voice; the SOUND graph shows
+  the pitch and the level over 300 ms. The MODEL list's last entry (after ACID).
+
 ## 0.18.0 - 2026-10-14
 
 - MIDI LEARN: up to 16 CCs from any controller, each set to one knob of one track. Hold GLO (the MUTE screen) and

@@ -499,6 +499,31 @@ static void write_fm(const char *dir)
     fm_one(dir, "fm_kick.wav", KICK, "x...x...x...x...");
 }
 
+/* KTRX demos: one track, 4 bars at 120 BPM (TUNE DECAY SWEEP SDEC PUNCH NOISE SUB CLIP) */
+static void ktrx_one(const char *dir, const char *name, const int16_t *k, const char *pat)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], DM_KTRX);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++)
+        trk[0].step[i].on = pat[i] == 'x';
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_ktrx(const char *dir)
+{
+    static const int16_t DEF[8] = {0, 64, 64, 32, 0, 0, 0, 0}, BOOM[8] = {-5, 100, 40, 90, 0, 0, 90, 0};
+    static const int16_t PUNCH[8] = {3, 50, 80, 20, 127, 70, 0, 0}, ZAP[8] = {7, 60, 127, 50, 0, 0, 0, 0};
+    static const int16_t DIRT[8] = {0, 70, 60, 30, 60, 40, 0, 120};
+    ktrx_one(dir, "ktrx_default.wav", DEF, "x...x...x...x...");
+    ktrx_one(dir, "ktrx_boom_sub.wav", BOOM, "x.........x.....");
+    ktrx_one(dir, "ktrx_punch_noise.wav", PUNCH, "x...x...x...x.x.");
+    ktrx_one(dir, "ktrx_zap.wav", ZAP, "x..x..x...x.x...");
+    ktrx_one(dir, "ktrx_clip.wav", DIRT, "x...x...x...x...");
+}
+
 /* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
  * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
 static void acid_kit(int sqr)
@@ -637,5 +662,6 @@ int main(int argc, char **argv)
     write_phys(dir);
     write_filter(dir);
     write_fm(dir);
+    write_ktrx(dir);
     return 0;
 }
