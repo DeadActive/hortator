@@ -50,6 +50,22 @@ typedef struct {                        /* KTRX (dm_ktrx.c) */
     uint32_t k_n, d_amp, d_ramp, e_amp, e_r;
     uint8_t first;
 } ktrx_t;
+typedef struct { int32_t a1, a2, g, k, s1, s2; } trxmf_t;   /* the TRX metal ports' SVF (dm_trxm.c): a1 a2 k Q30, g Q28 */
+typedef struct {                        /* CHTRX OHTRX CYTRX (dm_trxm.c) */
+    uint32_t ph[6], inc[6];
+    int32_t w[7], wsum, gb, gn;
+    trxmf_t hp, lp, pk, tp;
+    int32_t pkg, e, et, ek, ds, eend;
+    uint32_t d, dt, nh;
+    uint8_t ish, osh, top;
+} trxm_t;
+typedef struct { int32_t pn[7], hx, hy, hl, el; } trxcbp_t;   /* CBTRX: its pink noise, the floor, the grit */
+typedef struct {                        /* CBTRX (dm_trxcb.c) */
+    uint32_t pb, pa, ib, ia, e, e0, ea, eg, eb, d, nh;
+    int32_t gb, ga, gae, m, erk, bump, glvl;
+    trxcbp_t pk;
+    trxmf_t db, da, enh;
+} trxcb_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
@@ -58,4 +74,6 @@ typedef union {
     kboom_t kb;
     hh_t hh;
     ktrx_t kt;
+    trxm_t tm;
+    trxcb_t cb;
 } dm_state_t;
