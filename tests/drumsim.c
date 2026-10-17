@@ -524,6 +524,37 @@ static void write_ktrx(const char *dir)
     ktrx_one(dir, "ktrx_clip.wav", DIRT, "x...x...x...x...");
 }
 
+/* CPTRX / MATRX demos: one track, 4 bars at 120 BPM */
+static void trxn_one(const char *dir, const char *name, uint32_t mi, const int16_t *k, const char *pat)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++)
+        trk[0].step[i].on = pat[i] == 'x';
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_trxn(const char *dir)
+{
+    /* CPTRX: TUNE DECAY CLPY HARD RATE ROOM RSIZ RTUN */
+    static const int16_t CDEF[8] = {0, 64, 64, 64, 64, 0, 64, 64}, CROOM[8] = {-3, 70, 90, 80, 56, 110, 100, 60};
+    static const int16_t CSNAP[8] = {6, 20, 40, 100, 30, 0, 64, 64}, CWIDE[8] = {-6, 110, 127, 40, 110, 60, 80, 40};
+    /* MATRX: TUNE DECAY ATT REV DAMP RATL TONE HARD */
+    static const int16_t MDEF[8] = {0, 64, 0, 0, 0, 0, 64, 64}, MSHAK[8] = {0, 30, 0, 0, 60, 0, 90, 80};
+    static const int16_t MSWEL[8] = {-2, 90, 70, 60, 30, 90, 50, 64}, MRATL[8] = {3, 127, 10, 0, 100, 127, 40, 30};
+    trxn_one(dir, "cptrx_default.wav", DM_CPTRX, CDEF, "....x.......x...");
+    trxn_one(dir, "cptrx_room.wav", DM_CPTRX, CROOM, "....x.......x..x");
+    trxn_one(dir, "cptrx_snap.wav", DM_CPTRX, CSNAP, "....x..x....x...");
+    trxn_one(dir, "cptrx_wide.wav", DM_CPTRX, CWIDE, "....x.......x...");
+    trxn_one(dir, "matrx_default.wav", DM_MATRX, MDEF, "x.x.x.x.x.x.x.x.");
+    trxn_one(dir, "matrx_shaker.wav", DM_MATRX, MSHAK, "xxxxxxxxxxxxxxxx");
+    trxn_one(dir, "matrx_swell.wav", DM_MATRX, MSWEL, "x...x...x...x...");
+    trxn_one(dir, "matrx_rattle.wav", DM_MATRX, MRATL, "x.....x.....x...");
+}
+
 /* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
  * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
 static void acid_kit(int sqr)
@@ -663,5 +694,6 @@ int main(int argc, char **argv)
     write_filter(dir);
     write_fm(dir);
     write_ktrx(dir);
+    write_trxn(dir);
     return 0;
 }

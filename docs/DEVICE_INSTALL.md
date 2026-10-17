@@ -355,6 +355,22 @@ Report what you saw first; we'll go through it together.
   40 0 120.
 - `tools/fm1_bench.py --yes`: the cases KTRX and KTRX+fx (8 tracks of the model).
 
+### CPTRX, MATRX (check on the FM-1)
+
+- A track to MODEL CPTRX (after KTRX): SOUND 1/4 MODEL TUNE DECAY CLPY, 2/4 HARD RATE ROOM RSIZ, 3/4 RTUN LVL PAN
+  NOTE. MODEL MATRX (the last model): 1/4 MODEL TUNE DECAY ATT, 2/4 REV DAMP RATL TONE, 3/4 HARD LVL PAN NOTE.
+- By ear against the A/B files (`~/Desktop/hortator-md/cptrx-ab`, `matrx-ab`: the emulator, then the model; the
+  machine's knobs: CP TONE t is TUNE (t - 64) x 12 / 50, MA SUS is DECAY, its RTYP left at 0). CPTRX: the defaults a
+  tight 4-clap; RATE spreads the claps (merged below ~16); DECAY longer claps up to a wash; CLPY louder first claps;
+  HARD a ringing, louder clap; TUNE brighter / darker; ROOM 0 dry, up a short resonant tail (RSIZ longer, RTUN
+  brighter). MATRX: the defaults a 0.1 s shake; DECAY longer; ATT a swell in; REV a dip and a second shake; DAMP
+  sparser grains; RATL a growing rattle; TONE and TUNE brighter.
+- The demo WAVs (`build/drum_renders/cptrx_*.wav`, TUNE DECAY CLPY HARD RATE ROOM RSIZ RTUN: default 0 64 64 64 64 0
+  64 64; room -3 70 90 80 56 110 100 60; snap 6 20 40 100 30 0 64 64; wide -6 110 127 40 110 60 80 40.
+  `matrx_*.wav`, TUNE DECAY ATT REV DAMP RATL TONE HARD: default 0 64 0 0 0 0 64 64; shaker 0 30 0 0 60 0 90 80; swell
+  -2 90 70 60 30 90 50 64; rattle 3 127 10 0 100 127 40 30).
+- `tools/fm1_bench.py --yes`: the cases CPTRX, CPTRX+fx, MATRX and MATRX+fx (8 tracks of the model).
+
 ### Fixes after 0.16.0 (check on the FM-1)
 
 - Last project: SAVE to slot B (stopped), power off and on: B loads by itself (`LOADED`, stopped; PROJECT's SLOT

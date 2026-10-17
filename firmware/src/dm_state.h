@@ -50,6 +50,20 @@ typedef struct {                        /* KTRX (dm_ktrx.c) */
     uint32_t k_n, d_amp, d_ramp, e_amp, e_r;
     uint8_t first;
 } ktrx_t;
+typedef struct { int32_t b0, a1, a2; } tnbq_t;          /* CPTRX, MATRX (dm_trxn.c): a 2-pole section, Q30 */
+typedef struct {                        /* CPTRX (dm_trxn.c) */
+    tnbq_t hp, lp, rq;
+    int32_t s[8], r[6];
+    uint32_t e, d, ac, a4, re, rd;
+    uint32_t on[5], cend, rend;
+    uint8_t nb;
+} cptrx_t;
+typedef struct {                        /* MATRX (dm_trxn.c) */
+    tnbq_t hp;
+    int32_t s[6], lp, g, rk, gq, et, gv;
+    uint32_t poff, ia, idv, dv;
+    uint32_t t1, t2, t2v, t3, tend;
+} matrx_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
@@ -58,4 +72,6 @@ typedef union {
     kboom_t kb;
     hh_t hh;
     ktrx_t kt;
+    cptrx_t cp;
+    matrx_t ma;
 } dm_state_t;

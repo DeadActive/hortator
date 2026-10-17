@@ -12,6 +12,15 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   DECAY and SDEC follow the measured laws, floors and ends included: DECAY 0..27 is its 7 ms floor and 109..127
   its end (4 s to -60 dB, as every voice); SDEC 0..14 its 5 ms floor, 107..127 the same end. 1 voice; the SOUND graph shows
   the pitch and the level over 300 ms. The MODEL list's last entry (after ACID).
+- CPTRX and MATRX: a clap and maracas measured from the same machine (averaged renders: the voices are noise). Their
+  own noise per hit (a hit renders the same every time). CPTRX: TUNE DECAY CLPY HARD, RATE ROOM RSIZ RTUN: noise
+  through a 4-pole high-pass (TUNE: the machine's TONE in semitones) and a resonant low-pass (HARD), four bursts on
+  one noise (RATE their spacing, DECAY their decay, CLPY the first three's level), a soft clip the clap never passes,
+  and ROOM a resonant noise tail after the clip (RSIZ its length, RTUN its colour; 0: off). MATRX: TUNE DECAY ATT
+  REV, DAMP RATL TONE HARD: noise in 32-sample grains (DAMP: more of them silent) through a 4-pole high-pass (TONE,
+  HARD; TUNE moves it by semitones), a rattle that grows through the hit (RATL), a hold (DECAY: 14 ms + 1.45 ms a
+  step) after an attack (ATT), REV's dip and second hold, then a cut. 1 voice each; the MODEL list's last entries
+  (after KTRX).
 
 ## 0.18.0 - 2026-10-14
 
