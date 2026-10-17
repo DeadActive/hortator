@@ -83,11 +83,12 @@ static const int16_t CB_PG[8] = {1865, 2522, 5169, 10431, 17905, 568, 18015, 389
 /* the pink noise from r's low 16 bits, high-passed (~150 Hz): the hold floor's level (the voice's units) */
 static inline int32_t cb_pink(trxcbp_t *c, uint32_t r)
 {
-    int32_t w = (int32_t)(r << 16) >> 16, s = c->pn[6] + (w * CB_PG[6] >> 17), k;   /* w x 0.5362 + p6 */
-    for (k = 0; k < 5; k++) {
-        c->pn[k] = cb_mul31(c->pn[k], CB_PP[k]) + (w * CB_PG[k] >> 17);
-        s += c->pn[k];
-    }
+    int32_t w = (int32_t)(r << 16) >> 16, s = c->pn[6] + (w * CB_PG[6] >> 17);   /* w x 0.5362 + p6 */
+    s += c->pn[0] = cb_mul31(c->pn[0], CB_PP[0]) + (w * CB_PG[0] >> 17);   /* (unrolled: no loop in the loop) */
+    s += c->pn[1] = cb_mul31(c->pn[1], CB_PP[1]) + (w * CB_PG[1] >> 17);
+    s += c->pn[2] = cb_mul31(c->pn[2], CB_PP[2]) + (w * CB_PG[2] >> 17);
+    s += c->pn[3] = cb_mul31(c->pn[3], CB_PP[3]) + (w * CB_PG[3] >> 17);
+    s += c->pn[4] = cb_mul31(c->pn[4], CB_PP[4]) + (w * CB_PG[4] >> 17);
     c->pn[5] = -cb_mul31(c->pn[5], CB_PP[5]) - (w * CB_PG[5] >> 17);
     s += c->pn[5];
     c->pn[6] = w * CB_PG[7] >> 17;                      /* w x 0.115926 */
