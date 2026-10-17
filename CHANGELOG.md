@@ -32,6 +32,15 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   measured levels; DUAL delays the first; ENH raises it; CLICK a short click. RSTRX TUNE DECAY DIST: a sine and a
   fixed 18 ms click under one decay; DIST warps the sine's half-cycles (stronger at low pitch). TUNE 0 is each
   machine's PTCH 64 (145, 173, 2045, 258 Hz); the other knobs are the machine's own.
+- CPTRX and MATRX: a clap and maracas measured from the same machine (averaged renders: the voices are noise). Their
+  own noise per hit (a hit renders the same every time). CPTRX: TUNE DECAY CLPY HARD, RATE ROOM RSIZ RTUN: noise
+  through a 4-pole high-pass (TUNE: the machine's TONE in semitones) and a resonant low-pass (HARD), four bursts on
+  one noise (RATE their spacing, DECAY their decay, CLPY the first three's level), a soft clip the clap never passes,
+  and ROOM a resonant noise tail after the clip (RSIZ its length, RTUN its colour; 0: off). MATRX: TUNE DECAY ATT
+  REV, DAMP RATL TONE HARD: noise in 32-sample grains (DAMP: more of them silent) through a 4-pole high-pass (TONE,
+  HARD; TUNE moves it by semitones), a rattle that grows through the hit (RATL), a hold (DECAY: 14 ms + 1.45 ms a
+  step) after an attack (ATT), REV's dip and second hold, then a cut. 1 voice each; the MODEL list's last entries
+  (after KTRX).
 
 ## 0.18.0 - 2026-10-14
 
