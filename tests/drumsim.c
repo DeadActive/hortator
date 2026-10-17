@@ -524,6 +524,43 @@ static void write_ktrx(const char *dir)
     ktrx_one(dir, "ktrx_clip.wav", DIRT, "x...x...x...x...");
 }
 
+/* XTTRX / XCTRX / CLTRX / RSTRX demos: one track, 4 bars at 120 BPM; nt: the steps' notes (NULL: none) */
+static void trxp_one(const char *dir, const char *name, uint32_t mi, const int16_t *k, const char *pat, const int8_t *nt)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++) {
+        trk[0].step[i].on = pat[i] == 'x';
+        trk[0].step[i].nt = nt ? nt[i] : 0;
+    }
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_trxp(const char *dir)
+{
+    /* XTTRX / XCTRX: TUNE DECAY RAMP RDEC DAMP DIST DTYP; CLTRX: TUNE DECAY DUAL ENH TUNE2 CLICK; RSTRX: TUNE DECAY
+     * DIST */
+    static const int16_t XDEF[8] = {0, 64, 0, 64, 0, 0, 0, 0}, XZAP[8] = {-5, 90, 110, 40, 0, 0, 0, 0};
+    static const int16_t XDIRT[8] = {0, 80, 30, 64, 40, 110, 127, 0}, CDEF[8] = {0, 64, 0, 0, 64, 0, 0, 0};
+    static const int16_t CDUAL[8] = {0, 80, 64, 90, 100, 127, 0, 0}, RDEF[8] = {0, 64, 0, 0, 0, 0, 0, 0};
+    static const int16_t RDIST[8] = {-5, 90, 127, 0, 0, 0, 0, 0};
+    static const int8_t FILL[16] = {7, 7, 5, 5, 3, 3, 0, 0, -2, -2, -5, -5, -7, -7, -9, -9};
+    static const int8_t TUMB[16] = {0, 0, 0, 7, 0, 0, 5, 0, 0, 7, 0, 0, 12, 0, 7, 0};
+    trxp_one(dir, "xttrx_default.wav", DM_XTTRX, XDEF, "x...x...x...x...", NULL);
+    trxp_one(dir, "xttrx_fill.wav", DM_XTTRX, XDEF, "x.x.x.x.x.x.x.x.", FILL);
+    trxp_one(dir, "xttrx_ramp.wav", DM_XTTRX, XZAP, "x..x..x...x.x...", NULL);
+    trxp_one(dir, "xttrx_dist.wav", DM_XTTRX, XDIRT, "x...x...x...x.x.", NULL);
+    trxp_one(dir, "xctrx_default.wav", DM_XCTRX, XDEF, "x..x..x...x.x...", TUMB);
+    trxp_one(dir, "xctrx_dist.wav", DM_XCTRX, XDIRT, "x..x..x...x.x...", TUMB);
+    trxp_one(dir, "cltrx_default.wav", DM_CLTRX, CDEF, "x..x..x...x.x...", NULL);
+    trxp_one(dir, "cltrx_dual.wav", DM_CLTRX, CDUAL, "x..x..x...x.x...", TUMB);
+    trxp_one(dir, "rstrx_default.wav", DM_RSTRX, RDEF, "....x.......x...", NULL);
+    trxp_one(dir, "rstrx_dist.wav", DM_RSTRX, RDIST, "..x...x.x...x..x", NULL);
+}
+
 /* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
  * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
 static void acid_kit(int sqr)
@@ -663,5 +700,6 @@ int main(int argc, char **argv)
     write_filter(dir);
     write_fm(dir);
     write_ktrx(dir);
+    write_trxp(dir);
     return 0;
 }

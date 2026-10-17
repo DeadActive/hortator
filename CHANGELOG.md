@@ -12,6 +12,15 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   DECAY and SDEC follow the measured laws, floors and ends included: DECAY 0..27 is its 7 ms floor and 109..127
   its end (4 s to -60 dB, as every voice); SDEC 0..14 its 5 ms floor, 107..127 the same end. 1 voice; the SOUND graph shows
   the pitch and the level over 300 ms. The MODEL list's last entry (after ACID).
+- XTTRX, XCTRX, CLTRX, RSTRX: a tom, a conga, claves and a rim shot measured from the same machine's (only the
+  measured laws, no code or data of it); after KTRX in the MODEL list, 1 voice each. XTTRX / XCTRX (one voice, two
+  measured sets) TUNE DECAY RAMP RDEC, DAMP DIST DTYP: a fixed click, then a sine whose RAMP adds Hz falling over
+  RDEC; DAMP moves level from the body to the click; DIST a hard clip after the decay, DTYP making the clipped part
+  sag; the tail cut to zero as measured (XTTRX's DECAY 114..127 is its 0.85 s end: the voice ends by 5.4 s).
+  CLTRX TUNE DECAY DUAL ENH, TUNE2 CLICK: two pure sines (TUNE2 the second's pitch, TUNE moving both) at their
+  measured levels; DUAL delays the first; ENH raises it; CLICK a short click. RSTRX TUNE DECAY DIST: a sine and a
+  fixed 18 ms click under one decay; DIST warps the sine's half-cycles (stronger at low pitch). TUNE 0 is each
+  machine's PTCH 64 (145, 173, 2045, 258 Hz); the other knobs are the machine's own.
 
 ## 0.18.0 - 2026-10-14
 
