@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.19.0 - 2026-10-18
+
 - KTRX: a sine kick measured from a classic digital drum machine's (an emulator's renders, knob by knob; only the
   measured laws, no code or data of it). TUNE DECAY SWEEP SDEC, PUNCH NOISE SUB CLIP: the pitch with its built-in
   drop, SWEEP's cubic rise over SDEC, a short transient at the hit; PUNCH a square first cycle; NOISE a burst; SUB
