@@ -379,6 +379,22 @@ Report what you saw first; we'll go through it together.
 - The demo WAVs (`build/drum_renders/b2trx_*.wav`; TUNE DECAY RAMP HOLD TICK NOISE DIRT DIST): default 0 64 0 0 0 0
   0 0; boom -5 90 60 80 40 0 0 0; dirt 0 70 40 0 60 40 104 0; dist 3 64 90 20 80 0 0 64.
 - `tools/fm1_bench.py --yes`: the cases B2TRX and B2TRX+fx (8 tracks of the model).
+### XTTRX, XCTRX, CLTRX, RSTRX (check on the FM-1)
+
+- A track to MODEL XTTRX, XCTRX, CLTRX, RSTRX (after KTRX, in that order): XTTRX / XCTRX SOUND 1/4 MODEL TUNE DECAY
+  RAMP, 2/4 RDEC DAMP DIST DTYP; CLTRX 1/4 MODEL TUNE DECAY DUAL, 2/4 ENH TUNE2 CLICK; RSTRX 1/4 MODEL TUNE DECAY
+  DIST.
+- By ear against the A/B files (`~/Desktop/hortator-md/trx-xt-ab`, `trx-xc-ab`, `trx-cl-ab`, `trx-rs-ab`: the
+  emulator, then the model): XTTRX's defaults a round 145 Hz tom with a soft click, XCTRX a shorter 173 Hz conga;
+  RAMP a pitch drop at the start (RDEC slower); DAMP a duller body, a louder click; DIST a buzzier, quieter tone that
+  clears as it decays, DTYP (with DIST) hollower. CLTRX a short 2 kHz click-tone; TUNE2 away from 64 a second
+  pitch; DUAL a flam; ENH louder; CLICK a tick at the start. RSTRX a 258 Hz knock with a woody burst; DIST grittier,
+  most at low TUNE. A step's note moves the pitch by semitones.
+- The demo WAVs (`build/drum_renders/xttrx_*.wav`, `xctrx_*`, `cltrx_*`, `rstrx_*`; the knobs in order): xttrx
+  default 0 64 0 64 0 0 0; xttrx_fill the same, notes 7 .. -9; xttrx_ramp -5 90 110 40 0 0 0; xttrx_dist / xctrx_dist
+  0 80 30 64 40 110 127; xctrx_default the defaults; cltrx_default 0 64 0 0 64 0; cltrx_dual 0 80 64 90 100 127;
+  rstrx_default 0 64 0; rstrx_dist -5 90 127.
+- `tools/fm1_bench.py --yes`: the cases XTTRX, XCTRX, CLTRX, RSTRX and their +fx (8 tracks of the model).
 
 ### Fixes after 0.16.0 (check on the FM-1)
 

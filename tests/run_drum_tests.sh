@@ -36,6 +36,8 @@ cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wn
 "$OUT/sdtrx_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/b2trx_test" tests/b2trx_test.c -lm   # (UBSan: Q31 envelopes, the shapers)
 "$OUT/b2trx_test"
+cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/trxperc_test" tests/trxperc_test.c -lm   # (UBSan: Q31 envelopes, the warp, 64-bit pitch)
+"$OUT/trxperc_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/acid_test" tests/acid_test.c -lm   # (UBSan: Review Focus 3)
 "$OUT/acid_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/bench_host" tests/bench_host.c -lm

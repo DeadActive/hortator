@@ -58,6 +58,19 @@ typedef struct {                        /* B2TRX (dm_b2trx.c) */
     uint32_t e_r, d_r, e_amp, d_amp, hold, e_n;
     int32_t tick, nl, qb, g8, hk, lp, z1, z2;
 } b2trx_t;
+typedef struct {                        /* XTTRX, XCTRX (dm_xttrx.c) */
+    uint32_t inc0, inc_r, e, d_e, e_r, d_r, sag, sl;
+    int32_t th, cl, cz, px, hp1, hp1p, hp2;
+    uint8_t mc;
+} xttrx_t;
+typedef struct {                        /* CLTRX (dm_cltrx.c) */
+    uint32_t e, d_e, sx;
+    int32_t ax, ay, ce;
+} cltrx_t;
+typedef struct {                        /* RSTRX (dm_rstrx.c) */
+    uint32_t e, d_e, tj, d0, kk, mm;
+    int32_t amp, g;
+} rstrx_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
@@ -68,4 +81,7 @@ typedef union {
     ktrx_t kt;
     sdtrx_t sd;
     b2trx_t b2;
+    xttrx_t xt;
+    cltrx_t cl;
+    rstrx_t rs;
 } dm_state_t;
