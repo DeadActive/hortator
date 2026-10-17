@@ -9,8 +9,8 @@ import * as draw from './lab_draw.js';
 const FAMILIES = [                                    // the chips, grouped as a drummer looks for them
   ['Kicks', ['K808', 'K909', 'KBOOM', 'KPUNC', 'KTRX']],
   ['Snares and claps', ['S808', 'S909', 'SSNAP', 'SCRAK', 'C808', 'C909']],
-  ['Hats and cymbals', ['HATC', 'HATO', 'HMETL', 'HNOIS', 'CYMB']],
-  ['Percussion', ['TOM', 'CONGA', 'MEMB', 'RIM', 'CLAVE', 'COWB']],
+  ['Hats and cymbals', ['HATC', 'HATO', 'HMETL', 'HNOIS', 'CYMB', 'CHTRX', 'OHTRX', 'CYTRX']],
+  ['Percussion', ['TOM', 'CONGA', 'MEMB', 'RIM', 'CLAVE', 'COWB', 'CBTRX']],
   ['FM and samples', ['FM', 'SMPL']],
 ];
 

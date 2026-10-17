@@ -13,6 +13,16 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   its end (4 s to -60 dB, as every voice); SDEC 0..14 its 5 ms floor, 107..127 the same end. 1 voice; the SOUND graph shows
   the pitch and the level over 300 ms. The MODEL list's last entry (after ACID).
 
+- CBTRX, CHTRX, OHTRX, CYTRX: a cowbell, closed and open hats and a cymbal measured from a classic digital drum
+  machine's (an emulator's renders, knob by knob; only the measured laws, no code or data of it). The hats and the
+  cymbal share one metal bank: seven oscillators with whole-sample periods (other phases at every hit). CHTRX / OHTRX:
+  TUNE DECAY GAP HPF LPF MTAL (MTAL from noise to metal; DECAY a linear hold, GAP the decay after it; OHTRX's long
+  hold dips to silence and comes back, as the machine's); choke group 1, as HATC / HATO. CYTRX: TUNE DECAY RICH TOP
+  TTUN SIZE PEAK (RICH the oscillators' balance, PEAK a 5.2 kHz bell, SIZE the body's corners, TOP / TTUN a brighter
+  top that fades first; 2 voices). CBTRX: TUNE DECAY ENH DAMP TONE BUMP PTCH (two tones, ENH's resonator and grit,
+  DAMP a narrow band-pass steady from the first sample, a hold floor). Levels as HATC, HATO, CYMB, COWB. After KTRX in
+  the MODEL list.
+
 ## 0.18.0 - 2026-10-14
 
 - MIDI LEARN: up to 16 CCs from any controller, each set to one knob of one track. Hold GLO (the MUTE screen) and

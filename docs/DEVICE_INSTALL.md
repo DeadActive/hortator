@@ -355,6 +355,25 @@ Report what you saw first; we'll go through it together.
   40 0 120.
 - `tools/fm1_bench.py --yes`: the cases KTRX and KTRX+fx (8 tracks of the model).
 
+### CBTRX, CHTRX, OHTRX, CYTRX (check on the FM-1)
+
+- MODEL after KTRX: CBTRX, CHTRX, OHTRX, CYTRX. CBTRX SOUND 1/4 MODEL TUNE DECAY ENH, 2/4 DAMP TONE BUMP PTCH;
+  CHTRX / OHTRX 1/4 MODEL TUNE DECAY GAP, 2/4 HPF LPF MTAL; CYTRX 1/4 MODEL TUNE DECAY RICH, 2/4 TOP TTUN SIZE PEAK.
+- By ear against the A/B files (`~/Desktop/hortator-md/trx-cb-ab`, `trx-ch-ab`, `trx-oh-ab`, `trx-cy-ab`: the
+  emulator, then the float model; the voices here follow the float models): CBTRX's defaults a short bright cowbell;
+  ENH a ringing, beating bell; DAMP a pure tone (B alone); TONE the low or the high tone; BUMP a slight pitch blip.
+  CHTRX a tight metallic hat (MTAL 0 pure noise, 127 pure metal), DECAY its body, GAP its tail; OHTRX the same, long:
+  DECAY above ~82 fades out, dips to silence and swells back (the machine does that). CYTRX a cymbal: RICH from thin
+  to dense, PEAK a ringing 5 kHz bell, SIZE smaller (brighter) up, TOP / TTUN the bright top that fades first.
+- Choke: CHTRX and OHTRX start in choke group 1 (as HATC / HATO): a closed hat cuts a ringing open hat.
+- TUNE and a step's note move the oscillators by semitones (TUNE 0: the measured pitches).
+- The demo WAVs (`build/drum_renders/`; knobs in page order): cbtrx_default 0 64 0 0 64 0 64; cbtrx_enh 0 80 64 0 90
+  40 64; cbtrx_damp -5 50 0 100 64 0 64; chtrx_default 0 64 64 0 127 64; chtrx_metal 0 30 40 64 100 127; chtrx_noise 0
+  20 30 100 127 0; ohtrx_default 0 64 64 0 127 64; ohtrx_dip 0 127 64 0 127 100; cytrx_default 0 64 64 64 64 64 0;
+  cytrx_peak 0 100 100 90 80 64 100; cytrx_small -3 40 127 127 127 20 30; trx_hats_choke (CHTRX on track 1 cut by,
+  and cutting, OHTRX on track 2).
+- `tools/fm1_bench.py --yes`: the cases CBTRX, CHTRX, OHTRX, CYTRX and their +fx (8 tracks of the model).
+
 ### Fixes after 0.16.0 (check on the FM-1)
 
 - Last project: SAVE to slot B (stopped), power off and on: B loads by itself (`LOADED`, stopped; PROJECT's SLOT

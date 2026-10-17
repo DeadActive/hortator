@@ -524,6 +524,53 @@ static void write_ktrx(const char *dir)
     ktrx_one(dir, "ktrx_clip.wav", DIRT, "x...x...x...x...");
 }
 
+/* CBTRX CHTRX OHTRX CYTRX demos: 4 bars at 120 BPM; track 0 the model (its knobs in its page order), hats_choke: a
+ * closed hat on track 0 cutting an open one on track 1 (choke group 1) */
+static void trx_one(const char *dir, const char *name, uint32_t mi, const int16_t *k, const char *pat)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++) {
+        trk[0].step[i].on = pat[i] == 'x' || pat[i] == 'X';
+        trk[0].step[i].acc = pat[i] == 'X';
+    }
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_trxmetal(const char *dir)
+{
+    static const int16_t CB[8] = {0, 64, 0, 0, 64, 0, 64, 0}, CBE[8] = {0, 80, 64, 0, 90, 40, 64, 0},
+                         CBD[8] = {-5, 50, 0, 100, 64, 0, 64, 0};
+    static const int16_t CH[8] = {0, 64, 64, 0, 127, 64, 0, 0}, CHM[8] = {0, 30, 40, 64, 100, 127, 0, 0},
+                         CHN[8] = {0, 20, 30, 100, 127, 0, 0, 0};
+    static const int16_t OH[8] = {0, 64, 64, 0, 127, 64, 0, 0}, OHD[8] = {0, 127, 64, 0, 127, 100, 0, 0};
+    static const int16_t CY[8] = {0, 64, 64, 64, 64, 64, 0, 0}, CYP[8] = {0, 100, 100, 90, 80, 64, 100, 0},
+                         CYS[8] = {-3, 40, 127, 127, 127, 20, 30, 0};
+    uint32_t i;
+    trx_one(dir, "cbtrx_default.wav", DM_CBTRX, CB, "x..x..x.x..x..x.");
+    trx_one(dir, "cbtrx_enh.wav", DM_CBTRX, CBE, "X..x..x.X..x.x..");
+    trx_one(dir, "cbtrx_damp.wav", DM_CBTRX, CBD, "x.x.x.x.x.x.x.x.");
+    trx_one(dir, "chtrx_default.wav", DM_CHTRX, CH, "x.x.x.x.x.x.x.x.");
+    trx_one(dir, "chtrx_metal.wav", DM_CHTRX, CHM, "xxXxxxXxxxXxxxXx");
+    trx_one(dir, "chtrx_noise.wav", DM_CHTRX, CHN, "x.xxx.xxx.xxx.xX");
+    trx_one(dir, "ohtrx_default.wav", DM_OHTRX, OH, "..x...x...x...x.");
+    trx_one(dir, "ohtrx_dip.wav", DM_OHTRX, OHD, "x.......x.......");
+    trx_one(dir, "cytrx_default.wav", DM_CYTRX, CY, "x...............");
+    trx_one(dir, "cytrx_peak.wav", DM_CYTRX, CYP, "x.......x.......");
+    trx_one(dir, "cytrx_small.wav", DM_CYTRX, CYS, "x...x...x...x...");
+    host_init();                                    /* the choke: CH on track 0, OH on track 1 (group 1) */
+    drum_set_model(&trk[0], DM_CHTRX);
+    drum_set_model(&trk[1], DM_OHTRX);
+    for (i = 0; i < 16u; i++) {
+        trk[0].step[i].on = (i & 1u) == 0 && (i & 3u) != 2u;
+        trk[1].step[i].on = (i & 3u) == 2u;
+    }
+    write_demo(dir, "trx_hats_choke.wav", 4, filter_bar_none);
+}
+
 /* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
  * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
 static void acid_kit(int sqr)
@@ -663,5 +710,6 @@ int main(int argc, char **argv)
     write_filter(dir);
     write_fm(dir);
     write_ktrx(dir);
+    write_trxmetal(dir);
     return 0;
 }
