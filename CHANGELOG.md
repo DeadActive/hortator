@@ -12,6 +12,17 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   DECAY and SDEC follow the measured laws, floors and ends included: DECAY 0..27 is its 7 ms floor and 109..127
   its end (4 s to -60 dB, as every voice); SDEC 0..14 its 5 ms floor, 107..127 the same end. 1 voice; the SOUND graph shows
   the pitch and the level over 300 ms. The MODEL list's last entry (after ACID).
+- SDTRX: a snare measured from the same machine's (only the measured laws). TUNE DECAY SNAP TONE, BUMP BENV CLIP:
+  two sines frozen for the machine's first 32-sample block, A at 342 Hz with BUMP's alpha-shaped pitch blip (its time
+  BENV's), B a block-rate comb whose F1 / F2 BENV sets from the measured table (erratic, as the machine's); TONE
+  crossfades them; CLIP a peak-preserving tanh whose drive falls on its own (~28 ms), whatever DECAY is; SNAP the same
+  noise on every hit (1.6..5 kHz, tau 20 ms; above 64 a 1.44 kHz ring). TUNE moves both sines by semitones (the
+  machine's own PTCH, +-0.8 %, and TUNE, a few Hz on B, are left out). 1 voice; after KTRX.
+- B2TRX: the same machine's second bass drum (only the measured laws). TUNE DECAY RAMP HOLD, TICK NOISE DIRT DIST: a
+  50 Hz sine (TUNE 0; it starts at 0 on every hit, the machine's runs free), RAMP's added pitch in Hz (the same on
+  every note), HOLD at full level before DECAY's fall (up to seconds; shortened when a long DECAY would outlast the
+  voice's 6 s), TICK a click into the output's saturation, NOISE a hiss, DIRT a 3..257-level quantiser and DIST a hard
+  clip before the envelope; the output's high-pass and smoothing as measured. 1 voice; the MODEL list's last entry.
 
 ## 0.18.0 - 2026-10-14
 

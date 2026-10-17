@@ -524,6 +524,36 @@ static void write_ktrx(const char *dir)
     ktrx_one(dir, "ktrx_clip.wav", DIRT, "x...x...x...x...");
 }
 
+/* SDTRX, B2TRX demos: one track, 4 bars at 120 BPM (SDTRX: TUNE DECAY SNAP TONE BUMP BENV CLIP; B2TRX: TUNE DECAY RAMP
+ * HOLD TICK NOISE DIRT DIST) */
+static void trx_one(const char *dir, const char *name, uint32_t model, const int16_t *k, const char *pat)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], model);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++)
+        trk[0].step[i].on = pat[i] == 'x';
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_sdtrx_b2trx(const char *dir)
+{
+    static const int16_t SDEF[8] = {0, 64, 64, 64, 0, 64, 0, 0}, SRING[8] = {-3, 100, 40, 100, 60, 40, 0, 0};
+    static const int16_t SCRACK[8] = {2, 40, 127, 30, 90, 0, 0, 0}, SCLIP[8] = {0, 64, 80, 64, 0, 64, 120, 0};
+    static const int16_t BDEF[8] = {0, 64, 0, 0, 0, 0, 0, 0}, BBOOM[8] = {-5, 90, 60, 80, 40, 0, 0, 0};
+    static const int16_t BDIRT[8] = {0, 70, 40, 0, 60, 40, 104, 0}, BDIST[8] = {3, 64, 90, 20, 80, 0, 0, 64};
+    trx_one(dir, "sdtrx_default.wav", DM_SDTRX, SDEF, "....x.......x...");
+    trx_one(dir, "sdtrx_ring.wav", DM_SDTRX, SRING, "....x.......x..x");
+    trx_one(dir, "sdtrx_crack.wav", DM_SDTRX, SCRACK, "....x...x...x.x.");
+    trx_one(dir, "sdtrx_clip.wav", DM_SDTRX, SCLIP, "....x.......x...");
+    trx_one(dir, "b2trx_default.wav", DM_B2TRX, BDEF, "x...x...x...x...");
+    trx_one(dir, "b2trx_boom.wav", DM_B2TRX, BBOOM, "x.........x.....");
+    trx_one(dir, "b2trx_dirt.wav", DM_B2TRX, BDIRT, "x..x..x...x.x...");
+    trx_one(dir, "b2trx_dist.wav", DM_B2TRX, BDIST, "x...x...x...x...");
+}
+
 /* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
  * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
 static void acid_kit(int sqr)
@@ -663,5 +693,6 @@ int main(int argc, char **argv)
     write_filter(dir);
     write_fm(dir);
     write_ktrx(dir);
+    write_sdtrx_b2trx(dir);
     return 0;
 }

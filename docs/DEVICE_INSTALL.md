@@ -355,6 +355,31 @@ Report what you saw first; we'll go through it together.
   40 0 120.
 - `tools/fm1_bench.py --yes`: the cases KTRX and KTRX+fx (8 tracks of the model).
 
+### SDTRX (check on the FM-1)
+
+- A track to MODEL SDTRX (after KTRX): SOUND 1/4 MODEL TUNE DECAY SNAP, 2/4 TONE BUMP BENV CLIP, 3/4 - LVL PAN NOTE.
+- By ear against the A/B files (`~/Desktop/hortator-md/sdtrx-ab`: the emulator, then SDTRX): the defaults a tight
+  snare (a 342 Hz body with a metallic overtone, a bright noise burst); TONE towards 127 more of the metallic osc B;
+  BENV changes that overtone erratically (low at 40 and 120, very high at most values: the machine's own table) and
+  stretches BUMP's pitch blip; SNAP louder noise, above 64 a ringing 1.4 kHz part; CLIP above ~56 a square-ish body
+  that cleans up within ~250 ms whatever DECAY is. Every hit has the same noise (as the machine's).
+- The demo WAVs (`build/drum_renders/sdtrx_*.wav`; TUNE DECAY SNAP TONE BUMP BENV CLIP): default 0 64 64 64 0 64 0;
+  ring -3 100 40 100 60 40 0; crack 2 40 127 30 90 0 0; clip 0 64 80 64 0 64 120.
+- `tools/fm1_bench.py --yes`: the cases SDTRX and SDTRX+fx (8 tracks of the model).
+
+### B2TRX (check on the FM-1)
+
+- A track to MODEL B2TRX (the last model, after SDTRX): SOUND 1/4 MODEL TUNE DECAY RAMP, 2/4 HOLD TICK NOISE DIRT,
+  3/4 DIST LVL PAN NOTE.
+- By ear against the A/B files (`~/Desktop/hortator-md/b2trx-ab`: the emulator, then B2TRX; the emulator's sine runs
+  free, B2TRX's starts at 0, so the first ~10 ms differ hit to hit there, not here): the defaults a plain 50 Hz sine
+  kick; RAMP a pitch drop from up to ~470 Hz; HOLD a held tone (seconds at the top; the voice still ends within 6 s:
+  a long DECAY shortens it); TICK a click pinned by the output's saturation; NOISE a short hiss; DIRT a bit-crushed
+  stair (3 levels from 104 up); DIST a square from ~56 up.
+- The demo WAVs (`build/drum_renders/b2trx_*.wav`; TUNE DECAY RAMP HOLD TICK NOISE DIRT DIST): default 0 64 0 0 0 0
+  0 0; boom -5 90 60 80 40 0 0 0; dirt 0 70 40 0 60 40 104 0; dist 3 64 90 20 80 0 0 64.
+- `tools/fm1_bench.py --yes`: the cases B2TRX and B2TRX+fx (8 tracks of the model).
+
 ### Fixes after 0.16.0 (check on the FM-1)
 
 - Last project: SAVE to slot B (stopped), power off and on: B loads by itself (`LOADED`, stopped; PROJECT's SLOT
