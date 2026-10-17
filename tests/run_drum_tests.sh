@@ -30,6 +30,8 @@ cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wn
 "$OUT/filter_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/fm_test" tests/fm_test.c -lm
 "$OUT/fm_test"
+cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/ktrx_test" tests/ktrx_test.c -lm   # (UBSan: Q31 envelopes, 64-bit pitch)
+"$OUT/ktrx_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/acid_test" tests/acid_test.c -lm   # (UBSan: Review Focus 3)
 "$OUT/acid_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/bench_host" tests/bench_host.c -lm
@@ -40,7 +42,7 @@ echo "drum_test with Q24 overflow checks: all passed"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drumsim" tests/drumsim.c -lm
 "$OUT/drumsim" build/drum_renders >/dev/null && echo "renders: build/drum_renders"
 rm -rf build/ui_shots
-mkdir -p build/ui_shots/engines build/ui_shots/seq build/ui_shots/grids build/ui_shots/comp build/ui_shots/lfo build/ui_shots/reson build/ui_shots/perform build/ui_shots/motion build/ui_shots/song build/ui_shots/name build/ui_shots/phys build/ui_shots/filter build/ui_shots/fm build/ui_shots/acid build/ui_shots/bt build/ui_shots/fixes build/ui_shots/learn
+mkdir -p build/ui_shots/engines build/ui_shots/seq build/ui_shots/grids build/ui_shots/comp build/ui_shots/lfo build/ui_shots/reson build/ui_shots/perform build/ui_shots/motion build/ui_shots/song build/ui_shots/name build/ui_shots/phys build/ui_shots/filter build/ui_shots/fm build/ui_shots/ktrx build/ui_shots/acid build/ui_shots/bt build/ui_shots/fixes build/ui_shots/learn
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
 "$OUT/ui_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/bt_core_test" tests/bt_core_test.c -lm

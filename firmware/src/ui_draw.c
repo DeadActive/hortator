@@ -231,6 +231,44 @@ static int32_t acid_cut_x(int32_t semis)                /* the cutoff MIDI 16 + 
 {
     return clamp((16 + semis - 23) * 5 / 4, 0, 135);
 }
+/* KTRX: the pitch over TUNE (octaves, 12 px each: the drop and SWEEP over SDEC) and the level (the fade-in, DECAY)
+ * over the first 300 ms, from the voice's own laws */
+static int32_t ktrx_exp(uint32_t t, uint32_t tau)    /* e ^ (-t / tau), Q16 (t, tau in samples) */
+{
+    return (int32_t)pow2_q16(-(int32_t)clamp((int32_t)(t * 277u / tau), 0, 3072));
+}
+static void graph_ktrx(const track_t *t, uint16_t c)
+{
+    const int16_t *p = &t->p[P_E0];
+    int32_t s = clamp(p[0], -24, 24), r = clamp(p[2], 0, 127), x, py = 0, pa = 0;
+    uint32_t sc = pow2_q16(-s * 24);                     /* the drop re the pitch: 2 ^ (-s / 8) */
+    uint32_t ta = ktrx_tau(2293u, (clamp(p[1], 0, 127) - 64) * 1518 / 100, 309u);
+    uint32_t tr = ktrx_tau(4322u, (clamp(p[3], 0, 127) - 72) * 1427 / 100, 221u);
+    uint32_t ramp = (uint32_t)(((uint64_t)(uint32_t)(r * r * r) * 23187u) >> 16);   /* 11.06 (r / 127) ^ 3, Q16 */
+    uint32_t dq = (uint32_t)((34341ull * sc) >> 16), fq = (uint32_t)((173014ull * sc) >> 16);   /* 32.2, 162.1 / 61.4 */
+    cv_text(100, 10, &FONT_S, "PITCH / LEVEL", C_HI);
+    cv_rect(100, 84, 136, 1, C_LINE);
+    for (x = 0; x < 136; x++) {
+        uint32_t tt = (uint32_t)x * 97u;               /* 300 ms over 136 px */
+        uint32_t q = 65536u + (uint32_t)(((uint64_t)dq * (uint32_t)ktrx_exp(tt, 213u)) >> 16) +
+                     (uint32_t)(((uint64_t)fq * (uint32_t)ktrx_exp(tt, 158u)) >> 16) +
+                     (uint32_t)(((uint64_t)ramp * (uint32_t)ktrx_exp(tt, tr)) >> 16);   /* the pitch re TUNE, Q16 */
+        int32_t n = 0, oct, y, lv, ya;
+        while (n < 15 && (q >> (n + 17)))
+            n++;
+        oct = n * 256 + (int32_t)(((q >> n) - 65536u) >> 8);   /* log2, Q8 (linear between octaves: a graph) */
+        y = 84 - clamp(oct * 12 / 256, 0, 48);
+        lv = (int32_t)(((uint32_t)ktrx_exp(tt, ta) * (uint32_t)(65536 - ktrx_exp(tt, 582u))) >> 16);
+        ya = 84 - lv * 48 / 65536;
+        if (x) {
+            cv_line(99 + x, pa, 100 + x, ya, C_AMB);
+            cv_line(99 + x, py, 100 + x, y, c);
+        }
+        py = y;
+        pa = ya;
+    }
+}
+
 static void graph_acid(const track_t *t, uint16_t c)
 {
     const int16_t *p = &t->p[P_E0];
@@ -274,8 +312,9 @@ static void graph_model(const track_t *t, uint16_t c)
     str_cpy(b, m->voices > 1 ? "2 VOICES" : "1 VOICE", sizeof b);
     cv_text(6, 52, &FONT_S, b, C_GRAY);
     {
-        int fm = (uint32_t)t->p[P_MODEL] % NMODELS == DM_FM ||
-                 (uint32_t)t->p[P_MODEL] % NMODELS == DM_ACID;   /* FM, ACID: their graph right: the labels go left */
+        int fm = (uint32_t)t->p[P_MODEL] % NMODELS == DM_FM || (uint32_t)t->p[P_MODEL] % NMODELS == DM_ACID ||
+                 (uint32_t)t->p[P_MODEL] % NMODELS == DM_KTRX;   /* FM, ACID, KTRX: their graph right: the labels
+                                                                  * go left */
         if (t->p[P_CHOKE]) {
             str_cpy(b, "CHOKE 1", sizeof b);
             b[6] = (char)('0' + t->p[P_CHOKE]);
@@ -303,6 +342,8 @@ static void graph_model(const track_t *t, uint16_t c)
     }
     if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_ACID)
         graph_acid(t, c);                            /* ACID: the filter and the note's shape */
+    if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_KTRX)
+        graph_ktrx(t, c);                            /* KTRX: the pitch and the level */
 }
 
 /* a step's bar: hatched (every third row dark) when its PROB is not 100 %; RATCH > 1: that many ticks above */

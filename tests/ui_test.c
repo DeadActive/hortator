@@ -596,8 +596,8 @@ static void test_acid_cap(void)
     song.sel = 2;
     drum_set_model(&trk[2], DM_FM);
     model_step(1);
-    check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the first model",
-          trk[2].p[P_MODEL] == DM_K808 && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
+    check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the next model (KTRX)",
+          trk[2].p[P_MODEL] == DM_KTRX && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
     model_step(-1);
     check("ACID cap: back down, past ACID (full) to FM", trk[2].p[P_MODEL] == DM_FM);
     drum_set_model(&trk[1], DM_K808);                /* a place frees */
@@ -3834,6 +3834,55 @@ static void test_fm_screens(void)
           str_eq(page_desc(cur_page(), 0, &vp)->label, "RATIO") && str_eq(page_desc(cur_page(), 3, &vp)->label, "FBK"));
 }
 
+/* KTRX: SOUND 1/4 holds MODEL TUNE DECAY SWEEP, 2/4 SDEC PUNCH NOISE SUB; the graph draws the pitch and the level,
+ * SWEEP raising the pitch curve (more lit rows high in the graph); CHOKE and the layer's label stay out of it */
+static uint32_t ktrx_high_lit(void)                  /* lit pixels in the graph's upper half (the pitch above ~2 oct) */
+{
+    return fm_graph_area(60u, 92u);                   /* (screen rows 134..165: under the title) */
+}
+
+static void test_ktrx_screens(void)
+{
+    uint32_t k, flat, swept, plain, labels;
+    int16_t *vp;
+    ui_host_init();
+    drum_set_model(TSEL, DM_KTRX);
+    for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+        tap(B_EDIT);
+    TSEL->p[P_E3] = 96;                              /* SDEC 96: a sweep the graph's 300 ms shows */
+    TSEL->p[P_E2] = 0;
+    ui.force = 1;
+    snap_page("ktrx/sweep0");
+    flat = ktrx_high_lit();
+    TSEL->p[P_E2] = 127;
+    ui.force = 1;
+    snap_page("ktrx/sweep127");
+    swept = ktrx_high_lit();
+    TSEL->p[P_E2] = 64;
+    TSEL->p[P_E3] = 32;
+    ui.force = 1;
+    snap_page("ktrx/sound_1");
+    plain = fm_graph_area(0u, 110u);
+    printf("     KTRX graph: upper half lit %u (SWEEP 0) / %u (SWEEP 127, SDEC 96)\n", flat, swept);
+    check("KTRX: SOUND 1/4 holds MODEL TUNE DECAY SWEEP; the graph draws the pitch and the level; SWEEP 127 raises "
+          "the pitch curve",
+          str_eq(page_desc(cur_page(), 1, &vp)->label, "TUNE") && str_eq(page_desc(cur_page(), 3, &vp)->label, "SWEEP") &&
+              fm_graph_lit() > 150u && swept > flat + 20u);
+    TSEL->p[P_CHOKE] = 2;
+    TSEL->p[P_LLEVEL] = 100;
+    ui.force = 1;
+    ui_frame();
+    labels = fm_graph_area(0u, 110u);
+    check("KTRX graph: CHOKE and the sample layer's label stay out of it", labels == plain);
+    TSEL->p[P_CHOKE] = 0;
+    TSEL->p[P_LLEVEL] = 0;
+    page_turn(1);
+    ui.force = 1;
+    snap_page("ktrx/sound_2");
+    check("KTRX: SOUND 2/4 holds SDEC PUNCH NOISE SUB",
+          str_eq(page_desc(cur_page(), 0, &vp)->label, "SDEC") && str_eq(page_desc(cur_page(), 3, &vp)->label, "SUB"));
+}
+
 /* ---- ACID plan B: KEYS (spec §5) */
 /* an SCL tap turns KEYS on (its LED, the top bar KEYS F3) and off; the 27 keys play the selected track chromatically
  * (a drum transposed: nt = NOTE - 60, F3 = 53); OCT- / OCT+ shift by an octave, -2..+2; KEYS selects no track */
@@ -5463,6 +5512,7 @@ int main(void)
     test_tracks_rec_mutes();
     test_fm_screens();
     test_fm_graph_clear();
+    test_ktrx_screens();
     test_keys_map_oct();
     test_keys_acid_mono();
     test_keys_release_anywhere();

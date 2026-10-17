@@ -43,6 +43,13 @@ typedef struct {
     uint32_t rng;
     qsvf_t col, hpf;
 } hh_t;
+typedef struct {                        /* KTRX (dm_ktrx.c) */
+    uint32_t inc0, inc_d, inc_f, inc_r, ph_h;
+    int32_t e_d, e_t, e_a, e_s, e_h, e_n;
+    int32_t punch, sub, th, cgain, nlev;
+    uint32_t k_n, d_amp, d_ramp, e_amp, e_r;
+    uint8_t first;
+} ktrx_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
@@ -50,4 +57,5 @@ typedef union {
     kpunc_t kp;
     kboom_t kb;
     hh_t hh;
+    ktrx_t kt;
 } dm_state_t;
