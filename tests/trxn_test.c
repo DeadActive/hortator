@@ -83,7 +83,7 @@ static uint32_t hit(uint32_t mi, const int16_t *k, uint32_t vel, uint32_t frames
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
-    drum_hit(&trk[0], vel);
+    drum_play(&trk[0], vel, trk[0].nt);   /* (drum_hit plays note 0) */
     if (seed)
         trk[0].v[0].rng = (int32_t)seed;
     s = (uint32_t)trk[0].v[0].rng;
@@ -544,7 +544,7 @@ static void test_extremes(void)
             for (i = 0; i < 8u; i++)
                 trk[0].p[P_E0 + i] = (int16_t)((c >> i & 1u) ? (i ? 127 : 24) : (i ? 0 : -24));
             trk[0].nt = (c >> 8 & 1u) ? 24 : -24;
-            drum_hit(&trk[0], (c & 3u) == 3u ? 1 : 127);
+            drum_play(&trk[0], (c & 3u) == 3u ? 1 : 127, trk[0].nt);   /* (drum_hit plays note 0) */
             render_track(&trk[0], wl, SECS(6));
             for (i = 0; i < SECS(6); i++)
                 ok &= abs(wl[i]) <= 4 * VOICE_FS;
@@ -563,7 +563,7 @@ static void test_rehits(void)
     for (mi = 0; mi < 2u; mi++) {
         hit(M[mi], K, 127, SECS(0.005), 0);
         for (i = 0; i < 4u; i++) {
-            drum_hit(&trk[0], 127);
+            drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
             render_track(&trk[0], wl, SECS(0.005));
         }
         render_track(&trk[0], wl, SECS(0.3));
@@ -571,10 +571,10 @@ static void test_rehits(void)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
         host_init();
         drum_set_model(&trk[0], DM_CYMB);
-        drum_hit(&trk[0], 127);
+        drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.05));
         drum_set_model(&trk[0], M[mi]);
-        drum_hit(&trk[0], 127);
+        drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.3));
         for (i = 0; i < SECS(0.3); i++)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;

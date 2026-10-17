@@ -344,7 +344,9 @@ Report what you saw first; we'll go through it together.
 
 ### KTRX (check on the FM-1)
 
-- A track to MODEL KTRX (the last model, after ACID): SOUND 1/4 MODEL TUNE DECAY SWEEP, 2/4 SDEC PUNCH NOISE SUB,
+- The MODEL list after ACID: KTRX SDTRX XTTRX XCTRX CPTRX RSTRX CBTRX CHTRX OHTRX CYTRX MATRX CLTRX B2TRX (B2TRX
+  last).
+- A track to MODEL KTRX (after ACID): SOUND 1/4 MODEL TUNE DECAY SWEEP, 2/4 SDEC PUNCH NOISE SUB,
   3/4 CLIP LVL PAN NOTE; the graph shows the pitch (falling from SWEEP over SDEC) and the level over 300 ms
   (`build/ui_shots/ktrx/sound_1.png`, `sweep127.png`).
 - By ear against the A/B files (`~/Desktop/hortator-md/ktrx-ab`: the emulator, then KTRX): the defaults a round
@@ -357,7 +359,7 @@ Report what you saw first; we'll go through it together.
 
 ### SDTRX (check on the FM-1)
 
-- A track to MODEL SDTRX (after KTRX): SOUND 1/4 MODEL TUNE DECAY SNAP, 2/4 TONE BUMP BENV CLIP, 3/4 - LVL PAN NOTE.
+- A track to MODEL SDTRX: SOUND 1/4 MODEL TUNE DECAY SNAP, 2/4 TONE BUMP BENV CLIP, 3/4 - LVL PAN NOTE.
 - By ear against the A/B files (`~/Desktop/hortator-md/sdtrx-ab`: the emulator, then SDTRX): the defaults a tight
   snare (a 342 Hz body with a metallic overtone, a bright noise burst); TONE towards 127 more of the metallic osc B;
   BENV changes that overtone erratically (low at 40 and 120, very high at most values: the machine's own table) and
@@ -369,7 +371,7 @@ Report what you saw first; we'll go through it together.
 
 ### B2TRX (check on the FM-1)
 
-- A track to MODEL B2TRX (the last model, after SDTRX): SOUND 1/4 MODEL TUNE DECAY RAMP, 2/4 HOLD TICK NOISE DIRT,
+- A track to MODEL B2TRX (the last model): SOUND 1/4 MODEL TUNE DECAY RAMP, 2/4 HOLD TICK NOISE DIRT,
   3/4 DIST LVL PAN NOTE.
 - By ear against the A/B files (`~/Desktop/hortator-md/b2trx-ab`: the emulator, then B2TRX; the emulator's sine runs
   free, B2TRX's starts at 0, so the first ~10 ms differ hit to hit there, not here): the defaults a plain 50 Hz sine
@@ -379,9 +381,10 @@ Report what you saw first; we'll go through it together.
 - The demo WAVs (`build/drum_renders/b2trx_*.wav`; TUNE DECAY RAMP HOLD TICK NOISE DIRT DIST): default 0 64 0 0 0 0
   0 0; boom -5 90 60 80 40 0 0 0; dirt 0 70 40 0 60 40 104 0; dist 3 64 90 20 80 0 0 64.
 - `tools/fm1_bench.py --yes`: the cases B2TRX and B2TRX+fx (8 tracks of the model).
+
 ### XTTRX, XCTRX, CLTRX, RSTRX (check on the FM-1)
 
-- A track to MODEL XTTRX, XCTRX, CLTRX, RSTRX (after KTRX, in that order): XTTRX / XCTRX SOUND 1/4 MODEL TUNE DECAY
+- A track to MODEL XTTRX, XCTRX, CLTRX, RSTRX: XTTRX / XCTRX SOUND 1/4 MODEL TUNE DECAY
   RAMP, 2/4 RDEC DAMP DIST DTYP; CLTRX 1/4 MODEL TUNE DECAY DUAL, 2/4 ENH TUNE2 CLICK; RSTRX 1/4 MODEL TUNE DECAY
   DIST.
 - By ear against the A/B files (`~/Desktop/hortator-md/trx-xt-ab`, `trx-xc-ab`, `trx-cl-ab`, `trx-rs-ab`: the
@@ -395,10 +398,11 @@ Report what you saw first; we'll go through it together.
   0 80 30 64 40 110 127; xctrx_default the defaults; cltrx_default 0 64 0 0 64 0; cltrx_dual 0 80 64 90 100 127;
   rstrx_default 0 64 0; rstrx_dist -5 90 127.
 - `tools/fm1_bench.py --yes`: the cases XTTRX, XCTRX, CLTRX, RSTRX and their +fx (8 tracks of the model).
+
 ### CPTRX, MATRX (check on the FM-1)
 
-- A track to MODEL CPTRX (after KTRX): SOUND 1/4 MODEL TUNE DECAY CLPY, 2/4 HARD RATE ROOM RSIZ, 3/4 RTUN LVL PAN
-  NOTE. MODEL MATRX (the last model): 1/4 MODEL TUNE DECAY ATT, 2/4 REV DAMP RATL TONE, 3/4 HARD LVL PAN NOTE.
+- A track to MODEL CPTRX: SOUND 1/4 MODEL TUNE DECAY CLPY, 2/4 HARD RATE ROOM RSIZ, 3/4 RTUN LVL PAN
+  NOTE. MODEL MATRX: 1/4 MODEL TUNE DECAY ATT, 2/4 REV DAMP RATL TONE, 3/4 HARD LVL PAN NOTE.
 - By ear against the A/B files (`~/Desktop/hortator-md/cptrx-ab`, `matrx-ab`: the emulator, then the model; the
   machine's knobs: CP TONE t is TUNE (t - 64) x 12 / 50, MA SUS is DECAY, its RTYP left at 0). CPTRX: the defaults a
   tight 4-clap; RATE spreads the claps (merged below ~16); DECAY longer claps up to a wash; CLPY louder first claps;
@@ -410,9 +414,10 @@ Report what you saw first; we'll go through it together.
   `matrx_*.wav`, TUNE DECAY ATT REV DAMP RATL TONE HARD: default 0 64 0 0 0 0 64 64; shaker 0 30 0 0 60 0 90 80; swell
   -2 90 70 60 30 90 50 64; rattle 3 127 10 0 100 127 40 30).
 - `tools/fm1_bench.py --yes`: the cases CPTRX, CPTRX+fx, MATRX and MATRX+fx (8 tracks of the model).
+
 ### CBTRX, CHTRX, OHTRX, CYTRX (check on the FM-1)
 
-- MODEL after KTRX: CBTRX, CHTRX, OHTRX, CYTRX. CBTRX SOUND 1/4 MODEL TUNE DECAY ENH, 2/4 DAMP TONE BUMP PTCH;
+- MODEL CBTRX, CHTRX, OHTRX, CYTRX. CBTRX SOUND 1/4 MODEL TUNE DECAY ENH, 2/4 DAMP TONE BUMP PTCH;
   CHTRX / OHTRX 1/4 MODEL TUNE DECAY GAP, 2/4 HPF LPF MTAL; CYTRX 1/4 MODEL TUNE DECAY RICH, 2/4 TOP TTUN SIZE PEAK.
 - By ear against the A/B files (`~/Desktop/hortator-md/trx-cb-ab`, `trx-ch-ab`, `trx-oh-ab`, `trx-cy-ab`: the
   emulator, then the float model; the voices here follow the float models): CBTRX's defaults a short bright cowbell;

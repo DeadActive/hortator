@@ -32,7 +32,7 @@ static void hit(uint32_t mi, const int16_t *k, uint32_t vel, uint32_t frames)
     for (i = 0; i < NK; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
-    drum_hit(&trk[0], vel);
+    drum_play(&trk[0], vel, trk[0].nt);   /* (drum_hit plays note 0) */
     st = trk[0].v[0].ms;
     st_ph = trk[0].v[0].ph[0];
     if (frames)
@@ -530,7 +530,7 @@ static void test_extremes(void)
             for (i = 0; i < nk; i++)
                 trk[0].p[P_E0 + i] = (int16_t)((c >> i & 1u) ? (i ? 127 : 24) : (i ? 0 : -24));
             trk[0].nt = (c >> nk & 1u) ? 24 : -24;
-            drum_hit(&trk[0], (c & 3u) == 3u ? 1 : 127);
+            drum_play(&trk[0], (c & 3u) == 3u ? 1 : 127, trk[0].nt);   /* (drum_hit plays note 0) */
             render_track(&trk[0], wl, SECS(6));
             for (i = 0; i < SECS(6); i++) {
                 ok &= abs(wl[i]) <= 4 * VOICE_FS;
@@ -554,7 +554,7 @@ static void test_rehits(void)
     for (j = 0; j < 4u; j++) {
         hit(M[j], K, 127, SECS(0.005));
         for (i = 0; i < 4u; i++) {
-            drum_hit(&trk[0], 127);
+            drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
             render_track(&trk[0], wl, SECS(0.005));
         }
         render_track(&trk[0], wl, SECS(0.3));
@@ -562,10 +562,10 @@ static void test_rehits(void)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
         host_init();
         drum_set_model(&trk[0], DM_CYMB);
-        drum_hit(&trk[0], 127);
+        drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.05));
         drum_set_model(&trk[0], M[j]);
-        drum_hit(&trk[0], 127);
+        drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.3));
         for (i = 0; i < SECS(0.3); i++)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
@@ -618,6 +618,27 @@ static void write_wavs(const char *dir)
     write_set(dir, DM_RSTRX, "rs_", RN, RK, 4);
 }
 
+/* review fix (2026-10-18): TUNE +24 with a step's note +24 (pitch +48 semitones) and the heaviest knobs: no signed
+ * overflow (this test runs under UBSan), bounded, ends within 6 s; every MODEL_ of this file at TUNE +-24, notes +-24 */
+static void test_note48(uint32_t model, const int16_t *k, const char *what)
+{
+    uint32_t i, s, ok = 1;
+    for (s = 0; s < 4u; s++) {
+        host_init();
+        drum_set_model(&trk[0], model);
+        for (i = 0; i < 8u; i++)
+            trk[0].p[P_E0 + i] = k[i];
+        trk[0].p[P_E0] = (s & 1u) ? 24 : -24;
+        trk[0].nt = (s & 2u) ? 24 : -24;
+        drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
+        render_track(&trk[0], wl, SECS(6));
+        for (i = 0; i < SECS(6); i++)
+            ok &= abs(wl[i]) <= 4 * VOICE_FS;
+        ok &= !trk[0].v[0].active;
+    }
+    check(what, ok);
+}
+
 int main(int argc, char **argv)
 {
     rs_click_make();
@@ -632,6 +653,27 @@ int main(int argc, char **argv)
     test_rehits();
     if (argc > 1)
         write_wavs(argv[1]);
+        {
+        static const int16_t K[8] = {10, 127, 127, 127, 127, 127, 0, 0};
+        test_note48(DM_CLTRX, K, "CLTRX: TUNE2 127 with TUNE / notes at +-24 (above Nyquist): no overflow, bounded, ends");
+        {                                            /* every TUNE with notes +-24 (pitches past Nyquist): UBSan */
+            int32_t tu, n, ok = 1;
+            uint32_t i;
+            for (tu = -24; tu <= 24; tu++)
+                for (n = -24; n <= 24; n += 48) {
+                    host_init();
+                    drum_set_model(&trk[0], DM_CLTRX);
+                    for (i = 0; i < 8u; i++)
+                        trk[0].p[P_E0 + i] = K[i];
+                    trk[0].p[P_E0] = (int16_t)tu;
+                    drum_play(&trk[0], 127, n);
+                    render_track(&trk[0], wl, SECS(0.3));
+                    for (i = 0; i < SECS(0.3); i++)
+                        ok &= abs(wl[i]) <= 4 * VOICE_FS;
+                }
+            check("CLTRX: every TUNE with notes +-24, TUNE2 127: no overflow, bounded", ok);
+        }
+    }
     printf(fails ? "trxperc_test: %d FAILED\n" : "trxperc_test: all passed\n", fails);
     return fails != 0;
 }

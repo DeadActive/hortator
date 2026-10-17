@@ -135,9 +135,10 @@ static void cbtrx_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
             trxm_tick(&c->da, a, &ad, &hp);
             bd = (int32_t)(((int64_t)bd * c->db.k) >> 30);
             ad = (int32_t)(((int64_t)ad * c->da.k) >> 30);
-            x += (((bd * gb + ad * gae) >> 11) - x) * dm >> 12;
+            x += (int32_t)(((int64_t)(((bd * gb + ad * gae) >> 11) - x) * dm) >> 12);   /* (64-bit: +48 semitones
+                                                         * with DAMP 127 overflows 32) */
             if (erk)
-                full += (((bd * gb + ad * ga) >> 11) - full) * dm >> 12;
+                full += (int32_t)(((int64_t)(((bd * gb + ad * ga) >> 11) - full) * dm) >> 12);
         }
         pb += ib;
         pa += ia;

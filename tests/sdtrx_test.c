@@ -114,7 +114,7 @@ static void sd_hit(const int16_t *k, uint32_t vel, int32_t *x, uint32_t frames)
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
-    drum_hit(&trk[0], vel);
+    drum_play(&trk[0], vel, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], x, frames);
 }
 
@@ -305,9 +305,9 @@ static void test_sdtrx_snap(void)
     b = rms(w2, 0, n);
     host_init();                                         /* a second hit of the same track: the same noise */
     drum_set_model(&trk[0], DM_SDTRX);
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.5));
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, n);
     sd_hit(S64, 127, body, n);
     for (i = SECS(0.002); i < n; i++)                   /* (the cut voice's declick aside) */
@@ -343,7 +343,7 @@ static void test_sdtrx_level(void)
     a = rms(wl, 0, SECS(0.3));
     host_init();
     drum_set_model(&trk[0], DM_S909);
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.3));
     b = rms(wl, 0, SECS(0.3));
     printf("     SDTRX vs S909 at the defaults: %+.1f dB\n", 20 * log10(a / b));
@@ -364,7 +364,7 @@ static void test_sdtrx_extremes(void)
         for (i = 0; i < 8u; i++)
             trk[0].p[P_E0 + i] = k[i];
         trk[0].nt = (c >> 7 & 1u) ? 24 : -24;
-        drum_hit(&trk[0], (c & 3u) == 3u ? 1 : 127);
+        drum_play(&trk[0], (c & 3u) == 3u ? 1 : 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(6));
         for (i = 0; i < SECS(6); i++) {
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
@@ -383,7 +383,7 @@ static void test_sdtrx_rehits(void)
     uint32_t i, ok = 1;
     sd_hit(K, 127, wl, SECS(0.005));
     for (i = 0; i < 4u; i++) {
-        drum_hit(&trk[0], 127);
+        drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.005));
     }
     render_track(&trk[0], wl, SECS(0.3));
@@ -391,10 +391,10 @@ static void test_sdtrx_rehits(void)
         ok &= abs(wl[i]) <= 4 * VOICE_FS;
     host_init();
     drum_set_model(&trk[0], DM_CYMB);
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.05));
     drum_set_model(&trk[0], DM_SDTRX);
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.3));
     for (i = 0; i < SECS(0.3); i++)
         ok &= abs(wl[i]) <= 4 * VOICE_FS;

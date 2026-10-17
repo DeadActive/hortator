@@ -11,20 +11,20 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   half-harmonics (alternate cycles long and short, fading on their own); CLIP a hard clip at a falling threshold.
   DECAY and SDEC follow the measured laws, floors and ends included: DECAY 0..27 is its 7 ms floor and 109..127
   its end (4 s to -60 dB, as every voice); SDEC 0..14 its 5 ms floor, 107..127 the same end. 1 voice; the SOUND graph shows
-  the pitch and the level over 300 ms. The MODEL list's last entry (after ACID).
+  the pitch and the level over 300 ms. After ACID in the MODEL list.
 - SDTRX: a snare measured from the same machine's (only the measured laws). TUNE DECAY SNAP TONE, BUMP BENV CLIP:
   two sines frozen for the machine's first 32-sample block, A at 342 Hz with BUMP's alpha-shaped pitch blip (its time
   BENV's), B a block-rate comb whose F1 / F2 BENV sets from the measured table (erratic, as the machine's); TONE
   crossfades them; CLIP a peak-preserving tanh whose drive falls on its own (~28 ms), whatever DECAY is; SNAP the same
   noise on every hit (1.6..5 kHz, tau 20 ms; above 64 a 1.44 kHz ring). TUNE moves both sines by semitones (the
-  machine's own PTCH, +-0.8 %, and TUNE, a few Hz on B, are left out). 1 voice; after KTRX.
+  machine's own PTCH, +-0.8 %, and TUNE, a few Hz on B, are left out). 1 voice.
 - B2TRX: the same machine's second bass drum (only the measured laws). TUNE DECAY RAMP HOLD, TICK NOISE DIRT DIST: a
   50 Hz sine (TUNE 0; it starts at 0 on every hit, the machine's runs free), RAMP's added pitch in Hz (the same on
   every note), HOLD at full level before DECAY's fall (up to seconds; shortened when a long DECAY would outlast the
   voice's 6 s), TICK a click into the output's saturation, NOISE a hiss, DIRT a 3..257-level quantiser and DIST a hard
-  clip before the envelope; the output's high-pass and smoothing as measured. 1 voice; the MODEL list's last entry.
+  clip before the envelope; the output's high-pass and smoothing as measured. 1 voice.
 - XTTRX, XCTRX, CLTRX, RSTRX: a tom, a conga, claves and a rim shot measured from the same machine's (only the
-  measured laws, no code or data of it); after KTRX in the MODEL list, 1 voice each. XTTRX / XCTRX (one voice, two
+  measured laws, no code or data of it); 1 voice each. XTTRX / XCTRX (one voice, two
   measured sets) TUNE DECAY RAMP RDEC, DAMP DIST DTYP: a fixed click, then a sine whose RAMP adds Hz falling over
   RDEC; DAMP moves level from the body to the click; DIST a hard clip after the decay, DTYP making the clipped part
   sag; the tail cut to zero as measured (XTTRX's DECAY 114..127 is its 0.85 s end: the voice ends by 5.4 s).
@@ -39,9 +39,7 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   and ROOM a resonant noise tail after the clip (RSIZ its length, RTUN its colour; 0: off). MATRX: TUNE DECAY ATT
   REV, DAMP RATL TONE HARD: noise in 32-sample grains (DAMP: more of them silent) through a 4-pole high-pass (TONE,
   HARD; TUNE moves it by semitones), a rattle that grows through the hit (RATL), a hold (DECAY: 14 ms + 1.45 ms a
-  step) after an attack (ATT), REV's dip and second hold, then a cut. 1 voice each; the MODEL list's last entries
-  (after KTRX).
-
+  step) after an attack (ATT), REV's dip and second hold, then a cut. 1 voice each.
 - CBTRX, CHTRX, OHTRX, CYTRX: a cowbell, closed and open hats and a cymbal measured from a classic digital drum
   machine's (an emulator's renders, knob by knob; only the measured laws, no code or data of it). The hats and the
   cymbal share one metal bank: seven oscillators with whole-sample periods (other phases at every hit). CHTRX / OHTRX:
@@ -51,6 +49,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   top that fades first; 2 voices). CBTRX: TUNE DECAY ENH DAMP TONE BUMP PTCH (two tones, ENH's resonator and grit,
   DAMP a narrow band-pass steady from the first sample, a hold floor). Levels as HATC, HATO, CYMB, COWB. After KTRX in
   the MODEL list.
+- The new voices' place in the MODEL list, after ACID: KTRX SDTRX XTTRX XCTRX CPTRX RSTRX CBTRX CHTRX OHTRX CYTRX
+  MATRX CLTRX B2TRX.
 
 ## 0.18.0 - 2026-10-14
 

@@ -41,6 +41,8 @@ static int32_t cl_t2(const int16_t t[5][5], int32_t p8, int32_t q8)   /* bilinea
 }
 static int32_t cl_knob(uint32_t inc)                   /* the knob value of a pitch, Q8, 0..127 */
 {
+    if (inc > 0x7FFFFFFFu)                             /* (a pitch past Nyquist: TUNE + a note up to +48) */
+        inc = 0x7FFFFFFFu;
     return clamp(((int32_t)inc - (int32_t)CL_HZ0) / (int32_t)(CL_HZK >> 8), 0, 127 * 256);
 }
 static uint32_t cl_amp(int32_t db8)                    /* 0.1 dB Q8 -> a level, Q16 (1.0 = the measured unit) */

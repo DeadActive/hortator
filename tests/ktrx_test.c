@@ -72,7 +72,7 @@ static void kt_hit(const int16_t *k, uint32_t vel, uint32_t frames)
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
-    drum_hit(&trk[0], vel);
+    drum_play(&trk[0], vel, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, frames);
 }
 
@@ -313,7 +313,7 @@ static void test_ktrx_level(void)
     a = rms(wl, 0, SECS(0.3));
     host_init();
     drum_set_model(&trk[0], DM_K909);
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.3));
     b = rms(wl, 0, SECS(0.3));
     printf("     KTRX vs K909 at the defaults: %+.1f dB\n", 20 * log10(a / b));
@@ -333,7 +333,7 @@ static void test_ktrx_extremes(void)
         for (i = 0; i < 8u; i++)
             trk[0].p[P_E0 + i] = k[i];
         trk[0].nt = (c >> 8 & 1u) ? 24 : -24;
-        drum_hit(&trk[0], (c & 3u) == 3u ? 1 : 127);
+        drum_play(&trk[0], (c & 3u) == 3u ? 1 : 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(6));
         for (i = 0; i < SECS(6); i++)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
@@ -350,7 +350,7 @@ static void test_ktrx_rehits(void)
     uint32_t i, ok = 1;
     kt_hit(K, 127, SECS(0.005));
     for (i = 0; i < 4u; i++) {
-        drum_hit(&trk[0], 127);
+        drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.005));
     }
     render_track(&trk[0], wl, SECS(0.3));
@@ -358,10 +358,10 @@ static void test_ktrx_rehits(void)
         ok &= abs(wl[i]) <= 4 * VOICE_FS;
     host_init();
     drum_set_model(&trk[0], DM_CYMB);
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.05));
     drum_set_model(&trk[0], DM_KTRX);
-    drum_hit(&trk[0], 127);
+    drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.3));
     for (i = 0; i < SECS(0.3); i++)
         ok &= abs(wl[i]) <= 4 * VOICE_FS;
