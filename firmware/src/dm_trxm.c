@@ -155,13 +155,8 @@ static void trxm_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 {
     trxm_t *m = &v->ms.tm;
     uint32_t i, tt = v->t;
-    int32_t e = m->e, et = m->et, xb[CTL];
-    if (n > CTL) {                                      /* (the mix's blocks are CTL) */
-        trxm_render(t, v, out, CTL);
-        if (v->active)
-            trxm_render(t, v, out + CTL, n - CTL);
-        return;
-    }
+    int32_t e = m->e, et = m->et, xb[CTL];             /* (n <= CTL, as metal_make's) */
+    (void)t;
     if (tt >= LIFE_A)                                   /* the 6 s life: CY's longest decay fades out from 5.5 s */
         m->d = m->dt = TRXM_D_END;
     if (m->gb)                                          /* the bank */
