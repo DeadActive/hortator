@@ -9,7 +9,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   measured laws, no code or data of it). TUNE DECAY SWEEP SDEC, PUNCH NOISE SUB CLIP: the pitch with its built-in
   drop, SWEEP's cubic rise over SDEC, a short transient at the hit; PUNCH a square first cycle; NOISE a burst; SUB
   half-harmonics (alternate cycles long and short, fading on their own); CLIP a hard clip at a falling threshold.
-  DECAY and SDEC follow the measured laws (DECAY up to 4 s to -60 dB, as every voice). 1 voice; the SOUND graph shows
+  DECAY and SDEC follow the measured laws, floors and ends included: DECAY 0..27 is its 7 ms floor and 109..127
+  its end (4 s to -60 dB, as every voice); SDEC 0..14 its 5 ms floor, 107..127 the same end. 1 voice; the SOUND graph shows
   the pitch and the level over 300 ms. The MODEL list's last entry (after ACID).
 
 ## 0.18.0 - 2026-10-14

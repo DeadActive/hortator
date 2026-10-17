@@ -3854,6 +3854,14 @@ static void test_ktrx_screens(void)
     ui.force = 1;
     snap_page("ktrx/sweep0");
     flat = ktrx_high_lit();
+    {                                                /* review fix: no spike at the level curve's start (its fade-in
+                                                      * starts at 0: the first column stays low) */
+        uint32_t x, y, n = 0;
+        for (y = Y_GRAPH + 66u; y < Y_GRAPH + 80u; y++)
+            for (x = 100u; x < 102u; x++)
+                n += fb[y * 240u + x] != 0;
+        check("KTRX graph: SWEEP 0: nothing at the top of its first columns (no spike from the level's start)", n == 0u);
+    }
     TSEL->p[P_E2] = 127;
     ui.force = 1;
     snap_page("ktrx/sweep127");

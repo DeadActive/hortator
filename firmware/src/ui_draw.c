@@ -235,7 +235,8 @@ static int32_t acid_cut_x(int32_t semis)                /* the cutoff MIDI 16 + 
  * over the first 300 ms, from the voice's own laws */
 static int32_t ktrx_exp(uint32_t t, uint32_t tau)    /* e ^ (-t / tau), Q16 (t, tau in samples) */
 {
-    return (int32_t)pow2_q16(-(int32_t)clamp((int32_t)(t * 277u / tau), 0, 3072));
+    uint32_t e = pow2_q16(-(int32_t)clamp((int32_t)(t * 277u / tau), 0, 3072));
+    return e > 65536u ? 65536 : (int32_t)e;          /* (pow2_q16(0) is 65549: 1 - e must not wrap) */
 }
 static void graph_ktrx(const track_t *t, uint16_t c)
 {

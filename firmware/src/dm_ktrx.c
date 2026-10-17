@@ -71,8 +71,8 @@ static void ktrx_trigger(track_t *t, dvoice_t *v)
     } else
         k->th = 0;
     dsvf_coef(&v->c[0], KTRX_NCUT, KTRX_NRES);
-    k->nlev = nz ? (int32_t)((4538u * pow2_q16((nz - 127) * 3693 / 1000)) >> 16) : 0;   /* -37 .. -26 dB rms
-                                                         * (set on the emulator's octave bands) */
+    k->nlev = nz ? (int32_t)((4538u * pow2_q16((nz - 127) * 3693 / 1000)) >> 16) : 0;   /* 14.6 dB over the knob
+                                                         * (its level set on the emulator's octave bands) */
     k->e_n = nz ? ENV1 : 0;
     k->k_n = dk(27 + (nz > 64 ? (nz - 64) * 33 / 80 : 0));   /* tau 3 ms, doubling every 32 above 64 */
 }
