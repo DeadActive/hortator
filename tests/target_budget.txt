@@ -38,3 +38,12 @@ fm_render 83
 acid_render 326
 metro_block 40
 ktrx_render 320
+sdtrx_render 318
+b2trx_render 165
+xt_render 145
+cltrx_render 109
+rstrx_render 79
+cptrx_render 209
+matrx_render 277
+cbtrx_render 455
+trxm_render 253
