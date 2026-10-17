@@ -3891,6 +3891,33 @@ static void test_ktrx_screens(void)
           str_eq(page_desc(cur_page(), 0, &vp)->label, "SDEC") && str_eq(page_desc(cur_page(), 3, &vp)->label, "SUB"));
 }
 
+/* SDTRX, B2TRX: their SOUND pages (MODEL + the first three knobs, then the next four) */
+static void test_trx_drum_screens(void)
+{
+    static const struct { uint32_t m; const char *dir, *l1, *l3, *l4, *l7; } S[] = {
+        {DM_SDTRX, "trxdrums/sdtrx", "TUNE", "SNAP", "TONE", "CLIP"},
+        {DM_B2TRX, "trxdrums/b2trx", "TUNE", "RAMP", "HOLD", "DIRT"}};
+    uint32_t i, k, ok = 1;
+    int16_t *vp;
+    for (i = 0; i < 2u; i++) {
+        char name[48];
+        ui_host_init();
+        drum_set_model(TSEL, S[i].m);
+        for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+            tap(B_EDIT);
+        ui.force = 1;
+        snprintf(name, sizeof name, "%s_sound_1", S[i].dir);
+        snap_page(name);
+        ok &= str_eq(page_desc(cur_page(), 1, &vp)->label, S[i].l1) && str_eq(page_desc(cur_page(), 3, &vp)->label, S[i].l3);
+        page_turn(1);
+        ui.force = 1;
+        snprintf(name, sizeof name, "%s_sound_2", S[i].dir);
+        snap_page(name);
+        ok &= str_eq(page_desc(cur_page(), 0, &vp)->label, S[i].l4) && str_eq(page_desc(cur_page(), 3, &vp)->label, S[i].l7);
+    }
+    check("SDTRX, B2TRX: SOUND 1/4 holds MODEL TUNE DECAY SNAP / RAMP, 2/4 TONE .. CLIP / HOLD .. DIRT", ok);
+}
+
 /* ---- ACID plan B: KEYS (spec §5) */
 /* an SCL tap turns KEYS on (its LED, the top bar KEYS F3) and off; the 27 keys play the selected track chromatically
  * (a drum transposed: nt = NOTE - 60, F3 = 53); OCT- / OCT+ shift by an octave, -2..+2; KEYS selects no track */
@@ -5521,6 +5548,7 @@ int main(void)
     test_fm_screens();
     test_fm_graph_clear();
     test_ktrx_screens();
+    test_trx_drum_screens();
     test_keys_map_oct();
     test_keys_acid_mono();
     test_keys_release_anywhere();
