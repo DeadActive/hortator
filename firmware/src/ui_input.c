@@ -68,6 +68,9 @@ static void ui_leds(void)
         uint32_t m = name_leds(fm1_ticks());
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((m >> k) & 1u));
+    } else if (pl_on()) {                             /* the PRESETS list: the keys play (lit while held) */
+        for (k = 0; k < 27u; k++)
+            led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
     } else if (ui.layer) {                            /* PERFORM: effects blink, held lit, unavailable dark; the
                                                        * track keys lit while their track sounds */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
@@ -440,7 +443,7 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 #define FX_DOWN 1u
 #define FX_OPEN 2u
 #define FX_DEAD 4u
-static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute; }
+static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute && !pl_on(); }
 /* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros stay on; keys
  * still held stay the layer's until let go */
 static void perf_page_close(void)
@@ -509,7 +512,7 @@ static void fx_layer(uint32_t now, int home_tap)
 #define GLO_OPEN 2u
 #define GLO_DEAD 4u
 #define GLO_PLAIN 8u
-static int glo_dead(void) { return ui.menu || ui.confirm || name_on(); }
+static int glo_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on(); }
 static void mute_keys(uint32_t hits)                   /* the keys the ISR gave the MUTE screen */
 {
     uint32_t k;
@@ -663,6 +666,8 @@ static void srec_knob(uint32_t k, int32_t s)
     }
 }
 
+#include "ui_preset.c"                             /* PRESETS: the encoder's popup, the list on a long EDIT */
+
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
@@ -671,6 +676,7 @@ static void ui_input(void)
     int32_t s, dt;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+    pre_frame(now);                                     /* PRESETS: EDIT's hold, the popup's time (ui_preset.c) */
 #if FELUCCA_BLE
     bt_autostart();                                     /* AUTOSTART: BLUETOOTH ON once, 5 s after power-on (the
                                                          * main loop's UI only: gate 3 CALLERS) */
@@ -712,6 +718,11 @@ static void ui_input(void)
     if (name_on()) {                                  /* NAME owns the panel: OCT+ / OCT- / HOME / PLAY, the keys, K1 K2 */
         ui.srec = 0;                                    /* (step record ends) */
         name_input(pressed, notes, now, home);
+        return;
+    }
+    if (pl_on()) {                                    /* the PRESETS list owns the panel (ui_preset.c) */
+        ui.srec = 0;
+        preset_list_input(pressed, notes, home);
         return;
     }
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
@@ -805,8 +816,11 @@ static void ui_input(void)
         b = panel_btn_of(id);
         if (ui.srec && b == B_EDIT) {                   /* step record: a rest, the cursor on */
             srec_rest();
+            ui.pr.e_st = 2;                             /* (held: no PRESETS list) */
             continue;
         }
+        if (b == B_EDIT)
+            edit_down(now);                             /* PRESETS: held, the list (ui_preset.c edit_hold) */
         switch (b) {
         case B_PLAY:
             play_press();
@@ -848,6 +862,9 @@ static void ui_input(void)
         }
         }
     }
+    edit_hold(now);                                     /* EDIT held: the PRESETS list */
+    if (pl_on())
+        return;
     song.seq_mode = seq_mode_now();                   /* seq.c: whose the keys are (KEYS may have changed) */
     if (ui.srec && !srec_ok())
         ui.srec = 0;                                    /* KEYS off, another page, the transport started */
@@ -876,7 +893,9 @@ static void ui_input(void)
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);
     }
-    panel_enc(EN_PRESET);                             /* PRESETS: nothing (spec §2: free) */
+    if ((s = panel_enc(EN_PRESET)) != 0)              /* PRESETS: each detent the next / previous preset, loaded */
+        for (; s; s += s > 0 ? -1 : 1)                  /* (ui_preset.c: the popup) */
+            preset_popup_turn(s > 0 ? 1 : -1);
     if ((s = panel_enc(EN_ALGO)) != 0) {
         if (ui.ml.on)
             ml_pick_act(s > 0 ? ML_A_NEXT : ML_A_PREV);   /* MIDI LEARN: NEXT / PREV TRACK picked, no track change */

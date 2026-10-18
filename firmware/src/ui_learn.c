@@ -299,9 +299,9 @@ static void ml_line(char *b)
     str_cpy(b + str_len(b), " = ", 4);
     ml_src_name(b + str_len(b), s - 1u);
 }
-/* LEARN ends when the menu, NAME or a confirm other than its own opens */
+/* LEARN ends when the menu, NAME, the PRESETS list or a confirm other than its own opens */
 static void ml_guard(void)
 {
-    if (ui.ml.on && (ui.menu || name_on() || (ui.confirm && ui.confirm != ML_CONFIRM)))
+    if (ui.ml.on && (ui.menu || name_on() || pl_on() || (ui.confirm && ui.confirm != ML_CONFIRM)))
         ml_off();
 }

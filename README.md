@@ -83,7 +83,9 @@ bank's first step and the top bar shows `STEP REC nn`. KNOB 1 to 4 are STEP, NOT
 
 ALGORITHM picks the track anywhere. SELECT turns the pages of a section and moves the menu's cursor; on HOME's
 TRACKS mode it sets the tempo instead (`CLK USB` / `CLK TRS` when following a clock; GLOBAL 1/3 KNOB 1 sets it on any
-page). KNOB 1 to 4 edit what the screen shows. PRESETS does nothing.
+page). KNOB 1 to 4 edit what the screen shows. PRESETS loads the next / previous preset onto the selected track at
+each detent (a popup shows the bank and the presets around it); EDIT held opens the PRESETS list (LOAD, SAVE into the
+USER bank, DELETE). The SOUND pages show the track's preset, with `*` once a SOUND knob moved.
 
 ### Mutes
 

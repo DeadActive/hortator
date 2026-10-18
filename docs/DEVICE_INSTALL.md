@@ -425,13 +425,14 @@ Report what you saw first; we'll go through it together.
   CHTRX a tight metallic hat (MTAL 0 pure noise, 127 pure metal), DECAY its body, GAP its tail; OHTRX the same, long:
   DECAY above ~82 fades out, dips to silence and swells back (the machine does that). CYTRX a cymbal: RICH from thin
   to dense, PEAK a ringing 5 kHz bell, SIZE smaller (brighter) up, TOP / TTUN the bright top that fades first.
-- Choke: CHTRX and OHTRX start in choke group 1 (as HATC / HATO): a closed hat cuts a ringing open hat.
+- Choke: with CHOKE 1 on both tracks (EDIT, the last SOUND page; no voice starts in a choke group any more), a closed
+  hat cuts a ringing open hat.
 - TUNE and a step's note move the oscillators by semitones (TUNE 0: the measured pitches).
 - The demo WAVs (`build/drum_renders/`; knobs in page order): cbtrx_default 0 64 0 0 64 0 64; cbtrx_enh 0 80 64 0 90
   40 64; cbtrx_damp -5 50 0 100 64 0 64; chtrx_default 0 64 64 0 127 64; chtrx_metal 0 30 40 64 100 127; chtrx_noise 0
   20 30 100 127 0; ohtrx_default 0 64 64 0 127 64; ohtrx_dip 0 127 64 0 127 100; cytrx_default 0 64 64 64 64 64 0;
   cytrx_peak 0 100 100 90 80 64 100; cytrx_small -3 40 127 127 127 20 30; trx_hats_choke (CHTRX on track 1 cut by,
-  and cutting, OHTRX on track 2).
+  and cutting, OHTRX on track 2; both CHOKE 1).
 - `tools/fm1_bench.py --yes`: the cases CBTRX, CHTRX, OHTRX, CYTRX and their +fx (8 tracks of the model).
 
 ### BDEFM, XTEFM (check on the FM-1)
@@ -482,12 +483,13 @@ Report what you saw first; we'll go through it together.
   tremolo from slow swells to a fast flutter; FB first stalls the tone to a 1.4 kHz buzz, then turns to noise from ~40.
   CYEFM a dense FM cymbal; FB brighter and rougher; HPF thinner (off at 0); MOD 127 a dense, aliased wash; MFRQ the
   sideband spacing; MDEC how long the brightness lasts (up to seconds).
-- Choke: HHEFM starts in choke group 1 (as HATC): it cuts a ringing HATO / OHTRX and is cut by them.
+- Choke: HHEFM and HATO / OHTRX in the same CHOKE group (set on each track; no voice starts in one): HHEFM cuts a
+  ringing open hat and is cut by it.
 - TUNE and a step's note move every frequency by semitones (TUNE 0: the machines' PTCH 64).
 - The demo WAVs (`build/drum_renders/`; knobs in page order): cbefm_default 0 64 0 0 64 64 64; cbefm_snap 0 96 96 0 80
   64 40; cbefm_fb -5 70 40 40 40 32 80; hhefm_default 0 64 0 64 64 64 64 0; hhefm_trem 0 110 100 100 64 64 64 0;
   hhefm_fb 0 40 0 64 32 96 64 16; cyefm_default 0 64 0 0 64 64 64; cyefm_bright 0 100 24 64 96 20 100; cyefm_short 3 40
-  8 96 32 127 32; efm_hats_choke (HHEFM on track 1 cut by, and cutting, HATO on track 2).
+  8 96 32 127 32; efm_hats_choke (HHEFM on track 1 cut by, and cutting, HATO on track 2; both CHOKE 1).
 - `tools/fm1_bench.py --yes`: the cases CBEFM, HHEFM, CYEFM and their +fx (8 tracks of the model).
 
 ### Fixes after 0.16.0 (check on the FM-1)
@@ -529,6 +531,39 @@ Report what you saw first; we'll go through it together.
   for REC, ALGORITHM right, FX + G#3 (`FX R1/16`) and FX + A3 (`FX MUTE T3`) with buttons, and FX + KNOB 1 with a
   knob (`FX FILTER`). OCT+: the pad starts / stops, its drum silent; the buttons arm, step the track, hold REPEAT and
   the mute while held; HOME held (the menu) ends a held REPEAT, which stays off after the menu.
+
+### PRESETS (check on the FM-1)
+
+The screens: `build/ui_shots/presets/`. For now every voice has one preset, its default sound named as the voice, in
+its bank (MACHINEDRUM: KTRX .. CYEFM, CLASSIC: K808 .. CLAVE, MODERN: KBOOM .. SMPL); the real banks come later.
+
+- PRESETS (the encoder that did nothing): each detent loads the next / previous preset onto the selected track at once
+  (MODEL and the 8 SOUND knobs; FILTER, LFOs, LEVEL, PAN, NOTE, CHOKE and the steps stay), through every bank in order
+  and round. A popup over the graph (`01_popup.png`, `03_popup_bank_edge.png`, on TRACKS `04_popup_tracks.png`): the
+  bank in amber, the track, the preset large, two before and two after it; it goes ~1.5 s after the last detent. A
+  fresh track, or a track of an older project, starts at its voice's first preset.
+- Turn PRESETS fast while a dense pattern plays: the voice changes every detent, no click beyond a MODEL change's;
+  after STOP nothing keeps sounding.
+- ACID on two tracks: on a third track the popup skips ACID's preset (`05_popup_acid_capped.png`), the list refuses
+  it (`ACID: 2 TRACKS MAX`).
+- EDIT held ~0.4 s: the PRESETS list (`06_list.png`) over the page you were on (an EDIT tap still opens SOUND / its
+  next page; in step record EDIT stays the rest, held too). KNOB 1 or PRESETS the cursor, KNOB 2 or SELECT the bank
+  (tabs MD CLASSIC MODERN USER), ALGORITHM or a white key the track (the keys play), the track's own preset marked
+  amber. OCT+ LOAD. SAVE: the track's voice on a factory preset into the first free USER slot (`SAVED K909 01`), on an
+  empty USER slot there, on a used one after a second SAVE (`SAVE AGAIN: OVERWRITE`, `08_list_save_over_armed.png`).
+  OCT- twice deletes a USER preset (`OCT- AGAIN: DELETE`, `09_list_delete_armed.png`). EDIT or HOME back.
+- The SOUND pages show `PRESET K909` above the voice, with an amber `*` once a SOUND knob moved
+  (`12_sound_edited.png`); TRACKS' footer `K909*` (`13_tracks_preset.png`). A MODEL change: the new voice's first
+  preset, no `*`. A project keeps each track's preset and `*`; an older project loads with `PRESET -`, its sound as
+  before.
+- SAVE while playing: in the list at once (`.. : FLASH AT STOP`), in flash at STOP: STOP, power off and on: it is
+  there. SAVE while playing and power off before STOP: only that preset is gone. SAVE stopped, power cycle: there.
+  MIDI LEARN's CCs still work after preset saves and a power cycle.
+- Delete a USER preset a track was loaded from: the track keeps its sound and shows `PRESET -`.
+- No default choke: the power-on kit's HATC / HATO (tracks 4, 5) no longer cut each other; CHOKE 1 on both (EDIT, the
+  last SOUND page) and they do. A MODEL change or a preset load never changes CHOKE; an older project keeps its stored
+  CHOKE (its hats still choke).
+- A project saved now cannot be loaded by 0.20.0.
 
 ### BENCH: the performance cases on the FM-1
 

@@ -20,6 +20,12 @@ static void draw_name(void);
 static void panel_setup(void);
 static void learn_save(void);              /* project.c: MIDI LEARN's map to flash (deferred while playing) */
 static void ml_line(char *b);              /* ui_learn.c: MIDI LEARN's footer line */
+static int pp_on(void);                    /* ui_preset.c: the PRESETS popup shows */
+static int pl_on(void);                    /* .. the PRESETS list shows */
+static void draw_popup(void);
+static void draw_plist(void);
+static int preset_user_save(uint32_t slot, const track_t *t);   /* project.c: the user presets' flash record */
+static void preset_user_delete(uint32_t slot);
 
 #define ACC C_HI
 #define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)
@@ -85,6 +91,16 @@ static struct {
         uint8_t act;             /* .. or, not 0, an action (midi_learn.c ML_A_*: a CC or a note awaited) */
         uint8_t save;            /* the map changed while playing: saved once stopped (project.c learn_save) */
     } ml;
+    struct {                     /* PRESETS (ui_preset.c): never stored */
+        uint8_t pop, pop_trk;    /* the popup shows, for that track */
+        uint8_t lst;             /* the list shows */
+        uint8_t arm;             /* the list: 1 SAVE over / 2 DELETE armed, on arm_id (the button again acts) */
+        uint8_t e_st;            /* EDIT: 1 pressed (may become a hold), 2 the hold acted / dead until let go */
+        uint8_t e_page, e_home, e_hmode, e_snd, e_lay;   /* the page EDIT's press left (the hold puts it back) */
+        uint16_t pop_id, cur, arm_id;   /* the popup's preset; the list's cursor */
+        uint16_t shown[5];       /* the popup's rows, top to bottom (the preset in the middle) */
+        uint32_t now, pop_t0, arm_t0, e_t0, sig;
+    } pr;
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
@@ -138,6 +154,8 @@ static int step_keys(void)
  * TRACKS, NAME), 2 TRACKS armed (hits and recording, as 0), 3 KEYS */
 static uint8_t seq_mode_now(void)
 {
+    if (pl_on())                                       /* the PRESETS list: the keys play (and pick the track) */
+        return 0u;
     if (keys_mode())
         return 3u;
     return (uint8_t)(step_keys() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);
