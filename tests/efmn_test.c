@@ -65,14 +65,14 @@ static double efmn_ffm_tick(efmn_ffm *f)
     return s;
 }
 
-/* track 0 = model mi with knobs k (-99: the default), one hit at vel playing note nt, frames rendered into x; the
+/* track 0 = model mi with knobs k (-99: the old default), one hit at vel playing note nt, frames rendered into x; the
  * voice's state after its trigger in *st (the float references read the firmware's increments and steps there) */
 static dvoice_t efmn_st;
 static void efmn_hit(uint32_t mi, const int16_t *k, uint32_t vel, int nt, int32_t *x, uint32_t frames)
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
@@ -411,7 +411,7 @@ static void test_efmn_noise(void)
         int16_t k[8];                                   /* (SD: NOIS 0; CP, RS: the defaults) */
         memcpy(k, m == 0u ? F : m == 1u ? DC : DR, sizeof k);
         host_init();
-        drum_set_model(&trk[0], M[m]);
+        old_set_model(&trk[0], M[m]);
         for (i = 0; i < 8u; i++)
             trk[0].p[P_E0 + i] = k[i];
         drum_play(&trk[0], 127, 0);
@@ -424,7 +424,7 @@ static void test_efmn_noise(void)
     }
     efmn_hit(DM_SDEFM, N64, 127, 0, wl, n);             /* SD's NOIS: another hit, other noise */
     host_init();
-    drum_set_model(&trk[0], DM_SDEFM);
+    old_set_model(&trk[0], DM_SDEFM);
     drum_play(&trk[0], 127, 0);
     drum_play(&trk[0], 127, 0);
     render_track(&trk[0], body, n);
@@ -589,10 +589,10 @@ static void test_efmn_rehits(void)
         for (i = 0; i < SECS(0.3); i++)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
         host_init();
-        drum_set_model(&trk[0], DM_CYMB);
+        old_set_model(&trk[0], DM_CYMB);
         drum_play(&trk[0], 127, 0);
         render_track(&trk[0], wl, SECS(0.05));
-        drum_set_model(&trk[0], M[m]);
+        old_set_model(&trk[0], M[m]);
         drum_play(&trk[0], 127, 0);
         render_track(&trk[0], wl, SECS(0.3));
         for (i = 0; i < SECS(0.3); i++)
@@ -668,7 +668,7 @@ static void test_efmn_end_step(void)
                 for (nt = -24; nt <= 0; nt += 24) {
                     uint32_t last = 0;
                     host_init();
-                    drum_set_model(&trk[0], M[m]);
+                    old_set_model(&trk[0], M[m]);
                     trk[0].p[P_E0] = (int16_t)tu;
                     trk[0].p[P_E0 + 1] = D[j];
                     drum_play(&trk[0], 127, nt);

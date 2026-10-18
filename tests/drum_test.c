@@ -40,11 +40,12 @@ static int track_idle(const track_t *t)
     return t->dtail == 0;
 }
 
-/* a default hit of model mi at velocity vel on track 0: rendered into wl, returns the end sample */
+/* a default hit (the old defaults, old_defs.h) of model mi at velocity vel on track 0: rendered into wl, returns the
+ * end sample */
 static uint32_t hit_model(uint32_t mi, uint32_t vel, uint32_t frames)
 {
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     drum_hit(&trk[0], vel);
     render_track(&trk[0], wl, frames);
     return end_of(wl, frames);
@@ -81,7 +82,7 @@ static void test_declick_cut(void)
 {
     int32_t a[CTL], b[CTL], last;
     host_init();
-    drum_set_model(&trk[0], DM_SMPL);
+    old_set_model(&trk[0], DM_SMPL);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], 0, SECS(0.02));
     drum_block_begin();
@@ -98,7 +99,7 @@ static void test_declick_cut(void)
 static void test_two_voices(void)
 {
     host_init();
-    drum_set_model(&trk[0], DM_SMPL);
+    old_set_model(&trk[0], DM_SMPL);
     trk[0].p[P_E5] = 49;                             /* a long crash */
     drum_hit(&trk[0], 127);
     render_track(&trk[0], 0, SECS(0.1));
@@ -110,8 +111,8 @@ static void test_choke(void)
 {
     int32_t last;
     host_init();
-    drum_set_model(&trk[0], DM_SMPL);
-    drum_set_model(&trk[1], DM_SMPL);
+    old_set_model(&trk[0], DM_SMPL);
+    old_set_model(&trk[1], DM_SMPL);
     trk[0].p[P_E5] = 46;
     trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 1;
     drum_hit(&trk[0], 127);
@@ -172,7 +173,7 @@ static void test_solo(void)
 static void test_empty_slot(void)
 {
     host_init();
-    drum_set_model(&trk[0], DM_SMPL);
+    old_set_model(&trk[0], DM_SMPL);
     trk[0].p[P_E4] = SMP_NSETS;                      /* USR1, nothing uploaded */
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.1));
@@ -492,7 +493,7 @@ static void test_kicks(void)
     model_health(DM_KBOOM);
     model_health(DM_KPUNC);
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_E1] = 127;                            /* long, for a precise pitch */
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(1.2));
@@ -518,7 +519,7 @@ static void test_kicks(void)
 static void test_model_change(void)
 {
     host_init();
-    drum_set_model(&trk[0], DM_K808);
+    old_set_model(&trk[0], DM_K808);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], 0, SECS(0.05));
     trk[0].p[P_MODEL] = DM_K909;                     /* the knob turns while it sounds */
@@ -539,7 +540,7 @@ static double snappy_ratio(uint32_t mi)
 {
     double lo, hi;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     trk[0].p[P_E3] = 0;
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.3));
@@ -579,7 +580,7 @@ static void test_snares_claps(void)
     check("808 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S808) > 3);
     check("909 snare: SNAPPY 127 has > 3x the noise of SNAPPY 0", snappy_ratio(DM_S909) > 3);
     host_init();
-    drum_set_model(&trk[0], DM_S808);
+    old_set_model(&trk[0], DM_S808);
     trk[0].p[P_E1] = 0;
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(3));
@@ -604,8 +605,8 @@ static void test_metal(void)
     model_health(DM_HMETL);
     model_health(DM_HNOIS);
     host_init();
-    drum_set_model(&trk[0], DM_HNOIS);
-    drum_set_model(&trk[1], DM_HMETL);
+    old_set_model(&trk[0], DM_HNOIS);
+    old_set_model(&trk[1], DM_HMETL);
     trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 1;      /* (no default choke since the presets: set, as a user does) */
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.05));
@@ -627,7 +628,7 @@ static void test_metal(void)
     check("hats: a closed hat silences the open one within 100 samples",
           !trk[4].v[0].active && abs(wl[100]) <= abs(last) / 100 + 1 && peak_of(wl, 300, SECS(0.01)) == 0);
     host_init();
-    drum_set_model(&trk[0], DM_CYMB);
+    old_set_model(&trk[0], DM_CYMB);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], 0, SECS(0.2));
     drum_hit(&trk[0], 127);
@@ -637,7 +638,7 @@ static void test_metal(void)
 static double late_freq(uint32_t mi, double a, double b)   /* DECAY 127, pitch between a and b s */
 {
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     trk[0].p[P_E1] = 127;
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(b));
@@ -663,13 +664,13 @@ static void test_layer(void)
 {
     double a, b;
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     drum_hit(&trk[0], 127);
     check("layer: LLEVEL 0 starts no layer voice", !trk[0].lv[0].active && !trk[0].lv[1].active);
     render_track(&trk[0], wl, SECS(0.3));
     a = hf_of(wl, 0, SECS(0.3));
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_LLEVEL] = 100;
     trk[0].p[P_LSET] = 0;                            /* PERC */
     trk[0].p[P_LKEY] = 38;                           /* the GM snare sample on top of the kick */
@@ -680,7 +681,7 @@ static void test_layer(void)
     check("layer: adds the sample (more high-frequency energy)", b > 1.5 * a);
     check("layer: ends with the hit, no voice left", track_idle(&trk[0]));
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_LLEVEL] = 100;
     trk[0].p[P_LSET] = SMP_NSETS;                    /* USR1, empty */
     drum_hit(&trk[0], 127);
@@ -698,7 +699,7 @@ static void test_extremes(void)
                 int32_t val = clamp(V[j], d->min, d->max);
                 uint32_t e;
                 host_init();
-                drum_set_model(&trk[0], mi);
+                old_set_model(&trk[0], mi);
                 trk[0].p[P_E0 + k] = (int16_t)val;
                 drum_hit(&trk[0], 127);
                 render_track(&trk[0], wl, SECS(7));
@@ -717,7 +718,7 @@ static void test_stress(void)
     uint32_t i, k, ok = 1;
     host_init();
     for (i = 0; i < NTRK; i++)
-        drum_set_model(&trk[i], i % 2 ? DM_CYMB : DM_TOM);
+        old_set_model(&trk[i], i % 2 ? DM_CYMB : DM_TOM);
     for (k = 0; k < 400; k++) {                      /* two hits per block on every track, 400 blocks */
         for (i = 0; i < NTRK; i++) {
             drum_hit(&trk[i], 127);
@@ -741,7 +742,7 @@ static double kit_cost(uint32_t mi, int layers, int reson)
     host_init();
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        drum_set_model(t, mi);
+        old_set_model(t, mi);
         t->p[P_CHOKE] = (int16_t)(mi == DM_HATC || mi == DM_HATO || mi == DM_HMETL || mi == DM_HNOIS || mi == DM_CHTRX ||
                                   mi == DM_OHTRX || mi == DM_HHEFM);   /* the hats' old default group 1 (the presets
                                                      * plan: no voice has one now): the recorded limits' kits, as measured */
@@ -867,12 +868,12 @@ static void test_drum_transpose(void)
         if (mi == DM_ACID)                           /* ACID plays the note itself, unclamped (acid_test) */
             continue;
         host_init();
-        drum_set_model(&trk[0], mi);
+        old_set_model(&trk[0], mi);
         trk[0].p[P_E0] = 0;
         drum_play(&trk[0], 96, 7);
         render_track(&trk[0], a, SECS(0.5));
         host_init();
-        drum_set_model(&trk[0], mi);
+        old_set_model(&trk[0], mi);
         trk[0].p[P_E0] = 7;
         drum_play(&trk[0], 96, 0);
         render_track(&trk[0], wl, SECS(0.5));
@@ -894,7 +895,7 @@ static void test_layer_transpose(void)
 {
     static int32_t a[SECS(0.5)];
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_E0] = 0;
     trk[0].p[P_LLEVEL] = 100;
     trk[0].p[P_LSET] = 0;
@@ -903,7 +904,7 @@ static void test_layer_transpose(void)
     drum_play(&trk[0], 96, 7);
     render_track(&trk[0], a, SECS(0.5));
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_E0] = 7;
     trk[0].p[P_LLEVEL] = 100;
     trk[0].p[P_LSET] = 0;
@@ -913,14 +914,14 @@ static void test_layer_transpose(void)
     render_track(&trk[0], wl, SECS(0.5));
     check("layer transpose: a step's note moves the layer as LTUNE + 7 (bit-identical)", !memcmp(a, wl, sizeof a));
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_LLEVEL] = 100;
     trk[0].p[P_LSET] = 0;
     trk[0].p[P_LKEY] = 38;
     drum_play(&trk[0], 96, 40);
     render_track(&trk[0], a, SECS(0.5));
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_E0] = 24;
     trk[0].p[P_LLEVEL] = 100;
     trk[0].p[P_LSET] = 0;
@@ -937,8 +938,12 @@ static void test_golden(void)
     char name[32];
     unsigned want;
     uint32_t mi, ok = 1, have[NMODELS], upd = getenv("GOLDEN_UPDATE") != 0;
-    for (mi = 0; mi < NMODELS; mi++) {
-        hit_model(mi, 127, SECS(1));
+    for (mi = 0; mi < NMODELS; mi++) {           /* the live defaults (drum_set_model), not the old ones: the goldens
+                                                  * follow a change of a model's defaults (re-pinned with it) */
+        host_init();
+        drum_set_model(&trk[0], mi);
+        drum_hit(&trk[0], 127);
+        render_track(&trk[0], wl, SECS(1));
         have[mi] = fnv(wl, SECS(1));
     }
     if (upd) {
@@ -989,7 +994,7 @@ static void test_voice_cap(void)
     uint32_t i, k, ok = 1, mx = 0;
     host_init();
     for (i = 0; i < NTRK; i++) {
-        drum_set_model(&trk[i], i % 2 ? DM_CYMB : DM_TOM);
+        old_set_model(&trk[i], i % 2 ? DM_CYMB : DM_TOM);
         trk[i].p[P_LLEVEL] = 100;
         trk[i].p[P_LKEY] = 38;
     }
@@ -1006,7 +1011,7 @@ static void test_voice_cap(void)
     check("voice cap: never more than DRUM_MAXV voices sound at once", ok && mx <= DRUM_MAXV);
     host_init();
     for (i = 0; i < NTRK; i++)
-        drum_set_model(&trk[i], DM_CYMB);
+        old_set_model(&trk[i], DM_CYMB);
     for (i = 0; i < DRUM_MAXV; i++)
         drum_hit(&trk[i % NTRK], 127);
     render_track(&trk[0], 0, CTL);
@@ -1040,12 +1045,12 @@ static void test_silent_sample_keeps_voices(void)
     uint32_t i, before;
     host_init();
     for (i = 0; i < NTRK - 1; i++)
-        drum_set_model(&trk[i], DM_CYMB);
+        old_set_model(&trk[i], DM_CYMB);
     for (i = 0; i < DRUM_MAXV; i++)                  /* the cap is full of sounding cymbals */
         drum_hit(&trk[i % (NTRK - 1)], 127);
     render_mix(0, 0, CTL);
     before = voices_sounding();
-    drum_set_model(&trk[NTRK - 1], DM_SMPL);
+    old_set_model(&trk[NTRK - 1], DM_SMPL);
     trk[NTRK - 1].p[P_E4] = SMP_NSETS;               /* USR1, empty */
     drum_hit(&trk[NTRK - 1], 127);
     trk[NTRK - 1].p[P_E4] = 0;
@@ -1064,7 +1069,7 @@ static void test_stress_seq(void)
         host_init();
         for (i = 0; i < NTRK; i++) {
             track_t *t = &trk[i];
-            drum_set_model(t, mi);
+            old_set_model(t, mi);
             t->p[P_E1] = 127;
             t->p[P_NOTE] = (int16_t)(36 + (i & 3));
             t->p[P_LLEVEL] = i & 1 ? 100 : 0;
@@ -1097,8 +1102,8 @@ static void test_shed(void)
 {
     uint32_t before;
     host_init();
-    drum_set_model(&trk[0], DM_CYMB);
-    drum_set_model(&trk[1], DM_CYMB);
+    old_set_model(&trk[0], DM_CYMB);
+    old_set_model(&trk[1], DM_CYMB);
     drum_hit(&trk[0], 127);                          /* the oldest */
     render_mix(0, 0, CTL);
     drum_hit(&trk[1], 127);
@@ -1124,7 +1129,7 @@ static void test_prio(void)
               str_eq(TP[P_PRIO].names[0], "HIGH") && str_eq(TP[P_PRIO].names[1], "LOW") && TP[P_PRIO].def == 0 &&
               trk[0].p[P_PRIO] == 0 && trk[NTRK - 1].p[P_PRIO] == 0);
     for (i = 0; i < NTRK; i++)
-        drum_set_model(&trk[i], DM_CYMB);
+        old_set_model(&trk[i], DM_CYMB);
     trk[6].p[P_PRIO] = 1;                            /* track 7 LOW */
     for (i = 0; i < 6u; i++) {                       /* tracks 1..6 HIGH, track 1 the oldest */
         drum_hit(&trk[i], 127);
@@ -1140,7 +1145,7 @@ static void test_prio(void)
     check("PRIO: ... then the oldest HIGH voice", voices_sounding() == DRUM_MAXV && !trk[0].v[0].active);
     host_init();
     for (i = 0; i < 3u; i++)
-        drum_set_model(&trk[i], DM_CYMB);
+        old_set_model(&trk[i], DM_CYMB);
     trk[2].p[P_PRIO] = 1;
     drum_hit(&trk[0], 127);                          /* HIGH, the oldest */
     render_mix(0, 0, CTL);
@@ -1315,7 +1320,7 @@ static void test_heavy_cap(void)
     uint32_t i;
     host_init();
     for (i = 0; i < NTRK; i++) {
-        drum_set_model(&trk[i], DM_KBOOM);
+        old_set_model(&trk[i], DM_KBOOM);
         trk[i].p[P_E1] = 127;
         drum_hit(&trk[i], 127);
         render_mix(0, 0, CTL);
@@ -1337,7 +1342,7 @@ static void test_m1c_ends(void)
                     int32_t val = j ? d->max : d->min;
                     uint32_t e;
                     host_init();
-                    drum_set_model(&trk[0], M[a]);
+                    old_set_model(&trk[0], M[a]);
                     trk[0].p[P_E0 + k] = (int16_t)val;
                     drum_hit(&trk[0], vv ? 127u : 1u);
                     render_track(&trk[0], wl, SECS(6.5));
@@ -1356,7 +1361,7 @@ static double voice_end_s(uint32_t m, const int16_t knobs[4], uint32_t vel)
 {
     uint32_t f, k;
     host_init();
-    drum_set_model(&trk[0], m);
+    old_set_model(&trk[0], m);
     for (k = 0; k < 4; k++)
         trk[0].p[P_E0 + k] = knobs[k];
     drum_hit(&trk[0], vel);
@@ -1396,11 +1401,11 @@ static void test_m1c_swap(void)
 {
     uint32_t q0 = dm_qover;
     host_init();
-    drum_set_model(&trk[0], DM_KBOOM);
+    old_set_model(&trk[0], DM_KBOOM);
     trk[0].p[P_E1] = 127;
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.2));
-    drum_set_model(&trk[0], DM_SSNAP);               /* as model_step does (the IRQ off on the device) */
+    old_set_model(&trk[0], DM_SSNAP);               /* as model_step does (the IRQ off on the device) */
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(1));
     check("M1-C: model swap while a voice rings: the new model starts clean (bounded, no overflow)",
@@ -1429,7 +1434,7 @@ static void test_boot_cost(void)
     return;
 #endif
     i0 = instr_now();
-    host_init();                                     /* drum_tracks_init and the power-on state */
+    host_init_live();                                /* drum_tracks_init and the power-on state (the firmware's) */
     init = instr_now() - i0;
     render_mix(0, 0, SECS(0.5));
     i0 = instr_now();
@@ -1916,8 +1921,8 @@ static comp_meas_t comp_scene(int src, int duck, int src_muted, int src_level0, 
     comp_meas_t m = {0, 0, 0, 0};
     uint32_t f, i;
     host_init();
-    drum_set_model(&trk[0], DM_K909);
-    drum_set_model(&trk[1], DM_CYMB);
+    old_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[1], DM_CYMB);
     trk[1].p[P_REV] = 127;
     song.g[G_CSRC] = (int16_t)src_before;
     song.g[G_CGHOST] = scene_ghost;
@@ -2031,7 +2036,7 @@ static void test_comp_ghost_switch(void)
     for (r = 0; r < 2u; r++) {
         int32_t *o = r ? out : ref;
         host_init();
-        drum_set_model(&trk[0], DM_K909);
+        old_set_model(&trk[0], DM_K909);
         song.g[G_CSRC] = 1;
         drum_hit(&trk[0], 127);
         for (f = 0; f < SECS(0.12); f += CTL) {
@@ -2122,7 +2127,7 @@ static int32_t comp_mute_step(int src, int change, int mute_first)
     int32_t worst = 0, prev;
     uint32_t i, n = SECS(0.03), m = SECS(0.02);
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_LEVEL] = 127;
     song.g[G_CSRC] = (int16_t)src;
     trk[0].p[P_MUTE] = (int16_t)mute_first;
@@ -2308,7 +2313,7 @@ static void test_lfo_absent_dest(void)
 {
     int16_t *q;
     host_init();
-    drum_set_model(&trk[0], DM_C808);                /* no E4 */
+    old_set_model(&trk[0], DM_C808);                /* no E4 */
     q = lfo_q(0, 0);
     q[LF_DEST] = 5;                                  /* E4 */
     q[LF_DEPTH] = 64;
@@ -2322,7 +2327,7 @@ static void test_lfo_absent_dest(void)
             lfo_restore();
         }
         check("LFO: a DEST the engine lacks writes nothing", !wrote);
-        drum_set_model(&trk[0], DM_K909);            /* has E4 (SWPT) */
+        old_set_model(&trk[0], DM_K909);            /* has E4 (SWPT) */
         for (k = 0; k < 200u; k++)
             diff |= lfo_probe(0, P_E4) != trk[0].p[P_E4];
         check("LFO: the same setting acts again with an engine that has the knob", diff);
@@ -2435,7 +2440,7 @@ static void test_lfo_sound(void)
     uint32_t f, w, quiet = 0, loud = 0;
     int16_t *q;
     host_init();
-    drum_set_model(&trk[0], DM_CYMB);
+    old_set_model(&trk[0], DM_CYMB);
     trk[0].p[P_E1] = 127;                            /* long */
     q = lfo_q(0, 0);
     q[LF_WAVE] = LW_SQUARE;
@@ -2642,7 +2647,7 @@ static void test_reson_params(void)
 static void rs_setup(uint32_t model, int32_t tune)
 {
     host_init();
-    drum_set_model(&trk[0], DM_RIM);
+    old_set_model(&trk[0], DM_RIM);
     trk[0].p[P_RMODEL] = (int16_t)model;
     trk[0].p[P_RTUNE] = (int16_t)tune;
     trk[0].p[P_RDECAY] = 110;
@@ -2853,7 +2858,7 @@ static void test_cowb_tune(void)
     for (i = 0; i < 3u; i++) {
         double r = pow(2.0, TUNES[i] / 12.0), lo, hi, off;
         host_init();
-        drum_set_model(&trk[0], DM_COWB);
+        old_set_model(&trk[0], DM_COWB);
         trk[0].p[P_E0] = (int16_t)TUNES[i];
         trk[0].p[P_E1] = 127;
         drum_hit(&trk[0], 127);
@@ -2911,7 +2916,7 @@ static void test_reson_sustain_bounded(void)
     uint32_t k;
     int32_t pk, after;
     rs_setup(RS_STRNG, 48);
-    drum_set_model(&trk[0], DM_HNOIS);
+    old_set_model(&trk[0], DM_HNOIS);
     trk[0].p[P_RMODEL] = RS_STRNG;
     trk[0].p[P_RDECAY] = 127;
     trk[0].p[P_DIST] = 127;
@@ -3024,7 +3029,7 @@ static void test_reson_ring_ends(void)
                 for (c = 0; c < 2u; c++)
                     for (d = 0; d < 2u; d++) {
                         host_init();
-                        drum_set_model(&trk[0], DM_K909);
+                        old_set_model(&trk[0], DM_K909);
                         trk[0].p[P_RMODEL] = (int16_t)m;
                         trk[0].p[P_RTUNE] = NOTE[a];
                         trk[0].p[P_RTONE] = END[b];
@@ -3046,7 +3051,7 @@ static void test_reson_ring_ends(void)
     printf("     RESON ring end at DECAY max: %u of %u settings stuck after 20 s\n", stuck, runs);
     check("RESON: every ring ends after the input stops (DECAY max, any pitch / TONE / STRCT / POS)", stuck == 0);
     rs_setup(RS_STRNG, 48);                           /* a mute 20 s after the hit: nothing left to thump */
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     trk[0].p[P_RSTRCT] = 127;
     trk[0].p[P_RDECAY] = 127;
     drum_hit(&trk[0], 127);
@@ -3067,7 +3072,7 @@ static void test_reson_cut_no_reexcite(void)
         int32_t pk;
         uint32_t i, zc = 0;
         host_init();
-        drum_set_model(&trk[0], MODEL[j]);
+        old_set_model(&trk[0], MODEL[j]);
         trk[0].p[P_RMODEL] = RS_STRNG;
         trk[0].p[P_RTUNE] = 36;
         trk[0].p[P_RDECAY] = 127;

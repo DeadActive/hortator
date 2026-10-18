@@ -81,7 +81,7 @@ static void kit(void)
     static const uint32_t MODEL[3] = {DM_K808, DM_S808, DM_HATC};
     uint32_t i, k;
     for (i = 0; i < 3u; i++) {
-        drum_set_model(&trk[i], MODEL[i]);
+        old_set_model(&trk[i], MODEL[i]);
         for (k = 0; k < 16u; k++) {
             trk[i].step[k].on = PAT[i][k] != '.';
             trk[i].step[k].acc = PAT[i][k] == 'X';

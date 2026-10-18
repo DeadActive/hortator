@@ -97,7 +97,7 @@ static void test_sound_pages(void)
     uint32_t n, k;
     const page_t *pg;
     ui_host_init();
-    drum_set_model(&trk[0], DM_C808);
+    old_set_model(&trk[0], DM_C808);
     edit_next();
     pg = cur_page();
     n = fam_pages(FAM_SND, &k);
@@ -118,7 +118,7 @@ static void test_sound_pages(void)
     edit_next();
     n = fam_pages(FAM_SND, &k);
     check("EDIT again: back to page 1", k == 1u);
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     edit_next();
     pg = cur_page();
     check("K909 page 2: CLICK SWPT DRIVE LVL (its extras before LVL)",
@@ -591,21 +591,21 @@ static void test_acid_cap(void)
 {
     uint32_t k, n;
     ui_host_init();
-    drum_set_model(&trk[0], DM_ACID);
-    drum_set_model(&trk[1], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[1], DM_ACID);
     song.sel = 2;
-    drum_set_model(&trk[2], DM_FM);
+    old_set_model(&trk[2], DM_FM);
     model_step(1);
     check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the next model (KTRX)",
           trk[2].p[P_MODEL] == DM_KTRX && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
     model_step(-1);
     check("ACID cap: back down, past ACID (full) to FM", trk[2].p[P_MODEL] == DM_FM);
-    drum_set_model(&trk[1], DM_K808);                /* a place frees */
+    old_set_model(&trk[1], DM_K808);                /* a place frees */
     model_step(1);
     check("ACID cap: once a place frees, the 3rd track gets ACID", trk[2].p[P_MODEL] == DM_ACID);
     ui_host_init();
     for (k = 0; k < 4u; k++)
-        drum_set_model(&trk[k], DM_ACID);
+        old_set_model(&trk[k], DM_ACID);
     project_save(0);
     project_load(0);
     for (k = 0, n = 0; k < NTRK; k++)
@@ -642,7 +642,7 @@ static void test_comp_keys(void)
     ui_frame();
     check("COMP: key 2 again: DUCK off", trk[1].p[P_DUCK] == 0 && !led_lit(14u + KEY_TRK_KEY[1]));
     trk[1].p[P_DUCK] = trk[3].p[P_DUCK] = trk[4].p[P_DUCK] = 1;
-    drum_set_model(&trk[1], DM_HATO);
+    old_set_model(&trk[1], DM_HATO);
     trk[0].step[0].on = trk[0].step[4].on = trk[0].step[8].on = trk[0].step[12].on = 1;
     trk[1].step[2].on = trk[1].step[6].on = trk[1].step[10].on = trk[1].step[14].on = 1;
     transport_req = 1;
@@ -665,7 +665,7 @@ static void test_tools_all(void)
 {
     uint32_t k;
     ui_host_init();
-    drum_set_model(&trk[2], DM_CONGA);
+    old_set_model(&trk[2], DM_CONGA);
     trk[2].p[P_E0] = 7;
     trk[2].p[P_LEVEL] = 90;
     trk[2].p[P_DIST] = 50;
@@ -2180,7 +2180,7 @@ static void test_screens(void)
     release_all();
     ui_frame();
     fm1_irq_off();
-    drum_set_model(TSEL, DM_KBOOM);
+    old_set_model(TSEL, DM_KBOOM);
     fm1_irq_on();
     for (k = 0; k < NPAGES && (cur_page() != &PAGES[0] || ui.home); k++) {   /* SOUND 1/2: its knobs */
         press(B_EDIT);
@@ -2347,7 +2347,7 @@ static void test_seq_screens(void)
 static void test_project_roundtrip(void)
 {
     ui_host_init();
-    drum_set_model(&trk[2], DM_CONGA);
+    old_set_model(&trk[2], DM_CONGA);
     trk[2].p[P_E0] = -5;
     trk[2].p[P_LLEVEL] = 77;
     trk[2].step[7].on = trk[2].step[7].acc = 1;
@@ -3497,7 +3497,7 @@ static void test_phys_screens(void)
 {
     uint32_t k;
     ui_host_init();
-    drum_set_model(TSEL, DM_MEMB);
+    old_set_model(TSEL, DM_MEMB);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     ui.force = 1;
@@ -3788,7 +3788,7 @@ static void test_fm_graph_clear(void)
 {
     uint32_t plain, labels;
     ui_host_init();
-    drum_set_model(TSEL, DM_FM);
+    old_set_model(TSEL, DM_FM);
     for (plain = 0; plain < NPAGES && (ui.home || cur_page()->fam != FAM_SND); plain++)
         tap(B_EDIT);
     ui.force = 1;
@@ -3819,7 +3819,7 @@ static void test_fm_screens(void)
     uint32_t k;
     int16_t *vp;
     ui_host_init();
-    drum_set_model(TSEL, DM_FM);
+    old_set_model(TSEL, DM_FM);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     ui.force = 1;
@@ -3846,7 +3846,7 @@ static void test_ktrx_screens(void)
     uint32_t k, flat, swept, plain, labels;
     int16_t *vp;
     ui_host_init();
-    drum_set_model(TSEL, DM_KTRX);
+    old_set_model(TSEL, DM_KTRX);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     TSEL->p[P_E3] = 96;                              /* SDEC 96: a sweep the graph's 300 ms shows */
@@ -3902,7 +3902,7 @@ static void test_trx_drum_screens(void)
     for (i = 0; i < 2u; i++) {
         char name[48];
         ui_host_init();
-        drum_set_model(TSEL, S[i].m);
+        old_set_model(TSEL, S[i].m);
         for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
             tap(B_EDIT);
         ui.force = 1;
@@ -3929,7 +3929,7 @@ static void test_trxn_screens(void)
     int16_t *vp;
     for (i = 0; i < 2u; i++) {
         ui_host_init();
-        drum_set_model(TSEL, M[i].m);
+        old_set_model(TSEL, M[i].m);
         for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
             tap(B_EDIT);
         ui.force = 1;
@@ -3960,7 +3960,7 @@ static void test_efmn_screens(void)
     int16_t *vp;
     for (i = 0; i < 3u; i++) {
         ui_host_init();
-        drum_set_model(TSEL, M[i].m);
+        old_set_model(TSEL, M[i].m);
         for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
             tap(B_EDIT);
         ui.force = 1;
@@ -4034,7 +4034,7 @@ static void test_keys_acid_mono(void)
     track_t *t = &trk[0];
     uint32_t age, k;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     tap(B_SCL);
     keys(1u << 7);                                   /* C4 */
     ui_frame();
@@ -4065,8 +4065,8 @@ static void test_keys_acid_mono(void)
 static void test_keys_release_anywhere(void)
 {
     ui_host_init();
-    drum_set_model(&trk[0], DM_ACID);
-    drum_set_model(&trk[1], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[1], DM_ACID);
     tap(B_SCL);
     keys(1u << 7);                                   /* C4 on track 1 */
     ui_frame();
@@ -4110,7 +4110,7 @@ static void test_keys_owners(void)
     uint32_t a;
     int16_t duck;
     ui_host_init();
-    drum_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
     tap(B_SCL);
     press(B_FX);
     ui_frame();
@@ -4172,7 +4172,7 @@ static void test_keys_live_rec(void)
 {
     track_t *t = &trk[0];
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     tap(B_SCL);                                      /* KEYS, HOME */
     song.rec = 1u;                                   /* track 1 armed (as TRACKS' REC tap) */
@@ -4207,7 +4207,7 @@ static void test_keys_live_rec_wrap(void)
     track_t *t = &trk[0];
     uint32_t k, age;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 4;
     tap(B_SCL);
@@ -4239,7 +4239,7 @@ static void test_keys_live_rec_mid_block(void)
     track_t *t = &trk[0];
     uint32_t k, half;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     tap(B_SCL);
     song.rec = 1u;
@@ -4270,7 +4270,7 @@ static void test_keys_live_rec_long_hold(void)
     track_t *t = &trk[0];
     uint32_t k, ok = 1;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 4;
     tap(B_SCL);
@@ -4291,7 +4291,7 @@ static void test_keys_live_rec_long_hold(void)
     transport_req = 2;
     ui_frame();
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 4;
     tap(B_SCL);
@@ -4322,7 +4322,7 @@ static void test_keys_live_rec_tie_clean(void)
     track_t *t = &trk[0];
     step_t *s = &t->step[3];
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     s->on = 1;
     s->acc = 1;
@@ -4374,7 +4374,7 @@ static void test_step_key_note(void)
     track_t *t;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     open_step_page();
     grid_hold(WHITE[0], 0);
@@ -4410,7 +4410,7 @@ static void test_step_key_note_drum(void)
         ui_host_init();
         t = TSEL;
         if (pass)
-            drum_set_model(t, DM_ACID);
+            old_set_model(t, DM_ACID);
         memset(t->step, 0, sizeof t->step);
         tap(B_SCL);                                  /* KEYS: D4 played */
         keys(1u << 9);
@@ -4479,7 +4479,7 @@ static void test_rec_hit_drum_note(void)
 static void srec_open(void)                          /* ACID on track 1, KEYS, STEP, stopped; a REC tap: step record */
 {
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     memset(TSEL->step, 0, sizeof TSEL->step);
     tap(B_SCL);
     seq_open("STEP");
@@ -4690,7 +4690,7 @@ static void test_roll_draw(void)
 {
     int32_t x, k, yc, yd, ye, yg, xx, yy, ok = 1, amb = 0, rest = 0, lab = 0;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     seq_open("STEP");
     ui.force = 1;
@@ -4730,7 +4730,7 @@ static void test_roll_follow(void)
     track_t *t;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->step[0].on = t->step[1].on = 1;
     t->step[0].nt = 30;                              /* F#6, A#6 */
@@ -4778,7 +4778,7 @@ static void test_roll_view_most(void)
     track_t *t;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 11);
     roll_open(t);
     check("roll view: a line wider than 24 rows: the window holding the most notes (C4 up: 6; C2 up 2, D4 up 5)",
@@ -4803,7 +4803,7 @@ static void test_roll_view_low_note(void)
     int32_t yy, edge = 0;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 8);
     roll_open(t);
     for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
@@ -4820,7 +4820,7 @@ static void test_roll_view_srec(void)
     uint32_t lo0;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 8);
     tap(B_SCL);
     roll_open(t);
@@ -4855,7 +4855,7 @@ static void test_roll_view_key_out(void)
     int32_t ybot = PR_Y0 + (PR_ROWS - 1) * PR_RH;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     acid_line(t);
     tap(B_SCL);
     roll_open(t);
@@ -4886,7 +4886,7 @@ static void test_roll_view_key_out(void)
 static void test_roll_view_idle(void)
 {
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     roll_open(TSEL);
     ui_frame();
@@ -4906,7 +4906,7 @@ static void test_roll_label_slide_edges(void)
     int32_t xx, yy, lit0 = 0, whole = 0, amb = 0, yc;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 16);
     t->step[15].slide = 1;                           /* step 16 slides into step 1 (the wrap) */
     roll_open(t);
@@ -4960,7 +4960,7 @@ static void test_roll_cursor_playhead(void)
 {
     int32_t x;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     tap(B_SCL);
     seq_open("STEP");
@@ -5068,7 +5068,7 @@ static void test_acid_edit_graph(void)
     uint32_t k, flat, peak, shortd, longd;
     int32_t x40, x100;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     TSEL->p[P_E0 + 4] = 0;                           /* ENVMD 0: no reach line */
@@ -5102,7 +5102,7 @@ static void test_roll_frame_cost(void)
     uint64_t i0 = 0, worst = 0, c;
     uint32_t i;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     seq_open("STEP");
     transport_req = 1;
@@ -5143,7 +5143,7 @@ static void test_roll_held_prob(void)
     int32_t y;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     for (k = 0; k < 16u; k += 2u) {
         t->step[k].on = 1;
@@ -5178,7 +5178,7 @@ static void test_rec_hit_on_tie(void)
 {
     track_t *t = &trk[0];
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->step[3].tie = 1;
     t->step[3].nt = 7;
@@ -5201,7 +5201,7 @@ static void test_keys_live_rec_len_cut(void)
     track_t *t = &trk[0];
     uint32_t k, ok = 1;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 8;
     for (k = 0; k < 4u; k++) {
@@ -5312,7 +5312,7 @@ static void test_keys_seq_takeover(void)
     track_t *t = &trk[0];
     uint32_t age;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->step[4].on = 1;                               /* one ON step (5: G4), rests elsewhere */
     t->step[4].nt = 7;
@@ -5345,7 +5345,7 @@ static void test_acid_screens(void)
     uint32_t k;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     acid_line(t);
     t->step[6].on = 1;
     t->step[6].nt = -5;
@@ -5450,12 +5450,12 @@ static void test_prio_sound_list(void)
     uint32_t m, n, ok = 1;
     ui_host_init();
     for (m = 0; m < NMODELS; m++) {
-        drum_set_model(TSEL, m);
+        old_set_model(TSEL, m);
         n = snd_list(TSEL, ids);
         ok &= n <= 16u && ids[n - 1u] == P_PRIO && ids[n - 2u] == P_CHOKE;
     }
     check("PRIO: every model's SOUND list ends CHOKE, PRIO", ok);
-    drum_set_model(TSEL, DM_CYMB);
+    old_set_model(TSEL, DM_CYMB);
     n = snd_list(TSEL, ids);
     ui.home = 0;                                     /* the SOUND page with PRIO */
     ui.page = (uint8_t)(page_first(FAM_SND) + (n - 1u) / 4u);

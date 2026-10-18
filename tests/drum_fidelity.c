@@ -46,14 +46,16 @@ static int model_of(const char *name)
     return -1;
 }
 
-/* our take tk of grid render (m, g, v), model mi: another hit count, so other noise seeds and start phases */
+/* our take tk of grid render (m, g, v), model mi: another hit count, so other noise seeds and start phases; knobs 1..4
+ * from the grid (REF_DEF at its middle), knobs 5..8 at the old defaults (tests/old_defs.h), whatever the model's
+ * defaults are now (owner's decision: the fidelity measures what it measured) */
 static void render_ours(int m, int mi, int g, int v, uint32_t tk, dmm_t *out, int *bounded)
 {
     uint32_t i;
     int k;
     host_init();
     dvage += tk * 7919u;
-    drum_set_model(&trk[0], (uint32_t)mi);
+    old_set_model(&trk[0], (uint32_t)mi);
     for (k = 0; k < 4; k++)
         trk[0].p[P_E0 + k] = (int16_t)ref_knob(m, g, k);
     drum_hit(&trk[0], (uint32_t)REF_VEL[v]);
@@ -84,9 +86,10 @@ int main(int argc, char **argv)
             continue;
         }
         built++;
-        for (k = 0; k < 4; k++)
-            defs &= DMODELS[mi].edit[k].def == REF_DEF[m][k];
-        snprintf(what, sizeof what, "fidelity: %s knob defaults match tests/drum_ref_grid.h", REF_NAME[m]);
+        for (k = 0; k < 4; k++)                          /* the grid's middle = the knobs the reference was taken at */
+            defs &= mi < OLD_NMODELS && OLD_DEF[mi][k] == REF_DEF[m][k];
+        snprintf(what, sizeof what, "fidelity: %s grid at the old knob defaults (tests/drum_ref_grid.h = tests/old_defs.h)",
+                 REF_NAME[m]);
         check(what, defs);
         for (g = 0; g < REF_NGRID; g++)
             for (v = 0; v < 2; v++) {

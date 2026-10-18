@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE */
 /* The M1-C fidelity grid, shared by tests/drum_ref.cc (the reference renders) and tests/drum_fidelity.c
- * (ours): per model its base MIDI note and knob defaults (= its DMODELS edit[] defaults, checked by
- * drum_fidelity.c), and the grid TUNE / DECAY / TONE / CHAR in {min, default, max}, velocity 127 / 64. */
+ * (ours): per model its base MIDI note and knob defaults (the DMODELS edit[] defaults up to drum 0.20.0
+ * = tests/old_defs.h, checked by drum_fidelity.c), and the grid TUNE / DECAY / TONE / CHAR in {min, default, max},
+ * velocity 127 / 64. */
 #include <math.h>
 #define REF_NMODELS 6
 #define REF_SECONDS 1.5
