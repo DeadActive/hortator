@@ -124,6 +124,18 @@ typedef struct {                        /* RSEFM (dm_efmn.c) */
     uint32_t pc[2], inc[2], dev[2], e[2], d[2];
     int32_t n[2], z[2], g, hs;
 } efmrs_t;
+typedef struct {                        /* CBEFM (dm_efmm.c) */
+    uint32_t pc[2], pm[2], inc[2], minc[2], ea, es, ei, da, ds, di;
+    int32_t y[2], bq, sn, sk, lvl;
+} cbefm_t;
+typedef struct {                        /* HHEFM (dm_efmm.c) */
+    uint32_t pc, pm, inc, minc, ea, ei, da, di, tp, tinc;
+    int32_t bq, dep, h, up, l, g, gs, lvl;
+} hhefm_t;
+typedef struct {                        /* CYEFM (dm_efmm.c) */
+    uint32_t pc[4], pm[4], wc[4], wm[4], ea, da, ih, di;
+    int32_t yp[4], bq, gk, s1, s2, lvl;
+} cyefm_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
@@ -144,4 +156,7 @@ typedef union {
     bdefm_t bdefm;
     efmn_t en;
     efmrs_t er;
+    cbefm_t cbe;
+    hhefm_t hhe;
+    cyefm_t cye;
 } dm_state_t;

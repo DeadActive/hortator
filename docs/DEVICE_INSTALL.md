@@ -468,6 +468,25 @@ Report what you saw first; we'll go through it together.
   100 90 16 100 0; cpefm_tone -12 50 32 40 0 64 64 0 (notes); rsefm_default 0 64 64 0 64 64 64 64; rsefm_rim 0 40 20
   16 0 64 64 64 (notes); rsefm_snare -2 50 100 32 127 40 80 127.
 - `tools/fm1_bench.py --yes`: the cases SDEFM, CPEFM, RSEFM and their +fx (8 tracks of the model).
+### CBEFM, HHEFM, CYEFM (check on the FM-1)
+
+- MODEL CBEFM, HHEFM, CYEFM (after B2TRX). CBEFM SOUND 1/4 MODEL TUNE DECAY SNAP, 2/4 FB MOD MFRQ MDEC; HHEFM 1/4
+  MODEL TUNE DECAY TREM, 2/4 TFRQ MOD MFRQ MDEC, 3/4 FB; CYEFM 1/4 MODEL TUNE DECAY FB, 2/4 HPF MOD MFRQ MDEC.
+- By ear against the A/B files (`~/Desktop/hortator-md/efm-cb-ab`, `efm-hh-ab`, `efm-cy-ab`: the emulator, then the
+  float model; the voices here follow the float models): CBEFM's defaults a bright two-tone FM cowbell (410 + 607 Hz);
+  SNAP a sharper attack that drops ~14 dB in its first 40 ms; FB a buzzier, saw-like tone (chaotic noise near 127);
+  MOD / MFRQ / MDEC the FM's brightness, its sidebands' spacing and how long the brightness lasts. HHEFM a buzzy FM hat
+  (the carrier restarts at a random phase every 32 samples); DECAY from a tick to a long open hat; TREM / TFRQ a
+  tremolo from slow swells to a fast flutter; FB first stalls the tone to a 1.4 kHz buzz, then turns to noise from ~40.
+  CYEFM a dense FM cymbal; FB brighter and rougher; HPF thinner (off at 0); MOD 127 a dense, aliased wash; MFRQ the
+  sideband spacing; MDEC how long the brightness lasts (up to seconds).
+- Choke: HHEFM starts in choke group 1 (as HATC): it cuts a ringing HATO / OHTRX and is cut by them.
+- TUNE and a step's note move every frequency by semitones (TUNE 0: the machines' PTCH 64).
+- The demo WAVs (`build/drum_renders/`; knobs in page order): cbefm_default 0 64 0 0 64 64 64; cbefm_snap 0 96 96 0 80
+  64 40; cbefm_fb -5 70 40 40 40 32 80; hhefm_default 0 64 0 64 64 64 64 0; hhefm_trem 0 110 100 100 64 64 64 0;
+  hhefm_fb 0 40 0 64 32 96 64 16; cyefm_default 0 64 0 0 64 64 64; cyefm_bright 0 100 24 64 96 20 100; cyefm_short 3 40
+  8 96 32 127 32; efm_hats_choke (HHEFM on track 1 cut by, and cutting, HATO on track 2).
+- `tools/fm1_bench.py --yes`: the cases CBEFM, HHEFM, CYEFM and their +fx (8 tracks of the model).
 
 ### Fixes after 0.16.0 (check on the FM-1)
 
