@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.20.0 - 2026-10-19
+
 - BDEFM, XTEFM: an FM bass drum and an FM tom measured from a classic digital drum machine's (an emulator's renders,
   knob by knob; only the measured laws, no code or data of it). One voice, two measured sets: two sine operators in
   true FM (the carrier's frequency is modulated), one pitch envelope on both (RAMP: the start pitch x RAMP / 16, back
