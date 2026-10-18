@@ -47,7 +47,7 @@ static int32_t peak(const int32_t *x, uint32_t n)
 static track_t *acid(void)                          /* track 0 as ACID at its defaults, note C4 */
 {
     host_init();
-    drum_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
     return &trk[0];
 }
 static void play(track_t *t, uint32_t vel, int32_t nt, int32_t *out, uint32_t n)   /* a note, the gate open */
@@ -179,7 +179,7 @@ static void test_level(void)                         /* the defaults' peak withi
     play(t, 96, -24, buf, FS / 4);
     pa = peak(buf, FS / 4);
     host_init();
-    drum_set_model(&trk[0], DM_TOM);
+    old_set_model(&trk[0], DM_TOM);
     play(&trk[0], 96, 0, buf, FS / 4);
     pt = peak(buf, FS / 4);
     check("acid: the defaults' level is within +-3 dB of TOM's", pa > pt * 0.708 && pa < pt * 1.413);
@@ -696,7 +696,7 @@ static void test_shed_held_prio(void)
     drum_shed();
     check("acid: a held ACID note on a LOW track still goes after a HIGH drum voice", t->v[0].active && !trk[1].v[0].active);
     t = acid();                                        /* two held notes: track 1 HIGH (older), track 2 LOW */
-    drum_set_model(&trk[1], DM_ACID);
+    old_set_model(&trk[1], DM_ACID);
     trk[1].p[P_PRIO] = 1;
     drum_play(t, 96, 0);
     drum_play(&trk[1], 96, 0);

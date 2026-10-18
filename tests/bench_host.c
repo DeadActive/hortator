@@ -1,5 +1,7 @@
 /* BENCH on the host (firmware/src/bench.c): `bench_host` checks the cases; `bench_host measure` prints each
- * case's cost in host instructions per sample (tools/fm1_bench.py compares it with the FM-1's console run). */
+ * case's cost in host instructions per sample (tools/fm1_bench.py compares it with the FM-1's console run).
+ * The cases are the firmware's (drum_set_model, today's defaults), so the power-on here
+ * is the firmware's too: host_init_live. */
 #include "drum_host.h"                             /* (with firmware/src/bench.c) */
 
 #define SECS(s) ((uint32_t)((s) * FS) / CTL * CTL)
@@ -32,7 +34,7 @@ static double measure(uint32_t c)                    /* host instructions per sa
                                                       * to settle, then 2 s */
 {
     uint64_t i0;
-    host_init();
+    host_init_live();
     bench_setup(c);
     render_mix(0, 0, SECS(0.5));
     i0 = instr_now();
@@ -70,7 +72,7 @@ static void test_runner(void)
 {
     uint32_t ms = 0, c, ok = 1, restart = 0, steps = 0, held0;
     char want[96], nm[32];
-    host_init();
+    host_init_live();
     memset(&bench, 0, sizeof bench);
     nlines = says = 0;
     bench_start(out);
@@ -98,10 +100,10 @@ static void test_runner(void)
     }
     ok &= nlines == BENCH_N + 2u && !strcmp(lines[BENCH_N + 1u], "bench done\r\n");
     ok &= says == BENCH_N + 1u && held_at_setup_ok && bench.mode == BENCH_OFF && bench.phase == BP_OFF;
-    {                                                /* the end: as at power-on (host_init) */
+    {                                                /* the end: as at power-on (host_init_live) */
         int32_t pa, pb;
         uint32_t ha = render_hash(SECS(0.2), &pa);
-        host_init();
+        host_init_live();
         ok &= ha == render_hash(SECS(0.2), &pb);
     }
     check("bench run: start line, every case in order (set up while the ISR holds), done, then the power-on state", ok);
@@ -141,29 +143,29 @@ int main(int argc, char **argv)
             bench_name(BENCH_MORE + w, a);
             okn &= !strcmp(a, WANT[w]);
         }
-        host_init();
+        host_init_live();
         bench_setup(BENCH_MORE + 3u);                /* heavy+sidechain: SRC T1, DUCK on 2..8 */
         okn &= song.g[G_CSRC] == 1 && !trk[0].p[P_DUCK] && trk[7].p[P_DUCK] && trk[3].p[P_DIST];
-        host_init();
+        host_init_live();
         bench_setup(BENCH_MORE + 2u);                /* heavy-fx+comp: no DIST / SLICER / sends, no ducking */
         okn &= song.g[G_CSRC] == 1 && !trk[7].p[P_DUCK] && !trk[3].p[P_DIST] && !trk[3].p[P_REV];
-        host_init();
+        host_init_live();
         bench_setup(BENCH_MORE + 5u);                /* heavy+2acid: tracks 7 and 8 ACID, the rest the heavy kit */
         okn &= trk[6].p[P_MODEL] == DM_ACID && trk[7].p[P_MODEL] == DM_ACID && trk[5].p[P_MODEL] != DM_ACID &&
                trk[6].step[3].tie && !trk[6].step[3].on && trk[7].step[0].nt == -24 && trk[6].step[1].slide;
-        host_init();
+        host_init_live();
         bench_setup(BENCH_MORE);
         okn &= trk[5].p[P_FTYPE] == FT_LP && trk[5].p[P_FRESO] == 60;
         check("bench: the filter, compressor and sidechain cases", okn);
     }
     ok = 1;
-    for (c = 0; c < BENCH_N; c++) {                  /* the FM-1's reset = the host tests' host_init */
+    for (c = 0; c < BENCH_N; c++) {                  /* the FM-1's reset = host_init_live (live defaults) */
         int32_t pa, pb;
         uint32_t ha, hb;
-        host_init();
+        host_init_live();
         bench_setup(c);
         ha = render_hash(SECS(1), &pa);
-        host_init();                                 /* a used machine: the heaviest case played a while */
+        host_init_live();                            /* a used machine: the heaviest case played a while */
         bench_setup(BENCH_PHYS);
         render_mix(0, 0, SECS(0.5));
         bench_reset();

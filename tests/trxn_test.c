@@ -74,12 +74,12 @@ static void bq_fq(const tnbq_t *c, int hp, double *f, double *q)
     (void)a2;
 }
 
-/* track 0 = model mi with knobs k (-99: the default), one hit at vel, frames rendered into wl; the voice's seed */
+/* track 0 = model mi with knobs k (-99: the old default), one hit at vel, frames rendered into wl; the voice's seed */
 static uint32_t hit(uint32_t mi, const int16_t *k, uint32_t vel, uint32_t frames, uint32_t seed)
 {
     uint32_t i, s;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
@@ -540,7 +540,7 @@ static void test_extremes(void)
     for (mi = 0; mi < 2u; mi++)
         for (c = 0; c < 512u; c++) {
             host_init();
-            drum_set_model(&trk[0], M[mi]);
+            old_set_model(&trk[0], M[mi]);
             for (i = 0; i < 8u; i++)
                 trk[0].p[P_E0 + i] = (int16_t)((c >> i & 1u) ? (i ? 127 : 24) : (i ? 0 : -24));
             trk[0].nt = (c >> 8 & 1u) ? 24 : -24;
@@ -570,10 +570,10 @@ static void test_rehits(void)
         for (i = 0; i < SECS(0.3); i++)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
         host_init();
-        drum_set_model(&trk[0], DM_CYMB);
+        old_set_model(&trk[0], DM_CYMB);
         drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.05));
-        drum_set_model(&trk[0], M[mi]);
+        old_set_model(&trk[0], M[mi]);
         drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.3));
         for (i = 0; i < SECS(0.3); i++)

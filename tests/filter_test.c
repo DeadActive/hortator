@@ -118,7 +118,7 @@ static double hf_energy(const int32_t *x, uint32_t a, uint32_t b)
 static void hit_render(int env, int dec, uint32_t vel, uint32_t frames)
 {
     host_init();
-    drum_set_model(&trk[0], DM_HNOIS);
+    old_set_model(&trk[0], DM_HNOIS);
     trk[0].p[P_E1] = 127;
     flt_set(&trk[0], FT_LP, 50, 20, env, dec);
     drum_hit(&trk[0], vel);
@@ -169,7 +169,7 @@ static void test_tail(void)
 {
     uint32_t rang = 0, blk;
     host_init();
-    drum_set_model(&trk[0], DM_RIM);
+    old_set_model(&trk[0], DM_RIM);
     flt_set(&trk[0], FT_LP, 40, 127, 0, 40);
     drum_hit(&trk[0], 127);
     for (blk = 0; blk < SECS(3) / CTL; blk++) {
@@ -185,7 +185,7 @@ static void test_type_switch(void)
 {
     uint32_t blk, ok = 1, b2;
     host_init();
-    drum_set_model(&trk[0], DM_RIM);
+    old_set_model(&trk[0], DM_RIM);
     flt_set(&trk[0], FT_LP, 40, 127, 0, 40);
     drum_hit(&trk[0], 127);
     render_mix(wl, wr, SECS(0.05));
@@ -210,8 +210,8 @@ static void test_type_switch(void)
 static void test_choke_ring_ends(void)
 {
     host_init();
-    drum_set_model(&trk[0], DM_RIM);
-    drum_set_model(&trk[1], DM_RIM);
+    old_set_model(&trk[0], DM_RIM);
+    old_set_model(&trk[1], DM_RIM);
     trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 2;
     flt_set(&trk[0], FT_BP, 50, 127, 0, 40);
     drum_hit(&trk[0], 127);
@@ -227,7 +227,7 @@ static void test_eight_resonant(void)
     uint32_t i, ok = 1;
     host_init();
     for (i = 0; i < NTRK; i++) {
-        drum_set_model(&trk[i], DM_K909);
+        old_set_model(&trk[i], DM_K909);
         trk[i].p[P_LEVEL] = 127;
         flt_set(&trk[i], FT_HP, 30, 127, 63, 60);
         drum_hit(&trk[i], 127);
@@ -252,7 +252,7 @@ static void test_lfo_fcut(void)
 {
     double a, b;
     host_init();
-    drum_set_model(&trk[0], DM_HNOIS);
+    old_set_model(&trk[0], DM_HNOIS);
     trk[0].p[P_E1] = 127;
     flt_set(&trk[0], FT_LP, 60, 20, 0, 40);
     trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
@@ -288,7 +288,7 @@ static void test_lfo_extremes(void)
     uint32_t k, ok = 1, i;
     for (k = 0; k < 2u; k++) {
         host_init();
-        drum_set_model(&trk[0], DM_HNOIS);
+        old_set_model(&trk[0], DM_HNOIS);
         flt_set(&trk[0], FT_BP, S[k] > 0 ? 127 : 0, 127, S[k] > 0 ? 63 : -64, 127);
         trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
         trk[0].p[P_LFO1 + LF_DEPTH] = (int16_t)(64 * S[k]);
@@ -343,7 +343,7 @@ static void test_hp_kick_no_clicks(void)
     int32_t worst = 0;
     for (ty = FT_BP; ty <= FT_HP; ty++) {
         host_init();
-        drum_set_model(&trk[0], DM_K808);
+        old_set_model(&trk[0], DM_K808);
         trk[0].p[P_E1] = 127;
         flt_set(&trk[0], (int)ty, ty == FT_HP ? 90 : 110, 0, 0, 40);
         drum_hit(&trk[0], 127);

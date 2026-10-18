@@ -63,12 +63,12 @@ static void ref_render(const int16_t *p, double *y, uint32_t n)
     }
 }
 
-/* track 0 = KTRX with knobs k (-99: the default), one hit at vel, frames rendered into wl */
+/* track 0 = KTRX with knobs k (-99: the old default), one hit at vel, frames rendered into wl */
 static void kt_hit(const int16_t *k, uint32_t vel, uint32_t frames)
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], DM_KTRX);
+    old_set_model(&trk[0], DM_KTRX);
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
@@ -312,7 +312,7 @@ static void test_ktrx_level(void)
     kt_hit(DEF, 127, SECS(0.3));
     a = rms(wl, 0, SECS(0.3));
     host_init();
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.3));
     b = rms(wl, 0, SECS(0.3));
@@ -329,7 +329,7 @@ static void test_ktrx_extremes(void)
         for (i = 0; i < 8u; i++)
             k[i] = (int16_t)((c >> i & 1u) ? (i ? 127 : 24) : (i ? 0 : -24));
         host_init();
-        drum_set_model(&trk[0], DM_KTRX);
+        old_set_model(&trk[0], DM_KTRX);
         for (i = 0; i < 8u; i++)
             trk[0].p[P_E0 + i] = k[i];
         trk[0].nt = (c >> 8 & 1u) ? 24 : -24;
@@ -357,10 +357,10 @@ static void test_ktrx_rehits(void)
     for (i = 0; i < SECS(0.3); i++)
         ok &= abs(wl[i]) <= 4 * VOICE_FS;
     host_init();
-    drum_set_model(&trk[0], DM_CYMB);
+    old_set_model(&trk[0], DM_CYMB);
     drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.05));
-    drum_set_model(&trk[0], DM_KTRX);
+    old_set_model(&trk[0], DM_KTRX);
     drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
     render_track(&trk[0], wl, SECS(0.3));
     for (i = 0; i < SECS(0.3); i++)
