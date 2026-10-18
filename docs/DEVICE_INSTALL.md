@@ -434,6 +434,23 @@ Report what you saw first; we'll go through it together.
   and cutting, OHTRX on track 2).
 - `tools/fm1_bench.py --yes`: the cases CBTRX, CHTRX, OHTRX, CYTRX and their +fx (8 tracks of the model).
 
+### BDEFM, XTEFM (check on the FM-1)
+
+- MODEL BDEFM, XTEFM (after B2TRX): SOUND 1/4 MODEL TUNE DECAY RAMP, 2/4 RDEC MOD MFRQ MDEC, 3/4 MFB (XTEFM: CLIC)
+  LVL PAN NOTE.
+- By ear against the A/B files (`~/Desktop/hortator-md/efm-bd-ab`, `efm-xt-ab`: the emulator, then the model):
+  BDEFM's defaults a thump whose pitch rises from 0 Hz to 103 Hz with a bright FM edge; RAMP 16 a steady pitch, above
+  it a drop (RDEC slower); MOD brighter, MFRQ moves the overtones, MDEC keeps them longer; MFB grittier, noise-like
+  from ~40 (the machine's own chaos: the character, not the same noise). XTEFM's defaults a quieter rising tom with
+  grit; MOD 0 a clean tom (exact); CLIC towards 127 a click at the hit. XTEFM's FM (MOD above 0) is an approximation:
+  the machine's FM tom is not understood, the model gives its kind of grit, not its tone. A step's note moves the
+  pitch by semitones.
+- The demo WAVs (`build/drum_renders/bdefm_*.wav`, `xtefm_*`; TUNE DECAY RAMP RDEC MOD MFRQ MDEC MFB / CLIC):
+  bdefm_default 0 64 0 64 64 64 64 0; boom -12 100 48 40 24 16 30 0; zap -5 80 127 30 64 32 40 0; grit 0 70 32 50 80
+  40 50 96. xtefm_default the same defaults; clean_fill 0 90 32 50 0 64 64 64, notes 7 .. -9; grit 3 80 64 40 40 40
+  60 127.
+- `tools/fm1_bench.py --yes`: the cases BDEFM, XTEFM and their +fx (8 tracks of the model).
+
 ### Fixes after 0.16.0 (check on the FM-1)
 
 - Last project: SAVE to slot B (stopped), power off and on: B loads by itself (`LOADED`, stopped; PROJECT's SLOT

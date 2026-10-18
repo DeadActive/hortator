@@ -101,6 +101,11 @@ typedef struct {                        /* CBTRX (dm_trxcb.c) */
     trxcbp_t pk;
     trxmf_t db, da, enh;
 } trxcb_t;
+typedef struct {                        /* BDEFM, XTEFM (dm_bdefm.c) */
+    uint32_t inc0, e_a, d_a, e_r, d_r, e_i, d_i;
+    int32_t rk, i0, mf, fb, m, x1, x2, y1, y2, q1, q2, hx, hy;
+    uint8_t xt;
+} bdefm_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
@@ -118,4 +123,5 @@ typedef union {
     matrx_t ma;
     trxm_t tm;
     trxcb_t cb;
+    bdefm_t bdefm;
 } dm_state_t;

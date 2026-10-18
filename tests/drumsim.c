@@ -669,6 +669,38 @@ static void write_trxp(const char *dir)
     trxp_one(dir, "rstrx_dist.wav", DM_RSTRX, RDIST, "..x...x.x...x..x", NULL);
 }
 
+/* BDEFM / XTEFM demos: one track, 4 bars at 120 BPM (TUNE DECAY RAMP RDEC MOD MFRQ MDEC MFB / CLIC); nt: the steps'
+ * notes (NULL: none) */
+static void bdefm_one(const char *dir, const char *name, uint32_t mi, const int16_t *k, const char *pat, const int8_t *nt)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++) {
+        trk[0].step[i].on = pat[i] == 'x';
+        trk[0].step[i].nt = nt ? nt[i] : 0;
+    }
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_bdefm(const char *dir)
+{
+    static const int16_t BDEF[8] = {0, 64, 0, 64, 64, 64, 64, 0}, BBOOM[8] = {-12, 100, 48, 40, 24, 16, 30, 0};
+    static const int16_t BZAP[8] = {-5, 80, 127, 30, 64, 32, 40, 0}, BGRIT[8] = {0, 70, 32, 50, 80, 40, 50, 96};
+    static const int16_t XDEF[8] = {0, 64, 0, 64, 64, 64, 64, 0}, XCLEAN[8] = {0, 90, 32, 50, 0, 64, 64, 64};
+    static const int16_t XGRIT[8] = {3, 80, 64, 40, 40, 40, 60, 127};
+    static const int8_t FILL[16] = {7, 7, 5, 5, 3, 3, 0, 0, -2, -2, -5, -5, -7, -7, -9, -9};
+    bdefm_one(dir, "bdefm_default.wav", DM_BDEFM, BDEF, "x...x...x...x...", NULL);
+    bdefm_one(dir, "bdefm_boom.wav", DM_BDEFM, BBOOM, "x.........x.....", NULL);
+    bdefm_one(dir, "bdefm_zap.wav", DM_BDEFM, BZAP, "x..x..x...x.x...", NULL);
+    bdefm_one(dir, "bdefm_grit.wav", DM_BDEFM, BGRIT, "x...x...x...x.x.", NULL);
+    bdefm_one(dir, "xtefm_default.wav", DM_XTEFM, XDEF, "x...x...x...x...", NULL);
+    bdefm_one(dir, "xtefm_clean_fill.wav", DM_XTEFM, XCLEAN, "x.x.x.x.x.x.x.x.", FILL);
+    bdefm_one(dir, "xtefm_grit.wav", DM_XTEFM, XGRIT, "x..x..x...x.x...", NULL);
+}
+
 /* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
  * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
 static void acid_kit(int sqr)
@@ -812,5 +844,6 @@ int main(int argc, char **argv)
     write_trxn(dir);
     write_sdtrx_b2trx(dir);
     write_trxp(dir);
+    write_bdefm(dir);
     return 0;
 }

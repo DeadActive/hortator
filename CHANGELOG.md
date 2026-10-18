@@ -5,6 +5,18 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- BDEFM, XTEFM: an FM bass drum and an FM tom measured from a classic digital drum machine's (an emulator's renders,
+  knob by knob; only the measured laws, no code or data of it). One voice, two measured sets: two sine operators in
+  true FM (the carrier's frequency is modulated), one pitch envelope on both (RAMP: the start pitch x RAMP / 16, back
+  to the pitch over RDEC; RAMP 16 flat, below it the pitch rises, from 0 Hz at RAMP 0), the deviation MOD / 16 of the
+  carrier falling over MDEC, the modulator at MFRQ / 16 of the carrier, then the machine's 21 Hz high-pass. BDEFM TUNE
+  DECAY RAMP RDEC, MOD MFRQ MDEC MFB (MFB the modulator's feedback: grit from ~40, noise at 127). XTEFM TUNE DECAY RAMP
+  RDEC, MOD MFRQ MDEC CLIC: the tom's pitch, its 121 Hz high-pass, CLIC the start phase (a click at 127). XTEFM's FM
+  is an approximation (the machine's own FM is not understood; a chaotic modulator gives its kind of grit, not its
+  exact tone); with MOD 0 XTEFM is exact. TUNE 0 is the machine's PTCH 64 (102.6 Hz, 86.1 Hz); the defaults are the
+  measured neutral sounds (RAMP 0: the pitch rises from 0 Hz). DECAY 107..127 is its end (0.58 s, 4 s to -60 dB, as
+  every voice; the machine's goes on to ~1.6 s). Levels as K909, TOM. 1 voice each. After B2TRX in the MODEL list.
+
 ## 0.19.0 - 2026-10-18
 
 - KTRX: a sine kick measured from a classic digital drum machine's (an emulator's renders, knob by knob; only the
