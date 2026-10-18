@@ -5,6 +5,19 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- CBEFM, HHEFM, CYEFM: an FM cowbell, hat and cymbal measured from a classic digital drum machine's FM voices (an
+  emulator's renders, knob by knob; only the measured laws, no code or data of it). CBEFM TUNE DECAY SNAP FB, MOD MFRQ
+  MDEC: two tones 1.4805 apart, each a true-FM pair (the deviation MOD / 32.65 falling over MDEC, the modulator at MFRQ
+  / 16 of its tone), phase feedback on the carriers (FB), SNAP a fast extra decay (4.5 ms) that lowers the rest of the
+  hit; fixed start phases, as the machine's. HHEFM TUNE DECAY TREM TFRQ, MOD MFRQ MDEC FB: one true-FM pair whose
+  carrier jumps to a random phase every 32 samples, then a near-differentiator (the hat's sizzle), FB fed into the
+  carrier's phase accumulator (it stalls the tone, then turns chaotic), a tremolo restarting at each hit; choke group 1
+  (as HATC). CYEFM TUNE DECAY FB HPF, MOD MFRQ MDEC: four PM pairs at 1 / 1.41 / 1.80 / 2.70 x the base, the index (MOD
+  + 7) / 13.5 falling over MDEC (0.28 .. 11 s), phase feedback on the carriers, HPF two one-pole high-passes (431 ..
+  3216 Hz, off at 0), the sidebands past Nyquist aliased as the machine's are; 2 voices. TUNE 0 is each machine's PTCH
+  64 (409.7, 577, 580 Hz); DECAY the family's law (tau 64.6 ms x 2 ^ ((DECAY - 64) / 13.5); 127 fades out from 5.5 s).
+  Levels with COWB, HATC, CYMB. After B2TRX in the MODEL list.
+
 ## 0.19.0 - 2026-10-18
 
 - KTRX: a sine kick measured from a classic digital drum machine's (an emulator's renders, knob by knob; only the

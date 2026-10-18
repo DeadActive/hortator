@@ -694,6 +694,50 @@ static void acid_reso_bar(uint32_t b)
     trk[0].p[P_E3] = (int16_t)(b * 127u / 15u);
 }
 
+/* CBEFM HHEFM CYEFM demos: 4 bars at 120 BPM; track 0 the model (its knobs in its page order); efm_hats_choke: HHEFM
+ * on track 0 and HATO on track 1 (choke group 1) */
+static void efmm_one(const char *dir, const char *name, uint32_t mi, const int16_t *k, const char *pat)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++) {
+        trk[0].step[i].on = pat[i] == 'x' || pat[i] == 'X';
+        trk[0].step[i].acc = pat[i] == 'X';
+    }
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_efmmetal(const char *dir)
+{
+    static const int16_t CB[8] = {0, 64, 0, 0, 64, 64, 64, 0}, CBS[8] = {0, 96, 96, 0, 80, 64, 40, 0},
+                         CBF[8] = {-5, 70, 40, 40, 40, 32, 80, 0};
+    static const int16_t HH[8] = {0, 64, 0, 64, 64, 64, 64, 0}, HHT[8] = {0, 110, 100, 100, 64, 64, 64, 0},
+                         HHF[8] = {0, 40, 0, 64, 32, 96, 64, 16};
+    static const int16_t CY[8] = {0, 64, 0, 0, 64, 64, 64, 0}, CYB[8] = {0, 100, 24, 64, 96, 20, 100, 0},
+                         CYS[8] = {3, 40, 8, 96, 32, 127, 32, 0};
+    uint32_t i;
+    efmm_one(dir, "cbefm_default.wav", DM_CBEFM, CB, "x..x..x.x..x..x.");
+    efmm_one(dir, "cbefm_snap.wav", DM_CBEFM, CBS, "X..x..x.X..x.x..");
+    efmm_one(dir, "cbefm_fb.wav", DM_CBEFM, CBF, "x.x.x.x.x.x.x.x.");
+    efmm_one(dir, "hhefm_default.wav", DM_HHEFM, HH, "x.x.x.x.x.x.x.x.");
+    efmm_one(dir, "hhefm_trem.wav", DM_HHEFM, HHT, "..x...x...x...x.");
+    efmm_one(dir, "hhefm_fb.wav", DM_HHEFM, HHF, "xxXxxxXxxxXxxxXx");
+    efmm_one(dir, "cyefm_default.wav", DM_CYEFM, CY, "x...............");
+    efmm_one(dir, "cyefm_bright.wav", DM_CYEFM, CYB, "x.......x.......");
+    efmm_one(dir, "cyefm_short.wav", DM_CYEFM, CYS, "x...x...x...x...");
+    host_init();                                    /* the choke: HHEFM on track 0, HATO on track 1 (group 1) */
+    drum_set_model(&trk[0], DM_HHEFM);
+    drum_set_model(&trk[1], DM_HATO);
+    for (i = 0; i < 16u; i++) {
+        trk[0].step[i].on = (i & 1u) == 0 && (i & 3u) != 2u;
+        trk[1].step[i].on = (i & 3u) == 2u;
+    }
+    write_demo(dir, "efm_hats_choke.wav", 4, filter_bar_none);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/drum_renders";
@@ -812,5 +856,6 @@ int main(int argc, char **argv)
     write_trxn(dir);
     write_sdtrx_b2trx(dir);
     write_trxp(dir);
+    write_efmmetal(dir);
     return 0;
 }

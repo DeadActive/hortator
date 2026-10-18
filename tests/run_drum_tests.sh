@@ -42,6 +42,8 @@ cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wn
 "$OUT/trxn_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/trxmetal_test" tests/trxmetal_test.c -lm   # (UBSan: Q30 filters, 64-bit envelopes)
 "$OUT/trxmetal_test"
+cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/efmmetal_test" tests/efmmetal_test.c -lm   # (UBSan: FM phases mod 2^32, 64-bit deviation)
+"$OUT/efmmetal_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/acid_test" tests/acid_test.c -lm   # (UBSan: Review Focus 3)
 "$OUT/acid_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/bench_host" tests/bench_host.c -lm
