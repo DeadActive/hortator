@@ -82,9 +82,9 @@ static void settings_poll(void);              /* project.c */              /* pr
 
 static void settings_init(void)
 {
-    if (settings.magic != SETTINGS_MAGIC || settings.palette >= NPALETTES) {
+    if (settings.magic != SETTINGS_MAGIC) {
         settings.magic = SETTINGS_MAGIC;
-        settings.palette = 4;                  /* MONO (default) */
+        settings.palette = THEME_TAG | 0u;     /* MD RED (default; spec 2026-10-19-md-ui §2) */
         settings.lowcut = 0;
         settings.zoom = 0;                     /* large readout of the touched value: off */
         settings.accel = 1;                    /* knob acceleration (calm, upstream 1.0): on */
@@ -98,7 +98,8 @@ static void settings_init(void)
         settings.accel = 1u;
     if (settings.lowcut > 2u)                  /* SPEAKER EQ: FLAT LOWCUT BASS+ */
         settings.lowcut = 0;
-    palette_set(settings.palette);
+    settings.palette = THEME_TAG | theme_index(settings.palette);   /* an old palette id becomes its theme */
+    theme_set(settings.palette);
     fx_lowcut = (uint8_t)settings.lowcut;
     fx_usb_fixed = (uint8_t)settings.usbfix;
 }

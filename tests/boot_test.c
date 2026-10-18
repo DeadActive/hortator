@@ -159,7 +159,7 @@ static int mutebar_persists(void)
             host_init();
             persist_boot();                          /* finds the flash */
             settings.magic = SETTINGS_MAGIC;
-            settings.palette = 4;
+            settings.palette = THEME_TAG | 1u;
             settings.lowcut = 0;
             settings.zoom = z;
             settings.mutebar = m;
@@ -184,7 +184,7 @@ static int usb_level_persists(void)
         host_init();
         persist_boot();
         settings.magic = SETTINGS_MAGIC;
-        settings.palette = 2;
+        settings.palette = THEME_TAG | 2u;
         settings.lowcut = 2;
         settings.zoom = 1;
         settings.mutebar = 1;
@@ -195,7 +195,7 @@ static int usb_level_persists(void)
         rfill(&settings, sizeof settings);           /* power off: .noinit is anything */
         persist_boot();
         settings_init();
-        ok &= settings.usbfix == u && settings.perfpage == u && fx_usb_fixed == u && settings.palette == 2 && settings.lowcut == 2 &&
+        ok &= settings.usbfix == u && settings.perfpage == u && fx_usb_fixed == u && settings.palette == (THEME_TAG | 2u) && settings.lowcut == 2 &&
               settings.zoom == 1 && settings.mutebar == 1 && settings.accel == 0;
     }
     return ok;
@@ -213,13 +213,13 @@ static int settings_oversize_refused(void)
     persist_boot();                                  /* finds the flash */
     memset(&r, 0, sizeof r);
     r.p.magic = PERSIST_MAGIC;
-    r.p.palette = 2;                                 /* not the default (4, MONO) */
+    r.p.palette = 2;                                 /* an old id (CYAN), a record that is rejected */
     r.p.panel = PANEL_DEFAULT;
     st_save(OBJ_SETTINGS, &r, sizeof r);
     memset(&settings, 0, sizeof settings);           /* power off */
     persist_boot();
     settings_init();
-    return settings.palette == 4u;
+    return settings.palette == (THEME_TAG | 0u);   /* the default: MD RED */
 }
 
 /* spec 2026-10-10 §8: an older record (no Bluetooth bits) loads exactly as before: SPEAKER EQ BASS+ stays, no device,
@@ -243,7 +243,7 @@ static int settings_old_record(void)
     persist_boot();
     settings_init();
     return lastp.set == 0u && settings.lowcut == 2u && fx_lowcut == 2u && settings.zoom == 1u && settings.mutebar == 1u && settings.accel == 1u &&
-           settings.usbfix == 1u && settings.perfpage == 1u && settings.palette == 2u && btset.btmode == 0u &&
+           settings.usbfix == 1u && settings.perfpage == 1u && settings.palette == (THEME_TAG | 2u) && btset.btmode == 0u &&
            btset.bt_type == 0u && btset.bt_lo == 0u && btset.bt_hi == 0u;
 }
 
@@ -258,7 +258,7 @@ static int settings_bt_round_trip(void)
         host_init();
         persist_boot();
         settings.magic = SETTINGS_MAGIC;
-        settings.palette = 3;
+        settings.palette = THEME_TAG | 3u;
         settings.lowcut = m;                         /* FLAT LOWCUT BASS+ */
         settings.zoom = 1;
         settings.mutebar = 0;
@@ -280,7 +280,7 @@ static int settings_bt_round_trip(void)
         ok &= btset.btmode == m && btset.bt_type == (m & 1u) && btset.bt_lo == 0xA1B2C3u + m &&
               btset.bt_hi == 0xFFEEDDu - m && settings.lowcut == m && fx_lowcut == m && settings.zoom == 1u &&
               settings.mutebar == 0u && settings.accel == 1u && settings.usbfix == 1u && settings.perfpage == 0u &&
-              settings.palette == 3u;
+              settings.palette == (THEME_TAG | 3u);
     }
     return (int)ok;
 }
@@ -293,7 +293,7 @@ static int settings_bt_after_update(void)
     memset(hflash, 0xFF, sizeof hflash);             /* no settings record */
     host_init();
     settings.magic = SETTINGS_MAGIC;
-    settings.palette = 2;
+    settings.palette = THEME_TAG | 2u;
     settings.lowcut = 1;
     settings.zoom = 1;
     settings.mutebar = 1;
@@ -304,7 +304,7 @@ static int settings_bt_after_update(void)
     persist_boot();
     settings_init();
     return sizeof settings == 32u && btset.btmode == 0u && btset.bt_type == 0u && btset.bt_lo == 0u &&
-           btset.bt_hi == 0u && settings.palette == 2u && settings.lowcut == 1u && settings.zoom == 1u &&
+           btset.bt_hi == 0u && settings.palette == (THEME_TAG | 2u) && settings.lowcut == 1u && settings.zoom == 1u &&
            settings.mutebar == 1u;
 }
 
@@ -339,7 +339,7 @@ static int settings_metro_round_trip(void)
         host_init();
         persist_boot();
         settings.magic = SETTINGS_MAGIC;
-        settings.palette = 3;
+        settings.palette = THEME_TAG | 3u;
         settings.lowcut = m % 3u;
         settings.zoom = 1;
         btset.btmode = 1;
@@ -356,7 +356,7 @@ static int settings_metro_round_trip(void)
         persist_boot();
         settings_init();
         ok &= fx_metro == m && settings.lowcut == m % 3u && fx_lowcut == m % 3u && btset.bt_hi == 0xFFEEDDu &&
-              btset.btmode == 1u && settings.palette == 3u && settings.zoom == 1u;
+              btset.btmode == 1u && settings.palette == (THEME_TAG | 3u) && settings.zoom == 1u;
     }
     {                                                /* 0.16.0's record: BASS+, no METRO bits */
         persist_t p;
@@ -395,7 +395,7 @@ static int settings_autostart_round_trip(void)
         host_init();
         persist_boot();
         settings.magic = SETTINGS_MAGIC;
-        settings.palette = 3;
+        settings.palette = THEME_TAG | 3u;
         settings.lowcut = 2;
         settings.zoom = 1;
         btset.btmode = 2;
@@ -405,7 +405,7 @@ static int settings_autostart_round_trip(void)
         backlight = 1;
         settings_save();
         st_load(OBJ_SETTINGS, &p, sizeof p);
-        ok &= p.palette == (3u | a << 8) && (p.lowcut & 0xFFu) == (2u | 1u << 7) && p.lowcut >> 8 == 0xABCDEFu &&
+        ok &= p.palette == (THEME_TAG | 3u | a << 8) && (p.lowcut & 0xFFu) == (2u | 1u << 7) && p.lowcut >> 8 == 0xABCDEFu &&
               p.zoom >> 8 == 0x123456u && ((p.zoom >> 5) & 3u) == 2u;
         rfill(&settings, sizeof settings);           /* power off */
         memset(&btset, 0, sizeof btset);             /* (.bss) */
@@ -413,7 +413,7 @@ static int settings_autostart_round_trip(void)
         backlight = 0;
         persist_boot();
         settings_init();
-        ok &= btset.bt_auto == a && settings.palette == 3u && settings.lowcut == 2u && settings.zoom == 1u &&
+        ok &= btset.bt_auto == a && settings.palette == (THEME_TAG | 3u) && settings.lowcut == 2u && settings.zoom == 1u &&
               btset.btmode == 2u && btset.bt_lo == 0x123456u && btset.bt_hi == 0xABCDEFu && backlight == 1u;
     }
     {                                                /* an older record: palette 2, no bit 8 */
@@ -429,7 +429,21 @@ static int settings_autostart_round_trip(void)
         btset.bt_auto = 1;
         persist_boot();
         settings_init();
-        ok &= btset.bt_auto == 0u && settings.palette == 2u;
+        ok &= btset.bt_auto == 0u && settings.palette == (THEME_TAG | 2u);
+    }
+    {                                                /* spec 2026-10-19-md-ui §2: an old palette id (MONO) with AUTOSTART */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.palette = 4u | 1u << 8;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        persist_boot();
+        settings_init();
+        ok &= btset.bt_auto == 1u && settings.palette == (THEME_TAG | 1u) && C_BG == THEMES[1].bg;   /* RED ON BLACK */
     }
     memset(hflash, 0xFF, sizeof hflash);             /* no record */
     host_init();

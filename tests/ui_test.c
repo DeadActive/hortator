@@ -2025,10 +2025,60 @@ static void test_boot_title(void)
         }
         check(p ? "boot: the same screen in RED" : "boot: every pixel is assets/boot.png in GREEN", bad == 0);
     }
-    palette_set(settings.palette);
+    theme_set(settings.palette);
     check("boot: the collapse frames fill the middle", fb_lit(40, 200) > 8000);
     check("boot: the white scan line across the middle", fb[119u * 240u + 120u] == C_WHITE &&
                                                           fb[120u * 240u + 60u] == C_WHITE);
+}
+
+/* spec 2026-10-19-md-ui §2: MENU > COLOR steps the 4 themes (KNOB 1 and OCT+) and wraps */
+static void test_theme_menu(void)
+{
+    uint32_t k, ok;
+    ui_host_init();
+    ok = settings.palette == (THEME_TAG | 0u);
+    ui.menu = 1;
+    ui.menu_sel = MI_COLOR;
+    ui.force = 1;
+    for (k = 1; k <= 4u; k++) {
+        press(B_OCTUP);
+        ui_frame();
+        release_all();
+        ui_frame();
+        ok &= settings.palette == (THEME_TAG | (k % 4u)) && C_BG == THEMES[k % 4u].bg;
+    }
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= settings.palette == (THEME_TAG | 3u);
+    check("COLOR: a new device is MD RED; OCT+ steps MD RED > RED ON BLACK > WHITE ON BLUE > BLACK ON GREEN > MD RED; "
+          "KNOB 1 left steps back", ok);
+    menu_close();
+    ui_frame();
+}
+
+/* Review Focus 1: after a theme change every region repaints (nothing keeps the old theme's colours) */
+static void test_theme_repaint(void)
+{
+    uint32_t i, stale = 0;
+    ui_host_init();
+    tap(B_EDIT);
+    ui_frame();
+    ui_frame();
+    ui.menu = 1;
+    ui.menu_sel = MI_COLOR;
+    ui.force = 1;
+    turn(EN_K1, 1);                                  /* MD RED -> RED ON BLACK -> WHITE ON BLUE (a detent per frame) */
+    ui_frame();
+    turn(EN_K1, 1);
+    ui_frame();
+    menu_close();
+    ui_frame();
+    ui_frame();
+    for (i = 0; i < 240u * 240u; i++)
+        stale += fb[i] == THEMES[0].bg || fb[i] == THEMES[0].ink;
+    check("theme change: the whole screen repaints in the new theme (no MD RED pixel left)",
+          settings.palette == (THEME_TAG | 2u) && stale == 0);
+    theme_set(THEME_TAG | 0u);
 }
 
 static void snap_page(const char *name)
@@ -5659,6 +5709,8 @@ int main(void)
     test_backlight_beats_everywhere();
     test_backlight_menu();
     test_boot_title();
+    test_theme_menu();
+    test_theme_repaint();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

@@ -391,8 +391,8 @@ static void test_autostart_row(void)
     snap("07_autostart_on");
     tap(B_OCTDN);
     check("AUTOSTART: OCT- back to the menu's list: not written yet", ui.menu == 1 && rec_palette() == 0xFFFFFFFFu);
-    settings.palette = 1;                            /* (not the default: a reset of the display settings shows) */
-    palette_set(1);
+    settings.palette = THEME_TAG | 1u;                            /* (not the default: a reset of the display settings shows) */
+    theme_set(THEME_TAG | 1u);
     pal = settings.palette;
     menu_close();
     check("AUTOSTART: the menu closed: saved (palette word bit 8; bits 0..7 the palette)",
@@ -420,7 +420,7 @@ static void test_autostart_row(void)
         power_cycle();
         settings_init();
         check("AUTOSTART: an older record (no bit 8) loads OFF, its palette kept",
-              btset.bt_auto == 0u && settings.palette == 2u);
+              btset.bt_auto == 0u && settings.palette == (THEME_TAG | 2u));
     }
 }
 

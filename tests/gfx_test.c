@@ -131,10 +131,27 @@ static void test_primitives(void)
           ink_in(18, 16, 2, 2) == 0);
 }
 
+/* spec 2026-10-19-md-ui §2: the stored COLOR id -> theme; old palettes GREEN AMBER CYAN RED MONO map */
+static void test_theme_index(void)
+{
+    static const uint32_t IN[10] = {0, 1, 2, 3, 4, 0x10, 0x11, 0x12, 0x13, 0xFF}, OUT[10] = {3, 0, 2, 0, 1, 0, 1, 2, 3, 0};
+    uint32_t i, ok = 1;
+    for (i = 0; i < 10u; i++)
+        ok &= theme_index(IN[i]) == OUT[i];
+    check("theme_index: old GREEN AMBER CYAN RED MONO -> BLACK ON GREEN, MD RED, WHITE ON BLUE, MD RED, RED ON BLACK; "
+          "THEME_TAG | i -> i; anything else -> MD RED", ok);
+    theme_set(THEME_TAG | 2u);
+    check("theme_set: C_BG / C_INK are the theme's (WHITE ON BLUE)", C_BG == THEMES[2].bg && C_INK == THEMES[2].ink &&
+          C_BG == RGB(0x24, 0x45, 0xc8) && C_INK == RGB(0xea, 0xf1, 0xff));
+    check("themes: MD RED #e0472b / #38100a", THEMES[0].bg == RGB(0xe0, 0x47, 0x2b) && THEMES[0].ink == RGB(0x38, 0x10, 0x0a));
+    theme_set(THEME_TAG | 0u);
+}
+
 int main(void)
 {
     ui_host_init();
     test_md_text();
+    test_theme_index();
     test_primitives();
     printf(fails ? "gfx_test: %d FAILED\n" : "gfx_test: all passed\n", fails);
     return fails ? 1 : 0;

@@ -58,6 +58,52 @@ static void palette_set(uint32_t i)
         pal[k] = PALETTES[i % NPALETTES].c[k];
 }
 
+/* Machinedrum-style themes (spec 2026-10-19-md-ui §2): two colours, BG and INK. Stored in settings.palette bits 0..7
+ * as THEME_TAG | index; the old palette ids 0..4 (GREEN AMBER CYAN RED MONO) map on load. */
+typedef struct {
+    const char *name;
+    uint16_t bg, ink;
+} theme_t;
+static const theme_t THEMES[] = {
+    {"MD RED", RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},
+    {"RED ON BLACK", RGB(0x17, 0x06, 0x05), RGB(0xf0, 0x53, 0x2f)},
+    {"WHITE ON BLUE", RGB(0x24, 0x45, 0xc8), RGB(0xea, 0xf1, 0xff)},
+    {"BLACK ON GREEN", RGB(0xa3, 0xbf, 0x3c), RGB(0x1c, 0x2a, 0x08)},
+};
+#define NTHEMES (sizeof(THEMES) / sizeof(THEMES[0]))
+#define THEME_TAG 0x10u
+static uint16_t C_BG, C_INK;
+
+static uint32_t theme_index(uint32_t stored)
+{
+    static const uint8_t OLD[5] = {3, 0, 2, 0, 1};   /* GREEN AMBER CYAN RED MONO */
+    stored &= 0xFFu;
+    if (stored < 5u)
+        return OLD[stored];
+    if ((stored & ~0xFu) == THEME_TAG && (stored & 0xFu) < NTHEMES)
+        return stored & 0xFu;
+    return 0;
+}
+
+static uint16_t mix565(uint16_t a, uint16_t b, uint32_t pct)   /* a .. b, pct of b */
+{
+    uint32_t r = ((a >> 11) * (100u - pct) + (b >> 11) * pct) / 100u;
+    uint32_t g = (((a >> 5) & 63u) * (100u - pct) + ((b >> 5) & 63u) * pct) / 100u;
+    uint32_t l = ((a & 31u) * (100u - pct) + (b & 31u) * pct) / 100u;
+    return (uint16_t)(r << 11 | g << 5 | l);
+}
+
+/* the theme of a stored COLOR id; also the old five-step pal[] as a BG..INK ramp for the screens not yet redrawn */
+static void theme_set(uint32_t stored)
+{
+    const theme_t *t = &THEMES[theme_index(stored)];
+    uint32_t k;
+    C_BG = t->bg;
+    C_INK = t->ink;
+    for (k = 0; k < 5u; k++)
+        pal[k] = mix565(t->bg, t->ink, 20u * (k + 1u));
+}
+
 static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu) | ((c & 0xFFu) << 8)); }
 
 static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)

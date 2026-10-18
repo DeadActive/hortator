@@ -77,12 +77,8 @@ static void draw_menu(void)
                     cv_text(102, y, &FONT_S, i == MI_USB ? (*menu_onoff(i) ? "FIXED" : "MASTER") : i == MI_PERF ? (*menu_onoff(i) ? "PAGE" : "HOLD") : *menu_onoff(i) ? "ON" : "OFF", C_HI);
                 if (i == MI_SPKEQ)
                     cv_text(102, y, &FONT_S, SPK_EQ[settings.lowcut % 3u], C_HI);
-                if (i == MI_COLOR) {
-                    uint32_t k;
-                    cv_text(102, y, &FONT_S, PALETTES[settings.palette].name, C_HI);
-                    for (k = 0; k < 5u; k++)
-                        cv_rect(160 + (int32_t)k * 14, y + 3, 10, 10, pal[k]);
-                }
+                if (i == MI_COLOR)
+                    cv_text(102, y, &FONT_S, THEMES[theme_index(settings.palette)].name, C_HI);
             }
             cv_text(4, MENU_HY, &FONT_S, "SELECT MOVE", C_DIM);
             cv_text(4, MENU_HY + MENU_HDY, &FONT_S, "OCT+ OK   OCT- BACK", C_DIM);
@@ -146,8 +142,9 @@ static void menu_input(uint32_t pressed)
         ui.menu_sel = (uint8_t)((ui.menu_sel + (s > 0 ? 1u : MI_COUNT - 1u)) % MI_COUNT);
     s = panel_enc(EN_K1);
     if (s != 0 && ui.menu == 1 && ui.menu_sel == MI_COLOR) {
-        settings.palette = (settings.palette + (s > 0 ? 1u : NPALETTES - 1u)) % NPALETTES;
-        palette_set(settings.palette);              /* (the menu signature redraws) */
+        settings.palette = THEME_TAG | (theme_index(settings.palette) + (s > 0 ? 1u : NTHEMES - 1u)) % NTHEMES;
+        theme_set(settings.palette);
+        ui.force = 1;                               /* every region in the new colours */
     }
     if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_SPKEQ) {
         /* KNOB 1 steps FLAT LOWCUT BASS+ and stops at the ends; OCT+ steps and wraps (upstream 1.0.2) */
@@ -166,9 +163,10 @@ static void menu_input(uint32_t pressed)
     }
     if (ok && ui.menu == 1) {
         switch (ui.menu_sel) {
-        case MI_COLOR:                                 /* OCT+ steps through the palettes too */
-            settings.palette = (settings.palette + 1u) % NPALETTES;
-            palette_set(settings.palette);
+        case MI_COLOR:                                 /* OCT+ steps through the themes too */
+            settings.palette = THEME_TAG | (theme_index(settings.palette) + 1u) % NTHEMES;
+            theme_set(settings.palette);
+            ui.force = 1;
             break;
         case MI_PANEL:
             panel_setup();
