@@ -12,6 +12,11 @@ typedef struct {               /* proportional, see tools/gen_font.py */
     const uint16_t *off;       /* byte offset of each glyph */
     const uint8_t *data;
 } felucca_font_t;
+typedef struct {               /* 1-bit Machinedrum-style font (assets/fonts/md_font.txt, tools/gen_font.py) */
+    uint8_t h, first, last;
+    const uint8_t *w;          /* glyph width in px (0: no glyph) */
+    const uint8_t *rows;       /* rows[i * h + r]: bit (w - 1 - c) = column c */
+} md_font_t;
 #include "felucca_font.h"
 #include "felucca_logo.h"         /* the HortatoR logo (tools/gen_logo.py) */
 #include "felucca_boot.h"         /* the start screen (tools/gen_boot.py) */
@@ -197,6 +202,55 @@ static int32_t text_w(const felucca_font_t *f, const char *s)
     for (; *s; s++)
         w += f->adv[glyph(f, (uint8_t)*s)];
     return w;
+}
+
+/* MD glyph index of a character: lower case folds to caps in a font with caps, Ü / ü draw as U; a glyph the font
+ * lacks draws as its '?' (or nothing when it has none). 0: nothing to draw. */
+static int md_glyph(const md_font_t *f, uint32_t ch, uint32_t *gi)
+{
+    if (ch >= 'a' && ch <= 'z' && f->first <= 'A' && f->last >= 'Z')
+        ch -= 32u;
+    else if (ch == 0xDCu || ch == 0xFCu)
+        ch = 'U';
+    if (ch < f->first || ch > f->last || !f->w[ch - f->first]) {
+        if ('?' < f->first || '?' > f->last || !f->w['?' - f->first])
+            return 0;
+        ch = '?';
+    }
+    *gi = ch - f->first;
+    return 1;
+}
+
+/* 1-bit text: font pixels as sc x sc blocks of colour c (the background is left as it is); returns the pen x after
+ * the string (each glyph advances its width + 1, times sc) */
+static int32_t md_text(int32_t x, int32_t y, const md_font_t *f, uint32_t sc, const char *s, uint16_t c)
+{
+    for (; *s; s++) {
+        uint32_t gi, w, r, k;
+        if (!md_glyph(f, (uint8_t)*s, &gi))
+            continue;
+        w = f->w[gi];
+        for (r = 0; r < f->h; r++) {
+            uint32_t bits = f->rows[gi * f->h + r];
+            for (k = 0; k < w; k++)
+                if (bits >> (w - 1u - k) & 1u)
+                    cv_rect(x + (int32_t)(k * sc), y + (int32_t)(r * sc), (int32_t)sc, (int32_t)sc, c);
+        }
+        x += (int32_t)((w + 1u) * sc);
+    }
+    return x;
+}
+
+/* the width md_text draws, without the gap after the last glyph */
+static int32_t md_text_w(const md_font_t *f, uint32_t sc, const char *s)
+{
+    int32_t w = 0;
+    for (; *s; s++) {
+        uint32_t gi;
+        if (md_glyph(f, (uint8_t)*s, &gi))
+            w += (int32_t)((f->w[gi] + 1u) * sc);
+    }
+    return w ? w - (int32_t)sc : 0;
 }
 
 /* one-shot: text in a box, cleared to black, blitted */
