@@ -70,6 +70,9 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
     -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/learn_test" tests/learn_test.c -lm   # (MIDI LEARN: ASan + UBSan)
 "$OUT/learn_test"
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
+    -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/preset_test" tests/preset_test.c -lm   # (presets: ASan + UBSan)
+"$OUT/preset_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/audio_isr_test" tests/audio_isr_test.c -lm
 "$OUT/audio_isr_test"
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \

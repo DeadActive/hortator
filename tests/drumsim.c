@@ -564,6 +564,7 @@ static void write_trxmetal(const char *dir)
     host_init();                                    /* the choke: CH on track 0, OH on track 1 (group 1) */
     drum_set_model(&trk[0], DM_CHTRX);
     drum_set_model(&trk[1], DM_OHTRX);
+    trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 1;
     for (i = 0; i < 16u; i++) {
         trk[0].step[i].on = (i & 1u) == 0 && (i & 3u) != 2u;
         trk[1].step[i].on = (i & 3u) == 2u;
@@ -801,6 +802,7 @@ static void write_efmmetal(const char *dir)
     host_init();                                    /* the choke: HHEFM on track 0, HATO on track 1 (group 1) */
     drum_set_model(&trk[0], DM_HHEFM);
     drum_set_model(&trk[1], DM_HATO);
+    trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 1;
     for (i = 0; i < 16u; i++) {
         trk[0].step[i].on = (i & 1u) == 0 && (i & 3u) != 2u;
         trk[1].step[i].on = (i & 3u) == 2u;

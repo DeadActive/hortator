@@ -299,10 +299,10 @@ static void cytrx_trigger(track_t *t, dvoice_t *v)
     m->dt = (uint32_t)clamp(14720 - 734 * dec / 10, 500, 14720) * 97392u / 1000u;  /* the top: 14.7 - 0.0734 DECAY */
 }
 
-#define DM_CHTRX_DEF {"CHTRX", 1, 1, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+#define DM_CHTRX_DEF {"CHTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("GAP", F_INT, 0, 127, 64), PD("HPF", F_INT, 0, 127, 0), PD("LPF", F_INT, 0, 127, 127), \
     PD("MTAL", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, chtrx_trigger, trxm_render}
-#define DM_OHTRX_DEF {"OHTRX", 1, 1, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+#define DM_OHTRX_DEF {"OHTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("GAP", F_INT, 0, 127, 64), PD("HPF", F_INT, 0, 127, 0), PD("LPF", F_INT, 0, 127, 127), \
     PD("MTAL", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, ohtrx_trigger, trxm_render}
 #define DM_CYTRX_DEF {"CYTRX", 2, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \

@@ -225,20 +225,27 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
 
 static void drum_block_begin(void) { dblock++; }
 
-/* model mi with its default sound on t */
+/* model mi with its default sound on t: the voice's first preset (presets.c; else the knobs' defaults), the track's
+ * reference on it, not edited. CHOKE is the track's own: a MODEL change never touches it (spec 2026-10-19) */
 static void drum_set_model(track_t *t, uint32_t mi)
 {
     const dmodel_t *m = &DMODELS[mi % NMODELS];
-    uint32_t i;
+    uint32_t i, id = preset_first_of(mi % NMODELS);
+    preset_t pr;
     drum_cut(t);
     t->p[P_MODEL] = (int16_t)(mi % NMODELS);
     t->model = (uint8_t)t->p[P_MODEL];
+    if (id != PRE_NONE && preset_get(id, &pr)) {
+        preset_apply(t, &pr, id);
+        return;
+    }
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = m->edit[i].def;
-    t->p[P_CHOKE] = m->choke;
+    t->pre = (uint16_t)PRE_NONE;
+    t->pre_ed = 0;
 }
 
-#define ACID_MAXTRK 2u                                /* ACID is the model of 2 tracks at most (CPU), by user decision */
+/* (ACID_MAXTRK: presets.c) */
 
 static uint32_t acid_tracks(const track_t *except)   /* tracks with MODEL ACID, other than except */
 {

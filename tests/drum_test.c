@@ -606,17 +606,19 @@ static void test_metal(void)
     host_init();
     drum_set_model(&trk[0], DM_HNOIS);
     drum_set_model(&trk[1], DM_HMETL);
+    trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 1;      /* (no default choke since the presets: set, as a user does) */
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.05));
     drum_hit(&trk[1], 127);
     render_track(&trk[0], wl, SECS(0.01));
-    check("HMETL / HNOIS: choke group 1 by default, one cuts the other",
+    check("HMETL / HNOIS: in choke group 1, one cuts the other",
           trk[0].p[P_CHOKE] == 1 && trk[1].p[P_CHOKE] == 1 && !trk[0].v[0].active);
     ec = hit_model(DM_HATC, 127, SECS(3));
     eo = hit_model(DM_HATO, 127, SECS(3));
     check("hats: the open hat rings > 2x longer than the closed one", eo > 2 * ec);
-    host_init();                                     /* power-on kit: tracks 4 / 5 are HATC / HATO, group 1 */
-    check("hats: closed and open default to choke group 1", trk[3].p[P_CHOKE] == 1 && trk[4].p[P_CHOKE] == 1);
+    host_init();                                     /* power-on kit: tracks 4 / 5 are HATC / HATO, no choke */
+    check("hats: closed and open start with no choke group", trk[3].p[P_CHOKE] == 0 && trk[4].p[P_CHOKE] == 0);
+    trk[3].p[P_CHOKE] = trk[4].p[P_CHOKE] = 1;      /* group 1, set */
     drum_hit(&trk[4], 127);
     render_track(&trk[4], wl, SECS(0.05));
     last = wl[SECS(0.05) - 1];
@@ -740,6 +742,9 @@ static double kit_cost(uint32_t mi, int layers, int reson)
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         drum_set_model(t, mi);
+        t->p[P_CHOKE] = (int16_t)(mi == DM_HATC || mi == DM_HATO || mi == DM_HMETL || mi == DM_HNOIS || mi == DM_CHTRX ||
+                                  mi == DM_OHTRX || mi == DM_HHEFM);   /* the hats' old default group 1 (the presets
+                                                     * plan: no voice has one now): the recorded limits' kits, as measured */
         t->p[P_E1] = 127;
         if (mi == DM_SMPL) {                         /* the heaviest sample: 3 octaves up, driven */
             t->p[P_E0] = 24;

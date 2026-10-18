@@ -562,17 +562,19 @@ static void test_rehits(void)
     check("re-hits 5 ms apart and a model switch while ringing: bounded (the four models)", ok);
 }
 
-/* the hats' choke: CHTRX and OHTRX start in choke group 1 (as HATC / HATO): a closed hat cuts a ringing open one */
+/* the hats' choke: CHTRX and OHTRX in choke group 1 (set: no voice has a default group): a closed hat cuts a ringing
+ * open one */
 static void test_choke(void)
 {
     host_init();
     drum_set_model(&trk[1], DM_OHTRX);
     drum_set_model(&trk[2], DM_CHTRX);
     drum_set_model(&trk[3], DM_CYTRX);
+    trk[1].p[P_CHOKE] = trk[2].p[P_CHOKE] = 1;
     drum_hit(&trk[1], 127);
     render_track(&trk[1], wl, SECS(0.05));
     drum_hit(&trk[2], 127);
-    check("CHTRX / OHTRX in choke group 1 (CYTRX and CBTRX none): a closed hat cuts the open one",
+    check("CHTRX / OHTRX in choke group 1 (no default group): a closed hat cuts the open one",
           trk[1].p[P_CHOKE] == 1 && trk[2].p[P_CHOKE] == 1 && !trk[1].v[0].active && trk[3].p[P_CHOKE] == 0 &&
               DMODELS[DM_CBTRX].choke == 0);
 }

@@ -27,6 +27,7 @@ static void fm1_irq_on(void) { host_irq_on++; }
 #include "../firmware/src/comp.c"
 #include "../firmware/src/eng_sample.c"
 #include "../firmware/src/dmodels.c"
+#include "../firmware/src/presets.c"
 #include "../firmware/src/params.c"
 #include "../firmware/src/reson.c"
 #include "../firmware/src/filter.c"

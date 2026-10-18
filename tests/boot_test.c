@@ -828,7 +828,7 @@ static int fdr9_round_trip(void)
     project_load(2);
     return chain.cfg.count == 2u && chain.cfg.loop == 1u && chain.cfg.row[0].slot == 1u &&
            chain.cfg.row[0].repeat == 4u && chain.cfg.row[1].slot == 3u && chain.cfg.row[1].repeat == 16u &&
-           str_eq(chain.name, "BREAK 2") && chain.from == 3u && sizeof(project_t) == 3688u;
+           str_eq(chain.name, "BREAK 2") && chain.from == 3u && sizeof(project_t) == 3712u;   /* (FDRD) */
 }
 /* an FDR9 record (3592 B): its values, steps, motion, song and name; the filter OFF */
 static int fdr9_converts(void)
@@ -1190,7 +1190,7 @@ static int fdrb_converts(void)
            str_eq(chain.name, "FDRB ONE") && all_prio_is(0) && str_eq(ui.msg, "LOADED");
 }
 
-/* FDRC keeps PRIO through a save and a load (flash) */
+/* PRIO through a save and a load (flash; FDRC's, now FDRD's) */
 static int fdrc_round_trip(void)
 {
     memset(hflash, 0xFF, sizeof hflash);
@@ -1203,8 +1203,8 @@ static int fdrc_round_trip(void)
     memset(proj_slot, 0, sizeof proj_slot);
     persist_boot();
     project_load(0);
-    return trk[1].p[P_PRIO] == 1 && trk[6].p[P_PRIO] == 1 && trk[0].p[P_PRIO] == 0 && sizeof(project_t) == 3688u &&
-           proj_slot[0].magic == 0x43524446u;       /* "FDRC" */
+    return trk[1].p[P_PRIO] == 1 && trk[6].p[P_PRIO] == 1 && trk[0].p[P_PRIO] == 0 && sizeof(project_t) == 3712u &&
+           proj_slot[0].magic == 0x44524446u;       /* "FDRD" */
 }
 
 /* one pattern played 2 s from a loaded slot: a hash of the mix */
@@ -1627,7 +1627,7 @@ int main(void)
           "the device kept); an older record and none load OFF", settings_autostart_round_trip());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
-    check("project: FDRC keeps PRIO through a save and a load", fdrc_round_trip());
+    check("project: PRIO kept through a save and a load (FDRD)", fdrc_round_trip());
     check("project: FDR1, FDRA and FDRB records load with PRIO HIGH and play as the FDRC save", old_formats_play_same());
     check("project: 0.16.0's RAM slots (FDRB) are not read; the flash records load (converted)", fdrb_ram_refetched());
     check("last project: a flash SAVE remembers its slot; power-on loads it (stopped, LOADED, no IRQ enable)",

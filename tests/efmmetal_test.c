@@ -459,7 +459,8 @@ static void efmm_test_rehits(void)
     check("re-hits 5 ms apart and a model switch while ringing: bounded (the three models)", ok);
 }
 
-/* HHEFM starts in choke group 1 (as HATC): a ringing open hat on another group-1 track is cut by it, and it by them */
+/* HHEFM in choke group 1 (set: no voice has a default group): a ringing open hat on another group-1 track is cut by
+ * it, and it by them */
 static void efmm_test_choke(void)
 {
     uint32_t ok;
@@ -467,6 +468,7 @@ static void efmm_test_choke(void)
     drum_set_model(&trk[1], DM_HATO);
     drum_set_model(&trk[2], DM_HHEFM);
     drum_set_model(&trk[3], DM_CYEFM);
+    trk[1].p[P_CHOKE] = trk[2].p[P_CHOKE] = 1;
     drum_hit(&trk[1], 127);
     render_track(&trk[1], wl, SECS(0.05));
     drum_hit(&trk[2], 127);
@@ -475,7 +477,7 @@ static void efmm_test_choke(void)
     render_track(&trk[2], wl, SECS(0.01));
     drum_hit(&trk[1], 127);
     ok &= !trk[2].v[0].active;
-    check("HHEFM in choke group 1 (CBEFM, CYEFM none; CYEFM 2 voices): it cuts a ringing HATO and HATO cuts it", ok);
+    check("HHEFM in choke group 1 (no default group; CYEFM 2 voices): it cuts a ringing HATO and HATO cuts it", ok);
 }
 
 /* the md-re sweeps as the voice renders them (the twin's units: the emulator renders' scale) */
