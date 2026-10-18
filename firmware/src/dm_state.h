@@ -106,7 +106,7 @@ typedef struct {                        /* BDEFM, XTEFM (dm_bdefm.c) */
     int32_t rk, i0, mf, fb, m, x1, x2, y1, y2, q1, q2, hx, hy;
     uint8_t xt;
 } bdefm_t;
-typedef struct { int32_t x1, x2, y1, y2; } efmn_hp2_t;   /* the EFM noise voices' track filter (dm_efmn.c) */
+typedef struct { int32_t x1, x2, y1, y2, q1, q2; } efmn_hp2_t;   /* the EFM noise voices' track filter (dm_efmn.c) */
 typedef struct {                        /* SDEFM, CPEFM's noise-FM carrier (dm_efmn.c) */
     uint32_t pc, pm, inc, incm, dev, ei, di;
     int32_t fz, nz;

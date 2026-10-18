@@ -653,6 +653,38 @@ static void write_wavs(const char *dir)
     printf("     wrote %u WAVs to %s\n", w, dir);
 }
 
+/* review fix (2026-10-18): the track filter's tail must not freeze into a DC offset (a plain-rounding 2-pole high-pass
+ * near z = 1 holds a dead band): each voice ends from a near-zero sample (|last| <= 16), TUNE -24..-12 at notes 0 and
+ * -24, DECAY 32 / 64 / 96 */
+static void test_efmn_end_step(void)
+{
+    static const uint32_t M[3] = {DM_SDEFM, DM_CPEFM, DM_RSEFM};
+    static const int16_t D[3] = {32, 64, 96};
+    uint32_t m, j, i, n = SECS(6), bad = 0;
+    int32_t tu, nt, worst = 0;
+    for (m = 0; m < 3u; m++)
+        for (j = 0; j < 3u; j++)
+            for (tu = -24; tu <= -12; tu += 4)
+                for (nt = -24; nt <= 0; nt += 24) {
+                    uint32_t last = 0;
+                    host_init();
+                    drum_set_model(&trk[0], M[m]);
+                    trk[0].p[P_E0] = (int16_t)tu;
+                    trk[0].p[P_E0 + 1] = D[j];
+                    drum_play(&trk[0], 127, nt);
+                    render_track(&trk[0], wl, n);
+                    for (i = 0; i < n; i++)
+                        if (wl[i])
+                            last = i;
+                    if (abs(wl[last]) > worst)
+                        worst = abs(wl[last]);
+                    bad += abs(wl[last]) > 16;
+                }
+    printf("     SDEFM / CPEFM / RSEFM: the last sample before silence, worst |%d| (%u of 72 settings over 16)\n", worst,
+           bad);
+    check("EFM noise voices: no step at the end (the track filter's tail does not freeze)", bad == 0u);
+}
+
 int main(int argc, char **argv)
 {
     test_efmn_vs_ref();
@@ -668,6 +700,7 @@ int main(int argc, char **argv)
     test_efmn_rehits();
     if (argc > 1)
         write_wavs(argv[1]);
+    test_efmn_end_step();
     printf(fails ? "efmn_test: %d FAILED\n" : "efmn_test: all passed\n", fails);
     return fails != 0;
 }

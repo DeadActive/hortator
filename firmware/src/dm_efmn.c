@@ -51,8 +51,13 @@ static inline uint32_t efmn_inc(uint32_t inc, uint32_t dev4, int32_t m30)
 /* the track filter (direct form I, Q23 in and out) */
 static inline int32_t efmn_hp2(efmn_hp2_t *h, int32_t x)
 {
-    int32_t y = (int32_t)(((int64_t)EFMN_HP_B0 * (x - 2 * h->x1 + h->x2) - (int64_t)EFMN_HP_A1 * h->y1 -
-                           (int64_t)EFMN_HP_A2 * h->y2 + (1 << 29)) >> 30);
+    int64_t acc = (int64_t)EFMN_HP_B0 * (x - 2 * h->x1 + h->x2) - (int64_t)EFMN_HP_A1 * h->y1 -
+                  (int64_t)EFMN_HP_A2 * h->y2 + 2 * (int64_t)h->q1 - h->q2;
+    int32_t y = (int32_t)(acc >> 30);                   /* (the last two remainders fed back, 2 q1 - q2, as BDEFM's: the
+                                                         * poles sit at z ~ 1, a plain rounding holds a dead band and
+                                                         * the tail froze into a DC step at the voice's end) */
+    h->q2 = h->q1;
+    h->q1 = (int32_t)(acc - ((int64_t)y << 30));
     h->x2 = h->x1;
     h->x1 = x;
     h->y2 = h->y1;

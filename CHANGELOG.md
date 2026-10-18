@@ -39,6 +39,9 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   3216 Hz, off at 0), the sidebands past Nyquist aliased as the machine's are; 2 voices. TUNE 0 is each machine's PTCH
   64 (409.7, 577, 580 Hz); DECAY the family's law (tau 64.6 ms x 2 ^ ((DECAY - 64) / 13.5); 127 fades out from 5.5 s).
   Levels with COWB, HATC, CYMB. After B2TRX in the MODEL list.
+- The EFM voices' DECAY: BDEFM and XTEFM end at 0.58 s (Hortator's longest decay, as KTRX: a faded sub-bass tail
+  sounds worse than a short one); SDEFM CPEFM RSEFM CBEFM HHEFM CYEFM follow the machine's whole 1.6 s law and fade out
+  from 5.5 s at DECAY's top (the voices' 6 s life).
 
 ## 0.19.0 - 2026-10-18
 

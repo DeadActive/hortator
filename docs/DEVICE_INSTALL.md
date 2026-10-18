@@ -450,6 +450,7 @@ Report what you saw first; we'll go through it together.
   40 50 96. xtefm_default the same defaults; clean_fill 0 90 32 50 0 64 64 64, notes 7 .. -9; grit 3 80 64 40 40 40
   60 127.
 - `tools/fm1_bench.py --yes`: the cases BDEFM, XTEFM and their +fx (8 tracks of the model).
+
 ### SDEFM, CPEFM, RSEFM (check on the FM-1)
 
 - The MODEL list after B2TRX: SDEFM CPEFM RSEFM. SDEFM SOUND 1/4 MODEL TUNE DECAY NOIS, 2/4 NDEC MOD MFRQ MDEC,
@@ -468,6 +469,7 @@ Report what you saw first; we'll go through it together.
   100 90 16 100 0; cpefm_tone -12 50 32 40 0 64 64 0 (notes); rsefm_default 0 64 64 0 64 64 64 64; rsefm_rim 0 40 20
   16 0 64 64 64 (notes); rsefm_snare -2 50 100 32 127 40 80 127.
 - `tools/fm1_bench.py --yes`: the cases SDEFM, CPEFM, RSEFM and their +fx (8 tracks of the model).
+
 ### CBEFM, HHEFM, CYEFM (check on the FM-1)
 
 - MODEL CBEFM, HHEFM, CYEFM (after B2TRX). CBEFM SOUND 1/4 MODEL TUNE DECAY SNAP, 2/4 FB MOD MFRQ MDEC; HHEFM 1/4
