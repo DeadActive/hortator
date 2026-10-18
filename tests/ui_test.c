@@ -3948,6 +3948,38 @@ static void test_trxn_screens(void)
     check("CPTRX, MATRX: SOUND 1/4 MODEL TUNE DECAY CLPY / ATT, 2/4 from HARD / REV, 3/4 RTUN / HARD", ok);
 }
 
+/* SDEFM / CPEFM / RSEFM: their SOUND pages hold the knobs in order (1/4 MODEL TUNE DECAY + the third, 2/4 the next
+ * four, 3/4 the last); screenshots build/ui_shots/engines/efmn_*.png */
+static void test_efmn_screens(void)
+{
+    static const struct { uint32_t m; const char *k3, *k4, *k8, *s1, *s2, *s3; } M[3] = {
+        {DM_SDEFM, "NOIS", "NDEC", "HPF", "engines/efmn_sdefm_1", "engines/efmn_sdefm_2", "engines/efmn_sdefm_3"},
+        {DM_CPEFM, "CLPS", "CDEC", "HPF", "engines/efmn_cpefm_1", "engines/efmn_cpefm_2", "engines/efmn_cpefm_3"},
+        {DM_RSEFM, "MOD", "HPF", "SMOD", "engines/efmn_rsefm_1", "engines/efmn_rsefm_2", "engines/efmn_rsefm_3"}};
+    uint32_t i, k, ok = 1;
+    int16_t *vp;
+    for (i = 0; i < 3u; i++) {
+        ui_host_init();
+        drum_set_model(TSEL, M[i].m);
+        for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
+            tap(B_EDIT);
+        ui.force = 1;
+        snap_page(M[i].s1);
+        ok &= str_eq(page_desc(cur_page(), 1, &vp)->label, "TUNE") && str_eq(page_desc(cur_page(), 2, &vp)->label, "DECAY") &&
+              str_eq(page_desc(cur_page(), 3, &vp)->label, M[i].k3);
+        page_turn(1);
+        ui.force = 1;
+        snap_page(M[i].s2);
+        ok &= str_eq(page_desc(cur_page(), 0, &vp)->label, M[i].k4);
+        page_turn(1);
+        ui.force = 1;
+        snap_page(M[i].s3);
+        ok &= str_eq(page_desc(cur_page(), 0, &vp)->label, M[i].k8);
+    }
+    check("SDEFM, CPEFM, RSEFM: SOUND 1/4 MODEL TUNE DECAY NOIS / CLPS / MOD, 2/4 from NDEC / CDEC / HPF, 3/4 HPF / HPF / "
+          "SMOD", ok);
+}
+
 /* ---- ACID plan B: KEYS (spec §5) */
 /* an SCL tap turns KEYS on (its LED, the top bar KEYS F3) and off; the 27 keys play the selected track chromatically
  * (a drum transposed: nt = NOTE - 60, F3 = 53); OCT- / OCT+ shift by an octave, -2..+2; KEYS selects no track */
@@ -5579,6 +5611,7 @@ int main(void)
     test_fm_graph_clear();
     test_ktrx_screens();
     test_trxn_screens();
+    test_efmn_screens();
     test_trx_drum_screens();
     test_keys_map_oct();
     test_keys_acid_mono();

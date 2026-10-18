@@ -101,6 +101,24 @@ typedef struct {                        /* CBTRX (dm_trxcb.c) */
     trxcbp_t pk;
     trxmf_t db, da, enh;
 } trxcb_t;
+typedef struct { int32_t x1, x2, y1, y2; } efmn_hp2_t;   /* the EFM noise voices' track filter (dm_efmn.c) */
+typedef struct {                        /* SDEFM, CPEFM's noise-FM carrier (dm_efmn.c) */
+    uint32_t pc, pm, inc, incm, dev, ei, di;
+    int32_t fz, nz;
+    uint8_t hc, hold;
+} efmn_fm_t;
+typedef struct {                        /* SDEFM, CPEFM (dm_efmn.c) */
+    efmn_fm_t fm;
+    efmn_hp2_t hp;
+    uint32_t ea, da, en, dn, ec, dc, tc, per;
+    int32_t nlp, nhp, nxp, hh, hx, hk;
+    uint8_t nb;
+} efmn_t;
+typedef struct {                        /* RSEFM (dm_efmn.c) */
+    efmn_hp2_t hp;
+    uint32_t pc[2], inc[2], dev[2], e[2], d[2];
+    int32_t n[2], z[2], g, hs;
+} efmrs_t;
 typedef union {
     int32_t raw[2];
     scrak_t sc;
@@ -118,4 +136,6 @@ typedef union {
     matrx_t ma;
     trxm_t tm;
     trxcb_t cb;
+    efmn_t en;
+    efmrs_t er;
 } dm_state_t;

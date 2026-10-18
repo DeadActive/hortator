@@ -5,6 +5,18 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- SDEFM, CPEFM, RSEFM: a snare, a clap and a rim shot measured from a classic digital drum machine's FM family (an
+  emulator's renders, knob by knob; only the measured laws, no code or data of it). Each is a sine whose frequency
+  is modulated by noise; that FM noise is the same on every hit, as the machine's (SDEFM's NOIS layer is random per
+  hit). SDEFM TUNE DECAY NOIS NDEC, MOD MFRQ MDEC HPF: a 290 Hz carrier, MOD the noise FM's depth (plus a weak sine
+  at MFRQ), MDEC its decay; NOIS / NDEC a separate noise burst; HPF a one-pole high-pass. CPEFM TUNE DECAY CLPS
+  CDEC, MOD MFRQ MDEC HPF: the same FM on an 820 Hz carrier restarted CLPS / 8 times (none below 8) at CDEC's
+  measured period (1 .. 41 ms), then DECAY. RSEFM TUNE DECAY MOD HPF, SNAR SPTC SDEC SMOD: a 976 Hz rim and a
+  second "snare" voice (SNAR its level, 0 = off; SPTC its pitch), each noise-modulated (MOD, SMOD); HPF at the
+  measured corners. Every DECAY follows the machine's law to its 1.6 s end; past 5.5 s every voice fades out (the
+  6 s lifetime). TUNE 0 is the machine's PTCH 64; TUNE and a step's note move every pitch by semitones (RSEFM's
+  second voice too: the machine's PTCH moves only the rim). 1 voice each. After B2TRX in the MODEL list.
+
 ## 0.19.0 - 2026-10-18
 
 - KTRX: a sine kick measured from a classic digital drum machine's (an emulator's renders, knob by knob; only the
