@@ -84,8 +84,9 @@ static void efmn_fm_set(efmn_fm_t *f, uint32_t inc, int32_t mod, int32_t mfrq, i
     f->fz = EFMN_SEED;
     f->hold = (uint8_t)hold;
 }
-/* one sample: the carrier's sine, then its phase moves on (the deviation decaying; nothing while it is gone) */
-static inline int32_t efmn_fm_tick(efmn_fm_t *f)
+/* one sample: the carrier's sine, then its phase moves on (the deviation decaying; nothing while it is gone); inlined
+ * in both render loops (no call per sample) */
+__attribute__((always_inline)) static inline int32_t efmn_fm_tick(efmn_fm_t *f)
 {
     int32_t s = sine_i(f->pc);
     uint32_t inc = f->inc;
@@ -315,7 +316,7 @@ static void rsefm_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
             efmn_fall(&k->e[1], k->d[1]);
         }
         if (!v->t && !i)
-            y = y * 3 / 4;                              /* the first sample */
+            y = (y * 3) >> 2;                           /* the first sample */
         if (k->g) {                                     /* HPF (TPT one-pole) */
             int32_t u = (int32_t)(((int64_t)(y - k->hs) * k->g) >> 30), lp = u + k->hs;
             k->hs = lp + u;
