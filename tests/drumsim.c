@@ -701,6 +701,44 @@ static void write_bdefm(const char *dir)
     bdefm_one(dir, "xtefm_grit.wav", DM_XTEFM, XGRIT, "x..x..x...x.x...", NULL);
 }
 
+/* SDEFM / CPEFM / RSEFM demos: one track, 4 bars at 120 BPM; nt: the steps' notes (NULL: none) */
+static void efmn_one(const char *dir, const char *name, uint32_t mi, const int16_t *k, const char *pat, const int8_t *nt)
+{
+    uint32_t i;
+    host_init();
+    drum_set_model(&trk[0], mi);
+    for (i = 0; i < 8u; i++)
+        trk[0].p[P_E0 + i] = k[i];
+    for (i = 0; i < 16u; i++) {
+        trk[0].step[i].on = pat[i] == 'x';
+        trk[0].step[i].nt = nt ? nt[i] : 0;
+    }
+    write_demo(dir, name, 4, filter_bar_none);
+}
+
+static void write_efmn(const char *dir)
+{
+    /* SDEFM: TUNE DECAY NOIS NDEC MOD MFRQ MDEC HPF */
+    static const int16_t SDEF[8] = {0, 64, 64, 64, 64, 64, 64, 0}, SRING[8] = {-3, 96, 30, 50, 24, 32, 90, 0};
+    static const int16_t SCRSH[8] = {2, 50, 110, 80, 127, 100, 40, 24};
+    /* CPEFM: TUNE DECAY CLPS CDEC MOD MFRQ MDEC HPF */
+    static const int16_t CDEF[8] = {0, 64, 64, 64, 64, 64, 64, 0}, CWIDE[8] = {-5, 80, 127, 100, 90, 16, 100, 0};
+    static const int16_t CTONE[8] = {-12, 50, 32, 40, 0, 64, 64, 0};
+    /* RSEFM: TUNE DECAY MOD HPF SNAR SPTC SDEC SMOD */
+    static const int16_t RDEF[8] = {0, 64, 64, 0, 64, 64, 64, 64}, RRIM[8] = {0, 40, 20, 16, 0, 64, 64, 64};
+    static const int16_t RSNR[8] = {-2, 50, 100, 32, 127, 40, 80, 127};
+    static const int8_t TUMB[16] = {0, 0, 0, 7, 0, 0, 5, 0, 0, 7, 0, 0, 12, 0, 7, 0};
+    efmn_one(dir, "sdefm_default.wav", DM_SDEFM, SDEF, "....x.......x...", NULL);
+    efmn_one(dir, "sdefm_ring.wav", DM_SDEFM, SRING, "....x.......x..x", NULL);
+    efmn_one(dir, "sdefm_crush.wav", DM_SDEFM, SCRSH, "....x..x....x.x.", NULL);
+    efmn_one(dir, "cpefm_default.wav", DM_CPEFM, CDEF, "....x.......x...", NULL);
+    efmn_one(dir, "cpefm_wide.wav", DM_CPEFM, CWIDE, "....x.......x...", NULL);
+    efmn_one(dir, "cpefm_tone.wav", DM_CPEFM, CTONE, "x..x..x...x.x...", TUMB);
+    efmn_one(dir, "rsefm_default.wav", DM_RSEFM, RDEF, "....x.......x...", NULL);
+    efmn_one(dir, "rsefm_rim.wav", DM_RSEFM, RRIM, "x..x..x...x.x...", TUMB);
+    efmn_one(dir, "rsefm_snare.wav", DM_RSEFM, RSNR, "....x...x...x..x", NULL);
+}
+
 /* ACID demos (120 BPM): track 0 plays a classic 303 figure, the others are empty. nt relative to C4; flags 1 ACC,
  * 2 SLIDE, 4 TIE (not on), 8 rest. acid_reso: RESO 0 -> 127 across 16 bars, CUTOF 30 */
 static void acid_kit(int sqr)
@@ -844,6 +882,7 @@ int main(int argc, char **argv)
     write_trxn(dir);
     write_sdtrx_b2trx(dir);
     write_trxp(dir);
+    write_efmn(dir);
     write_bdefm(dir);
     return 0;
 }

@@ -450,6 +450,24 @@ Report what you saw first; we'll go through it together.
   40 50 96. xtefm_default the same defaults; clean_fill 0 90 32 50 0 64 64 64, notes 7 .. -9; grit 3 80 64 40 40 40
   60 127.
 - `tools/fm1_bench.py --yes`: the cases BDEFM, XTEFM and their +fx (8 tracks of the model).
+### SDEFM, CPEFM, RSEFM (check on the FM-1)
+
+- The MODEL list after B2TRX: SDEFM CPEFM RSEFM. SDEFM SOUND 1/4 MODEL TUNE DECAY NOIS, 2/4 NDEC MOD MFRQ MDEC,
+  3/4 HPF LVL PAN NOTE; CPEFM 1/4 MODEL TUNE DECAY CLPS, 2/4 CDEC MOD MFRQ MDEC, 3/4 HPF; RSEFM 1/4 MODEL TUNE DECAY
+  MOD, 2/4 HPF SNAR SPTC SDEC, 3/4 SMOD.
+- By ear against the A/B files (`~/Desktop/hortator-md/efm-sd-ab`, `efm-cp-ab`, `efm-rs-ab`: the emulator, then the
+  float model; the voices here follow the float models, their FM noise another fixed sequence of the same colour):
+  SDEFM's defaults a hissy 290 Hz snare; MOD 0 a pure tone, up more hiss and spread; MDEC longer hiss; MFRQ low a
+  broad bump; NOIS a separate burst (different on every hit), NDEC longer; HPF thinner. CPEFM: a buzzy 820 Hz clap,
+  CLPS more claps (none below 8), CDEC slower claps; MOD 0 a pure tone. RSEFM: a 976 Hz rim with a snare-like second
+  voice (SNAR 0 the rim alone; SPTC its pitch, SMOD its hiss); MOD a noisier rim. Every hit of a patch sounds the same
+  (SDEFM's NOIS aside). DECAY 127 rings long (1.6 s decay) and fades out by 6 s.
+- TUNE and a step's note move the pitches by semitones (TUNE 0: the measured pitches).
+- The demo WAVs (`build/drum_renders/`; knobs in page order): sdefm_default 0 64 64 64 64 64 64 0; sdefm_ring -3 96
+  30 50 24 32 90 0; sdefm_crush 2 50 110 80 127 100 40 24; cpefm_default 0 64 64 64 64 64 64 0; cpefm_wide -5 80 127
+  100 90 16 100 0; cpefm_tone -12 50 32 40 0 64 64 0 (notes); rsefm_default 0 64 64 0 64 64 64 64; rsefm_rim 0 40 20
+  16 0 64 64 64 (notes); rsefm_snare -2 50 100 32 127 40 80 127.
+- `tools/fm1_bench.py --yes`: the cases SDEFM, CPEFM, RSEFM and their +fx (8 tracks of the model).
 
 ### Fixes after 0.16.0 (check on the FM-1)
 

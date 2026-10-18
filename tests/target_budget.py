@@ -20,8 +20,8 @@ FUNCS = ["body_render", "snare_render", "clap_render", "hat_render", "cymb_rende
          "perf_begin", "perf_mute", "perf_pre", "perf_block", "perf_harm", "chain_apply", "memb_render",
          "reson_modal", "px_memb_block", "px_modal_block_q", "trk_filter", "fm_render", "acid_render", "metro_block",
          "ktrx_render", "sdtrx_render", "b2trx_render", "xt_render", "cltrx_render", "rstrx_render", "cptrx_render",
-         "matrx_render", "cbtrx_render", "trxm_render",
-         "bdefm_render"]
+         "matrx_render", "cbtrx_render", "trxm_render", "bdefm_render", "sdefm_render", "cpefm_render",
+         "rsefm_render"]
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...
