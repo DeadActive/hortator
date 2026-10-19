@@ -43,7 +43,7 @@ static uint32_t kick_block(uint32_t fixed, uint32_t master)
     stream(1);
     fx_usb_fixed = (uint8_t)fixed;
     song.master_q12 = master;
-    drum_set_model(&trk[0], DM_K808);
+    old_set_model(&trk[0], DM_K808);
     drum_hit(&trk[0], 127);
     uac_render_start();                              /* (re)start: silence ahead */
     w0 = ua_w;

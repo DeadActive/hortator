@@ -3,16 +3,18 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDRC" (the 12th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
+ * Format "FDRD" (the 13th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
  * parameter and its 64 steps (with PROB / RATCH, each step's note offset, SLIDE and TIE (ACID), DUCK, the COMP settings,
  * the LFOs, RESON, the FILTER, PRIO), the motion
- * (motion.c, 128 events), the song and the project's name (song.c).
+ * (motion.c, 128 events), the song and the project's name (song.c), each track's preset id and edited mark (presets.c).
  * M1's "FDR1", M2's "FDR2", M3's "FDR3", the LFOs' "FDR4" RESON's "FDR5", GHOST's "FDR6", the sound pack's
- * "FDR7", motion's "FDR8", the song's "FDR9", the FILTER's "FDRA" and ACID's "FDRB" records (in flash) are converted on
- * load (the FILTER OFF, the steps at NOTE C4 with no SLIDE / TIE, PRIO HIGH). An older image in a RAM slot (FDRA, FDRB:
- * 3672 B a slot, FDRC's are 3688 B) is never read as one: the slots are filled from flash at boot.
+ * "FDR7", motion's "FDR8", the song's "FDR9", the FILTER's "FDRA", ACID's "FDRB" and PRIO's "FDRC" records (in flash)
+ * are converted on load (the FILTER OFF, the steps at NOTE C4 with no SLIDE / TIE, PRIO HIGH, no preset, not edited;
+ * CHOKE as stored). An older image in a RAM slot (FDRA, FDRB: 3672 B a slot, FDRC: 3688 B, FDRD's are 3712 B) is never
+ * read as one: the slots are filled from flash at boot.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x43524446u                 /* "FDRC" (the 12th): + PRIO per track */
+#define PROJ_MAGIC 0x44524446u                 /* "FDRD" (the 13th): + each track's preset and edited mark */
+#define PROJ_MAGIC_VC 0x43524446u              /* "FDRC": PRIO per track, no presets; converted on load */
 #define PROJ_MAGIC_VB 0x42524446u              /* "FDRB": the step's note, SLIDE and TIE (ACID); converted on load */
 #define PROJ_MAGIC_VA 0x41524446u              /* "FDRA": the FILTER, the old steps; converted on load (same size) */
 #define PROJ_MAGIC_V9 0x39524446u              /* "FDR9": the song and the name, converted on load */
@@ -36,9 +38,12 @@ typedef struct {
     motion_store_t motion;                      /* FDR8: the motion (motion.c) */
     chain_config_t song;                        /* FDR9: the song (song.c) */
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
+    uint16_t pre[NTRK];                         /* FDRD: each track's preset: a factory one's uid, 0x8000 | a user
+                                                 * slot, PRE_NONE none (presets.c preset_rec_enc: not the id) */
+    uint8_t pre_ed[NTRK];                       /* FDRD: .. edited since (0 / 1) */
     uint32_t sum;
 } project_t;
-typedef char project_size[sizeof(project_t) == 3688u ? 1 : -1];
+typedef char project_size[sizeof(project_t) == 3712u ? 1 : -1];
 project_t proj_slot[4] __attribute__((section(".noinit")));
 
 static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
@@ -85,6 +90,20 @@ typedef struct {
     uint32_t sum;
 } project_vb_t;
 typedef char project_vb_size[sizeof(project_vb_t) == 3672u ? 1 : -1];
+/* FDRC (0.17.0 .. 0.20.0): everything but the presets, 3688 B; FDRD's fields up to the name at the same offsets */
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_t t[NTRK];
+    motion_store_t motion;
+    chain_config_t song;
+    char name[NAME_LEN];
+    uint32_t sum;
+} project_vc_t;
+#define PROJ_VC_END (__builtin_offsetof(project_vc_t, name) + NAME_LEN)   /* FDRC's fields end (then FDRD's presets) */
+typedef char project_vc_size[sizeof(project_vc_t) == 3688u &&
+                             __builtin_offsetof(project_vc_t, name) == __builtin_offsetof(project_t, name) ? 1 : -1];
 
 static step_t step_up(const step_v9_t *o)          /* an FDR2..FDRA step: the flags, NOTE C4, no SLIDE / TIE */
 {
@@ -187,17 +206,35 @@ typedef struct {
 } project_v9_t;
 static union {
     project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
-    project_v8_t v8; project_v9_t v9; project_va_t va; project_vb_t vb;
+    project_v8_t v8; project_v9_t v9; project_va_t va; project_vb_t vb; project_vc_t vc;
 } proj_old;
+
+static void proj_old_done(project_t *q)            /* a converted record: no presets, not edited; its sum */
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++) {
+        q->pre[k] = (uint16_t)PRE_NONE;
+        q->pre_ed[k] = 0;
+    }
+    q->sum = proj_sum(q);
+}
 
 /* an old record (proj_old, version ver) -> q: what it has; the rest at the defaults (v1: PROB 100 %, 1 hit,
  * SRC STEP, Grids; v1 / v2: COMP off, DUCK off; v1..v3: the LFOs off; v1..v4: RESON off; v1..v5: GHOST KEEP;
  * v1..v6: reverb TYPE ROOM; v1..v7: no motion; v1..v8: no song, no name; v1..v9: the FILTER OFF; v1..v10: the steps
- * at NOTE C4, no SLIDE / TIE; all: PRIO HIGH) */
+ * at NOTE C4, no SLIDE / TIE; v1..v11: PRIO HIGH; all: no preset, not edited, CHOKE as stored) */
 static void proj_from_old(project_t *q, uint32_t ver)
 {
     uint32_t i, k;
     uint32_t ng, np;
+    if (ver == 12u) {                                /* FDRC: everything but the presets, at the same offsets */
+        memset(q, 0, sizeof *q);
+        memcpy(q, &proj_old.vc, PROJ_VC_END);
+        q->magic = PROJ_MAGIC;
+        q->size = sizeof *q;
+        proj_old_done(q);
+        return;
+    }
     if (ver >= 8u) {                                 /* FDR8 / FDR9: the tracks without the FILTER; FDRA / FDRB: without
                                                       * PRIO; FDRB: the steps as now */
         const int16_t *g = ver == 8u ? proj_old.v8.g : ver == 9u ? proj_old.v9.g : ver == 10u ? proj_old.va.g : proj_old.vb.g;
@@ -226,7 +263,7 @@ static void proj_from_old(project_t *q, uint32_t ver)
             q->song = ver == 9u ? proj_old.v9.song : ver == 10u ? proj_old.va.song : proj_old.vb.song;
             memcpy(q->name, ver == 9u ? proj_old.v9.name : ver == 10u ? proj_old.va.name : proj_old.vb.name, NAME_LEN);
         }
-        q->sum = proj_sum(q);
+        proj_old_done(q);
         return;
     }
     ng = ver == 1u ? (uint32_t)G_GMODE : ver == 2u ? (uint32_t)G_CSRC : ver == 6u ? (uint32_t)G_RTYPE
@@ -260,7 +297,7 @@ static void proj_from_old(project_t *q, uint32_t ver)
             }
         }
     }
-    q->sum = proj_sum(q);
+    proj_old_done(q);
 }
 
 static void proj_fetch(uint32_t slot)
@@ -268,16 +305,18 @@ static void proj_fetch(uint32_t slot)
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
     if (n > 8 && n <= (int)sizeof proj_old && !proj_ok(q)) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[12] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
-                                           PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA, PROJ_MAGIC_VB};
-        static const uint32_t SIZE[12] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+        static const uint32_t MAGIC[13] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
+                                           PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA, PROJ_MAGIC_VB,
+                                           PROJ_MAGIC_VC};
+        static const uint32_t SIZE[13] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
                                           sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
-                                          sizeof proj_old.v8, sizeof proj_old.v9, sizeof proj_old.va, sizeof proj_old.vb};
+                                          sizeof proj_old.v8, sizeof proj_old.v9, sizeof proj_old.va, sizeof proj_old.vb,
+                                          sizeof proj_old.vc};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 12u; ver++)
+        for (ver = 1; ver < 13u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
                 proj_from_old(q, ver);
@@ -323,6 +362,8 @@ static void project_save(uint32_t slot)
     for (i = 0; i < NTRK; i++) {
         memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
+        p->pre[i] = (uint16_t)preset_rec_enc(trk[i].pre);   /* (stable: a uid / a user slot, presets.c) */
+        p->pre_ed[i] = trk[i].pre_ed;
     }
     p->motion = mo.s;                                  /* (stopped: the base is in the knobs) */
     p->song = chain.cfg;
@@ -343,6 +384,16 @@ static void project_save(uint32_t slot)
     }
 #endif
     ui_message("SAVED (RAM)");
+}
+
+/* a stored preset reference (decoded: presets.c preset_rec_dec) of a track with model m: none, or a factory preset of
+ * another voice (a uid retouched by another firmware), is none; a user slot's is kept as it is (its slot may hold
+ * another voice by now: shown as none, presets.c preset_of) */
+static uint32_t preset_ref(uint32_t id, uint32_t m)
+{
+    if (id >= PRE_NID || (id < PRE_NFACT && PRE_FACTORY[id].model != m))
+        return PRE_NONE;
+    return id;
 }
 
 /* slot -> the live project; 1 loaded. irq: the main loop's load (the audio ISR runs: off while copying); 0 the
@@ -382,6 +433,8 @@ static int proj_load(uint32_t slot, int irq)
         }
         t->p[P_MODEL] = (int16_t)m;
         t->model = (uint8_t)m;
+        t->pre = (uint16_t)preset_ref(preset_rec_dec(p->pre[k]), m);
+        t->pre_ed = p->pre_ed[k] ? 1u : 0u;
         t->key_nt = 0;                                  /* no last KEYS note carried over (spec §2) */
         for (i = 0; i < NSTEP; i++) {                   /* garbage cannot index a table or divide by zero */
             const step_t *q = &s->step[i];
@@ -545,6 +598,74 @@ static void learn_save(void)
 #endif
 }
 
+/* the user presets (presets.c upr): their own flash object OBJ_UPRESET0 + 1 (storage.c's second user-preset object,
+ * unused before; 0xDE000..0xDFFFF; MIDI LEARN's map keeps OBJ_UPRESET0): "UPR1", 128 slots {used, model, k[8]} (1284 B).
+ * Another record there (none, Felucca's presets, another version) reads as no user preset; a slot that is not used 1
+ * or names no model is empty, its knobs are put inside the model's ranges. A storage.c save is two copies and a commit
+ * record: a power cut keeps the last record whole */
+static void upr_write(void)                         /* the bank to flash: now when stopped, else at the next STOP */
+{
+    if (transport_busy()) {
+        upr_pending = 1;
+        return;
+    }
+    upr_pending = 0;
+#if FELUCCA_FLASH
+    if (!flash_ok)
+        return;
+    upr.magic = UPR_MAGIC;
+    if (st_save(OBJ_UPRESET0 + 1u, &upr, sizeof upr))
+        ui_message("SAVE ERROR");
+#endif
+}
+/* t's voice into user slot (0..127, over what it holds): in the list at once, in flash as upr_write. 0, -1 a bad slot.
+ * The knobs as set: while MOTION plays the track, its base (motion.c), not the value motion moved a knob to. The track
+ * is not changed (the caller points its reference at PRE_NFACT + slot) */
+static int preset_user_save(uint32_t slot, const track_t *t)
+{
+    uint32_t k = (uint32_t)(t - trk);
+    if (slot >= PRE_NUSER)
+        return -1;
+    upr_set(slot, (uint32_t)t->p[P_MODEL], k < NTRK && ((mo.base_ok >> k) & 1u) ? mo.base[k] : t->p);
+    upr_write();
+    return 0;
+}
+static void preset_user_delete(uint32_t slot)       /* user slot emptied (tracks loaded from it keep their knobs) */
+{
+    if (slot >= PRE_NUSER || upr.s[slot].used != 1u)
+        return;
+    memset(&upr.s[slot], 0, sizeof upr.s[slot]);
+    upr_write();
+}
+static void preset_user_boot(void)                  /* persist_boot (after flash_ok): the bank from flash */
+{
+    memset(&upr, 0, sizeof upr);
+    upr_pending = 0;
+#if FELUCCA_FLASH
+    {
+        uint32_t i, k;
+        if (!flash_ok || st_load(OBJ_UPRESET0 + 1u, &upr, sizeof upr) != (int)sizeof upr || upr.magic != UPR_MAGIC) {
+            memset(&upr, 0, sizeof upr);
+            return;
+        }
+        for (i = 0; i < PRE_NUSER; i++) {
+            upr_slot_t *u = &upr.s[i];
+            if (u->used != 1u || u->model >= NMODELS) {
+                memset(u, 0, sizeof *u);
+                continue;
+            }
+            for (k = 0; k < 8u; k++)
+                u->k[k] = (int8_t)clamp(u->k[k], DMODELS[u->model].edit[k].min, DMODELS[u->model].edit[k].max);
+        }
+    }
+#endif
+}
+static void preset_user_tick(void)                  /* the main loop (settings_poll): a change left for the STOP */
+{
+    if (upr_pending && !transport_busy())
+        upr_write();
+}
+
 /* the stored lowcut word's bits 0..7 (bits 8..31: btset.bt_hi): 0..1 SPEAKER EQ, 2..4 the last project (2 set, 3..4
  * its slot), 5..6 METRO (spec 2026-10-11 §9), 7 BACKLIGHT (§12). An older firmware reads SPEAKER EQ FLAT from a record
  * with any of 2..7 set */
@@ -571,6 +692,8 @@ static void persist_boot(void)                    /* before settings_init / pane
     fx_metro = 0;                                     /* METRO OFF, as well */
     backlight = 0;                                    /* BACKLIGHT OFF, as well */
     memset(ml_map, 0, sizeof ml_map);                 /* MIDI LEARN: nothing learned, as well */
+    memset(&upr, 0, sizeof upr);                      /* no user preset, as well (presets.c) */
+    upr_pending = 0;
 #if FELUCCA_FLASH
     persist_t p;
     uint32_t f = irq_save();
@@ -605,6 +728,7 @@ static void persist_boot(void)                    /* before settings_init / pane
         persist_saved = p;
     }
     learn_load();                                     /* MIDI LEARN's map (its own object) */
+    preset_user_boot();                               /* the user presets (theirs) */
     {
         uint32_t i;
         for (i = 0; i < 4u; i++)
@@ -718,6 +842,7 @@ static void settings_poll(void)                    /* every UI frame: a settings
         settings_save();
     if (ui.ml.save && !transport_busy())             /* .. and MIDI LEARN's map */
         learn_save();
+    preset_user_tick();                              /* .. and the user presets */
 }
 
 #if FELUCCA_FLASH

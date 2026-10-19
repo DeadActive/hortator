@@ -27,6 +27,7 @@ static void fm1_irq_on(void) { host_irq_on++; }
 #include "../firmware/src/comp.c"
 #include "../firmware/src/eng_sample.c"
 #include "../firmware/src/dmodels.c"
+#include "../firmware/src/presets.c"
 #include "../firmware/src/params.c"
 #include "../firmware/src/reson.c"
 #include "../firmware/src/filter.c"
@@ -40,6 +41,7 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
 #include "../firmware/src/bench.c"
+#include "old_defs.h"                                 /* the knob defaults up to drum 0.20.0 (the tests' "default") */
 
 static void host_reset_fx(void)                     /* FX buses, master, slicer, metal: as at power-on */
 {
@@ -90,11 +92,17 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     comp_was = NTRK;
 }
 
-static void host_init(void)
+static void host_init_live(void)                    /* power-on as the firmware's (bench_reset): today's defaults */
 {
     host_reset_fx();
     memset(&song, 0, sizeof song);
     drum_tracks_init();
+}
+
+static void host_init(void)                         /* power-on, the kit's knobs at the old defaults (old_defs.h) */
+{
+    host_init_live();
+    old_kit();
 }
 
 static int32_t blk[CTL];

@@ -1,0 +1,2584 @@
+[
+ {
+  "bank": "MACHINEDRUM",
+  "presets": [
+   {
+    "uid": 1,
+    "name": "SUBTHUMP",
+    "model": "KTRX",
+    "k": [
+     -4,
+     68,
+     35,
+     35,
+     14,
+     14,
+     35,
+     24
+    ],
+    "source": "TRX-BD kit/track 14/1, knobs 45 68 35 35 14 14 35 24",
+    "note": "round ~50 Hz kick, a short zap and a growl under it; PTCH 45 = TUNE -3.55 st, rounded"
+   },
+   {
+    "uid": 2,
+    "name": "HARDSNAP",
+    "model": "SDTRX",
+    "k": [
+     0,
+     7,
+     127,
+     0,
+     0,
+     64,
+     92,
+     0
+    ],
+    "source": "TRX-SD kit/track 0/2, knobs 35 7 0 64 127 0 99 92",
+    "note": "tight snare, noise full up, clipped body; PTCH 35 / TUNE 99 left out (the port has neither: +-0.8 % on osc A, -2.7 Hz on B)"
+   },
+   {
+    "uid": 3,
+    "name": "POPSNARE",
+    "model": "SDTRX",
+    "k": [
+     0,
+     12,
+     127,
+     29,
+     36,
+     22,
+     35,
+     0
+    ],
+    "source": "TRX-SD kit/track 14/2, knobs 97 12 36 22 127 29 16 35",
+    "note": "short snare with a pitch pop and more tone; PTCH 97 / TUNE 16 left out (the port has neither: +-0.8 % on osc A, -2.7 Hz on B)"
+   },
+   {
+    "uid": 4,
+    "name": "SWOOPTOM",
+    "model": "XTTRX",
+    "k": [
+     0,
+     48,
+     48,
+     102,
+     64,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-XT kit/track 14/4, knobs 64 48 48 102 64 0 0 0",
+    "note": "tom falling from ~260 Hz, long"
+   },
+   {
+    "uid": 5,
+    "name": "FUZZTOM",
+    "model": "XTTRX",
+    "k": [
+     -12,
+     27,
+     42,
+     17,
+     98,
+     98,
+     112,
+     0
+    ],
+    "source": "TRX-XT kit/track 0/5, knobs 0 27 42 17 98 98 112 0",
+    "note": "low distorted tom, hollow (DTYP)"
+   },
+   {
+    "uid": 6,
+    "name": "SHORTTOM",
+    "model": "XTTRX",
+    "k": [
+     1,
+     24,
+     48,
+     24,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-XT kit/track 0/4, knobs 69 24 48 24 0 0 0 0",
+    "note": "short tom with a quick drop"
+   },
+   {
+    "uid": 7,
+    "name": "BUZZLOW",
+    "model": "XTTRX",
+    "k": [
+     -12,
+     30,
+     0,
+     24,
+     98,
+     127,
+     43,
+     0
+    ],
+    "source": "TRX-XT kit/track 9/5, knobs 0 30 0 24 98 127 43 0",
+    "note": "low 72 Hz tom, fully distorted, no drop"
+   },
+   {
+    "uid": 8,
+    "name": "GRITCONG",
+    "model": "XCTRX",
+    "k": [
+     11,
+     15,
+     30,
+     29,
+     105,
+     127,
+     107,
+     0
+    ],
+    "source": "TRX-XC kit/track 0/3, knobs 124 15 30 29 105 127 107 0",
+    "note": "high distorted conga, short; PTCH 124 = TUNE +11.27 st, rounded"
+   },
+   {
+    "uid": 9,
+    "name": "ROOMCLAP",
+    "model": "CPTRX",
+    "k": [
+     10,
+     127,
+     56,
+     7,
+     43,
+     56,
+     0,
+     93
+    ],
+    "source": "TRX-CP kit/track 0/6, knobs 56 106 7 127 43 56 0 93",
+    "note": "clap washing into a room, bright"
+   },
+   {
+    "uid": 10,
+    "name": "WIDECLAP",
+    "model": "CPTRX",
+    "k": [
+     15,
+     106,
+     0,
+     22,
+     77,
+     0,
+     10,
+     9
+    ],
+    "source": "TRX-CP kit/track 14/6, knobs 0 127 22 106 77 0 10 9",
+    "note": "very bright clap, claps spread wide, dry"
+   },
+   {
+    "uid": 11,
+    "name": "KNOCK",
+    "model": "RSTRX",
+    "k": [
+     -4,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-RS kit/track 6/7 14/7, knobs 28 0 0 0 0 0 0 0",
+    "note": "short woody knock; PTCH 28 = TUNE -3.59 st, rounded"
+   },
+   {
+    "uid": 12,
+    "name": "GRITRIM",
+    "model": "RSTRX",
+    "k": [
+     -1,
+     0,
+     50,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-RS kit/track 0/7, knobs 54 0 50 0 0 0 0 0",
+    "note": "short knock, distorted"
+   },
+   {
+    "uid": 13,
+    "name": "PUREBELL",
+    "model": "CBTRX",
+    "k": [
+     0,
+     48,
+     127,
+     127,
+     0,
+     0,
+     105,
+     0
+    ],
+    "source": "TRX-CB kit/track 0/8, knobs 105 48 127 127 0 0 1 0",
+    "note": "short pure ringing cowbell (ENH, DAMP)"
+   },
+   {
+    "uid": 14,
+    "name": "LONGBELL",
+    "model": "CBTRX",
+    "k": [
+     0,
+     79,
+     13,
+     21,
+     127,
+     43,
+     119,
+     0
+    ],
+    "source": "TRX-CB kit/track 14/8, knobs 119 79 13 21 127 43 0 0",
+    "note": "long bright cowbell, a pitch blip"
+   },
+   {
+    "uid": 15,
+    "name": "NOISEHAT",
+    "model": "CHTRX",
+    "k": [
+     0,
+     8,
+     0,
+     0,
+     127,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-CH kit/track 0/9, knobs 0 8 0 127 0 0 0 0",
+    "note": "tight noise hat"
+   },
+   {
+    "uid": 16,
+    "name": "METALHAT",
+    "model": "CHTRX",
+    "k": [
+     0,
+     71,
+     112,
+     0,
+     127,
+     127,
+     0,
+     0
+    ],
+    "source": "TRX-CH kit/track 6/10, knobs 112 71 0 127 127 0 0 0",
+    "note": "long metallic hat, a long tail (GAP)"
+   },
+   {
+    "uid": 17,
+    "name": "THINHAT",
+    "model": "CHTRX",
+    "k": [
+     0,
+     0,
+     23,
+     127,
+     127,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-CH kit/track 14/9, knobs 23 0 127 127 0 0 0 0",
+    "note": "very short thin hat (high-passed)"
+   },
+   {
+    "uid": 18,
+    "name": "TINHAT",
+    "model": "CHTRX",
+    "k": [
+     0,
+     0,
+     0,
+     0,
+     127,
+     127,
+     0,
+     0
+    ],
+    "source": "TRX-CH kit/track 6/9, knobs 0 0 0 127 127 0 0 0",
+    "note": "very short all-metal hat"
+   },
+   {
+    "uid": 19,
+    "name": "AIROPEN",
+    "model": "OHTRX",
+    "k": [
+     0,
+     61,
+     57,
+     8,
+     127,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-OH kit/track 0/10, knobs 57 61 8 127 0 0 0 0",
+    "note": "open noise hat, ~0.5 s"
+   },
+   {
+    "uid": 20,
+    "name": "DARKOPEN",
+    "model": "OHTRX",
+    "k": [
+     0,
+     86,
+     120,
+     0,
+     84,
+     127,
+     0,
+     0
+    ],
+    "source": "TRX-OH kit/track 9/11, knobs 120 86 0 84 127 0 0 0",
+    "note": "long all-metal open hat, low-passed (fades, dips, swells)"
+   },
+   {
+    "uid": 21,
+    "name": "SIZZLE",
+    "model": "OHTRX",
+    "k": [
+     0,
+     20,
+     0,
+     112,
+     127,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-OH kit/track 14/10, knobs 0 20 112 127 0 0 0 0",
+    "note": "short thin open hat"
+   },
+   {
+    "uid": 22,
+    "name": "HALFOPEN",
+    "model": "OHTRX",
+    "k": [
+     0,
+     29,
+     0,
+     29,
+     127,
+     0,
+     0,
+     0
+    ],
+    "source": "TRX-OH kit/track 13/9, knobs 0 29 29 127 0 0 0 0",
+    "note": "half-open noise hat"
+   },
+   {
+    "uid": 23,
+    "name": "WASHCYM",
+    "model": "CYTRX",
+    "k": [
+     0,
+     35,
+     127,
+     93,
+     107,
+     127,
+     0,
+     0
+    ],
+    "source": "TRX-CY kit/track 0/12, knobs 127 35 93 107 127 0 0 0",
+    "note": "dense wide cymbal"
+   },
+   {
+    "uid": 24,
+    "name": "PINGBELL",
+    "model": "CYTRX",
+    "k": [
+     0,
+     0,
+     127,
+     0,
+     126,
+     0,
+     127,
+     0
+    ],
+    "source": "TRX-CY kit/track 0/11, knobs 127 0 0 126 0 127 0 0",
+    "note": "short ringing bell (PEAK), small"
+   },
+   {
+    "uid": 25,
+    "name": "THINCRSH",
+    "model": "CYTRX",
+    "k": [
+     0,
+     0,
+     0,
+     100,
+     35,
+     127,
+     63,
+     0
+    ],
+    "source": "TRX-CY kit/track 6/11 14/11, knobs 0 0 100 35 127 63 0 0",
+    "note": "thin short crash, ringing peak"
+   },
+   {
+    "uid": 26,
+    "name": "LONGRIDE",
+    "model": "CYTRX",
+    "k": [
+     0,
+     106,
+     127,
+     64,
+     64,
+     0,
+     71,
+     0
+    ],
+    "source": "TRX-CY kit/track 6/12 14/12, knobs 127 106 64 64 0 71 0 0",
+    "note": "long dense cymbal with a bell"
+   },
+   {
+    "uid": 27,
+    "name": "BIGBOOM",
+    "model": "B2TRX",
+    "k": [
+     -1,
+     74,
+     33,
+     22,
+     7,
+     4,
+     31,
+     6
+    ],
+    "source": "TRX-B2 kit/track 0/1, knobs 61 74 33 22 7 4 31 6",
+    "note": "50 Hz sine kick, long, a little dirt"
+   },
+   {
+    "uid": 28,
+    "name": "ZAPKICK",
+    "model": "B2TRX",
+    "k": [
+     13,
+     64,
+     127,
+     0,
+     0,
+     0,
+     50,
+     0
+    ],
+    "source": "TRX-B2 kit/track 12/3, knobs 127 64 127 0 0 0 50 0",
+    "note": "106 Hz kick with the biggest pitch zap, bit-crushed"
+   },
+   {
+    "uid": 29,
+    "name": "TICKKICK",
+    "model": "B2TRX",
+    "k": [
+     -3,
+     49,
+     12,
+     55,
+     92,
+     22,
+     43,
+     6
+    ],
+    "source": "TRX-B2 kit/track 12/1, knobs 53 49 12 55 92 22 43 6",
+    "note": "kick with a held body, a tick and a hiss"
+   },
+   {
+    "uid": 30,
+    "name": "SUBDIRT",
+    "model": "B2TRX",
+    "k": [
+     -24,
+     64,
+     32,
+     0,
+     0,
+     0,
+     54,
+     0
+    ],
+    "source": "TRX-B2 kit/track 12/5, knobs 0 64 32 0 0 0 54 0",
+    "note": "subsonic kick: a pitch drop into a crushed rumble; PTCH 0 is -28.1 semitones, TUNE clamped to -24"
+   },
+   {
+    "uid": 31,
+    "name": "FMSUB",
+    "model": "BDEFM",
+    "k": [
+     -13,
+     68,
+     10,
+     32,
+     29,
+     5,
+     4,
+     24
+    ],
+    "source": "EFM-BD kit/track 9/1, knobs 29 68 10 32 29 5 4 24",
+    "note": "deep FM kick ~48 Hz, a soft FM edge"
+   },
+   {
+    "uid": 32,
+    "name": "NOISEZAP",
+    "model": "BDEFM",
+    "k": [
+     24,
+     49,
+     35,
+     44,
+     0,
+     0,
+     0,
+     127
+    ],
+    "source": "EFM-BD kit/track 5/3, knobs 127 49 35 44 0 0 0 127",
+    "note": "high pitched zap, the FM feedback's noise; PTCH 127 = TUNE +23.62 st, rounded"
+   },
+   {
+    "uid": 33,
+    "name": "FMBOOM",
+    "model": "BDEFM",
+    "k": [
+     -9,
+     80,
+     117,
+     4,
+     95,
+     35,
+     27,
+     35
+    ],
+    "source": "EFM-BD kit/track 11/1, knobs 41 80 117 4 95 35 27 35",
+    "note": "big pitch drop, deep FM brightness; PTCH 41 = TUNE -8.62 st, rounded"
+   },
+   {
+    "uid": 34,
+    "name": "RISEKICK",
+    "model": "BDEFM",
+    "k": [
+     4,
+     54,
+     0,
+     0,
+     37,
+     32,
+     127,
+     36
+    ],
+    "source": "EFM-BD kit/track 15/6, knobs 75 54 0 0 37 32 127 36",
+    "note": "pitch rising in, long FM shimmer"
+   },
+   {
+    "uid": 35,
+    "name": "TONESNR",
+    "model": "SDEFM",
+    "k": [
+     -9,
+     60,
+     14,
+     79,
+     0,
+     5,
+     127,
+     29
+    ],
+    "source": "EFM-SD kit/track 1/2, knobs 27 60 14 79 0 5 127 29",
+    "note": "pure tone snare (MOD 0) with a long noise; PTCH 27 = TUNE -8.67 st, rounded"
+   },
+   {
+    "uid": 36,
+    "name": "LONGTOM",
+    "model": "XTEFM",
+    "k": [
+     12,
+     85,
+     62,
+     36,
+     64,
+     4,
+     45,
+     51
+    ],
+    "source": "EFM-XT kit/track 1/4, knobs 126 85 62 36 64 4 45 51",
+    "note": "long high FM tom, a click; PTCH 126 = TUNE +11.63 st, rounded"
+   },
+   {
+    "uid": 37,
+    "name": "DROPTOM",
+    "model": "XTEFM",
+    "k": [
+     1,
+     31,
+     127,
+     111,
+     5,
+     4,
+     79,
+     0
+    ],
+    "source": "EFM-XT kit/track 1/3, knobs 69 31 127 111 5 4 79 0",
+    "note": "short tom, a big pitch drop"
+   },
+   {
+    "uid": 38,
+    "name": "RISETOM",
+    "model": "XTEFM",
+    "k": [
+     7,
+     73,
+     0,
+     0,
+     8,
+     4,
+     127,
+     0
+    ],
+    "source": "EFM-XT kit/track 15/5, knobs 102 73 0 0 8 4 127 0",
+    "note": "tom whose pitch rises in"
+   },
+   {
+    "uid": 39,
+    "name": "GRITTOM",
+    "model": "XTEFM",
+    "k": [
+     -12,
+     70,
+     12,
+     0,
+     76,
+     16,
+     65,
+     99
+    ],
+    "source": "EFM-XT kit/track 1/5, knobs 0 70 12 0 76 16 65 99",
+    "note": "low gritty FM tom, a click"
+   },
+   {
+    "uid": 40,
+    "name": "BUZZCLAP",
+    "model": "CPEFM",
+    "k": [
+     24,
+     45,
+     91,
+     30,
+     75,
+     36,
+     127,
+     61
+    ],
+    "source": "EFM-CP kit/track 6/6, knobs 118 45 91 30 75 36 127 61",
+    "note": "buzzy many-clap FM clap, ~4 semitones under the machine's; PTCH 118 is +27.8 semitones, TUNE clamped to +24"
+   },
+   {
+    "uid": 41,
+    "name": "FMZAP",
+    "model": "CPEFM",
+    "k": [
+     -13,
+     14,
+     0,
+     4,
+     127,
+     127,
+     38,
+     32
+    ],
+    "source": "EFM-CP kit/track 8/7, knobs 38 14 0 4 127 127 38 32",
+    "note": "very short FM noise zap; PTCH 38 = TUNE -13.39 st, rounded"
+   },
+   {
+    "uid": 42,
+    "name": "DEEPBLIP",
+    "model": "CPEFM",
+    "k": [
+     -24,
+     64,
+     0,
+     1,
+     12,
+     33,
+     127,
+     0
+    ],
+    "source": "EFM-CP kit/track 15/2, knobs 2 64 0 1 12 33 127 0",
+    "note": "a low FM tone, no claps; NOT representable: the machine sounds ~64 Hz, the port bottoms out at ~205 Hz (drop it?); PTCH 2 is -31.9 semitones, TUNE clamped to -24"
+   },
+   {
+    "uid": 43,
+    "name": "RATTLE",
+    "model": "CPEFM",
+    "k": [
+     -8,
+     0,
+     127,
+     24,
+     115,
+     127,
+     87,
+     8
+    ],
+    "source": "EFM-CP kit/track 1/6, knobs 49 0 127 24 115 127 87 8",
+    "note": "short rattle of claps; PTCH 49 = TUNE -7.73 st, rounded"
+   },
+   {
+    "uid": 44,
+    "name": "FMRIM",
+    "model": "RSEFM",
+    "k": [
+     1,
+     10,
+     8,
+     15,
+     38,
+     21,
+     59,
+     0
+    ],
+    "source": "EFM-RS kit/track 1/7, knobs 67 10 8 15 38 25 59 0",
+    "note": "FM rim with a soft second voice"
+   },
+   {
+    "uid": 45,
+    "name": "RIMSNARE",
+    "model": "RSEFM",
+    "k": [
+     3,
+     23,
+     0,
+     4,
+     100,
+     62,
+     50,
+     85
+    ],
+    "source": "EFM-RS kit/track 11/8, knobs 71 23 0 4 100 75 50 85",
+    "note": "rim plus a loud noisy second voice; PTCH 71 = TUNE +2.63 st, rounded"
+   },
+   {
+    "uid": 46,
+    "name": "CLANK",
+    "model": "CBEFM",
+    "k": [
+     -2,
+     61,
+     92,
+     56,
+     17,
+     112,
+     42,
+     0
+    ],
+    "source": "EFM-CB kit/track 1/8, knobs 54 61 92 56 17 112 42 0",
+    "note": "snappy FM cowbell, gritty; PTCH 54 = TUNE -2.34 st, rounded"
+   },
+   {
+    "uid": 47,
+    "name": "GONG",
+    "model": "CBEFM",
+    "k": [
+     -11,
+     92,
+     0,
+     0,
+     126,
+     24,
+     127,
+     0
+    ],
+    "source": "EFM-CB kit/track 11/11, knobs 18 92 0 0 126 24 127 0",
+    "note": "long, deep FM metal"
+   },
+   {
+    "uid": 48,
+    "name": "FMHAT",
+    "model": "HHEFM",
+    "k": [
+     -2,
+     52,
+     0,
+     0,
+     3,
+     12,
+     78,
+     26
+    ],
+    "source": "EFM-HH kit/track 15/11, knobs 56 52 0 0 3 12 78 26",
+    "note": "plain buzzy FM hat"
+   },
+   {
+    "uid": 49,
+    "name": "TRASHHAT",
+    "model": "HHEFM",
+    "k": [
+     3,
+     69,
+     4,
+     84,
+     99,
+     81,
+     100,
+     94
+    ],
+    "source": "EFM-HH kit/track 1/10, knobs 75 69 4 84 99 81 100 94",
+    "note": "bright, noisy FM hat; PTCH 75 = TUNE +2.57 st, rounded"
+   },
+   {
+    "uid": 50,
+    "name": "TREMHAT",
+    "model": "HHEFM",
+    "k": [
+     -14,
+     76,
+     65,
+     49,
+     76,
+     48,
+     78,
+     24
+    ],
+    "source": "EFM-HH kit/track 15/9, knobs 5 76 65 49 76 48 78 24",
+    "note": "low, long FM hat with a tremolo"
+   },
+   {
+    "uid": 51,
+    "name": "SPITHAT",
+    "model": "HHEFM",
+    "k": [
+     -8,
+     20,
+     0,
+     0,
+     85,
+     29,
+     28,
+     106
+    ],
+    "source": "EFM-HH kit/track 11/4, knobs 31 20 0 0 85 29 28 106",
+    "note": "very short noisy FM hat; PTCH 31 = TUNE -7.72 st, rounded"
+   },
+   {
+    "uid": 52,
+    "name": "FMCRASH",
+    "model": "CYEFM",
+    "k": [
+     -2,
+     93,
+     22,
+     107,
+     76,
+     88,
+     86,
+     0
+    ],
+    "source": "EFM-CY kit/track 1/11, knobs 57 93 22 107 76 88 86 0",
+    "note": "long bright FM crash; PTCH 57 = TUNE -1.66 st, rounded"
+   },
+   {
+    "uid": 53,
+    "name": "LOWCHIME",
+    "model": "CYEFM",
+    "k": [
+     -15,
+     77,
+     57,
+     44,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "EFM-CY kit/track 12/12, knobs 0 77 57 44 0 0 0 0",
+    "note": "pure low tones (MOD 0): a chime"
+   },
+   {
+    "uid": 54,
+    "name": "FMSPLASH",
+    "model": "CYEFM",
+    "k": [
+     0,
+     25,
+     64,
+     0,
+     127,
+     127,
+     127,
+     0
+    ],
+    "source": "EFM-CY kit/track 12/9, knobs 64 25 64 0 127 127 127 0",
+    "note": "short dense aliased splash"
+   },
+   {
+    "uid": 55,
+    "name": "SIZZRIDE",
+    "model": "CYEFM",
+    "k": [
+     5,
+     81,
+     126,
+     119,
+     8,
+     40,
+     91,
+     0
+    ],
+    "source": "EFM-CY kit/track 1/12, knobs 85 81 126 119 8 40 91 0",
+    "note": "long rough thin cymbal"
+   }
+  ]
+ },
+ {
+  "bank": "CLASSIC",
+  "presets": [
+   {
+    "uid": 56,
+    "name": "ROUNDBD",
+    "model": "K808",
+    "k": [
+     0,
+     80,
+     40,
+     40,
+     30,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the classic round boom (today's default)"
+   },
+   {
+    "uid": 57,
+    "name": "SUBBOOM",
+    "model": "K808",
+    "k": [
+     -3,
+     120,
+     20,
+     20,
+     20,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "long low sub boom, little click"
+   },
+   {
+    "uid": 58,
+    "name": "PUNCHBD",
+    "model": "K808",
+    "k": [
+     3,
+     40,
+     90,
+     70,
+     60,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short punchy kick, a bright blip and dip"
+   },
+   {
+    "uid": 59,
+    "name": "DIRTBD",
+    "model": "K808",
+    "k": [
+     -2,
+     90,
+     60,
+     60,
+     120,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "driven, distorted boom"
+   },
+   {
+    "uid": 60,
+    "name": "HOUSEBD",
+    "model": "K909",
+    "k": [
+     0,
+     64,
+     70,
+     50,
+     40,
+     20,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the four-on-the-floor kick (today's default)"
+   },
+   {
+    "uid": 61,
+    "name": "HARDBD",
+    "model": "K909",
+    "k": [
+     -2,
+     90,
+     100,
+     90,
+     30,
+     90,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "hard, driven techno kick"
+   },
+   {
+    "uid": 62,
+    "name": "TIGHTBD",
+    "model": "K909",
+    "k": [
+     2,
+     30,
+     60,
+     100,
+     20,
+     10,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short tight clicky kick"
+   },
+   {
+    "uid": 63,
+    "name": "DEEPBD",
+    "model": "K909",
+    "k": [
+     -4,
+     110,
+     40,
+     20,
+     70,
+     30,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "deep long kick, a slow soft sweep"
+   },
+   {
+    "uid": 64,
+    "name": "WARMSN",
+    "model": "S808",
+    "k": [
+     0,
+     64,
+     64,
+     90,
+     64,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the classic snare (today's default)"
+   },
+   {
+    "uid": 65,
+    "name": "TONALSN",
+    "model": "S808",
+    "k": [
+     -3,
+     50,
+     20,
+     50,
+     40,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low tonal snare, less noise"
+   },
+   {
+    "uid": 66,
+    "name": "BRITESN",
+    "model": "S808",
+    "k": [
+     2,
+     80,
+     100,
+     127,
+     100,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "bright snappy snare"
+   },
+   {
+    "uid": 67,
+    "name": "SHORTSN",
+    "model": "S808",
+    "k": [
+     4,
+     25,
+     60,
+     100,
+     80,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short tight snare"
+   },
+   {
+    "uid": 68,
+    "name": "CRISPSN",
+    "model": "S909",
+    "k": [
+     0,
+     64,
+     80,
+     80,
+     64,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the crisp snare (today's default)"
+   },
+   {
+    "uid": 69,
+    "name": "FATSN",
+    "model": "S909",
+    "k": [
+     -2,
+     80,
+     120,
+     60,
+     50,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "fat body, darker noise"
+   },
+   {
+    "uid": 70,
+    "name": "NOISYSN",
+    "model": "S909",
+    "k": [
+     0,
+     90,
+     40,
+     127,
+     100,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "mostly noise, long and bright"
+   },
+   {
+    "uid": 71,
+    "name": "TIGHTSN",
+    "model": "S909",
+    "k": [
+     5,
+     30,
+     60,
+     90,
+     90,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "high short snare"
+   },
+   {
+    "uid": 72,
+    "name": "HANDCLAP",
+    "model": "C808",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the classic clap (today's default)"
+   },
+   {
+    "uid": 73,
+    "name": "DARKCLAP",
+    "model": "C808",
+    "k": [
+     -3,
+     100,
+     40,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "dark clap with a long tail"
+   },
+   {
+    "uid": 74,
+    "name": "DRYCLAP",
+    "model": "C808",
+    "k": [
+     3,
+     30,
+     90,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "bright dry clap"
+   },
+   {
+    "uid": 75,
+    "name": "BIGCLAP",
+    "model": "C808",
+    "k": [
+     0,
+     127,
+     64,
+     127,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the longest, biggest tail"
+   },
+   {
+    "uid": 76,
+    "name": "SNAPCLAP",
+    "model": "C909",
+    "k": [
+     0,
+     64,
+     64,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the snappy clap (today's default)"
+   },
+   {
+    "uid": 77,
+    "name": "LOOSECLP",
+    "model": "C909",
+    "k": [
+     0,
+     90,
+     60,
+     110,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "loose clap, claps spread"
+   },
+   {
+    "uid": 78,
+    "name": "TIGHTCLP",
+    "model": "C909",
+    "k": [
+     4,
+     30,
+     90,
+     10,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tight bright clap"
+   },
+   {
+    "uid": 79,
+    "name": "LOWCLAP",
+    "model": "C909",
+    "k": [
+     -5,
+     80,
+     30,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low dark clap"
+   },
+   {
+    "uid": 80,
+    "name": "CLOSEDHH",
+    "model": "HATC",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the closed hat (today's default)"
+   },
+   {
+    "uid": 81,
+    "name": "TICK",
+    "model": "HATC",
+    "k": [
+     2,
+     10,
+     80,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "a very short bright tick"
+   },
+   {
+    "uid": 82,
+    "name": "DARKHAT",
+    "model": "HATC",
+    "k": [
+     -3,
+     50,
+     30,
+     30,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "dark, lower hat"
+   },
+   {
+    "uid": 83,
+    "name": "LOOSEHAT",
+    "model": "HATC",
+    "k": [
+     0,
+     110,
+     90,
+     80,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "longer sizzling closed hat"
+   },
+   {
+    "uid": 84,
+    "name": "OPENHAT",
+    "model": "HATO",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the open hat (today's default)"
+   },
+   {
+    "uid": 85,
+    "name": "HALFHAT",
+    "model": "HATO",
+    "k": [
+     0,
+     30,
+     64,
+     70,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short half-open hat"
+   },
+   {
+    "uid": 86,
+    "name": "WASHHAT",
+    "model": "HATO",
+    "k": [
+     2,
+     127,
+     90,
+     90,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "long bright wash"
+   },
+   {
+    "uid": 87,
+    "name": "DUSTYHAT",
+    "model": "HATO",
+    "k": [
+     -3,
+     90,
+     30,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "dark open hat"
+   },
+   {
+    "uid": 88,
+    "name": "CRASH",
+    "model": "CYMB",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the cymbal (today's default)"
+   },
+   {
+    "uid": 89,
+    "name": "RIDE",
+    "model": "CYMB",
+    "k": [
+     3,
+     100,
+     100,
+     30,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "brighter, ride-like, the low band down"
+   },
+   {
+    "uid": 90,
+    "name": "DARKCRSH",
+    "model": "CYMB",
+    "k": [
+     -4,
+     127,
+     30,
+     90,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "dark long crash"
+   },
+   {
+    "uid": 91,
+    "name": "SPLASH",
+    "model": "CYMB",
+    "k": [
+     2,
+     20,
+     80,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short splash"
+   },
+   {
+    "uid": 92,
+    "name": "COWBELL",
+    "model": "COWB",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the cowbell (today's default)"
+   },
+   {
+    "uid": 93,
+    "name": "CLINK",
+    "model": "COWB",
+    "k": [
+     5,
+     30,
+     90,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short high clink"
+   },
+   {
+    "uid": 94,
+    "name": "LOWBELL",
+    "model": "COWB",
+    "k": [
+     -5,
+     90,
+     40,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low bell, long tail"
+   },
+   {
+    "uid": 95,
+    "name": "RINGBELL",
+    "model": "COWB",
+    "k": [
+     2,
+     110,
+     100,
+     110,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "bright long ringing bell"
+   },
+   {
+    "uid": 96,
+    "name": "MIDTOM",
+    "model": "TOM",
+    "k": [
+     0,
+     64,
+     30,
+     50,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the tom (today's default)"
+   },
+   {
+    "uid": 97,
+    "name": "FLOORTOM",
+    "model": "TOM",
+    "k": [
+     -7,
+     90,
+     20,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low floor tom"
+   },
+   {
+    "uid": 98,
+    "name": "HITOM",
+    "model": "TOM",
+    "k": [
+     7,
+     40,
+     40,
+     30,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "high short tom"
+   },
+   {
+    "uid": 99,
+    "name": "PEWTOM",
+    "model": "TOM",
+    "k": [
+     0,
+     95,
+     0,
+     127,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "clean synth tom, the deepest drop, long"
+   },
+   {
+    "uid": 100,
+    "name": "CONGA",
+    "model": "CONGA",
+    "k": [
+     0,
+     64,
+     60,
+     30,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the conga (today's default)"
+   },
+   {
+    "uid": 101,
+    "name": "TUMBA",
+    "model": "CONGA",
+    "k": [
+     -5,
+     80,
+     40,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low conga"
+   },
+   {
+    "uid": 102,
+    "name": "SLAPCONG",
+    "model": "CONGA",
+    "k": [
+     5,
+     40,
+     110,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "high slap"
+   },
+   {
+    "uid": 103,
+    "name": "BONGO",
+    "model": "CONGA",
+    "k": [
+     9,
+     35,
+     80,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "small high bongo"
+   },
+   {
+    "uid": 104,
+    "name": "RIMSHOT",
+    "model": "RIM",
+    "k": [
+     0,
+     64,
+     64,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the rimshot (today's default)"
+   },
+   {
+    "uid": 105,
+    "name": "STICK",
+    "model": "RIM",
+    "k": [
+     0,
+     30,
+     80,
+     10,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "dry short stick"
+   },
+   {
+    "uid": 106,
+    "name": "HOTRIM",
+    "model": "RIM",
+    "k": [
+     -2,
+     70,
+     50,
+     110,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "driven rimshot"
+   },
+   {
+    "uid": 107,
+    "name": "WOODRIM",
+    "model": "RIM",
+    "k": [
+     -6,
+     60,
+     30,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "lower, woody"
+   },
+   {
+    "uid": 108,
+    "name": "CLAVE",
+    "model": "CLAVE",
+    "k": [
+     0,
+     64,
+     30,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the claves (today's default)"
+   },
+   {
+    "uid": 109,
+    "name": "WOODBLK",
+    "model": "CLAVE",
+    "k": [
+     -7,
+     70,
+     50,
+     10,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "lower woodblock"
+   },
+   {
+    "uid": 110,
+    "name": "PIP",
+    "model": "CLAVE",
+    "k": [
+     5,
+     30,
+     80,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "high short pip"
+   },
+   {
+    "uid": 111,
+    "name": "BLIP",
+    "model": "CLAVE",
+    "k": [
+     -2,
+     60,
+     20,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "a falling blip"
+   }
+  ]
+ },
+ {
+  "bank": "MODERN",
+  "presets": [
+   {
+    "uid": 112,
+    "name": "BOOMBD",
+    "model": "KBOOM",
+    "k": [
+     0,
+     64,
+     64,
+     32,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the resonator kick (today's default)"
+   },
+   {
+    "uid": 113,
+    "name": "LONGBOOM",
+    "model": "KBOOM",
+    "k": [
+     -4,
+     110,
+     40,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "deep long boom"
+   },
+   {
+    "uid": 114,
+    "name": "PUNCHER",
+    "model": "KBOOM",
+    "k": [
+     2,
+     50,
+     90,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short punchy kick, attack FM"
+   },
+   {
+    "uid": 115,
+    "name": "OVERDRV",
+    "model": "KBOOM",
+    "k": [
+     -2,
+     80,
+     70,
+     127,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "self-FM into overdrive"
+   },
+   {
+    "uid": 116,
+    "name": "SYNTHBD",
+    "model": "KPUNC",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the synthetic kick (today's default)"
+   },
+   {
+    "uid": 117,
+    "name": "CLEANBD",
+    "model": "KPUNC",
+    "k": [
+     0,
+     40,
+     40,
+     10,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "clean short sine kick"
+   },
+   {
+    "uid": 118,
+    "name": "FMKICK",
+    "model": "KPUNC",
+    "k": [
+     -3,
+     80,
+     90,
+     120,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "heavy FM, bright attack"
+   },
+   {
+    "uid": 119,
+    "name": "SUBKICK",
+    "model": "KPUNC",
+    "k": [
+     -6,
+     110,
+     50,
+     50,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low long kick"
+   },
+   {
+    "uid": 120,
+    "name": "SHELLSN",
+    "model": "SSNAP",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the shell snare (today's default)"
+   },
+   {
+    "uid": 121,
+    "name": "DRUMSHEL",
+    "model": "SSNAP",
+    "k": [
+     -3,
+     70,
+     40,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tonal shell, little snap"
+   },
+   {
+    "uid": 122,
+    "name": "SNAPPY",
+    "model": "SSNAP",
+    "k": [
+     3,
+     60,
+     100,
+     110,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "bright, all snap"
+   },
+   {
+    "uid": 123,
+    "name": "PICCOLO",
+    "model": "SSNAP",
+    "k": [
+     7,
+     35,
+     90,
+     80,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "high short piccolo"
+   },
+   {
+    "uid": 124,
+    "name": "CRACKSN",
+    "model": "SCRAK",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the synthetic snare (today's default)"
+   },
+   {
+    "uid": 125,
+    "name": "METALSN",
+    "model": "SCRAK",
+    "k": [
+     0,
+     70,
+     120,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "metallic FM snare"
+   },
+   {
+    "uid": 126,
+    "name": "HISSNARE",
+    "model": "SCRAK",
+    "k": [
+     2,
+     60,
+     30,
+     127,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "mostly noise"
+   },
+   {
+    "uid": 127,
+    "name": "LOWCRACK",
+    "model": "SCRAK",
+    "k": [
+     -5,
+     90,
+     50,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low long crack"
+   },
+   {
+    "uid": 128,
+    "name": "SHINYHAT",
+    "model": "HMETL",
+    "k": [
+     0,
+     40,
+     80,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the metallic hat (today's default)"
+   },
+   {
+    "uid": 129,
+    "name": "CHIPHAT",
+    "model": "HMETL",
+    "k": [
+     0,
+     15,
+     90,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tight short hat"
+   },
+   {
+    "uid": 130,
+    "name": "BRASSHAT",
+    "model": "HMETL",
+    "k": [
+     0,
+     100,
+     70,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "long open metal"
+   },
+   {
+    "uid": 131,
+    "name": "GRITHAT",
+    "model": "HMETL",
+    "k": [
+     -3,
+     50,
+     40,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "dark, noisy"
+   },
+   {
+    "uid": 132,
+    "name": "STATIC",
+    "model": "HNOIS",
+    "k": [
+     0,
+     40,
+     80,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the noisy hat (today's default)"
+   },
+   {
+    "uid": 133,
+    "name": "SPRAY",
+    "model": "HNOIS",
+    "k": [
+     0,
+     15,
+     100,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tight bright spray"
+   },
+   {
+    "uid": 134,
+    "name": "STEAM",
+    "model": "HNOIS",
+    "k": [
+     0,
+     100,
+     80,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "long open noise"
+   },
+   {
+    "uid": 135,
+    "name": "RINGHAT",
+    "model": "HNOIS",
+    "k": [
+     3,
+     60,
+     50,
+     10,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "ring-mod buzz, little noise"
+   },
+   {
+    "uid": 136,
+    "name": "HEADTOM",
+    "model": "MEMB",
+    "k": [
+     0,
+     60,
+     64,
+     20,
+     40,
+     30,
+     24,
+     0
+    ],
+    "source": "designed",
+    "note": "the struck head (today's default)"
+   },
+   {
+    "uid": 137,
+    "name": "TIMPANI",
+    "model": "MEMB",
+    "k": [
+     -12,
+     110,
+     64,
+     0,
+     30,
+     30,
+     24,
+     0
+    ],
+    "source": "designed",
+    "note": "low long ideal head"
+   },
+   {
+    "uid": 138,
+    "name": "TABLA",
+    "model": "MEMB",
+    "k": [
+     7,
+     60,
+     64,
+     120,
+     40,
+     60,
+     50,
+     0
+    ],
+    "source": "designed",
+    "note": "loaded head, pitch bend"
+   },
+   {
+    "uid": 139,
+    "name": "EDGEHIT",
+    "model": "MEMB",
+    "k": [
+     0,
+     60,
+     64,
+     20,
+     127,
+     30,
+     90,
+     0
+    ],
+    "source": "designed",
+    "note": "struck at the rim, hard stick"
+   },
+   {
+    "uid": 140,
+    "name": "FMPERC",
+    "model": "FM",
+    "k": [
+     0,
+     50,
+     60,
+     2,
+     40,
+     0,
+     0,
+     64
+    ],
+    "source": "designed",
+    "note": "the 2-op FM hit (today's default)"
+   },
+   {
+    "uid": 141,
+    "name": "FMBELL",
+    "model": "FM",
+    "k": [
+     12,
+     100,
+     50,
+     5,
+     90,
+     0,
+     0,
+     64
+    ],
+    "source": "designed",
+    "note": "bell (ratio 2.76), long"
+   },
+   {
+    "uid": 142,
+    "name": "FMNOISE",
+    "model": "FM",
+    "k": [
+     0,
+     40,
+     90,
+     9,
+     30,
+     0,
+     100,
+     64
+    ],
+    "source": "designed",
+    "note": "metallic noise, feedback up"
+   },
+   {
+    "uid": 143,
+    "name": "FMTOM",
+    "model": "FM",
+    "k": [
+     -12,
+     70,
+     40,
+     1,
+     20,
+     80,
+     0,
+     64
+    ],
+    "source": "designed",
+    "note": "low tom, a pitch sweep"
+   },
+   {
+    "uid": 144,
+    "name": "SQUELCH",
+    "model": "ACID",
+    "k": [
+     0,
+     50,
+     40,
+     64,
+     64,
+     64,
+     0,
+     56
+    ],
+    "source": "designed",
+    "note": "the bass line (today's default)"
+   },
+   {
+    "uid": 145,
+    "name": "DEEPBASS",
+    "model": "ACID",
+    "k": [
+     -12,
+     30,
+     20,
+     30,
+     30,
+     40,
+     0,
+     70
+    ],
+    "source": "designed",
+    "note": "low, round, little squelch"
+   },
+   {
+    "uid": 146,
+    "name": "SCREAMER",
+    "model": "ACID",
+    "k": [
+     0,
+     80,
+     60,
+     115,
+     100,
+     100,
+     0,
+     56
+    ],
+    "source": "designed",
+    "note": "high resonance, deep envelope"
+   },
+   {
+    "uid": 147,
+    "name": "SQUAREAC",
+    "model": "ACID",
+    "k": [
+     0,
+     60,
+     50,
+     80,
+     70,
+     64,
+     1,
+     40
+    ],
+    "source": "designed",
+    "note": "square wave, short gate"
+   },
+   {
+    "uid": 148,
+    "name": "SMPKICK",
+    "model": "SMPL",
+    "k": [
+     0,
+     127,
+     127,
+     0,
+     0,
+     36,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the PERC set's kick (today's default)"
+   },
+   {
+    "uid": 149,
+    "name": "TAMBO",
+    "model": "SMPL",
+    "k": [
+     0,
+     127,
+     127,
+     0,
+     0,
+     54,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tambourine"
+   },
+   {
+    "uid": 150,
+    "name": "SHAKER",
+    "model": "SMPL",
+    "k": [
+     0,
+     127,
+     110,
+     0,
+     0,
+     82,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "shaker, slightly darker"
+   },
+   {
+    "uid": 151,
+    "name": "LOFICONG",
+    "model": "SMPL",
+    "k": [
+     -5,
+     127,
+     100,
+     60,
+     0,
+     63,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "conga pitched down, driven"
+   }
+  ]
+ }
+]

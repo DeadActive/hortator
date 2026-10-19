@@ -334,15 +334,15 @@ static void rsefm_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-#define DM_SDEFM_DEF {"SDEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("NOIS", F_INT, 0, 127, 64), PD("NDEC", F_INT, 0, 127, 64), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("HPF", F_INT, 0, 127, 0)}, sdefm_trigger, \
+#define DM_SDEFM_DEF {"SDEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -9), PD("DECAY", F_INT, 0, 127, 60), \
+    PD("NOIS", F_INT, 0, 127, 14), PD("NDEC", F_INT, 0, 127, 79), PD("MOD", F_INT, 0, 127, 0), \
+    PD("MFRQ", F_INT, 0, 127, 5), PD("MDEC", F_INT, 0, 127, 127), PD("HPF", F_INT, 0, 127, 29)}, sdefm_trigger, \
     sdefm_render}
-#define DM_CPEFM_DEF {"CPEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("CLPS", F_INT, 0, 127, 64), PD("CDEC", F_INT, 0, 127, 64), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("HPF", F_INT, 0, 127, 0)}, cpefm_trigger, \
+#define DM_CPEFM_DEF {"CPEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 24), PD("DECAY", F_INT, 0, 127, 45), \
+    PD("CLPS", F_INT, 0, 127, 91), PD("CDEC", F_INT, 0, 127, 30), PD("MOD", F_INT, 0, 127, 75), \
+    PD("MFRQ", F_INT, 0, 127, 36), PD("MDEC", F_INT, 0, 127, 127), PD("HPF", F_INT, 0, 127, 61)}, cpefm_trigger, \
     cpefm_render}
-#define DM_RSEFM_DEF {"RSEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("MOD", F_INT, 0, 127, 64), PD("HPF", F_INT, 0, 127, 0), PD("SNAR", F_INT, 0, 127, 64), \
-    PD("SPTC", F_INT, 0, 127, 64), PD("SDEC", F_INT, 0, 127, 64), PD("SMOD", F_INT, 0, 127, 64)}, rsefm_trigger, \
+#define DM_RSEFM_DEF {"RSEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 1), PD("DECAY", F_INT, 0, 127, 10), \
+    PD("MOD", F_INT, 0, 127, 8), PD("HPF", F_INT, 0, 127, 15), PD("SNAR", F_INT, 0, 127, 38), \
+    PD("SPTC", F_INT, 0, 127, 21), PD("SDEC", F_INT, 0, 127, 59), PD("SMOD", F_INT, 0, 127, 0)}, rsefm_trigger, \
     rsefm_render}

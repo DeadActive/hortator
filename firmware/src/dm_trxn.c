@@ -164,9 +164,9 @@ static void cptrx_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-#define DM_CPTRX_DEF {"CPTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("CLPY", F_INT, 0, 127, 64), PD("HARD", F_INT, 0, 127, 64), PD("RATE", F_INT, 0, 127, 64), \
-    PD("ROOM", F_INT, 0, 127, 0), PD("RSIZ", F_INT, 0, 127, 64), PD("RTUN", F_INT, 0, 127, 64)}, cptrx_trigger, \
+#define DM_CPTRX_DEF {"CPTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 10), PD("DECAY", F_INT, 0, 127, 127), \
+    PD("CLPY", F_INT, 0, 127, 56), PD("HARD", F_INT, 0, 127, 7), PD("RATE", F_INT, 0, 127, 43), \
+    PD("ROOM", F_INT, 0, 127, 56), PD("RSIZ", F_INT, 0, 127, 0), PD("RTUN", F_INT, 0, 127, 93)}, cptrx_trigger, \
     cptrx_render}
 
 /* ---- MATRX: white noise gated per 32-sample block (each block silent with p_off(DAMP), its level jittered ~2.3 dB:

@@ -20,12 +20,12 @@ static int32_t wl[SECS(8)];
 static double ref[SECS(8)];
 static dvoice_t v0;                                     /* the voice right after its trigger */
 
-/* track 0 = model mi with knobs k (-99: the default), one hit at vel; frames rendered into wl */
+/* track 0 = model mi with knobs k (-99: the old default), one hit at vel; frames rendered into wl */
 static void efmm_hit(uint32_t mi, const int16_t *k, uint32_t vel, uint32_t frames)
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
@@ -394,7 +394,7 @@ static void efmm_test_extremes(void)
     for (j = 0; j < 3u; j++)
         for (c = 0; c < (2u << NK[j]); c++) {
             host_init();
-            drum_set_model(&trk[0], M[j]);
+            old_set_model(&trk[0], M[j]);
             for (i = 0; i < NK[j]; i++)
                 trk[0].p[P_E0 + i] = (int16_t)((c >> i & 1u) ? (i ? 127 : 24) : (i ? 0 : -24));
             trk[0].nt = (c >> NK[j] & 1u) ? 24 : -24;
@@ -417,7 +417,7 @@ static void efmm_test_note48(uint32_t model, const int16_t *k, const char *what)
     uint32_t i, s, ok = 1;
     for (s = 0; s < 4u; s++) {
         host_init();
-        drum_set_model(&trk[0], model);
+        old_set_model(&trk[0], model);
         for (i = 0; i < 8u; i++)
             trk[0].p[P_E0 + i] = k[i];
         trk[0].p[P_E0] = (s & 1u) ? 24 : -24;
@@ -447,10 +447,10 @@ static void efmm_test_rehits(void)
         for (i = 0; i < SECS(0.3); i++)
             ok &= abs(wl[i]) <= 4 * VOICE_FS;
         host_init();
-        drum_set_model(&trk[0], DM_CYMB);
+        old_set_model(&trk[0], DM_CYMB);
         drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.05));
-        drum_set_model(&trk[0], M[j]);
+        old_set_model(&trk[0], M[j]);
         drum_play(&trk[0], 127, trk[0].nt);   /* (drum_hit plays note 0) */
         render_track(&trk[0], wl, SECS(0.3));
         for (i = 0; i < SECS(0.3); i++)
@@ -459,14 +459,16 @@ static void efmm_test_rehits(void)
     check("re-hits 5 ms apart and a model switch while ringing: bounded (the three models)", ok);
 }
 
-/* HHEFM starts in choke group 1 (as HATC): a ringing open hat on another group-1 track is cut by it, and it by them */
+/* HHEFM in choke group 1 (set: no voice has a default group): a ringing open hat on another group-1 track is cut by
+ * it, and it by them */
 static void efmm_test_choke(void)
 {
     uint32_t ok;
     host_init();
-    drum_set_model(&trk[1], DM_HATO);
-    drum_set_model(&trk[2], DM_HHEFM);
-    drum_set_model(&trk[3], DM_CYEFM);
+    old_set_model(&trk[1], DM_HATO);
+    old_set_model(&trk[2], DM_HHEFM);
+    old_set_model(&trk[3], DM_CYEFM);
+    trk[1].p[P_CHOKE] = trk[2].p[P_CHOKE] = 1;
     drum_hit(&trk[1], 127);
     render_track(&trk[1], wl, SECS(0.05));
     drum_hit(&trk[2], 127);
@@ -475,7 +477,7 @@ static void efmm_test_choke(void)
     render_track(&trk[2], wl, SECS(0.01));
     drum_hit(&trk[1], 127);
     ok &= !trk[2].v[0].active;
-    check("HHEFM in choke group 1 (CBEFM, CYEFM none; CYEFM 2 voices): it cuts a ringing HATO and HATO cuts it", ok);
+    check("HHEFM in choke group 1 (no default group; CYEFM 2 voices): it cuts a ringing HATO and HATO cuts it", ok);
 }
 
 /* the md-re sweeps as the voice renders them (the twin's units: the emulator renders' scale) */

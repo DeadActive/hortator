@@ -297,13 +297,28 @@ static void graph_acid(const track_t *t, uint16_t c)
     }
 }
 
-/* the selected track's model: name large, voices and choke group */
+/* the track's preset (spec 2026-10-19 presets): "PRESET K909", "*" (amber) once a SOUND knob moved since; "PRESET -"
+ * with none (or its user slot emptied, or holding another voice now: presets.c preset_of). At (x, y): an inverted
+ * PRESET tab (label), the name in F3 at 2x, the mark after it */
+static void preset_line(const track_t *t, int32_t x, int32_t y, int label)
+{
+    char nb[9];
+    preset_name_of(preset_of(t), nb);
+    if (label)
+        x += cv_tab(x, y, "PRESET", C_INK, C_BG) + 4;
+    x = md_text(x, y + 2, &MD_F3, 2, nb, C_INK);
+    if (t->pre_ed)
+        md_text(x + 2, y + 2, &MD_F3, 2, "*", C_INK);
+}
+
+/* the selected track's model: its preset in the band above (preset_line), name large, voices and choke group */
 static void graph_model(const track_t *t, uint16_t c)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
     uint32_t mi = (uint32_t)t->p[P_MODEL] % NMODELS;
     int fm = mi == DM_FM || mi == DM_ACID || mi == DM_KTRX;   /* FM, ACID, KTRX: their graph right: the labels left */
     char b[16];
+    preset_line(t, 4, 2 - G_OY, 1);
     int32_t y = fm ? 40 : 44;
     md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 5, m->name)) / 2, 10, &MD_F3, fm ? 4 : 5, m->name, C_INK);
     str_cpy(b, m->voices > 1 ? "2 VOICES" : "1 VOICE", sizeof b);
@@ -1202,8 +1217,12 @@ static uint32_t graph_signature(void)
                                                        * follows from these: draw_graph) */
         h ^= (ui.srec ? ui.sr_cur + 1u : 0u) * 1543u +
              (kz.key && kz.trk == song.sel ? (uint32_t)(t->key_nt + 61) : 0u) * 389u + (uint32_t)keys_mode() * 99991u;
-    if (pg->graph == GR_MODEL)
+    if (pg->graph == GR_MODEL) {
+        char nb[9];
         h ^= (uint32_t)song.g[G_BPM] * 40503u;        /* ACID's gate: GATE of a step at the tempo */
+        preset_name_of(preset_of(t), nb);             /* the preset's line (its user slot may change) */
+        h = str_hash(h ^ t->pre_ed * 7919u, nb);
+    }
     if (pg->graph == GR_GRIDS) {
         for (i = G_GMODE; i <= G_GLEN3; i++)
             h = (h ^ (uint32_t)song.g[i]) * 16777619u;
@@ -1571,6 +1590,7 @@ static void draw_graph(void)
         switch (pg->graph) {
         case GR_MODEL:
             graph_model(t, c);
+            top = 1;                                  /* (the preset's line in the band above) */
             break;
         case GR_STEPS:
             graph_steps(t, c);
@@ -1671,7 +1691,7 @@ static int foot_note(char *b)
  * right; a held / cursor step's note at x 120 (the number then hidden); MIDI LEARN's line across it */
 static void draw_foot(void)
 {
-    char left[24], right[16], fn[16], ml[32], b[24];
+    char left[24], right[16], fn[16], ml[32], b[24], pn[10];   /* pn: a preset (8), "*" */
     const track_t *t = TSEL;
     const page_t *pg = cur_page();
     const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];
@@ -1700,6 +1720,14 @@ static void draw_foot(void)
             str_cpy(right + str_len(right), "/", 4);
             fmt_int(right + str_len(right), (int32_t)np);
         }
+    }
+    pn[0] = 0;
+    if (!ui.home && !ui.layer && pg->graph == GR_MIX && !note) {   /* TRACKS: the selected track's preset ("K909*") */
+        preset_name_of(preset_of(t), pn);
+        if (t->pre_ed)
+            str_cpy(pn + str_len(pn), "*", 2);
+        if (!right[0])
+            str_cpy(right, pn, sizeof right);
     }
     if (note)
         right[0] = 0;
@@ -2097,6 +2125,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
         draw_name();
         return;
     }
+    if (pl_on()) {                                    /* the PRESETS list (ui_preset.c): its own screen */
+        draw_plist();
+        return;
+    }
     if (ui.mute) {                                    /* GLO held: the MUTE screen */
         draw_mute();
         return;
@@ -2116,7 +2148,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     felucca_dbg.stage = 4;
     draw_columns();
     felucca_dbg.stage = 5;
-    draw_graph();
+    if (pp_on())
+        draw_popup();                                 /* PRESETS turned: the popup in the graph's place */
+    else
+        draw_graph();
     draw_tempo();
     draw_msg();
     if (ui.msg_t)

@@ -21,6 +21,7 @@
 #include "comp.c"           /* Streams compressor (M3) */
 #include "eng_sample.c"      /* ADPCM decoder + user sample slots */
 #include "dmodels.c"         /* drum models */
+#include "presets.c"         /* presets: the factory banks, the user bank, load / step */
 #include "params.c"
 #include "reson.c"          /* RESON: the per-track resonator insert */
 #include "filter.c"          /* FILTER: the per-track filter (fx.c mix_part) */

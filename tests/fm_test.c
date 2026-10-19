@@ -58,12 +58,12 @@ static double hf_ratio(const int32_t *x, uint32_t a, uint32_t b)  /* derivative 
     return d / e;
 }
 
-/* track 0 = FM with knobs k (-99: the default), one hit at vel, frames rendered into wl */
+/* track 0 = FM with knobs k (-99: the old default), one hit at vel, frames rendered into wl */
 static void fm_hit(const int16_t *k, uint32_t vel, uint32_t frames)
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], DM_FM);
+    old_set_model(&trk[0], DM_FM);
     for (i = 0; i < 8u; i++)
         if (k[i] != -99)
             trk[0].p[P_E0 + i] = k[i];
@@ -206,15 +206,15 @@ static void test_fm_model_switch(void)
 {
     uint32_t i, ok = 1;
     host_init();
-    drum_set_model(&trk[0], DM_CYMB);
+    old_set_model(&trk[0], DM_CYMB);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.05));
-    drum_set_model(&trk[0], DM_FM);
+    old_set_model(&trk[0], DM_FM);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.3));
     for (i = 0; i < SECS(0.3); i++)
         ok &= abs(wl[i]) <= 4 * VOICE_FS;
-    drum_set_model(&trk[0], DM_TOM);
+    old_set_model(&trk[0], DM_TOM);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.3));
     for (i = 0; i < SECS(0.3); i++)
@@ -227,7 +227,7 @@ static void test_fm_lfo_ratio(void)
 {
     uint32_t i, k, ok = 1, seen = 0, hits = 0, last_age = 0;
     host_init();
-    drum_set_model(&trk[0], DM_FM);
+    old_set_model(&trk[0], DM_FM);
     trk[0].p[P_LFO1 + LF_MODE] = LM_HZ;
     trk[0].p[P_LFO1 + LF_RATE] = 90;                  /* a few Hz: the hits land on both of its levels */
     trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
@@ -271,7 +271,7 @@ static void test_fm_level(void)
     for (i = 0; i < SECS(0.3); i++)
         a += (double)wl[i] * wl[i];
     host_init();
-    drum_set_model(&trk[0], DM_TOM);
+    old_set_model(&trk[0], DM_TOM);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], wl, SECS(0.3));
     for (i = 0; i < SECS(0.3); i++)

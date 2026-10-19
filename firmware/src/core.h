@@ -181,6 +181,8 @@ typedef struct track {
     uint8_t fvel, fmode, fring;  /* the hit's velocity, the TYPE running (a change: from silence), ringing */
     int32_t wow;                 /* ACID: the accent smoother, Q24 (accented notes charge it, track_render decays it
                                   * every block: it carries over consecutive accents, as the 303's) */
+    uint16_t pre;                /* presets.c: the preset id the voice was loaded from (PRE_NONE: none; projects: FDRD) */
+    uint8_t pre_ed;              /* .. a SOUND knob moved since (preset_touch) */
 } track_t;
 
 typedef struct {

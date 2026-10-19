@@ -35,7 +35,7 @@ static void hit_and_write(FILE *f, track_t *t, uint32_t vel, uint32_t *frames)
     *frames += GAP;
 }
 
-/* a demo kit: 8 tracks (model, TUNE, DECAY or -1 = default), a 16-step pattern ('x' hit, 'X' accent) per track,
+/* a demo kit: 8 tracks (model, TUNE, DECAY or -1 = the old default), a 16-step pattern ('x' hit, 'X' accent) per track,
  * played 4 bars at 120 BPM through the whole mix (FX sends on the snare, clap and hats), written to DIR/NAME */
 typedef struct {
     const char *name;
@@ -74,7 +74,7 @@ static void write_kit(const char *dir, const demo_kit_t *kit)
     host_init();
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        drum_set_model(t, kit->model[i]);
+        old_set_model(t, kit->model[i]);
         t->p[P_E0] = kit->tune[i];
         if (kit->decay[i] >= 0)
             t->p[P_E1] = kit->decay[i];
@@ -127,9 +127,9 @@ static void write_demo(const char *dir, const char *name, uint32_t bars, void (*
 static void grids_kit(void)                          /* 808 kick / snare / closed hat on the three channels */
 {
     host_init();
-    drum_set_model(&trk[0], DM_K808);
-    drum_set_model(&trk[1], DM_S808);
-    drum_set_model(&trk[2], DM_HATC);
+    old_set_model(&trk[0], DM_K808);
+    old_set_model(&trk[1], DM_S808);
+    old_set_model(&trk[2], DM_HATC);
     trk[0].p[P_SRC] = 1;
     trk[1].p[P_SRC] = 2;
     trk[2].p[P_SRC] = 3;
@@ -164,10 +164,10 @@ static void prob_kit(void)
 {
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], DM_K909);
-    drum_set_model(&trk[1], DM_S909);
-    drum_set_model(&trk[2], DM_HATC);
-    drum_set_model(&trk[3], DM_CYMB);
+    old_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[1], DM_S909);
+    old_set_model(&trk[2], DM_HATC);
+    old_set_model(&trk[3], DM_CYMB);
     for (k = 0; k < 16u; k += 4u)
         trk[0].step[k].on = 1;
     trk[1].step[4].on = trk[1].step[12].on = 1;
@@ -193,10 +193,10 @@ static void pump_kit(int src, int rat, int mkup, int thr)
 {
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], DM_K909);
-    drum_set_model(&trk[1], DM_S909);
-    drum_set_model(&trk[2], DM_HATO);
-    drum_set_model(&trk[3], DM_TOM);
+    old_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[1], DM_S909);
+    old_set_model(&trk[2], DM_HATO);
+    old_set_model(&trk[3], DM_TOM);
     for (k = 0; k < 16u; k += 4u)
         trk[0].step[k].on = 1;
     trk[1].step[4].on = trk[1].step[12].on = 1;
@@ -228,7 +228,7 @@ static void lfo_kit(uint32_t dest)
 {
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], dest == 9u ? DM_CYMB : dest == 10u ? DM_K909 : DM_HATC);
+    old_set_model(&trk[0], dest == 9u ? DM_CYMB : dest == 10u ? DM_K909 : DM_HATC);
     for (k = 0; k < 16u; k += dest == 3u ? 1u : 4u)
         trk[0].step[k].on = 1;
     if (dest == 9u)
@@ -246,9 +246,9 @@ static void reson_kit(uint32_t model)
 {
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], DM_K909);
-    drum_set_model(&trk[1], DM_S909);
-    drum_set_model(&trk[2], DM_HATC);
+    old_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[1], DM_S909);
+    old_set_model(&trk[2], DM_HATC);
     for (k = 0; k < 16u; k += 4u)
         trk[0].step[k].on = 1;
     trk[1].step[4].on = trk[1].step[12].on = 1;
@@ -277,7 +277,7 @@ static void sp_kit(void)
     uint32_t i, k;
     host_init();
     for (i = 0; i < 3u; i++) {
-        drum_set_model(&trk[i], MODEL[i]);
+        old_set_model(&trk[i], MODEL[i]);
         for (k = 0; k < 16u; k++) {
             trk[i].step[k].on = PAT[i][k] != '.';
             trk[i].step[k].acc = PAT[i][k] == 'X';
@@ -300,7 +300,7 @@ static void write_sound_pack(const char *dir)
     write_demo(dir, "sp_speaker_eq.wav", 6, sp_eq_bar);
     fx_lowcut = 0;
     sp_kit();
-    drum_set_model(&trk[0], DM_K808);
+    old_set_model(&trk[0], DM_K808);
     memset(trk[0].step, 0, sizeof trk[0].step);      /* the snare alone */
     memset(trk[2].step, 0, sizeof trk[2].step);
     trk[1].p[P_REV] = 110;
@@ -401,7 +401,7 @@ static void phys_demo(const char *dir, const char *name, uint32_t model, const i
 {
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], model);
+    old_set_model(&trk[0], model);
     for (k = 0; k < 7u && e; k++)
         if (e[k] != -99)
             trk[0].p[P_E0 + k] = e[k];
@@ -423,7 +423,7 @@ static void phys_demo(const char *dir, const char *name, uint32_t model, const i
 }
 static void write_phys(const char *dir)
 {
-    /* MEMB knobs: TUNE DECAY TONE HEAD POS BEND STICK (-99: the default) */
+    /* MEMB knobs: TUNE DECAY TONE HEAD POS BEND STICK (-99: the old default) */
     static const int16_t TOM[7] = {-99, -99, -99, 10, -99, 30, -99}, TIMP[7] = {-12, 110, -99, 0, 30, -99, -99};
     static const int16_t TABLA[7] = {7, -99, -99, 120, -99, 60, 50}, RIM[7] = {-99, -99, -99, -99, 127, -99, 90};
     /* RESON: TUNE DECAY MIX TONE STRCT POS */
@@ -446,7 +446,7 @@ static void filter_one(const char *dir, const char *name, uint32_t mi, const cha
 {
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (k = 0; k < 16u; k++)
         trk[0].step[k].on = pat[k] == 'x';
     trk[0].p[P_FTYPE] = (int16_t)ty;
@@ -478,7 +478,7 @@ static void fm_one(const char *dir, const char *name, const int16_t *k, const ch
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], DM_FM);
+    old_set_model(&trk[0], DM_FM);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++)
@@ -504,7 +504,7 @@ static void ktrx_one(const char *dir, const char *name, const int16_t *k, const 
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], DM_KTRX);
+    old_set_model(&trk[0], DM_KTRX);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++)
@@ -530,7 +530,7 @@ static void trxm_one(const char *dir, const char *name, uint32_t mi, const int16
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++) {
@@ -562,8 +562,9 @@ static void write_trxmetal(const char *dir)
     trxm_one(dir, "cytrx_peak.wav", DM_CYTRX, CYP, "x.......x.......");
     trxm_one(dir, "cytrx_small.wav", DM_CYTRX, CYS, "x...x...x...x...");
     host_init();                                    /* the choke: CH on track 0, OH on track 1 (group 1) */
-    drum_set_model(&trk[0], DM_CHTRX);
-    drum_set_model(&trk[1], DM_OHTRX);
+    old_set_model(&trk[0], DM_CHTRX);
+    old_set_model(&trk[1], DM_OHTRX);
+    trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 1;
     for (i = 0; i < 16u; i++) {
         trk[0].step[i].on = (i & 1u) == 0 && (i & 3u) != 2u;
         trk[1].step[i].on = (i & 3u) == 2u;
@@ -576,7 +577,7 @@ static void trxn_one(const char *dir, const char *name, uint32_t mi, const int16
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++)
@@ -608,7 +609,7 @@ static void trx_one(const char *dir, const char *name, uint32_t model, const int
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], model);
+    old_set_model(&trk[0], model);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++)
@@ -637,7 +638,7 @@ static void trxp_one(const char *dir, const char *name, uint32_t mi, const int16
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++) {
@@ -675,7 +676,7 @@ static void bdefm_one(const char *dir, const char *name, uint32_t mi, const int1
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++) {
@@ -706,7 +707,7 @@ static void efmn_one(const char *dir, const char *name, uint32_t mi, const int16
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++) {
@@ -747,7 +748,7 @@ static void acid_kit(int sqr)
     static const uint8_t FL[16] = {1, 2, 0, 4, 8, 0, 3, 0, 0, 1, 8, 2, 0, 1, 4, 2};
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
     for (k = 0; k < 16u; k++) {
         trk[0].step[k].on = !(FL[k] & 12u);
         trk[0].step[k].acc = FL[k] & 1u;
@@ -770,7 +771,7 @@ static void efmm_one(const char *dir, const char *name, uint32_t mi, const int16
 {
     uint32_t i;
     host_init();
-    drum_set_model(&trk[0], mi);
+    old_set_model(&trk[0], mi);
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = k[i];
     for (i = 0; i < 16u; i++) {
@@ -799,8 +800,9 @@ static void write_efmmetal(const char *dir)
     efmm_one(dir, "cyefm_bright.wav", DM_CYEFM, CYB, "x.......x.......");
     efmm_one(dir, "cyefm_short.wav", DM_CYEFM, CYS, "x...x...x...x...");
     host_init();                                    /* the choke: HHEFM on track 0, HATO on track 1 (group 1) */
-    drum_set_model(&trk[0], DM_HHEFM);
-    drum_set_model(&trk[1], DM_HATO);
+    old_set_model(&trk[0], DM_HHEFM);
+    old_set_model(&trk[1], DM_HATO);
+    trk[0].p[P_CHOKE] = trk[1].p[P_CHOKE] = 1;
     for (i = 0; i < 16u; i++) {
         trk[0].step[i].on = (i & 1u) == 0 && (i & 3u) != 2u;
         trk[1].step[i].on = (i & 3u) == 2u;
@@ -822,7 +824,7 @@ int main(int argc, char **argv)
         wav_hdr(f, 0);
         frames = 0;
         host_init();
-        drum_set_model(&trk[0], mi);
+        old_set_model(&trk[0], mi);
         for (i = 0; i < 4; i++)
             hit_and_write(f, &trk[0], VEL[i], &frames);
         for (k = 0; k < 4; k++) {                    /* TUNE, DECAY, TONE, CHAR at low then high */

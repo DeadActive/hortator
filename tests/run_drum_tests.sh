@@ -4,6 +4,7 @@ set -e
 cd "$(dirname "$0")/.."
 PY="${PYTHON:-python3}"
 "$PY" tools/build.py --gen-only >/dev/null
+"$PY" tools/gen_presets.py --check                 # firmware/src/preset_bank.h = tools/presets.json
 OUT=build/host
 mkdir -p "$OUT"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test" tests/drum_test.c -lm
@@ -58,7 +59,7 @@ echo "drum_test with Q24 overflow checks: all passed"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drumsim" tests/drumsim.c -lm
 "$OUT/drumsim" build/drum_renders >/dev/null && echo "renders: build/drum_renders"
 rm -rf build/ui_shots
-mkdir -p build/ui_shots/engines build/ui_shots/seq build/ui_shots/grids build/ui_shots/comp build/ui_shots/lfo build/ui_shots/reson build/ui_shots/perform build/ui_shots/motion build/ui_shots/song build/ui_shots/name build/ui_shots/phys build/ui_shots/filter build/ui_shots/fm build/ui_shots/ktrx build/ui_shots/trxdrums build/ui_shots/acid build/ui_shots/bt build/ui_shots/fixes build/ui_shots/learn build/ui_shots/themes/md-red build/ui_shots/themes/red-on-black build/ui_shots/themes/white-on-blue build/ui_shots/themes/black-on-green
+mkdir -p build/ui_shots/engines build/ui_shots/seq build/ui_shots/grids build/ui_shots/comp build/ui_shots/lfo build/ui_shots/reson build/ui_shots/perform build/ui_shots/motion build/ui_shots/song build/ui_shots/name build/ui_shots/phys build/ui_shots/filter build/ui_shots/fm build/ui_shots/ktrx build/ui_shots/trxdrums build/ui_shots/acid build/ui_shots/bt build/ui_shots/fixes build/ui_shots/learn build/ui_shots/presets build/ui_shots/themes/md-red build/ui_shots/themes/red-on-black build/ui_shots/themes/white-on-blue build/ui_shots/themes/black-on-green
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
 "$OUT/ui_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/gfx_test" tests/gfx_test.c -lm
@@ -72,6 +73,9 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
     -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/learn_test" tests/learn_test.c -lm   # (MIDI LEARN: ASan + UBSan)
 "$OUT/learn_test"
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
+    -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/preset_test" tests/preset_test.c -lm   # (presets: ASan + UBSan)
+"$OUT/preset_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/audio_isr_test" tests/audio_isr_test.c -lm
 "$OUT/audio_isr_test"
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
@@ -81,7 +85,7 @@ tail -1 "$OUT/boot_test.txt"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast \
     -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/comp_overflow" tests/comp_overflow.c -lm
 "$OUT/comp_overflow"
-"$PY" -c "import glob,PIL.Image as I; [I.open(p).resize((480,480),I.NEAREST).save(p[:-4]+'.png') for p in glob.glob('build/ui_shots/**/*.ppm', recursive=True)]" && rm -f build/ui_shots/*.ppm build/ui_shots/engines/*.ppm build/ui_shots/seq/*.ppm build/ui_shots/grids/*.ppm build/ui_shots/comp/*.ppm build/ui_shots/lfo/*.ppm build/ui_shots/reson/*.ppm build/ui_shots/perform/*.ppm build/ui_shots/motion/*.ppm build/ui_shots/song/*.ppm build/ui_shots/name/*.ppm build/ui_shots/phys/*.ppm build/ui_shots/filter/*.ppm build/ui_shots/fm/*.ppm build/ui_shots/acid/*.ppm build/ui_shots/bt/*.ppm build/ui_shots/fixes/*.ppm build/ui_shots/learn/*.ppm build/ui_shots/themes/*.ppm build/ui_shots/themes/*/*.ppm && echo "screens: build/ui_shots" && "$PY" tools/theme_sheet.py
+"$PY" -c "import glob,PIL.Image as I; [I.open(p).resize((480,480),I.NEAREST).save(p[:-4]+'.png') for p in glob.glob('build/ui_shots/**/*.ppm', recursive=True)]" && rm -f build/ui_shots/*.ppm build/ui_shots/engines/*.ppm build/ui_shots/seq/*.ppm build/ui_shots/grids/*.ppm build/ui_shots/comp/*.ppm build/ui_shots/lfo/*.ppm build/ui_shots/reson/*.ppm build/ui_shots/perform/*.ppm build/ui_shots/motion/*.ppm build/ui_shots/song/*.ppm build/ui_shots/name/*.ppm build/ui_shots/phys/*.ppm build/ui_shots/filter/*.ppm build/ui_shots/fm/*.ppm build/ui_shots/acid/*.ppm build/ui_shots/bt/*.ppm build/ui_shots/fixes/*.ppm build/ui_shots/learn/*.ppm build/ui_shots/presets/*.ppm build/ui_shots/themes/*.ppm build/ui_shots/themes/*/*.ppm && echo "screens: build/ui_shots" && "$PY" tools/theme_sheet.py
 REF=build/drum_ref
 FID=""
 if sh tests/fetch_ref.sh >/dev/null 2>&1; then

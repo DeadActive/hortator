@@ -175,6 +175,6 @@ static void rstrx_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-#define DM_RSTRX_DEF {"RSTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+#define DM_RSTRX_DEF {"RSTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -4), PD("DECAY", F_INT, 0, 127, 0), \
     PD("DIST", F_INT, 0, 127, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, rstrx_trigger, rstrx_render}

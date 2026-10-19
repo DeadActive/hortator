@@ -71,9 +71,13 @@ static void smc_knob(uint32_t k, int32_t delta)
     char m[24], val[8];
     const char *unit;
     uint32_t n;
+    int32_t v;
     if (!d->label || !d->label[0] || d->label[0] == '-' || d->max <= d->min)
         return;                                       /* the model has no such knob */
-    TSEL->p[P_E0 + k] = (int16_t)param_turn(d, TSEL->p[P_E0 + k], delta);
+    v = param_turn(d, TSEL->p[P_E0 + k], delta);
+    if (v != TSEL->p[P_E0 + k])
+        preset_touch(TSEL);                           /* presets.c: the voice edited (not a turn at its limit) */
+    TSEL->p[P_E0 + k] = (int16_t)v;
     motion_capture(TSEL, P_E0 + k);
     param_format(d, TSEL->p[P_E0 + k], val, &unit);
     m[0] = 'T';

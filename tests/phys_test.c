@@ -20,7 +20,7 @@ static double mode_hz(const px_mode_t *m)           /* g = tan(pi f) (Q28) -> Hz
 }
 static void memb_on(track_t *t)
 {
-    drum_set_model(t, DM_MEMB);
+    old_set_model(t, DM_MEMB);
 }
 static px_modal_blk_t memb_blk(track_t *t, uint32_t vel)   /* the first block of a hit: its modes */
 {
@@ -97,7 +97,7 @@ static void test_memb_voice(void)
         n += trk[i].v[0].active;
     check("MEMB on 5 tracks: at most 4 sound (the cap of 8, weight 2)", n <= 4u);
     host_init();                                     /* level: within -6 .. +3 dB of a default TOM */
-    drum_set_model(&trk[0], DM_TOM);
+    old_set_model(&trk[0], DM_TOM);
     drum_hit(&trk[0], 127);
     render_track(&trk[0], buf, 22050);
     for (i = 0; i < 22050u; i++)
@@ -126,7 +126,7 @@ static void test_memb_accent(void)
 
 static void modal_kick(track_t *t)                    /* a kick through RESON MODAL at full MIX */
 {
-    drum_set_model(t, DM_K909);
+    old_set_model(t, DM_K909);
     t->p[P_RMODEL] = RS_MODAL;
     t->p[P_RTUNE] = 60;
     t->p[P_RDECAY] = 64;
@@ -181,7 +181,7 @@ static void test_modal_sustained(void)
     uint32_t i, k;
     int32_t pk = 0;
     host_init();
-    drum_set_model(&trk[0], DM_S909);                 /* (broadband: body and noise ring the modes) */
+    old_set_model(&trk[0], DM_S909);                 /* (broadband: body and noise ring the modes) */
     trk[0].p[P_RMODEL] = RS_MODAL;
     trk[0].p[P_RDECAY] = 127;
     trk[0].p[P_RMIX] = 127;
@@ -232,7 +232,7 @@ static void test_modal_decay0_ends(void)
 {
     uint32_t b;
     host_init();
-    drum_set_model(&trk[0], DM_S909);
+    old_set_model(&trk[0], DM_S909);
     trk[0].p[P_RMODEL] = RS_MODAL;
     trk[0].p[P_RTUNE] = 69;
     trk[0].p[P_RSTRCT] = 124;

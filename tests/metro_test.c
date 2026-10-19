@@ -32,9 +32,9 @@ static void beat(void)
 {
     uint32_t k;
     host_init();
-    drum_set_model(&trk[0], DM_K909);
-    drum_set_model(&trk[1], DM_S909);
-    drum_set_model(&trk[2], DM_HATC);
+    old_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[1], DM_S909);
+    old_set_model(&trk[2], DM_HATC);
     for (k = 0; k < 16u; k++) {
         trk[0].step[k].on = (k & 3u) == 0u;
         trk[1].step[k].on = (k & 7u) == 4u;

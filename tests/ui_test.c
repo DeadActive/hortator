@@ -99,7 +99,7 @@ static void test_sound_pages(void)
     uint32_t n, k;
     const page_t *pg;
     ui_host_init();
-    drum_set_model(&trk[0], DM_C808);
+    old_set_model(&trk[0], DM_C808);
     edit_next();
     pg = cur_page();
     n = fam_pages(FAM_SND, &k);
@@ -120,7 +120,7 @@ static void test_sound_pages(void)
     edit_next();
     n = fam_pages(FAM_SND, &k);
     check("EDIT again: back to page 1", k == 1u);
-    drum_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[0], DM_K909);
     edit_next();
     pg = cur_page();
     check("K909 page 2: CLICK SWPT DRIVE LVL (its extras before LVL)",
@@ -207,9 +207,9 @@ static void test_select_pages(void)
     k = ui.page;
     turn(EN_PRESET, 3);
     ui_frame();
-    turn(EN_PRESET, -1);
+    turn(EN_PRESET, -3);
     ui_frame();
-    check("PRESETS does nothing (the page, the BPM, the track, the engine stay)",
+    check("PRESETS loads presets only (the page, the BPM, the track stay; 3 right, 3 left: the engine back)",
           ui.page == k && song.g[G_BPM] == bpm && song.sel == 0 && (uint32_t)TSEL->p[P_MODEL] == m0);
     tap(B_SEQ);
     tap(B_FX);
@@ -235,7 +235,7 @@ static void test_select_pages(void)
     check("SELECT left on TRACKS: BPM -2", mix_mode() && song.g[G_BPM] == bpm - 1);
     turn(EN_PRESET, 2);
     ui_frame();
-    check("PRESETS on TRACKS: nothing", mix_mode() && song.g[G_BPM] == bpm - 1);
+    check("PRESETS on TRACKS: no BPM, the page stays", mix_mode() && song.g[G_BPM] == bpm - 1);
     turn(EN_ALGO, 2);
     ui_frame();
     check("ALGORITHM on TRACKS: the track (1 -> 2 per read)", song.sel == 1);
@@ -593,21 +593,21 @@ static void test_acid_cap(void)
 {
     uint32_t k, n;
     ui_host_init();
-    drum_set_model(&trk[0], DM_ACID);
-    drum_set_model(&trk[1], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[1], DM_ACID);
     song.sel = 2;
-    drum_set_model(&trk[2], DM_FM);
+    old_set_model(&trk[2], DM_FM);
     model_step(1);
     check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the next model (KTRX)",
           trk[2].p[P_MODEL] == DM_KTRX && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
     model_step(-1);
     check("ACID cap: back down, past ACID (full) to FM", trk[2].p[P_MODEL] == DM_FM);
-    drum_set_model(&trk[1], DM_K808);                /* a place frees */
+    old_set_model(&trk[1], DM_K808);                /* a place frees */
     model_step(1);
     check("ACID cap: once a place frees, the 3rd track gets ACID", trk[2].p[P_MODEL] == DM_ACID);
     ui_host_init();
     for (k = 0; k < 4u; k++)
-        drum_set_model(&trk[k], DM_ACID);
+        old_set_model(&trk[k], DM_ACID);
     project_save(0);
     project_load(0);
     for (k = 0, n = 0; k < NTRK; k++)
@@ -644,7 +644,7 @@ static void test_comp_keys(void)
     ui_frame();
     check("COMP: key 2 again: DUCK off", trk[1].p[P_DUCK] == 0 && !led_lit(14u + KEY_TRK_KEY[1]));
     trk[1].p[P_DUCK] = trk[3].p[P_DUCK] = trk[4].p[P_DUCK] = 1;
-    drum_set_model(&trk[1], DM_HATO);
+    old_set_model(&trk[1], DM_HATO);
     trk[0].step[0].on = trk[0].step[4].on = trk[0].step[8].on = trk[0].step[12].on = 1;
     trk[1].step[2].on = trk[1].step[6].on = trk[1].step[10].on = trk[1].step[14].on = 1;
     transport_req = 1;
@@ -667,7 +667,7 @@ static void test_tools_all(void)
 {
     uint32_t k;
     ui_host_init();
-    drum_set_model(&trk[2], DM_CONGA);
+    old_set_model(&trk[2], DM_CONGA);
     trk[2].p[P_E0] = 7;
     trk[2].p[P_LEVEL] = 90;
     trk[2].p[P_DIST] = 50;
@@ -2668,10 +2668,20 @@ static void test_theme_sheet(void)
         safe_start = 1;
         sheet_snap("13_safe_start");
         safe_start = 0;
+        sheet_open();
+        tap(B_EDIT);
+        turn(EN_PRESET, 1);                          /* the PRESETS popup */
+        ui_frame();
+        sheet_snap("14_preset_popup");
+        sheet_open();
+        hold(B_EDIT);                                /* the PRESETS list */
+        sheet_snap("15_preset_list");
+        release_all();
+        tap(B_EDIT);
     }
     sheet_t = 0;
     theme_set(THEME_TAG | 0u);
-    check("theme sheet: 13 screens in each of the 4 themes, every pixel the theme's BG or INK", sheet_stray == 0u);
+    check("theme sheet: 16 screens in each of the 4 themes, every pixel the theme's BG or INK", sheet_stray == 0u);
 }
 
 /* final review fixes (2026-10-19-md-ui): a 4-glyph value whole; ZOOM on HOME; a shorter message repaints; popups do
@@ -2935,7 +2945,7 @@ static void test_screens(void)
     release_all();
     ui_frame();
     fm1_irq_off();
-    drum_set_model(TSEL, DM_KBOOM);
+    old_set_model(TSEL, DM_KBOOM);
     fm1_irq_on();
     for (k = 0; k < NPAGES && (cur_page() != &PAGES[0] || ui.home); k++) {   /* SOUND 1/2: its knobs */
         press(B_EDIT);
@@ -3102,7 +3112,7 @@ static void test_seq_screens(void)
 static void test_project_roundtrip(void)
 {
     ui_host_init();
-    drum_set_model(&trk[2], DM_CONGA);
+    old_set_model(&trk[2], DM_CONGA);
     trk[2].p[P_E0] = -5;
     trk[2].p[P_LLEVEL] = 77;
     trk[2].step[7].on = trk[2].step[7].acc = 1;
@@ -4259,7 +4269,7 @@ static void test_phys_screens(void)
 {
     uint32_t k;
     ui_host_init();
-    drum_set_model(TSEL, DM_MEMB);
+    old_set_model(TSEL, DM_MEMB);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     ui.force = 1;
@@ -4550,7 +4560,7 @@ static void test_fm_graph_clear(void)
 {
     uint32_t plain, labels;
     ui_host_init();
-    drum_set_model(TSEL, DM_FM);
+    old_set_model(TSEL, DM_FM);
     for (plain = 0; plain < NPAGES && (ui.home || cur_page()->fam != FAM_SND); plain++)
         tap(B_EDIT);
     ui.force = 1;
@@ -4581,7 +4591,7 @@ static void test_fm_screens(void)
     uint32_t k;
     int16_t *vp;
     ui_host_init();
-    drum_set_model(TSEL, DM_FM);
+    old_set_model(TSEL, DM_FM);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     ui.force = 1;
@@ -4608,7 +4618,7 @@ static void test_ktrx_screens(void)
     uint32_t k, flat, swept, plain, labels;
     int16_t *vp;
     ui_host_init();
-    drum_set_model(TSEL, DM_KTRX);
+    old_set_model(TSEL, DM_KTRX);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     TSEL->p[P_E3] = 96;                              /* SDEC 96: a sweep the graph's 300 ms shows */
@@ -4664,7 +4674,7 @@ static void test_trx_drum_screens(void)
     for (i = 0; i < 2u; i++) {
         char name[48];
         ui_host_init();
-        drum_set_model(TSEL, S[i].m);
+        old_set_model(TSEL, S[i].m);
         for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
             tap(B_EDIT);
         ui.force = 1;
@@ -4691,7 +4701,7 @@ static void test_trxn_screens(void)
     int16_t *vp;
     for (i = 0; i < 2u; i++) {
         ui_host_init();
-        drum_set_model(TSEL, M[i].m);
+        old_set_model(TSEL, M[i].m);
         for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
             tap(B_EDIT);
         ui.force = 1;
@@ -4722,7 +4732,7 @@ static void test_efmn_screens(void)
     int16_t *vp;
     for (i = 0; i < 3u; i++) {
         ui_host_init();
-        drum_set_model(TSEL, M[i].m);
+        old_set_model(TSEL, M[i].m);
         for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
             tap(B_EDIT);
         ui.force = 1;
@@ -4796,7 +4806,7 @@ static void test_keys_acid_mono(void)
     track_t *t = &trk[0];
     uint32_t age, k;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     tap(B_SCL);
     keys(1u << 7);                                   /* C4 */
     ui_frame();
@@ -4827,8 +4837,8 @@ static void test_keys_acid_mono(void)
 static void test_keys_release_anywhere(void)
 {
     ui_host_init();
-    drum_set_model(&trk[0], DM_ACID);
-    drum_set_model(&trk[1], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[1], DM_ACID);
     tap(B_SCL);
     keys(1u << 7);                                   /* C4 on track 1 */
     ui_frame();
@@ -4872,7 +4882,7 @@ static void test_keys_owners(void)
     uint32_t a;
     int16_t duck;
     ui_host_init();
-    drum_set_model(&trk[0], DM_ACID);
+    old_set_model(&trk[0], DM_ACID);
     tap(B_SCL);
     press(B_FX);
     ui_frame();
@@ -4934,7 +4944,7 @@ static void test_keys_live_rec(void)
 {
     track_t *t = &trk[0];
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     tap(B_SCL);                                      /* KEYS, HOME */
     song.rec = 1u;                                   /* track 1 armed (as TRACKS' REC tap) */
@@ -4969,7 +4979,7 @@ static void test_keys_live_rec_wrap(void)
     track_t *t = &trk[0];
     uint32_t k, age;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 4;
     tap(B_SCL);
@@ -5001,7 +5011,7 @@ static void test_keys_live_rec_mid_block(void)
     track_t *t = &trk[0];
     uint32_t k, half;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     tap(B_SCL);
     song.rec = 1u;
@@ -5032,7 +5042,7 @@ static void test_keys_live_rec_long_hold(void)
     track_t *t = &trk[0];
     uint32_t k, ok = 1;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 4;
     tap(B_SCL);
@@ -5053,7 +5063,7 @@ static void test_keys_live_rec_long_hold(void)
     transport_req = 2;
     ui_frame();
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 4;
     tap(B_SCL);
@@ -5084,7 +5094,7 @@ static void test_keys_live_rec_tie_clean(void)
     track_t *t = &trk[0];
     step_t *s = &t->step[3];
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     s->on = 1;
     s->acc = 1;
@@ -5136,7 +5146,7 @@ static void test_step_key_note(void)
     track_t *t;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     open_step_page();
     grid_hold(WHITE[0], 0);
@@ -5172,7 +5182,7 @@ static void test_step_key_note_drum(void)
         ui_host_init();
         t = TSEL;
         if (pass)
-            drum_set_model(t, DM_ACID);
+            old_set_model(t, DM_ACID);
         memset(t->step, 0, sizeof t->step);
         tap(B_SCL);                                  /* KEYS: D4 played */
         keys(1u << 9);
@@ -5241,7 +5251,7 @@ static void test_rec_hit_drum_note(void)
 static void srec_open(void)                          /* ACID on track 1, KEYS, STEP, stopped; a REC tap: step record */
 {
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     memset(TSEL->step, 0, sizeof TSEL->step);
     tap(B_SCL);
     seq_open("STEP");
@@ -5452,7 +5462,7 @@ static void test_roll_draw(void)
 {
     int32_t x, k, yc, yd, ye, yg, xx, yy, ok = 1, amb = 0, rest = 0, lab = 0;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     seq_open("STEP");
     ui.force = 1;
@@ -5492,7 +5502,7 @@ static void test_roll_follow(void)
     track_t *t;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->step[0].on = t->step[1].on = 1;
     t->step[0].nt = 30;                              /* F#6, A#6 */
@@ -5540,7 +5550,7 @@ static void test_roll_view_most(void)
     track_t *t;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 11);
     roll_open(t);
     check("roll view: a line wider than 24 rows: the window holding the most notes (C4 up: 6; C2 up 2, D4 up 5)",
@@ -5565,7 +5575,7 @@ static void test_roll_view_low_note(void)
     int32_t yy, edge = 0;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 8);
     roll_open(t);
     for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
@@ -5582,7 +5592,7 @@ static void test_roll_view_srec(void)
     uint32_t lo0;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 8);
     tap(B_SCL);
     roll_open(t);
@@ -5617,7 +5627,7 @@ static void test_roll_view_key_out(void)
     int32_t ybot = PR_Y0 + (PR_ROWS - 1) * PR_RH;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     acid_line(t);
     tap(B_SCL);
     roll_open(t);
@@ -5648,7 +5658,7 @@ static void test_roll_view_key_out(void)
 static void test_roll_view_idle(void)
 {
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     roll_open(TSEL);
     ui_frame();
@@ -5668,7 +5678,7 @@ static void test_roll_label_slide_edges(void)
     int32_t xx, yy, lit0 = 0, whole = 0, amb = 0, yc;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     roll_notes(t, L, 16);
     t->step[15].slide = 1;                           /* step 16 slides into step 1 (the wrap) */
     roll_open(t);
@@ -5722,7 +5732,7 @@ static void test_roll_cursor_playhead(void)
 {
     int32_t x;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     tap(B_SCL);
     seq_open("STEP");
@@ -5832,7 +5842,7 @@ static void test_acid_edit_graph(void)
     uint32_t k, flat, peak, shortd, longd;
     int32_t x40, x100;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     for (k = 0; k < NPAGES && (ui.home || cur_page()->fam != FAM_SND); k++)
         tap(B_EDIT);
     TSEL->p[P_E0 + 4] = 0;                           /* ENVMD 0: no reach line */
@@ -5866,7 +5876,7 @@ static void test_roll_frame_cost(void)
     uint64_t i0 = 0, worst = 0, c;
     uint32_t i;
     ui_host_init();
-    drum_set_model(TSEL, DM_ACID);
+    old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
     seq_open("STEP");
     transport_req = 1;
@@ -5907,7 +5917,7 @@ static void test_roll_held_prob(void)
     int32_t y;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     for (k = 0; k < 16u; k += 2u) {
         t->step[k].on = 1;
@@ -5942,7 +5952,7 @@ static void test_rec_hit_on_tie(void)
 {
     track_t *t = &trk[0];
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->step[3].tie = 1;
     t->step[3].nt = 7;
@@ -5965,7 +5975,7 @@ static void test_keys_live_rec_len_cut(void)
     track_t *t = &trk[0];
     uint32_t k, ok = 1;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->p[P_SLEN] = 8;
     for (k = 0; k < 4u; k++) {
@@ -6076,7 +6086,7 @@ static void test_keys_seq_takeover(void)
     track_t *t = &trk[0];
     uint32_t age;
     ui_host_init();
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     memset(t->step, 0, sizeof t->step);
     t->step[4].on = 1;                               /* one ON step (5: G4), rests elsewhere */
     t->step[4].nt = 7;
@@ -6109,7 +6119,7 @@ static void test_acid_screens(void)
     uint32_t k;
     ui_host_init();
     t = TSEL;
-    drum_set_model(t, DM_ACID);
+    old_set_model(t, DM_ACID);
     acid_line(t);
     t->step[6].on = 1;
     t->step[6].nt = -5;
@@ -6214,12 +6224,12 @@ static void test_prio_sound_list(void)
     uint32_t m, n, ok = 1;
     ui_host_init();
     for (m = 0; m < NMODELS; m++) {
-        drum_set_model(TSEL, m);
+        old_set_model(TSEL, m);
         n = snd_list(TSEL, ids);
         ok &= n <= 16u && ids[n - 1u] == P_PRIO && ids[n - 2u] == P_CHOKE;
     }
     check("PRIO: every model's SOUND list ends CHOKE, PRIO", ok);
-    drum_set_model(TSEL, DM_CYMB);
+    old_set_model(TSEL, DM_CYMB);
     n = snd_list(TSEL, ids);
     ui.home = 0;                                     /* the SOUND page with PRIO */
     ui.page = (uint8_t)(page_first(FAM_SND) + (n - 1u) / 4u);
@@ -6287,6 +6297,526 @@ static void test_cpu_icon(void)
     tap(B_REC);
     fm1_ms = 0;
     ui_frame();
+}
+
+/* ---- PRESETS (plan 2026-10-19-presets Task 3): the encoder's popup, the list on a long EDIT, the preset's name and
+ * the edited mark; the screens in build/ui_shots/presets/ */
+static int voice_is(const track_t *t, uint32_t id)    /* t's MODEL and 8 SOUND knobs = preset id's */
+{
+    preset_t p;
+    uint32_t i;
+    if (!preset_get(id, &p) || (uint32_t)t->p[P_MODEL] != p.model || t->model != p.model)
+        return 0;
+    for (i = 0; i < 8u; i++)
+        if (t->p[P_E0 + i] != p.k[i])
+            return 0;
+    return 1;
+}
+static void pre_turn(int32_t d)                       /* PRESETS, d detents, one frame */
+{
+    turn(EN_PRESET, d);
+    ui_frame();
+}
+static void pre_wait(uint32_t ms)                     /* ms later, one frame */
+{
+    host_ticks += ms * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+}
+static uint32_t lit_box(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)   /* ink pixels in the box (the frame's
+                                                                                  * edge columns left out) */
+{
+    uint32_t n = 0, x, y;
+    for (y = y0; y < y1; y++)
+        for (x = x0; x < x1; x++)
+            n += fb[y * 240u + x] == C_INK && x != 0u && x != 239u;
+    return n;
+}
+static void users_clear(void)                          /* no user preset, nothing left to write */
+{
+    memset(&upr, 0, sizeof upr);
+    upr_pending = 0;
+}
+
+static void test_popup_shows_and_loads(void)
+{
+    uint32_t id0, id1, m;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    id0 = TSEL->pre;
+    id1 = preset_step(TSEL, id0, 1);
+    check("PRESETS: the power-on track's voice is its first preset", id0 == preset_first_of(DM_K909) && !TSEL->pre_ed);
+    pre_turn(1);
+    check("PRESETS one detent right: the next preset loaded at once (MODEL and the 8 knobs), not edited; the popup up",
+          TSEL->pre == id1 && voice_is(TSEL, id1) && !TSEL->pre_ed && pp_on());
+    check("PRESETS popup: the preset in the middle, the two loadable ones before and after around it",
+          ui.pr.shown[2] == id1 && ui.pr.shown[1] == id0 && ui.pr.shown[0] == preset_step(TSEL, id0, -1) &&
+              ui.pr.shown[3] == preset_step(TSEL, id1, 1) && ui.pr.shown[4] == preset_step(TSEL, ui.pr.shown[3], 1));
+    check("PRESETS popup: drawn over the graph (its preset row lit)", lit_box(8, Y_GRAPH + 56, 140, Y_GRAPH + 86) > 0);
+    snap_page("presets/01_popup");
+    pre_wait(1000);
+    check("PRESETS popup: still up 1 s after the detent", pp_on());
+    pre_wait(600);
+    check("PRESETS popup: gone ~1.5 s after the last detent (the graph back)", !pp_on());
+    snap_page("presets/02_popup_closed");
+    pre_turn(-1);
+    check("PRESETS one detent left: the one before (the first again)", TSEL->pre == id0 && voice_is(TSEL, id0));
+    TSEL->pre = (uint16_t)PRE_NONE;                    /* (a converted project: no preset) */
+    m = (uint32_t)TSEL->p[P_MODEL];
+    pre_turn(-1);
+    check("PRESETS with no preset: the first detent (either way) loads the voice's first preset",
+          TSEL->pre == preset_first_of(m) && voice_is(TSEL, preset_first_of(m)));
+    while (TSEL->pre != PRE_BANK_START[PB_CLASSIC] - 1u)   /* the MACHINEDRUM bank's last */
+        pre_turn(TSEL->pre < PRE_BANK_START[PB_CLASSIC] ? 1 : -1);
+    pre_turn(1);
+    check("PRESETS across banks: MACHINEDRUM's last -> CLASSIC's first", TSEL->pre == PRE_BANK_START[PB_CLASSIC] &&
+                                                                          preset_bank_of(ui.pr.shown[1]) == PB_MD);
+    snap_page("presets/03_popup_bank_edge");
+    pre_wait(1600);
+    open_tracks();
+    pre_turn(1);
+    check("PRESETS on TRACKS: loads, the popup over the rows, TRACKS stays", pp_on() && mix_mode() &&
+                                                                         TSEL->pre == PRE_BANK_START[PB_CLASSIC] + 1u);
+    snap_page("presets/04_popup_tracks");
+    pre_wait(1600);
+    check("PRESETS on TRACKS: the rows back", !pp_on() && mix_mode());
+}
+
+/* Review Focus 1: turning PRESETS fast while a dense pattern plays: every detent's preset loads, the output stays
+ * bounded, no voice is left stuck */
+static void test_popup_fast_while_playing(void)
+{
+    static int32_t l[2205], r[2205];                    /* 50 ms: 40 detents in 2 s */
+    uint32_t k, i, ok = 1, stuck = 0;
+    int32_t peak = 0;
+    ui_host_init();
+    users_clear();
+    kit_session();
+    trk[6].p[P_MUTE] = 0;
+    song.rec = 0;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < 16u; i++)
+            trk[k].step[i].on = 1;                      /* every track on every step */
+    transport_req = 1;
+    ui_frame();
+    for (k = 0; k < 40u; k++) {
+        uint32_t want = preset_step(TSEL, TSEL->pre, 1);
+        pre_turn(1);
+        ok &= TSEL->pre == want && voice_is(TSEL, want) && pp_on();
+        render_mix(l, r, 2205);
+        for (i = 0; i < 2205u; i++) {
+            int32_t a = l[i] < 0 ? -l[i] : l[i], b = r[i] < 0 ? -r[i] : r[i];
+            peak = a > peak ? a : peak;
+            peak = b > peak ? b : peak;
+        }
+    }
+    check("PRESETS: 40 detents in 2 s while 8 tracks play every step: each detent's preset loaded at once",
+          ok && song.playing);
+    check("PRESETS fast while playing: the output sounds and stays inside 16 bits", peak > 1000 && peak <= 32767);
+    transport_req = 2;
+    ui_frame();
+    for (i = 0; i < 160u; i++)                          /* 8 s */
+        render_mix(0, 0, 2205);
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NDV; i++)
+            stuck += trk[k].v[i].active;
+    check("PRESETS fast while playing: stopped, every voice ends (none stuck)", !song.playing && !stuck);
+}
+
+/* Review Focus 2: ACID on 2 tracks: the popup skips ACID's presets, the list refuses them; never a third ACID track */
+static void test_popup_skips_capped_acid(void)
+{
+    uint32_t a = preset_first_of(DM_ACID), z = a, k, n;
+    while (z < PRE_NFACT && PRE_FACTORY[z].model == DM_ACID)
+        z++;                                            /* z: the preset after ACID's (a .. z - 1) */
+    ui_host_init();
+    users_clear();
+    drum_set_model(&trk[0], DM_ACID);
+    drum_set_model(&trk[1], DM_ACID);
+    song.sel = 2;
+    preset_load(&trk[2], a - 1u);                       /* the preset before ACID's */
+    ui_frame();
+    pre_turn(1);
+    for (k = 0, n = 0; k < NTRK; k++)
+        n += trk[k].p[P_MODEL] == DM_ACID;
+    check("PRESETS with ACID on 2 tracks: the detent past ACID's presets to the one after them",
+          z > a + 1u && trk[2].pre == z && trk[2].p[P_MODEL] != DM_ACID && n == 2u);
+    for (k = 0, n = 0; k < 5u; k++)
+        n += ui.pr.shown[k] >= a && ui.pr.shown[k] < z;
+    check("PRESETS with ACID on 2 tracks: the popup leaves them out", ui.pr.shown[1] == a - 1u && n == 0u);
+    snap_page("presets/05_popup_acid_capped");
+    pre_turn(-1);
+    check("PRESETS with ACID on 2 tracks: back past it too", trk[2].pre == a - 1u);
+    pre_wait(1600);
+    preset_list_open();
+    pre_turn(1);                                        /* the cursor onto ACID's first: no audition */
+    check("list with ACID on 2 tracks: the cursor on ACID's preset auditions nothing (ACID: 2 TRACKS MAX)",
+          ui.pr.cur == a && trk[2].pre == a - 1u && trk[2].p[P_MODEL] != DM_ACID &&
+              str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
+    ui.msg[0] = 0;
+    tap(B_OCTUP);
+    check("list with ACID on 2 tracks: LOAD on ACID's preset refused (ACID: 2 TRACKS MAX), the voice kept, the list too",
+          trk[2].pre == a - 1u && trk[2].p[P_MODEL] != DM_ACID && str_eq(ui.msg, "ACID: 2 TRACKS MAX") && pl_on());
+    drum_set_model(&trk[1], DM_K808);                   /* a place frees */
+    tap(B_OCTUP);
+    check("list: once a place frees, LOAD gives the 3rd track ACID (the list closed)",
+          trk[2].pre == a && trk[2].p[P_MODEL] == DM_ACID && !pl_on());
+}
+
+/* the list: SAVE into the first free user slot or the one under the cursor (a used one: SAVE twice), DELETE (OCT-
+ * twice) on a used user slot, LOAD (OCT+), the banks (KNOB 2), the cursor (PRESETS, KNOB 1); a SAVE while playing is
+ * in the list at once and in flash at STOP */
+static void test_list_save_delete_overwrite(void)
+{
+    uint32_t u0 = PRE_NFACT, kb = PRE_BANK_START[PB_MODERN];
+    char nb[9];
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    TSEL->p[P_E1] = 10;                                 /* an edited DECAY */
+    preset_touch(TSEL);
+    hold(B_EDIT);
+    check("EDIT held: the PRESETS list, its cursor on the track's preset", pl_on() && ui.pr.cur == TSEL->pre);
+    snap_page("presets/06_list");
+    tap(B_SAVE);
+    check("list SAVE on a factory preset: the voice into the first free user slot, now the track's (not edited)",
+          upr.s[0].used == 1u && upr.s[0].model == DM_K909 && upr.s[0].k[1] == 10 && TSEL->pre == u0 &&
+              !TSEL->pre_ed && ui.pr.cur == u0 && pl_on());
+    preset_name_of(u0, nb);
+    check("list SAVE: auto-named (K909 01), said in the title", str_eq(nb, "K909 01") && str_eq(ui.msg, "SAVED K909 01"));
+    snap_page("presets/07_list_saved");
+    TSEL->p[P_E1] = 20;
+    tap(B_SAVE);
+    check("list SAVE on a used user slot: armed only (SAVE AGAIN), the slot as it was", upr.s[0].k[1] == 10 && ui.pr.arm == 1u);
+    snap_page("presets/08_list_save_over_armed");
+    tap(B_SAVE);
+    check("list SAVE again: saved over it", upr.s[0].k[1] == 20 && !ui.pr.arm);
+    pre_turn(3);
+    check("PRESETS in the list: the cursor, one per detent (an empty slot: nothing auditioned)",
+          ui.pr.cur == u0 + 3u && TSEL->pre == u0);
+    tap(B_SAVE);
+    check("list SAVE on an empty user slot: saved there at once", upr.s[3].used == 1u && TSEL->pre == u0 + 3u && !ui.pr.arm);
+    tap(B_OCTDN);
+    check("list OCT- on a used user slot: armed only (DELETE AGAIN)", upr.s[3].used == 1u && ui.pr.arm == 2u);
+    snap_page("presets/09_list_delete_armed");
+    tap(B_OCTDN);
+    preset_name_of(TSEL->pre, nb);
+    check("list OCT- again: deleted; the track keeps its knobs and its reference (shown as -)",
+          upr.s[3].used != 1u && TSEL->pre == u0 + 3u && TSEL->p[P_E1] == 20 && str_eq(nb, "-"));
+    turn(EN_K2, -1);
+    ui_frame();
+    check("list KNOB 2 left: the bank before, on its first (MODERN)", ui.pr.cur == kb);
+    tap(B_SAVE);
+    check("list SAVE off the user bank: the first free slot (2: 1 used, 4 deleted)", upr.s[1].used == 1u && TSEL->pre == u0 + 1u);
+    turn(EN_K2, -1);
+    ui_frame();
+    tap(B_OCTUP);
+    check("list OCT+ (LOAD): the preset under the cursor on the track, the list closed",
+          TSEL->pre == kb && voice_is(TSEL, kb) && !pl_on());
+    hold(B_EDIT);
+    check("(the list again, on it)", pl_on() && ui.pr.cur == kb);
+    tap(B_OCTDN);
+    check("list OCT- on a factory preset: nothing deleted", !ui.pr.arm && TSEL->pre == kb);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;      /* (a new turn: no acceleration) */
+    turn(EN_K1, 1);
+    ui_frame();
+    check("list KNOB 1: the cursor", ui.pr.cur == kb + 1u);
+    transport_req = 1;
+    ui_frame();
+    ui_frame();
+    tap(B_SAVE);
+    check("list SAVE while playing: in the list at once (slot 3), flash at the next STOP; the sound saved the track's, "
+          "not the auditioned one",
+          song.playing && upr.s[2].used == 1u && TSEL->pre == u0 + 2u && upr_pending &&
+              upr.s[2].model == PRE_FACTORY[kb].model && upr.s[2].k[0] == PRE_FACTORY[kb].k[0] && voice_is(TSEL, u0 + 2u));
+    snap_page("presets/10_list_saved_playing");
+    transport_req = 2;
+    ui_frame();
+    ui_frame();
+    check("list: STOP writes it (nothing left pending)", !song.playing && !upr_pending && pl_on());
+    tap(B_EDIT);
+    check("list EDIT: closed, back where the hold began (HOME)", !pl_on() && ui.home);
+    hold(B_EDIT);
+    tap(B_HOME);
+    check("list HOME: closed", !pl_on());
+}
+
+/* EDIT: a tap as always (SOUND, its next page), held GLO_HOLD_MS the list over the page the press left; step record's
+ * EDIT a rest, held too */
+static void test_long_edit_opens_list(void)
+{
+    uint32_t k, i, cur;
+    ui_host_init();
+    users_clear();
+    tap(B_EDIT);
+    check("EDIT tap: SOUND at once, no list", !pl_on() && !ui.home && cur_page()->fam == FAM_SND);
+    k = ui.page;
+    press(B_EDIT);
+    for (i = 0; i < 300u; i++)                          /* 0.3 s */
+        ui_input();
+    release_all();
+    ui_frame();
+    check("EDIT held 0.3 s: a tap (the next SOUND page), no list", !pl_on() && ui.page == k + 1u);
+    k = ui.page;
+    hold(B_EDIT);
+    check("EDIT held 0.8 s: the list, the page under it the one before the press", pl_on() && ui.page == k);
+    tap(B_EDIT);
+    check("EDIT in the list: back to that page", !pl_on() && ui.page == k && cur_page()->fam == FAM_SND && !ui.home);
+    tap(B_SCL);                                         /* KEYS */
+    seq_open("STEP");
+    tap(B_REC);
+    cur = ui.sr_cur;
+    check("step record on", ui.srec);
+    hold(B_EDIT);
+    check("step record: EDIT held = one rest, the cursor on; no list", ui.srec && !pl_on() && ui.sr_cur == cur + 1u);
+    tap(B_EDIT);
+    check("step record: an EDIT tap still a rest", ui.srec && !pl_on() && ui.sr_cur == cur + 2u);
+}
+
+/* review fix 5: MIDI LEARN on, EDIT held does nothing (no list: LEARN stays on); the tap as always */
+static void test_edit_hold_in_learn(void)
+{
+    ui_host_init();
+    users_clear();
+    ml_toggle();
+    check("(MIDI LEARN on)", ui.ml.on);
+    tap(B_EDIT);
+    check("LEARN: an EDIT tap opens SOUND as always, LEARN stays on", ui.ml.on && !pl_on() && !ui.home &&
+          cur_page()->fam == FAM_SND);
+    hold(B_EDIT);
+    check("LEARN: EDIT held opens no list (the press a tap), LEARN stays on", ui.ml.on && !pl_on() &&
+          cur_page()->fam == FAM_SND);
+    ml_toggle();
+    hold(B_EDIT);
+    check("LEARN off: EDIT held opens the list again", !ui.ml.on && pl_on());
+    tap(B_EDIT);
+}
+
+/* the track's preset on its SOUND page ("PRESET K909", "*" once a SOUND knob moved) and in TRACKS' footer */
+static void test_name_and_edited_mark(void)
+{
+    uint32_t a, b;
+    ui_host_init();
+    users_clear();
+    tap(B_EDIT);
+    snap_page("presets/11_sound_preset");
+    a = lit_box(0, Y_GRAPH + 2, 240, Y_GRAPH + 22);
+    check("SOUND: the track's preset named above the voice", a > 0 && !TSEL->pre_ed);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    turn(EN_K2, 1);                                     /* TUNE */
+    ui_frame();
+    host_ticks += 2000u * 1000u * FM1_TICKS_PER_US;
+    for (b = 0; b < 50u; b++)                           /* (the knob's readout gone) */
+        ui_frame();
+    snap_page("presets/12_sound_edited");
+    b = lit_box(0, Y_GRAPH + 2, 240, Y_GRAPH + 22);
+    check("SOUND: a SOUND knob turned marks the preset edited (*)", TSEL->pre_ed && b > a);
+    open_tracks();
+    snap_page("presets/13_tracks_preset");
+    check("TRACKS: the selected track's preset in the breadcrumb (right)", fb_count(120, Y_CRUMB + 8u, 114, 10, C_BG) > 0u);
+    TSEL->pre = (uint16_t)PRE_NONE;
+    tap(B_EDIT);
+    snap_page("presets/14_sound_no_preset");
+    check("SOUND with no preset: PRESET -", lit_box(0, Y_GRAPH + 2, 240, Y_GRAPH + 22) > 0);
+}
+
+/* ---- the list auditions (owner, 2026-10-19): every cursor move puts the highlighted preset on the track for now (its
+ * MODEL and 8 knobs) and hits it once; the track's key plays it; LOAD keeps it and closes the list; any other way out
+ * (EDIT, HOME) puts the track's sound from before back, as another track picked in the list does; SAVE stores that
+ * sound, not the auditioned one; seven rows, no K1 / K2 hint */
+static uint32_t voices_on(const track_t *t)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NDV; i++)
+        n += t->v[i].active;
+    return n;
+}
+typedef struct { int16_t p[P_COUNT]; uint16_t pre; uint8_t ed, model; } snd_t;   /* a track's whole sound */
+static void snd_take(const track_t *t, snd_t *s)
+{
+    memcpy(s->p, t->p, sizeof s->p);
+    s->pre = t->pre;
+    s->ed = t->pre_ed;
+    s->model = t->model;
+}
+static int snd_same(const track_t *t, const snd_t *s)
+{
+    return !memcmp(s->p, t->p, sizeof s->p) && s->pre == t->pre && s->ed == t->pre_ed && s->model == t->model;
+}
+static int voice_kept(const track_t *t, const snd_t *s)   /* everything but MODEL and the 8 SOUND knobs as in s */
+{
+    uint32_t id;
+    for (id = 0; id < P_COUNT; id++)
+        if (id != P_MODEL && !PRE_SOUND(id) && t->p[id] != s->p[id])
+            return 0;
+    return 1;
+}
+
+static void test_list_preview_scrub(void)
+{
+    uint32_t id0, want;
+    snd_t s;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    TSEL->p[P_CHOKE] = 2;                               /* (a CHOKE, a LEVEL, a FILTER the audition leaves alone) */
+    TSEL->p[P_LEVEL] = 77;
+    TSEL->p[P_FCUT] = 50;
+    snd_take(TSEL, &s);
+    hold(B_EDIT);
+    id0 = ui.pr.cur;
+    drum_cut(TSEL);
+    ui_frame();
+    check("list open: nothing auditioned yet (the track as it was, nothing hit)", pl_on() && snd_same(TSEL, &s) &&
+                                                                                   voices_on(TSEL) == 0u);
+    pre_turn(1);
+    check("list PRESETS one detent: the highlighted preset on the track at once (MODEL, 8 knobs), not edited, hit once",
+          ui.pr.cur == id0 + 1u && voice_is(TSEL, id0 + 1u) && !TSEL->pre_ed && voices_on(TSEL) == 1u && pl_on());
+    check("list audition: CHOKE, LEVEL, FILTER and the rest untouched", voice_kept(TSEL, &s));
+    snap_page("presets/15_list_preview");
+    drum_cut(TSEL);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;      /* (a new turn: no acceleration) */
+    turn(EN_K1, 1);
+    ui_frame();
+    check("list KNOB 1: the cursor, auditioned (one hit)", ui.pr.cur == id0 + 2u && voice_is(TSEL, id0 + 2u) &&
+                                                          voices_on(TSEL) == 1u);
+    drum_cut(TSEL);
+    want = PRE_BANK_START[(preset_bank_of(ui.pr.cur) + 1u) % PB_N];
+    turn(EN_SELECT, 1);
+    ui_frame();
+    check("list SELECT: the next bank's first, auditioned (another voice: one hit)", ui.pr.cur == want &&
+          voice_is(TSEL, want) && voices_on(TSEL) == 1u && voice_kept(TSEL, &s));
+    drum_cut(TSEL);
+    turn(EN_K2, -1);
+    ui_frame();
+    want = PRE_BANK_START[(preset_bank_of(want) + PB_N - 1u) % PB_N];
+    check("list KNOB 2: the bank before's first, auditioned", ui.pr.cur == want && voice_is(TSEL, want) &&
+                                                              voices_on(TSEL) == 1u);
+    drum_cut(TSEL);
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("list: the track's own key plays the auditioned sound (the track stays)", song.sel == 0u &&
+          voice_is(TSEL, want) && voices_on(TSEL) == 1u && pl_on());
+    while (preset_bank_of(ui.pr.cur) != PB_MODERN) {
+        turn(EN_SELECT, 1);
+        ui_frame();
+    }
+    want = ui.pr.cur;
+    drum_cut(TSEL);
+    turn(EN_SELECT, 1);                                 /* USER: its first slot empty */
+    ui_frame();
+    check("list on an empty user slot: no audition (the last one kept, nothing hit), EMPTY SLOT said",
+          ui.pr.cur == PRE_NFACT && voice_is(TSEL, want) && voices_on(TSEL) == 0u && str_eq(ui.msg, "EMPTY SLOT"));
+    tap(B_EDIT);
+    check("list EDIT: the track's sound back (CHOKE, LEVEL, FILTER too)", !pl_on() && snd_same(TSEL, &s));
+}
+
+static void test_list_cancel_restores(void)
+{
+    uint32_t c;
+    snd_t s, s1;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    TSEL->p[P_E1] = 10;                                 /* an edited sound */
+    preset_touch(TSEL);
+    snd_take(TSEL, &s);
+    hold(B_EDIT);
+    pre_turn(5);
+    turn(EN_SELECT, 1);                                 /* another voice */
+    ui_frame();
+    check("(list: another voice auditioned)", (uint32_t)TSEL->p[P_MODEL] != s.model && pl_on());
+    drum_cut(TSEL);
+    tap(B_EDIT);
+    check("list EDIT without LOAD: closed, MODEL, knobs, preset and * exactly as before, nothing hit",
+          !pl_on() && snd_same(TSEL, &s) && voices_on(TSEL) == 0u);
+    hold(B_EDIT);
+    pre_turn(-3);
+    check("(list: the one 3 before auditioned)", !snd_same(TSEL, &s));
+    tap(B_HOME);
+    check("list HOME without LOAD: closed, the sound back exactly", !pl_on() && snd_same(TSEL, &s));
+    snd_take(&trk[1], &s1);
+    hold(B_EDIT);
+    pre_turn(2);
+    c = ui.pr.cur;
+    drum_cut(&trk[1]);
+    turn(EN_ALGO, 1);
+    ui_frame();
+    check("list ALGORITHM: track 1's sound back, track 2 auditions the highlighted preset (one hit)",
+          song.sel == 1u && snd_same(&trk[0], &s) && voice_is(&trk[1], c) && voices_on(&trk[1]) == 1u && pl_on());
+    drum_cut(&trk[0]);
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("list: track 1's white key: track 2's sound back, track 1 auditions it (the key's one hit)",
+          song.sel == 0u && snd_same(&trk[1], &s1) && voice_is(&trk[0], c) && voices_on(&trk[0]) == 1u && pl_on());
+    tap(B_EDIT);
+    check("list EDIT: both tracks as before", !pl_on() && snd_same(&trk[0], &s) && snd_same(&trk[1], &s1));
+}
+
+static void test_list_load_closes(void)
+{
+    uint32_t c;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    TSEL->p[P_E1] = 10;
+    preset_touch(TSEL);
+    hold(B_EDIT);
+    turn(EN_SELECT, 1);
+    ui_frame();
+    c = ui.pr.cur;
+    tap(B_OCTUP);
+    check("list LOAD (OCT+): the highlighted preset stays on the track (its preset, not edited), the list closed",
+          !pl_on() && TSEL->pre == c && voice_is(TSEL, c) && !TSEL->pre_ed && ui.home);
+    snap_page("presets/16_list_loaded");
+}
+
+static void test_list_save_saves_real_sound(void)
+{
+    uint32_t m;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    m = (uint32_t)TSEL->p[P_MODEL];
+    TSEL->p[P_E1] = 10;
+    preset_touch(TSEL);
+    hold(B_EDIT);
+    turn(EN_SELECT, 1);
+    ui_frame();
+    check("(list: another voice auditioned)", (uint32_t)TSEL->p[P_MODEL] != m);
+    tap(B_SAVE);
+    check("list SAVE while auditioning: the sound from before saved (its voice, DECAY 10), the track back to it, now "
+          "its preset (not edited)",
+          upr.s[0].used == 1u && upr.s[0].model == m && upr.s[0].k[1] == 10 && (uint32_t)TSEL->p[P_MODEL] == m &&
+              TSEL->p[P_E1] == 10 && TSEL->pre == PRE_NFACT && !TSEL->pre_ed && ui.pr.cur == PRE_NFACT && pl_on());
+    tap(B_EDIT);
+    check("list EDIT after SAVE: the saved sound stays", !pl_on() && (uint32_t)TSEL->p[P_MODEL] == m &&
+                                                         TSEL->p[P_E1] == 10 && TSEL->pre == PRE_NFACT);
+}
+
+static void test_list_seven_rows(void)
+{
+    uint32_t i, rows = 0, bands = 0, prev = 0, y;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    hold(B_EDIT);
+    ui.force = 1;
+    ui_frame();
+    for (i = 0; i < 7u; i++)
+        rows += lit_box(16, 48u + i * 20u + 2u, 120, 48u + i * 20u + 18u) > 0u;
+    check("list: 7 preset rows", rows == 7u);
+    check("list: the controls start under the 7th row (their dotted rule)", lit_box(0, 188, 240, 189) >= 119u);
+    for (y = 189; y < 239u; y++) {                      /* (row 239: the frame) */
+        uint32_t on = lit_box(0, y, 240, y + 1u) > 0u;
+        bands += on && !prev;
+        prev = on;
+    }
+    check("list: two hint lines (OCT+ / SAVE, OCT- / EDIT), no K1 / K2 line", bands == 2u);
 }
 
 int main(void)
@@ -6456,6 +6986,18 @@ int main(void)
     test_fix_msg_shrink();
     test_fix_popup_holds_graph();
     test_home_lev_meter();
+    test_popup_shows_and_loads();
+    test_popup_fast_while_playing();
+    test_popup_skips_capped_acid();
+    test_list_save_delete_overwrite();
+    test_long_edit_opens_list();
+    test_edit_hold_in_learn();
+    test_name_and_edited_mark();
+    test_list_preview_scrub();
+    test_list_cancel_restores();
+    test_list_load_closes();
+    test_list_save_saves_real_sound();
+    test_list_seven_rows();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

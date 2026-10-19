@@ -11,7 +11,7 @@
  *     block rate's buzz and the jumps' clicks), FB fed back into the carrier's phase accumulator, then a near
  *     differentiator and a smoother (as measured), DECAY, a tremolo (TREM depth, TFRQ rate, restarting at each hit).
  *     TUNE 0 is the machine's PTCH 64 (577 Hz). The random phases from the hit's seed (the machine's sequence is its
- *     own). 1 voice, choke group 1 (as HATC).
+ *     own). 1 voice, no default choke group (spec 2026-10-19: CHOKE is the track's own).
  *   CYEFM: four PM pairs at 1 / 1.4103 / 1.8005 / 2.6997 x the base (580.05 Hz at TUNE 0, the machine's PTCH 64),
  *     each modulated at q x its carrier (q = 1.00055 (MFRQ / 16 + 0.5)) with the index (MOD + 7) / 13.5 falling over
  *     MDEC; FB phase feedback on each carrier (B = FB / 64); faded in over 16 samples; DECAY; HPF two one-pole
@@ -315,15 +315,15 @@ static void cyefm_trigger(track_t *t, dvoice_t *v)
     c->lvl = CYEFM_LVL;
 }
 
-#define DM_CBEFM_DEF {"CBEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("SNAP", F_INT, 0, 127, 0), PD("FB", F_INT, 0, 127, 0), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0)}, cbefm_trigger, \
+#define DM_CBEFM_DEF {"CBEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -2), PD("DECAY", F_INT, 0, 127, 61), \
+    PD("SNAP", F_INT, 0, 127, 92), PD("FB", F_INT, 0, 127, 56), PD("MOD", F_INT, 0, 127, 17), \
+    PD("MFRQ", F_INT, 0, 127, 112), PD("MDEC", F_INT, 0, 127, 42), PD("-", F_INT, 0, 0, 0)}, cbefm_trigger, \
     cbefm_render}
-#define DM_HHEFM_DEF {"HHEFM", 1, 1, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("TREM", F_INT, 0, 127, 0), PD("TFRQ", F_INT, 0, 127, 64), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("FB", F_INT, 0, 127, 0)}, hhefm_trigger, \
+#define DM_HHEFM_DEF {"HHEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -2), PD("DECAY", F_INT, 0, 127, 52), \
+    PD("TREM", F_INT, 0, 127, 0), PD("TFRQ", F_INT, 0, 127, 0), PD("MOD", F_INT, 0, 127, 3), \
+    PD("MFRQ", F_INT, 0, 127, 12), PD("MDEC", F_INT, 0, 127, 78), PD("FB", F_INT, 0, 127, 26)}, hhefm_trigger, \
     hhefm_render}
-#define DM_CYEFM_DEF {"CYEFM", 2, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("FB", F_INT, 0, 127, 0), PD("HPF", F_INT, 0, 127, 0), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0)}, cyefm_trigger, \
+#define DM_CYEFM_DEF {"CYEFM", 2, 0, {PD("TUNE", F_SEMI, -24, 24, -2), PD("DECAY", F_INT, 0, 127, 93), \
+    PD("FB", F_INT, 0, 127, 22), PD("HPF", F_INT, 0, 127, 107), PD("MOD", F_INT, 0, 127, 76), \
+    PD("MFRQ", F_INT, 0, 127, 88), PD("MDEC", F_INT, 0, 127, 86), PD("-", F_INT, 0, 0, 0)}, cyefm_trigger, \
     cyefm_render}
