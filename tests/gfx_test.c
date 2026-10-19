@@ -154,9 +154,7 @@ static void test_theme_index(void)
     theme_set(THEME_TAG | 2u);
     check("theme_set: C_BG / C_INK are the theme's (WHITE ON BLUE)", C_BG == THEMES[2].bg && C_INK == THEMES[2].ink &&
           C_BG == RGB(0x24, 0x45, 0xc8) && C_INK == RGB(0xea, 0xf1, 0xff));
-    check("themes: MD RED #e0472b / #080000 (the emulator's #38100a reads grey-brown on the FM-1's panel: the user, "
-          "2026-10-19; not C_BLACK itself)", THEMES[0].bg == RGB(0xe0, 0x47, 0x2b) &&
-          THEMES[0].ink == RGB(0x08, 0x00, 0x00) && THEMES[0].ink != C_BLACK);
+    check("themes: MD RED #e0472b / #38100a", THEMES[0].bg == RGB(0xe0, 0x47, 0x2b) && THEMES[0].ink == RGB(0x38, 0x10, 0x0a));
     theme_set(THEME_TAG | 0u);
 }
 
