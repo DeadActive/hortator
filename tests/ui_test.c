@@ -2750,6 +2750,30 @@ static void test_fix_popup_holds_graph(void)
     ui_frame();
 }
 
+/* HOME's LEV (the user, 2026-10-19: "level meter is not working ... on home page"): the selected track's live level as
+ * the solid bar, falling back when the sound stops; the level setting a marker wider than the bar */
+static void test_home_lev_meter(void)
+{
+    uint32_t k, hs;
+    ui_host_init();
+    TSEL->p[P_LEVEL] = 40;
+    ui.force = 1;
+    ui_frame();
+    hs = 40u * 35u / 127u;
+    check("HOME LEV: the level setting a 10 px marker (x 70..79), wider than the 6 px bar",
+          fb_count(70, 64u - hs, 10, 2, C_INK) == 20u && fb[(65u - hs) * 240u + 69u] == C_BG);
+    check("HOME LEV: silent: no bar above the marker", fb[45u * 240u + 74u] == C_BG);
+    TSEL->peak = 20000;
+    ui_frame();
+    check("HOME LEV: a loud hit raises the bar over the setting (live level)", fb[45u * 240u + 74u] == C_INK &&
+          fb[45u * 240u + 72u] == C_INK);
+    for (k = 0; k < 40u; k++) {
+        TSEL->peak = 0;
+        ui_frame();
+    }
+    check("HOME LEV: ... and it falls back when the sound stops", fb[45u * 240u + 74u] == C_BG);
+}
+
 static void snap_page(const char *name)
 {
     char path[96];
@@ -6431,6 +6455,7 @@ int main(void)
     test_fix_zoom_home();
     test_fix_msg_shrink();
     test_fix_popup_holds_graph();
+    test_home_lev_meter();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

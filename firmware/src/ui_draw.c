@@ -1828,6 +1828,37 @@ static const char *abbr4(const char *l, char *b)
     return b;
 }
 
+/* HOME's LEV column (x 63..86, y 17..67; the user, 2026-10-19: a level meter): the selected track's live level as the
+ * solid bar (its peak since the last frame, falling 1 px a frame), the level setting a 10 px marker wider than it;
+ * redrawn when either changes (again: the strip was just redrawn under it) */
+static void draw_home_lev(int again)
+{
+    track_t *t = TSEL;
+    int32_t lvl = t->p[P_LEVEL] & 127, m = !lvl || trk_silent(t) ? 0 : meter_px(t->peak) * 35 / MX_LW, hs, y;
+    uint32_t sig;
+    t->peak = 0;
+    if (m < (int32_t)ui.lev_m - 1)
+        m = (int32_t)ui.lev_m - 1;
+    if (m < 0)
+        m = 0;
+    ui.lev_m = (uint32_t)m;
+    sig = (uint32_t)m * 131u + (uint32_t)lvl + 1u;
+    if (!again && !ui.force && sig == ui.lev_sig)
+        return;
+    ui.lev_sig = sig;
+    cv_begin_at(24, 51, Y_KNOB, C_BG);
+    md_text(12 - md_text_w(&MD_F3, 2, "LEV") / 2, 2, &MD_F3, 2, "LEV", C_INK);
+    if (m)
+        cv_rect(9, 49 - m, 6, m, C_INK);
+    for (y = 14; y <= 48; y += 4) {
+        cv_rect(5, y, 2, 1, C_INK);
+        cv_rect(17, y, 2, 1, C_INK);
+    }
+    hs = lvl * 35 / 127;
+    cv_rect(7, 47 - hs, 10, 2, C_INK);               /* the setting */
+    cv_blit(63, Y_KNOB);
+}
+
 /* HOME (spec 2026-10-19-md-ui §9), y 17..68 under the top bar: the MD main screen's strip. The selected track's bank
  * boxes (the playing one solid), the project box (inverted: slot, name), the mode line | LEV (the track's level) |
  * the model's first four sound knobs (rings r 7, the values under them; enums as text) | a rule at y 68 */
@@ -1835,7 +1866,7 @@ static void draw_home_strip(void)
 {
     const track_t *t = TSEL;
     char l[4][8], v[4][8], ab[8], m[16], nm[NAME_LEN + 1u], pj[8];
-    int32_t r[4], md[4], lvl = t->p[P_LEVEL] & 127, h, y;
+    int32_t r[4], md[4], lvl = t->p[P_LEVEL] & 127;
     uint32_t c, nb = bank_count(), len = view_len(t), cur = song.playing ? (view_idx(t) % len) / 16u : ui.bank;
     uint32_t sig = 0x811C9DC5u, hot = ui.hot_t ? ui.hot_col : 9u;
     for (c = 0; c < 4u; c++) {
@@ -1872,8 +1903,10 @@ static void draw_home_strip(void)
     pj[6] = 0;
     md_fit(nm, chain.name[0] ? chain.name : "NEW", sizeof nm, 54);
     sig = str_hash(str_hash(str_hash(sig, m), nm), pj) + nb * 31u + cur * 101u + (uint32_t)lvl * 1009u + hot * 7919u;
-    if (!ui.force && sig == ui.col_sig)
+    if (!ui.force && sig == ui.col_sig) {
+        draw_home_lev(0);
         return;
+    }
     ui.col_sig = sig;
     cv_begin_at(240, 52, Y_KNOB, C_BG);
     cv_rect(0, 0, 1, 52, C_INK);
@@ -1888,13 +1921,6 @@ static void draw_home_strip(void)
     md_text(31 - md_text_w(&MD_F3, 2, nm) / 2, 26, &MD_F3, 2, nm, C_BG);
     md_text(4, 40, &MD_F3, 2, m, C_INK);
     cv_rect(62, 0, 1, 51, C_INK);
-    md_text(75 - md_text_w(&MD_F3, 2, "LEV") / 2, 2, &MD_F3, 2, "LEV", C_INK);   /* LEV: the MD's fader */
-    h = lvl * 35 / 127;
-    cv_rect(72, 49 - h, 6, h, C_INK);
-    for (y = 14; y <= 48; y += 4) {
-        cv_rect(68, y, 2, 1, C_INK);
-        cv_rect(80, y, 2, 1, C_INK);
-    }
     cv_rect(87, 0, 1, 51, C_INK);
     cv_vdot(125, 0, 50, C_INK);
     cv_vdot(163, 0, 50, C_INK);
@@ -1916,6 +1942,7 @@ static void draw_home_strip(void)
     }
     cv_rect(1, 51, 238, 1, C_INK);
     cv_blit(0, Y_KNOB);
+    draw_home_lev(1);
 }
 
 static void draw_columns(void)
