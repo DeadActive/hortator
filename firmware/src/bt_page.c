@@ -293,44 +293,53 @@ static void bt_page_draw(void)
     if (!ui.force && h == btp.sig)
         return;
     btp.sig = h;
-    cv_begin(240, H_HEAD, C_BLACK);
-    cv_text(4, 1, &FONT_S, title, C_HI);
+    cv_begin(240, H_HEAD, C_INK);                    /* the title bar: an ink bar, the title (or a message) in BG */
+    md_text(6, 3, &MD_F3, 2, title, C_BG);
     cv_blit(0, Y_HEAD);
-    lcd_fill(0, H_HEAD, 240, 1, C_LINE);
-    for (pass = 0; pass < 2u; pass++) {             /* the canvas holds 124 rows: two bands, rows 21..239 */
-        cv_begin(240, pass ? 240u - H_HEAD - 1u - 124u : 124u, C_BLACK);
-        cv_oy = pass ? -124 : 0;
-        cv_text(4, 2, &FONT_S, st, sbt == BLE_ST_FAILED ? C_WHITE : C_AMB);
-        cv_text(4, 18, &FONT_S, err, C_GRAY);
-        cv_rect(0, 36, 240, 1, C_LINE);
+    for (pass = 0; pass < 2u; pass++) {             /* the canvas holds 124 rows: two bands, screen rows 16..239 */
+        uint32_t y0 = H_HEAD + pass * 124u, hh = pass ? 240u - H_HEAD - 124u : 124u;
+        cv_begin_at(240, hh, y0, C_BG);
+        cv_oy = -(int32_t)(y0 - H_HEAD - 1u);       /* (rows from the old origin, H_HEAD + 1) */
+        cv_rect(0, -1, 1, 240, C_INK);
+        cv_rect(239, -1, 1, 240, C_INK);
+        cv_rect(0, 238 - H_HEAD, 240, 1, C_INK);
+        md_text(4, 2, &MD_F3, 2, st, C_INK);
+        if (sbt != BLE_ST_FAILED)                   /* (the state not FAILED: dithered, as the old AMB) */
+            cv_dither(4, 2, md_text_w(&MD_F3, 2, st), 10, C_BG);
+        md_text(4, 18, &MD_F3, 2, err, C_INK);
+        cv_hdot(1, 238, 36, C_INK);
         for (i = btp.top; i < BT_ROWS + btp.n && i < btp.top + BT_VIS; i++) {
             int32_t y = BT_Y0 + (int32_t)(i - btp.top) * BT_DY;
             int sel = i == btp.sel;
-            uint16_t c = sel ? C_WHITE : C_GRAY;
+            uint16_t pen = sel ? C_BG : C_INK;
             if (sel)
-                cv_rect(4, y + 6, 3, 3, C_WHITE);
+                cv_rect(2, y - 2, 236, 14, C_INK);
             if (i < BT_ROWS) {
-                cv_text(14, y, &FONT_S, BT_NAME[i], i == BTR_SCAN && !scan_ok ? C_DIM : c);
-                cv_text(BT_VX, y, &FONT_S, i == BTR_ON ? (btp.on ? "ON" : "OFF") : i == BTR_AUTO ?
+                md_text(14, y, &MD_F3, 2, BT_NAME[i], pen);
+                if (i == BTR_SCAN && !scan_ok)
+                    cv_dither(14, y, md_text_w(&MD_F3, 2, BT_NAME[i]), 10, sel ? C_INK : C_BG);
+                md_text(BT_VX, y, &MD_F3, 2, i == BTR_ON ? (btp.on ? "ON" : "OFF") : i == BTR_AUTO ?
                         (btset.bt_auto ? "ON" : "OFF") : i == BTR_MODE ? BT_MODE[btset.btmode % 3u] :
-                        i == BTR_DEV ? dev : "", C_HI);
+                        i == BTR_DEV ? dev : "", pen);
             } else {
                 const ble_ui_dev_t *d = &btp.dev[i - BT_ROWS];
                 t[0] = (char)('1' + i - BT_ROWS), t[1] = 0;
-                cv_text(14, y, &FONT_S, t, c);
+                md_text(14, y, &MD_F3, 2, t, pen);
                 if (d->name[0])
                     str_cpy(t, d->name, 18);
                 else
                     bt_addr_txt(t, d->addr, 17);
-                cv_text(26, y, &FONT_S, t, sel ? C_WHITE : C_HI);
+                md_text(26, y, &MD_F3, 2, t, pen);
                 if (d->midi)
-                    cv_text(170, y, &FONT_S, "MIDI", C_AMB);
+                    md_text(170, y, &MD_F3, 2, "MIDI", pen);
                 fmt_int(t, d->rssi);
-                cv_text(236 - text_w(&FONT_S, t), y, &FONT_S, t, C_GRAY);
+                md_text(234 - md_text_w(&MD_F3, 2, t), y, &MD_F3, 2, t, pen);
             }
         }
-        cv_text(4, 198, &FONT_S, "SELECT  OCT+ OK  OCT- BACK", C_DIM);
+        i = (uint32_t)cv_keycap(4, 196, "SEL", "", C_INK);
+        i = (uint32_t)cv_keycap((int32_t)i + 8, 196, "OCT+", "OK", C_INK);
+        cv_keycap((int32_t)i + 8, 196, "OCT-", "BACK", C_INK);
         cv_oy = 0;
-        cv_blit(0, H_HEAD + 1 + pass * 124u);
+        cv_blit(0, y0);
     }
 }

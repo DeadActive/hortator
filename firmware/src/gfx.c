@@ -246,7 +246,7 @@ static void cv_logo(int32_t x, int32_t y, uint16_t c)
             uint32_t v = LOGO_DATA[gy * ((LOGO_W + 1u) / 2u) + gx / 2u];
             v = (gx & 1u) ? (v & 15u) : (v >> 4);
             if (v)
-                cv_pset(x + (int32_t)gx, y + (int32_t)gy, ramp[v]);
+                cv_pset(x + (int32_t)gx, y + (int32_t)gy, c == C_INK ? (v > 7u ? C_INK : C_BG) : ramp[v]);
         }
 }
 

@@ -254,7 +254,8 @@ static uint32_t name_leds(uint32_t now)            /* the keys lit: every one th
 static void draw_name(void)
 {
     char b[40];
-    uint32_t i, sig = 2166136261u;
+    uint32_t i, x;
+    uint32_t sig = 2166136261u;
     sig = str_hash(sig, nm.s) + nm.cur * 7u + nm.key * 131u + nm.tap * 977u + nm.num * 3u + nm.kind * 11u +
           (uint32_t)transport_busy() * 29u + (ui.msg_t ? str_hash(5u, ui.msg) : 0u);
     if (ui.msg_t)                                  /* the title shows a message for a while */
@@ -263,45 +264,62 @@ static void draw_name(void)
         return;
     nm.sig = sig;
     ui.force = 0;
-    lcd_fill(0, 0, 240, 240, C_BLACK);
-    str_cpy(b, "NAME PROJECT A", sizeof b);
+    str_cpy(b, "NAME PROJECT A", sizeof b);        /* the title bar: an ink bar, the title and n/12 in BG */
     b[str_len(b) - 1u] = (char)('A' + nm.slot);
-    draw_text_box(4, 6, 180, &FONT_S, ui.msg_t ? ui.msg : b, ui.msg_t ? C_HI : C_GRAY, 0);
+    cv_begin(240, 16, C_INK);
+    md_text(6, 3, &MD_F3, 2, ui.msg_t ? ui.msg : b, C_BG);
     fmt_int(b, nm.len);
     str_cpy(b + str_len(b), "/12", 4);
-    draw_text_box(184, 6, 52, &FONT_S, b, nm.len >= NAME_LEN ? C_WHITE : C_DIM, 0);
-    cv_begin(240, 40, C_BLACK);
-    for (i = 0; i <= NAME_LEN; i++) {
-        int32_t x = 12 + 18 * (int32_t)i;
-        char c[2] = {i < nm.len ? nm.s[i] : 0, 0};
-        if (i < NAME_LEN)
-            cv_rect(x + 2, 36, 14, 1, C_LINE);
-        if (i == nm.cur)
-            cv_rect(x, 37, 18, 3, nm.key ? C_AMB : C_WHITE);
-        if (c[0] && c[0] != ' ')
-            cv_text(x + 2, 4, &FONT_L, c, i == nm.cur && nm.key ? C_AMB : C_WHITE);
-    }
-    cv_blit(0, 34);
-    if (nm.key) {
-        const char *g = nm_group(nm.key - 1u);
-        str_cpy(b, g, sizeof b);
-        str_cpy(b + str_len(b), "  TAP AGAIN: NEXT", 20);
-        draw_text_box(4, 84, 232, &FONT_S, b, C_AMB, 0);
-    } else {
-        draw_text_box(4, 84, 232, &FONT_S, nm.num ? "123: ONE TAP, ONE CHARACTER" : "ABC: TAP AGAIN, NEXT LETTER", C_GRAY, 0);
-    }
-    for (i = 0; i < 2u; i++) {                     /* the white keys: the left octave, then the right one */
-        uint32_t p;
-        b[0] = 0;
-        for (p = i * 8u; p < i * 8u + 8u; p++) {
-            str_cpy(b + str_len(b), nm_group(p), 6);
-            if (p < i * 8u + 7u)
-                str_cpy(b + str_len(b), " ", 2);
+    md_text(234 - md_text_w(&MD_F3, 2, b), 3, &MD_F3, 2, b, C_BG);
+    cv_blit(0, 0);
+    for (x = 0; x < 2u; x++) {                     /* the rest in two bands */
+        uint32_t y0 = 16u + x * 112u;
+        cv_begin_at(240, 112, y0, C_BG);
+        cv_oy = -(int32_t)y0;
+        cv_rect(0, (int32_t)y0, 1, 112, C_INK);
+        cv_rect(239, (int32_t)y0, 1, 112, C_INK);
+        cv_rect(0, 239, 240, 1, C_INK);
+        for (i = 0; i <= NAME_LEN; i++) {           /* the name: F3 at 3x in 18 px slots; the cursor a solid block
+                                                     * (dithered while a key's letters cycle) */
+            int32_t cx = 12 + 18 * (int32_t)i;
+            char c[2] = {i < nm.len ? nm.s[i] : 0, 0};
+            if (i < NAME_LEN)
+                cv_hdot(cx + 2, cx + 15, 68, C_INK);
+            if (i == nm.cur) {
+                if (nm.key)
+                    cv_dither(cx, 70, 18, 3, C_INK);
+                else
+                    cv_rect(cx, 70, 18, 3, C_INK);
+            }
+            if (c[0] && c[0] != ' ')
+                md_text(cx + (18 - md_text_w(&MD_F3, 3, c)) / 2, 44, &MD_F3, 3, c, C_INK);
         }
-        draw_text_box(0, 110 + 20 * (int32_t)i, 240, &FONT_S, b, C_HI, 1);
+        if (nm.key) {
+            str_cpy(b, nm_group(nm.key - 1u), sizeof b);
+            str_cpy(b + str_len(b), "  TAP AGAIN: NEXT", 20);
+            md_text(6, 84, &MD_F3, 2, b, C_INK);
+        } else {
+            md_text(6, 84, &MD_F3, 2, nm.num ? "123: ONE TAP, ONE CHARACTER" : "ABC: TAP AGAIN, NEXT LETTER", C_INK);
+        }
+        for (i = 0; i < 2u; i++) {                 /* the white keys: the left octave, then the right one */
+            uint32_t p;
+            b[0] = 0;
+            for (p = i * 8u; p < i * 8u + 8u; p++) {
+                str_cpy(b + str_len(b), nm_group(p), 6);
+                if (p < i * 8u + 7u)
+                    str_cpy(b + str_len(b), " ", 2);
+            }
+            md_text(120 - md_text_w(&MD_F3, 2, b) / 2, 104 + 16 * (int32_t)i, &MD_F3, 2, b, C_INK);
+        }
+        i = (uint32_t)cv_keycap(8, 142, "F#", "LEFT", C_INK);
+        i = (uint32_t)cv_keycap((int32_t)i + 10, 142, "G#", "SPACE", C_INK);
+        cv_keycap((int32_t)i + 10, 142, "A#", "RIGHT", C_INK);
+        i = (uint32_t)cv_keycap(8, 162, "C#", "DELETE", C_INK);
+        cv_keycap((int32_t)i + 10, 162, "D#", nm.num ? "ABC" : "123", C_INK);
+        md_text(8, 186, &MD_F3, 2, "KNOB 1 MOVE   KNOB 2 CHAR", C_INK);
+        i = (uint32_t)cv_keycap(8, 206, "OCT-", "CANCEL", C_INK);
+        cv_keycap((int32_t)i + 12, 206, "OCT+", "RENAME", C_INK);
+        cv_oy = 0;
+        cv_blit(0, y0);
     }
-    draw_text_box(0, 156, 240, &FONT_S, "F# LEFT   G# SPACE   A# RIGHT", C_GRAY, 1);
-    draw_text_box(0, 174, 240, &FONT_S, nm.num ? "C# DELETE   D# ABC" : "C# DELETE   D# 123", C_GRAY, 1);
-    draw_text_box(0, 200, 240, &FONT_S, "KNOB 1 MOVE   KNOB 2 CHAR", C_DIM, 1);
-    draw_text_box(0, 218, 240, &FONT_S, "OCT- CANCEL   OCT+ RENAME", C_WHITE, 1);
 }

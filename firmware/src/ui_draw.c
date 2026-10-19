@@ -1616,13 +1616,13 @@ static void draw_graph(void)
         }
     }
     cv_oy = 0;
-    if (ui.hot_t && settings.zoom) {
+    if (ui.hot_t && settings.zoom) {                   /* ZOOM: the touched value large, in a popup */
         int32_t x;
         top = 1;
-        cv_rect(0, 0, 150, 50, C_BLACK);
-        cv_text(4, 0, &FONT_S, ui.focus_l, C_GRAY);
-        x = cv_text(4, 16, &FONT_L, ui.focus_v, C_WHITE);
-        cv_text(x + 4, 30, &FONT_S, ui.focus_u, C_DIM);
+        cv_popup(4, 4, 150, 50, "", C_INK, C_BG);
+        md_text(10, 8, &MD_F3, 2, ui.focus_l, C_INK);
+        x = md_text(10, 22, &MD_F3, 4, ui.focus_v, C_INK);
+        md_text(x + 4, 32, &MD_F3, 2, ui.focus_u, C_INK);
     }
     cv_rect(0, 0, 1, H_GRAPH, C_INK);                 /* the frame's edges */
     cv_rect(239, 0, 1, H_GRAPH, C_INK);
@@ -1757,12 +1757,13 @@ static void draw_foot(void)
     cv_blit(0, Y_CRUMB);
 }
 
-/* a message (ui_say): a small MD popup over the graph area while ui.msg_t runs; when it ends, everything repaints */
+/* a message (ui_say): a small MD popup over the graph area while ui.msg_t runs (drawn every frame: the graphs under it
+ * redraw); when it ends, everything repaints */
 static void draw_msg(void)
 {
     uint32_t sig = ui.msg_t ? str_hash(7u, ui.msg) : 0u;
     int32_t w, h = 30;
-    if (!sig || (!ui.force && sig == ui.msg_sig))
+    if (!sig)
         return;
     ui.msg_sig = sig;
     w = md_text_w(&MD_F3, 2, ui.msg) + 24;
@@ -1772,6 +1773,43 @@ static void draw_msg(void)
     cv_popup(0, 0, w, h, "", C_INK, C_BG);
     md_text(12, 10, &MD_F3, 2, ui.msg, C_INK);
     cv_blit((uint32_t)(120 - w / 2), 106u);
+}
+
+/* TEMPO (spec 2026-10-19-md-ui §7): while the BPM is being changed (ui.bpm_t), a popup with the BPM in the MD's tempo
+ * digits at 3x (every frame, as messages); when it ends, everything repaints */
+static void draw_tempo(void)
+{
+    char b[8];
+    int32_t w;
+    if (!ui.bpm_t)
+        return;
+    ui.tempo_sig = 1u;
+    cv_begin(182, 98, C_BG);
+    cv_popup(1, 6, 180, 90, "TEMPO", C_INK, C_BG);
+    fmt_int(b, song.g[G_BPM]);
+    w = md_text_w(&MD_BIG, 3, b);
+    md_text(91 - w / 2, 34, &MD_BIG, 3, b, C_INK);
+    cv_blit(29, 70);
+}
+
+/* a confirm (spec §7): a popup over the page, the question's first word its title, OCT- NO / OCT+ YES as keycaps */
+static void draw_confirm(const char *q, const char *q2)
+{
+    char verb[12];
+    uint32_t n = 0;
+    while (q[n] && q[n] != ' ' && q[n] != ':' && n < sizeof verb - 1u) {
+        verb[n] = q[n];
+        n++;
+    }
+    verb[n] = 0;
+    cv_begin(186, 84, C_BG);
+    cv_popup(1, 6, 184, 74, verb, C_INK, C_BG);
+    md_text(93 - md_text_w(&MD_F3, 2, q) / 2, 16, &MD_F3, 2, q, C_INK);
+    if (q2)
+        md_text(93 - md_text_w(&MD_F3, 2, q2) / 2, 30, &MD_F3, 2, q2, C_INK);
+    cv_keycap(12, 46, "OCT-", "NO", C_INK);
+    cv_keycap(100, 46, "OCT+", "YES", C_INK);
+    cv_blit(27, 76);
 }
 
 /* a parameter's label in at most 4 letters (the HOME strip's 38 px cells; the MD's own abbreviations) */
@@ -2018,11 +2056,13 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             } else {
                 b[12] = (char)('1' + ui.confirm_trk);
             }
-            lcd_fill(0, 0, 240, 240, C_BLACK);
-            draw_text_box(0, 84, 240, &FONT_S, b, C_WHITE, 1);
-            if (ui.confirm == 5u)
-                draw_text_box(0, 104, 240, &FONT_S, "START NEW PROJECT?", C_WHITE, 1);
-            draw_text_box(0, 132, 240, &FONT_S, "OCT- NO    OCT+ YES", C_GRAY, 1);
+            bank_fix();                               /* the page under it, then the popup */
+            draw_frame();
+            draw_head();
+            draw_columns();
+            draw_graph();
+            draw_foot();
+            draw_confirm(b, ui.confirm == 5u ? "START NEW PROJECT?" : 0);
             ui.force = 0;
         }
         return;
@@ -2036,8 +2076,9 @@ __attribute__((always_inline)) static inline void ui_draw(void)
         return;
     }
     bank_fix();
-    if (!ui.msg_t && ui.msg_sig) {                    /* a message ended: everything repaints */
-        ui.msg_sig = 0;
+    if ((!ui.msg_t && ui.msg_sig) || (!ui.bpm_t && ui.tempo_sig)) {   /* a message / TEMPO ended: everything
+                                                                         * repaints */
+        ui.msg_sig = ui.tempo_sig = 0;
         ui.force = 1;
     }
     if (ui.force)
@@ -2048,6 +2089,7 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     draw_columns();
     felucca_dbg.stage = 5;
     draw_graph();
+    draw_tempo();
     draw_msg();
     if (ui.msg_t)
         ui.msg_t--;

@@ -6,9 +6,8 @@
 enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
                                               "BACKLIGHT", "HARDWARE CALIBRATION", "BLUETOOTH", "ABOUT", "BACK"};
-#define MENU_DY 15                                  /* eleven rows above the hints */
-#define MENU_HY 177                                 /* the hints, one line apart (the canvas ends at 209) */
-#define MENU_HDY 16
+#define MENU_DY 14u                                 /* eleven rows above the hints (screen y) */
+#define MENU_HY 196u
 static void bt_page_open(void);                     /* bt_page.c (after ble/ble_core.h): ui.menu 3 */
 static void bt_page_close(void);
 static void bt_page_draw(void);
@@ -18,10 +17,10 @@ static void bt_autostart(void);                     /* AUTOSTART: once, 5 s afte
 enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
                                               "BACKLIGHT", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
-#define MENU_DY 16                                  /* ten rows above the hints */
-#define MENU_HY 170
-#define MENU_HDY 18
+#define MENU_DY 15u                                 /* ten rows above the hints (screen y) */
+#define MENU_HY 192u
 #endif
+#define MENU_Y0 40u                                 /* the first row (screen y), inside the MENU window */
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
@@ -43,49 +42,56 @@ static void draw_menu(void)
     if (!ui.force && sig == ui.menu_sig)
         return;
     ui.menu_sig = sig;
-    if (ui.force)                                   /* head + rule + two bands cover rows 0..229 */
-        lcd_fill(0, H_HEAD + 1 + 124 + 85, 240, 240 - (H_HEAD + 1 + 124 + 85), C_BLACK);
-    cv_begin(240, H_HEAD, C_BLACK);
-    cv_text(4, 1, &FONT_S, ui.menu == 2 ? "ABOUT" : "MENU", C_HI);
-    cv_blit(0, Y_HEAD);
-    lcd_fill(0, H_HEAD, 240, 1, C_LINE);
-    for (pass = 0; pass < 2u; pass++) {             /* the canvas holds 124 rows: draw in two bands */
-        cv_begin(240, pass ? 85u : 124u, C_BLACK);
-        cv_oy = pass ? -124 : 0;
-        if (ui.menu == 2) {
-            cv_logo((240 - LOGO_W) / 2, 2, C_HI);
-            cv_text(4, 58, &FONT_S, "DRUM MACHINE ON FELUCCA", C_AMB);
-            cv_text(4, 74, &FONT_S, FELUCCA_VERSION, C_HI);
-            cv_text(236 - text_w(&FONT_S, __DATE__), 74, &FONT_S, __DATE__, C_GRAY);   /* build date */
-            cv_text(4, 90, &FONT_S, "FORK: DEADACTIVE", C_HI);
-            cv_text(4, 103, &FONT_S, "FELUCCA: LEO KUROSHITA", C_HI);
-            cv_text(4, 116, &FONT_S, "H\xDCGELTON INSTRUMENTS", C_AMB);
-            cv_text(4, 129, &FONT_S, "GPL-3.0, NO WARRANTY", C_HI);
-            cv_text(4, 142, &FONT_S, "GITHUB.COM/HUGELTON/FELUCCA", C_AMB);
-            cv_text(4, 155, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
-            cv_text(4, 168, &FONT_S, "LOGO: UNIFRAKTURMAGUNTIA OFL", C_DIM);   /* 28 cells: (OFL) would clip */
-            cv_text(4, 181, &FONT_S, "SAMPLES: VERSILIAN (CC0)", C_DIM);
-            cv_text(4, 194, &FONT_S, "+ H\xDCGELTON SAMPLE PACK", C_DIM);
-        } else {
+    ui.force = 1;
+    draw_head();                                    /* the top bar as everywhere */
+    for (pass = 0; pass < 2u; pass++) {             /* the canvas holds 124 rows: two bands, screen rows 16..239 */
+        uint32_t y0 = H_HEAD + pass * 124u, h = pass ? 240u - H_HEAD - 124u : 124u;
+        cv_begin_at(240, h, y0, C_BG);
+        cv_oy = -(int32_t)y0;                       /* (drawn in screen rows) */
+        cv_rect(0, (int32_t)y0, 1, (int32_t)h, C_INK);
+        cv_rect(239, (int32_t)y0, 1, (int32_t)h, C_INK);
+        cv_rect(0, 239, 240, 1, C_INK);
+        if (ui.menu == 2) {                         /* ABOUT: the logo, the credits */
+            static const char *const AB[] = {"DRUM MACHINE ON FELUCCA", FELUCCA_VERSION, "FORK: DEADACTIVE",
+                                             "FELUCCA: LEO KUROSHITA", "H\xDCGELTON INSTRUMENTS", "GPL-3.0, NO WARRANTY",
+                                             "GITHUB.COM/HUGELTON/FELUCCA", "FONT: TERMINUS (OFL)",
+                                             "LOGO: UNIFRAKTURMAGUNTIA OFL", "SAMPLES: VERSILIAN (CC0)",
+                                             "+ H\xDCGELTON SAMPLE PACK"};
+            cv_logo((240 - LOGO_W) / 2, H_HEAD + 3, C_INK);
+            for (i = 0; i < sizeof AB / sizeof AB[0]; i++)
+                md_text(6, 78 + (int32_t)i * 14, &MD_F3, 2, AB[i], C_INK);
+            md_text(234 - md_text_w(&MD_F3, 2, __DATE__), 92, &MD_F3, 2, __DATE__, C_INK);   /* build date */
+        } else {                                    /* MENU: a window, the cursor an inverted bar */
+            cv_popup(6, 30, 228, 184, "MENU", C_INK, C_BG);
             for (i = 0; i < MI_COUNT; i++) {
-                int32_t y = 4 + (int32_t)i * MENU_DY;
+                int32_t y = (int32_t)(MENU_Y0 + i * MENU_DY);
                 int sel = i == ui.menu_sel;
-                if (sel)
-                    cv_rect(4, y + 6, 3, 3, C_WHITE);
-                cv_text(14, y, &FONT_S, MI_NAME[i], sel ? C_WHITE : C_GRAY);
+                const char *v = 0;
                 if (menu_onoff(i))
-                    cv_text(102, y, &FONT_S, i == MI_USB ? (*menu_onoff(i) ? "FIXED" : "MASTER") : i == MI_PERF ? (*menu_onoff(i) ? "PAGE" : "HOLD") : *menu_onoff(i) ? "ON" : "OFF", C_HI);
+                    v = i == MI_USB ? (*menu_onoff(i) ? "FIXED" : "MASTER") : i == MI_PERF ? (*menu_onoff(i) ? "PAGE" : "HOLD") :
+                        *menu_onoff(i) ? "ON" : "OFF";
                 if (i == MI_SPKEQ)
-                    cv_text(102, y, &FONT_S, SPK_EQ[settings.lowcut % 3u], C_HI);
-                if (i == MI_COLOR)
-                    cv_text(102, y, &FONT_S, THEMES[theme_index(settings.palette)].name, C_HI);
+                    v = SPK_EQ[settings.lowcut % 3u];
+                list_row(10, 225, y, MI_NAME[i], v, sel);
+                if (i == MI_COLOR) {                /* the themes as boxes, the current one solid */
+                    uint32_t k, cur = theme_index(settings.palette);
+                    for (k = 0; k < NTHEMES; k++) {
+                        int32_t x = 170 + (int32_t)k * 14;
+                        if (k == cur)
+                            cv_rect(x, y, 10, 10, sel ? C_BG : C_INK);
+                        else
+                            cv_frame(x, y, 10, 10, sel ? C_BG : C_INK);
+                    }
+                }
             }
-            cv_text(4, MENU_HY, &FONT_S, "SELECT MOVE", C_DIM);
-            cv_text(4, MENU_HY + MENU_HDY, &FONT_S, "OCT+ OK   OCT- BACK", C_DIM);
+            i = (uint32_t)cv_keycap(12, (int32_t)MENU_HY, "OCT+", "OK", C_INK);
+            i = (uint32_t)cv_keycap((int32_t)i + 8, (int32_t)MENU_HY, "OCT-", "BACK", C_INK);
+            cv_keycap((int32_t)i + 8, (int32_t)MENU_HY, "SEL", "MOVE", C_INK);
         }
         cv_oy = 0;
-        cv_blit(0, H_HEAD + 1 + pass * 124u);
+        cv_blit(0, y0);
     }
+    ui.force = 0;
 }
 
 static void enc_drop(void)                             /* knob turns nobody takes */

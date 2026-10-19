@@ -122,6 +122,14 @@ static void snap(const char *name)
     snprintf(path, sizeof path, "build/ui_shots/bt/%s.ppm", name);
     shot(path);
 }
+static uint32_t ink_in(uint32_t y0, uint32_t y1)    /* ink pixels in rows y0..y1, inside the menu window (x 12..225) */
+{
+    uint32_t n = 0, x, y;
+    for (y = y0; y < y1; y++)
+        for (x = 12u; x < 226u; x++)
+            n += fb[y * 240u + x] == C_INK;
+    return n;
+}
 static uint32_t lit(uint32_t y0, uint32_t y1)        /* non-black pixels in rows y0..y1 */
 {
     uint32_t n = 0, i;
@@ -155,8 +163,8 @@ static void test_menu_row(void)
         shot("build/ui_shots/fixes/menu_backlight_ble.ppm");   /* (the Bluetooth build's menu, with BACKLIGHT) */
     }
     check("menu: the eleven rows end above the hints (BACK's row drawn, the hints apart)",
-          lit(H_HEAD + 1 + 4 + 10 * MENU_DY, H_HEAD + 1 + 4 + 10 * MENU_DY + 16) > 50 &&
-          lit(H_HEAD + 1 + 169, H_HEAD + 1 + 179) == 0 && lit(H_HEAD + 1 + 177, H_HEAD + 1 + 209) > 50);
+          ink_in(MENU_Y0 + 10u * MENU_DY, MENU_Y0 + 10u * MENU_DY + 10u) > 50 &&
+          ink_in(MENU_Y0 + 10u * MENU_DY + 12u, MENU_HY) == 0 && ink_in(MENU_HY, MENU_HY + 14u) > 50);
     tap(B_OCTUP);
     check("menu: OCT+ on BLUETOOTH opens the page", ui.menu == 3 && btp.sel == 0);
     check("the page opened: nothing started, nothing asked of the stack",

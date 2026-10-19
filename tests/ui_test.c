@@ -15,6 +15,7 @@ static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
 static uint32_t fb_lit(uint32_t y0, uint32_t y1);
 static uint32_t foot_lit(void);
+static uint32_t fb_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint16_t c);
 static void tap(uint32_t b);
 static void hold(uint32_t label);
 static void safe_boot(int seq_held);
@@ -2005,8 +2006,9 @@ static void test_backlight_menu(void)
     check("BACKLIGHT: KNOB 1 right ON / left OFF, OCT+ toggles; the keys follow at once", ok);
     snap_page("fixes/menu_backlight");
     check("menu: ten rows, BACK's drawn above the hints",
-          fb_lit(H_HEAD + 1 + 4 + (MI_COUNT - 1) * MENU_DY, H_HEAD + 1 + 4 + (MI_COUNT - 1) * MENU_DY + 16) > 50 &&
-          fb_lit(H_HEAD + 1 + 166, H_HEAD + 1 + 170) == 0);
+          fb_count(12, MENU_Y0 + (MI_COUNT - 1u) * MENU_DY, 214, 10, C_INK) > 50u &&
+          fb_count(12, MENU_Y0 + (MI_COUNT - 1u) * MENU_DY + 12u, 214, MENU_HY - (MENU_Y0 + (MI_COUNT - 1u) * MENU_DY + 12u),
+                   C_INK) == 0u && fb_count(12, MENU_HY, 214, 14, C_INK) > 50u);
     backlight = 0;
     menu_close();
     ui_frame();
@@ -2493,6 +2495,78 @@ static void test_home_scope_height(void)
     check("HOME: the scope fills rows 69..180 (its wave reaches y 72..95 and 160..178)",
           fb_count(2, 72, 236, 24, C_INK) > 20u && fb_count(2, 160, 236, 19, C_INK) > 20u);
     memset(scope_buf, 0, sizeof scope_buf);
+}
+
+/* spec 2026-10-19-md-ui §7: confirms and TEMPO as MD popups over the live page; MENU a popup window (the cursor an
+ * inverted bar, COLOR the themes as boxes); NAME's block cursor */
+static void test_confirm_popup(void)
+{
+    uint32_t i;
+    ui_host_init();
+    trk[0].step[0].on = 1;
+    open_step_page();
+    fm1_in.buttons |= 1u << panel.btn[B_REC];
+    for (i = 0; i < 800; i++)
+        ui_input();
+    release_all();
+    ui.force = 1;
+    ui_frame();
+    check("confirm: a popup over the page (the knob row and the top bar still drawn)", ui.confirm != 0u &&
+          fb_count(1, Y_KNOB, 238, 43, C_INK) > 100u && fb_count(0, 0, 240, 16, C_INK) > 2000u);
+    check("confirm: the popup's 2 px shadow edge at x 210..211, its title tab over the top edge",
+          fb[120u * 240u + 210u] == C_INK && fb[120u * 240u + 211u] == C_INK && fb[120u * 240u + 209u] == C_BG &&
+          fb_count(80, 76, 80, 6, C_INK) > 100u);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+}
+
+static void test_tempo_popup(void)
+{
+    uint32_t k;
+    ui_host_init();
+    open_tracks();
+    ui.force = 1;
+    ui_frame();
+    sel(1);                                          /* BPM + 1 */
+    ui_frame();
+    check("TEMPO: changing BPM opens the TEMPO popup (its shadow edge at x 208..209)", ui.bpm_t &&
+          fb[120u * 240u + 208u] == C_INK && fb[120u * 240u + 209u] == C_INK && fb[120u * 240u + 207u] == C_BG);
+    for (k = 0; k < 45u; k++)
+        ui_frame();
+    check("TEMPO: gone when bpm_t runs out", !ui.bpm_t &&
+          !(fb[120u * 240u + 208u] == C_INK && fb[120u * 240u + 209u] == C_INK && fb[120u * 240u + 207u] == C_BG));
+}
+
+static void test_menu_popup_cursor(void)
+{
+    uint32_t y;
+    ui_host_init();
+    ui.menu = 1;
+    ui.menu_sel = MI_SPKEQ;
+    ui.force = 1;
+    ui_frame();
+    y = MENU_Y0 + MI_SPKEQ * MENU_DY;
+    check("MENU: the cursor's row an inverted bar", fb_count(12, y - 2u, 214, 14, C_INK) > 214u * 14u * 7u / 10u);
+    check("MENU: COLOR shows the 4 themes as 10x10 boxes, the current one solid",
+          fb_count(170, MENU_Y0, 10, 10, C_INK) == 100u && fb_count(184, MENU_Y0, 10, 10, C_INK) == 36u &&
+          fb_count(212, MENU_Y0, 10, 10, C_INK) == 36u);
+    menu_close();
+    ui_frame();
+}
+
+static void test_name_block_cursor(void)
+{
+    ui_host_init();
+    name_open(NK_RENAME, 0);
+    ui_frame();
+    check("NAME: an ink title bar; the cursor a solid block under its slot (after PROJECT A: slot 10)",
+          name_on() && fb_count(0, 0, 240, 16, C_INK) > 240u * 16u * 7u / 10u &&
+          fb_count(12u + 18u * 9u, 70, 18, 3, C_INK) == 54u && fb_count(12u + 18u * 8u, 70, 18, 3, C_INK) == 0u);
+    nm.kind = NK_NONE;
+    ui.force = 1;
+    ui_frame();
 }
 
 static void snap_page(const char *name)
@@ -6155,6 +6229,10 @@ int main(void)
     test_home_strip();
     test_home_knob_values_below();
     test_home_scope_height();
+    test_confirm_popup();
+    test_tempo_popup();
+    test_menu_popup_cursor();
+    test_name_block_cursor();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
