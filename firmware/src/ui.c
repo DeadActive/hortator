@@ -24,17 +24,23 @@ static void ml_line(char *b);              /* ui_learn.c: MIDI LEARN's footer li
 #define ACC C_HI
 #define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)
 #define RATIO(d, v) ((d)->max > (d)->min ? (enum_rank((d), (int32_t)(v)) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
+/* layout A (spec 2026-10-19-md-ui §5): top bar 0..15, knob row 17..59, rule 60, graph 61..180 (a 20-row band over
+ * the 100-row graph proper), trig strip 181..211 (dotted rule on its first row), breadcrumb 212..239 */
 #define Y_HEAD 0
-#define H_HEAD 20
-#define Y_LABEL 26
-#define Y_VALUE 44
-#define Y_GAUGE 64
-#define Y_SEP_END 70
-#define Y_GRAPH 74
-#define H_GRAPH 124
-#define G_OY 24
-#define Y_FOOT 202
-#define H_FOOT 38
+#define H_HEAD 16
+#define Y_KNOB 17
+#define H_KNOB 43
+#define Y_GRAPH 61
+#define H_GRAPH 120
+#define G_OY 20
+#define Y_TRIG 181
+#define H_TRIG 31
+#define Y_CRUMB 212
+#define H_CRUMB 28
+#define Y_LABEL Y_KNOB                 /* the old column's rows, until the knob cells (Task 5) */
+#define Y_VALUE (Y_KNOB + 18)
+#define Y_GAUGE (Y_KNOB + 38)
+#define Y_SEP_END (Y_KNOB + H_KNOB)
 
 static struct {
     uint8_t home;                /* HOME's second mode shown: the HOME screen (spec §3) */
@@ -63,7 +69,7 @@ static struct {
     uint32_t enc_t[NE];
     char col[4][32];
     char focus_l[8], focus_v[8], focus_u[8];
-    uint32_t graph_sig, head_sig, foot_sig, frame;
+    uint32_t graph_sig, head_sig, foot_sig, msg_sig, frame;
     uint8_t graph_top;
     int16_t tr[136];             /* LFO pages, random waves: the shown LFO's trail (a ring, newest at tr_h - 1) */
     uint8_t tr_h, tr_n;

@@ -114,7 +114,7 @@ static void test_primitives(void)
     ok = 1;
     for (k = 0; k < 16; k++) {
         cv_begin(240, 20, BG);
-        cv_trigs(0, 2, 0xFFFFu, (uint32_t)k, INK);
+        cv_trigs(0, 2, 16, 0xFFFFu, 0xFFFFu, (uint32_t)k, INK);
         for (i = 0; i < 15; i++) {
             int32_t bx = i * 14 + (i / 4) * 2, nx = (i + 1) * 14 + ((i + 1) / 4) * 2, x, clear = 0;
             for (x = bx + 10; x < nx; x++)
@@ -124,7 +124,7 @@ static void test_primitives(void)
     }
     check("trigs: every gap between neighbours keeps >= 2 clear columns, playhead included", ok);
     cv_begin(240, 20, BG);
-    cv_trigs(0, 2, 1u | 1u << 4, 99, INK);
+    cv_trigs(0, 2, 16, 1u | 1u << 4, 1u | 1u << 4, 99, INK);
     check("trigs: box 4 starts at x 58 (+2 per beat); trig = solid 10x10, empty = outline",
           ink_in(58, 2, 10, 10) == 100 && ink_in(0, 2, 10, 10) == 100 && ink_in(14, 2, 10, 10) == 36);
     check("trigs: beat dots under steps 1 and 5", ink_in(4, 16, 2, 2) == 4 && ink_in(62, 16, 2, 2) == 4 &&

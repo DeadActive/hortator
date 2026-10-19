@@ -14,6 +14,7 @@ static void snap_page(const char *name);
 static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
 static uint32_t fb_lit(uint32_t y0, uint32_t y1);
+static uint32_t foot_lit(void);
 static void tap(uint32_t b);
 static void hold(uint32_t label);
 static void safe_boot(int seq_held);
@@ -1728,11 +1729,13 @@ static void test_oct_both_reaches_main(void)
     release_all();
 }
 
-static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* non-black pixels in rows y0..y1 */
+static uint32_t fb_lit(uint32_t y0, uint32_t y1)    /* drawn pixels in rows y0..y1: neither the theme's background
+                                                     * nor black (the screens not redrawn yet), the frame's edge
+                                                     * columns x 0 / 239 left out */
 {
     uint32_t n = 0, i;
     for (i = y0 * 240u; i < y1 * 240u; i++)
-        n += fb[i] != 0;
+        n += fb[i] != C_BG && fb[i] != 0 && i % 240u != 0 && i % 240u != 239u;
     return n;
 }
 
@@ -2079,6 +2082,106 @@ static void test_theme_repaint(void)
     check("theme change: the whole screen repaints in the new theme (no MD RED pixel left)",
           settings.palette == (THEME_TAG | 2u) && stale == 0);
     theme_set(THEME_TAG | 0u);
+}
+
+/* spec 2026-10-19-md-ui §5: the pixels of colour c in a screen rectangle */
+static uint32_t fb_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint16_t c)
+{
+    uint32_t n = 0, x, y;
+    for (y = y0; y < y0 + h; y++)
+        for (x = x0; x < x0 + w; x++)
+            n += fb[y * 240u + x] == c;
+    return n;
+}
+
+/* §5 top bar: ink bar 0..15, the state glyph in BG at 4,3: ■ stopped, ▶ playing, ● recording, outlined ● armed;
+ * the FX tag (BG box) after the BPM while a PERFORM knob effect is on */
+static void test_topbar(void)
+{
+    uint32_t ok;
+    ui_host_init();
+    tap(B_EDIT);
+    song.playing = 0;
+    song.rec = 0;
+    ui.force = 1;
+    ui_frame();
+    check("top bar: an ink bar (rows 0..15 >= 80 % ink)", fb_count(0, 0, 240, 16, C_INK) > 240u * 16u * 8u / 10u);
+    check("top bar: stopped: a solid 10x10 square", fb_count(4, 3, 10, 10, C_BG) == 100u);
+    song.playing = 1;
+    ui_frame();
+    ok = fb_count(4, 3, 2, 10, C_BG) == 20u && fb[3u * 240u + 12u] == C_INK;
+    check("top bar: playing: the play triangle", ok);
+    song.rec = 1u << song.sel;
+    ui_frame();
+    check("top bar: recording (the selected track armed): a solid circle", fb[7u * 240u + 8u] == C_BG &&
+          fb[3u * 240u + 4u] == C_INK);
+    song.rec = 1u << ((song.sel + 1u) % NTRK);
+    ui_frame();
+    check("top bar: REC armed elsewhere: an outlined circle", fb[7u * 240u + 8u] == C_INK && fb[5u * 240u + 4u] == C_BG);
+    song.rec = 0;
+    perf_k[0] = 1;
+    ui_frame();
+    check("top bar: a PERFORM knob effect on: the FX tag after the BPM", fb_count(45, 1, 19, 14, C_BG) > 150u);
+    perf_k[0] = 0;
+    song.playing = 0;
+    ui_frame();
+}
+
+/* §5 breadcrumb: an ink bar 212..238, T<n>>model>page left, the page number right */
+static void test_crumb(void)
+{
+    ui_host_init();
+    tap(B_EDIT);
+    ui.force = 1;
+    ui_frame();
+    check("breadcrumb: an ink bar (>= 70 % ink)", fb_count(1, Y_CRUMB, 238, 27, C_INK) > 238u * 27u * 7u / 10u);
+    check("breadcrumb: text on the left (T1...) and the page number at the right",
+          fb_count(6, Y_CRUMB + 8u, 40, 10, C_BG) > 20u && fb_count(200, Y_CRUMB + 8u, 34, 10, C_BG) > 10u &&
+          foot_lit() == 0u);
+}
+
+/* §5 trig strip: 10x10 on a 14 px pitch + 2 per beat at y 186: accent solid, a plain trig outline + dither, an empty
+ * step an outline */
+static void test_trig_strip(void)
+{
+    track_t *t;
+    ui_host_init();
+    tap(B_EDIT);
+    t = TSEL;
+    memset(t->step, 0, sizeof t->step);
+    t->step[0].on = 1;
+    t->step[0].acc = 1;
+    t->step[4].on = 1;
+    ui.force = 1;
+    ui_frame();
+    check("trig strip: an accent solid (box 1 at x 6, y 186)", fb_count(6, 186, 10, 10, C_INK) == 100u);
+    check("trig strip: a plain trig outline + dither (box 5 at x 64)",
+          fb_count(64, 186, 10, 10, C_INK) > 60u && fb_count(64, 186, 10, 10, C_INK) < 76u);
+    check("trig strip: an empty step an outline (box 2 at x 20)", fb_count(20, 186, 10, 10, C_INK) == 36u);
+}
+
+/* §7 messages: a small popup over the graph area; the top bar keeps its BPM */
+static void test_msg_popup(void)
+{
+    uint32_t k, edge = 0;
+    ui_host_init();
+    tap(B_EDIT);
+    ui.force = 1;
+    ui_frame();
+    ui_message("SAVED A1");
+    ui_frame();
+    for (k = 0; k < 240u; k++)                     /* a 2 px right edge: two ink columns with BG left of them */
+        if (k > 2u && fb[120u * 240u + k] == C_INK && fb[120u * 240u + k - 1u] == C_INK &&
+            fb[120u * 240u + k - 2u] == C_BG && k < 239u)
+            edge = k;
+    check("message: a popup window over the graph area, its 2 px shadow edge", edge > 150u && edge < 239u);
+    check("message: the top bar stays (ink bar with the BPM in BG)", fb_count(18, 3, 22, 10, C_BG) > 20u &&
+          fb_count(0, 0, 240, 16, C_INK) > 240u * 16u * 7u / 10u);
+    for (k = 0; k < 45u; k++)
+        ui_frame();
+    check("message: gone after its time (its shadow edge repainted away)", !ui.msg_t &&
+          !(fb[120u * 240u + edge] == C_INK && fb[120u * 240u + edge - 1u] == C_INK &&
+            fb[120u * 240u + edge - 2u] == C_BG));
 }
 
 static void snap_page(const char *name)
@@ -2928,7 +3031,7 @@ static void test_perform_screens(void)
     press(B_FX);
     fx_hold_frames(500);
     snap_page("perform/map");
-    check("the map: the footer says [FX] HOLD", fb_lit(Y_FOOT, 240) > 0u && ui.layer);
+    check("the map: the footer says [FX] HOLD", fb_lit(Y_TRIG, 240) > 0u && ui.layer);
     keys(1u << 3 | 1u << 2);                          /* G#3 REPEAT 1/16, G3 track 2 */
     fx_hold_frames(2);
     snap_page("perform/keys");
@@ -2951,7 +3054,14 @@ static void test_perform_screens(void)
 /* spec §7: the knob effects (FILTER CRUSH THROW DEPTH) keep their values and keep working after the PERFORM screen
  * closes (FX let go, PAGE closed, the menu, a confirm, NAME); they change only on the PERFORM screen; INIT ALL resets
  * them; the top bar shows FX while any is on. The buffer effects (black keys) still stop as before */
-static int head_fx_lit(void) { return fb[15u * 240u + 27u] != 0; }   /* the top bar's FX mark (left of the BPM) */
+static int head_fx_lit(void)                         /* the top bar's FX tag: a BG box after the BPM (row 1 is
+                                                       * all ink without it) */
+{
+    uint32_t x, n = 0;
+    for (x = 30u; x < 90u; x++)
+        n += fb[1u * 240u + x] == C_BG;
+    return n > 10u;
+}
 static void test_perform_knobs_stay(void)
 {
     uint32_t mode;
@@ -4961,13 +5071,13 @@ static void test_roll_label_slide_edges(void)
     t->step[15].slide = 1;                           /* step 16 slides into step 1 (the wrap) */
     roll_open(t);
     yc = pr_row_y(0);
-    for (yy = yc - 6; yy < H_GRAPH - G_OY; yy++)    /* the label: from its row's y - 6 down */
-        for (xx = 0; xx < PR_KX; xx++)
+    for (yy = yc - 6; yy < H_GRAPH - G_OY; yy++)    /* the label: from its row's y - 6 down (x 0: the frame) */
+        for (xx = 1; xx < PR_KX; xx++)
             lit0 += gpx(xx, yy) != 0;
     cv_begin(240, 40, C_BLACK);                      /* the label whole, for reference */
     cv_text(0, 0, &FONT_S, "C-1", C_GRAY);
     for (yy = 0; yy < 40 * 240; yy++)
-        whole += cv_px[yy] != 0 && yy % 240 < PR_KX;
+        whole += cv_px[yy] != 0 && yy % 240 < PR_KX && yy % 240 > 0;
     ui.force = 1;
     ui_frame();
     check("roll: C-1 (NOTE 0) on the bottom row, its label whole (from x 0, not clipped)", proll.lo == 0u &&
@@ -5031,12 +5141,12 @@ static void test_roll_cursor_playhead(void)
     ui_frame();
 }
 
-static uint32_t foot_lit(void)                       /* lit pixels where the footer's note goes (x 80..167) */
+static uint32_t foot_lit(void)                       /* the breadcrumb's text where the note goes (x 120..199) */
 {
     uint32_t n = 0, x, y;
-    for (y = Y_FOOT + 20u; y < Y_FOOT + 36u; y++)
-        for (x = 80u; x < 168u; x++)
-            n += fb[y * 240u + x] != 0;
+    for (y = Y_CRUMB + 8u; y < Y_CRUMB + 18u; y++)
+        for (x = 120u; x < 200u; x++)
+            n += fb[y * 240u + x] == C_BG;
     return n;
 }
 
@@ -5309,7 +5419,7 @@ static uint32_t hint_lit(int32_t x0)               /* the STEP grid's hint row (
     uint32_t n = 0;
     int32_t x, y;
     for (y = 84; y < 96; y++)
-        for (x = x0; x < 240; x++)
+        for (x = x0; x < 239; x++)                   /* (x 239: the frame's edge) */
             n += gpx(x, y) != C_BLACK;
     return n;
 }
@@ -5520,34 +5630,35 @@ static void test_prio_sound_list(void)
     check("PRIO: ... and HIGH again", TSEL->p[P_PRIO] == 0);
 }
 
-static uint32_t head_alert(int32_t x0, int32_t x1)   /* the CPU icon's pixels in the top bar, x0..x1 */
+static uint32_t head_alert(int32_t x0, int32_t x1)   /* the CPU chip's pixels (BG on the ink bar), rows 3..11 */
 {
     uint32_t x, y, n = 0;
-    for (y = 0; y < H_HEAD; y++)
+    for (y = 3; y < 12u; y++)
         for (x = (uint32_t)x0; x <= (uint32_t)x1; x++)
-            n += fb[y * 240u + x] == C_ALERT;
+            n += fb[y * 240u + x] == C_BG;
     return n;
 }
 
+/* spec 2026-10-19-md-ui §5: the CPU chip right of T<n> (x 166..190), steady for 2 s after a shed */
 static void test_cpu_icon(void)
 {
     uint32_t a, b, ball, c, d;
     ui_host_init();
     fm1_ms = 5000;
     ui_frame();
-    a = head_alert(0, 239);
+    a = head_alert(166, 215);
     song.sheds++;                                    /* audio.c shed a voice */
     ui_frame();
-    b = head_alert(158, 188);
-    ball = head_alert(0, 239);
+    b = head_alert(166, 190);
+    ball = head_alert(166, 215);
     snap_page("fixes/cpu_icon");
     fm1_ms = 6999;
     ui_frame();
-    c = head_alert(158, 188);
+    c = head_alert(166, 190);
     fm1_ms = 7000;
     ui_frame();
-    d = head_alert(0, 239);
-    check("CPU icon: none before a shed; red in the top bar's free space (x 158..188) after one", a == 0u && b > 10u && b == ball);
+    d = head_alert(166, 215);
+    check("CPU icon: none before a shed; the chip right of T<n> (x 166..190) after one", a == 0u && b > 10u && b == ball);
     check("CPU icon: shown for 2 s, then gone", c == b && d == 0u);
     fm1_ms = 8000;
     song.sheds += 3u;                                /* more sheds: shown again, 2 s from the last */
@@ -5557,18 +5668,17 @@ static void test_cpu_icon(void)
     ui_frame();
     fm1_ms = 11000;
     ui_frame();
-    check("CPU icon: each shed shows it 2 s from then", head_alert(158, 188) == b);
+    check("CPU icon: each shed shows it 2 s from then", head_alert(166, 190) == b);
     fm1_ms = 11500;
     ui_frame();
-    check("CPU icon: ... and it goes", head_alert(0, 239) == 0u);
-    srec_open();                                     /* STEP REC 01 and T1 moved right (x 168): the icon by them */
+    check("CPU icon: ... and it goes", head_alert(166, 215) == 0u);
+    srec_open();                                     /* STEP REC 01 before T1: the chip after T1 */
     fm1_ms = 20000;
     ui_frame();
     song.sheds++;
     ui_frame();
-    check("CPU icon: in step record it keeps clear of STEP REC nn and T<n> (x 186..)", ui.srec &&
-                                                                                     head_alert(186, 239) > 10u &&
-                                                                                     head_alert(0, 185) == 0u);
+    check("CPU icon: in step record it keeps clear of STEP REC nn and T<n>", ui.srec && head_alert(166, 190) > 10u &&
+                                                                           head_alert(137, 149) == 0u);
     snap_page("fixes/cpu_icon_step_rec");
     tap(B_REC);
     fm1_ms = 0;
@@ -5711,6 +5821,10 @@ int main(void)
     test_boot_title();
     test_theme_menu();
     test_theme_repaint();
+    test_topbar();
+    test_crumb();
+    test_trig_strip();
+    test_msg_popup();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

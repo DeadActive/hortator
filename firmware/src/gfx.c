@@ -459,17 +459,21 @@ static void cv_button(int32_t x, int32_t y, int32_t w, const char *s, int on, ui
     md_text(tx, y + 3, &MD_F3, 2, s, on ? bg : ink);
 }
 
-/* 16 trigs (bit i of on16): 10x10 boxes on a 14 px pitch, +2 px per beat; solid = trig, outline = none; the playhead
- * (step 0..15) an outline 2 px out; a 2x2 beat dot under steps 1, 5, 9, 13 */
-static void cv_trigs(int32_t x0, int32_t y, uint32_t on16, uint32_t step, uint16_t ink)
+/* the first n of 16 trigs: 10x10 boxes on a 14 px pitch, +2 px per beat; a trig (bit i of on16) solid when accented
+ * (acc16), else outline + dither; no trig an outline; the playhead (step 0..15) an outline 2 px out; a 2x2 beat dot
+ * under steps 1, 5, 9, 13 */
+static void cv_trigs(int32_t x0, int32_t y, uint32_t n, uint32_t on16, uint32_t acc16, uint32_t step, uint16_t ink)
 {
     int32_t i;
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < (int32_t)n && i < 16; i++) {
         int32_t bx = x0 + i * 14 + (i / 4) * 2;
-        if (on16 >> i & 1u)
+        if (on16 >> i & acc16 >> i & 1u)
             cv_rect(bx, y, 10, 10, ink);
-        else
+        else {
             cv_frame(bx, y, 10, 10, ink);
+            if (on16 >> i & 1u)
+                cv_dither(bx + 1, y + 1, 8, 8, ink);
+        }
         if ((uint32_t)i == step)
             cv_frame(bx - 2, y - 2, 14, 14, ink);
         if (i % 4 == 0)
