@@ -2014,28 +2014,34 @@ static void test_backlight_menu(void)
     ui_frame();
 }
 
-/* the start screen (main.c fm1_main): assets/boot.png, every pixel, in the chosen palette */
+/* the start screen (main.c fm1_main, spec 2026-10-19-md-ui §9a): the VU galley mark (the user's pick, C3-4) still on
+ * its downbeat frame, HORTATOR under it, the frame; two tones only, in the stored theme */
 static void test_boot_title(void)
 {
-    static const uint32_t PALS[2] = {0, 3};         /* GREEN, RED */
-    uint32_t p, i;
-    for (p = 0; p < 2u; p++) {
-        uint32_t bad = 0;
-        palette_set(PALS[p]);
+    uint32_t t, i, ok = 1;
+    for (t = 0; t < NTHEMES; t++) {
+        uint32_t stray = 0;
+        theme_set(THEME_TAG | t);
         memset(fb, 0, sizeof fb);
         draw_boot_title();
-        if (p == 0)
+        if (t == 0)
             shot("build/ui_shots/00_boot.ppm");
-        for (i = 0; i < 240u * 240u; i++) {
-            uint32_t v = (BOOT_DATA[i / 2u] >> ((i & 1u) ? 0 : 4)) & 15u;
-            bad += fb[i] != (v == 0 ? C_BLACK : v == 6u ? C_WHITE : pal[v - 1u]);
-        }
-        check(p ? "boot: the same screen in RED" : "boot: every pixel is assets/boot.png in GREEN", bad == 0);
+        for (i = 0; i < 240u * 240u; i++)
+            stray += fb[i] != C_BG && fb[i] != C_INK;
+        ok &= stray == 0u;
     }
+    check("boot: two tones only, in every theme", ok);
+    theme_set(THEME_TAG | 0u);
+    memset(fb, 0, sizeof fb);
+    draw_boot_title();
+    check("boot: the downbeat bar full (52 px over the line, 52 under), solid", fb_count(48, 40, 12, 52, C_INK) == 624u &&
+          fb_count(48, 97, 12, 52, C_INK) == 624u);
+    check("boot: a dithered bar beside it (+ its peak dot), the dotted centre line between",
+          fb_count(66, 60, 12, 32, C_INK) > 30u && fb_count(66, 60, 12, 32, C_INK) <= 12u * 32u / 2u + 24u &&
+          fb[94u * 240u + 48u] == C_INK && fb[94u * 240u + 49u] == C_BG);
+    check("boot: HORTATOR under the mark, the 1 px frame", fb_count(80, 168, 80, 10, C_INK) > 100u &&
+          fb[0] == C_INK && fb[239u * 240u + 120u] == C_INK);
     theme_set(settings.palette);
-    check("boot: the collapse frames fill the middle", fb_lit(40, 200) > 8000);
-    check("boot: the white scan line across the middle", fb[119u * 240u + 120u] == C_WHITE &&
-                                                          fb[120u * 240u + 60u] == C_WHITE);
 }
 
 /* spec 2026-10-19-md-ui §2: MENU > COLOR steps the 4 themes (KNOB 1 and OCT+) and wraps */
@@ -2698,7 +2704,19 @@ static void test_screens(void)
     release_all();
     snap_page("91_about");
     check("menu > ABOUT draws", ui.menu == 2 && fb_lit(20, 230) > 300);
-    check("ABOUT: the HortatoR logo on top", fb_lit(H_HEAD + 1, H_HEAD + 1 + LOGO_H) > 3000);
+    {
+        uint16_t a[60 * 80];
+        uint32_t y, x, d = 0, n0 = fb_count(80, 18, 80, 60, C_INK);
+        for (y = 0; y < 60u; y++)
+            for (x = 0; x < 80u; x++)
+                a[y * 80u + x] = fb[(18u + y) * 240u + 80u + x];
+        fm1_ms += 200u;                              /* 3 frames of the meter (15 fps) */
+        ui_frame();
+        for (y = 0; y < 60u; y++)
+            for (x = 0; x < 80u; x++)
+                d += fb[(18u + y) * 240u + 80u + x] != a[y * 80u + x];
+        check("ABOUT: the VU mark on top (half size), moving", n0 > 300u && d > 20u);
+    }
     press(B_OCTDN);
     ui_frame();
     release_all();

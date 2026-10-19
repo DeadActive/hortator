@@ -18,8 +18,6 @@ typedef struct {               /* 1-bit Machinedrum-style font (assets/fonts/md_
     const uint8_t *rows;       /* rows[i * h + r]: bit (w - 1 - c) = column c */
 } md_font_t;
 #include "felucca_font.h"
-#include "felucca_logo.h"         /* the HortatoR logo (tools/gen_logo.py) */
-#include "felucca_boot.h"         /* the start screen (tools/gen_boot.py) */
 
 #define CV_MAX (240u * 124u)      /* the graph strip is 240 x 124 */
 static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
@@ -232,39 +230,6 @@ static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char
         x += f->adv[gi];
     }
     return x;
-}
-
-/* the HortatoR logo (LOGO_W x LOGO_H), alpha-blended onto black with colour c, top left at x, y */
-static void cv_logo(int32_t x, int32_t y, uint16_t c)
-{
-    uint16_t ramp[16];
-    uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u, a, gx, gy;
-    for (a = 0; a < 16u; a++)
-        ramp[a] = (uint16_t)(((r * a / 15u) << 11) | ((g * a / 15u) << 5) | (b * a / 15u));
-    for (gy = 0; gy < LOGO_H; gy++)
-        for (gx = 0; gx < LOGO_W; gx++) {
-            uint32_t v = LOGO_DATA[gy * ((LOGO_W + 1u) / 2u) + gx / 2u];
-            v = (gx & 1u) ? (v & 15u) : (v >> 4);
-            if (v)
-                cv_pset(x + (int32_t)gx, y + (int32_t)gy, c == C_INK ? (v > 7u ? C_INK : C_BG) : ramp[v]);
-        }
-}
-
-/* start screen rows y0 .. y0 + cv_h - 1 onto the canvas (cv_begin(240, rows) first): level 0 black, 1..5 the
- * palette's steps, 6 white */
-static void cv_boot(uint32_t y0)
-{
-    uint16_t lut[16] = {0};                 /* 7..15 never occur (gen_boot.py checks); black if they did */
-    uint32_t k, i, n = cv_w * cv_h;
-    const uint8_t *src = BOOT_DATA + y0 * (BOOT_W / 2u);
-    for (k = 0; k < 5u; k++)
-        lut[k + 1u] = swap16(pal[k]);
-    lut[6] = swap16(C_WHITE);
-    for (i = 0; i < n; i += 2u) {
-        uint32_t v = src[i / 2u];
-        cv_px[i] = lut[v >> 4];
-        cv_px[i + 1u] = lut[v & 15u];
-    }
 }
 
 static int32_t text_w(const felucca_font_t *f, const char *s)
@@ -501,6 +466,41 @@ static void cv_trigs(int32_t x0, int32_t y, uint32_t n, uint32_t on16, uint32_t 
             cv_frame(bx - 2, y - 2, 14, 14, ink);
         if (i % 4 == 0)
             cv_rect(bx + 4, y + 14, 2, 2, ink);
+    }
+}
+
+/* the logo (spec 2026-10-19-md-ui §9a; the user's pick, C3-4 "VU"): 8 bars mirrored round a dotted centre line, every
+ * fourth solid, the rest dithered, moving like a level meter. 144 x 120 at ox, oy (half: 72 x 60). Frame f (15 fps):
+ * the downbeat bars full every 8th frame, the others a pseudo-random 30..90 % (a new value every 2 frames); a 2 px
+ * peak dot over and under each bar holds, then falls 1.5 px a frame (peaks: 8 half-pixel values the caller keeps; 0:
+ * none, the dots on the bars) */
+static void cv_vu(int32_t ox, int32_t oy, uint32_t f, uint32_t half, int16_t *peaks)
+{
+    static const uint8_t BASE[8] = {52, 24, 40, 16, 52, 24, 40, 16};
+    int32_t s = half ? 2 : 1, i;
+    cv_hdot(ox, ox + 143 / s, oy + 60 / s, C_INK);
+    for (i = 0; i < 8; i++) {
+        uint32_t n = ((f / 2u) * 9u + (uint32_t)i) * 1103515245u + 12345u, r = (n >> 16) & 0x7FFFu;
+        int32_t lvl = f % 8u == 0u && i % 4 == 0 ? BASE[i] : BASE[i] * (300 + (int32_t)(600u * r / 32767u)) / 1000;
+        int32_t x = ox + i * 18 / s, w = 12 / s, top, bot, ph;
+        lvl /= s;
+        top = oy + 58 / s - lvl;
+        bot = oy + 63 / s;
+        if (i % 4 == 0) {
+            cv_rect(x, top, w, lvl, C_INK);
+            cv_rect(x, bot, w, lvl, C_INK);
+        } else {
+            cv_dither(x, top, w, lvl, C_INK);
+            cv_dither(x, bot, w, lvl, C_INK);
+        }
+        ph = lvl;
+        if (peaks) {                                  /* the peak: held at the level, falling 1.5 px a frame */
+            int32_t p2 = peaks[i] - 3;
+            peaks[i] = (int16_t)(p2 < lvl * 2 ? lvl * 2 : p2);
+            ph = peaks[i] / 2;
+        }
+        cv_rect(x, oy + 58 / s - ph - 4 / s, w, 2 / s, C_INK);
+        cv_rect(x, bot + ph + 2 / s, w, 2 / s, C_INK);
     }
 }
 

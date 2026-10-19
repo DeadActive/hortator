@@ -97,7 +97,7 @@ def host_run():
     """build tests/bench_host and measure (build/gen made by tools/build.py's generate, as build_sim.sh)"""
     OUT.mkdir(parents=True, exist_ok=True)
     gen = ROOT / "build" / "gen"
-    if not (gen / "felucca_logo.h").exists():
+    if not (gen / "felucca_font.h").exists():
         sys.path.insert(0, str(ROOT / "tools"))
         import build
         build.GEN = gen

@@ -32,7 +32,8 @@ static void draw_menu(void)
 {
     uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u +
-                            settings.perfpage * 49979687u + backlight * 67867967u;
+                            settings.perfpage * 49979687u + backlight * 67867967u +
+                            (ui.menu == 2 ? (fm1_ms / 66u + 1u) * 2654435761u : 0u);   /* ABOUT: the logo moves (15 fps) */
 #if FELUCCA_BLE
     if (ui.menu == 3u) {                            /* the Bluetooth page: its own drawing and signature */
         bt_page_draw();
@@ -55,9 +56,19 @@ static void draw_menu(void)
             static const char *const AB[] = {"DRUM MACHINE ON FELUCCA", FELUCCA_VERSION, "FORK: DEADACTIVE",
                                              "FELUCCA: LEO KUROSHITA", "H\xDCGELTON INSTRUMENTS", "GPL-3.0, NO WARRANTY",
                                              "GITHUB.COM/HUGELTON/FELUCCA", "FONT: TERMINUS (OFL)",
-                                             "LOGO: UNIFRAKTURMAGUNTIA OFL", "SAMPLES: VERSILIAN (CC0)",
+                                             "SAMPLES: VERSILIAN (CC0)",
                                              "+ H\xDCGELTON SAMPLE PACK"};
-            cv_logo((240 - LOGO_W) / 2, H_HEAD + 3, C_INK);
+            static int16_t pk[8];                   /* the logo's peak dots */
+            static uint32_t pf;
+            uint32_t fr = fm1_ms / 66u;
+            if (pass == 0u && fr != pf) {           /* (the peaks step once a frame, not once a band) */
+                pf = fr;
+                cv_vu(84, 18, fr, 1, pk);
+            } else {
+                int16_t keep[8];
+                memcpy(keep, pk, sizeof keep);
+                cv_vu(84, 18, fr, 1, keep);
+            }
             for (i = 0; i < sizeof AB / sizeof AB[0]; i++)
                 md_text(6, 78 + (int32_t)i * 14, &MD_F3, 2, AB[i], C_INK);
             md_text(234 - md_text_w(&MD_F3, 2, __DATE__), 92, &MD_F3, 2, __DATE__, C_INK);   /* build date */
@@ -113,15 +124,19 @@ static void menu_close(void)
     go_home();                                         /* HOME in the mode last shown */
 }
 
-/* the start screen (main.c fm1_main, right after lcd_init): CRT COLLAPSE, the logo squashed into a scan line
- * (assets/boot.png), in the chosen COLOR; the canvas holds 124 rows, so two bands of 120 */
+/* the start screen (main.c fm1_main, right after lcd_init; spec 2026-10-19-md-ui §9a): the VU mark still on its
+ * downbeat frame, HORTATOR under it, in the stored theme; two bands of 120 rows (the canvas holds 124) */
 static void draw_boot_title(void)
 {
-    uint32_t y;
-    for (y = 0; y < BOOT_H; y += BOOT_H / 2u) {
-        cv_begin(BOOT_W, BOOT_H / 2u, C_BLACK);
-        cv_boot(y);
-        cv_blit(0, y);
+    uint32_t pass;
+    for (pass = 0; pass < 2u; pass++) {
+        cv_begin_at(240, 120, pass * 120u, C_BG);
+        cv_oy = -(int32_t)(pass * 120u);             /* (drawn in screen rows) */
+        cv_vu(48, 34, 0, 0, 0);
+        md_text(120 - md_text_w(&MD_F3, 2, "HORTATOR") / 2, 168, &MD_F3, 2, "HORTATOR", C_INK);
+        cv_frame(0, 0, 240, 240, C_INK);
+        cv_oy = 0;
+        cv_blit(0, pass * 120u);
     }
 }
 
