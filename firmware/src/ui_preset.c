@@ -11,15 +11,20 @@
  * while MIDI LEARN is on the hold does nothing (the list would end LEARN: ui_learn.c ml_guard).
  * The list: every preset by bank (MACHINEDRUM, CLASSIC, MODERN, USER with its 128 slots, empty ones too), the track's
  * own marked. KNOB 1 / PRESETS the cursor, KNOB 2 / SELECT the bank (its first), ALGORITHM / a white key the track (the
- * keys play, as on HOME); OCT+ LOAD; SAVE: the track's voice into the user slot under the cursor (a used one: SAVE
- * again within PP_ARM_MS saves over it), elsewhere into the first free one; OCT- DELETE a used user slot (OCT- again);
- * EDIT or HOME back; PLAY plays. A save while playing is in the list at once, in flash at the next STOP (project.c). */
+ * keys play, as on HOME). Each cursor move auditions the preset under it (owner, 2026-10-19): the track takes its MODEL
+ * and 8 knobs for now and is hit once (its key and the pattern play it too; an empty slot or a capped ACID: said, the
+ * last audition kept); OCT+ LOAD keeps it and closes the list; any other way out (EDIT, HOME) puts the track's own sound
+ * back (MODEL, knobs, preset, its edited mark), as another track picked in the list does before that one auditions.
+ * SAVE: the track's own sound (not the audition) into the user slot under the cursor (a used one: SAVE again within
+ * PP_ARM_MS saves over it), elsewhere into the first free one; OCT- DELETE a used user slot (OCT- again); PLAY plays.
+ * A save while playing is in the list at once, in flash at the next STOP (project.c). */
 #define PP_HOLD_MS GLO_HOLD_MS                          /* EDIT held: the list */
 #define PP_SHOW_MS 1500u                                /* the popup after the last detent */
 #define PP_ARM_MS 1500u                                 /* SAVE over / DELETE: the second press within */
 #define PP_T(ms) ((ms) * 1000u * FM1_TICKS_PER_US)
-#define PL_ROWS 6u                                      /* the list's rows */
+#define PL_ROWS 7u                                      /* the list's rows */
 #define PL_RH 20                                        /* .. their height */
+#define PL_HALF 4u                                      /* .. drawn 4 at a time (cv_begin's CV_MAX: 6 rows) */
 static const char *const PB_TAB[PB_N] = {"MD", "CLASSIC", "MODERN", "USER"};
 
 static int pp_on(void) { return ui.pr.pop; }
@@ -56,6 +61,78 @@ static void pl_cursor(int32_t c)
     ui.pr.arm = 0;
 }
 
+/* the audition over: the track's own sound back (presets.c preset_put: the IRQ off, no hit) */
+static void pl_restore(void)
+{
+    if (!ui.pr.pv)
+        return;
+    ui.pr.pv = 0;
+    preset_put(&trk[ui.pr.pv_trk % NTRK], ui.pr.sv_model, ui.pr.sv_k, ui.pr.sv_pre, ui.pr.sv_ed);
+}
+
+/* the preset under the cursor on the selected track for now: MODEL and the 8 knobs as a load (presets.c preset_apply:
+ * the audio IRQ off, another voice cut first, motion's base follows), the track's own sound kept first (the knobs as
+ * motion's base while it plays: what SAVE stores). hit 1: hit once at its NOTE, velocity 100, as its key (no MIDI, no
+ * recording); 2: only if the audio IRQ already played white key `key` (seq.c keyboard_block: else that press plays the
+ * audition itself). Refused (an empty slot, a capped ACID): said, the track as it is */
+static void pl_audition(uint32_t hit, uint32_t key)
+{
+    track_t *t = TSEL;
+    uint32_t k = song.sel, i;
+    preset_t p;
+    if (ui.pr.pv && ui.pr.pv_trk != k)
+        pl_restore();                                  /* (the track changed elsewhere) */
+    if (!preset_ok(t, ui.pr.cur, &p)) {
+        ui_message(!preset_get(ui.pr.cur, &p) ? "EMPTY SLOT" : "ACID: 2 TRACKS MAX");
+        return;
+    }
+    fm1_irq_off();
+    if (!ui.pr.pv) {
+        ui.pr.pv = 1;
+        ui.pr.pv_trk = (uint8_t)k;
+        ui.pr.sv_model = (uint8_t)t->p[P_MODEL];
+        for (i = 0; i < 8u; i++)
+            ui.pr.sv_k[i] = (mo.base_ok >> k) & 1u ? mo.base[k][P_E0 + i] : t->p[P_E0 + i];
+        ui.pr.sv_pre = t->pre;
+        ui.pr.sv_ed = t->pre_ed;
+    }
+    preset_apply(t, &p, ui.pr.cur);                    /* (another voice: no full redraw, the list is its own
+                                                        * screen; its pages are drawn anew as it closes) */
+    motion_rebase(k);
+    if (hit == 1u || (hit == 2u && ((kb_prev >> key) & 1u)))
+        drum_hit(t, 100u);
+    fm1_irq_on();
+}
+
+/* the cursor moved to c (PRESETS, KNOB 1, a bank): auditioned when it moved */
+static void pl_move(int32_t c)
+{
+    uint32_t was = ui.pr.cur;
+    pl_cursor(c);
+    if (ui.pr.cur != was)
+        pl_audition(1u, 0u);
+}
+
+/* track k picked in the list (ALGORITHM; a white key: key its key + 1): the one before back to its sound, k auditions */
+static void pl_track(uint32_t k, uint32_t key)
+{
+    ui.pr.arm = 0;
+    if (k >= NTRK || k == song.sel)
+        return;
+    pl_restore();
+    track_select(k);
+    pl_audition(key ? 2u : 1u, key ? key - 1u : 0u);
+}
+
+/* the track's own preset as the list marks it (its sound before an audition) */
+static uint32_t pl_own(void)
+{
+    preset_t p;
+    if (!ui.pr.pv)
+        return preset_of(TSEL);
+    return preset_get(ui.pr.sv_pre, &p) && p.model == ui.pr.sv_model ? ui.pr.sv_pre : PRE_NONE;
+}
+
 static void preset_list_open(void)
 {
     uint32_t c = preset_of(TSEL);
@@ -63,6 +140,7 @@ static void preset_list_open(void)
         c = preset_first_of((uint32_t)TSEL->p[P_MODEL]);
     ui.pr.pop = 0;
     ui.pr.lst = 1;
+    ui.pr.pv = 0;
     pl_cursor(c < PRE_NID ? (int32_t)c : 0);
     ui.pr.sig = 0;
     ui.srec = 0;                                       /* (step record ends) */
@@ -72,8 +150,9 @@ static void preset_list_open(void)
     ui.force = 1;
 }
 
-static void pl_close(void)
+static void pl_close(void)                             /* (no LOAD: the track's own sound back) */
 {
+    pl_restore();
     ui.pr.lst = 0;
     ui.pr.arm = 0;
     page_entered();                                    /* the keys back to the page (seq_mode), redrawn */
@@ -130,22 +209,27 @@ static void pl_arm(uint32_t what)                      /* SAVE over (1) / DELETE
 }
 static int pl_armed(uint32_t what) { return ui.pr.arm == what && ui.pr.arm_id == ui.pr.cur; }
 
-/* OCT+: the preset under the cursor onto the track (refused: an empty slot, ACID on 2 other tracks) */
+/* OCT+: the preset under the cursor onto the track, kept (the audition is the track's now), the list closed (refused:
+ * an empty slot, ACID on 2 other tracks: the list stays) */
 static void pl_load(void)
 {
     preset_t p;
     char nb[9];
     ui.pr.arm = 0;
+    if (ui.pr.pv && ui.pr.pv_trk != song.sel)
+        pl_restore();
     if (preset_load(TSEL, ui.pr.cur) < 0) {
         ui_message(!preset_get(ui.pr.cur, &p) ? "EMPTY SLOT" : "ACID: 2 TRACKS MAX");
         return;
     }
+    ui.pr.pv = 0;
+    pl_close();
     preset_name_of(ui.pr.cur, nb);
     ui_say("LOADED ", nb);
 }
 
-/* SAVE: the track's voice into the user slot under the cursor (used: armed first), elsewhere the first free one; the
- * track's preset now, not edited; the cursor on it */
+/* SAVE: the track's own voice (an audition put back first) into the user slot under the cursor (used: armed first),
+ * elsewhere the first free one; the track's preset now, not edited; the cursor on it */
 static void pl_save(void)
 {
     uint32_t slot;
@@ -166,6 +250,7 @@ static void pl_save(void)
         slot = (uint32_t)f;
     }
     ui.pr.arm = 0;
+    pl_restore();
     if (preset_user_save(slot, TSEL) < 0)
         return;
     TSEL->pre = (uint16_t)(PRE_NFACT + slot);
@@ -208,7 +293,7 @@ static void pl_bank(int32_t dir)
 {
     uint32_t b = preset_bank_of(ui.pr.cur);
     b = (b + (dir > 0 ? 1u : PB_N - 1u)) % PB_N;
-    pl_cursor((int32_t)PRE_BANK_START[b]);
+    pl_move((int32_t)PRE_BANK_START[b]);
 }
 
 /* one UI frame of the list (ui_input): button edges, note edges, HOME's tap / hold */
@@ -227,18 +312,14 @@ static void preset_list_input(uint32_t pressed, uint32_t notes, uint32_t home)
     if (ui.rec_t0)
         ui.rec_t0 |= 2u;                               /* (REC: nothing here) */
     for (k = 0; k < NTRK; k++)                         /* a white key: its track (it plays it too) */
-        if ((notes >> KEY_TRK_KEY[k]) & 1u) {
-            track_select(k);
-            ui.pr.arm = 0;
-        }
-    if ((s = panel_enc(EN_ALGO)) != 0) {
-        track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-        ui.pr.arm = 0;
-    }
+        if ((notes >> KEY_TRK_KEY[k]) & 1u)
+            pl_track(k, KEY_TRK_KEY[k] + 1u);
+    if ((s = panel_enc(EN_ALGO)) != 0)
+        pl_track((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1), 0u);
     if ((s = panel_enc(EN_PRESET)) != 0)              /* one preset per detent */
-        pl_cursor((int32_t)ui.pr.cur + s);
+        pl_move((int32_t)ui.pr.cur + s);
     if ((s = panel_enc(EN_K1)) != 0)
-        pl_cursor((int32_t)ui.pr.cur + accel(EN_K1, s, (int32_t)PRE_NID));
+        pl_move((int32_t)ui.pr.cur + accel(EN_K1, s, (int32_t)PRE_NID));
     if ((s = panel_enc(EN_K2)) != 0)
         pl_bank(s);
     if ((s = panel_enc(EN_SELECT)) != 0)
@@ -248,8 +329,11 @@ static void preset_list_input(uint32_t pressed, uint32_t notes, uint32_t home)
         pl_close();
         return;
     }
-    if ((pressed >> panel.btn[B_OCTUP]) & 1u)
+    if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
         pl_load();
+        if (!pl_on())
+            return;
+    }
     if ((pressed >> panel.btn[B_SAVE]) & 1u)
         pl_save();
     if ((pressed >> panel.btn[B_OCTDN]) & 1u)
@@ -326,15 +410,15 @@ static void draw_popup(void)
 }
 
 /* the list (its own screen, as NAME): the title (a message, or what an armed button does, while shown) and the
- * cursor's place in its bank; the banks as tabs (the cursor's lit); six rows of presets (name, voice; an empty user
+ * cursor's place in its bank; the banks as tabs (the cursor's lit); seven rows of presets (name, voice; an empty user
  * slot "EMPTY nn"; the track's own marked amber; the cursor's inverted; a rule where a bank ends); the controls */
 static void draw_plist(void)
 {
     char b[32], nb[9];
     const char *vo;
-    uint32_t i, top, bank = preset_bank_of(ui.pr.cur) % PB_N, sig, used, own = preset_of(TSEL);
+    uint32_t i, top, bank = preset_bank_of(ui.pr.cur) % PB_N, sig, used, own = pl_own();
     int32_t x;
-    top = (uint32_t)clamp((int32_t)ui.pr.cur - 2, 0, (int32_t)(PRE_NID - PL_ROWS));
+    top = (uint32_t)clamp((int32_t)ui.pr.cur - 3, 0, (int32_t)(PRE_NID - PL_ROWS));
     used = bank == PB_USER && upr.s[ui.pr.cur - PRE_NFACT].used == 1u;
     sig = 37199u + ui.pr.cur * 31u + song.sel * 7919u + own * 131u + ui.pr.arm * 104729u + used * 3u +
           (ui.msg_t ? str_hash(5u, ui.msg) : 0u);
@@ -375,12 +459,13 @@ static void draw_plist(void)
     }
     cv_rect(0, 45, 240, 1, C_LINE);
     cv_blit(0, 0);
-    cv_begin(240, PL_ROWS * PL_RH, C_BLACK);           /* the rows */
-    for (i = 0; i < PL_ROWS; i++) {
+    for (i = 0; i < PL_ROWS; i++) {                    /* the rows, in two strips (the canvas: CV_MAX) */
         uint32_t id = top + i, cur = id == ui.pr.cur;
-        int32_t y = (int32_t)i * PL_RH;
+        int32_t y = (int32_t)(i % PL_HALF) * PL_RH;
         int full = pre_label(id, nb, &vo);
         uint16_t ink = cur ? C_BLACK : full ? C_HI : C_DIM;
+        if (i % PL_HALF == 0u)
+            cv_begin(240, (PL_ROWS - i < PL_HALF ? PL_ROWS - i : PL_HALF) * PL_RH, C_BLACK);
         if (cur)
             cv_rect(0, y, 240, PL_RH, C_HI);
         if (i && preset_bank_of(id) != preset_bank_of(id - 1u))
@@ -395,18 +480,17 @@ static void draw_plist(void)
             cv_text(16, y + 2, &FONT_S, nb, ink);
             cv_text(232 - text_w(&FONT_S, vo), y + 2, &FONT_S, vo, cur ? C_BLACK : C_GRAY);
         }
+        if (i + 1u == PL_ROWS || (i + 1u) % PL_HALF == 0u)
+            cv_blit(0, 48u + (i / PL_HALF) * PL_HALF * PL_RH);
     }
-    cv_blit(0, 48);
-    cv_begin(240, 66, C_BLACK);                        /* the controls */
+    cv_begin(240, 52, C_BLACK);                        /* the controls (the knobs move and pick the bank, unsaid) */
     cv_rect(0, 0, 240, 1, C_LINE);
-    str_cpy(b, "K1 MOVE   K2 BANK", sizeof b);
-    cv_text((240 - text_w(&FONT_S, b)) / 2, 6, &FONT_S, b, C_DIM);
     str_cpy(b, bank != PB_USER ? "SAVE: NEW SLOT" : used ? "SAVE: OVERWRITE" : "SAVE: HERE", sizeof b);
     x = (240 - text_w(&FONT_S, "OCT+ LOAD   ") - text_w(&FONT_S, b)) / 2;
-    x = cv_text(x, 26, &FONT_S, "OCT+ LOAD   ", C_WHITE);
-    cv_text(x, 26, &FONT_S, b, C_WHITE);
+    x = cv_text(x, 7, &FONT_S, "OCT+ LOAD   ", C_WHITE);
+    cv_text(x, 7, &FONT_S, b, C_WHITE);
     x = (240 - text_w(&FONT_S, "OCT- DELETE   EDIT BACK")) / 2;
-    x = cv_text(x, 46, &FONT_S, "OCT- DELETE   ", used ? C_WHITE : C_DIM);
-    cv_text(x, 46, &FONT_S, "EDIT BACK", C_GRAY);
-    cv_blit(0, 172);
+    x = cv_text(x, 29, &FONT_S, "OCT- DELETE   ", used ? C_WHITE : C_DIM);
+    cv_text(x, 29, &FONT_S, "EDIT BACK", C_GRAY);
+    cv_blit(0, 48 + PL_ROWS * PL_RH);
 }

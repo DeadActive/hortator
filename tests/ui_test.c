@@ -5674,14 +5674,18 @@ static void test_popup_skips_capped_acid(void)
     check("PRESETS with ACID on 2 tracks: back past it too", trk[2].pre == a - 1u);
     pre_wait(1600);
     preset_list_open();
-    ui.pr.cur = (uint16_t)a;
+    pre_turn(1);                                        /* the cursor onto ACID's first: no audition */
+    check("list with ACID on 2 tracks: the cursor on ACID's preset auditions nothing (ACID: 2 TRACKS MAX)",
+          ui.pr.cur == a && trk[2].pre == a - 1u && trk[2].p[P_MODEL] != DM_ACID &&
+              str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
+    ui.msg[0] = 0;
     tap(B_OCTUP);
-    check("list with ACID on 2 tracks: LOAD on ACID's preset refused (ACID: 2 TRACKS MAX), the voice kept",
-          trk[2].pre == a - 1u && trk[2].p[P_MODEL] != DM_ACID && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
+    check("list with ACID on 2 tracks: LOAD on ACID's preset refused (ACID: 2 TRACKS MAX), the voice kept, the list too",
+          trk[2].pre == a - 1u && trk[2].p[P_MODEL] != DM_ACID && str_eq(ui.msg, "ACID: 2 TRACKS MAX") && pl_on());
     drum_set_model(&trk[1], DM_K808);                   /* a place frees */
     tap(B_OCTUP);
-    check("list: once a place frees, LOAD gives the 3rd track ACID", trk[2].pre == a && trk[2].p[P_MODEL] == DM_ACID);
-    tap(B_EDIT);
+    check("list: once a place frees, LOAD gives the 3rd track ACID (the list closed)",
+          trk[2].pre == a && trk[2].p[P_MODEL] == DM_ACID && !pl_on());
 }
 
 /* the list: SAVE into the first free user slot or the one under the cursor (a used one: SAVE twice), DELETE (OCT-
@@ -5713,7 +5717,8 @@ static void test_list_save_delete_overwrite(void)
     tap(B_SAVE);
     check("list SAVE again: saved over it", upr.s[0].k[1] == 20 && !ui.pr.arm);
     pre_turn(3);
-    check("PRESETS in the list: the cursor, one per detent (no load)", ui.pr.cur == u0 + 3u && TSEL->pre == u0);
+    check("PRESETS in the list: the cursor, one per detent (an empty slot: nothing auditioned)",
+          ui.pr.cur == u0 + 3u && TSEL->pre == u0);
     tap(B_SAVE);
     check("list SAVE on an empty user slot: saved there at once", upr.s[3].used == 1u && TSEL->pre == u0 + 3u && !ui.pr.arm);
     tap(B_OCTDN);
@@ -5731,7 +5736,10 @@ static void test_list_save_delete_overwrite(void)
     turn(EN_K2, -1);
     ui_frame();
     tap(B_OCTUP);
-    check("list OCT+ (LOAD): the preset under the cursor on the track", TSEL->pre == kb && voice_is(TSEL, kb) && pl_on());
+    check("list OCT+ (LOAD): the preset under the cursor on the track, the list closed",
+          TSEL->pre == kb && voice_is(TSEL, kb) && !pl_on());
+    hold(B_EDIT);
+    check("(the list again, on it)", pl_on() && ui.pr.cur == kb);
     tap(B_OCTDN);
     check("list OCT- on a factory preset: nothing deleted", !ui.pr.arm && TSEL->pre == kb);
     host_ticks += 300u * 1000u * FM1_TICKS_PER_US;      /* (a new turn: no acceleration) */
@@ -5742,8 +5750,10 @@ static void test_list_save_delete_overwrite(void)
     ui_frame();
     ui_frame();
     tap(B_SAVE);
-    check("list SAVE while playing: in the list at once (slot 3), flash at the next STOP",
-          song.playing && upr.s[2].used == 1u && TSEL->pre == u0 + 2u && upr_pending);
+    check("list SAVE while playing: in the list at once (slot 3), flash at the next STOP; the sound saved the track's, "
+          "not the auditioned one",
+          song.playing && upr.s[2].used == 1u && TSEL->pre == u0 + 2u && upr_pending &&
+              upr.s[2].model == PRE_FACTORY[kb].model && upr.s[2].k[0] == PRE_FACTORY[kb].k[0] && voice_is(TSEL, u0 + 2u));
     snap_page("presets/10_list_saved_playing");
     transport_req = 2;
     ui_frame();
@@ -5833,6 +5843,205 @@ static void test_name_and_edited_mark(void)
     tap(B_EDIT);
     snap_page("presets/14_sound_no_preset");
     check("SOUND with no preset: PRESET -", lit_box(0, Y_GRAPH + 2, 240, Y_GRAPH + 22) > 0);
+}
+
+/* ---- the list auditions (owner, 2026-10-19): every cursor move puts the highlighted preset on the track for now (its
+ * MODEL and 8 knobs) and hits it once; the track's key plays it; LOAD keeps it and closes the list; any other way out
+ * (EDIT, HOME) puts the track's sound from before back, as another track picked in the list does; SAVE stores that
+ * sound, not the auditioned one; seven rows, no K1 / K2 hint */
+static uint32_t voices_on(const track_t *t)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NDV; i++)
+        n += t->v[i].active;
+    return n;
+}
+typedef struct { int16_t p[P_COUNT]; uint16_t pre; uint8_t ed, model; } snd_t;   /* a track's whole sound */
+static void snd_take(const track_t *t, snd_t *s)
+{
+    memcpy(s->p, t->p, sizeof s->p);
+    s->pre = t->pre;
+    s->ed = t->pre_ed;
+    s->model = t->model;
+}
+static int snd_same(const track_t *t, const snd_t *s)
+{
+    return !memcmp(s->p, t->p, sizeof s->p) && s->pre == t->pre && s->ed == t->pre_ed && s->model == t->model;
+}
+static int voice_kept(const track_t *t, const snd_t *s)   /* everything but MODEL and the 8 SOUND knobs as in s */
+{
+    uint32_t id;
+    for (id = 0; id < P_COUNT; id++)
+        if (id != P_MODEL && !PRE_SOUND(id) && t->p[id] != s->p[id])
+            return 0;
+    return 1;
+}
+
+static void test_list_preview_scrub(void)
+{
+    uint32_t id0, want;
+    snd_t s;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    TSEL->p[P_CHOKE] = 2;                               /* (a CHOKE, a LEVEL, a FILTER the audition leaves alone) */
+    TSEL->p[P_LEVEL] = 77;
+    TSEL->p[P_FCUT] = 50;
+    snd_take(TSEL, &s);
+    hold(B_EDIT);
+    id0 = ui.pr.cur;
+    drum_cut(TSEL);
+    ui_frame();
+    check("list open: nothing auditioned yet (the track as it was, nothing hit)", pl_on() && snd_same(TSEL, &s) &&
+                                                                                   voices_on(TSEL) == 0u);
+    pre_turn(1);
+    check("list PRESETS one detent: the highlighted preset on the track at once (MODEL, 8 knobs), not edited, hit once",
+          ui.pr.cur == id0 + 1u && voice_is(TSEL, id0 + 1u) && !TSEL->pre_ed && voices_on(TSEL) == 1u && pl_on());
+    check("list audition: CHOKE, LEVEL, FILTER and the rest untouched", voice_kept(TSEL, &s));
+    snap_page("presets/15_list_preview");
+    drum_cut(TSEL);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;      /* (a new turn: no acceleration) */
+    turn(EN_K1, 1);
+    ui_frame();
+    check("list KNOB 1: the cursor, auditioned (one hit)", ui.pr.cur == id0 + 2u && voice_is(TSEL, id0 + 2u) &&
+                                                          voices_on(TSEL) == 1u);
+    drum_cut(TSEL);
+    want = PRE_BANK_START[(preset_bank_of(ui.pr.cur) + 1u) % PB_N];
+    turn(EN_SELECT, 1);
+    ui_frame();
+    check("list SELECT: the next bank's first, auditioned (another voice: one hit)", ui.pr.cur == want &&
+          voice_is(TSEL, want) && voices_on(TSEL) == 1u && voice_kept(TSEL, &s));
+    drum_cut(TSEL);
+    turn(EN_K2, -1);
+    ui_frame();
+    want = PRE_BANK_START[(preset_bank_of(want) + PB_N - 1u) % PB_N];
+    check("list KNOB 2: the bank before's first, auditioned", ui.pr.cur == want && voice_is(TSEL, want) &&
+                                                              voices_on(TSEL) == 1u);
+    drum_cut(TSEL);
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("list: the track's own key plays the auditioned sound (the track stays)", song.sel == 0u &&
+          voice_is(TSEL, want) && voices_on(TSEL) == 1u && pl_on());
+    while (preset_bank_of(ui.pr.cur) != PB_MODERN) {
+        turn(EN_SELECT, 1);
+        ui_frame();
+    }
+    want = ui.pr.cur;
+    drum_cut(TSEL);
+    turn(EN_SELECT, 1);                                 /* USER: its first slot empty */
+    ui_frame();
+    check("list on an empty user slot: no audition (the last one kept, nothing hit), EMPTY SLOT said",
+          ui.pr.cur == PRE_NFACT && voice_is(TSEL, want) && voices_on(TSEL) == 0u && str_eq(ui.msg, "EMPTY SLOT"));
+    tap(B_EDIT);
+    check("list EDIT: the track's sound back (CHOKE, LEVEL, FILTER too)", !pl_on() && snd_same(TSEL, &s));
+}
+
+static void test_list_cancel_restores(void)
+{
+    uint32_t c;
+    snd_t s, s1;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    TSEL->p[P_E1] = 10;                                 /* an edited sound */
+    preset_touch(TSEL);
+    snd_take(TSEL, &s);
+    hold(B_EDIT);
+    pre_turn(5);
+    turn(EN_SELECT, 1);                                 /* another voice */
+    ui_frame();
+    check("(list: another voice auditioned)", (uint32_t)TSEL->p[P_MODEL] != s.model && pl_on());
+    drum_cut(TSEL);
+    tap(B_EDIT);
+    check("list EDIT without LOAD: closed, MODEL, knobs, preset and * exactly as before, nothing hit",
+          !pl_on() && snd_same(TSEL, &s) && voices_on(TSEL) == 0u);
+    hold(B_EDIT);
+    pre_turn(-3);
+    check("(list: the one 3 before auditioned)", !snd_same(TSEL, &s));
+    tap(B_HOME);
+    check("list HOME without LOAD: closed, the sound back exactly", !pl_on() && snd_same(TSEL, &s));
+    snd_take(&trk[1], &s1);
+    hold(B_EDIT);
+    pre_turn(2);
+    c = ui.pr.cur;
+    drum_cut(&trk[1]);
+    turn(EN_ALGO, 1);
+    ui_frame();
+    check("list ALGORITHM: track 1's sound back, track 2 auditions the highlighted preset (one hit)",
+          song.sel == 1u && snd_same(&trk[0], &s) && voice_is(&trk[1], c) && voices_on(&trk[1]) == 1u && pl_on());
+    drum_cut(&trk[0]);
+    keys(1u << KEY_TRK_KEY[0]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("list: track 1's white key: track 2's sound back, track 1 auditions it (the key's one hit)",
+          song.sel == 0u && snd_same(&trk[1], &s1) && voice_is(&trk[0], c) && voices_on(&trk[0]) == 1u && pl_on());
+    tap(B_EDIT);
+    check("list EDIT: both tracks as before", !pl_on() && snd_same(&trk[0], &s) && snd_same(&trk[1], &s1));
+}
+
+static void test_list_load_closes(void)
+{
+    uint32_t c;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    TSEL->p[P_E1] = 10;
+    preset_touch(TSEL);
+    hold(B_EDIT);
+    turn(EN_SELECT, 1);
+    ui_frame();
+    c = ui.pr.cur;
+    tap(B_OCTUP);
+    check("list LOAD (OCT+): the highlighted preset stays on the track (its preset, not edited), the list closed",
+          !pl_on() && TSEL->pre == c && voice_is(TSEL, c) && !TSEL->pre_ed && ui.home);
+    snap_page("presets/16_list_loaded");
+}
+
+static void test_list_save_saves_real_sound(void)
+{
+    uint32_t m;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    m = (uint32_t)TSEL->p[P_MODEL];
+    TSEL->p[P_E1] = 10;
+    preset_touch(TSEL);
+    hold(B_EDIT);
+    turn(EN_SELECT, 1);
+    ui_frame();
+    check("(list: another voice auditioned)", (uint32_t)TSEL->p[P_MODEL] != m);
+    tap(B_SAVE);
+    check("list SAVE while auditioning: the sound from before saved (its voice, DECAY 10), the track back to it, now "
+          "its preset (not edited)",
+          upr.s[0].used == 1u && upr.s[0].model == m && upr.s[0].k[1] == 10 && (uint32_t)TSEL->p[P_MODEL] == m &&
+              TSEL->p[P_E1] == 10 && TSEL->pre == PRE_NFACT && !TSEL->pre_ed && ui.pr.cur == PRE_NFACT && pl_on());
+    tap(B_EDIT);
+    check("list EDIT after SAVE: the saved sound stays", !pl_on() && (uint32_t)TSEL->p[P_MODEL] == m &&
+                                                         TSEL->p[P_E1] == 10 && TSEL->pre == PRE_NFACT);
+}
+
+static void test_list_seven_rows(void)
+{
+    uint32_t i, rows = 0, bands = 0, prev = 0, y;
+    ui_host_init();
+    users_clear();
+    ui_frame();
+    hold(B_EDIT);
+    ui.force = 1;
+    ui_frame();
+    for (i = 0; i < 7u; i++)
+        rows += lit_box(16, 48u + i * 20u + 2u, 120, 48u + i * 20u + 18u) > 0u;
+    check("list: 7 preset rows", rows == 7u);
+    check("list: the controls start under the 7th row (their rule)", lit_box(0, 188, 240, 189) == 240u);
+    for (y = 189; y < 240u; y++) {
+        uint32_t on = lit_box(0, y, 240, y + 1u) > 0u;
+        bands += on && !prev;
+        prev = on;
+    }
+    check("list: two hint lines (OCT+ / SAVE, OCT- / EDIT), no K1 / K2 line", bands == 2u);
 }
 
 int main(void)
@@ -5976,6 +6185,11 @@ int main(void)
     test_long_edit_opens_list();
     test_edit_hold_in_learn();
     test_name_and_edited_mark();
+    test_list_preview_scrub();
+    test_list_cancel_restores();
+    test_list_load_closes();
+    test_list_save_saves_real_sound();
+    test_list_seven_rows();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

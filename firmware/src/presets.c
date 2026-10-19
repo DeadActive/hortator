@@ -171,6 +171,25 @@ static int preset_load(track_t *t, uint32_t id)
     return 0;
 }
 
+/* t's voice put back as it was (the PRESETS list's audition ended, ui_preset.c): MODEL, the 8 SOUND knobs k, the
+ * reference pre and its edited mark ed, as they were (no clamp); the audio IRQ off, another voice cut first, motion's
+ * base follows, as preset_load */
+static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pre, uint32_t ed)
+{
+    uint32_t i;
+    fm1_irq_off();
+    if ((uint32_t)t->p[P_MODEL] != model || t->model != model)
+        drum_cut(t);
+    t->p[P_MODEL] = (int16_t)(model % NMODELS);
+    t->model = (uint8_t)t->p[P_MODEL];
+    for (i = 0; i < 8u; i++)
+        t->p[P_E0 + i] = k[i];
+    t->pre = (uint16_t)pre;
+    t->pre_ed = (uint8_t)ed;
+    motion_rebase((uint32_t)(t - trk));
+    fm1_irq_on();
+}
+
 /* the next (dir > 0) / previous loadable id from `from`, through every bank in order, wrapping (empty user slots and a
  * capped ACID skipped). No current preset (from out of range, PRE_NONE): the first preset of the track's voice */
 static uint32_t preset_step(const track_t *t, uint32_t from, int dir)

@@ -100,6 +100,10 @@ static struct {
         uint16_t pop_id, cur, arm_id;   /* the popup's preset; the list's cursor */
         uint16_t shown[5];       /* the popup's rows, top to bottom (the preset in the middle) */
         uint32_t now, pop_t0, arm_t0, e_t0, sig;
+        uint8_t pv, pv_trk;      /* the list: track pv_trk auditions the cursor's preset (its own sound in sv_*) */
+        uint8_t sv_model, sv_ed; /* .. that sound: MODEL, the 8 SOUND knobs (motion's base while it plays), the preset */
+        uint16_t sv_pre;         /*    and its edited mark, put back unless LOAD keeps the audition */
+        int16_t sv_k[8];
     } pr;
 } ui;
 

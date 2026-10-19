@@ -567,11 +567,21 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
 - ACID on two tracks: on a third track the popup skips ACID's 4 presets (`05_popup_acid_capped.png`), the list
   refuses them (`ACID: 2 TRACKS MAX`).
 - EDIT held ~0.4 s: the PRESETS list (`06_list.png`) over the page you were on (an EDIT tap still opens SOUND / its
-  next page; in step record EDIT stays the rest, held too). KNOB 1 or PRESETS the cursor, KNOB 2 or SELECT the bank
-  (tabs MD CLASSIC MODERN USER), ALGORITHM or a white key the track (the keys play), the track's own preset marked
-  amber. OCT+ LOAD. SAVE: the track's voice on a factory preset into the first free USER slot (`SAVED K909 01`), on an
-  empty USER slot there, on a used one after a second SAVE (`SAVE AGAIN: OVERWRITE`, `08_list_save_over_armed.png`).
-  OCT- twice deletes a USER preset (`OCT- AGAIN: DELETE`, `09_list_delete_armed.png`). EDIT or HOME back.
+  next page; in step record EDIT stays the rest, held too). Seven presets on screen, no `K1 MOVE  K2 BANK` line any
+  more (the knobs still work). KNOB 1 or PRESETS the cursor, KNOB 2 or SELECT the bank (tabs MD CLASSIC MODERN USER),
+  ALGORITHM or a white key the track (the keys play), the track's own preset marked amber.
+- Scrub the list: every cursor move (PRESETS, KNOB 1, a bank jump with KNOB 2 / SELECT) plays the preset under the
+  cursor once on the selected track (`15_list_preview.png`): the track takes its voice and 8 knobs for now (FILTER,
+  LEVEL, CHOKE, ... stay). The track's key plays that sound; with the pattern playing the track plays it. On an empty
+  USER slot (`EMPTY SLOT`) or ACID refused on a third track (`ACID: 2 TRACKS MAX`) nothing plays, the last sound stays.
+- OCT+ LOAD keeps the sound under the cursor (`PRESET` its name, no `*`) and closes the list at once
+  (`16_list_loaded.png`). EDIT or HOME instead: the list closes and the track sounds exactly as before it opened (its
+  preset and `*` too), nothing plays. Another track picked in the list (ALGORITHM, a white key): the one before gets its
+  sound back, the new one plays the preset under the cursor.
+- SAVE stores the track's own sound (as before the list opened, not the one being auditioned): on a factory preset
+  into the first free USER slot (`SAVED K909 01`), on an empty USER slot there, on a used one after a second SAVE
+  (`SAVE AGAIN: OVERWRITE`, `08_list_save_over_armed.png`); the track then sounds as saved. OCT- twice deletes a USER
+  preset (`OCT- AGAIN: DELETE`, `09_list_delete_armed.png`).
 - The SOUND pages show `PRESET HOUSEBD` above the voice, with an amber `*` once a SOUND knob moved
   (`12_sound_edited.png`); TRACKS' footer `HOUSEBD*` (`13_tracks_preset.png`). A MODEL change: the new voice's first
   preset, no `*`. A project keeps each track's preset and `*`; an older project loads with `PRESET -`, its sound as
