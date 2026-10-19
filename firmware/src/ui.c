@@ -69,7 +69,7 @@ static struct {
     uint32_t enc_t[NE];
     char col[4][32];
     char focus_l[8], focus_v[8], focus_u[8];
-    uint32_t graph_sig, head_sig, foot_sig, msg_sig, frame;
+    uint32_t graph_sig, head_sig, foot_sig, msg_sig, col_sig, frame;
     uint8_t graph_top;
     int16_t tr[136];             /* LFO pages, random waves: the shown LFO's trail (a ring, newest at tr_h - 1) */
     uint8_t tr_h, tr_n;

@@ -767,12 +767,13 @@ static void graph_slicer(const track_t *t, uint16_t c)
     }
 }
 
-/* oscilloscope of the output, triggered on a rising zero crossing */
-static void graph_scope(uint16_t c)
+/* oscilloscope of the output, triggered on a rising zero crossing: a 1 px wave round cy (+- amp), a dotted zero
+ * line */
+static void graph_scope(int32_t cy, int32_t amp)
 {
     static int16_t snap[SCOPE_N];
     uint32_t w = scope_w, i, trig = 0;
-    int32_t py = 50, x, peak = 1500;
+    int32_t py = cy, x, peak = 1500;
     for (i = 0; i < SCOPE_N; i++) {
         snap[i] = scope_buf[(w + i) & (SCOPE_N - 1u)];
         if (snap[i] > peak)
@@ -785,14 +786,13 @@ static void graph_scope(uint16_t c)
             trig = i;
             break;
         }
-    cv_hdot(2, 237, 50, C_INK);
+    cv_hdot(2, 237, cy, C_INK);
     for (x = 2; x < 238; x++) {
-        int32_t y = 50 - snap[trig + (uint32_t)x] * 44 / peak;   /* auto-scaled */
+        int32_t y = cy - snap[trig + (uint32_t)x] * amp / peak;   /* auto-scaled */
         if (x > 2)
             cv_line(x - 1, py, x, y, C_INK);
         py = y;
     }
-    (void)c;
 }
 
 
@@ -1555,11 +1555,19 @@ static void draw_graph(void)
     if (!ui.force && sig == ui.graph_sig)
         return;
     ui.graph_sig = sig;
+    if (ui.home) {                                    /* HOME: the scope under the strip, y 69..180 */
+        cv_begin_at(240, 112, 69, C_BG);
+        cv_oy = 0;
+        cv_tab(1, 0, "SCOPE", C_INK, C_BG);
+        graph_scope(62, 46);
+        cv_rect(0, 0, 1, 112, C_INK);
+        cv_rect(239, 0, 1, 112, C_INK);
+        cv_blit(0, 69);
+        return;
+    }
     cv_begin_at(240, H_GRAPH, Y_GRAPH, C_BG);
     cv_oy = G_OY;
-    if (ui.home) {
-        graph_scope(c);
-    } else {
+    {
         switch (pg->graph) {
         case GR_MODEL:
             graph_model(t, c);
@@ -1766,6 +1774,112 @@ static void draw_msg(void)
     cv_blit((uint32_t)(120 - w / 2), 106u);
 }
 
+/* a parameter's label in at most 4 letters (the HOME strip's 38 px cells; the MD's own abbreviations) */
+static const char *abbr4(const char *l, char *b)
+{
+    static const char *const AB[][2] = {{"DECAY", "DEC"}, {"SWEEP", "SWP"}, {"CLICK", "CLIK"}, {"PITCH", "PTCH"},
+                                        {"DEPTH", "DPTH"}, {"NOISE", "NOIS"}, {"LEVEL", "LEV"}, {"SHIMR", "SHMR"},
+                                        {"CHAOS", "CHAS"}, {"COLOR", "COLR"}, {"SPEED", "SPD"}, {"RANGE", "RNG"},
+                                        {"PUNCH", "PNCH"}, {"SNAPY", "SNAP"}, {"SPRED", "SPRD"}, {"INDEX", "INDX"},
+                                        {"RATIO", "RATI"}, {"ACCNT", "ACC"}, {"CUTOF", "CUT"}, {"ENVMD", "ENV"}};
+    uint32_t i;
+    for (i = 0; i < sizeof AB / sizeof AB[0]; i++)
+        if (str_eq(l, AB[i][0]))
+            return AB[i][1];
+    str_cpy(b, l, 5);
+    return b;
+}
+
+/* HOME (spec 2026-10-19-md-ui §9), y 17..68 under the top bar: the MD main screen's strip. The selected track's bank
+ * boxes (the playing one solid), the project box (inverted: slot, name), the mode line | LEV (the track's level) |
+ * the model's first four sound knobs (rings r 7, the values under them; enums as text) | a rule at y 68 */
+static void draw_home_strip(void)
+{
+    const track_t *t = TSEL;
+    char l[4][8], v[4][8], ab[8], m[16], nm[NAME_LEN + 1u], pj[8];
+    int32_t r[4], md[4], lvl = t->p[P_LEVEL] & 127, h, y;
+    uint32_t c, nb = bank_count(), len = view_len(t), cur = song.playing ? (view_idx(t) % len) / 16u : ui.bank;
+    uint32_t sig = 0x811C9DC5u, hot = ui.hot_t ? ui.hot_col : 9u;
+    for (c = 0; c < 4u; c++) {
+        int16_t *vp;
+        const param_desc_t *d = home_param(c, &vp);
+        char val[12];
+        const char *unit = "";
+        int32_t mv;
+        l[c][0] = v[c][0] = 0;
+        r[c] = md[c] = -1;
+        if (!d->label || d->label[0] == '-')
+            continue;
+        param_format(d, *vp, val, &unit);
+        md_fit(l[c], abbr4(d->label, ab), sizeof l[c], 36);
+        md_fit(v[c], val, 5, 36);
+        if (d->fmt != F_ENUM)
+            r[c] = RATIO(d, *vp);
+        if (lfo_live(TSEL, P_E0 + c, &mv))
+            md[c] = RATIO(d, mv);
+        if (c == ui.hot_col) {                        /* the breadcrumb's whole value while touched */
+            str_cpy(ui.focus_l, d->label, 8);
+            str_cpy(ui.focus_v, val, 8);
+            str_cpy(ui.focus_u, unit, 8);
+        }
+        sig = str_hash(str_hash(sig, l[c]), v[c]) + (uint32_t)(r[c] + 1) * 7u + (uint32_t)(md[c] + 1) * 13u;
+    }
+    m[0] = 0;
+    if (!head_mode(m) && chain.running) {
+        str_cpy(m, "SONG ", sizeof m);
+        fmt_int(m + 5, (int32_t)chain.row + 1);
+    }
+    pj[0] = 'P', pj[1] = 'R', pj[2] = 'O', pj[3] = 'J', pj[4] = ' ';
+    pj[5] = (char)('A' + (uint32_t)(song.g[G_SLOT] > 0 ? song.g[G_SLOT] - 1 : 0) % 4u);
+    pj[6] = 0;
+    md_fit(nm, chain.name[0] ? chain.name : "NEW", sizeof nm, 54);
+    sig = str_hash(str_hash(str_hash(sig, m), nm), pj) + nb * 31u + cur * 101u + (uint32_t)lvl * 1009u + hot * 7919u;
+    if (!ui.force && sig == ui.col_sig)
+        return;
+    ui.col_sig = sig;
+    cv_begin_at(240, 52, Y_KNOB, C_BG);
+    cv_rect(0, 0, 1, 52, C_INK);
+    cv_rect(239, 0, 1, 52, C_INK);
+    for (c = 0; c < nb && c < 4u; c++)                /* the bank boxes */
+        if (c == cur)
+            cv_rect(6 + (int32_t)c * 13, 3, 10, 6, C_INK);
+        else
+            cv_frame(6 + (int32_t)c * 13, 3, 10, 6, C_INK);
+    cv_rect(2, 13, 59, 24, C_INK);                    /* the project box */
+    md_text(31 - md_text_w(&MD_F3, 2, pj) / 2, 15, &MD_F3, 2, pj, C_BG);
+    md_text(31 - md_text_w(&MD_F3, 2, nm) / 2, 26, &MD_F3, 2, nm, C_BG);
+    md_text(4, 40, &MD_F3, 2, m, C_INK);
+    cv_rect(62, 0, 1, 51, C_INK);
+    md_text(75 - md_text_w(&MD_F3, 2, "LEV") / 2, 2, &MD_F3, 2, "LEV", C_INK);   /* LEV: the MD's fader */
+    h = lvl * 35 / 127;
+    cv_rect(72, 49 - h, 6, h, C_INK);
+    for (y = 14; y <= 48; y += 4) {
+        cv_rect(68, y, 2, 1, C_INK);
+        cv_rect(80, y, 2, 1, C_INK);
+    }
+    cv_rect(87, 0, 1, 51, C_INK);
+    cv_vdot(125, 0, 50, C_INK);
+    cv_vdot(163, 0, 50, C_INK);
+    cv_vdot(201, 0, 50, C_INK);
+    cv_hdot(88, 238, 12, C_INK);
+    for (c = 0; c < 4u; c++) {
+        int32_t cx = 107 + (int32_t)c * 38, vw = md_text_w(&MD_F3, 2, v[c]), vy = r[c] >= 0 ? 37 : 24;
+        if (!l[c][0])
+            continue;
+        md_text(cx - md_text_w(&MD_F3, 2, l[c]) / 2, 2, &MD_F3, 2, l[c], C_INK);
+        if (r[c] >= 0)
+            cv_knob(cx, 24, 7, r[c], md[c], C_INK);
+        if (c == hot) {                               /* touched: the value inverted */
+            cv_rect(cx - vw / 2 - 2, vy - 2, vw + 4, 13, C_INK);
+            md_text(cx - vw / 2, vy, &MD_F3, 2, v[c], C_BG);
+        } else {
+            md_text(cx - vw / 2, vy, &MD_F3, 2, v[c], C_INK);
+        }
+    }
+    cv_rect(1, 51, 238, 1, C_INK);
+    cv_blit(0, Y_KNOB);
+}
+
 static void draw_columns(void)
 {
     uint32_t c;
@@ -1784,23 +1898,8 @@ static void draw_columns(void)
         song_columns();
         return;
     }
-    if (ui.home) {
-        for (c = 0; c < 4u; c++) {
-            int16_t *vp;
-            const param_desc_t *d = home_param(c, &vp);
-            if (!d->label || d->label[0] == '-') {
-                draw_column(c, "", "", "", C_HI, -1, ICON_AUTO);
-                continue;
-            }
-            param_format(d, *vp, val, &unit);
-            {
-                int32_t mv, mod = -1;                /* an LFO on the knob: its live value, as on EDIT */
-                if (lfo_live(TSEL, P_E0 + c, &mv))
-                    mod = RATIO(d, mv);
-                draw_column_m(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM ? -1 : RATIO(d, *vp),
-                              param_icon(d, *vp), mod);
-            }
-        }
+    if (ui.home) {                                    /* HOME: the MD strip */
+        draw_home_strip();
         return;
     }
     if (pg->scope == SC_MIX) {                          /* TRACK LEVEL LEN PAN of the selected track */

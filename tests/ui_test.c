@@ -1626,8 +1626,8 @@ static void test_home_keys_and_lfo(void)
     keys(0);
     ui_frame();
     check("HOME: white key 4 selects track 4 and plays it", ui.home && song.sel == 3 && hit_age(&trk[3]) != a);
-    for (y = Y_KNOB + 14u, amb = 0; y < Y_KNOB + H_KNOB; y++)
-        for (x = 61; x < 120u; x++)   /* column 2: its knob */
+    for (y = 17u, amb = 0; y < 68u; y++)
+        for (x = 126; x < 163u; x++)  /* the strip's cell 2: its knob */
             amb += fb[y * 240u + x] == C_INK;
     x = amb;                                         /* (the knob without an LFO dot) */
     check("HOME: no LFO, no marker on the knobs", amb > 0u);
@@ -1639,8 +1639,8 @@ static void test_home_keys_and_lfo(void)
     for (a = 0; a < 50u; a++)
         ui_frame();
     a = x;
-    for (y = Y_KNOB + 14u, amb = 0; y < Y_KNOB + H_KNOB; y++)
-        for (x = 61; x < 120u; x++)   /* column 2: its knob */
+    for (y = 17u, amb = 0; y < 68u; y++)
+        for (x = 126; x < 163u; x++)  /* the strip's cell 2: its knob */
             amb += fb[y * 240u + x] == C_INK;
     check("HOME: an LFO on the second knob marks its live value (a hollow dot outside the ring)", amb >= a + 6u);
     snap_page("lfo/91_home_marker");
@@ -2438,6 +2438,61 @@ static void test_perform_buttons(void)
     perf_held = 0;
     release_all();
     ui_frame();
+}
+
+/* spec 2026-10-19-md-ui §9: HOME = the top bar, the MD main-screen strip (bank boxes, the project box, the mode
+ * line | LEV | 4 knobs, the values under them), the scope below */
+static void test_home_strip(void)
+{
+    uint32_t nb;
+    ui_host_init();
+    TSEL->p[P_SLEN] = 32;
+    transport_req = 1;
+    seq_play_to(song.sel, 20);                       /* the playhead in bank 2 */
+    ui.force = 1;
+    ui_frame();
+    nb = bank_count();
+    check("HOME strip: the project box inverted (x 2..60, y 30..53)", ui.home &&
+          fb_count(2, 30, 59, 24, C_INK) > 59u * 24u * 6u / 10u && fb_count(2, 30, 59, 24, C_BG) > 40u);
+    check("HOME strip: a bank box per bank (2), the playing one solid", nb == 2u &&
+          fb_count(6, 20, 10, 6, C_INK) == 28u && fb_count(19, 20, 10, 6, C_INK) == 60u &&
+          fb_count(32, 20, 10, 6, C_INK) == 0u);
+    check("HOME strip: rules at x 62 / 87 and y 68", fb[40u * 240u + 62u] == C_INK && fb[40u * 240u + 87u] == C_INK &&
+          fb_count(1, 68, 238, 1, C_INK) == 238u);
+    transport_req = 2;
+    ui_frame();
+}
+
+static void test_home_knob_values_below(void)
+{
+    uint32_t c, ok = 1;
+    ui_host_init();
+    ui.force = 1;
+    ui_frame();
+    for (c = 0; c < 4u; c++) {
+        int16_t *vp;
+        const param_desc_t *d = home_param(c, &vp);
+        uint32_t cx = 107u + c * 38u;
+        if (!d->label || d->fmt == F_ENUM)
+            continue;
+        ok &= fb[34u * 240u + cx] == C_INK && fb[35u * 240u + cx] == C_BG;   /* the ring's top, r 7 at y 41 */
+        ok &= fb_count(cx - 15u, 54, 30, 10, C_INK) > 8u;                  /* the value under it */
+    }
+    check("HOME strip: each knob a ring (r 7 at y 41), its value under it (y 54)", ok);
+}
+
+static void test_home_scope_height(void)
+{
+    uint32_t i;
+    ui_host_init();
+    for (i = 0; i < SCOPE_N; i++)
+        scope_buf[i] = (int16_t)((i % 32u) < 16u ? 30000 : -30000);
+    scope_w = 0;
+    ui.force = 1;
+    ui_frame();
+    check("HOME: the scope fills rows 69..180 (its wave reaches y 72..95 and 160..178)",
+          fb_count(2, 72, 236, 24, C_INK) > 20u && fb_count(2, 160, 236, 19, C_INK) > 20u);
+    memset(scope_buf, 0, sizeof scope_buf);
 }
 
 static void snap_page(const char *name)
@@ -6097,6 +6152,9 @@ int main(void)
     test_tracks_peak_tick();
     test_mute_boxes();
     test_perform_buttons();
+    test_home_strip();
+    test_home_knob_values_below();
+    test_home_scope_height();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
