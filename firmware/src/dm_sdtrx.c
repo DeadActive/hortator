@@ -180,7 +180,7 @@ static void sdtrx_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-#define DM_SDTRX_DEF {"SDTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("SNAP", F_INT, 0, 127, 64), PD("TONE", F_INT, 0, 127, 64), PD("BUMP", F_INT, 0, 127, 0), \
-    PD("BENV", F_INT, 0, 127, 64), PD("CLIP", F_INT, 0, 127, 0), PD("-", F_INT, 0, 0, 0)}, sdtrx_trigger, \
+#define DM_SDTRX_DEF {"SDTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 7), \
+    PD("SNAP", F_INT, 0, 127, 127), PD("TONE", F_INT, 0, 127, 0), PD("BUMP", F_INT, 0, 127, 0), \
+    PD("BENV", F_INT, 0, 127, 64), PD("CLIP", F_INT, 0, 127, 92), PD("-", F_INT, 0, 0, 0)}, sdtrx_trigger, \
     sdtrx_render}

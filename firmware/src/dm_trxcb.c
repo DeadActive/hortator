@@ -243,7 +243,7 @@ static void cbtrx_trigger(track_t *t, dvoice_t *v)
     memset(&c->pk, 0, sizeof c->pk);
 }
 
-#define DM_CBTRX_DEF {"CBTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("ENH", F_INT, 0, 127, 0), PD("DAMP", F_INT, 0, 127, 0), PD("TONE", F_INT, 0, 127, 64), \
-    PD("BUMP", F_INT, 0, 127, 0), PD("PTCH", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0)}, cbtrx_trigger, \
+#define DM_CBTRX_DEF {"CBTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 48), \
+    PD("ENH", F_INT, 0, 127, 127), PD("DAMP", F_INT, 0, 127, 127), PD("TONE", F_INT, 0, 127, 0), \
+    PD("BUMP", F_INT, 0, 127, 0), PD("PTCH", F_INT, 0, 127, 105), PD("-", F_INT, 0, 0, 0)}, cbtrx_trigger, \
     cbtrx_render}

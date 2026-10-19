@@ -4,6 +4,7 @@ set -e
 cd "$(dirname "$0")/.."
 PY="${PYTHON:-python3}"
 "$PY" tools/build.py --gen-only >/dev/null
+"$PY" tools/gen_presets.py --check                 # firmware/src/preset_bank.h = tools/presets.json
 OUT=build/host
 mkdir -p "$OUT"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test" tests/drum_test.c -lm

@@ -5,16 +5,21 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
-- Presets: a preset is a voice (MODEL and the 8 SOUND knobs), in banks MACHINEDRUM, CLASSIC, MODERN (for now one per
-  voice: its default sound, named as the voice) and USER (128 slots in flash). The PRESETS encoder loads the next /
-  previous preset onto the selected track at each detent, through every bank (empty USER slots and a capped ACID
-  skipped), with a popup over the graph (the bank, the preset, two before and after; ~1.5 s). EDIT held ~0.4 s opens
-  the PRESETS list (an EDIT tap and step record's EDIT as before): KNOB 1 / PRESETS move, KNOB 2 / SELECT the bank,
-  OCT+ LOAD, SAVE into the first free USER slot or the chosen one (a used one: SAVE twice), OCT- twice DELETE, EDIT or
-  HOME back. USER presets are named from the voice and the slot ("SDTRX 03"); saved while playing they are written to
-  flash at the next STOP (as MIDI LEARN's map; its own flash object). The SOUND pages show the track's preset
-  ("PRESET K909") with `*` once a SOUND knob moved, TRACKS' footer too; projects keep each track's preset and mark
-  ("FDRD"; older ones load with no preset, their sound unchanged).
+- Presets: a preset is a voice (MODEL and the 8 SOUND knobs), in banks MACHINEDRUM, CLASSIC, MODERN (151 factory
+  presets, below) and USER (128 slots in flash). The PRESETS encoder loads the next / previous preset onto the
+  selected track at each detent, through every bank (empty USER slots and a capped ACID skipped), with a popup over
+  the graph (the bank, the preset, two before and after; ~1.5 s). EDIT held ~0.4 s opens the PRESETS list (an EDIT tap
+  and step record's EDIT as before): KNOB 1 / PRESETS move, KNOB 2 / SELECT the bank, OCT+ LOAD, SAVE into the first
+  free USER slot or the chosen one (a used one: SAVE twice), OCT- twice DELETE, EDIT or HOME back. USER presets are
+  named from the voice and the slot ("SDTRX 03"); saved while playing they are written to flash at the next STOP (as
+  MIDI LEARN's map; its own flash object). The SOUND pages show the track's preset ("PRESET HOUSEBD") with `*` once a
+  SOUND knob moved, TRACKS' footer too; projects keep each track's preset and mark ("FDRD"; older ones load with no
+  preset, their sound unchanged).
+- The factory banks: MACHINEDRUM 55 presets read from the Machinedrum's factory kits (1 to 4 per voice; none for
+  MATRX, CLTRX), CLASSIC 56 and MODERN 40 (4 per voice, ACID and SMPL included). Every voice's default sound is its
+  first preset: unchanged for CLASSIC and MODERN, new for the 19 Machinedrum voices with presets (KTRX SUBTHUMP, SDTRX
+  HARDSNAP, CPEFM BUZZCLAP, ...; the list in docs/DEVICE_INSTALL.md). Generated from tools/presets.json by
+  tools/gen_presets.py.
 - No voice has a default choke group any more: HATC, HATO, HMETL, HNOIS, CHTRX, OHTRX and HHEFM used to start in group
   1. CHOKE is now only the track's own setting: a MODEL change or a preset load never changes it, so the power-on
   kit's HATC / HATO no longer cut each other until CHOKE is set on both. Older projects keep their stored CHOKE.

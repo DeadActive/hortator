@@ -315,15 +315,15 @@ static void cyefm_trigger(track_t *t, dvoice_t *v)
     c->lvl = CYEFM_LVL;
 }
 
-#define DM_CBEFM_DEF {"CBEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("SNAP", F_INT, 0, 127, 0), PD("FB", F_INT, 0, 127, 0), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0)}, cbefm_trigger, \
+#define DM_CBEFM_DEF {"CBEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -2), PD("DECAY", F_INT, 0, 127, 61), \
+    PD("SNAP", F_INT, 0, 127, 92), PD("FB", F_INT, 0, 127, 56), PD("MOD", F_INT, 0, 127, 17), \
+    PD("MFRQ", F_INT, 0, 127, 112), PD("MDEC", F_INT, 0, 127, 42), PD("-", F_INT, 0, 0, 0)}, cbefm_trigger, \
     cbefm_render}
-#define DM_HHEFM_DEF {"HHEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("TREM", F_INT, 0, 127, 0), PD("TFRQ", F_INT, 0, 127, 64), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("FB", F_INT, 0, 127, 0)}, hhefm_trigger, \
+#define DM_HHEFM_DEF {"HHEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -2), PD("DECAY", F_INT, 0, 127, 52), \
+    PD("TREM", F_INT, 0, 127, 0), PD("TFRQ", F_INT, 0, 127, 0), PD("MOD", F_INT, 0, 127, 3), \
+    PD("MFRQ", F_INT, 0, 127, 12), PD("MDEC", F_INT, 0, 127, 78), PD("FB", F_INT, 0, 127, 26)}, hhefm_trigger, \
     hhefm_render}
-#define DM_CYEFM_DEF {"CYEFM", 2, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("FB", F_INT, 0, 127, 0), PD("HPF", F_INT, 0, 127, 0), PD("MOD", F_INT, 0, 127, 64), \
-    PD("MFRQ", F_INT, 0, 127, 64), PD("MDEC", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0)}, cyefm_trigger, \
+#define DM_CYEFM_DEF {"CYEFM", 2, 0, {PD("TUNE", F_SEMI, -24, 24, -2), PD("DECAY", F_INT, 0, 127, 93), \
+    PD("FB", F_INT, 0, 127, 22), PD("HPF", F_INT, 0, 127, 107), PD("MOD", F_INT, 0, 127, 76), \
+    PD("MFRQ", F_INT, 0, 127, 88), PD("MDEC", F_INT, 0, 127, 86), PD("-", F_INT, 0, 0, 0)}, cyefm_trigger, \
     cyefm_render}

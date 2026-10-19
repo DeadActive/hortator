@@ -124,7 +124,7 @@ static void b2trx_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);                                      /* (the high-pass' tail too: 1 LSB) */
 }
 
-#define DM_B2TRX_DEF {"B2TRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
-    PD("RAMP", F_INT, 0, 127, 0), PD("HOLD", F_INT, 0, 127, 0), PD("TICK", F_INT, 0, 127, 0), \
-    PD("NOISE", F_INT, 0, 127, 0), PD("DIRT", F_INT, 0, 127, 0), PD("DIST", F_INT, 0, 127, 0)}, b2trx_trigger, \
+#define DM_B2TRX_DEF {"B2TRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -1), PD("DECAY", F_INT, 0, 127, 74), \
+    PD("RAMP", F_INT, 0, 127, 33), PD("HOLD", F_INT, 0, 127, 22), PD("TICK", F_INT, 0, 127, 7), \
+    PD("NOISE", F_INT, 0, 127, 4), PD("DIRT", F_INT, 0, 127, 31), PD("DIST", F_INT, 0, 127, 6)}, b2trx_trigger, \
     b2trx_render}

@@ -62,14 +62,24 @@ static const char *name_of(uint32_t id)
     return b;
 }
 
-/* every model's first preset is its current default sound, named as the model (until Task 5's banks) */
+/* the banks (plan 2026-10-19-presets Task 5, tools/presets.json -> preset_bank.h): every voice's default = its first
+ * preset (MATRX, CLTRX: none, their defaults kept); MACHINEDRUM 55, CLASSIC 56, MODERN 40; names unique, 1..8
+ * characters; every knob within its model's range; at most 4 per voice, each in its voice's bank */
+static uint32_t bank_of_model(uint32_t m)
+{
+    return m >= DM_KTRX ? (uint32_t)PB_MD : m <= DM_CLAVE ? (uint32_t)PB_CLASSIC : (uint32_t)PB_MODERN;
+}
 static void test_defaults_are_first_presets(void)
 {
-    uint32_t m, i, ok = 1;
-    preset_t p;
+    uint32_t m, i, j, ok = 1, n[NMODELS] = {0};
+    preset_t p, q;
     for (m = 0; m < NMODELS; m++) {
         uint32_t id = preset_first_of(m);
-        ok &= id != PRE_NONE && preset_get(id, &p) && p.model == m && !strcmp(p.name, N_MODEL[m]);
+        if (m == DM_MATRX || m == DM_CLTRX) {
+            ok &= id == PRE_NONE;
+            continue;
+        }
+        ok &= id != PRE_NONE && preset_get(id, &p) && p.model == m;
         for (i = 0; ok && i < 8u; i++)
             ok &= DMODELS[m].edit[i].def == p.k[i];
         if (!ok) {
@@ -77,20 +87,40 @@ static void test_defaults_are_first_presets(void)
             break;
         }
     }
-    check("every model's first preset = its default knobs, named as the model", ok);
-    check("one preset per model, every bank's ids in order (MD 21, CLASSIC 14, MODERN 10, USER 128)",
-          PRE_NFACT == NMODELS && PRE_BANK_START[PB_MD] == 0u && PRE_BANK_START[PB_CLASSIC] == 21u &&
-              PRE_BANK_START[PB_MODERN] == 35u && PRE_BANK_START[PB_USER] == PRE_NFACT &&
-              PRE_BANK_START[PB_N] == PRE_NFACT + PRE_NUSER);
-    ok = preset_get(0, &p) && p.model == DM_KTRX && preset_get(20, &p) && p.model == DM_CYEFM &&
-         preset_get(21, &p) && p.model == DM_K808 && preset_get(34, &p) && p.model == DM_CLAVE &&
-         preset_get(35, &p) && p.model == DM_KBOOM && preset_get(44, &p) && p.model == DM_SMPL;
+    check("every model's default knobs = its first preset's (MATRX, CLTRX: no preset)", ok);
+    ok = PRE_NFACT == 151u && PRE_BANK_START[PB_MD] == 0u && PRE_BANK_START[PB_CLASSIC] == 55u &&
+         PRE_BANK_START[PB_MODERN] == 111u && PRE_BANK_START[PB_USER] == PRE_NFACT &&
+         PRE_BANK_START[PB_N] == PRE_NFACT + PRE_NUSER;
     for (i = 0; i < PRE_NFACT; i++)
-        ok &= preset_get(i, &p) && preset_bank_of(i) == (i < 21u ? (uint32_t)PB_MD : i < 35u ? (uint32_t)PB_CLASSIC
+        ok &= preset_get(i, &p) && preset_bank_of(i) == (i < 55u ? (uint32_t)PB_MD : i < 111u ? (uint32_t)PB_CLASSIC
                                                                                                : (uint32_t)PB_MODERN);
     ok &= preset_bank_of(user_id(0)) == PB_USER && preset_bank_of(user_id(127)) == PB_USER &&
           !preset_get(user_id(128), &p) && !preset_get(PRE_NONE, &p);
-    check("banks: MACHINEDRUM KTRX..CYEFM, CLASSIC K808..CLAVE, MODERN KBOOM..SMPL, then USER; a bad id: none", ok);
+    check("banks: MACHINEDRUM 55, CLASSIC 56, MODERN 40, then USER 128; a bad id: none", ok);
+    for (i = 0, ok = 1; i < PRE_NFACT; i++) {
+        uint32_t len = (uint32_t)strnlen(PRE_FACTORY[i].name, sizeof PRE_FACTORY[i].name);
+        p = PRE_FACTORY[i];
+        ok &= p.model < NMODELS && len >= 1u && len <= 8u && bank_of_model(p.model) == preset_bank_of(i) &&
+              ++n[p.model] <= 4u;
+        for (j = 0; j < 8u; j++)
+            ok &= p.k[j] >= DMODELS[p.model].edit[j].min && p.k[j] <= DMODELS[p.model].edit[j].max;
+        for (j = 0; j < i; j++) {
+            q = PRE_FACTORY[j];
+            ok &= strcmp(p.name, q.name) != 0;
+        }
+        if (!ok) {
+            printf("      preset %u %s\n", i, p.name);
+            break;
+        }
+    }
+    check("every preset: a name of 1..8 characters, unique; its knobs in its model's ranges; in its voice's bank; "
+          "<= 4 per voice", ok);
+    ok = preset_get(0, &p) && p.model == DM_KTRX && !strcmp(p.name, "SUBTHUMP") &&
+         preset_get(preset_first_of(DM_CPEFM), &p) && !strcmp(p.name, "BUZZCLAP") && p.k[0] == 24 &&
+         preset_get(PRE_BANK_START[PB_CLASSIC], &p) && p.model == DM_K808 && !strcmp(p.name, "ROUNDBD") &&
+         preset_get(PRE_BANK_START[PB_MODERN], &p) && p.model == DM_KBOOM && !strcmp(p.name, "BOOMBD") &&
+         preset_get(PRE_NFACT - 1u, &p) && p.model == DM_SMPL && !strcmp(p.name, "LOFICONG");
+    check("SUBTHUMP first, BUZZCLAP CPEFM's default (TUNE +24), ROUNDBD, BOOMBD each bank's first, LOFICONG last", ok);
     check("bank names", !strcmp(N_PBANK[PB_MD], "MACHINEDRUM") && !strcmp(N_PBANK[PB_USER], "USER"));
 }
 
@@ -184,9 +214,10 @@ static void test_step_order_and_wrap(void)
           preset_step(t, user_id(7), -1) == user_id(5));
     drum_set_model(&trk[1], DM_ACID);
     drum_set_model(&trk[2], DM_ACID);
-    id = preset_first_of(DM_ACID);
-    check("ACID on 2 other tracks: its presets skipped", preset_step(t, id - 1u, 1) == id + 1u &&
-          preset_step(t, id + 1u, -1) == id - 1u);
+    id = preset_first_of(DM_ACID);                     /* ACID's 4 presets: id .. id + 3 */
+    check("ACID on 2 other tracks: its presets skipped", preset_step(t, id - 1u, 1) == id + 4u &&
+          preset_step(t, id + 4u, -1) == id - 1u && PRE_FACTORY[id + 3u].model == DM_ACID &&
+          PRE_FACTORY[id + 4u].model != DM_ACID);
     check("... not by one of the two ACID tracks", preset_step(&trk[1], id - 1u, 1) == id);
     for (id = preset_step(t, PRE_NONE, 1); n < 400u; n++)
         id = preset_step(t, id, 1);

@@ -1548,7 +1548,7 @@ static int foot_note(char *b)
 /* footer: the bank's 16 steps; the model, track and page */
 static void draw_foot(void)
 {
-    char ti[20], tn[4], fn[16], ml[32], pn[9];
+    char ti[20], tn[4], fn[16], ml[32], pn[10];         /* pn: a preset's name (8), "*", NUL */
     const track_t *t = TSEL;
     const page_t *pg = cur_page();
     const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];

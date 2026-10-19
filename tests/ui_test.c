@@ -5651,7 +5651,9 @@ static void test_popup_fast_while_playing(void)
 /* Review Focus 2: ACID on 2 tracks: the popup skips ACID's presets, the list refuses them; never a third ACID track */
 static void test_popup_skips_capped_acid(void)
 {
-    uint32_t a = preset_first_of(DM_ACID), k, n;
+    uint32_t a = preset_first_of(DM_ACID), z = a, k, n;
+    while (z < PRE_NFACT && PRE_FACTORY[z].model == DM_ACID)
+        z++;                                            /* z: the preset after ACID's (a .. z - 1) */
     ui_host_init();
     users_clear();
     drum_set_model(&trk[0], DM_ACID);
@@ -5662,10 +5664,11 @@ static void test_popup_skips_capped_acid(void)
     pre_turn(1);
     for (k = 0, n = 0; k < NTRK; k++)
         n += trk[k].p[P_MODEL] == DM_ACID;
-    check("PRESETS with ACID on 2 tracks: the detent past ACID's preset to the one after it",
-          trk[2].pre == a + 1u && trk[2].p[P_MODEL] != DM_ACID && n == 2u);
-    check("PRESETS with ACID on 2 tracks: the popup leaves it out", ui.pr.shown[1] == a - 1u && ui.pr.shown[0] != a &&
-                                                                    ui.pr.shown[3] != a && ui.pr.shown[4] != a);
+    check("PRESETS with ACID on 2 tracks: the detent past ACID's presets to the one after them",
+          z > a + 1u && trk[2].pre == z && trk[2].p[P_MODEL] != DM_ACID && n == 2u);
+    for (k = 0, n = 0; k < 5u; k++)
+        n += ui.pr.shown[k] >= a && ui.pr.shown[k] < z;
+    check("PRESETS with ACID on 2 tracks: the popup leaves them out", ui.pr.shown[1] == a - 1u && n == 0u);
     snap_page("presets/05_popup_acid_capped");
     pre_turn(-1);
     check("PRESETS with ACID on 2 tracks: back past it too", trk[2].pre == a - 1u);
