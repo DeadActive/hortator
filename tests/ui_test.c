@@ -1626,10 +1626,11 @@ static void test_home_keys_and_lfo(void)
     keys(0);
     ui_frame();
     check("HOME: white key 4 selects track 4 and plays it", ui.home && song.sel == 3 && hit_age(&trk[3]) != a);
-    for (y = Y_GAUGE - 6u, amb = 0; y < Y_SEP_END; y++)
-        for (x = 64; x < 120u; x++)   /* column 2 */
-            amb += fb[y * 240u + x] == C_AMB;
-    check("HOME: no LFO, no marker on the gauges", amb == 0u);
+    for (y = Y_KNOB + 14u, amb = 0; y < Y_KNOB + H_KNOB; y++)
+        for (x = 61; x < 120u; x++)   /* column 2: its knob */
+            amb += fb[y * 240u + x] == C_INK;
+    x = amb;                                         /* (the knob without an LFO dot) */
+    check("HOME: no LFO, no marker on the knobs", amb > 0u);
     TSEL->p[P_LFO1 + LF_WAVE] = LW_SQUARE;
     TSEL->p[P_LFO1 + LF_MODE] = LM_HZ;
     TSEL->p[P_LFO1 + LF_RATE] = 60;
@@ -1637,10 +1638,11 @@ static void test_home_keys_and_lfo(void)
     TSEL->p[P_LFO1 + LF_DEPTH] = 40;
     for (a = 0; a < 50u; a++)
         ui_frame();
-    for (y = Y_GAUGE - 6u, amb = 0; y < Y_SEP_END; y++)
-        for (x = 64; x < 120u; x++)   /* column 2 */
-            amb += fb[y * 240u + x] == C_AMB;
-    check("HOME: an LFO on the second knob marks its live value on that gauge", amb > 0u);
+    a = x;
+    for (y = Y_KNOB + 14u, amb = 0; y < Y_KNOB + H_KNOB; y++)
+        for (x = 61; x < 120u; x++)   /* column 2: its knob */
+            amb += fb[y * 240u + x] == C_INK;
+    check("HOME: an LFO on the second knob marks its live value (a hollow dot outside the ring)", amb >= a + 6u);
     snap_page("lfo/91_home_marker");
 }
 
@@ -2182,6 +2184,70 @@ static void test_msg_popup(void)
     check("message: gone after its time (its shadow edge repainted away)", !ui.msg_t &&
           !(fb[120u * 240u + edge] == C_INK && fb[120u * 240u + edge - 1u] == C_INK &&
             fb[120u * 240u + edge - 2u] == C_BG));
+}
+
+/* spec 2026-10-19-md-ui §5 knob cell c: its canvas x c*60+1, the knob at (c*60+17, Y_KNOB+28) r 8, the value right
+ * of it (right edge x c*60+55, rows Y_KNOB+24..33); a discrete parameter: its text centred, no knob */
+static void open_filter(void)
+{
+    ui_host_init();
+    tap(B_FX);
+    ui.force = 1;
+    ui_frame();
+}
+
+static void test_cell_knob_vs_text(void)
+{
+    open_filter();
+    check("cell: FILTER TYPE (an enum) is text, no knob (no tick / ring at x 17)", str_eq(cur_page()->title, "FILTER") &&
+          fb[(Y_KNOB + 18u) * 240u + 17u] == C_BG && fb[(Y_KNOB + 20u) * 240u + 17u] == C_BG);
+    check("cell: CUT (continuous) a knob: the tick and the ring's top at x 77",
+          fb[(Y_KNOB + 18u) * 240u + 77u] == C_INK && fb[(Y_KNOB + 20u) * 240u + 77u] == C_INK &&
+          fb[(Y_KNOB + 19u) * 240u + 77u] == C_BG);
+    check("cell: labels in ink on the theme's ground", fb_count(61, Y_KNOB + 2u, 58, 10, C_INK) > 20u &&
+          fb_count(61, Y_KNOB, 58, 43, C_BG) > 58u * 43u / 2u);
+}
+
+static void test_cell_touched(void)
+{
+    uint32_t box0, box1, box2, k, same = 1;
+    uint16_t crumb0[240 * 10];
+    open_filter();
+    box0 = fb_count(87, Y_KNOB + 22u, 30, 13, C_INK);
+    memcpy(crumb0, fb + (Y_CRUMB + 8u) * 240u, sizeof crumb0);
+    turn(EN_K2, 1);
+    ui_frame();
+    box1 = fb_count(87, Y_KNOB + 22u, 30, 13, C_INK);
+    for (k = 0; k < 240u * 10u; k++)
+        same &= fb[(Y_CRUMB + 8u) * 240u + k] == crumb0[k];
+    check("cell touched: the value inverted (an ink box behind it)", ui.hot_t && ui.hot_col == 1u && box1 > box0 + 80u);
+    check("cell touched: the breadcrumb shows the parameter's full value (CUT ... HZ, the page number gone)",
+          !same && fb_count(200, Y_CRUMB + 8u, 34, 10, C_BG) == 0u && fb_count(6, Y_CRUMB + 8u, 60, 10, C_BG) > 40u);
+    for (k = 0; k < 60u && ui.hot_t; k++)
+        ui_frame();
+    ui_frame();
+    box2 = fb_count(87, Y_KNOB + 22u, 30, 13, C_INK);
+    same = 1;
+    for (k = 0; k < 240u * 10u; k++)
+        same &= fb[(Y_CRUMB + 8u) * 240u + k] == crumb0[k];
+    check("cell touched: both return when the touch times out", !ui.hot_t && box2 + 80u < box1 && same);
+    turn(EN_K2, 1);
+    ui_frame();
+    sel(1);                                          /* FILTER 2/2 */
+    ui_frame();
+    check("cell touched, then another page: nothing inverted there", !ui.hot_t &&
+          fb_count(87, Y_KNOB + 22u, 30, 13, C_INK) < box1 - 80u);
+}
+
+static void test_cell_value_fits(void)
+{
+    open_filter();
+    TSEL->p[P_FCUT] = (int16_t)TP[P_FCUT].max;      /* the widest cutoff */
+    ui.force = 1;
+    ui_frame();
+    check("cell: a long value fits right of the knob (x 86 clear, ink in x 87..115, nothing past x 116)",
+          fb_count(86, Y_KNOB + 22u, 1, 13, C_INK) == 0u && fb_count(87, Y_KNOB + 22u, 29, 13, C_INK) > 10u &&
+          fb_count(116, Y_KNOB + 22u, 4, 13, C_INK) == 0u);
 }
 
 static void snap_page(const char *name)
@@ -5825,6 +5891,9 @@ int main(void)
     test_crumb();
     test_trig_strip();
     test_msg_popup();
+    test_cell_knob_vs_text();
+    test_cell_touched();
+    test_cell_value_fits();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

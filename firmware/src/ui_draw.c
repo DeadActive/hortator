@@ -149,54 +149,59 @@ static void draw_frame(void)
     lcd_fill(0, Y_GRAPH - 1, 240, 1, C_INK);
 }
 
-#define LABEL_X (FELUCCA_ICONS ? ICON_CELL + ICON_GAP : 0)
+/* a knob cell (spec 2026-10-19-md-ui §5, §6), 59 x 43 at x c*60+1: the label centred over a dotted rule; a
+ * continuous parameter (ratio 0..1000): the MD knob, its LFO's live value (mod) a hollow dot outside it, the value
+ * right of it; a discrete one (ratio < 0): its text centred, no knob. vc C_WHITE: touched (the value inverted, and
+ * the breadcrumb shows it whole: ui.focus_*); C_DIM: inactive (the value dithered). At most 4 glyphs of the value. */
 static void draw_column_m(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
                           int32_t ratio, uint32_t icon, int32_t mod)
 {
-    char l[8], v[8], u[8], key[32];
-    int32_t x, gw = 52, fx;
-    if (icon == ICON_AUTO)
-        icon = icon_for_label(label);
-    fit(l, label, &FONT_S, 54 - LABEL_X);
-    fit(v, val, &FONT_S, 48);
-    fit(u, unit, &FONT_S, 54 - text_w(&FONT_S, v) - 3);
+    char l[8], v[8], key[40];
+    int32_t w = c == 3u ? 58 : 59, vw, vx;
+    uint32_t touched = vc == C_WHITE, dim = vc == C_DIM, n;
+    (void)icon;
+    md_fit(l, label, sizeof l, w - 2);
+    md_fit(v, val, 5, ratio >= 0 ? 28 : w - 4);
+    n = str_len(v);
+    if (n > 1u && v[n - 1u] == '.')                  /* "-24." -> "-24" */
+        v[n - 1u] = 0;
     str_cpy(key, l, 8);
     str_cpy(key + str_len(key), "|", 2);
     str_cpy(key + str_len(key), v, 8);
-    str_cpy(key + str_len(key), "|", 2);
-    str_cpy(key + str_len(key), u, 8);
-    {
-        uint32_t n = str_len(key);
-        key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2);
-        key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
-        key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);
-        key[n + 3] = (char)(' ' + (mod < 0 ? 0 : 1 + mod / 20));
-        key[n + 4] = 0;
-    }
+    n = str_len(key);
+    key[n] = (char)('A' + touched + dim * 2u);
+    key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 10));
+    key[n + 2] = (char)(' ' + (mod < 0 ? 0 : 1 + mod / 10));
+    key[n + 3] = 0;
     if (c == ui.hot_col) {
-        str_cpy(ui.focus_l, l, 8);
-        str_cpy(ui.focus_v, v, 8);
-        str_cpy(ui.focus_u, u, 8);
+        str_cpy(ui.focus_l, label, 8);
+        str_cpy(ui.focus_v, val, 8);
+        str_cpy(ui.focus_u, unit, 8);
     }
     if (!ui.force && str_eq(key, ui.col[c]))
         return;
     str_cpy(ui.col[c], key, sizeof ui.col[c]);
-    cv_begin(55, Y_SEP_END - Y_LABEL, C_BLACK);
-    if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
-        cv_icon(0, 1, icon, C_GRAY);
-    cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, C_GRAY);
-    x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vc);
-    cv_text(x + 3, Y_VALUE - Y_LABEL, &FONT_S, u, C_DIM);
-    if (ratio >= 0) {
-        int32_t gy = Y_GAUGE - Y_LABEL;
-        fx = ratio * gw / 1000;
-        cv_rect(0, gy + 1, gw, 1, C_LINE);
-        cv_rect(0, gy, fx, 3, C_DIM);
-        cv_rect(fx, gy - 1, 1, 5, vc == C_WHITE ? C_WHITE : C_HI);
-        if (mod >= 0)                                 /* an LFO on this knob: its live value */
-            cv_rect(mod * gw / 1000, gy + 4, 2, 2, C_AMB);
+    cv_begin_at((uint32_t)w, H_KNOB, Y_KNOB, C_BG);
+    if (l[0]) {
+        md_text((w - md_text_w(&MD_F3, 2, l)) / 2, 2, &MD_F3, 2, l, C_INK);
+        cv_hdot(1, w - 2, 14, C_INK);
     }
-    cv_blit(c * 60u + 4u, Y_LABEL);
+    vw = md_text_w(&MD_F3, 2, v);
+    if (ratio >= 0) {
+        cv_knob(16, 28, 8, ratio, mod, C_INK);
+        vx = 54 - vw;
+    } else {
+        vx = (w - vw) / 2;
+    }
+    if (touched && v[0]) {
+        cv_rect(vx - 2, 22, vw + 4, 13, C_INK);
+        md_text(vx, 24, &MD_F3, 2, v, C_BG);
+    } else {
+        md_text(vx, 24, &MD_F3, 2, v, C_INK);
+        if (dim)                                      /* half its pixels: the MD's grey */
+            cv_dither(vx, 24, vw, 10, C_BG);
+    }
+    cv_blit(c * 60u + 1u, Y_KNOB);
 }
 
 static void draw_column(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
@@ -1561,6 +1566,18 @@ static void draw_foot(void)
     md_fit(left, b, sizeof left, 112);
     if (note)
         right[0] = 0;
+    if (ui.hot_t && ui.hot_col < 4u && ui.focus_l[0]) {   /* a knob touched: its whole value ("CUT 16.0 KHZ") */
+        str_cpy(b, ui.focus_l, sizeof b);
+        str_cpy(b + str_len(b), " ", 2);
+        str_cpy(b + str_len(b), ui.focus_v, sizeof b - str_len(b));
+        if (ui.focus_u[0]) {
+            str_cpy(b + str_len(b), " ", 2);
+            str_cpy(b + str_len(b), ui.focus_u, sizeof b - str_len(b));
+        }
+        md_fit(left, b, sizeof left, 226);
+        right[0] = 0;
+        note = 0;
+    }
     ml[0] = 0;
     if (ui.ml.on)                                    /* MIDI LEARN (ui_learn.c): its line across the breadcrumb */
         ml_line(ml);
@@ -1650,7 +1667,8 @@ static void draw_columns(void)
                 int32_t mv, mod = -1;                /* an LFO on the knob: its live value, as on EDIT */
                 if (lfo_live(TSEL, P_E0 + c, &mv))
                     mod = RATIO(d, mv);
-                draw_column_m(c, d->label, val, unit, VAL(c), RATIO(d, *vp), param_icon(d, *vp), mod);
+                draw_column_m(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM ? -1 : RATIO(d, *vp),
+                              param_icon(d, *vp), mod);
             }
         }
         return;
@@ -1723,7 +1741,7 @@ static void draw_columns(void)
             int32_t mv, mod = -1;
             if (pg->scope == SC_TRACK && lfo_live(TSEL, page_id(pg, c), &mv))
                 mod = RATIO(d, mv);
-            draw_column_m(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+            draw_column_m(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM ? -1 : RATIO(d, *vp),
                           param_icon(d, *vp), mod);
         }
     }
