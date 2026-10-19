@@ -6819,6 +6819,105 @@ static void test_list_seven_rows(void)
     check("list: two hint lines (OCT+ / SAVE, OCT- / EDIT), no K1 / K2 line", bands == 2u);
 }
 
+/* the md-ui final review's deferred minors (2026-10-19) */
+static uint32_t fb_diff(const uint16_t *a, uint32_t x0, uint32_t y0, uint32_t w, uint32_t h)   /* pixels changed */
+{
+    uint32_t x, y, n = 0;
+    for (y = y0; y < y0 + h; y++)
+        for (x = x0; x < x0 + w; x++)
+            n += fb[y * 240u + x] != a[y * 240u + x];
+    return n;
+}
+
+static void test_popups_keep_their_margins(void)
+{
+    static uint16_t a[240u * 240u];
+    uint32_t i;
+    ui_host_init();                                  /* the clear confirm: box x 28..211, y 82..156; its tab x 95..144 */
+    trk[0].step[0].on = 1;
+    open_step_page();
+    ui.force = 1;
+    ui_frame();
+    memcpy(a, fb, sizeof a);
+    fm1_in.buttons |= 1u << panel.btn[B_REC];
+    for (i = 0; i < 800; i++)
+        ui_input();
+    release_all();
+    ui_frame();
+    check("confirm: nothing beside its tab, left of it or under its shadow is wiped",
+          ui.confirm && fb_diff(a, 28, 76, 66, 6) + fb_diff(a, 146, 76, 66, 6) + fb_diff(a, 27, 76, 1, 84) +
+          fb_diff(a, 27, 157, 186, 3) + fb_diff(a, 212, 76, 1, 84) == 0u);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ui_host_init();                                  /* TEMPO: box x 30..209, y 76..166; its tab x 95..144 */
+    open_tracks();
+    ui.force = 1;
+    ui_frame();
+    memcpy(a, fb, sizeof a);
+    sel(1);
+    ui_frame();
+    check("TEMPO: nothing beside its tab, left of it or under its shadow is wiped",
+          ui.bpm_t && fb_diff(a, 30, 70, 64, 6) + fb_diff(a, 146, 70, 64, 6) + fb_diff(a, 29, 70, 1, 98) +
+          fb_diff(a, 29, 167, 182, 1) + fb_diff(a, 210, 70, 1, 98) == 0u);
+    for (i = 0; i < 45u; i++)
+        ui_frame();
+}
+
+static void test_crumb_unassigned_knob(void)
+{
+    ui_host_init();                                  /* RSTRX: HOME knob 4 has no parameter */
+    TSEL->p[P_MODEL] = DM_RSTRX;
+    ui.hot_col = 0;
+    ui.hot_t = 40;
+    ui.force = 1;
+    ui_frame();
+    ui.hot_col = 3;
+    ui.hot_t = 40;
+    ui_frame();
+    check("an unassigned knob touched: the breadcrumb does not keep the last knob's value", !ui.focus_l[0]);
+}
+
+static void test_song_rules_under_the_bar(void)
+{
+    ui_host_init();
+    seq_open("SONG");
+    ui.song_row = 0;
+    ui.force = 1;
+    ui_frame();
+    check("SONG: the column rules start under the first row's bar (no stubs over it), and run down",
+          fb_count(40, Y_GRAPH, 1, 3, C_INK) + fb_count(64, Y_GRAPH, 1, 3, C_INK) +
+          fb_count(100, Y_GRAPH, 1, 3, C_INK) == 0u && fb_count(40, 100, 1, 60, C_INK) > 20u);
+}
+
+static void test_about_moves_only_the_logo(void)
+{
+    uint32_t k, px;
+    ui_host_init();
+    hold(B_HOME);
+    for (k = 0; k < MI_ABOUT; k++) {
+        turn(EN_SELECT, 1);
+        ui_frame();
+    }
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    host_blit_px = 0;
+    fm1_ms += 70u;                                   /* the logo's next frame */
+    ui_frame();
+    px = host_blit_px;
+    check("ABOUT: a logo frame sends the logo, not the whole screen", ui.menu == 2 && px > 0u && px < 240u * 70u);
+    check("ABOUT: the credits stay", fb_lit(80, 230) > 300);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+}
+
 int main(void)
 {
     test_safe_start();
@@ -6998,6 +7097,10 @@ int main(void)
     test_list_load_closes();
     test_list_save_saves_real_sound();
     test_list_seven_rows();
+    test_popups_keep_their_margins();
+    test_crumb_unassigned_knob();
+    test_song_rules_under_the_bar();
+    test_about_moves_only_the_logo();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

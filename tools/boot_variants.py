@@ -6,13 +6,13 @@ and dither.
 
   boot_variants.py OUTDIR [N ...]        (N: only these screens, 1..20)
   boot_variants.py OUTDIR collapse       (screen 14 in ten faces: c01..c10)
-  boot_variants.py --ship                (C2 into assets/boot.png, the firmware's start screen)
 
 Screens 1-10 set the word in UnifrakturMaguntia (assets/fonts/, SIL OFL 1.1) stretched tall and
 emboldened. Screens 11-20 use one gothic or horror face each (FONTS: SIL OFL 1.1, fetched from
 Google Fonts into build/fonts-cache on first use) and do not care whether the word reads. Every
-screen uses the screen's seven levels only: 0 black, 1..5 the COLOR palette's five steps (gfx.c
-PALETTES), 6 white, so it recolours with the palette like the rest of the UI. OUTDIR gets vNN.png
+screen uses the screen's seven levels only: 0 black, 1..5 the five steps of the old COLOR
+palettes (gfx.c before the Machinedrum-style redesign), 6 white. A study only: the firmware's
+start screen is the VU logo (gfx.c cv_vu). OUTDIR gets vNN.png
 (the level 0..6 per pixel, 8-bit grey) and a preview vNN_<palette>.png per palette, through RGB565.
 """
 import sys
@@ -27,7 +27,7 @@ FONT = ROOT / "assets" / "fonts" / "UnifrakturMaguntia-Book.ttf"
 TEXT = "HortatoR"
 # intensity of each level, used when dithering a 0..1 field down to the seven levels
 LEVELS = np.array([0.0, 0.14, 0.30, 0.48, 0.68, 0.86, 1.0])
-PALETTES = {   # gfx.c PALETTES
+PALETTES = {   # the old gfx.c PALETTES
     "green": [(0, 40, 12), (0, 84, 30), (16, 140, 54), (56, 200, 92), (120, 255, 146)],
     "amber": [(60, 26, 0), (110, 50, 0), (170, 82, 0), (225, 120, 8), (255, 166, 40)],
     "cyan": [(0, 30, 50), (0, 62, 96), (16, 112, 160), (56, 172, 222), (140, 222, 255)],
@@ -759,27 +759,8 @@ def save(scr, name):
     print(f"{name}: levels {np.unique(scr).tolist()}")
 
 
-SHIP = ROOT / "assets" / "boot.png"     # the screen the firmware shows (tools/gen_boot.py): C2
-
-
-def ship():
-    """C2, CRT COLLAPSE in UnifrakturMaguntia, as assets/boot.png: palette image, pixel = level 0..6,
-    the palette is GREEN for viewing only (the firmware maps the levels to the chosen COLOR)"""
-    global OUT
-    OUT = ROOT / "build" / "boot_variants"
-    OUT.mkdir(parents=True, exist_ok=True)
-    scr = collapse(np.random.default_rng(1014), "maguntia")
-    assert scr.shape == (H, W) and scr.max() <= 6
-    im = Image.frombytes("P", (W, H), scr.astype(np.uint8).tobytes())
-    im.putpalette([v for c in [(0, 0, 0)] + PALETTES["green"] + [(255, 255, 255)] for v in c])
-    im.save(SHIP, optimize=True)
-    print(f"{SHIP.relative_to(ROOT)}: levels {np.unique(scr).tolist()}")
-
-
 def main():
     global OUT
-    if sys.argv[1:2] == ["--ship"]:
-        return ship()
     OUT = Path(sys.argv[1])
     OUT.mkdir(parents=True, exist_ok=True)
     if sys.argv[2:3] == ["collapse"]:

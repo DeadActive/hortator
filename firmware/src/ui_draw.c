@@ -66,7 +66,7 @@ static uint32_t cpu_alert(void)
 
 /* the top bar (spec 2026-10-19-md-ui §5): an ink bar; in BG the state glyph (stop, play, REC armed elsewhere: an
  * outlined circle, the selected track armed: solid), BPM, FX (a PERFORM knob effect on), the mode or the song's row,
- * T<n>, the CPU chip (blinking, 2 s after an overload), USB, battery. Messages are a popup (draw_msg). */
+ * T<n>, the CPU chip (steady for 2 s after an overload), USB, battery. Messages are a popup (draw_msg). */
 static void draw_head(void)
 {
     char b[16], m[16];
@@ -1500,9 +1500,9 @@ static void graph_song(void)
             md_text(108, y, &MD_F3, 2, f, pen);
         }
     }
-    cv_vdot(40, 2, 112, C_INK);                       /* the column rules: row | slot | repeats | name */
-    cv_vdot(64, 2, 112, C_INK);
-    cv_vdot(100, 2, 112, C_INK);
+    cv_vdot(40, 3, 112, C_INK);                       /* the column rules: row | slot | repeats | name (from the */
+    cv_vdot(64, 3, 112, C_INK);                       /* first row's bar down) */
+    cv_vdot(100, 3, 112, C_INK);
     cv_rect(0, 0, 1, H_GRAPH, C_INK);
     cv_rect(239, 0, 1, H_GRAPH, C_INK);
     cv_blit_from(0, Y_GRAPH, 0);
@@ -1803,6 +1803,16 @@ static void draw_msg(void)
     cv_blit((uint32_t)(120 - w / 2), 106u);
 }
 
+/* a popup's title tab where cv_popup puts it (6 px over the box at x, y, w wide), as its own canvas: the box's canvas
+ * starts at the box (cv_popup drew the tab's lower part in it), so nothing beside the tab is wiped */
+static void popup_tab(int32_t x, int32_t y, int32_t w, const char *title)
+{
+    int32_t tw = md_text_w(&MD_F3, 2, title) + 12;
+    cv_begin((uint32_t)tw, 6u, C_INK);
+    md_text(6, 3, &MD_F3, 2, title, C_BG);
+    cv_blit((uint32_t)(x + w / 2 - tw / 2), (uint32_t)(y - 6));
+}
+
 /* TEMPO (spec 2026-10-19-md-ui §7): while the BPM is being changed (ui.bpm_t), a popup with the BPM in the MD's tempo
  * digits at 3x (every frame, as messages); when it ends, everything repaints */
 static void draw_tempo(void)
@@ -1812,12 +1822,13 @@ static void draw_tempo(void)
     if (!ui.bpm_t || (!ui.force && ui.tempo_sig == (uint32_t)song.g[G_BPM] + 1u))
         return;
     ui.tempo_sig = (uint32_t)song.g[G_BPM] + 1u;
-    cv_begin(182, 98, C_BG);
-    cv_popup(1, 6, 180, 90, "TEMPO", C_INK, C_BG);
+    cv_begin(180, 91, C_BG);
+    cv_popup(0, 0, 180, 90, "TEMPO", C_INK, C_BG);
     fmt_int(b, song.g[G_BPM]);
     w = md_text_w(&MD_BIG, 3, b);
-    md_text(91 - w / 2, 34, &MD_BIG, 3, b, C_INK);
-    cv_blit(29, 70);
+    md_text(90 - w / 2, 28, &MD_BIG, 3, b, C_INK);
+    cv_blit(30, 76);
+    popup_tab(30, 76, 180, "TEMPO");
 }
 
 /* a confirm (spec §7): a popup over the page, the question's first word its title, OCT- NO / OCT+ YES as keycaps */
@@ -1830,14 +1841,15 @@ static void draw_confirm(const char *q, const char *q2)
         n++;
     }
     verb[n] = 0;
-    cv_begin(186, 84, C_BG);
-    cv_popup(1, 6, 184, 74, verb, C_INK, C_BG);
-    md_text(93 - md_text_w(&MD_F3, 2, q) / 2, 16, &MD_F3, 2, q, C_INK);
+    cv_begin(184, 75, C_BG);
+    cv_popup(0, 0, 184, 74, verb, C_INK, C_BG);
+    md_text(92 - md_text_w(&MD_F3, 2, q) / 2, 10, &MD_F3, 2, q, C_INK);
     if (q2)
-        md_text(93 - md_text_w(&MD_F3, 2, q2) / 2, 30, &MD_F3, 2, q2, C_INK);
-    cv_keycap(12, 46, "OCT-", "NO", C_INK);
-    cv_keycap(100, 46, "OCT+", "YES", C_INK);
-    cv_blit(27, 76);
+        md_text(92 - md_text_w(&MD_F3, 2, q2) / 2, 24, &MD_F3, 2, q2, C_INK);
+    cv_keycap(11, 40, "OCT-", "NO", C_INK);
+    cv_keycap(99, 40, "OCT+", "YES", C_INK);
+    cv_blit(28, 82);
+    popup_tab(28, 82, 184, verb);
 }
 
 /* a parameter's label in at most 4 letters (the HOME strip's 38 px cells; the MD's own abbreviations) */
@@ -1905,8 +1917,11 @@ static void draw_home_strip(void)
         int32_t mv;
         l[c][0] = v[c][0] = 0;
         r[c] = md[c] = -1;
-        if (!d->label || d->label[0] == '-')
+        if (!d->label || d->label[0] == '-') {
+            if (c == ui.hot_col)                      /* touched, no parameter: no whole value in the breadcrumb */
+                ui.focus_l[0] = 0;
             continue;
+        }
         param_format(d, *vp, val, &unit);
         md_fit(l[c], abbr4(d->label, ab), sizeof l[c], 36);
         md_fit(v[c], val, 5, 36);

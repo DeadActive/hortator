@@ -52,6 +52,17 @@ static void test_md_text(void)
     cv_begin(16, 16, BG);
     md_text(0, 0, &MD_F3, 2, "\x01", INK);
     check("md_text: a glyph the font lacks draws as '?'", pattern_at(0, 0, 2, Q));
+    {
+        const char *ch;
+        int own = 1;
+        for (ch = "$@^{}~"; *ch; ch++) {               /* (names may come from elsewhere than the NAME screen) */
+            char s[2] = {*ch, 0};
+            cv_begin(16, 16, BG);
+            md_text(0, 0, &MD_F3, 2, s, INK);
+            own &= !pattern_at(0, 0, 2, Q);
+        }
+        check("md_text: $ @ ^ { } ~ have glyphs of their own", own);
+    }
     check("md_text_w: BIG '1' is 3 wide (6 at 2x)", md_text_w(&MD_BIG, 2, "1") == 6);
     check("md_text_w: '12' at 2x = 3 + 1 + 3 font px = 14 (no trailing gap)", md_text_w(&MD_F3, 2, "12") == 14);
 }

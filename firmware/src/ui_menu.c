@@ -30,18 +30,29 @@ static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting,
 
 static void draw_menu(void)
 {
-    uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
+    static int16_t pk[8];                           /* ABOUT: the logo's peak dots */
+    static uint32_t pf;                             /* the logo's frame shown */
+    uint32_t i, pass, fr = fm1_ms / 66u,
+                      sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u +
-                            settings.perfpage * 49979687u + backlight * 67867967u +
-                            (ui.menu == 2 ? (fm1_ms / 66u + 1u) * 2654435761u : 0u);   /* ABOUT: the logo moves (15 fps) */
+                            settings.perfpage * 49979687u + backlight * 67867967u;
 #if FELUCCA_BLE
     if (ui.menu == 3u) {                            /* the Bluetooth page: its own drawing and signature */
         bt_page_draw();
         return;
     }
 #endif
-    if (!ui.force && sig == ui.menu_sig)
+    if (!ui.force && sig == ui.menu_sig) {
+        if (ui.menu == 2 && fr != pf) {             /* ABOUT: the logo moves (15 fps), alone: rows 17..77, x 82..157
+                                                     * (an even x: the dither keeps its phase) */
+            pf = fr;
+            cv_begin_at(76, 61, 17, C_BG);
+            cv_oy = -17;
+            cv_vu(2, 18, fr, 1, pk);
+            cv_blit(82, 17);
+        }
         return;
+    }
     ui.menu_sig = sig;
     ui.force = 1;
     draw_head();                                    /* the top bar as everywhere */
@@ -58,9 +69,6 @@ static void draw_menu(void)
                                              "GITHUB.COM/HUGELTON/FELUCCA", "PIXEL FONT: DEADACTIVE",
                                              "SAMPLES: VERSILIAN (CC0)",
                                              "+ H\xDCGELTON SAMPLE PACK"};
-            static int16_t pk[8];                   /* the logo's peak dots */
-            static uint32_t pf;
-            uint32_t fr = fm1_ms / 66u;
             if (pass == 0u && fr != pf) {           /* (the peaks step once a frame, not once a band) */
                 pf = fr;
                 cv_vu(84, 18, fr, 1, pk);
