@@ -624,28 +624,55 @@ static void graph_roll(const track_t *t, uint16_t c)
 /* GRIDS pages. MAP: the 5 x 5 node map (faint) with the X / Y point, and the three channels' 32 steps without
  * chaos (accent tall, playhead underlined). EUCLID: three rings of LEN positions (accent large, playhead marked).
  * Page 2 adds the routing: which tracks play each channel. */
+/* OFF (a type / model switched off): F3 at 6x centred, a 3-row dither band above and below it (graph rows) */
+static void off_word(void)
+{
+    int32_t w = md_text_w(&MD_F3, 6, "OFF"), x = (240 - w) / 2;
+    md_text(x, 35, &MD_F3, 6, "OFF", C_INK);
+    cv_dither(x - 6, 30, w + 12, 3, C_INK);
+    cv_dither(x - 6, 67, w + 12, 3, C_INK);
+}
+
+/* a horizontal meter (the MD's LEV, lying down): v (0..1000) of w px solid, 9 px tall, 2 px tick dashes every 6 px
+ * above (y - 3) and below (y + 10); dith: the fill dithered (a second meter beside a solid one) */
+static void hmeter(int32_t x, int32_t y, int32_t w, int32_t v, int dith)
+{
+    int32_t t;
+    v = clamp(v, 0, 1000);
+    if (dith)
+        cv_dither(x, y, w * v / 1000, 9, C_INK);
+    else
+        cv_rect(x, y, w * v / 1000, 9, C_INK);
+    for (t = x; t <= x + w; t += 6) {
+        cv_rect(t, y - 3, 1, 2, C_INK);
+        cv_rect(t, y + 10, 1, 2, C_INK);
+    }
+}
+
 static void graph_grids(uint16_t c, int routing)
 {
     static const char *const CH[3] = {"K", "S", "H"};
     uint32_t ch, i;
+    (void)c;
     if (!song.g[G_GMODE]) {
         int32_t px = 6 + song.g[G_GX] * 72 / 127, py = 6 + song.g[G_GY] * 72 / 127;
-        for (i = 0; i < 25u; i++)
-            cv_rect(5 + (int32_t)(i % 5u) * 18, 5 + (int32_t)(i / 5u) * 18, 2, 2, C_DIM);
-        cv_rect(px - 3, py - 3, 7, 7, C_WHITE);
+        for (i = 0; i < 25u; i++)                    /* the node map: 2x2 dots, the X / Y point a 7x7 block */
+            cv_rect(5 + (int32_t)(i % 5u) * 18, 5 + (int32_t)(i / 5u) * 18, 2, 2, C_INK);
+        cv_rect(px - 4, py - 4, 9, 9, C_BG);
+        cv_rect(px - 3, py - 3, 7, 7, C_INK);
         for (ch = 0; ch < 3u; ch++) {
             int32_t y = 4 + (int32_t)ch * 24;
-            cv_text(92, y + 2, &FONT_S, CH[ch], C_GRAY);
+            md_text(92, y + 4, &MD_F3, 2, CH[ch], C_INK);
             for (i = 0; i < 32u; i++) {
                 uint32_t b = grids_preview(ch, i);
                 int32_t x = 106 + (int32_t)i * 4 + (int32_t)(i / 8u) * 2;
                 int ph = song.playing && i == grids.last;
                 if (b & 1u)
-                    cv_rect(x, (b & 2u) ? y : y + 8, 3, (b & 2u) ? 18 : 10, ph ? C_WHITE : (b & 2u) ? C_WHITE : c);
+                    cv_rect(x, (b & 2u) ? y : y + 8, 3, (b & 2u) ? 18 : 10, C_INK);
                 else
-                    cv_rect(x, y + 17, 3, 1, C_DIM);
+                    cv_rect(x + 1, y + 17, 1, 1, C_INK);
                 if (ph)
-                    cv_rect(x, y + 20, 3, 2, C_WHITE);
+                    cv_rect(x, y + 20, 3, 2, C_INK);
             }
         }
     } else {
@@ -653,22 +680,23 @@ static void graph_grids(uint16_t c, int routing)
             uint32_t len = grids_len(ch);
             int32_t cx = 40 + (int32_t)ch * 80, cy = 36;
             char b[8];
+            cv_ring(cx, cy, 28, C_INK);
             for (i = 0; i < len; i++) {
                 uint32_t ph = i * (0xFFFFFFFFu / len), bb = grids_preview(ch, i);
                 int32_t x = cx + sine_i(ph) * 28 / 32768, y = cy - sine_i(ph + 0x40000000u) * 28 / 32768;
-                if (bb & 2u)
-                    cv_rect(x - 3, y - 3, 7, 7, C_WHITE);
+                if (bb & 2u)                          /* an accent: 7x7 solid; a hit: 5x5 solid; none: a 3x3 hole */
+                    cv_rect(x - 3, y - 3, 7, 7, C_INK);
                 else if (bb & 1u)
-                    cv_rect(x - 2, y - 2, 5, 5, c);
+                    cv_rect(x - 2, y - 2, 5, 5, C_INK);
                 else
-                    cv_rect(x - 1, y - 1, 2, 2, C_DIM);
+                    cv_frame(x - 1, y - 1, 3, 3, C_INK);
                 if (song.playing && i == grids.elast[ch])
-                    cv_rect(x - 4, y + 5, 9, 2, C_WHITE);
+                    cv_rect(x - 4, y + 5, 9, 2, C_INK);
             }
             str_cpy(b, CH[ch], sizeof b);
             str_cpy(b + 1, " ", sizeof b - 1);
             fmt_int(b + 2, (int32_t)len);
-            cv_text(cx - text_w(&FONT_S, b) / 2, 68, &FONT_S, b, C_GRAY);
+            md_text(cx - md_text_w(&MD_F3, 2, b) / 2, 70, &MD_F3, 2, b, C_INK);
         }
     }
     if (routing) {                                   /* "K: T1 T6  S: T2  H: -" */
@@ -695,18 +723,22 @@ static void graph_grids(uint16_t c, int routing)
                 n = str_len(r);
             }
         }
-        cv_text(4, 84, &FONT_S, r, C_AMB);
+        md_text(4, 86, &MD_F3, 2, r, C_INK);
     }
 }
 
 static void graph_fx(const track_t *t, uint16_t c)
 {
     uint32_t i;
-    for (i = 0; i < 4u; i++) {
+    int32_t y;
+    (void)c;
+    for (i = 0; i < 4u; i++) {                       /* the sends as MD LEV bars: solid from the bottom, tick dashes */
         int32_t h = t->p[P_DIST + i] * 80 / 127, x = (int32_t)i * 60 + 28;
-        cv_rect(x, 10, 1, 80, C_LINE);
-        cv_rect(x, 90 - h, 1, h, c);
-        cv_rect(x - 3, 90 - h, 7, 1, c);
+        cv_rect(x - 3, 90 - h, 7, h, C_INK);
+        for (y = 10; y <= 90; y += 6) {
+            cv_rect(x - 7, y, 2, 1, C_INK);
+            cv_rect(x + 6, y, 2, 1, C_INK);
+        }
     }
 }
 
@@ -714,21 +746,24 @@ static void graph_slicer(const track_t *t, uint16_t c)
 {
     uint32_t i, pat = sl_pattern(t), mode = (uint32_t)t->p[P_SLCR], cur = sl[t - trk].idx;
     int32_t open = 70 - t->p[P_SLDEPTH] * 70 / 127;      /* px a closed GATE step keeps */
-    uint16_t col = mode == SL_OFF ? C_DIM : c;
+    (void)c;
     for (i = 0; i < 16u; i++) {
         int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2, y;
         if ((pat >> i) & 1u) {
-            cv_rect(x, 10, 11, 70, col);
+            if (mode == SL_OFF)                          /* off: the pattern dithered */
+                cv_dither(x, 10, 11, 70, C_INK);
+            else
+                cv_rect(x, 10, 11, 70, C_INK);
         } else if (mode == SL_STUT) {
             for (y = 10; y < 80; y += 4)
-                cv_rect(x, y, 11, 1, col);
+                cv_rect(x, y, 11, 1, C_INK);
         } else {
-            cv_rect(x, 79, 11, 1, C_LINE);
+            cv_hdot(x, x + 10, 79, C_INK);
             if (open)
-                cv_rect(x, 80 - open, 11, open, C_DIM);
+                cv_dither(x, 80 - open, 11, open, C_INK);
         }
         if (mode != SL_OFF && i == cur)
-            cv_rect(x, 85, 11, 3, C_WHITE);
+            cv_rect(x, 85, 11, 3, C_INK);
     }
 }
 
@@ -750,13 +785,14 @@ static void graph_scope(uint16_t c)
             trig = i;
             break;
         }
-    cv_line(0, 50, 239, 50, C_LINE);
-    for (x = 0; x < 240; x++) {
+    cv_hdot(2, 237, 50, C_INK);
+    for (x = 2; x < 238; x++) {
         int32_t y = 50 - snap[trig + (uint32_t)x] * 44 / peak;   /* auto-scaled */
-        if (x)
-            cv_line(x - 1, py, x, y, c);
+        if (x > 2)
+            cv_line(x - 1, py, x, y, C_INK);
         py = y;
     }
+    (void)c;
 }
 
 
@@ -914,34 +950,36 @@ static void graph_comp(uint16_t c, int curve)
         }
     if (!any)
         str_cpy(r + n, " -", sizeof r - n);
-    cv_text(4, 2, &FONT_S, r, C_AMB);
-    cv_text(4, 24, &FONT_S, "GR", C_GRAY);
-    cv_rect(36, 31, curve ? 70 : 120, 1, C_LINE);
-    cv_rect(36, 27, clamp(dbx10, 0, 240) * (curve ? 70 : 120) / 240, 9, c);
+    md_text(4, 2, &MD_F3, 2, r, C_INK);
+    md_text(4, 27, &MD_F3, 2, "GR", C_INK);
+    hmeter(36, 27, curve ? 70 : 120, clamp(dbx10, 0, 240) * 1000 / 240, 0);
     comp_fmt_db10(v, -dbx10);
-    str_cpy(v + str_len(v), "dB", sizeof v - str_len(v));
-    cv_text(curve ? 36 : 162, curve ? 40 : 24, &FONT_S, v, C_WHITE);
-    cv_text(4, curve ? 62 : 46, &FONT_S, "IN", C_GRAY);
-    cv_rect(36, curve ? 69 : 53, curve ? 70 : 120, 1, C_LINE);
-    cv_rect(36, curve ? 65 : 49, (comp_on() ? meter_px(comp.peak) : 0) * (curve ? 70 : 120) / MX_LW, 9, C_AMB);
+    str_cpy(v + str_len(v), "DB", sizeof v - str_len(v));
+    md_text(curve ? 36 : 162, curve ? 42 : 27, &MD_F3, 2, v, C_INK);
+    md_text(4, curve ? 65 : 52, &MD_F3, 2, "IN", C_INK);
+    hmeter(36, curve ? 65 : 52, curve ? 70 : 120, (comp_on() ? meter_px(comp.peak) : 0) * 1000 / MX_LW, 1);
     {                                                   /* the source in the mix, next to its level (IN) */
         const char *st = comp_src_state();
-        cv_text(curve ? 36 : 162, curve ? 84 : 46, &FONT_S, st, str_eq(st, "HEARD") ? C_GRAY : C_AMB);
+        md_text(curve ? 36 : 162, curve ? 84 : 52, &MD_F3, 2, st, C_INK);
     }
-    if (curve) {
+    if (curve) {                                        /* the curve in a box, a dotted 4 x 4 grid */
         comp_set_t s = comp_knobs();
         comp_cfg_t cf;
         comp_configure(&s, &cf);
-        cv_rect(118, 22, 1, 77, C_LINE);
-        cv_rect(118, 98, 118, 1, C_LINE);
+        cv_frame(118, 22, 119, 77, C_INK);
+        for (k = 1; k < 4u; k++) {
+            cv_vdot(118 + (int32_t)k * 119 / 4, 24, 96, C_INK);
+            cv_hdot(120, 235, 22 + (int32_t)k * 77 / 4, C_INK);
+        }
         for (k = 0; k < 116u; k++) {
             int32_t in10 = -480 + (int32_t)k * 480 / 116, lvl = in10 * 65536 / 60;
             int32_t out10 = (lvl + comp_atten(&cf, lvl) + cf.makeup) * 60 / 65536;
             int32_t y = 98 - (out10 + 480) * 76 / 600;
-            if (y >= 22 && y <= 97)
-                cv_rect(120 + (int32_t)k, y, 1, 2, c);
+            if (y >= 23 && y <= 96)
+                cv_rect(120 + (int32_t)k, y, 1, 2, C_INK);
         }
     }
+    (void)c;
 }
 
 static int lfo_random(uint32_t wave) { return wave == LW_SH || wave == LW_WANDER || wave == LW_RWALK; }
@@ -975,42 +1013,52 @@ static void graph_lfo(uint16_t c, uint32_t l)
     const track_t *t = TSEL;
     const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
     uint32_t wave = (uint32_t)clamp(q[LF_WAVE], 0, LW_COUNT - 1), k, off = (uint32_t)clamp(q[LF_PHASE], 0, 127) << 25;
-    int32_t m = clamp(q[LF_MORPH], 0, 127), px;
+    int32_t m = clamp(q[LF_MORPH], 0, 127), px, dx, dy;
     char b[24];
+    (void)c;
     str_cpy(b, l ? "LFO 2" : "LFO 1", sizeof b);
-    cv_text(4, 2, &FONT_L, b, C_WHITE);
+    md_text(4, 4, &MD_F3, 4, b, C_INK);
     str_cpy(b, "RATE: ", sizeof b);
     str_cpy(b + str_len(b), N_LMODE[clamp(q[LF_MODE], 0, 2)], sizeof b - str_len(b));
-    cv_text(4, 44, &FONT_S, b, C_GRAY);
-    cv_rect(100, 40, 136, 1, C_LINE);
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, 40, C_INK);
     if (lfo_random(wave)) {
         for (k = 0, px = 0; k < ui.tr_n; k++) {      /* newest at the right edge, older to the left */
             int32_t py = 40 - ui.tr[(ui.tr_h + 135u - k) % 136u] * 68 / 32767;
             if (!k)
                 px = py;
-            cv_rect(235 - (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, c);
+            cv_rect(235 - (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, C_INK);
             px = py;
         }
-        cv_rect(233, 40 - lfo_out(t, l) * 34 / 32767 - 2, 5, 5, C_WHITE);
+        dx = 235;
+        dy = 40 - lfo_out(t, l) * 34 / 32767;
     } else {
-        for (k = 0, px = 0; k < 136u; k++) {         /* px: the previous point's y (joined: no gaps at edges) */
+        for (k = 0, px = 0; k < 136u; k++) {         /* px: the previous point's y (joined: no gaps at edges); the
+                                                       * area to the zero line dithered */
             int32_t py = 40 - lfo_shape(wave, m, k * (0xFFFFFFFFu / 136u) + off) * 34 / 32767;
             if (!k)
                 px = py;
-            cv_rect(100 + (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, c);
+            if (py < 39)
+                cv_dither(100 + (int32_t)k, py + 2, 1, 40 - py - 2, C_INK);
+            else if (py > 41)
+                cv_dither(100 + (int32_t)k, 41, 1, py - 41, C_INK);
+            cv_rect(100 + (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, C_INK);
             px = py;
         }
-        px = (int32_t)(t->lfo[l].ph / (0xFFFFFFFFu / 136u));
-        cv_rect(100 + px - 2, 40 - lfo_out(t, l) * 34 / 32767 - 2, 5, 5, C_WHITE);
+        dx = 100 + (int32_t)(t->lfo[l].ph / (0xFFFFFFFFu / 136u));
+        dy = 40 - lfo_out(t, l) * 34 / 32767;
     }
+    cv_rect(dx - 3, dy - 3, 7, 7, C_BG);             /* the live value: 5x5 solid, a clear ring round it */
+    cv_rect(dx - 2, dy - 2, 5, 5, C_INK);
     {
-        str_cpy(b, "-> ", sizeof b);
-        str_cpy(b + 3, lfo_dest_label(t, q[LF_DEST]), sizeof b - 3);
+        str_cpy(b, "> ", sizeof b);
+        str_cpy(b + 2, lfo_dest_label(t, q[LF_DEST]), sizeof b - 2);
         str_cpy(b + str_len(b), " ", sizeof b - str_len(b));
         fmt_int(b + str_len(b), clamp(q[LF_DEPTH], -64, 64) * 100 / 64);
         str_cpy(b + str_len(b), "%", sizeof b - str_len(b));
-        cv_text(4, 84, &FONT_S, b, C_AMB);
-        cv_text(170, 84, &FONT_S, N_LTRIG[clamp(q[LF_TRIG], 0, 2)], C_GRAY);
+        md_text(4, 86, &MD_F3, 2, b, C_INK);
+        md_text(234 - md_text_w(&MD_F3, 2, N_LTRIG[clamp(q[LF_TRIG], 0, 2)]), 86, &MD_F3, 2,
+                N_LTRIG[clamp(q[LF_TRIG], 0, 2)], C_INK);
     }
 }
 
@@ -1023,9 +1071,11 @@ static void graph_reson(uint16_t c)
     uint32_t m = (uint32_t)clamp(t->p[P_RMODEL], 0, RS_NMODEL - 1), h, n;
     int32_t note = clamp(t->p[P_RTUNE], 24, 96);
     char b[24];
-    cv_text(4, 2, &FONT_L, N_RMODEL[m], m ? C_WHITE : C_GRAY);   /* the knob's names: 5 letters fit left of x 100 */
-    if (!m)
+    if (!m) {
+        off_word();
         return;
+    }
+    md_text(4, 4, &MD_F3, 4, N_RMODEL[m], C_INK);
     b[0] = 0;
     if (m == RS_CHORD) {
         note = note < 48 ? 48 : note;
@@ -1039,8 +1089,8 @@ static void graph_reson(uint16_t c)
         str_cpy(b, N_NOTE[(uint32_t)note % 12u], sizeof b);
         fmt_int(b + str_len(b), note / 12 - 1);
     }
-    cv_text(4, 44, &FONT_S, b, C_GRAY);
-    cv_rect(100, 74, 136, 1, C_LINE);
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, 74, C_INK);
     if (m == RS_MODAL) {
         for (h = 0; h < PX_NMODE; h++) {
             uint32_t r = px_modal_ratio(clamp(t->p[P_RSTRCT], 0, 127) * 516, h), lg = 0, x;
@@ -1051,7 +1101,7 @@ static void graph_reson(uint16_t c)
             lg += (r - 65536u) >> 8;
             x = lg * 34u / 256u;
             if (x < 136u)
-                cv_rect(100 + (int32_t)x, 74 - (int32_t)(56u - h * 4u), 2, (int32_t)(56u - h * 4u), c);
+                cv_rect(100 + (int32_t)x, 74 - (int32_t)(56u - h * 4u), 2, (int32_t)(56u - h * 4u), C_INK);
         }
     } else
     for (h = 0; h < (m == RS_CHORD ? 4u : 16u); h++) {
@@ -1059,10 +1109,10 @@ static void graph_reson(uint16_t c)
         if (m == RS_PIPE && (h & 1u))
             continue;                                 /* PIPE: odd partials only (h = 0 is the 1st) */
         n = m == RS_CHORD ? 50u : 56u - h * 3u;
-        cv_rect(100 + (int32_t)x, 74 - (int32_t)n, 2, (int32_t)n, c);
+        cv_rect(100 + (int32_t)x, 74 - (int32_t)n, 2, (int32_t)n, C_INK);
     }
-    cv_rect(4, 84, 92, 1, C_LINE);
-    cv_rect(4, 82, (int32_t)((uint32_t)t->rs.peak * 92u / 32767u), 5, C_AMB);
+    (void)c;
+    hmeter(4, 80, 86, (int32_t)((uint32_t)t->rs.peak * 1000u / 32767u), 0);   /* the ring's level */
 }
 
 /* FILTER: TYPE's response at CUT / RESO (an approximation: flat, the RESO peak, 12 dB / octave; BP 6 dB; the
@@ -1087,24 +1137,27 @@ static void graph_filter(uint16_t c)
     int32_t cx = clamp(t->p[P_FCUT], 0, 127) * 135 / 127, x, py = 0, ex;
     char b[16];
     const char *u;
-    cv_text(4, 2, &FONT_L, N_FTYPE[ty], ty ? C_WHITE : C_GRAY);
-    if (!ty)
+    (void)c;
+    if (!ty) {
+        off_word();
         return;
+    }
+    md_text(4, 4, &MD_F3, 4, N_FTYPE[ty], C_INK);
     param_format(&TP[P_FCUT], t->p[P_FCUT], b, &u);
     str_cpy(b + str_len(b), u, sizeof b - str_len(b));    /* "1.0kHz" */
-    cv_text(4, 44, &FONT_S, b, C_GRAY);
-    cv_rect(100, 28, 136, 1, C_LINE);                          /* 0 dB */
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, 28, C_INK);                              /* 0 dB */
     for (x = 0; x < 136; x++) {
         int32_t db = clamp(flt_resp_db(ty, x - cx, clamp(t->p[P_FRESO], 0, 127)), -36, 18);
         int32_t y = 28 - db * 3 / 2;
         if (x)
-            cv_line(99 + x, py, 100 + x, y, c);
+            cv_line(99 + x, py, 100 + x, y, C_INK);
         py = y;
     }
     ex = clamp(t->p[P_FCUT] + t->p[P_FENV], 0, 127) * 135 / 127;   /* ENV: the cutoff at the hit */
     if (t->p[P_FENV])
         for (x = 10; x < 84; x += 4)
-            cv_rect(100 + ex, x, 1, 2, C_AMB);
+            cv_rect(100 + ex, x, 1, 2, C_INK);
 }
 
 static uint32_t graph_signature(void)

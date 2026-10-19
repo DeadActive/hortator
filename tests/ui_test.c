@@ -878,7 +878,7 @@ static void test_lfo_trail(void)
     printf("     LFO trail: %u points, %u changes\n", (unsigned)ui.tr_n, (unsigned)distinct);
     check("LFO S&H trail: full width, made of the LFO's values, several steps", ui.tr_n == 136u && ok && distinct >= 3u);
     y = (uint32_t)(Y_GRAPH + G_OY + 40 - lfo_out(TSEL, 0) * 34 / 32767);
-    check("LFO S&H: the dot at the right edge at the live value", fb[y * 240u + 235u] == C_WHITE);
+    check("LFO S&H: the dot at the right edge at the live value", fb[y * 240u + 235u] == C_INK);
     check("LFO 1/2 shows the routing and TRIG too (the line under the picture)",
           ui.page == page_first(FAM_LFO) && fb_lit(Y_GRAPH + G_OY + 84u, Y_GRAPH + G_OY + 96u) > 20u);
     snap_page("lfo/trail_SnH");
@@ -2315,6 +2315,52 @@ static void test_graph_song_rows(void)
           fb_count(1, Y_GRAPH + 6u + 28u - 3u, 238, 16, C_INK) > 238u * 16u * 7u / 10u &&
           fb_count(1, Y_GRAPH + 6u - 3u, 238, 16, C_INK) < 238u * 16u * 3u / 10u);
     chain.cfg.count = 0;
+}
+
+/* spec 2026-10-19-md-ui §8, graphs II: OFF between dither bands; COMP's meters with tick dashes; the LFO's area
+ * dithered between the wave and the zero line */
+static void test_graph_off_word(void)
+{
+    uint32_t top, bot, word;
+    open_filter();
+    TSEL->p[P_FTYPE] = 0;                            /* OFF */
+    ui.force = 1;
+    ui_frame();
+    top = fb_count(81, Y_GRAPH + G_OY + 30u, 78, 3, C_INK);
+    bot = fb_count(81, Y_GRAPH + G_OY + 67u, 78, 3, C_INK);
+    word = fb_count(87, Y_GRAPH + G_OY + 35u, 66, 30, C_INK);
+    check("FILTER OFF: OFF in F3 at 6x, a 3-row dither band above and below it",
+          top > 78u * 3u * 4u / 10u && top < 78u * 3u * 6u / 10u && bot > 78u * 3u * 4u / 10u && bot < 78u * 3u * 6u / 10u &&
+          word > 66u * 30u / 3u);
+}
+
+static void test_graph_comp_meter(void)
+{
+    uint32_t y;
+    ui_host_init();                                  /* (on the HOME screen) */
+    sel(1);                                          /* COMP 2/3 */
+    ui.force = 1;
+    ui_frame();
+    y = Y_GRAPH + G_OY + 24u;
+    check("COMP: the GR meter's tick dashes every 6 px above it (x 36, 42, 48; none between)",
+          str_eq(cur_page()->title, "COMP") && fb[y * 240u + 36u] == C_INK && fb[y * 240u + 42u] == C_INK &&
+          fb[y * 240u + 48u] == C_INK && fb[y * 240u + 39u] == C_BG);
+}
+
+static void test_graph_lfo_fill(void)
+{
+    uint32_t mid, above;
+    ui_host_init();
+    TSEL->p[P_LFO1 + LF_WAVE] = LW_SINE;
+    TSEL->p[P_LFO1 + LF_MORPH] = 0;
+    TSEL->p[P_LFO1 + LF_PHASE] = 0;
+    tap(B_LFO);
+    ui.force = 1;
+    ui_frame();
+    mid = fb_count(134, Y_GRAPH + G_OY + 12u, 1, 26, C_INK);
+    above = fb_count(100, Y_GRAPH + G_OY + 0u, 136, 4, C_INK);
+    check("LFO: the wave's area dithered down to the zero line (half the column under the crest), nothing above it",
+          mid >= 10u && mid <= 16u && above == 0u);
 }
 
 static void snap_page(const char *name)
@@ -5967,6 +6013,9 @@ int main(void)
     test_graph_step_bars();
     test_graph_slots_cursor();
     test_graph_song_rows();
+    test_graph_off_word();
+    test_graph_comp_meter();
+    test_graph_lfo_fill();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
