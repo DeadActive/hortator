@@ -24,7 +24,8 @@ typedef struct {
     uint16_t bg, ink;
 } theme_t;
 static const theme_t THEMES[] = {
-    {"MD RED", RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},
+    {"MD RED", RGB(0xe0, 0x47, 0x2b), RGB(0x08, 0x00, 0x00)},   /* (the emulator's ink #38100a reads grey-brown on
+                                                                 * the FM-1's panel; near-black, not C_BLACK) */
     {"RED ON BLACK", RGB(0x17, 0x06, 0x05), RGB(0xf0, 0x53, 0x2f)},
     {"WHITE ON BLUE", RGB(0x24, 0x45, 0xc8), RGB(0xea, 0xf1, 0xff)},
     {"BLACK ON GREEN", RGB(0xa3, 0xbf, 0x3c), RGB(0x1c, 0x2a, 0x08)},

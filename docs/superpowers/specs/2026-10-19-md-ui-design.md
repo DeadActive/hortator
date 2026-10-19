@@ -49,7 +49,7 @@ add a derived DIM = 50 % mix as a fallback and say where.)*
 
 | Theme | BG | INK |
 | --- | --- | --- |
-| MD RED (default) | `#e0472b` | `#38100a` |
+| MD RED (default) | `#e0472b` | `#080000` (was the emulator's `#38100a`: grey-brown on the FM-1's panel, the user 2026-10-19) |
 | RED ON BLACK | `#170605` | `#f0532f` |
 | WHITE ON BLUE | `#2445c8` | `#eaf1ff` |
 | BLACK ON GREEN | `#a3bf3c` | `#1c2a08` |
