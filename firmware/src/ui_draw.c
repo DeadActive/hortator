@@ -2010,9 +2010,9 @@ __attribute__((always_inline)) static inline void ui_draw(void)
         static uint8_t drawn;                         /* an update session cleared it (main.c sets ui.force) */
         if (!drawn || ui.force) {
             lcd_fill(0, 0, 240, 240, C_BG);
-            draw_text_box(0, 92, 240, 4, "SAFE START", 1);
-            draw_text_box(0, 128, 240, 2, "NO AUDIO - USB UPDATE READY", 1);
-            draw_text_box(0, 148, 240, 2, "POWER OFF TO LEAVE", 1);
+            draw_text_box(0, 92, 240, &FONT_L, "SAFE START", C_INK, 1);
+            draw_text_box(0, 128, 240, &FONT_S, "NO AUDIO - USB UPDATE READY", C_INK, 1);
+            draw_text_box(0, 148, 240, &FONT_S, "POWER OFF TO LEAVE", C_INK, 1);
             drawn = 1;
             ui.force = 0;
         }

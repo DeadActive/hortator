@@ -412,20 +412,30 @@ static void cv_vu(int32_t ox, int32_t oy, uint32_t f, uint32_t half, int16_t *pe
     }
 }
 
-/* one-shot: text (MD_F3 at sc) in a box w wide on the theme's ground, aligned 0 left, 1 centre, 2 right, blitted (the
- * crash / update / UBOOT / calibration / safe-start screens; before a theme is set, the default one) */
-static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, uint32_t sc, const char *s, int align)
+/* one-shot text boxes keep the names the frozen main.c uses (crash, UBOOT; tools/check_untouched.py): FONT_S / FONT_L
+ * are MD_F3 at 2x / 4x, C_BLACK / C_WHITE the frozen screens' colours (they stay black and white) */
+typedef struct {
+    uint8_t sc;
+} box_font_t;
+static const box_font_t FONT_S = {2}, FONT_L = {4};
+#define C_BLACK 0x0000u
+#define C_WHITE 0xFFFFu
+
+/* one-shot: text in a box w wide, aligned 0 left, 1 centre, 2 right, blitted; ink c: C_INK on the theme's ground (the
+ * update / calibration / safe-start screens), anything else on black (the frozen ones); before a theme is set, the
+ * default one */
+static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, const box_font_t *f, const char *s, uint16_t c, int align)
 {
     int32_t tw, tx = 0;
     if (C_BG == C_INK)
         theme_set(THEME_TAG | 0u);
-    tw = md_text_w(&MD_F3, sc, s);
-    cv_begin(w, 5u * sc, C_BG);
+    tw = md_text_w(&MD_F3, f->sc, s);
+    cv_begin(w, 5u * f->sc, c == C_INK ? C_BG : C_BLACK);
     if (align == 1)
         tx = ((int32_t)w - tw) / 2;
     else if (align == 2)
         tx = (int32_t)w - tw;
-    md_text(tx, 0, &MD_F3, sc, s, C_INK);
+    md_text(tx, 0, &MD_F3, f->sc, s, c);
     cv_blit(x, y);
     lcd_sync();                     /* one-shots (boot, crash, UBOOT, update) finish here */
 }
