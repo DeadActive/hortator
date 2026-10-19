@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.21.0 - 2026-10-19
+
 - Presets: a preset is a voice (MODEL and the 8 SOUND knobs), in banks MACHINEDRUM, CLASSIC, MODERN (151 factory
   presets, below) and USER (128 slots in flash). The PRESETS encoder loads the next / previous preset onto the
   selected track at each detent, through every bank (empty USER slots and a capped ACID skipped), with a popup over
