@@ -1262,7 +1262,7 @@ static void glo_key(uint32_t key)                    /* a key tapped while GLO i
 }
 static int mute_box_filled(uint32_t k)               /* track k's box: lit inside (audible), not just its outline */
 {
-    return fb[(MU_BY(k) + MU_BH - 3u) * 240u + MU_BX(k) + 3u] != 0;
+    return fb[(MU_BY(k) + MU_BH - 3u) * 240u + MU_BX(k) + 3u] == C_INK;
 }
 static void test_mute_screen(void)
 {
@@ -2363,6 +2363,83 @@ static void test_graph_lfo_fill(void)
           mid >= 10u && mid <= 16u && above == 0u);
 }
 
+/* spec 2026-10-19-md-ui §8: TRACKS keeps every item of its rows (number, arm, model, the bank's 16 steps, the level
+ * over a dithered box, the live peak); MUTE's boxes; PERFORM's buttons */
+static void test_tracks_row_items(void)
+{
+    uint32_t y, box, inner;
+    ui_host_init();
+    open_tracks();
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    trk[0].step[0].on = 1;
+    trk[0].p[P_LEVEL] = 64;
+    ui.force = 1;
+    ui_frame();
+    y = MX_ROW_Y(0);
+    box = fb_count(MX_LX, y + 1u, MX_LW, 11, C_INK);
+    inner = fb_count(MX_LX + (uint32_t)MX_LW / 2u + 4u, y + 3u, 8, 7, C_INK);   /* past the level: the dither */
+    check("TRACKS row: the number + model in ink (x 2..60)", fb_count(2, y, 58, MX_RH, C_INK) > 30u);
+    check("TRACKS row: step 1 a cell, steps 2..16 baselines", fb_count(MX_CELL_X(0), y + 4u, 6, 7, C_INK) == 42u &&
+          fb_count(MX_CELL_X(1), y + 4u, 6, 6, C_INK) == 0u && fb_count(MX_CELL_X(1), y + 10u, 6, 1, C_INK) == 6u);
+    check("TRACKS row: the level a solid bar over a dithered box", box > 60u && inner > 20u && inner < 40u);
+}
+
+static void test_tracks_peak_tick(void)
+{
+    uint32_t y, x, r, d = 0;
+    uint16_t a[11][MX_LW];
+    ui_host_init();
+    open_tracks();
+    trk[0].p[P_LEVEL] = 30;
+    ui.force = 1;
+    ui_frame();
+    y = MX_ROW_Y(0) + 1u;                            /* the level box's 11 rows */
+    for (r = 0; r < 11u; r++)
+        for (x = 0; x < (uint32_t)MX_LW; x++)
+            a[r][x] = fb[(y + r) * 240u + MX_LX + x];
+    trk[0].peak = 20000;
+    ui_frame();
+    for (r = 0; r < 11u; r++)
+        for (x = 0; x < (uint32_t)MX_LW; x++)
+            d += fb[(y + r) * 240u + MX_LX + x] != a[r][x];
+    check("TRACKS: a loud track's live peak marks its level box", d >= 4u);
+}
+
+static void test_mute_boxes(void)
+{
+    uint32_t k, ok = 1;
+    ui_host_init();
+    settings.mutebar = 0;
+    press(B_GLO);
+    glo_hold_frames(500);
+    for (k = 0; k < NTRK; k++)
+        ok &= mute_box_filled(k);
+    trk[2].p[P_MUTE] = 1;
+    glo_hold_frames(2);
+    check("MUTE: 8 boxes, an audible track's solid; muting track 3 makes its box an outline", ui.mute && ok &&
+          !mute_box_filled(2) && mute_box_filled(1) && fb[MU_BY(2u) * 240u + MU_BX(2u) + 10u] == C_INK);
+    trk[2].p[P_MUTE] = 0;
+    release_all();
+    ui_frame();
+}
+
+static void test_perform_buttons(void)
+{
+    uint32_t x = 4u + 47u, y = Y_GRAPH + 4u, on, off;
+    ui_host_init();
+    press(B_FX);
+    fx_hold_frames(500);
+    off = fb_count(x + 2u, y + 2u, 40, 30, C_INK);
+    perf_held |= 1u << PF_BLACK[1];
+    ui.force = 1;
+    fx_hold_frames(1);
+    on = fb_count(x + 2u, y + 2u, 40, 30, C_INK);
+    check("PERFORM: a button an outline, held: solid (ink with its name in BG)", ui.layer && off < 200u && on > 900u);
+    perf_held = 0;
+    release_all();
+    ui_frame();
+}
+
 static void snap_page(const char *name)
 {
     char path[96];
@@ -2406,7 +2483,7 @@ static void test_tracks_rows(void)
     open_tracks();
     for (r = 0; r < NTRK; r++)
         for (k = 0; k < 16; k++)
-            ok &= (fb[(MX_ROW_Y(r) + 7u) * 240u + MX_CELL_X(k) + 2u] != 0) == trk[r].step[k].on;
+            ok &= (fb[(MX_ROW_Y(r) + 7u) * 240u + MX_CELL_X(k) + 2u] == C_INK) == trk[r].step[k].on;
     check("TRACKS: 8 rows, each shows its track's 16 steps", ok);
 }
 
@@ -6016,6 +6093,10 @@ int main(void)
     test_graph_off_word();
     test_graph_comp_meter();
     test_graph_lfo_fill();
+    test_tracks_row_items();
+    test_tracks_peak_tick();
+    test_mute_boxes();
+    test_perform_buttons();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

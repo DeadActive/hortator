@@ -832,8 +832,8 @@ static void graph_slots(void)
 /* TRACKS mixer: one 15 px row per track: number (+ REC-armed dot), model, the 16 steps of the bank
  * its playhead is in (stopped: the first bank; the selected track: the bank STEP shows), and the
  * level fader over the output meter (MUTE when muted). A row redraws only when its signature changes. */
-#define MX_RH 15u
-#define MX_ROW_Y(r) (Y_GRAPH + 2u + (r) * MX_RH)
+#define MX_RH 14u
+#define MX_ROW_Y(r) (Y_GRAPH + 4u + (r) * MX_RH)
 #define MX_CELL_X(k) (62u + (k) * 8u + (k) / 4u * 3u)   /* 16 cells of 6 px, a gap per beat */
 #define MX_LX 203                                       /* level: fader + meter */
 #define MX_LW 34
@@ -857,7 +857,9 @@ static void draw_mix(void)
 {
     uint32_t c;
     if (ui.force) {
-        lcd_fill(0, Y_GRAPH, 240, H_GRAPH, C_BLACK);
+        lcd_fill(1, Y_GRAPH, 238, H_GRAPH, C_BG);
+        lcd_fill(0, Y_GRAPH, 1, H_GRAPH, C_INK);
+        lcd_fill(239, Y_GRAPH, 1, H_GRAPH, C_INK);
         for (c = 0; c < NTRK; c++)
             mx.meter[c] = 0;
     }
@@ -865,8 +867,9 @@ static void draw_mix(void)
         track_t *t = &trk[c];
         uint32_t sel = c == song.sel, lvl = (uint32_t)t->p[P_LEVEL] & 127u, mute = !lvl || trk_silent(t);
         uint32_t arm = (song.rec >> c) & 1u, len = view_len(t), bank, sig, k;
-        int32_t m = mute ? 0 : meter_px(t->peak);
-        uint16_t ink = sel ? C_HI : C_GRAY;
+        int32_t m = mute ? 0 : meter_px(t->peak), lw;
+        const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];
+        uint16_t pen = sel ? C_BG : C_INK;
         char b[2] = {(char)('1' + c), 0};
         t->peak = 0;
         if (m < mx.meter[c] - 1)
@@ -879,32 +882,50 @@ static void draw_mix(void)
         if (!ui.force && sig == mx.sig[c])
             continue;
         mx.sig[c] = sig;
-        cv_begin(240, MX_RH, C_BLACK);
-        cv_text(2, -1, &FONT_S, b, sel ? C_WHITE : C_GRAY);
-        if (arm)
-            cv_rect(12, 5, 4, 4, song.playing ? C_WHITE : C_AMB);
-        cv_text(18, -1, &FONT_S, N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS], ink);
-        for (k = 0; k < 16u; k++) {
+        cv_begin_at(240, MX_RH, MX_ROW_Y(c), C_BG);
+        cv_rect(0, 0, 1, MX_RH, C_INK);
+        cv_rect(239, 0, 1, MX_RH, C_INK);
+        if (sel)                                      /* the cursor: number + model inverted */
+            cv_rect(2, 0, 20 + md_text_w(&MD_F3, 2, mn), 13, C_INK);
+        md_text(4, 2, &MD_F3, 2, b, pen);
+        if (arm) {                                    /* REC armed: playing a solid dot, stopped an outline */
+            if (song.playing)
+                cv_rect(12, 5, 4, 4, pen);
+            else
+                cv_frame(12, 5, 4, 4, pen);
+        }
+        md_text(18, 2, &MD_F3, 2, mn, pen);
+        for (k = 0; k < 16u; k++) {                   /* the bank's steps: an accent tall, a step short, dithered
+                                                       * when muted; none a baseline; the playhead underlined */
             uint32_t si = bank * 16u + k;
             int32_t x = (int32_t)MX_CELL_X(k);
             step_t sv = view_step(t, si);
             const step_t *st = &sv;
-            int ph = song.playing && si == view_idx(t);     /* the playhead: its step drawn white */
             if (si >= len)
                 continue;
-            if (st->on)
-                cv_rect(x, st->acc ? 2 : 4, 6, st->acc ? 11 : 7,
-                        ph ? C_WHITE : mute ? C_DIM : st->acc ? (sel ? C_WHITE : C_HI) : ink);
-            else
-                cv_rect(x, ph ? 9 : 10, 6, ph ? 2 : 1, ph ? C_WHITE : C_DIM);
+            if (st->on) {
+                if (mute)
+                    cv_dither(x, st->acc ? 1 : 4, 6, st->acc ? 11 : 7, C_INK);
+                else
+                    cv_rect(x, st->acc ? 1 : 4, 6, st->acc ? 10 : 7, C_INK);
+            } else {
+                cv_rect(x, 10, 6, 1, C_INK);
+            }
+            if (song.playing && si == view_idx(t))
+                cv_rect(x, 12, 6, 2, C_INK);
         }
         if (mute) {
-            cv_text(MX_LX, -1, &FONT_S, "MUTE", C_DIM);
-        } else {
-            cv_rect(MX_LX, 7, MX_LW, 1, C_LINE);
-            if (mx.meter[c])
-                cv_rect(MX_LX, 5, mx.meter[c], 5, C_AMB);
-            cv_rect(MX_LX + (int32_t)lvl * (MX_LW - 2) / 127, 2, 2, 11, sel ? C_WHITE : C_GRAY);
+            md_text(MX_LX + 2, 2, &MD_F3, 2, "MUTE", C_INK);
+        } else {                                      /* the level: a solid bar over a dithered box; the live peak a
+                                                       * 1 px mark (BG on the bar, ink past it) */
+            lw = (int32_t)lvl * (MX_LW - 2) / 127;
+            cv_frame(MX_LX, 1, MX_LW, 11, C_INK);
+            cv_dither(MX_LX + 1, 2, MX_LW - 2, 9, C_INK);
+            cv_rect(MX_LX + 1, 2, lw, 9, C_INK);
+            if (mx.meter[c]) {
+                int32_t px = mx.meter[c] * (MX_LW - 2) / MX_LW;
+                cv_rect(MX_LX + 1 + px, 2, 1, 9, px < lw ? C_BG : C_INK);
+            }
         }
         cv_blit(0, MX_ROW_Y(c));
     }
@@ -1228,11 +1249,23 @@ static uint32_t graph_signature(void)
 static const char *const PF_NAME[PF_M1] = {"R1/8", "R1/16", "R1/32", "REV", "LPF", "HPF", "TAPE", "FRZ", "OCT+", "OCT-"};
 static void perf_cell(int32_t x, int32_t y, int32_t w, const char *s, uint32_t st)   /* st: 0 off 1 held 2 run 3 dim 4 mute */
 {
-    uint16_t fill = st == 2u ? C_HI : st == 1u ? C_LINE : st == 4u ? C_AMB : C_BLACK;
-    uint16_t ink = st == 2u || st == 4u ? C_BLACK : st == 3u ? C_DIM : st == 1u ? C_WHITE : C_GRAY;
-    cv_rect(x, y, w, 34, st == 3u ? C_BLACK : C_LINE);
-    cv_rect(x + 1, y + 1, w - 2, 32, fill);
-    cv_text(x + (w - text_w(&FONT_S, s)) / 2, y + 9, &FONT_S, s, ink);
+    int32_t tx = x + (w - md_text_w(&MD_F3, 2, s)) / 2;
+    if (st == 1u || st == 2u || st == 4u) {          /* held / running / muted: solid, the name in BG */
+        cv_rect(x, y, w, 34, C_INK);
+        md_text(tx, y + 12, &MD_F3, 2, s, C_BG);
+        if (st == 4u)                                /* muted: struck through */
+            cv_rect(x + 3, y + 16, w - 6, 1, C_BG);
+        return;
+    }
+    if (st == 3u) {                                  /* not available: a dotted outline */
+        cv_hdot(x, x + w - 1, y, C_INK);
+        cv_hdot(x, x + w - 1, y + 33, C_INK);
+        cv_vdot(x, y, y + 33, C_INK);
+        cv_vdot(x + w - 1, y, y + 33, C_INK);
+    } else {
+        cv_frame(x, y, w, 34, C_INK);
+    }
+    md_text(tx, y + 12, &MD_F3, 2, s, C_INK);
 }
 static void graph_perf(void)
 {
@@ -1242,8 +1275,10 @@ static void graph_perf(void)
     if (!ui.force && sig == ui.graph_sig)
         return;
     ui.graph_sig = sig;
-    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_begin_at(240, H_GRAPH, Y_GRAPH, C_BG);
     cv_oy = 0;
+    cv_rect(0, 0, 1, H_GRAPH, C_INK);
+    cv_rect(239, 0, 1, H_GRAPH, C_INK);
     for (i = 0; i < 10u; i++) {
         uint32_t e = PF_BLACK[i];
         perf_cell(4 + (int32_t)(i % 5u) * 47, i < 5u ? 4 : 44, 44, PF_NAME[e],
@@ -1269,12 +1304,15 @@ static void draw_mute(void)
 {
     uint32_t k, blink = (fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u;
     uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u + ui.ml.on * 5003u;
+    int32_t x, w;
     char b[24];
     for (k = 0; k < NTRK; k++)
         sig = (sig ^ ((uint32_t)(trk[k].p[P_MUTE] != 0) + (uint32_t)trk[k].p[P_MODEL] * 2u)) * 16777619u;
     if (ui.force) {
-        lcd_fill(0, H_HEAD, 240, 240 - H_HEAD, C_BLACK);
-        lcd_fill(0, H_HEAD, 240, 1, C_LINE);
+        lcd_fill(1, H_HEAD, 238, 240 - H_HEAD - 1u, C_BG);
+        lcd_fill(0, H_HEAD, 1, 240 - H_HEAD, C_INK);
+        lcd_fill(239, H_HEAD, 1, 240 - H_HEAD, C_INK);
+        lcd_fill(0, 239, 240, 1, C_INK);
     }
     draw_head();
     if (ui.msg_t)
@@ -1285,34 +1323,49 @@ static void draw_mute(void)
         return;
     ui.graph_sig = sig;
     ui.force = 0;
-    cv_begin(240, 124, C_BLACK);
+    cv_begin_at(240, 124, MU_Y, C_BG);
     cv_oy = 0;
-    for (k = 0; k < NTRK; k++) {
-        int32_t x = (int32_t)MU_BX(k), y = (int32_t)(MU_BY(k) - MU_Y);
+    cv_rect(0, 0, 1, 124, C_INK);
+    cv_rect(239, 0, 1, 124, C_INK);
+    for (k = 0; k < NTRK; k++) {                     /* audible: solid; muted: an outline; waiting for the bar: the
+                                                       * box blinks solid / outline */
+        int32_t bx = (int32_t)MU_BX(k), by = (int32_t)(MU_BY(k) - MU_Y);
         uint32_t wait = (song.mute_q >> k) & 1u;
         int on = !trk[k].p[P_MUTE] ^ (wait && blink);
         const char *mn = N_MODEL[(uint32_t)trk[k].p[P_MODEL] % NMODELS];
-        uint16_t ink = on ? C_BLACK : wait ? C_AMB : C_GRAY;
-        cv_rect(x, y, MU_BW, MU_BH, wait ? C_AMB : on ? C_HI : C_GRAY);   /* (waiting: amber, both phases) */
-        if (!on)
-            cv_rect(x + 1, y + 1, MU_BW - 2, MU_BH - 2, C_BLACK);
+        uint16_t pen = on ? C_BG : C_INK;
+        if (on)
+            cv_rect(bx, by, MU_BW, MU_BH, C_INK);
+        else
+            cv_frame(bx, by, MU_BW, MU_BH, C_INK);
         b[0] = (char)('1' + k);
         b[1] = 0;
-        cv_text(x + ((int32_t)MU_BW - text_w(&FONT_S, b)) / 2, y + 3, &FONT_S, b, on ? C_BLACK : C_WHITE);
-        cv_text(x + ((int32_t)MU_BW - text_w(&FONT_S, mn)) / 2, y + 21, &FONT_S, mn, ink);
+        md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, b)) / 2, by + 6, &MD_F3, 2, b, pen);
+        md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, mn)) / 2, by + 22, &MD_F3, 2, mn, pen);
         note_text(b, 53 + KEY_TRK_KEY[k]);
-        cv_text(x + ((int32_t)MU_BW - text_w(&FONT_S, b)) / 2, y + (int32_t)MU_BH + 2, &FONT_S, b, C_DIM);
+        md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, b)) / 2, by + (int32_t)MU_BH + 4, &MD_F3, 2, b, C_INK);
     }
     cv_blit(0, MU_Y);
-    cv_begin(240, 62, C_BLACK);                       /* "MUTE: NOW", "C# NOW  D# NEXT BAR" (the mode's key lit),
-                                                       * "G4 LEARN: OFF" / "G4 LEARN: ON" (MIDI LEARN, ui_learn.c) */
+    cv_begin_at(240, 62, 164, C_BG);                  /* "MUTE: NOW", "C# NOW  D# NEXT BAR" (the mode's dithered
+                                                       * when not chosen), "G4 LEARN: OFF" / "ON" (MIDI LEARN) */
+    cv_rect(0, 0, 1, 62, C_INK);
+    cv_rect(239, 0, 1, 62, C_INK);
     str_cpy(b, settings.mutebar ? "MUTE: NEXT BAR" : "MUTE: NOW", sizeof b);
-    cv_text((240 - text_w(&FONT_S, b)) / 2, 0, &FONT_S, b, C_WHITE);
-    k = (uint32_t)cv_text((240 - text_w(&FONT_S, "C# NOW  D# NEXT BAR")) / 2, 22, &FONT_S, "C# NOW",
-                          settings.mutebar ? C_DIM : C_HI);
-    cv_text((int32_t)k + 16, 22, &FONT_S, "D# NEXT BAR", settings.mutebar ? C_HI : C_DIM);
+    md_text((240 - md_text_w(&MD_F3, 2, b)) / 2, 4, &MD_F3, 2, b, C_INK);
+    w = md_text_w(&MD_F3, 2, "C# NOW  D# NEXT BAR");
+    x = (240 - w) / 2;
+    k = (uint32_t)md_text(x, 24, &MD_F3, 2, "C# NOW", C_INK);
+    if (settings.mutebar)
+        cv_dither(x, 24, (int32_t)k - x, 10, C_BG);
+    x = (int32_t)k + 12;
+    k = (uint32_t)md_text(x, 24, &MD_F3, 2, "D# NEXT BAR", C_INK);
+    if (!settings.mutebar)
+        cv_dither(x, 24, (int32_t)k - x, 10, C_BG);
     str_cpy(b, ui.ml.on ? "G4 LEARN: ON" : "G4 LEARN: OFF", sizeof b);
-    cv_text((240 - text_w(&FONT_S, b)) / 2, 44, &FONT_S, b, ui.ml.on ? C_WHITE : C_DIM);
+    x = (240 - md_text_w(&MD_F3, 2, b)) / 2;
+    md_text(x, 44, &MD_F3, 2, b, C_INK);
+    if (!ui.ml.on)
+        cv_dither(x, 44, md_text_w(&MD_F3, 2, b), 10, C_BG);
     cv_blit(0, 164);
 }
 /* PERFORM: KNOB 1..4 FILTER CRUSH THROW DEPTH (SHIMMER while OCT UP / DN plays) */
