@@ -147,10 +147,19 @@ static void test_theme_index(void)
     theme_set(THEME_TAG | 0u);
 }
 
+static void test_line_dot(void)
+{
+    cv_begin(10, 4, BG);
+    cv_line_dot(0, 0, 6, 0, INK);
+    check("line_dot: every other pixel along the line", px(0, 0) == INK && px(1, 0) == BG && px(2, 0) == INK &&
+          px(5, 0) == BG && px(6, 0) == INK && px(7, 0) == BG);
+}
+
 int main(void)
 {
     ui_host_init();
     test_md_text();
+    test_line_dot();
     test_theme_index();
     test_primitives();
     printf(fails ? "gfx_test: %d FAILED\n" : "gfx_test: all passed\n", fails);

@@ -247,8 +247,9 @@ static void graph_ktrx(const track_t *t, uint16_t c)
     uint32_t tr = ktrx_tau(4322u, (clamp(p[3], 0, 127) - 72) * 1427 / 100, 221u);
     uint32_t ramp = (uint32_t)(((uint64_t)(uint32_t)(r * r * r) * 23187u) >> 16);   /* 11.06 (r / 127) ^ 3, Q16 */
     uint32_t dq = (uint32_t)((34341ull * sc) >> 16), fq = (uint32_t)((173014ull * sc) >> 16);   /* 32.2, 162.1 / 61.4 */
-    cv_text(100, 10, &FONT_S, "PITCH / LEVEL", C_HI);
-    cv_rect(100, 84, 136, 1, C_LINE);
+    (void)c;
+    md_text(100, 10, &MD_F3, 2, "PITCH / LEVEL", C_INK);
+    cv_hdot(100, 235, 84, C_INK);
     for (x = 0; x < 136; x++) {
         uint32_t tt = (uint32_t)x * 97u;               /* 300 ms over 136 px */
         uint32_t q = 65536u + (uint32_t)(((uint64_t)dq * (uint32_t)ktrx_exp(tt, 213u)) >> 16) +
@@ -262,8 +263,8 @@ static void graph_ktrx(const track_t *t, uint16_t c)
         lv = (int32_t)(((uint32_t)ktrx_exp(tt, ta) * (uint32_t)(65536 - ktrx_exp(tt, 582u))) >> 16);
         ya = 84 - lv * 48 / 65536;
         if (x) {
-            cv_line(99 + x, pa, 100 + x, ya, C_AMB);
-            cv_line(99 + x, py, 100 + x, y, c);
+            cv_line_dot(99 + x, pa, 100 + x, ya, C_INK);   /* the level: dotted */
+            cv_line(99 + x, py, 100 + x, y, C_INK);        /* the pitch: solid */
         }
         py = y;
         pa = ya;
@@ -276,29 +277,30 @@ static void graph_acid(const track_t *t, uint16_t c)
     int32_t cs = clamp(p[2], 0, 127) * 103 / 127, cx = acid_cut_x(cs), pk = -6 + clamp(p[3], 0, 127) * 18 / 127;
     int32_t x, y, py = 0, ex, gw, e = ENV1, kx = 65536;
     uint32_t k = acid_decay(p[1]), i;
-    cv_rect(100, ACID_GY, 136, 1, C_LINE);                   /* 0 dB */
+    (void)c;
+    cv_hdot(100, 235, ACID_GY, C_INK);                       /* 0 dB */
     for (x = 0; x < 136; x++) {
         int32_t dx = x - cx, db = dx <= -15 ? 0 : dx <= 0 ? pk * (15 + dx) / 15 : pk - dx * 24 / 15;
         y = ACID_GY - clamp(db, -32, 12);
         if (x)
-            cv_line(99 + x, py, 100 + x, y, c);
+            cv_line(99 + x, py, 100 + x, y, C_INK);
         py = y;
     }
     ex = acid_cut_x(cs + clamp(p[4], 0, 127) * 48 / 127);   /* ENVMD: the cutoff at the note's start */
     if (p[4] > 0)
         for (y = 2; y < 46; y += 4)
-            cv_rect(100 + ex, y, 1, 2, C_AMB);
+            cv_rect(100 + ex, y, 1, 2, C_INK);
     gw = clamp((int32_t)(acid_gate_len(t, div_period((uint32_t)t->p[P_SDIV], 0)) / 324u), 1, 135);   /* 324 samples a px */
-    cv_rect(100, ACID_EY + 36, 136, 1, C_LINE);
-    cv_rect(100, ACID_EY, gw, 1, C_DIM);                     /* the amp: open at once, GATE long, then closed */
-    cv_rect(100, ACID_EY, 1, 36, C_DIM);
-    cv_rect(100 + gw, ACID_EY, 1, 36, C_DIM);
+    cv_hdot(100, 235, ACID_EY + 36, C_INK);
+    cv_hdot(100, 100 + gw, ACID_EY, C_INK);                  /* the amp: open at once, GATE long, then closed */
+    cv_vdot(100, ACID_EY, ACID_EY + 36, C_INK);
+    cv_vdot(100 + gw, ACID_EY, ACID_EY + 36, C_INK);
     for (i = 0; i < 324u; i++)                               /* DECAY's factor per px */
         kx = mulq16(kx, k);
     for (x = 0; x < 136; x++) {
         y = ACID_EY + 36 - (int32_t)(((uint32_t)e >> 8) * 36u >> 16);
         if (x)
-            cv_line(99 + x, py, 100 + x, y, c);
+            cv_line(99 + x, py, 100 + x, y, C_INK);
         py = y;
         e = mulq16(e, (uint32_t)kx);
     }
@@ -308,42 +310,44 @@ static void graph_acid(const track_t *t, uint16_t c)
 static void graph_model(const track_t *t, uint16_t c)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
+    uint32_t mi = (uint32_t)t->p[P_MODEL] % NMODELS;
+    int fm = mi == DM_FM || mi == DM_ACID || mi == DM_KTRX;   /* FM, ACID, KTRX: their graph right: the labels left */
     char b[16];
-    cv_text(6, 10, &FONT_L, m->name, c);
+    int32_t y = fm ? 40 : 44;
+    md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 5, m->name)) / 2, 10, &MD_F3, fm ? 4 : 5, m->name, C_INK);
     str_cpy(b, m->voices > 1 ? "2 VOICES" : "1 VOICE", sizeof b);
-    cv_text(6, 52, &FONT_S, b, C_GRAY);
-    {
-        int fm = (uint32_t)t->p[P_MODEL] % NMODELS == DM_FM || (uint32_t)t->p[P_MODEL] % NMODELS == DM_ACID ||
-                 (uint32_t)t->p[P_MODEL] % NMODELS == DM_KTRX;   /* FM, ACID, KTRX: their graph right: the labels
-                                                                  * go left */
-        if (t->p[P_CHOKE]) {
-            str_cpy(b, "CHOKE 1", sizeof b);
-            b[6] = (char)('0' + t->p[P_CHOKE]);
-            cv_text(fm ? 6 : 100, fm ? 70 : 52, &FONT_S, b, C_AMB);
-        }
-        if (t->p[P_LLEVEL])
-            cv_text(6, fm ? 86 : 70, &FONT_S, fm ? "+ LAYER" : "+ SAMPLE LAYER", C_AMB);
+    md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 2, b)) / 2, y, &MD_F3, 2, b, C_INK);
+    if (t->p[P_CHOKE]) {
+        str_cpy(b, "CHOKE 1", sizeof b);
+        b[6] = (char)('0' + t->p[P_CHOKE]);
+        y += 16;
+        md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 2, b)) / 2, y, &MD_F3, 2, b, C_INK);
     }
-    if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_FM) {   /* FM: the ratio, the carrier and its sidebands f +- k r f */
+    if (t->p[P_LLEVEL]) {
+        const char *ls = fm ? "+ LAYER" : "+ SAMPLE LAYER";
+        y += 16;
+        md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 2, ls)) / 2, y, &MD_F3, 2, ls, C_INK);
+    }
+    if (mi == DM_FM) {                                 /* FM: the ratio, the carrier and its sidebands f +- k r f */
         uint32_t r8 = FM_RATIO_Q8[(uint32_t)clamp(t->p[P_E3], 0, 15)], k;
         int32_t h0 = clamp(t->p[P_E2], 0, 127) * 48 / 127;   /* INDEX 0: a pure sine, no sidebands */
         str_cpy(b, "RATIO ", sizeof b);
         str_cpy(b + 6, N_FMRATIO[(uint32_t)clamp(t->p[P_E3], 0, 15)], sizeof b - 6);
-        cv_text(100, 10, &FONT_S, b, C_HI);
-        cv_rect(100, 84, 136, 1, C_LINE);
-        cv_rect(100 + 17, 84 - 50, 2, 50, c);            /* the carrier (x: 17 px per f, 0 .. 8 f) */
+        md_text(100, 10, &MD_F3, 2, b, C_INK);
+        cv_rect(100, 84, 136, 1, C_INK);                 /* the axis */
+        cv_rect(100 + 17, 84 - 50, 2, 50, C_INK);        /* the carrier (x: 17 px per f, 0 .. 8 f) */
         for (k = 1; k <= 3u && h0 > 0; k++) {
             int32_t up = (int32_t)(256u + k * r8), dn = (int32_t)(256u) - (int32_t)(k * r8), hk = h0 / (int32_t)k;
             if (up * 17 / 256 < 136)
-                cv_rect(100 + up * 17 / 256, 84 - hk, 2, hk, c);
+                cv_rect(100 + up * 17 / 256, 84 - hk, 2, hk, C_INK);
             dn = dn < 0 ? -dn : dn;
-            if (dn * 17 / 256 < 136)
-                cv_rect(100 + dn * 17 / 256, 84 - hk, 2, hk, C_AMB);
+            if (dn * 17 / 256 < 136)                     /* the lower sidebands: dithered */
+                cv_dither(100 + dn * 17 / 256, 84 - hk, 2, hk, C_INK);
         }
     }
-    if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_ACID)
+    if (mi == DM_ACID)
         graph_acid(t, c);                            /* ACID: the filter and the note's shape */
-    if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_KTRX)
+    if (mi == DM_KTRX)
         graph_ktrx(t, c);                            /* KTRX: the pitch and the level */
 }
 
@@ -351,14 +355,17 @@ static void graph_model(const track_t *t, uint16_t c)
 static void step_bar(int32_t x, int32_t y, int32_t w, int32_t h, const step_t *st, uint16_t col, int32_t tick)
 {
     int32_t r;
-    if (st->cond) {
+    if (st->cond) {                                  /* PROB < 100 %: hatched */
         for (r = 0; r < h; r += 3)
-            cv_rect(x, y + r, w, r + 2 <= h ? 2 : 1, col);
-    } else {
-        cv_rect(x, y, w, h, col);
+            cv_rect(x, y + r, w, r + 2 <= h ? 2 : 1, C_INK);
+    } else if (col == C_WHITE || w < 4) {            /* an accent (or a narrow bar): solid */
+        cv_rect(x, y, w, h, C_INK);
+    } else {                                          /* a plain trig: outline + dither */
+        cv_frame(x, y, w, h, C_INK);
+        cv_dither(x + 1, y + 1, w - 2, h - 2, C_INK);
     }
     for (r = 0; st->rat && r <= st->rat; r++)
-        cv_rect(x + r * tick, y - 4, tick > 2 ? tick - 1 : 1, 2, col);
+        cv_rect(x + r * tick, y - 4, tick > 2 ? tick - 1 : 1, 2, C_INK);
 }
 
 /* PATTERN page: 4 rows of 16 steps over LEN; accent tall, playhead white */
@@ -372,9 +379,9 @@ static void graph_steps(const track_t *t, uint16_t c)
         if (st->on)
             step_bar(x, st->acc ? y : y + 4, 2, st->acc ? 14 : 10, st, st->acc ? C_WHITE : c, 3);
         else
-            cv_rect(x, y + 13, 2, 1, C_DIM);
+            cv_rect(x, y + 13, 2, 1, C_INK);
         if (song.playing && i == view_idx(t))
-            cv_rect(x - 1, y + 16, 4, 3, C_WHITE);
+            cv_rect(x - 1, y + 16, 4, 3, C_INK);
     }
 }
 
@@ -395,7 +402,7 @@ static int held_line(const track_t *t, int32_t y)
     str_cpy(h + str_len(h), cs, sizeof h - str_len(h));
     str_cpy(h + str_len(h), "  RATCH ", sizeof h - str_len(h));
     fmt_int(h + str_len(h), (int32_t)hs->rat + 1);
-    cv_text(4, y, &FONT_S, h, C_WHITE);
+    md_text(4, y, &MD_F3, 2, h, C_INK);
     return 1;
 }
 
@@ -410,41 +417,37 @@ static void graph_grid(const track_t *t, uint16_t c)
         int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2, y = 30;
         step_t sv = view_step(t, si);
         const step_t *st = &sv;
-        if (si >= len) {
-            cv_rect(x, y + 20, 11, 1, C_LINE);
+        if (si >= len) {                             /* past the length: a dotted line */
+            cv_hdot(x, x + 10, y + 20, C_INK);
             continue;
         }
         if (st->on)
             step_bar(x, st->acc ? y : y + 10, 11, st->acc ? 40 : 30, st, st->acc ? C_WHITE : c, 3);
         else
-            cv_rect(x, y + 36, 11, 4, C_DIM);
+            cv_rect(x, y + 38, 11, 2, C_INK);        /* empty: a 2 px baseline */
         if (song.playing && si == view_idx(t))
-            cv_rect(x, y + 46, 11, 3, C_WHITE);
+            cv_rect(x, y + 46, 11, 3, C_INK);
         if (st->on && st->nt)                         /* a transposed step (NOTE != C4): a small mark under it */
-            cv_rect(x + 3, y + 42, 5, 2, C_AMB);
-        if (ui.srec && si == ui.sr_cur) {             /* step record's cursor: a frame */
-            cv_rect(x - 2, y - 3, 15, 1, C_WHITE);
-            cv_rect(x - 2, y + 50, 15, 1, C_WHITE);
-            cv_rect(x - 2, y - 3, 1, 54, C_WHITE);
-            cv_rect(x + 12, y - 3, 1, 54, C_WHITE);
-        }
+            cv_rect(x + 3, y + 42, 5, 2, C_INK);
+        if (ui.srec && si == ui.sr_cur)               /* step record's cursor: a frame */
+            cv_frame(x - 2, y - 3, 15, 54, C_INK);
     }
     fmt_int(b, (int32_t)ui.bank + 1);
     str_cpy(b + str_len(b), "/", 4);
     fmt_int(b + str_len(b), (int32_t)bank_count());
-    cv_text(4, 4, &FONT_S, "BANK", C_GRAY);
-    cv_text(48, 4, &FONT_S, b, C_HI);
+    md_text(4, 6, &MD_F3, 2, "BANK", C_INK);
+    md_text(44, 6, &MD_F3, 2, b, C_INK);
     if (view_src(t)) {
         static const char *const GN[3] = {"GRIDS KICK", "GRIDS SNARE", "GRIDS HATS"};
-        cv_text(4, 84, &FONT_S, GN[view_src(t) - 1u], C_AMB);
+        md_text(4, 84, &MD_F3, 2, GN[view_src(t) - 1u], C_INK);
     } else if (ui.srec) {                             /* step record: the ways on and out */
-        cv_text(4, 84, &FONT_S, "EDIT: REST  REC: END", C_DIM);
+        md_text(4, 84, &MD_F3, 2, "EDIT: REST  REC: END", C_INK);
     } else if (keys_mode()) {                         /* KEYS: the keys are notes; REC: step record where a tap starts
                                                        * it (stopped; playing, a song: a tap arms the track) */
-        cv_text(4, 84, &FONT_S, srec_ok() ? "KEYS  REC: STEP RECORD" : "KEYS", C_DIM);
+        md_text(4, 84, &MD_F3, 2, srec_ok() ? "KEYS  REC: STEP RECORD" : "KEYS", C_INK);
     } else if (held_line(t, 84)) {
     } else {
-        cv_text(4, 84, &FONT_S, "TAP: ON/OFF  HOLD: ACCENT", C_DIM);
+        cv_keycap(cv_keycap(4, 84, "TAP", "ON/OFF", C_INK) + 10, 84, "HOLD", "ACCENT", C_INK);
     }
 }
 
@@ -459,9 +462,9 @@ static void graph_grid(const track_t *t, uint16_t c)
 #define PR_ROWS 24                                      /* 2 octaves */
 #define PR_RH 4                                         /* px per row */
 #define PR_Y0 2                                         /* the top row (graph y) */
-#define PR_X0 34                                        /* the first step column */
+#define PR_X0 38                                        /* the first step column */
 #define PR_CW 12                                        /* px per step */
-#define PR_KX 22                                        /* the keyboard strip, 9 px */
+#define PR_KX 26                                        /* the keyboard strip, 9 px (labels clear of x 0) */
 static struct { uint8_t lo, trk; } proll;               /* the bottom row's note; the track it is for + 1 */
 static const uint8_t KEY_BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
 
@@ -535,12 +538,13 @@ static void roll_view(const track_t *t)
 static void pr_part(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c, int prob)
 {
     int32_t i;
+    (void)c;
     if (!prob) {
-        cv_rect(x, y, w, h, c);
+        cv_rect(x, y, w, h, C_INK);
         return;
     }
     for (i = 0; i < w; i += 2)
-        cv_rect(x + i, y, 1, h, c);
+        cv_rect(x + i, y, 1, h, C_INK);
 }
 
 /* a note's bar at row y in `hits` parts 1 px apart (RATCH; 1: whole), hatched when its PROB is not 100 % (prob); out
@@ -572,22 +576,23 @@ static void graph_roll(const track_t *t, uint16_t c)
     int32_t gx1 = PR_X0 + (int32_t)ncol * PR_CW, top = (int32_t)proll.lo + PR_ROWS - 1;
     int32_t held = kz.key && kz.trk == song.sel ? 60 + t->key_nt : -1000;
     char nb[8];
-    for (r = 0; r < PR_ROWS; r++) {                   /* rows: the keyboard strip, the C rows named and closed */
+    for (r = 0; r < PR_ROWS; r++) {                   /* rows: the keyboard strip (black keys, the key sounding), the
+                                                       * C rows named and closed by a dotted line */
         int32_t n = top - r, y = PR_Y0 + r * PR_RH, lx;
         uint32_t pc = (uint32_t)n % 12u;
         if (n == held || (held > -1000 && ((r == 0 && held > top) || (r == PR_ROWS - 1 && held < proll.lo))))
-            cv_rect(PR_KX, y, 9, PR_RH - 1, C_WHITE);
-        else
-            cv_rect(PR_KX, y, KEY_BLACK[pc] ? 5 : 9, PR_RH - 1, KEY_BLACK[pc] ? C_LINE : C_DIM);
+            cv_rect(PR_KX, y, 9, PR_RH - 1, C_INK);
+        else if (KEY_BLACK[pc])
+            cv_rect(PR_KX, y, 5, PR_RH - 1, C_INK);
         if (pc == 0u) {
-            cv_rect(PR_X0, y + PR_RH - 1, gw, 1, C_DIM);
+            cv_hdot(PR_X0 + 1, PR_X0 + gw - 1, y + PR_RH - 1, C_INK);
             note_text(nb, n);
-            lx = PR_KX - 2 - text_w(&FONT_S, nb);
-            cv_text(lx < 0 ? 0 : lx, y < 6 ? 0 : y - 6, &FONT_S, nb, C_GRAY);   /* (C-1: from x 0) */
+            lx = PR_KX - 2 - md_text_w(&MD_F3, 2, nb);
+            md_text(lx < 2 ? 2 : lx, y < 4 ? 0 : y - 4, &MD_F3, 2, nb, C_INK);
         }
     }
-    for (i = 0; i <= ncol; i++)                       /* step lines, the beats brighter */
-        cv_rect(PR_X0 + (int32_t)i * PR_CW, PR_Y0, 1, ybot - PR_Y0, i % 4u ? C_LINE : C_DIM);
+    for (i = 0; i <= ncol; i += 4u)                   /* the beats: dotted lines */
+        cv_vdot(PR_X0 + (int32_t)i * PR_CW, PR_Y0, ybot - 1, C_INK);
     for (i = 0; i < ncol; i++) {                      /* the notes */
         uint32_t si = base + i, s = pr_src(t, si, len);
         const step_t *own = &st[si], *ns = &st[(si + 1u) % len], *ss;
@@ -597,12 +602,12 @@ static void graph_roll(const track_t *t, uint16_t c)
         ss = &st[s];
         y = pr_row_y(60 + ss->nt);
         if (s == si)
-            pr_bar(x + 2, y, 9, ss->acc, ss->acc ? C_WHITE : c, ss->rat + 1u, ss->cond != 0u);
+            pr_bar(x + 2, y, 9, ss->acc, c, ss->rat + 1u, ss->cond != 0u);
         else                                          /* a TIE: on through the step line (its note's PROB: hatched) */
-            pr_bar(x - 1, y, 12, ss->acc, ss->acc ? C_WHITE : c, 1u, ss->cond != 0u);
+            pr_bar(x - 1, y, 12, ss->acc, c, 1u, ss->cond != 0u);
         if (own->slide && (own->tie || !own->rat) && ns->on && !ns->tie && y >= PR_Y0 && y < ybot) {
             int32_t ny = clamp(pr_row_y(60 + ns->nt), PR_Y0, ybot - PR_RH);
-            cv_line(x + 11, y + 1, x + 14 < gx1 ? x + 14 : gx1, ny + 1, C_AMB);   /* the slide into the next note
+            cv_line_dot(x + 11, y + 1, x + 14 < gx1 ? x + 14 : gx1, ny + 1, C_INK);   /* the slide into the next note
                                                          * (out of the last column: to the grid's edge) */
         }
     }
@@ -610,13 +615,9 @@ static void graph_roll(const track_t *t, uint16_t c)
         uint32_t si = base + i;
         int32_t x = PR_X0 + (int32_t)i * PR_CW;
         if (song.playing && si == view_idx(t))
-            cv_rect(x + 6, PR_Y0, 1, ybot - PR_Y0, C_WHITE);
-        if (ui.srec && si == ui.sr_cur) {
-            cv_rect(x, PR_Y0 - 2, PR_CW + 1, 1, C_WHITE);
-            cv_rect(x, ybot + 1, PR_CW + 1, 1, C_WHITE);
-            cv_rect(x, PR_Y0 - 2, 1, ybot - PR_Y0 + 4, C_WHITE);
-            cv_rect(x + PR_CW, PR_Y0 - 2, 1, ybot - PR_Y0 + 4, C_WHITE);
-        }
+            cv_rect(x + 6, PR_Y0, 1, ybot - PR_Y0, C_INK);
+        if (ui.srec && si == ui.sr_cur)
+            cv_frame(x, PR_Y0 - 2, PR_CW + 1, ybot - PR_Y0 + 4, C_INK);
     }
 }
 
@@ -759,23 +760,36 @@ static void graph_scope(uint16_t c)
 }
 
 
+/* a list row (spec 2026-10-19-md-ui §8): l from x0 + 4, r right-aligned at x1 - 4; sel: an ink bar 14 px from y - 2,
+ * the text in BG */
+static void list_row(int32_t x0, int32_t x1, int32_t y, const char *l, const char *r, int sel)
+{
+    uint16_t pen = sel ? C_BG : C_INK;
+    if (sel)
+        cv_rect(x0, y - 2, x1 - x0 + 1, 14, C_INK);
+    md_text(x0 + 4, y, &MD_F3, 2, l, pen);
+    if (r && r[0])
+        md_text(x1 - 4 - md_text_w(&MD_F3, 2, r), y, &MD_F3, 2, r, pen);
+}
+
 static void graph_slots(void)
 {
     uint32_t i;
-    char nb[NAME_LEN + 1u], f[NAME_LEN + 1u];
+    char nb[NAME_LEN + 1u], f[NAME_LEN + 1u], row[NAME_LEN + 5u];
+    cv_tab(2, 2, "PROJECTS", C_INK, C_BG);
     for (i = 0; i < 4u; i++) {
-        int32_t y = 4 + (int32_t)i * 24;
-        char b[2] = {(char)('A' + i), 0};
         int sel = (int32_t)i + 1 == song.g[G_SLOT], used = project_name(i, nb);
-        if (sel)
-            cv_rect(4, y + 6, 3, 3, C_WHITE);
-        cv_text(14, y, &FONT_S, b, sel ? C_WHITE : C_GRAY);
-        fit(f, used ? (nb[0] ? nb : "USED") : "EMPTY", &FONT_S, 190);
-        cv_text(40, y, &FONT_S, f, used ? (sel ? C_WHITE : C_HI) : C_DIM);
+        md_fit(f, used ? (nb[0] ? nb : "USED") : "EMPTY", sizeof f, 180);
+        row[0] = (char)('A' + i);
+        row[1] = ' ';
+        row[2] = ' ';
+        str_cpy(row + 3, f, sizeof row - 3);
+        list_row(2, 237, 22 + (int32_t)i * 16, row, 0, sel);
     }
     if (chain.name[0]) {
-        cv_text(14, 102, &FONT_S, "NOW", C_DIM);
-        cv_text(52, 102, &FONT_S, chain.name, C_GRAY);
+        md_text(6, 92, &MD_F3, 2, "NOW", C_INK);
+        md_fit(f, chain.name, sizeof f, 180);
+        md_text(40, 92, &MD_F3, 2, f, C_INK);
     }
 }
 
@@ -1288,14 +1302,22 @@ static void graph_motion(void)
     if (!ui.force && sig == ui.graph_sig)
         return;
     ui.graph_sig = sig;
-    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_begin_at(240, H_GRAPH, Y_GRAPH, C_BG);
     cv_oy = 0;
-    for (i = 0; i < len; i++) {
+    for (i = 0; i < len; i++) {                       /* an event: solid (MOTION PLAY on) or dithered (off); the
+                                                       * playhead a second outline */
         int32_t x = 8 + (int32_t)(i & 15u) * 14, y = 8 + (int32_t)(i >> 4) * 28;
         int ev = (int)((has[i >> 5] >> (i & 31u)) & 1u);
-        cv_rect(x, y, 12, 22, i == ph ? C_WHITE : C_LINE);
-        cv_rect(x + 1, y + 1, 10, 20, ev ? (motion_on(k) ? C_HI : C_GRAY) : C_BLACK);
+        cv_frame(x, y, 12, 22, C_INK);
+        if (ev && motion_on(k))
+            cv_rect(x + 2, y + 2, 8, 18, C_INK);
+        else if (ev)
+            cv_dither(x + 2, y + 2, 8, 18, C_INK);
+        if (i == ph)
+            cv_frame(x - 1, y - 1, 14, 24, C_INK);
     }
+    cv_rect(0, 0, 1, H_GRAPH, C_INK);
+    cv_rect(239, 0, 1, H_GRAPH, C_INK);
     cv_blit_from(0, Y_GRAPH, 0);
 }
 /* MOTION: KNOB 1 PLAY, 2 EVENT (the count), 4 CLEAR */
@@ -1328,44 +1350,46 @@ static void graph_song(void)
     if (!ui.force && sig == ui.graph_sig)
         return;
     ui.graph_sig = sig;
-    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_begin_at(240, H_GRAPH, Y_GRAPH, C_BG);
     cv_oy = 0;
     last = c->count < CHAIN_ROWS ? c->count : CHAIN_ROWS - 1u;
-    for (i = first; i <= last && i < first + 4u; i++) {
+    for (i = first; i <= last && i < first + 4u; i++) {   /* the cursor's row inverted; the playing row: a play mark */
         int32_t y = 6 + (int32_t)(i - first) * 28;
         int s = i == sel, play = chain.running && i == chain.row;
-        uint16_t col = s ? C_WHITE : C_GRAY;
+        uint16_t pen = s ? C_BG : C_INK;
         if (s)
-            cv_rect(0, y - 3, 240, 24, C_LINE);
-        if (play) {
-            uint32_t j;
-            for (j = 0; j < 5u; j++)                  /* the play mark */
-                cv_rect(4 + (int32_t)j, y + 2 + (int32_t)j, 1, 14 - 2 * (int32_t)j, C_WHITE);
-        }
+            cv_rect(1, y - 3, 238, 16, C_INK);
+        if (play)
+            md_text(4, y, &MD_ICON, 2, "p", pen);
         if (i >= c->count) {
-            cv_text(16, y, &FONT_S, "+", col);
+            md_text(16, y, &MD_F3, 2, "+", pen);
             if (!c->count)
-                cv_text(44, y, &FONT_S, "KNOB 2: ADD A ROW", C_DIM);
+                md_text(44, y, &MD_F3, 2, "KNOB 2: ADD A ROW", pen);
             continue;
         }
         fmt_int(b, (int32_t)i + 1);
-        cv_text(16, y, &FONT_S, b, col);
+        md_text(16, y, &MD_F3, 2, b, pen);
         b[0] = (char)('A' + c->row[i].slot);
         b[1] = 0;
-        cv_text(48, y, &FONT_S, b, s ? C_WHITE : C_HI);
+        md_text(48, y, &MD_F3, 2, b, pen);
         b[0] = 'x';
         fmt_int(b + 1, c->row[i].repeat);
-        cv_text(70, y, &FONT_S, b, col);
+        md_text(70, y, &MD_F3, 2, b, pen);
         if (play) {
             fmt_int(b, chain.left);
             str_cpy(b + str_len(b), " LEFT", 8);
-            cv_text(236 - text_w(&FONT_S, b), y, &FONT_S, b, C_AMB);
+            md_text(234 - md_text_w(&MD_F3, 2, b), y, &MD_F3, 2, b, pen);
         } else if (project_name(c->row[i].slot, nm) && nm[0]) {
             char f[NAME_LEN + 1u];
-            fit(f, nm, &FONT_S, 124);
-            cv_text(108, y, &FONT_S, f, C_DIM);
+            md_fit(f, nm, sizeof f, 124);
+            md_text(108, y, &MD_F3, 2, f, pen);
         }
     }
+    cv_vdot(40, 2, 112, C_INK);                       /* the column rules: row | slot | repeats | name */
+    cv_vdot(64, 2, 112, C_INK);
+    cv_vdot(100, 2, 112, C_INK);
+    cv_rect(0, 0, 1, H_GRAPH, C_INK);
+    cv_rect(239, 0, 1, H_GRAPH, C_INK);
     cv_blit_from(0, Y_GRAPH, 0);
 }
 /* SONG: KNOB 1 ROW, 2 SLOT, 3 REPS, 4 LOOP */
@@ -1425,7 +1449,7 @@ static void draw_graph(void)
     if (!ui.force && sig == ui.graph_sig)
         return;
     ui.graph_sig = sig;
-    cv_begin(240, H_GRAPH, C_BLACK);
+    cv_begin_at(240, H_GRAPH, Y_GRAPH, C_BG);
     cv_oy = G_OY;
     if (ui.home) {
         graph_scope(c);
@@ -1563,9 +1587,9 @@ static void draw_foot(void)
             fmt_int(right + str_len(right), (int32_t)np);
         }
     }
-    md_fit(left, b, sizeof left, 112);
     if (note)
         right[0] = 0;
+    md_fit(left, b, sizeof left, note ? 112 : 226 - (right[0] ? md_text_w(&MD_F3, 2, right) + 8 : 0));
     if (ui.hot_t && ui.hot_col < 4u && ui.focus_l[0]) {   /* a knob touched: its whole value ("CUT 16.0 KHZ") */
         str_cpy(b, ui.focus_l, sizeof b);
         str_cpy(b + str_len(b), " ", 2);

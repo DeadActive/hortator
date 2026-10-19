@@ -2250,6 +2250,73 @@ static void test_cell_value_fits(void)
           fb_count(116, Y_KNOB + 22u, 4, 13, C_INK) == 0u);
 }
 
+/* spec 2026-10-19-md-ui §8, graphs I (two tones): the model's name in F3 5x; STEP's bars; PROJECT's and SONG's
+ * cursor rows inverted */
+static void test_graph_model_name(void)
+{
+    uint32_t x, y, y0 = 999, y1 = 0;
+    ui_host_init();
+    tap(B_EDIT);
+    ui.force = 1;
+    ui_frame();
+    for (y = Y_GRAPH + G_OY; y < Y_GRAPH + G_OY + 40u; y++)
+        for (x = 2; x < 238u; x++)
+            if (fb[y * 240u + x] == C_INK) {
+                y0 = y < y0 ? y : y0;
+                y1 = y > y1 ? y : y1;
+            }
+    check("SOUND: the model's name in F3 at 5x (25 px tall) on the theme's ground", y1 - y0 + 1u == 25u &&
+          fb_count(2, Y_GRAPH + G_OY, 236, 60, C_BG) > 236u * 60u / 2u);
+}
+
+static void test_graph_step_bars(void)
+{
+    uint32_t a, n;
+    ui_host_init();
+    memset(TSEL->step, 0, sizeof TSEL->step);
+    TSEL->step[0].on = 1;
+    TSEL->step[0].acc = 1;
+    TSEL->step[4].on = 1;
+    open_step_page();
+    ui.force = 1;
+    ui_frame();
+    a = fb_count(4, Y_GRAPH + G_OY + 30u, 11, 40, C_INK);
+    n = fb_count(62, Y_GRAPH + G_OY + 40u, 11, 30, C_INK);
+    check("STEP: an accent a solid bar", a == 11u * 40u);
+    check("STEP: a plain trig an outline + dither (40..75 % ink)", n > 330u * 40u / 100u && n < 330u * 75u / 100u);
+}
+
+static void test_graph_slots_cursor(void)
+{
+    uint32_t r;
+    ui_host_init();
+    tap(B_SAVE);
+    ui.force = 1;
+    ui_frame();
+    r = song.g[G_SLOT] ? (uint32_t)song.g[G_SLOT] - 1u : 0u;
+    check("PROJECT: the cursor's slot row an inverted bar", str_eq(cur_page()->title, "PROJECT") &&
+          fb_count(2, Y_GRAPH + 20u + r * 16u, 236, 14, C_INK) > 236u * 14u * 7u / 10u &&
+          fb_count(2, Y_GRAPH + 20u + ((r + 1u) % 4u) * 16u, 236, 14, C_INK) < 236u * 14u * 3u / 10u);
+}
+
+static void test_graph_song_rows(void)
+{
+    ui_host_init();
+    seq_open("SONG");
+    chain.cfg.count = 2;
+    chain.cfg.row[0].slot = 0;
+    chain.cfg.row[0].repeat = 1;
+    chain.cfg.row[1].slot = 1;
+    chain.cfg.row[1].repeat = 2;
+    ui.song_row = 1;
+    ui.force = 1;
+    ui_frame();
+    check("SONG: the cursor's row an inverted bar, the other plain",
+          fb_count(1, Y_GRAPH + 6u + 28u - 3u, 238, 16, C_INK) > 238u * 16u * 7u / 10u &&
+          fb_count(1, Y_GRAPH + 6u - 3u, 238, 16, C_INK) < 238u * 16u * 3u / 10u);
+    chain.cfg.count = 0;
+}
+
 static void snap_page(const char *name)
 {
     char path[96];
@@ -3989,7 +4056,7 @@ static uint32_t fm_graph_area(uint32_t y0, uint32_t y1)   /* lit pixels at x 100
     uint32_t n = 0, x, y;
     for (y = Y_GRAPH + y0; y < Y_GRAPH + y1; y++)
         for (x = 100u; x < 236u; x++)
-            n += fb[y * 240u + x] != 0;
+            n += fb[y * 240u + x] == C_INK;
     return n;
 }
 
@@ -3999,14 +4066,14 @@ static uint32_t fm_sidebands_lit(void)               /* lit pixels above the gra
     for (y = Y_GRAPH; y < 240u && !yb; y++) {         /* the baseline: a row lit across x 100..235 */
         uint32_t c = 0;
         for (x = 100u; x < 236u; x++)
-            c += fb[y * 240u + x] != 0;
+            c += fb[y * 240u + x] == C_INK;
         if (c >= 130u)
             yb = y;
     }
     for (y = yb > 60u ? yb - 60u : 0u; y < yb; y++)
         for (x = 100u; x < 236u; x++)
             if (x != 117u && x != 118u)
-                n += fb[y * 240u + x] != 0;
+                n += fb[y * 240u + x] == C_INK;
     return yb ? n : 0xFFFFFFFFu;
 }
 
@@ -4085,7 +4152,7 @@ static void test_ktrx_screens(void)
         uint32_t x, y, n = 0;
         for (y = Y_GRAPH + 66u; y < Y_GRAPH + 80u; y++)
             for (x = 100u; x < 102u; x++)
-                n += fb[y * 240u + x] != 0;
+                n += fb[y * 240u + x] == C_INK;
         check("KTRX graph: SWEEP 0: nothing at the top of its first columns (no spike from the level's start)", n == 0u);
     }
     TSEL->p[P_E2] = 127;
@@ -4928,26 +4995,26 @@ static void test_roll_draw(void)
     check("roll: an ACID track's STEP page: the view holds the bank's notes (C4..G4)", proll.lo <= 60 &&
           proll.lo + PR_ROWS > 67);
     for (k = 0; k < PR_RH; k++)
-        ok &= gpx(PR_X0 + 4, yc + k) == C_WHITE;
-    check("roll: an accented note (C4) WHITE, its row's full height", ok);
+        ok &= gpx(PR_X0 + 4, yc + k) == C_INK;
+    check("roll: an accented note (C4) ink, its row's full height", ok);
     x = PR_X0 + 2 * PR_CW + 4;
-    check("roll: a plain note (E4) a 2 px HI bar inside its row", gpx(x, ye + 1) == C_HI && gpx(x, ye + 2) == C_HI &&
-          gpx(x, ye) != C_HI && gpx(x, ye + 3) != C_HI);
+    check("roll: a plain note (E4) a 2 px bar inside its row", gpx(x, ye + 1) == C_INK && gpx(x, ye + 2) == C_INK &&
+          gpx(x, ye) != C_INK && gpx(x, ye + 3) != C_INK);
     check("roll: a TIE carries the note before through its column, across the step line",
-          gpx(PR_X0 + 3 * PR_CW, ye + 1) == C_HI && gpx(PR_X0 + 3 * PR_CW + 6, ye + 1) == C_HI);
+          gpx(PR_X0 + 3 * PR_CW, ye + 1) == C_INK && gpx(PR_X0 + 3 * PR_CW + 6, ye + 1) == C_INK);
     x = PR_X0 + 4 * PR_CW + 2;
-    check("roll: RATCH 2 splits the bar in two, 1 px apart", gpx(x + 3, yg + 1) == C_HI && gpx(x + 4, yg + 1) != C_HI &&
-          gpx(x + 5, yg + 1) == C_HI);
-    for (xx = PR_X0 + PR_CW + 11; xx <= PR_X0 + PR_CW + 14; xx++)
+    check("roll: RATCH 2 splits the bar in two, 1 px apart", gpx(x + 3, yg + 1) == C_INK && gpx(x + 4, yg + 1) != C_INK &&
+          gpx(x + 5, yg + 1) == C_INK);
+    for (xx = PR_X0 + PR_CW + 11; xx <= PR_X0 + PR_CW + 13; xx++)
         for (yy = ye; yy <= yd + 2; yy++)
-            amb += gpx(xx, yy) == C_AMB;
-    check("roll: SLIDE an AMB line from D4's bar into E4", amb > 0);
+            amb += gpx(xx, yy) == C_INK;
+    check("roll: SLIDE a dotted line from D4's bar into E4", amb > 0);
     for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
-        rest += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_HI || gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_WHITE;
+        rest += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_INK;
     check("roll: a rest is empty", rest == 0);
     for (yy = yc - 6; yy < yc + 10; yy++)
-        for (xx = 0; xx < 20; xx++)
-            lab += gpx(xx, yy) != 0;
+        for (xx = 1; xx < PR_KX; xx++)
+            lab += gpx(xx, yy) == C_INK;
     check("roll: the C row named on the left (C4)", lab > 10);
 }
 
@@ -4972,7 +5039,7 @@ static void test_roll_follow(void)
     t->step[1].nt = 40;
     ui_frame();
     check("roll: notes wider than the view, one each: the lowest window (G#0 on the bottom row), the other a mark on "
-          "the top edge", proll.lo == 20 && gpx(PR_X0 + PR_CW + 4, PR_Y0) == C_HI);
+          "the top edge", proll.lo == 20 && gpx(PR_X0 + PR_CW + 4, PR_Y0) == C_INK);
 }
 
 /* fix round 1: the roll's view (the coordinator's ruling): the 24-row window holding the most of the bank's sounding
@@ -5033,10 +5100,10 @@ static void test_roll_view_low_note(void)
     roll_notes(t, L, 8);
     roll_open(t);
     for (yy = PR_Y0; yy < PR_Y0 + PR_ROWS * PR_RH; yy++)
-        edge += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_HI;
+        edge += gpx(PR_X0 + 5 * PR_CW + 4, yy) == C_INK;
     check("roll view: one low note under a high riff: the riff stays in view (C5 on the bottom row)", proll.lo == 72);
     check("roll view: ... the low note a 1 px mark on the bottom edge",
-          edge == 1 && gpx(PR_X0 + 5 * PR_CW + 4, PR_Y0 + PR_ROWS * PR_RH - 1) == C_HI);
+          edge == 1 && gpx(PR_X0 + 5 * PR_CW + 4, PR_Y0 + PR_ROWS * PR_RH - 1) == C_INK);
 }
 
 static void test_roll_view_srec(void)
@@ -5090,18 +5157,18 @@ static void test_roll_view_key_out(void)
     ui_frame();
     ui_frame();                                      /* (the key sounds in the frame's audio, the graph shows it next) */
     check("roll view: a KEYS key under the view: the view stays, the strip's bottom row lit",
-          kz.key && proll.lo == lo0 && lo0 == 60u && gpx(PR_KX + 1, ybot) == C_WHITE && gpx(PR_KX + 1, PR_Y0) != C_WHITE);
+          kz.key && proll.lo == lo0 && lo0 == 60u && gpx(PR_KX + 1, ybot) == C_INK && gpx(PR_KX + 1, PR_Y0) != C_INK);
     keys(0);
     ui_frame();
     ui_frame();
-    check("roll view: ... let go: the bottom row back to its key", gpx(PR_KX + 1, ybot) != C_WHITE);
+    check("roll view: ... let go: the bottom row back to its key", gpx(PR_KX + 1, ybot) != C_INK);
     tap(B_OCTUP);
     tap(B_OCTUP);
     keys(1u << 26);                                  /* G7 (two octaves up): over the view */
     ui_frame();
     ui_frame();
     check("roll view: a KEYS key over the view: the strip's top row lit, the view stays",
-          kz.key && proll.lo == lo0 && gpx(PR_KX + 1, PR_Y0) == C_WHITE && gpx(PR_KX + 1, ybot) != C_WHITE);
+          kz.key && proll.lo == lo0 && gpx(PR_KX + 1, PR_Y0) == C_INK && gpx(PR_KX + 1, ybot) != C_INK);
     keys(0);
     tap(B_OCTDN);
     tap(B_OCTDN);
@@ -5137,20 +5204,20 @@ static void test_roll_label_slide_edges(void)
     t->step[15].slide = 1;                           /* step 16 slides into step 1 (the wrap) */
     roll_open(t);
     yc = pr_row_y(0);
-    for (yy = yc - 6; yy < H_GRAPH - G_OY; yy++)    /* the label: from its row's y - 6 down (x 0: the frame) */
+    for (yy = yc - 6; yy < H_GRAPH - G_OY; yy++)    /* the label: from its row's y - 6 down */
         for (xx = 1; xx < PR_KX; xx++)
-            lit0 += gpx(xx, yy) != 0;
-    cv_begin(240, 40, C_BLACK);                      /* the label whole, for reference */
-    cv_text(0, 0, &FONT_S, "C-1", C_GRAY);
+            lit0 += gpx(xx, yy) == C_INK;
+    cv_begin(240, 40, C_BG);                         /* the label whole, for reference */
+    md_text(0, 0, &MD_F3, 2, "C-1", C_INK);
     for (yy = 0; yy < 40 * 240; yy++)
-        whole += cv_px[yy] != 0 && yy % 240 < PR_KX && yy % 240 > 0;
+        whole += cv_px[yy] == swap16(C_INK);
     ui.force = 1;
     ui_frame();
     check("roll: C-1 (NOTE 0) on the bottom row, its label whole (from x 0, not clipped)", proll.lo == 0u &&
-          PR_KX - 2 - text_w(&FONT_S, "C-1") < 0 && whole > 20 && lit0 == whole);
+          PR_KX - 2 - md_text_w(&MD_F3, 2, "C-1") >= 2 && whole > 20 && lit0 == whole);
     for (yy = PR_Y0 - 2; yy < PR_Y0 + PR_ROWS * PR_RH + 2; yy++)
-        for (xx = PR_X0 + 16 * PR_CW + 1; xx < 240; xx++)
-            amb += gpx(xx, yy) == C_AMB;
+        for (xx = PR_X0 + 16 * PR_CW + 1; xx < 239; xx++)
+            amb += gpx(xx, yy) == C_INK;
     check("roll: a slide out of the bank's last column stays inside the grid", amb == 0);
 }
 
@@ -5194,15 +5261,15 @@ static void test_roll_cursor_playhead(void)
     turn(EN_K1, 2);
     ui_frame();
     x = PR_X0 + 2 * PR_CW;
-    check("roll: step record's cursor framed WHITE (step 3)", ui.srec && gpx(x + 5, PR_Y0 - 2) == C_WHITE &&
-          gpx(x, 50) == C_WHITE && gpx(x + PR_CW, 50) == C_WHITE);
+    check("roll: step record's cursor framed (step 3)", ui.srec && gpx(x + 5, PR_Y0 - 2) == C_INK &&
+          gpx(x, 50) == C_INK && gpx(x + PR_CW, 50) == C_INK);
     tap(B_REC);
     transport_req = 1;
     seq_play_to(0, 4);
     ui_frame();
     x = PR_X0 + 4 * PR_CW;
-    check("roll: the playhead a 1 px WHITE line through the playing step (5)", gpx(x + 6, PR_Y0 + 1) == C_WHITE &&
-          gpx(x + 5, PR_Y0 + 1) != C_WHITE);
+    check("roll: the playhead a 1 px line through the playing step (5)", gpx(x + 6, PR_Y0 + 1) == C_INK &&
+          gpx(x + 5, PR_Y0 + 1) != C_INK);
     transport_req = 2;
     ui_frame();
 }
@@ -5250,7 +5317,7 @@ static void test_foot_note(void)
     ui_frame();
     check("footer: step record's cursor step, a TIE: the note it holds (step 2's C#4, not its own unused C#3)",
           foot_note(b) && str_eq(b, "C#4 TIE"));
-    check("drum grid: step record's cursor framed WHITE (step 3)", gpx(4 + 2 * 14 - 2, 40) == C_WHITE);
+    check("drum grid: step record's cursor framed (step 3)", gpx(4 + 2 * 14 - 2, 40) == C_INK);
     turn(EN_K1, 1);
     ui_frame();
     check("footer: ... a slide: C4 SLD", foot_note(b) && str_eq(b, "C4 SLD"));
@@ -5267,8 +5334,8 @@ static void test_grid_transposed_mark(void)
     open_step_page();
     ui.force = 1;
     ui_frame();
-    check("drum grid: a transposed step (NOTE != C4) a small AMB mark under its bar; a C4 step none",
-          gpx(4 + 14 + 4, 30 + 42) == C_AMB && gpx(4 + 2 * 14 + 4, 30 + 42) != C_AMB);
+    check("drum grid: a transposed step (NOTE != C4) a small mark under its bar; a C4 step none",
+          gpx(4 + 14 + 4, 30 + 42) == C_INK && gpx(4 + 2 * 14 + 4, 30 + 42) != C_INK);
 }
 
 static int32_t acid_peak_x(void)                    /* the leftmost lit x (100..235) above the 0 dB line; -1 none */
@@ -5276,17 +5343,19 @@ static int32_t acid_peak_x(void)                    /* the leftmost lit x (100..
     uint32_t x, y;
     for (x = 100u; x < 236u; x++)
         for (y = Y_GRAPH + G_OY + 2u; y < Y_GRAPH + G_OY + ACID_GY; y++)
-            if (fb[y * 240u + x])
+            if (fb[y * 240u + x] == C_INK)
                 return (int32_t)x;
     return -1;
 }
-static uint32_t acid_hi(uint32_t y0, uint32_t y1)   /* HI pixels at x 110..235 (past the first 10 px) of graph rows
-                                                     * y0..y1 */
+static uint32_t acid_hi(uint32_t y0, uint32_t y1)   /* the curve's pixels at x 110..235 (past the first 10 px) of
+                                                     * graph rows y0..y1: ink with an ink neighbour (dotted lines'
+                                                     * pixels have none) */
 {
     uint32_t n = 0, x, y;
     for (y = Y_GRAPH + G_OY + y0; y < Y_GRAPH + G_OY + y1; y++)
         for (x = 110u; x < 236u; x++)
-            n += fb[y * 240u + x] == C_HI;
+            n += fb[y * 240u + x] == C_INK && (fb[y * 240u + x - 1u] == C_INK || fb[y * 240u + x + 1u] == C_INK ||
+                                              fb[(y - 1u) * 240u + x] == C_INK || fb[(y + 1u) * 240u + x] == C_INK);
     return n;
 }
 static void test_acid_edit_graph(void)
@@ -5356,7 +5425,7 @@ static uint32_t pr_bar_lit(int32_t x, int32_t y)    /* a plain bar's pixels lit 
     int32_t xx, yy;
     for (yy = y + 1; yy < y + PR_RH - 1; yy++)
         for (xx = x; xx < x + 9; xx++)
-            n += gpx(xx, yy) != C_BLACK;
+            n += gpx(xx, yy) == C_INK;
     return n;
 }
 
@@ -5486,7 +5555,7 @@ static uint32_t hint_lit(int32_t x0)               /* the STEP grid's hint row (
     int32_t x, y;
     for (y = 84; y < 96; y++)
         for (x = x0; x < 239; x++)                   /* (x 239: the frame's edge) */
-            n += gpx(x, y) != C_BLACK;
+            n += gpx(x, y) == C_INK;
     return n;
 }
 static void test_keys_hint_playing(void)
@@ -5894,6 +5963,10 @@ int main(void)
     test_cell_knob_vs_text();
     test_cell_touched();
     test_cell_value_fits();
+    test_graph_model_name();
+    test_graph_step_bars();
+    test_graph_slots_cursor();
+    test_graph_song_rows();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
