@@ -2209,9 +2209,9 @@ static void test_cell_knob_vs_text(void)
     open_filter();
     check("cell: FILTER TYPE (an enum) is text, no knob (no tick / ring at x 17)", str_eq(cur_page()->title, "FILTER") &&
           fb[(Y_KNOB + 18u) * 240u + 17u] == C_BG && fb[(Y_KNOB + 20u) * 240u + 17u] == C_BG);
-    check("cell: CUT (continuous) a knob: the tick and the ring's top at x 77",
-          fb[(Y_KNOB + 18u) * 240u + 77u] == C_INK && fb[(Y_KNOB + 20u) * 240u + 77u] == C_INK &&
-          fb[(Y_KNOB + 19u) * 240u + 77u] == C_BG);
+    check("cell: CUT (continuous) a knob: the tick and the ring's top at x 75",
+          fb[(Y_KNOB + 18u) * 240u + 75u] == C_INK && fb[(Y_KNOB + 20u) * 240u + 75u] == C_INK &&
+          fb[(Y_KNOB + 19u) * 240u + 75u] == C_BG);
     check("cell: labels in ink on the theme's ground", fb_count(61, Y_KNOB + 2u, 58, 10, C_INK) > 20u &&
           fb_count(61, Y_KNOB, 58, 43, C_BG) > 58u * 43u / 2u);
 }
@@ -2253,9 +2253,9 @@ static void test_cell_value_fits(void)
     TSEL->p[P_FCUT] = (int16_t)TP[P_FCUT].max;      /* the widest cutoff */
     ui.force = 1;
     ui_frame();
-    check("cell: a long value fits right of the knob (x 86 clear, ink in x 87..115, nothing past x 116)",
-          fb_count(86, Y_KNOB + 22u, 1, 13, C_INK) == 0u && fb_count(87, Y_KNOB + 22u, 29, 13, C_INK) > 10u &&
-          fb_count(116, Y_KNOB + 22u, 4, 13, C_INK) == 0u);
+    check("cell: a long value fits right of the knob (x 86 clear, ink in x 87..117, nothing at x 118..119)",
+          fb_count(86, Y_KNOB + 22u, 1, 13, C_INK) == 0u && fb_count(87, Y_KNOB + 22u, 31, 13, C_INK) > 10u &&
+          fb_count(118, Y_KNOB + 22u, 2, 13, C_INK) == 0u);
 }
 
 /* spec 2026-10-19-md-ui §8, graphs I (two tones): the model's name in F3 5x; STEP's bars; PROJECT's and SONG's
@@ -2672,6 +2672,82 @@ static void test_theme_sheet(void)
     sheet_t = 0;
     theme_set(THEME_TAG | 0u);
     check("theme sheet: 13 screens in each of the 4 themes, every pixel the theme's BG or INK", sheet_stray == 0u);
+}
+
+/* final review fixes (2026-10-19-md-ui): a 4-glyph value whole; ZOOM on HOME; a shorter message repaints; popups do
+ * not let the graph under them redraw */
+static void test_fix_value_4_glyphs(void)
+{
+    uint32_t x, y, x0 = 999, x1 = 0;
+    ui_host_init();
+    open_tracks();
+    TSEL->p[P_PAN] = -64;                            /* PAN fully left: -100 */
+    ui.force = 1;
+    ui_frame();
+    for (y = Y_KNOB + 24u; y < Y_KNOB + 34u; y++)
+        for (x = 207u; x < 239u; x++)
+            if (fb[y * 240u + x] == C_INK) {
+                x0 = x < x0 ? x : x0;
+                x1 = x > x1 ? x : x1;
+            }
+    check("cell: PAN fully left shows -100 whole (4 glyphs, 30 px), not -10", x1 - x0 + 1u == 30u);
+    TSEL->p[P_PAN] = 0;
+}
+
+static void test_fix_zoom_home(void)
+{
+    ui_host_init();
+    settings.zoom = 1;
+    ui.force = 1;
+    ui_frame();
+    turn(EN_K1, 1);
+    ui_frame();
+    check("ZOOM on HOME: the touched value in a popup over the scope (its shadow edge at x 152..153)", ui.home &&
+          fb[110u * 240u + 152u] == C_INK && fb[110u * 240u + 153u] == C_INK && fb[110u * 240u + 151u] == C_BG);
+    settings.zoom = 0;
+}
+
+static void test_fix_msg_shrink(void)
+{
+    uint32_t k, e = 0;
+    ui_host_init();
+    tap(B_EDIT);
+    ui.force = 1;
+    ui_frame();
+    ui_message("A MUCH LONGER MESSAGE");
+    ui_frame();
+    for (k = 3; k < 239u; k++)
+        if (fb[120u * 240u + k] == C_INK && fb[120u * 240u + k - 1u] == C_INK && fb[120u * 240u + k - 2u] == C_BG)
+            e = k;
+    ui_message("OK");
+    ui_frame();
+    check("message: a shorter one replacing it leaves no edge of the longer popup", e > 150u &&
+          !(fb[120u * 240u + e] == C_INK && fb[120u * 240u + e - 1u] == C_INK && fb[120u * 240u + e - 2u] == C_BG));
+}
+
+static void test_fix_popup_holds_graph(void)
+{
+    uint32_t k, during;
+    ui_host_init();
+    open_tracks();
+    transport_req = 1;
+    for (k = 0; k < 5u; k++)
+        ui_frame();
+    sel(1);                                          /* BPM + 1: TEMPO */
+    ui_frame();
+    host_graph_blits = 0;
+    for (k = 0; k < 6u; k++) {
+        trk[k].peak = (int16_t)(8000 + 3000 * (int32_t)k);   /* the meters move */
+        ui_frame();
+    }
+    during = host_graph_blits;
+    check("TEMPO over a playing TRACKS: the rows under it are not redrawn (no flicker), the popup stays",
+          ui.bpm_t && during == 0u && fb[120u * 240u + 208u] == C_INK && fb[120u * 240u + 209u] == C_INK);
+    for (k = 0; k < 45u; k++)
+        ui_frame();
+    check("TEMPO gone: the rows redrawn again", !ui.bpm_t && host_graph_blits > 0u);
+    transport_req = 2;
+    ui_frame();
 }
 
 static void snap_page(const char *name)
@@ -6351,6 +6427,10 @@ int main(void)
     test_menu_popup_cursor();
     test_name_block_cursor();
     test_theme_sheet();
+    test_fix_value_4_glyphs();
+    test_fix_zoom_home();
+    test_fix_msg_shrink();
+    test_fix_popup_holds_graph();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

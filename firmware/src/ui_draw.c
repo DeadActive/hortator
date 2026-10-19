@@ -152,7 +152,7 @@ static void draw_column_m(uint32_t c, const char *label, const char *val, const 
     int32_t w = c == 3u ? 58 : 59, vw, vx;
     uint32_t touched = st == CV_HOT, dim = st == CV_DIM, n;
     md_fit(l, label, sizeof l, w - 2);
-    md_fit(v, val, 5, ratio >= 0 ? 28 : w - 4);
+    md_fit(v, val, 5, ratio >= 0 ? 30 : w - 4);
     n = str_len(v);
     if (n > 1u && v[n - 1u] == '.')                  /* "-24." -> "-24" */
         v[n - 1u] = 0;
@@ -178,9 +178,10 @@ static void draw_column_m(uint32_t c, const char *label, const char *val, const 
         cv_hdot(1, w - 2, 14, C_INK);
     }
     vw = md_text_w(&MD_F3, 2, v);
-    if (ratio >= 0) {
-        cv_knob(16, 28, 8, ratio, mod, C_INK);
-        vx = 54 - vw;
+    if (ratio >= 0) {                                 /* the knob, the value right of it (4 glyphs fit, 3 px clear of
+                                                       * the LFO dot) */
+        cv_knob(14, 28, 8, ratio, mod, C_INK);
+        vx = 57 - vw;
     } else {
         vx = (w - vw) / 2;
     }
@@ -1518,6 +1519,9 @@ static void draw_graph(void)
     const track_t *t = TSEL;
     uint16_t c = C_INK;
     uint32_t sig, top = 0;
+    if ((ui.msg_t || ui.bpm_t) && !ui.force)            /* a popup over the graph: the graph holds still under it (no
+                                                       * redraw-then-popup flicker); everything repaints when it ends */
+        return;
     if (ui.layer) {                                     /* PERFORM: the map */
         graph_perf();
         ui.graph_top = 1;
@@ -1549,6 +1553,13 @@ static void draw_graph(void)
         cv_oy = 0;
         cv_tab(1, 0, "SCOPE", C_INK, C_BG);
         graph_scope(62, 46);
+        if (ui.hot_t && settings.zoom) {               /* ZOOM: the touched value large, under the tab */
+            int32_t x;
+            cv_popup(4, 16, 150, 50, "", C_INK, C_BG);
+            md_text(10, 20, &MD_F3, 2, ui.focus_l, C_INK);
+            x = md_text(10, 34, &MD_F3, 4, ui.focus_v, C_INK);
+            md_text(x + 4, 44, &MD_F3, 2, ui.focus_u, C_INK);
+        }
         cv_rect(0, 0, 1, 112, C_INK);
         cv_rect(239, 0, 1, 112, C_INK);
         cv_blit(0, 69);
@@ -1752,7 +1763,7 @@ static void draw_msg(void)
 {
     uint32_t sig = ui.msg_t ? str_hash(7u, ui.msg) : 0u;
     int32_t w, h = 30;
-    if (!sig)
+    if (!sig || (!ui.force && sig == ui.msg_sig))
         return;
     ui.msg_sig = sig;
     w = md_text_w(&MD_F3, 2, ui.msg) + 24;
@@ -1770,9 +1781,9 @@ static void draw_tempo(void)
 {
     char b[8];
     int32_t w;
-    if (!ui.bpm_t)
+    if (!ui.bpm_t || (!ui.force && ui.tempo_sig == (uint32_t)song.g[G_BPM] + 1u))
         return;
-    ui.tempo_sig = 1u;
+    ui.tempo_sig = (uint32_t)song.g[G_BPM] + 1u;
     cv_begin(182, 98, C_BG);
     cv_popup(1, 6, 180, 90, "TEMPO", C_INK, C_BG);
     fmt_int(b, song.g[G_BPM]);
@@ -2069,6 +2080,8 @@ __attribute__((always_inline)) static inline void ui_draw(void)
         ui.msg_sig = ui.tempo_sig = 0;
         ui.force = 1;
     }
+    if (ui.msg_t && ui.msg_sig && str_hash(7u, ui.msg) != ui.msg_sig)   /* another message (it may be narrower) */
+        ui.force = 1;
     if (ui.force)
         draw_frame();
     felucca_dbg.stage = 3;

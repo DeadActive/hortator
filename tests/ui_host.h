@@ -17,9 +17,12 @@ static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
         for (i = x; i < x + w && i < 240u; i++)
             fb[j * 240u + i] = c;
 }
+static uint32_t host_graph_blits;                    /* blits of full-width strips into rows 61..180 (the graph area) */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
     uint32_t i, j;
+    if (x == 0 && y >= 61u && y < 181u)
+        host_graph_blits++;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             if (x + i < 240u && y + j < 240u)
