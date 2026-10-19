@@ -2575,6 +2575,105 @@ static void test_name_block_cursor(void)
     ui_frame();
 }
 
+/* spec 2026-10-19-md-ui §10: the review sheet: the key pages in each theme into build/ui_shots/themes/<theme>/, every
+ * one in two tones only (the theme's BG and INK) */
+static const char *const THEME_DIR[4] = {"md-red", "red-on-black", "white-on-blue", "black-on-green"};
+static uint32_t sheet_t;
+static uint32_t sheet_stray;
+static void sheet_snap(const char *page)
+{
+    char path[128];
+    uint32_t i, k;
+    for (k = 0; k < 3u; k++)
+        ui_frame();
+    snprintf(path, sizeof path, "build/ui_shots/themes/%s/%s.ppm", THEME_DIR[sheet_t], page);
+    shot(path);
+    for (i = 0; i < 240u * 240u; i++)
+        if (fb[i] != C_BG && fb[i] != C_INK) {
+            if (!sheet_stray)
+                printf("     two tones: %s/%s has 0x%04x at %u,%u\n", THEME_DIR[sheet_t], page, fb[i], i % 240u, i / 240u);
+            sheet_stray++;
+        }
+}
+static void sheet_open(void)                          /* a fresh device in theme sheet_t */
+{
+    ui_host_init();
+    settings.palette = THEME_TAG | sheet_t;
+    theme_set(settings.palette);
+    ui.force = 1;
+}
+static void test_theme_sheet(void)
+{
+    uint32_t i;
+    sheet_stray = 0;
+    for (sheet_t = 0; sheet_t < 4u; sheet_t++) {
+        sheet_open();
+        draw_boot_title();
+        shot("build/ui_shots/themes/boot.ppm");
+        sheet_snap("00_home");
+        sheet_open();
+        tap(B_EDIT);
+        sheet_snap("01_sound");
+        sheet_open();
+        tap(B_FX);
+        sheet_snap("02_filter");
+        sheet_open();
+        trk[0].step[0].on = trk[0].step[0].acc = trk[0].step[4].on = 1;
+        open_step_page();
+        sheet_snap("03_step");
+        sheet_open();
+        tap(B_LFO);
+        sheet_snap("04_lfo");
+        sheet_open();
+        sel(1);
+        sel(1);
+        sheet_snap("05_comp");
+        sheet_open();
+        tap(B_SAVE);
+        sheet_snap("06_project");
+        sheet_open();
+        open_tracks();
+        sheet_snap("07_tracks");
+        sheet_open();
+        press(B_FX);
+        fx_hold_frames(500);
+        sheet_snap("08_perform");
+        release_all();
+        sheet_open();
+        ui.menu = 1;
+        sheet_snap("09_menu");
+        menu_close();
+        sheet_open();
+        trk[0].step[0].on = 1;
+        open_step_page();
+        fm1_in.buttons |= 1u << panel.btn[B_REC];
+        for (i = 0; i < 800; i++)
+            ui_input();
+        release_all();
+        ui.force = 1;
+        sheet_snap("10_confirm");
+        press(B_OCTDN);
+        ui_frame();
+        release_all();
+        sheet_open();
+        name_open(NK_RENAME, 0);
+        sheet_snap("11_name");
+        nm.kind = NK_NONE;
+        sheet_open();
+        press(B_GLO);
+        glo_hold_frames(500);
+        sheet_snap("12_mute");
+        release_all();
+        sheet_open();
+        safe_start = 1;
+        sheet_snap("13_safe_start");
+        safe_start = 0;
+    }
+    sheet_t = 0;
+    theme_set(THEME_TAG | 0u);
+    check("theme sheet: 13 screens in each of the 4 themes, every pixel the theme's BG or INK", sheet_stray == 0u);
+}
+
 static void snap_page(const char *name)
 {
     char path[96];
@@ -5837,7 +5936,7 @@ static void test_keys_hint_playing(void)
     seq_open("STEP");
     ui.force = 1;
     ui_frame();
-    x0 = text_w(&FONT_S, "KEYS") + 6;
+    x0 = md_text_w(&MD_F3, 2, "KEYS") + 6;
     stopped = hint_lit(x0);
     transport_req = 1;
     ui_frame();
@@ -6251,6 +6350,7 @@ int main(void)
     test_tempo_popup();
     test_menu_popup_cursor();
     test_name_block_cursor();
+    test_theme_sheet();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

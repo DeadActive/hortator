@@ -55,7 +55,7 @@ static void draw_menu(void)
         if (ui.menu == 2) {                         /* ABOUT: the logo, the credits */
             static const char *const AB[] = {"DRUM MACHINE ON FELUCCA", FELUCCA_VERSION, "FORK: DEADACTIVE",
                                              "FELUCCA: LEO KUROSHITA", "H\xDCGELTON INSTRUMENTS", "GPL-3.0, NO WARRANTY",
-                                             "GITHUB.COM/HUGELTON/FELUCCA", "FONT: TERMINUS (OFL)",
+                                             "GITHUB.COM/HUGELTON/FELUCCA", "PIXEL FONT: DEADACTIVE",
                                              "SAMPLES: VERSILIAN (CC0)",
                                              "+ H\xDCGELTON SAMPLE PACK"};
             static int16_t pk[8];                   /* the logo's peak dots */

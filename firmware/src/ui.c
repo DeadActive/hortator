@@ -21,8 +21,8 @@ static void panel_setup(void);
 static void learn_save(void);              /* project.c: MIDI LEARN's map to flash (deferred while playing) */
 static void ml_line(char *b);              /* ui_learn.c: MIDI LEARN's footer line */
 
-#define ACC C_HI
-#define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)
+enum { CV_NORM, CV_HOT, CV_DIM };              /* a knob cell's value: plain, touched (inverted), inactive (dithered) */
+#define HOT(c) ((c) == ui.hot_col && ui.hot_t ? CV_HOT : CV_NORM)
 #define RATIO(d, v) ((d)->max > (d)->min ? (enum_rank((d), (int32_t)(v)) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
 /* layout A (spec 2026-10-19-md-ui §5): top bar 0..15, knob row 17..59, rule 60, graph 61..180 (a 20-row band over
  * the 100-row graph proper), trig strip 181..211 (dotted rule on its first row), breadcrumb 212..239 */

@@ -141,7 +141,6 @@ static void sim_mark(uint32_t off, uint32_t n)
 #include "../firmware/src/panel.c"
 #include "../firmware/src/pages.c"
 #include "../firmware/src/ui.c"
-#include "../firmware/src/icons.c"
 #include "../firmware/src/ui_draw.c"
 #include "../firmware/src/ui_menu.c"
 #include "../firmware/src/ui_input.c"

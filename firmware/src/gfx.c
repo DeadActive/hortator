@@ -3,15 +3,6 @@
 /* Small-canvas renderer (no full framebuffer). Draw text/lines into
  * an off-screen strip, then blit it in one DMA transfer. Pixels are stored
  * byte-swapped (the panel takes RGB565 big-endian). */
-typedef struct {               /* proportional, see tools/gen_font.py */
-    uint8_t h;
-    uint8_t pad;               /* bitmap starts this many pixels left of the pen */
-    uint8_t first, last;
-    const uint8_t *adv;        /* advance per glyph */
-    const uint8_t *bw;         /* bitmap width per glyph (starts FONT_PAD left of the pen) */
-    const uint16_t *off;       /* byte offset of each glyph */
-    const uint8_t *data;
-} felucca_font_t;
 typedef struct {               /* 1-bit Machinedrum-style font (assets/fonts/md_font.txt, tools/gen_font.py) */
     uint8_t h, first, last;
     const uint8_t *w;          /* glyph width in px (0: no glyph) */
@@ -26,36 +17,6 @@ static int32_t cv_oy;            /* y offset for graph drawing */
 static int32_t cv_sy;            /* the screen row of canvas row 0 (cv_begin_at): dither lines up across strips */
 
 #define RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
-#define C_BLACK 0x0000u
-#define C_WHITE 0xFFFFu              /* accent only: what is being touched / where we are */
-/* The screen is five steps of one colour, darkest to brightest, plus white.
- * Palettes are picked in the HOME-hold menu (COLOR). */
-typedef struct {
-    const char *name;
-    uint16_t c[5];
-} palette_t;
-static const palette_t PALETTES[] = {
-    {"GREEN", {RGB(0, 40, 12), RGB(0, 84, 30), RGB(16, 140, 54), RGB(56, 200, 92), RGB(120, 255, 146)}},
-    {"AMBER", {RGB(60, 26, 0), RGB(110, 50, 0), RGB(170, 82, 0), RGB(225, 120, 8), RGB(255, 166, 40)}},
-    {"CYAN", {RGB(0, 30, 50), RGB(0, 62, 96), RGB(16, 112, 160), RGB(56, 172, 222), RGB(140, 222, 255)}},
-    {"RED", {RGB(52, 8, 8), RGB(100, 18, 14), RGB(170, 36, 26), RGB(226, 64, 48), RGB(255, 112, 92)}},
-    {"MONO", {RGB(40, 40, 40), RGB(80, 80, 80), RGB(130, 130, 130), RGB(186, 186, 186), RGB(226, 226, 226)}},
-};
-#define NPALETTES (sizeof(PALETTES) / sizeof(PALETTES[0]))
-static uint16_t pal[5];
-#define C_LINE pal[0]                /* 1 rules, separators */
-#define C_DIM pal[1]                 /* 2 inactive, empty steps, units */
-#define C_GRAY pal[2]                /* 3 labels */
-#define C_AMB pal[3]                 /* 4 secondary text */
-#define C_HI pal[4]                  /* 5 values, curves */
-
-static void palette_set(uint32_t i)
-{
-    uint32_t k;
-    for (k = 0; k < 5u; k++)
-        pal[k] = PALETTES[i % NPALETTES].c[k];
-}
-
 /* Machinedrum-style themes (spec 2026-10-19-md-ui §2): two colours, BG and INK. Stored in settings.palette bits 0..7
  * as THEME_TAG | index; the old palette ids 0..4 (GREEN AMBER CYAN RED MONO) map on load. */
 typedef struct {
@@ -83,23 +44,12 @@ static uint32_t theme_index(uint32_t stored)
     return 0;
 }
 
-static uint16_t mix565(uint16_t a, uint16_t b, uint32_t pct)   /* a .. b, pct of b */
-{
-    uint32_t r = ((a >> 11) * (100u - pct) + (b >> 11) * pct) / 100u;
-    uint32_t g = (((a >> 5) & 63u) * (100u - pct) + ((b >> 5) & 63u) * pct) / 100u;
-    uint32_t l = ((a & 31u) * (100u - pct) + (b & 31u) * pct) / 100u;
-    return (uint16_t)(r << 11 | g << 5 | l);
-}
-
-/* the theme of a stored COLOR id; also the old five-step pal[] as a BG..INK ramp for the screens not yet redrawn */
+/* the theme of a stored COLOR id */
 static void theme_set(uint32_t stored)
 {
     const theme_t *t = &THEMES[theme_index(stored)];
-    uint32_t k;
     C_BG = t->bg;
     C_INK = t->ink;
-    for (k = 0; k < 5u; k++)
-        pal[k] = mix565(t->bg, t->ink, 20u * (k + 1u));
 }
 
 static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu) | ((c & 0xFFu) << 8)); }
@@ -196,50 +146,6 @@ static void cv_line_dot(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t
     }
 }
 
-/* glyph index of a character: lower case folds to upper case when the font
- * has none, anything missing (and C1 controls) draws as '?' */
-static uint32_t glyph(const felucca_font_t *f, uint32_t ch)
-{
-    if (ch >= 'a' && ch <= 'z' && f->last < 'a')
-        ch -= 32u;
-    if (ch < f->first || ch > f->last || (ch >= 127u && ch < 160u))
-        ch = '?';
-    return ch - f->first;
-}
-
-/* text, alpha-blended onto black with colour c; returns the end x */
-static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
-{
-    uint16_t ramp[16];
-    uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u, a;
-    for (a = 0; a < 16u; a++)
-        ramp[a] = (uint16_t)(((r * a / 15u) << 11) | ((g * a / 15u) << 5) | (b * a / 15u));
-    for (; *s; s++) {
-        uint32_t gi = glyph(f, (uint8_t)*s), gx, gy, w, bpr;
-        const uint8_t *gd;
-        w = f->bw[gi];
-        bpr = (w + 1u) / 2u;
-        gd = f->data + f->off[gi];
-        for (gy = 0; gy < f->h; gy++)
-            for (gx = 0; gx < w; gx++) {
-                uint32_t v = gd[gy * bpr + gx / 2u];
-                v = (gx & 1u) ? (v & 15u) : (v >> 4);
-                if (v)
-                    cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, ramp[v]);
-            }
-        x += f->adv[gi];
-    }
-    return x;
-}
-
-static int32_t text_w(const felucca_font_t *f, const char *s)
-{
-    int32_t w = 0;
-    for (; *s; s++)
-        w += f->adv[glyph(f, (uint8_t)*s)];
-    return w;
-}
-
 /* MD glyph index of a character: lower case folds to caps in a font with caps, Ü / ü draw as U; a glyph the font
  * lacks draws as its '?' (or nothing when it has none). 0: nothing to draw. */
 static int md_glyph(const md_font_t *f, uint32_t ch, uint32_t *gi)
@@ -248,6 +154,8 @@ static int md_glyph(const md_font_t *f, uint32_t ch, uint32_t *gi)
         ch -= 32u;
     else if (ch == 0xDCu || ch == 0xFCu)
         ch = 'U';
+    else if (ch == 0xB0u)                           /* the degree sign: md_font.txt's '`' */
+        ch = '`';
     if (ch < f->first || ch > f->last || !f->w[ch - f->first]) {
         if ('?' < f->first || '?' > f->last || !f->w['?' - f->first])
             return 0;
@@ -504,17 +412,20 @@ static void cv_vu(int32_t ox, int32_t oy, uint32_t f, uint32_t half, int16_t *pe
     }
 }
 
-/* one-shot: text in a box, cleared to black, blitted */
-static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font_t *f, const char *s,
-                          uint16_t c, int align)
+/* one-shot: text (MD_F3 at sc) in a box w wide on the theme's ground, aligned 0 left, 1 centre, 2 right, blitted (the
+ * crash / update / UBOOT / calibration / safe-start screens; before a theme is set, the default one) */
+static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, uint32_t sc, const char *s, int align)
 {
-    int32_t tw = text_w(f, s), tx = 0;
-    cv_begin(w, f->h, C_BLACK);
+    int32_t tw, tx = 0;
+    if (C_BG == C_INK)
+        theme_set(THEME_TAG | 0u);
+    tw = md_text_w(&MD_F3, sc, s);
+    cv_begin(w, 5u * sc, C_BG);
     if (align == 1)
         tx = ((int32_t)w - tw) / 2;
     else if (align == 2)
         tx = (int32_t)w - tw;
-    cv_text(tx, 0, f, s, c);
+    md_text(tx, 0, &MD_F3, sc, s, C_INK);
     cv_blit(x, y);
     lcd_sync();                     /* one-shots (boot, crash, UBOOT, update) finish here */
 }

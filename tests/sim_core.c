@@ -54,7 +54,7 @@ void sim_init(int fresh)                                 /* main.c's boot order 
     audio_init();
     sim_knob = (int32_t)sim_master_raw * 16;
     sim_frame();                                          /* settles MASTER and draws the first screen */
-    lcd_fill(0, 0, 240, 240, C_BLACK);
+    lcd_fill(0, 0, 240, 240, C_BG);
     ui.force = 1;
     if (fresh)
         sim_demo_install();

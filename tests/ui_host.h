@@ -59,7 +59,6 @@ static struct { uint32_t stage, page, home, ui_frames; } felucca_dbg;
 #include "../firmware/src/panel.c"
 #include "../firmware/src/pages.c"
 #include "../firmware/src/ui.c"
-#include "../firmware/src/icons.c"
 #ifndef UI_NO_DRAW
 #include "../firmware/src/ui_draw.c"
 #else

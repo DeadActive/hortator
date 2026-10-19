@@ -249,7 +249,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         break;
     case F_LPHASE:
         fmt_int(val, (int32_t)clamp(v, 0, 127) * 360 / 128);
-        *unit = "\xB0";                              /* the degree sign (Latin-1, in FONT_S) */
+        *unit = "\xB0";                              /* the degree sign (Latin-1: md_font.txt's '`') */
         break;
     case F_NOTEO:                                     /* a MIDI note as name + octave (60 = C4): "C3", "F#5" */
         str_cpy(val, N_NOTE[(uint32_t)clamp(v, 0, 127) % 12u], 6);

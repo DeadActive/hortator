@@ -78,17 +78,17 @@ static void fm1_fault(const fm1_crash_t *c)
     uint32_t t0;
     fm1_audio_stop();
     lcd_fill(0, 0, 240, 240, RGB(160, 0, 0));
-    draw_text_box(0, 8, 240, &FONT_S, "FELUCCA CRASH", C_WHITE, 1);
+    draw_text_box(0, 8, 240, 2, "FELUCCA CRASH", 1);
     hexs(b, c->vec);
-    draw_text_box(10, 40, 220, &FONT_S, b, C_WHITE, 0);
+    draw_text_box(10, 40, 220, 2, b, 0);
     hexs(b, c->pc);
-    draw_text_box(10, 60, 220, &FONT_S, b, C_WHITE, 0);
+    draw_text_box(10, 60, 220, 2, b, 0);
     hexs(b, c->emu);
-    draw_text_box(10, 84, 220, &FONT_S, b, C_WHITE, 0);
+    draw_text_box(10, 84, 220, 2, b, 0);
     hexs(b, c->dbg);
-    draw_text_box(10, 102, 220, &FONT_S, b, C_WHITE, 0);
+    draw_text_box(10, 102, 220, 2, b, 0);
     hexs(b, c->rets);
-    draw_text_box(10, 120, 220, &FONT_S, b, C_WHITE, 0);
+    draw_text_box(10, 120, 220, 2, b, 0);
     t0 = fm1_ticks();
     while ((uint32_t)(fm1_ticks() - t0) < 4000u * 1000u * FM1_TICKS_PER_US)
         ;
@@ -143,7 +143,7 @@ static void fm1_main(void)
         settings_save();
     }
     fm1_delay_ms(400);
-    lcd_fill(0, 0, 240, 240, C_BLACK);
+    lcd_fill(0, 0, 240, 240, C_BG);
 
     for (;;) {
         uint32_t m = fm1_ms;
@@ -185,8 +185,8 @@ static void fm1_main(void)
                 }
             } else if (fm1_ms - t0 > 5000u) {
                 fm1_audio_stop();
-                lcd_fill(0, 0, 240, 240, C_BLACK);
-                draw_text_box(0, 110, 240, &FONT_S, "UBOOT", RGB(80, 120, 255), 1);
+                lcd_fill(0, 0, 240, 240, C_BG);
+                draw_text_box(0, 110, 240, 2, "UBOOT", 1);
                 usb_detach();
                 fm1_delay_ms(30);
                 bootguard.pending = 0;                  /* intentional reset: not a failed boot */
@@ -201,14 +201,14 @@ static void fm1_main(void)
             panic_req = (1u << NTRK) - 1u;               /* every track (bit per track) */
             if (flash_ok)
                 ota_session();                          /* returns only if nothing was committed */
-            lcd_fill(0, 0, 240, 240, C_BLACK);
+            lcd_fill(0, 0, 240, 240, C_BG);
             ui.force = 1;
         }
 #endif
         if (usb.uboot_req) {                            /* SysEx F0 22 24 35 7D F7 from the host */
             fm1_audio_stop();
-            lcd_fill(0, 0, 240, 240, C_BLACK);
-            draw_text_box(0, 110, 240, &FONT_S, "UBOOT (USB)", C_WHITE, 1);
+            lcd_fill(0, 0, 240, 240, C_BG);
+            draw_text_box(0, 110, 240, 2, "UBOOT (USB)", 1);
             fm1_delay_ms(20);
             usb_detach();
             fm1_delay_ms(30);

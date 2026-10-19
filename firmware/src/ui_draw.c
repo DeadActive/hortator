@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Drum machine fork: 2026 DEADACTIVE */
-/* Drum UI drawing: status bar (top), columns + gauges, graphs, focus readout, footer
- * (the bank's steps + model / track / page). */
+/* Drum UI drawing in the Machinedrum style (spec docs/superpowers/specs/2026-10-19-md-ui-design.md): the top bar,
+ * the knob cells, the graphs, the popups, the trig strip and the breadcrumb; two colours (C_BG, C_INK) */
 static void draw_menu(void);
 
 static uint32_t str_hash(uint32_t h, const char *s)
@@ -20,13 +20,6 @@ static void md_fit(char *d, const char *src, uint32_t n, int32_t maxw)
         d[str_len(d) - 1u] = 0;
 }
 
-/* at most 5 characters, and no wider than maxw */
-static void fit(char *d, const char *src, const felucca_font_t *f, int32_t maxw)
-{
-    str_cpy(d, src, 6);
-    while (d[0] && text_w(f, d) > maxw)
-        d[str_len(d) - 1u] = 0;
-}
 
 static int32_t batt_level(void)
 {
@@ -58,7 +51,6 @@ static int head_mode(char *b)
     return 1;
 }
 
-#define C_ALERT RGB(255, 40, 32)                     /* the CPU icon (a fixed red, not the palette's) */
 /* the CPU icon (spec 2026-10-11 §10): on for 2 s after an overload shed (audio.c song.sheds) */
 static uint32_t cpu_alert(void)
 {
@@ -151,15 +143,14 @@ static void draw_frame(void)
 
 /* a knob cell (spec 2026-10-19-md-ui §5, §6), 59 x 43 at x c*60+1: the label centred over a dotted rule; a
  * continuous parameter (ratio 0..1000): the MD knob, its LFO's live value (mod) a hollow dot outside it, the value
- * right of it; a discrete one (ratio < 0): its text centred, no knob. vc C_WHITE: touched (the value inverted, and
- * the breadcrumb shows it whole: ui.focus_*); C_DIM: inactive (the value dithered). At most 4 glyphs of the value. */
-static void draw_column_m(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
-                          int32_t ratio, uint32_t icon, int32_t mod)
+ * right of it; a discrete one (ratio < 0): its text centred, no knob. st CV_HOT: touched (the value inverted, and
+ * the breadcrumb shows it whole: ui.focus_*); CV_DIM: inactive (the value dithered). At most 4 glyphs of the value. */
+static void draw_column_m(uint32_t c, const char *label, const char *val, const char *unit, uint32_t st,
+                          int32_t ratio, int32_t mod)
 {
     char l[8], v[8], key[40];
     int32_t w = c == 3u ? 58 : 59, vw, vx;
-    uint32_t touched = vc == C_WHITE, dim = vc == C_DIM, n;
-    (void)icon;
+    uint32_t touched = st == CV_HOT, dim = st == CV_DIM, n;
     md_fit(l, label, sizeof l, w - 2);
     md_fit(v, val, 5, ratio >= 0 ? 28 : w - 4);
     n = str_len(v);
@@ -204,10 +195,9 @@ static void draw_column_m(uint32_t c, const char *label, const char *val, const 
     cv_blit(c * 60u + 1u, Y_KNOB);
 }
 
-static void draw_column(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
-                        int32_t ratio, uint32_t icon)
+static void draw_column(uint32_t c, const char *label, const char *val, const char *unit, uint32_t st, int32_t ratio)
 {
-    draw_column_m(c, label, val, unit, vc, ratio, icon, -1);
+    draw_column_m(c, label, val, unit, st, ratio, -1);
 }
 
 static uint32_t steps_hash(const track_t *t)
@@ -352,13 +342,13 @@ static void graph_model(const track_t *t, uint16_t c)
 }
 
 /* a step's bar: hatched (every third row dark) when its PROB is not 100 %; RATCH > 1: that many ticks above */
-static void step_bar(int32_t x, int32_t y, int32_t w, int32_t h, const step_t *st, uint16_t col, int32_t tick)
+static void step_bar(int32_t x, int32_t y, int32_t w, int32_t h, const step_t *st, int acc, int32_t tick)
 {
     int32_t r;
     if (st->cond) {                                  /* PROB < 100 %: hatched */
         for (r = 0; r < h; r += 3)
             cv_rect(x, y + r, w, r + 2 <= h ? 2 : 1, C_INK);
-    } else if (col == C_WHITE || w < 4) {            /* an accent (or a narrow bar): solid */
+    } else if (acc || w < 4) {                       /* an accent (or a narrow bar): solid */
         cv_rect(x, y, w, h, C_INK);
     } else {                                          /* a plain trig: outline + dither */
         cv_frame(x, y, w, h, C_INK);
@@ -377,7 +367,7 @@ static void graph_steps(const track_t *t, uint16_t c)
         step_t sv = view_step(t, i);
         const step_t *st = &sv;
         if (st->on)
-            step_bar(x, st->acc ? y : y + 4, 2, st->acc ? 14 : 10, st, st->acc ? C_WHITE : c, 3);
+            step_bar(x, st->acc ? y : y + 4, 2, st->acc ? 14 : 10, st, st->acc, 3);
         else
             cv_rect(x, y + 13, 2, 1, C_INK);
         if (song.playing && i == view_idx(t))
@@ -422,7 +412,7 @@ static void graph_grid(const track_t *t, uint16_t c)
             continue;
         }
         if (st->on)
-            step_bar(x, st->acc ? y : y + 10, 11, st->acc ? 40 : 30, st, st->acc ? C_WHITE : c, 3);
+            step_bar(x, st->acc ? y : y + 10, 11, st->acc ? 40 : 30, st, st->acc, 3);
         else
             cv_rect(x, y + 38, 11, 2, C_INK);        /* empty: a 2 px baseline */
         if (song.playing && si == view_idx(t))
@@ -1374,21 +1364,20 @@ static void perf_columns(void)
     char val[12];
     int32_t m = perf_k[0];
     fmt_int(val, m < 0 ? -m : m);
-    draw_column(0, "FILT", m ? val : "OFF", m < 0 ? "LPF" : m > 0 ? "HPF" : "", m ? VAL(0u) : C_DIM, (m + 100) * 5,
-                ICON_AUTO);
+    draw_column(0, "FILT", m ? val : "OFF", m < 0 ? "LPF" : m > 0 ? "HPF" : "", m ? HOT(0u) : CV_DIM, (m + 100) * 5);
     fmt_int(val, perf_k[1]);
-    draw_column(1, "CRUSH", perf_k[1] ? val : "OFF", perf_k[1] ? "%" : "", perf_k[1] ? VAL(1u) : C_DIM,
-                perf_k[1] * 10, ICON_AUTO);
+    draw_column(1, "CRUSH", perf_k[1] ? val : "OFF", perf_k[1] ? "%" : "", perf_k[1] ? HOT(1u) : CV_DIM,
+                perf_k[1] * 10);
     fmt_int(val, perf_k[2]);
-    draw_column(2, "THROW", perf_k[2] ? val : "OFF", perf_k[2] ? "%" : "", perf_k[2] ? VAL(2u) : C_DIM,
-                perf_k[2] * 10, ICON_AUTO);
+    draw_column(2, "THROW", perf_k[2] ? val : "OFF", perf_k[2] ? "%" : "", perf_k[2] ? HOT(2u) : CV_DIM,
+                perf_k[2] * 10);
     if (perf_harm_on()) {
         fmt_int(val, perf_k[3]);
-        draw_column(3, "SHIMR", perf_k[3] ? val : "OFF", perf_k[3] ? "%" : "", perf_k[3] ? VAL(3u) : C_DIM,
-                    perf_k[3] * 10, ICON_AUTO);
+        draw_column(3, "SHIMR", perf_k[3] ? val : "OFF", perf_k[3] ? "%" : "", perf_k[3] ? HOT(3u) : CV_DIM,
+                    perf_k[3] * 10);
     } else {
         fmt_int(val, 100 - perf_k[3]);
-        draw_column(3, "DEPTH", val, "%", VAL(3u), (100 - perf_k[3]) * 10, ICON_AUTO);
+        draw_column(3, "DEPTH", val, "%", HOT(3u), (100 - perf_k[3]) * 10);
     }
 }
 
@@ -1431,11 +1420,11 @@ static void motion_columns(void)
 {
     char val[12];
     uint32_t k = song.sel;
-    draw_column(0, "PLAY", motion_on(k) ? "ON" : "OFF", "", VAL(0u), -1, ICON_AUTO);
+    draw_column(0, "PLAY", motion_on(k) ? "ON" : "OFF", "", HOT(0u), -1);
     fmt_int(val, (int32_t)motion_count(k));
-    draw_column(1, "EVENT", val, "", C_HI, -1, ICON_AUTO);
-    draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
-    draw_column(3, "CLEAR", "", "", C_HI, -1, ICON_AUTO);
+    draw_column(1, "EVENT", val, "", CV_NORM, -1);
+    draw_column(2, "", "", "", CV_NORM, -1);
+    draw_column(3, "CLEAR", "", "", CV_NORM, -1);
 }
 
 /* SONG: 4 rows of the list ("2  B  x4  BREAK"), the + row after the last; the playing row marked, its repeats left */
@@ -1505,29 +1494,29 @@ static void song_columns(void)
     uint32_t r = ui.song_row < c->count ? ui.song_row : c->count;
     char v[12], u[8];
     if (r >= c->count) {
-        draw_column(0, "ROW", "+", "", VAL(0u), -1, ICON_AUTO);
-        draw_column(1, "SLOT", "--", "", C_DIM, -1, ICON_AUTO);
-        draw_column(2, "REPS", "--", "", C_DIM, -1, ICON_AUTO);
+        draw_column(0, "ROW", "+", "", HOT(0u), -1);
+        draw_column(1, "SLOT", "--", "", CV_DIM, -1);
+        draw_column(2, "REPS", "--", "", CV_DIM, -1);
     } else {
         fmt_int(v, (int32_t)r + 1);
         u[0] = '/';
         fmt_int(u + 1, c->count);
-        draw_column(0, "ROW", v, u, VAL(0u), -1, ICON_AUTO);
+        draw_column(0, "ROW", v, u, HOT(0u), -1);
         v[0] = (char)('A' + c->row[r].slot);
         v[1] = 0;
-        draw_column(1, "SLOT", v, "", VAL(1u), c->row[r].slot * 1000 / 3, ICON_AUTO);
+        draw_column(1, "SLOT", v, "", HOT(1u), c->row[r].slot * 1000 / 3);
         v[0] = 'x';
         fmt_int(v + 1, c->row[r].repeat);
-        draw_column(2, "REPS", v, "", VAL(2u), (c->row[r].repeat - 1) * 1000 / 15, ICON_AUTO);
+        draw_column(2, "REPS", v, "", HOT(2u), (c->row[r].repeat - 1) * 1000 / 15);
     }
-    draw_column(3, "LOOP", c->loop ? "ON" : "OFF", "", VAL(3u), -1, ICON_AUTO);
+    draw_column(3, "LOOP", c->loop ? "ON" : "OFF", "", HOT(3u), -1);
 }
 
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
     const track_t *t = TSEL;
-    uint16_t c = ACC;
+    uint16_t c = C_INK;
     uint32_t sig, top = 0;
     if (ui.layer) {                                     /* PERFORM: the map */
         graph_perf();
@@ -1944,18 +1933,18 @@ static void draw_columns(void)
         const track_t *t = TSEL;
         uint32_t lvl = (uint32_t)t->p[P_LEVEL];
         fmt_int(val, (int32_t)song.sel + 1);
-        draw_column(0, "TRACK", val, "/8", VAL(0u), (int32_t)song.sel * 1000 / (NTRK - 1), ICON_AUTO);
+        draw_column(0, "TRACK", val, "/8", HOT(0u), (int32_t)song.sel * 1000 / (NTRK - 1));
         if (!lvl || t->p[P_MUTE]) {
             str_cpy(val, "MUTE", 12);
             unit = "";
         } else {
             param_format(&TP[P_LEVEL], (int32_t)lvl, val, &unit);
         }
-        draw_column(1, "LEVEL", val, unit, lvl && !trk_silent(t) ? VAL(1u) : C_DIM, (int32_t)lvl * 1000 / 127, ICON_AUTO);
+        draw_column(1, "LEVEL", val, unit, lvl && !trk_silent(t) ? HOT(1u) : CV_DIM, (int32_t)lvl * 1000 / 127);
         param_format(&TP[P_SLEN], t->p[P_SLEN], val, &unit);
-        draw_column(2, "LEN", val, unit, VAL(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]), ICON_AUTO);
+        draw_column(2, "LEN", val, unit, HOT(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]));
         param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);
-        draw_column(3, "PAN", val, unit, VAL(3u), RATIO(&TP[P_PAN], t->p[P_PAN]), param_icon(&TP[P_PAN], t->p[P_PAN]));
+        draw_column(3, "PAN", val, unit, HOT(3u), RATIO(&TP[P_PAN], t->p[P_PAN]));
         return;
     }
     if (pg->scope == SC_GRID && ui.srec) {             /* step record: STEP NOTE TIME FLAG of the cursor step */
@@ -1965,11 +1954,11 @@ static void draw_columns(void)
         fmt_int(val, (int32_t)ui.sr_cur + 1);
         str_cpy(u, "/", 8);
         fmt_int(u + 1, (int32_t)view_len(TSEL));
-        draw_column(0, "STEP", val, u, VAL(0u), -1, ICON_AUTO);
+        draw_column(0, "STEP", val, u, HOT(0u), -1);
         note_text(val, 60 + st->nt);
-        draw_column(1, "NOTE", val, "", VAL(1u), (st->nt - NT_MIN) * 1000 / (NT_MAX - NT_MIN), ICON_AUTO);
-        draw_column(2, "TIME", TM[srec_time(st)], "", VAL(2u), -1, ICON_AUTO);
-        draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", VAL(3u), -1, ICON_AUTO);
+        draw_column(1, "NOTE", val, "", HOT(1u), (st->nt - NT_MIN) * 1000 / (NT_MAX - NT_MIN));
+        draw_column(2, "TIME", TM[srec_time(st)], "", HOT(2u), -1);
+        draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", HOT(3u), -1);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */
@@ -1977,25 +1966,25 @@ static void draw_columns(void)
         fmt_int(val, (int32_t)ui.bank + 1);
         str_cpy(u, "/", 8);
         fmt_int(u + 1, (int32_t)bank_count());
-        draw_column(0, "BANK", val, u, VAL(0u), -1, ICON_AUTO);
+        draw_column(0, "BANK", val, u, HOT(0u), -1);
         for (c = 1; c < 4u; c++)
-            draw_column(c, "", "", "", C_HI, -1, ICON_AUTO);
+            draw_column(c, "", "", "", CV_NORM, -1);
         return;
     }
     for (c = 0; c < 4u; c++) {
         int16_t *vp;
         const param_desc_t *d = page_desc(pg, c, &vp);
         if (!d || !d->label || d->label[0] == '-') {
-            draw_column(c, "", "", "", C_HI, -1, ICON_AUTO);
+            draw_column(c, "", "", "", CV_NORM, -1);
             continue;
         }
         if (pg->id[c] == G_MIDI && pg->scope == SC_GLOBAL) {
             str_cpy(val, !usb.up ? "OFF" : usb.config ? "MIDI" : usb.setups ? "ENUM" : usb.sof_seen ? "BUS" : "WAIT", 12);
-            draw_column(c, "USB", val, "USB", C_HI, -1, ICON_AUTO);
+            draw_column(c, "USB", val, "USB", CV_NORM, -1);
             continue;
         }
         if (pg->id[c] == G_NAME && pg->scope == SC_GLOBAL) {
-            draw_column(c, "NAME", "EDIT", "", C_HI, -1, ICON_AUTO);
+            draw_column(c, "NAME", "EDIT", "", CV_NORM, -1);
             continue;
         }
         if (pg->id[c] == G_INFO && pg->scope == SC_GLOBAL) {
@@ -2008,8 +1997,7 @@ static void draw_columns(void)
             int32_t mv, mod = -1;
             if (pg->scope == SC_TRACK && lfo_live(TSEL, page_id(pg, c), &mv))
                 mod = RATIO(d, mv);
-            draw_column_m(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM ? -1 : RATIO(d, *vp),
-                          param_icon(d, *vp), mod);
+            draw_column_m(c, d->label, val, unit, HOT(c), d->fmt == F_ENUM ? -1 : RATIO(d, *vp), mod);
         }
     }
 }
@@ -2021,10 +2009,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     if (safe_start) {                                 /* safe start: one static screen, drawn again after */
         static uint8_t drawn;                         /* an update session cleared it (main.c sets ui.force) */
         if (!drawn || ui.force) {
-            lcd_fill(0, 0, 240, 240, C_BLACK);
-            draw_text_box(0, 92, 240, &FONT_L, "SAFE START", C_HI, 1);
-            draw_text_box(0, 128, 240, &FONT_S, "NO AUDIO - USB UPDATE READY", C_WHITE, 1);
-            draw_text_box(0, 148, 240, &FONT_S, "POWER OFF TO LEAVE", C_GRAY, 1);
+            lcd_fill(0, 0, 240, 240, C_BG);
+            draw_text_box(0, 92, 240, 4, "SAFE START", 1);
+            draw_text_box(0, 128, 240, 2, "NO AUDIO - USB UPDATE READY", 1);
+            draw_text_box(0, 148, 240, 2, "POWER OFF TO LEAVE", 1);
             drawn = 1;
             ui.force = 0;
         }
