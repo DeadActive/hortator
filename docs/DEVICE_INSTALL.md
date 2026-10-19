@@ -579,11 +579,21 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
 - SAVE while playing: in the list at once (`.. : FLASH AT STOP`), in flash at STOP: STOP, power off and on: it is
   there. SAVE while playing and power off before STOP: only that preset is gone. SAVE stopped, power cycle: there.
   MIDI LEARN's CCs still work after preset saves and a power cycle.
-- Delete a USER preset a track was loaded from: the track keeps its sound and shows `PRESET -`.
+- Delete a USER preset a track was loaded from: the track keeps its sound and shows `PRESET -`. Save another voice over
+  it (e.g. a TOM over a K909's slot): the K909 track also shows `PRESET -`, never the TOM's name; a TOM loaded from it
+  shows `TOM 04`.
+- `*` only when a knob really moved: turning a SOUND knob already at its end (on HOME, a SOUND page or the SMC-Mixer)
+  leaves no `*`.
+- MOTION playing a SOUND knob on the track: SAVE stores the knob as you set it, not the value motion moved it to (load
+  it on another track while stopped: the knob is where you left it).
+- MIDI LEARN on (GLO + G4): EDIT held does nothing more than a tap (no list; LEARN stays on). LEARN off: the hold opens
+  the list again.
 - No default choke: the power-on kit's HATC / HATO (tracks 4, 5) no longer cut each other; CHOKE 1 on both (EDIT, the
   last SOUND page) and they do. A MODEL change or a preset load never changes CHOKE; an older project keeps its stored
   CHOKE (its hats still choke).
-- A project saved now cannot be loaded by 0.20.0.
+- A project saved now cannot be loaded by 0.20.0. It stores each track's factory preset by a fixed number of its own
+  (not its place in the banks) and a USER preset by its slot, so a later firmware with more or reordered presets still
+  shows the same names.
 
 ### BENCH: the performance cases on the FM-1
 

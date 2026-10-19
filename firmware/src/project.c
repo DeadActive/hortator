@@ -38,7 +38,8 @@ typedef struct {
     motion_store_t motion;                      /* FDR8: the motion (motion.c) */
     chain_config_t song;                        /* FDR9: the song (song.c) */
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
-    uint16_t pre[NTRK];                         /* FDRD: each track's preset id (presets.c; PRE_NONE none) */
+    uint16_t pre[NTRK];                         /* FDRD: each track's preset: a factory one's uid, 0x8000 | a user
+                                                 * slot, PRE_NONE none (presets.c preset_rec_enc: not the id) */
     uint8_t pre_ed[NTRK];                       /* FDRD: .. edited since (0 / 1) */
     uint32_t sum;
 } project_t;
@@ -361,7 +362,7 @@ static void project_save(uint32_t slot)
     for (i = 0; i < NTRK; i++) {
         memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
-        p->pre[i] = trk[i].pre;
+        p->pre[i] = (uint16_t)preset_rec_enc(trk[i].pre);   /* (stable: a uid / a user slot, presets.c) */
         p->pre_ed[i] = trk[i].pre_ed;
     }
     p->motion = mo.s;                                  /* (stopped: the base is in the knobs) */
@@ -385,8 +386,9 @@ static void project_save(uint32_t slot)
     ui_message("SAVED (RAM)");
 }
 
-/* a stored preset reference of a track with model m: an id out of range, or a factory preset of another voice (a
- * firmware with other banks), is none; a user slot's is kept as it is (its slot may hold another voice by now) */
+/* a stored preset reference (decoded: presets.c preset_rec_dec) of a track with model m: none, or a factory preset of
+ * another voice (a uid retouched by another firmware), is none; a user slot's is kept as it is (its slot may hold
+ * another voice by now: shown as none, presets.c preset_of) */
 static uint32_t preset_ref(uint32_t id, uint32_t m)
 {
     if (id >= PRE_NID || (id < PRE_NFACT && PRE_FACTORY[id].model != m))
@@ -431,7 +433,7 @@ static int proj_load(uint32_t slot, int irq)
         }
         t->p[P_MODEL] = (int16_t)m;
         t->model = (uint8_t)m;
-        t->pre = (uint16_t)preset_ref(p->pre[k], m);
+        t->pre = (uint16_t)preset_ref(preset_rec_dec(p->pre[k]), m);
         t->pre_ed = p->pre_ed[k] ? 1u : 0u;
         t->key_nt = 0;                                  /* no last KEYS note carried over (spec §2) */
         for (i = 0; i < NSTEP; i++) {                   /* garbage cannot index a table or divide by zero */
@@ -617,12 +619,14 @@ static void upr_write(void)                         /* the bank to flash: now wh
 #endif
 }
 /* t's voice into user slot (0..127, over what it holds): in the list at once, in flash as upr_write. 0, -1 a bad slot.
- * The track is not changed (the caller points its reference at PRE_NFACT + slot) */
+ * The knobs as set: while MOTION plays the track, its base (motion.c), not the value motion moved a knob to. The track
+ * is not changed (the caller points its reference at PRE_NFACT + slot) */
 static int preset_user_save(uint32_t slot, const track_t *t)
 {
+    uint32_t k = (uint32_t)(t - trk);
     if (slot >= PRE_NUSER)
         return -1;
-    upr_set(slot, t);
+    upr_set(slot, (uint32_t)t->p[P_MODEL], k < NTRK && ((mo.base_ok >> k) & 1u) ? mo.base[k] : t->p);
     upr_write();
     return 0;
 }

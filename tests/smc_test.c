@@ -199,6 +199,12 @@ static void test_knobs(void)
     trk[0].p[P_E1] = 127;
     in(cc(17, 10));
     check("knob 2 clamped at the top", trk[0].p[P_E1] == 127);
+    trk[0].pre_ed = 0;
+    in(cc(17, 3));
+    check("knob 2 turned on at the top (nothing changed): the preset not marked edited (review fix 4)",
+          trk[0].p[P_E1] == 127 && !trk[0].pre_ed);
+    in(cc(17, 0x41));
+    check("knob 2 down 1: edited", trk[0].p[P_E1] == 126 && trk[0].pre_ed);
     old_set_model(&trk[1], DM_ACID);
     track_select(1);
     v0 = trk[1].p[P_E2];

@@ -13,8 +13,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   free USER slot or the chosen one (a used one: SAVE twice), OCT- twice DELETE, EDIT or HOME back. USER presets are
   named from the voice and the slot ("SDTRX 03"); saved while playing they are written to flash at the next STOP (as
   MIDI LEARN's map; its own flash object). The SOUND pages show the track's preset ("PRESET HOUSEBD") with `*` once a
-  SOUND knob moved, TRACKS' footer too; projects keep each track's preset and mark ("FDRD"; older ones load with no
-  preset, their sound unchanged).
+  SOUND knob moved (one already at its end turned further: no `*`), TRACKS' footer too; a track whose USER slot now
+  holds another voice (or none) shows `-`. Projects keep each track's preset and mark ("FDRD": a factory preset by
+  its own fixed number, never its place in the banks, so later banks can grow; a USER one by its slot; older projects
+  load with no preset, their sound unchanged). SAVE while MOTION plays stores the knobs as set, not motion's values.
+  While MIDI LEARN is on, EDIT held does nothing (the list would end LEARN).
 - The factory banks: MACHINEDRUM 55 presets read from the Machinedrum's factory kits (1 to 4 per voice; none for
   MATRX, CLTRX), CLASSIC 56 and MODERN 40 (4 per voice, ACID and SMPL included). Every voice's default sound is its
   first preset: unchanged for CLASSIC and MODERN, new for the 19 Machinedrum voices with presets (KTRX SUBTHUMP, SDTRX

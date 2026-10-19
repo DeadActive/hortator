@@ -342,10 +342,10 @@ static void edit_param(uint32_t slot, int32_t steps)
         }
     }
 
+    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT && PRE_SOUND(vp - TSEL->p) && v != *vp)
+        preset_touch(TSEL);                           /* presets.c: the voice edited (not a turn at its limit) */
     *vp = (int16_t)v;
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
-        if (PRE_SOUND(vp - TSEL->p))
-            preset_touch(TSEL);                       /* presets.c: the voice edited */
         motion_capture(TSEL, (uint32_t)(vp - TSEL->p));   /* motion.c: recorded when armed and playing */
         ml_knob(song.sel, (uint32_t)(vp - TSEL->p));      /* (MIDI LEARN: picked) */
     }
@@ -935,9 +935,11 @@ static void ui_input(void)
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
             if (d->max > d->min) {
-                *vp = (int16_t)param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
+                int32_t v = param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
+                if (v != *vp)
+                    preset_touch(TSEL);                 /* (TUNE DECAY TONE CHAR: the voice edited; not at a limit) */
+                *vp = (int16_t)v;
                 if (vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
-                    preset_touch(TSEL);                 /* (TUNE DECAY TONE CHAR: the voice edited) */
                     motion_capture(TSEL, (uint32_t)(vp - TSEL->p));
                     ml_knob(song.sel, (uint32_t)(vp - TSEL->p));   /* (MIDI LEARN: picked) */
                 }

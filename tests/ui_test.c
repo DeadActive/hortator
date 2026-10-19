@@ -5788,6 +5788,25 @@ static void test_long_edit_opens_list(void)
     check("step record: an EDIT tap still a rest", ui.srec && !pl_on() && ui.sr_cur == cur + 2u);
 }
 
+/* review fix 5: MIDI LEARN on, EDIT held does nothing (no list: LEARN stays on); the tap as always */
+static void test_edit_hold_in_learn(void)
+{
+    ui_host_init();
+    users_clear();
+    ml_toggle();
+    check("(MIDI LEARN on)", ui.ml.on);
+    tap(B_EDIT);
+    check("LEARN: an EDIT tap opens SOUND as always, LEARN stays on", ui.ml.on && !pl_on() && !ui.home &&
+          cur_page()->fam == FAM_SND);
+    hold(B_EDIT);
+    check("LEARN: EDIT held opens no list (the press a tap), LEARN stays on", ui.ml.on && !pl_on() &&
+          cur_page()->fam == FAM_SND);
+    ml_toggle();
+    hold(B_EDIT);
+    check("LEARN off: EDIT held opens the list again", !ui.ml.on && pl_on());
+    tap(B_EDIT);
+}
+
 /* the track's preset on its SOUND page ("PRESET K909", "*" once a SOUND knob moved) and in TRACKS' footer */
 static void test_name_and_edited_mark(void)
 {
@@ -5955,6 +5974,7 @@ int main(void)
     test_popup_skips_capped_acid();
     test_list_save_delete_overwrite();
     test_long_edit_opens_list();
+    test_edit_hold_in_learn();
     test_name_and_edited_mark();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;

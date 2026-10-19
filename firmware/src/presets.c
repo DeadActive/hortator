@@ -4,7 +4,8 @@
  * P_E0..P_E7, nothing else (not the FILTER, LFOs, sends, LEVEL, PAN, NOTE, CHOKE, steps). One id for every preset: the
  * factory banks in order (MACHINEDRUM, CLASSIC, MODERN: const tables, preset_bank.h), then the 128 USER slots
  * (PRE_NFACT + slot). A track remembers the id it was loaded from (track_t.pre, PRE_NONE none) and whether a SOUND knob
- * moved since (pre_ed: preset_touch); projects store both (project.c, FDRD). The user bank lives in RAM here; its flash
+ * moved since (pre_ed: preset_touch); projects store both (project.c, FDRD: the reference by a stable key, a factory
+ * preset's uid or a user slot, preset_rec_enc, never the positional id). The user bank lives in RAM here; its flash
  * record ("UPR1" in OBJ_UPRESET0 + 1, MIDI LEARN's map keeps OBJ_UPRESET0) is project.c's: preset_user_save /
  * preset_user_delete (written at once when stopped, at the next STOP while playing: preset_user_tick), preset_user_boot.
  * Included after dmodels.c (the model table) and before drum_core.c (drum_set_model: a voice's first preset). */
@@ -80,6 +81,41 @@ static void preset_name_of(uint32_t id, char *out)
         out[i] = p.name[i];
     out[i] = 0;
 }
+
+/* t's preset as shown (the name on the SOUND pages and TRACKS, the list's mark and cursor): PRE_NONE for none, an
+ * emptied user slot, or one now holding another voice than t's (never another voice's name on the track) */
+static uint32_t preset_of(const track_t *t)
+{
+    preset_t p;
+    if (!preset_get(t->pre, &p) || p.model != (uint32_t)t->p[P_MODEL])
+        return PRE_NONE;
+    return t->pre;
+}
+
+/* a project's preset reference (project.c, FDRD): stable across firmwares whose banks grow or are reordered, unlike the
+ * ids (positions). A factory preset: its uid (PRE_UID, append-only: tools/gen_presets.py), 1..0x7FFF; a user slot:
+ * PRE_REC_USER | slot; none: PRE_NONE. The _in forms take the bank's uids and size (tests: another firmware's) */
+#define PRE_REC_USER 0x8000u
+static uint32_t preset_rec_enc_in(uint32_t id, const uint16_t *uid, uint32_t nfact)
+{
+    if (id < nfact)
+        return uid[id];
+    if (id - nfact < PRE_NUSER)
+        return PRE_REC_USER | (id - nfact);
+    return PRE_NONE;
+}
+static uint32_t preset_rec_dec_in(uint32_t rec, const uint16_t *uid, uint32_t nfact)   /* PRE_NONE: unknown */
+{
+    uint32_t i;
+    if (rec & PRE_REC_USER)
+        return (rec & 0x7FFFu) < PRE_NUSER ? nfact + (rec & 0x7FFFu) : PRE_NONE;
+    for (i = 0; rec && i < nfact; i++)
+        if (uid[i] == rec)
+            return i;
+    return PRE_NONE;
+}
+static uint32_t preset_rec_enc(uint32_t id) { return preset_rec_enc_in(id, PRE_UID, PRE_NFACT); }
+static uint32_t preset_rec_dec(uint32_t rec) { return preset_rec_dec_in(rec, PRE_UID, PRE_NFACT); }
 
 static uint32_t preset_bank_of(uint32_t id)            /* PB_*, PB_N for a bad id */
 {
@@ -170,13 +206,14 @@ static int preset_user_free(void)                      /* the first free user sl
     return -1;
 }
 
-/* the user bank in RAM: slot <- t's voice / empty (project.c preset_user_save / preset_user_delete write the flash) */
-static void upr_set(uint32_t slot, const track_t *t)
+/* the user bank in RAM: slot <- a voice, model and the 8 SOUND knobs from kv[P_E0..P_E7] (a track's p[], or motion's
+ * base while it plays: project.c preset_user_save; preset_user_delete empties one; both write the flash) */
+static void upr_set(uint32_t slot, uint32_t model, const int16_t *kv)
 {
     upr_slot_t *s = &upr.s[slot];
     uint32_t i;
     s->used = 1;
-    s->model = (uint8_t)((uint32_t)t->p[P_MODEL] % NMODELS);
+    s->model = (uint8_t)(model % NMODELS);
     for (i = 0; i < 8u; i++)
-        s->k[i] = (int8_t)clamp(t->p[P_E0 + i], -128, 127);
+        s->k[i] = (int8_t)clamp(kv[P_E0 + i], -128, 127);
 }

@@ -305,11 +305,11 @@ static void graph_acid(const track_t *t, uint16_t c)
 }
 
 /* the track's preset (spec 2026-10-19 presets): "PRESET K909", "*" (amber) once a SOUND knob moved since; "PRESET -"
- * with none (or its user slot emptied). At (x, y), FONT_S */
+ * with none (or its user slot emptied, or holding another voice now: presets.c preset_of). At (x, y), FONT_S */
 static void preset_line(const track_t *t, int32_t x, int32_t y, int label)
 {
     char nb[9];
-    preset_name_of(t->pre, nb);
+    preset_name_of(preset_of(t), nb);
     if (label)
         x = cv_text(x, y, &FONT_S, "PRESET", C_DIM) + 8;
     x = cv_text(x, y, &FONT_S, nb, C_HI);
@@ -1140,7 +1140,7 @@ static uint32_t graph_signature(void)
     if (pg->graph == GR_MODEL) {
         char nb[9];
         h ^= (uint32_t)song.g[G_BPM] * 40503u;        /* ACID's gate: GATE of a step at the tempo */
-        preset_name_of(t->pre, nb);                   /* the preset's line (its user slot may change) */
+        preset_name_of(preset_of(t), nb);             /* the preset's line (its user slot may change) */
         h = str_hash(h ^ t->pre_ed * 7919u, nb);
     }
     if (pg->graph == GR_GRIDS) {
@@ -1575,7 +1575,7 @@ static void draw_foot(void)
     tn[2] = 0;
     pn[0] = 0;
     if (!ui.home && !ui.layer && pg->graph == GR_MIX && !note) {   /* TRACKS: the selected track's preset */
-        preset_name_of(t->pre, pn);
+        preset_name_of(preset_of(t), pn);
         if (t->pre_ed)
             str_cpy(pn + str_len(pn), "*", 2);
     }

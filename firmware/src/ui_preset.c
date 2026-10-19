@@ -7,7 +7,8 @@
  * first). A popup over the graph shows the bank, the preset (large) and two loadable ones above and below; it goes
  * PP_SHOW_MS after the last detent (or with another track, a full screen).
  * EDIT held PP_HOLD_MS (as GLO_HOLD_MS): the PRESETS list. The press still acts at once, as a tap (SOUND, its next
- * page); the hold puts the page before the press back under the list. Step record keeps EDIT for its rest (no list).
+ * page); the hold puts the page before the press back under the list. Step record keeps EDIT for its rest (no list);
+ * while MIDI LEARN is on the hold does nothing (the list would end LEARN: ui_learn.c ml_guard).
  * The list: every preset by bank (MACHINEDRUM, CLASSIC, MODERN, USER with its 128 slots, empty ones too), the track's
  * own marked. KNOB 1 / PRESETS the cursor, KNOB 2 / SELECT the bank (its first), ALGORITHM / a white key the track (the
  * keys play, as on HOME); OCT+ LOAD; SAVE: the track's voice into the user slot under the cursor (a used one: SAVE
@@ -57,7 +58,7 @@ static void pl_cursor(int32_t c)
 
 static void preset_list_open(void)
 {
-    uint32_t c = TSEL->pre;
+    uint32_t c = preset_of(TSEL);
     if (c >= PRE_NID)
         c = preset_first_of((uint32_t)TSEL->p[P_MODEL]);
     ui.pr.pop = 0;
@@ -84,8 +85,8 @@ static void pre_frame(uint32_t now)
     ui.pr.now = now;
     if (!((fm1_in.buttons >> panel.btn[B_EDIT]) & 1u))
         ui.pr.e_st = 0;
-    else if (ui.mute || ui.menu || ui.confirm || name_on() || ui.pr.lst)
-        ui.pr.e_st = 2;                                /* dead until let go */
+    else if (ui.mute || ui.menu || ui.confirm || name_on() || ui.pr.lst || ui.ml.on)
+        ui.pr.e_st = 2;                                /* dead until let go (MIDI LEARN: the list would end it) */
     if (ui.pr.pop && (now - ui.pr.pop_t0 >= PP_T(PP_SHOW_MS) || song.sel != ui.pr.pop_trk || ui.pr.lst || ui.menu ||
                       ui.confirm || name_on() || ui.mute))
         pp_close();
@@ -331,11 +332,11 @@ static void draw_plist(void)
 {
     char b[32], nb[9];
     const char *vo;
-    uint32_t i, top, bank = preset_bank_of(ui.pr.cur) % PB_N, sig, used;
+    uint32_t i, top, bank = preset_bank_of(ui.pr.cur) % PB_N, sig, used, own = preset_of(TSEL);
     int32_t x;
     top = (uint32_t)clamp((int32_t)ui.pr.cur - 2, 0, (int32_t)(PRE_NID - PL_ROWS));
     used = bank == PB_USER && upr.s[ui.pr.cur - PRE_NFACT].used == 1u;
-    sig = 37199u + ui.pr.cur * 31u + song.sel * 7919u + TSEL->pre * 131u + ui.pr.arm * 104729u + used * 3u +
+    sig = 37199u + ui.pr.cur * 31u + song.sel * 7919u + own * 131u + ui.pr.arm * 104729u + used * 3u +
           (ui.msg_t ? str_hash(5u, ui.msg) : 0u);
     for (i = 0; i < PL_ROWS; i++) {
         const upr_slot_t *u = &upr.s[(top + i - PRE_NFACT) % PRE_NUSER];
@@ -384,7 +385,7 @@ static void draw_plist(void)
             cv_rect(0, y, 240, PL_RH, C_HI);
         if (i && preset_bank_of(id) != preset_bank_of(id - 1u))
             cv_rect(0, y, 240, 1, C_LINE);
-        if (id == TSEL->pre)
+        if (id == own)
             cv_rect(4, y + 7, 6, 6, cur ? C_BLACK : C_AMB);   /* the track's own */
         if (!full) {
             str_cpy(b, id - PRE_NFACT < 9u ? "EMPTY 0" : "EMPTY ", sizeof b);   /* (as the names: "EMPTY 05") */

@@ -395,13 +395,60 @@ static void test_fdrd_round_trip(void)
          trk[5].pre_ed && trk[6].pre == user_id(3) && !trk[6].pre_ed && trk[1].pre == PRE_NONE && !trk[1].pre_ed;
     check("each track's preset and edited mark saved and loaded (factory, edited, user, none)", ok);
     proj_slot[2].t[0].p[P_MODEL] = DM_K808;          /* a stored factory reference that is not the track's voice */
-    proj_slot[2].pre[0] = (uint16_t)preset_first_of(DM_KTRX);
-    proj_slot[2].pre[1] = 0x7FFF;                    /* out of range */
+    proj_slot[2].pre[0] = (uint16_t)preset_rec_enc(preset_first_of(DM_KTRX));
+    proj_slot[2].pre[1] = 0x7FFF;                    /* a uid no preset has */
     proj_slot[2].pre_ed[1] = 9;
     proj_slot[2].sum = proj_sum(&proj_slot[2]);
     proj_load(2, 1);
-    check("a factory reference of another voice, an id out of range: no preset; a stray mark: 0/1",
+    check("a factory reference of another voice, an unknown uid: no preset; a stray mark: 0/1",
           trk[0].pre == PRE_NONE && trk[1].pre == PRE_NONE && trk[1].pre_ed == 1);
+}
+
+/* review fix 1: a project stores a stable reference (FDRD): a factory preset by its uid (PRE_UID, tools/presets.json,
+ * append-only), a user slot as 0x8000 | slot; the ids in RAM stay positional. A later firmware whose banks grew and
+ * were reordered (simulated: two new presets first, the rest reversed) finds the same factory preset and user slot */
+static void test_preset_ref_stable(void)
+{
+    static uint16_t auid[PRE_NFACT + 2u];
+    static preset_t apre[PRE_NFACT + 2u];
+    uint32_t fa = preset_first_of(DM_SDEFM), na = PRE_NFACT + 2u, i, a, u, ok = 1;
+    fresh();
+    preset_load(&trk[2], fa);
+    preset_user_save(3, &trk[6]);
+    preset_load(&trk[6], user_id(3));
+    trk[1].pre = PRE_NONE;
+    project_save(2);
+    check("the record: a factory preset by its uid, a user slot as 0x8000 | slot, none as none",
+          proj_slot[2].pre[2] == PRE_UID[fa] && proj_slot[2].pre[6] == (0x8000u | 3u) &&
+              proj_slot[2].pre[1] == (uint16_t)PRE_NONE);
+    auid[0] = 900;                                   /* the later firmware: two new presets first .. */
+    auid[1] = 901;
+    apre[0] = apre[1] = PRE_FACTORY[0];
+    for (i = 0; i < PRE_NFACT; i++) {                /* .. the old ones reversed */
+        auid[2u + i] = PRE_UID[PRE_NFACT - 1u - i];
+        apre[2u + i] = PRE_FACTORY[PRE_NFACT - 1u - i];
+    }
+    a = preset_rec_dec_in(proj_slot[2].pre[2], auid, na);
+    u = preset_rec_dec_in(proj_slot[2].pre[6], auid, na);
+    check("(the simulated banks move it: its old id names another preset there)",
+          strcmp(apre[fa].name, PRE_FACTORY[fa].name) != 0);
+    check("other banks: the factory reference finds the same preset", a < na &&
+          !strcmp(apre[a].name, PRE_FACTORY[fa].name) && apre[a].model == PRE_FACTORY[fa].model &&
+          !memcmp(apre[a].k, PRE_FACTORY[fa].k, sizeof apre[a].k));
+    check("other banks: the user reference finds the same slot", u == na + 3u);
+    check("a removed preset (its uid gone): no preset", preset_rec_dec_in(PRE_UID[fa], auid + 2u, fa) == PRE_NONE);
+    check("an unknown uid, uid 0, a user slot out of range, none: no preset",
+          preset_rec_dec(0x7FFFu) == PRE_NONE && preset_rec_dec(0) == PRE_NONE &&
+              preset_rec_dec(0x8000u | PRE_NUSER) == PRE_NONE && preset_rec_dec(PRE_NONE) == PRE_NONE);
+    for (i = 0; i < PRE_NID; i++)
+        ok &= preset_rec_dec(preset_rec_enc(i)) == i;
+    check("every id: encoded and decoded back; none stays none", ok && preset_rec_enc(PRE_NONE) == PRE_NONE);
+    proj_slot[2].magic = 0;
+    for (i = 0; i < NTRK; i++)
+        trk[i].pre = 7;
+    check("loads (from flash)", proj_load(2, 1) == 1);
+    check("loaded: the same factory preset, user slot and none", trk[2].pre == fa && trk[6].pre == user_id(3) &&
+          trk[1].pre == PRE_NONE);
 }
 
 static void test_user_slot_reused(void)
@@ -416,14 +463,44 @@ static void test_user_slot_reused(void)
     preset_touch(&trk[2]);
     preset_user_save(3, &trk[5]);                    /* overwritten with a TOM */
     preset_get(user_id(3), &p);
-    check("overwritten: the tracks keep their voice and knobs and the id; the name is the slot's now (\"TOM 04\")",
-          trk[1].p[P_MODEL] == DM_K909 && trk[1].pre == user_id(3) && !strcmp(name_of(trk[1].pre), "TOM 04") &&
-              trk[2].p[P_E1] == 12 && trk[2].pre == user_id(3) && trk[2].pre_ed && p.model == DM_TOM);
+    check("overwritten with another voice: the tracks keep their voice, knobs and id; shown as no preset (\"-\", "
+          "never the TOM's name)",
+          trk[1].p[P_MODEL] == DM_K909 && trk[1].pre == user_id(3) && preset_of(&trk[1]) == PRE_NONE &&
+              !strcmp(name_of(preset_of(&trk[1])), "-") && trk[2].p[P_E1] == 12 && trk[2].pre == user_id(3) &&
+              trk[2].pre_ed && preset_of(&trk[2]) == PRE_NONE && p.model == DM_TOM);
+    preset_load(&trk[5], user_id(3));
+    check("a TOM track loaded from it: its name (\"TOM 04\")", preset_of(&trk[5]) == user_id(3) &&
+          !strcmp(name_of(preset_of(&trk[5])), "TOM 04"));
+    preset_user_save(3, &trk[0]);                    /* the K909 back: the K909 tracks' name again */
+    check("overwritten with the same voice: the slot's name", preset_of(&trk[1]) == user_id(3) &&
+          !strcmp(name_of(preset_of(&trk[1])), "K909 04") && preset_of(&trk[5]) == PRE_NONE);
     preset_user_delete(3);
     check("deleted: the tracks keep their knobs and id; the name shown is \"-\"",
-          trk[1].p[P_MODEL] == DM_K909 && trk[1].pre == user_id(3) && !strcmp(name_of(trk[1].pre), "-") &&
-              !strcmp(name_of(PRE_NONE), "-"));
+          trk[1].p[P_MODEL] == DM_K909 && trk[1].pre == user_id(3) && preset_of(&trk[1]) == PRE_NONE &&
+              !strcmp(name_of(trk[1].pre), "-") && !strcmp(name_of(PRE_NONE), "-") && preset_of(&trk[5]) == PRE_NONE);
     check("stepping on from the deleted slot works", preset_step(&trk[1], trk[1].pre, 1) == 0u);
+}
+
+/* review fix 3: SAVE while MOTION plays saves the knob as set (motion's base), not the value motion moved it to */
+static void test_save_while_motion_plays(void)
+{
+    track_t *t = &trk[0];
+    preset_t p;
+    fresh();
+    t->p[P_E1] = 40;
+    t->p[P_E2] = 50;
+    motion_add(0, 0, P_E1, 100);
+    mo.s.on = 1u;
+    transport_req = 1;
+    render_mix(0, 0, CTL * 8);
+    check("(playing, motion moved DECAY off its base)", song.playing && (mo.base_ok & 1u) && t->p[P_E1] == 100 &&
+          mo.base[0][P_E1] == 40);
+    preset_user_save(5, t);
+    check("SAVE while motion plays: the knobs as set (the base), not motion's value",
+          preset_get(user_id(5), &p) && p.k[1] == 40 && p.k[2] == 50 && p.model == (uint32_t)t->p[P_MODEL]);
+    transport_req = 2;
+    render_mix(0, 0, CTL * 4);
+    memset(&mo.s, 0, sizeof mo.s);
 }
 
 static void test_edit_marks(void)
@@ -446,6 +523,12 @@ static void test_edit_marks(void)
     frames(1);
     check("a SOUND knob turned on HOME: edited", t->pre_ed && t->pre == id);
     preset_load(t, id);
+    t->p[P_E1] = (int16_t)track_desc(t, P_E1)->max;
+    turn(EN_K1 + 1, 3);                              /* at its limit: nothing changes */
+    frames(1);
+    check("HOME: a knob turned on at its limit (nothing changed): not edited", !t->pre_ed &&
+          t->p[P_E1] == track_desc(t, P_E1)->max);
+    preset_load(t, id);
     check("loaded again: not edited", !t->pre_ed);
     ml_set(t, P_LEVEL, 10);
     check("a learned CC on LEVEL: not edited", !t->pre_ed);
@@ -454,9 +537,15 @@ static void test_edit_marks(void)
     preset_load(t, id);
     open_family(FAM_SND);                            /* EDIT 1: MODEL TUNE DECAY TONE */
     frames(1);
-    turn(EN_K1 + 3, 2);
+    turn(EN_K1 + 3, -2);                             /* (HARDSNAP's TONE is at its top: down) */
     frames(1);
     check("a SOUND page knob (TONE): edited", t->pre_ed && t->p[P_MODEL] == DM_SDTRX);
+    preset_load(t, id);
+    t->p[P_E2] = (int16_t)track_desc(t, P_E2)->max;
+    turn(EN_K1 + 3, 2);                              /* TONE at its limit */
+    frames(1);
+    check("a SOUND page knob turned on at its limit (nothing changed): not edited", !t->pre_ed &&
+          t->p[P_E2] == track_desc(t, P_E2)->max);
     preset_load(t, id);
     turn(EN_K1 + 0, 1);                              /* MODEL */
     frames(1);
@@ -479,7 +568,9 @@ int main(void)
     test_user_save_deferred_and_cut();
     test_fdrc_converts();
     test_fdrd_round_trip();
+    test_preset_ref_stable();
     test_user_slot_reused();
+    test_save_while_motion_plays();
     test_edit_marks();
     printf(fails ? "preset_test: %d FAILED\n" : "preset_test: all passed\n", fails);
     return fails ? 1 : 0;
