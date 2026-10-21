@@ -10,21 +10,27 @@
 static uint16_t fb[240 * 240];
 static void lcd_sync(void) {}
 static void lcd_init(void) {}
+static uint32_t host_fill_px, host_wins;              /* pixels lcd_fill sent (on the screen); windows (fill + blit) */
 static void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
     uint32_t i, j;
+    if (w && h && x < 240u && y < 240u) {
+        host_fill_px += (x + w > 240u ? 240u - x : w) * (y + h > 240u ? 240u - y : h);
+        host_wins++;
+    }
     for (j = y; j < y + h && j < 240u; j++)
         for (i = x; i < x + w && i < 240u; i++)
             fb[j * 240u + i] = c;
 }
-static uint32_t host_graph_blits;                    /* blits of full-width strips into rows 61..180 (the graph area) */
+static uint32_t host_graph_blits;                    /* blits into rows 61..180 (the graph area; a row's part counts) */
 static uint32_t host_blit_px;                        /* pixels sent to the LCD by blits */
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px)
 {
     uint32_t i, j;
-    if (x == 0 && y >= 61u && y < 181u)
+    if (y < 181u && y + h > 61u)
         host_graph_blits++;
     host_blit_px += w * h;
+    host_wins += w && h;
     for (j = 0; j < h; j++)
         for (i = 0; i < w; i++)
             if (x + i < 240u && y + j < 240u)

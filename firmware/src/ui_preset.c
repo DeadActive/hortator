@@ -371,43 +371,44 @@ static void draw_popup(void)
     static const int8_t RY[5] = {20, 36, 54, 84, 100};
     char nb[9], tn[3] = {'T', (char)('1' + song.sel), 0};
     const char *vo;
-    uint32_t i, sig = 2166136261u + song.sel * 7919u;
+    uint32_t i, sig = 2166136261u + song.sel * 7919u, nw, wi;
     uint16_t r[5];
     pp_rows(r);
     for (i = 0; i < 5u; i++)
         sig = (sig ^ r[i]) * 16777619u;
     for (i = 0; i < 5u; i++)
         ui.pr.shown[i] = r[i];
-    if (!ui.force && sig == ui.pr.sig)
-        return;
-    ui.pr.sig = sig;
-    cv_begin_at(240, H_GRAPH, Y_GRAPH, C_BG);          /* the graph's place: the bank's tab, the track; the preset
+    rg.noex = ui.force || sig != ui.pr.sig;            /* whole: over the other popups (as it always was) */
+    for (nw = rg_plan(&ui.pr.sig, sig, 0, Y_GRAPH, 240, H_GRAPH), wi = 0; wi < nw; wi++) {   /* (ui_draw.c) */
+        rg_win(wi, Y_GRAPH, C_BG);                     /* the graph's place: the bank's tab, the track; the preset
                                                        * an inverted bar (F3 3x), its neighbours plain, the outer two
                                                        * dithered; a dotted rule where a bank ends */
-    cv_oy = 0;
-    cv_rect(0, 0, 1, H_GRAPH, C_INK);
-    cv_rect(239, 0, 1, H_GRAPH, C_INK);
-    cv_tab(2, 2, N_PBANK[preset_bank_of(r[2]) % PB_N], C_INK, C_BG);
-    md_text(234 - md_text_w(&MD_F3, 2, tn), 4, &MD_F3, 2, tn, C_INK);
-    for (i = 0; i < 5u; i++) {
-        int32_t y = RY[i];
-        if (i != 2u && r[i] == r[2])
-            continue;                                  /* (nothing else loadable) */
-        pre_label(r[i], nb, &vo);
-        if (i == 2u) {
-            cv_rect(2, y - 2, 236, 25, C_INK);
-            md_text(8, y + 3, &MD_F3, 3, nb, C_BG);
-            md_text(232 - md_text_w(&MD_F3, 2, vo), y + 6, &MD_F3, 2, vo, C_BG);
-        } else {
-            md_text(10, y, &MD_F3, 2, nb, C_INK);
-            md_text(232 - md_text_w(&MD_F3, 2, vo), y, &MD_F3, 2, vo, C_INK);
-            if (i == 0u || i == 4u)                    /* the outer two: dimmer */
-                cv_dither(10, y, 222, 10, C_BG);
+        cv_oy = 0;
+        cv_rect(0, 0, 1, H_GRAPH, C_INK);
+        cv_rect(239, 0, 1, H_GRAPH, C_INK);
+        cv_tab(2, 2, N_PBANK[preset_bank_of(r[2]) % PB_N], C_INK, C_BG);
+        md_text(234 - md_text_w(&MD_F3, 2, tn), 4, &MD_F3, 2, tn, C_INK);
+        for (i = 0; i < 5u; i++) {
+            int32_t y = RY[i];
+            if (i != 2u && r[i] == r[2])
+                continue;                                  /* (nothing else loadable) */
+            pre_label(r[i], nb, &vo);
+            if (i == 2u) {
+                cv_rect(2, y - 2, 236, 25, C_INK);
+                md_text(8, y + 3, &MD_F3, 3, nb, C_BG);
+                md_text(232 - md_text_w(&MD_F3, 2, vo), y + 6, &MD_F3, 2, vo, C_BG);
+            } else {
+                md_text(10, y, &MD_F3, 2, nb, C_INK);
+                md_text(232 - md_text_w(&MD_F3, 2, vo), y, &MD_F3, 2, vo, C_INK);
+                if (i == 0u || i == 4u)                    /* the outer two: dimmer */
+                    cv_dither(10, y, 222, 10, C_BG);
+            }
+            if (i && preset_bank_of(r[i]) != preset_bank_of(r[i - 1u]))   /* a bank's end between them */
+                cv_hdot(8, 231, i == 3u ? y - 6 : y - 4, C_INK);
         }
-        if (i && preset_bank_of(r[i]) != preset_bank_of(r[i - 1u]))   /* a bank's end between them */
-            cv_hdot(8, 231, i == 3u ? y - 6 : y - 4, C_INK);
+        cv_blit(0, Y_GRAPH);
     }
-    cv_blit(0, Y_GRAPH);
+    rg.noex = 0;
 }
 
 /* the list (its own screen, as NAME): the title (a message, or what an armed button does, while shown) and the

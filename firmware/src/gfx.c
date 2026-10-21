@@ -15,6 +15,7 @@ static uint16_t cv_px[CV_MAX] __attribute__((section(".pool")));
 static uint32_t cv_w, cv_h;
 static int32_t cv_oy;            /* y offset for graph drawing */
 static int32_t cv_sy;            /* the screen row of canvas row 0 (cv_begin_at): dither lines up across strips */
+static int32_t cv_wx, cv_wy;     /* a window (cv_begin_win): where cv_px's corner lies in the canvas drawn (else 0, 0) */
 
 #define RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 /* Machinedrum-style themes (spec 2026-10-19-md-ui §2): two colours, BG and INK. Stored in settings.palette bits 0..7
@@ -57,20 +58,33 @@ static inline uint16_t swap16(uint32_t c) { return (uint16_t)(((c >> 8) & 0xFFu)
 static void cv_begin(uint32_t w, uint32_t h, uint16_t bg)
 {
     uint32_t i, n;
+    uint16_t sb = swap16(bg);
     if (w * h > CV_MAX)
         h = CV_MAX / w;
     lcd_sync();                     /* the last blit may still read cv_px */
     cv_w = w;
     cv_h = h;
     cv_sy = 0;
+    cv_wx = cv_wy = 0;
     n = w * h;
     for (i = 0; i < n; i++)
-        cv_px[i] = swap16(bg);
+        cv_px[i] = sb;
 }
 
-static void cv_blit(uint32_t x, uint32_t y) { lcd_blit(x, y, cv_w, cv_h, cv_px); }
+/* a window of a canvas: only its part x, y, w x h is kept (the drawing is the whole canvas's, clipped), the canvas's
+ * row 0 at screen row sy (cv_dither's pattern as on the whole); cv_blit puts the part where it lies. A region redrawn
+ * in part sends only that part (the LCD transfer is the cost) */
+static void cv_begin_win(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t sy, uint16_t bg)
+{
+    cv_begin(w, h, bg);
+    cv_sy = (int32_t)sy;
+    cv_wx = (int32_t)x;
+    cv_wy = (int32_t)y;
+}
 
-/* canvas rows r0 .. cv_h-1 only, to screen row y + r0 */
+static void cv_blit(uint32_t x, uint32_t y) { lcd_blit(x + (uint32_t)cv_wx, y + (uint32_t)cv_wy, cv_w, cv_h, cv_px); }
+
+/* canvas rows r0 .. cv_h-1 only, to screen row y + r0 (a whole canvas) */
 static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)
 {
     if (r0 < cv_h)
@@ -79,16 +93,20 @@ static void cv_blit_from(uint32_t x, uint32_t y, uint32_t r0)
 
 static inline void cv_pset(int32_t x, int32_t y, uint16_t c)
 {
-    y += cv_oy;
+    x -= cv_wx;
+    y += cv_oy - cv_wy;
     if ((uint32_t)x < cv_w && (uint32_t)y < cv_h)
         cv_px[(uint32_t)y * cv_w + (uint32_t)x] = swap16(c);
 }
 
 static void cv_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
 {
-    int32_t x1 = x + w, y1 = y + h + cv_oy, i;
+    int32_t x1, y1, i;
     uint16_t sc = swap16(c);
-    y += cv_oy;                             /* clipped once, then filled row by row */
+    x -= cv_wx;
+    x1 = x + w;
+    y += cv_oy - cv_wy;                     /* clipped once, then filled row by row */
+    y1 = y + h;
     if (x < 0)
         x = 0;
     if (y < 0)

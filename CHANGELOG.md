@@ -5,6 +5,14 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Faster screen: only what changed is sent to the display (the same look, pixel for pixel). A message popup (an
+  SMC-Mixer knob's value, LOADED, ...) and the TEMPO popup no longer repaint the whole screen when they appear,
+  change or end: only the popup and what lay under it. The breadcrumb sends only its text, the trig strip only the
+  playhead's step, TRACKS only a row's level, meter mark or playhead cell, HOME's strip only the knob that moved
+  (its LFO's dot alone). HOME's scope waits while a knob turns. A full repaint sends the screen once (it sent ~1.6
+  screens). E.g. an SMC knob click on TRACKS: ~6k pixels (~8 ms at the display's 12 MHz) instead of a full repaint
+  (~99k, ~130 ms); TRACKS playing: ~0.3k pixels a frame instead of ~13-29k.
+
 ## 0.22.0 - 2026-10-21
 
 - A new screen look in the style of a classic digital drum machine's LCD, on every screen: two colours only (ink on a
