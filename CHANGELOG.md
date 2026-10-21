@@ -19,6 +19,24 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   knob an LFO could target) and its own depth (KNOB 1 the slot, 2 SRC, 3 DEST, 4 DEPTH). Older projects load with
   their LFO 1 / LFO 2 routing as slots 1 / 2 (the sound, motion and MIDI LEARN unchanged); projects are saved in a new
   format (FDRE) that 0.22.0 cannot load.
+- Accent: hold OCT+ and tap a step key (STEP, PATTERN, MOTION, SONG, TRACKS): the step accented (an off step turns on
+  accented), or plain again. Holding a step key no longer sets the accent, so a held step is only PROB (KNOB 1) and
+  RATCH (KNOB 2). OCT+ on its own changes the bank when it is let go; while it is held the keys show the bank's
+  accents. The STEP hint reads `[OCT+] +TAP ACCENT`.
+- The selected track on the keys: on HOME and every EDIT (SOUND, LAYER), FX and LFO page its white key (F3..F4) is
+  lit, as the keys select tracks there (held keys lit too). KEYS, COMP, the step pages and GLOBAL / SAVE / GRIDS keep
+  their own.
+- OCT- / OCT+ breathe (upstream Felucca's breathing LED, #119): fading in and out, ~1.1 s, where pressing them would
+  do something (the next / previous bank on the steps, LAYER from SOUND, the LFO pages' RATE MODE (OCT+), YES in a
+  dialog, OK in the menu, NAME's RENAME, MIDI LEARN's DONE, the PRESETS list's LOAD and DELETE); a way back (NO,
+  CANCEL, BACK) is lit.
+- PERFORM keeps its knobs: while its screen is up (FX held, the PAGE, a layer key held) KNOB 1-4 are its macros only,
+  also for detents that arrive while the firmware is between its two knob reads (they used to reach the page under
+  it), and SELECT turns no page under it (a page button, HOME or an FX tap still close the PAGE).
+- MENU BACKLIGHT has upstream Felucca's LED levels: OFF, DIM LO (the old ON: unlit keys and now the idle buttons at
+  ~5 %, the step beats ~25 %), DIM HI (~10 %, beats ~30 %), INV (idle lit, active dark), INV LO / INV HI (idle at
+  ~10 % / ~25 %). KNOB 1 steps, OCT+ steps and wraps. Saved in the settings record's palette word (bits 9..11); an
+  older Hortator reads any level but OFF as ON, and an older record's ON loads as DIM LO.
 
 ## 0.22.0 - 2026-10-21
 

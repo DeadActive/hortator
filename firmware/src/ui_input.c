@@ -31,13 +31,113 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
 
 static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 
+/* fixes 2026-10-21 item 1: OCT+ where the keys are steps: 1 pressed (let go alone: the next bank), 2 a step key
+ * accented with it (let go: nothing); 0 not held there (ui_input acc_oct_poll) */
+static uint8_t acc_oct;
+/* fixes 2026-10-21 item 2: the keys show the selected track (its white key lit, as the keys select it there) on the
+ * HOME screen and every page of the EDIT (SOUND, LAYER), FX and LFO families; not under KEYS (the keyboard's), the
+ * menu, NAME, the PRESETS list, the MUTE screen or PERFORM (ui_leds tests those first) */
+static int track_keys(void)
+{
+    uint32_t f = cur_fam();
+    return !ui.menu && !keys_mode() && (ui.home || f == FAM_SND || f == FAM_LAY || f == FAM_FX || f == FAM_LFO);
+}
+
 #include "ui_name.c"                               /* NAME: naming a project */
 #include "ui_learn.c"                              /* MIDI LEARN: GLO + G4, a knob, a CC */
 
+/* fixes 2026-10-21 item 5 (upstream Felucca's breath, #119): the OCT LEDs, OCT_LIT_* lit, OCT_BR_* breathing (dark ..
+ * ~60 % and back, led_dim.c: it would do something if pressed); a way back (NO, CANCEL, BACK) lit; elsewhere dark.
+ * NAME: OCT- cancels, OCT+ writes; the PRESETS list: OCT+ LOAD, OCT- DELETE where it would (a used user slot); a
+ * dialog: OCT- NO, OCT+ YES; the menu and the Bluetooth page: OCT- BACK, OCT+ OK (ABOUT: OCT- back alone); MIDI LEARN:
+ * OCT- CLEAR, OCT+ DONE; KEYS: lit off octave 0, as before (where it is); the steps: each breathes while there is a
+ * bank that way, OCT+ lit while held (its accent: item 1); SOUND: OCT+ (LAYER); LAYER: OCT- (back to SOUND); the LFO
+ * pages: OCT+ (a RATE MODE) */
+#define OCT_LIT_DN 1u
+#define OCT_LIT_UP 2u
+#define OCT_BR_UP 4u
+#define OCT_BR_DN 8u
+static uint32_t oct_leds(void)
+{
+    if (ui.mute || ui.layer)
+        return 0;
+    if (name_on())
+        return OCT_LIT_DN | OCT_BR_UP;
+    if (pl_on())
+        return OCT_BR_UP | (preset_bank_of(ui.pr.cur) == PB_USER && upr.s[ui.pr.cur - PRE_NFACT].used == 1u ? OCT_BR_DN
+                                                                                                          : 0u);
+    if (ui.confirm)
+        return OCT_LIT_DN | OCT_BR_UP;
+    if (ui.menu)
+        return ui.menu == 2u ? OCT_LIT_DN : OCT_LIT_DN | OCT_BR_UP;
+    if (ui.ml.on)
+        return OCT_LIT_DN | OCT_BR_UP;
+    if (keys_mode())
+        return (song.octave < 0 ? OCT_LIT_DN : 0u) | (song.octave > 0 ? OCT_LIT_UP : 0u);
+    if (step_keys())
+        return (ui.bank > 0u ? OCT_BR_DN : 0u) |
+               (acc_oct ? OCT_LIT_UP : ui.bank + 1u < bank_count() ? OCT_BR_UP : 0u);
+    if (!ui.home && cur_fam() == FAM_SND)
+        return OCT_BR_UP;
+    if (!ui.home && cur_fam() == FAM_LAY)
+        return OCT_LIT_DN;
+    if (!ui.home && cur_fam() == FAM_LFO)             /* LFO: OCT+ the RATE MODE of the LFO turned last (item 3); */
+        return OCT_BR_UP;                             /* OCT- does nothing there */
+    return 0;
+}
+
+/* fixes 2026-10-21 item 9 (upstream Felucca's LEDS levels; MENU BACKLIGHT, panel.c BL_*): the picture nl (lit), nb
+ * (breathing), beats (the STEP keys' beats, bit k = key k) out to the LEDs. OFF and nothing breathing: fm1_led as ever,
+ * the scan's hook idle; else the hook's layers (led_dim.c), one store per column: DIM LO / HI the unlit keys and the
+ * idle buttons in the glow, the unlit beats in the mid layer; INV / INV LO / INV HI the idle ones lit / in the mid
+ * layer and the lit ones dark; a breathing LED only breathes (neither lit nor in the glow). The levels: the layers'
+ * frames of 20 */
+static const uint32_t BL_MID_PH[BL_COUNT] = {0u, LED_PH_25, 0x22489u, 0u, 0x401u, LED_PH_25};   /* 25 30 - 10 25 % */
+static const uint32_t BL_GLOW_PH[BL_COUNT] = {0u, 0x1u, 0x401u, 0u, 0u, 0u};                   /* 5 10 % */
+static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats)
+{
+    uint32_t lay[FM1_NCOL] = {0}, k, c, br = 0, m = backlight < BL_COUNT ? backlight : BL_OFF;
+    for (c = 0; c < FM1_NCOL; c++) {
+        nl[c] &= (uint8_t)~nb[c];
+        br |= nb[c];
+    }
+    if (m == BL_OFF && !br) {
+        led_dim_on = 0;                               /* (before fm1_led: the hook stops composing) */
+        led_br_on = 0;
+        for (c = 0; c < FM1_NCOL; c++)
+            fm1_led[c] = nl[c];
+        return;
+    }
+    for (k = 0; k < 41u; k++) {                       /* the buttons (0..13) and the keys (14..40) */
+        uint8_t q = led_pos[k];
+        uint32_t bit, lit;
+        if (q == 0xFF)
+            continue;
+        bit = 1u << (q & 7u);
+        lit = nl[q >> 3] & bit;
+        if (nb[q >> 3] & bit)
+            lay[q >> 3] |= bit << 24;                 /* breathing */
+        else if (m == BL_DIM_LO || m == BL_DIM_HI)
+            lay[q >> 3] |= lit ? bit : k >= 14u && ((beats >> (k - 14u)) & 1u) ? bit << 8 : bit << 16;
+        else if (m == BL_INV)
+            lay[q >> 3] |= lit ? 0u : bit;
+        else if (m >= BL_INV_LO)
+            lay[q >> 3] |= lit ? 0u : bit << 8;
+        else
+            lay[q >> 3] |= lit;
+    }
+    led_mid_ph = BL_MID_PH[m];
+    led_glow_ph = BL_GLOW_PH[m];
+    led_br_on = br != 0u;
+    for (c = 0; c < FM1_NCOL; c++)
+        led_lay[c] = lay[c];                          /* one store per column: the scan sees all of it or none */
+    led_dim_on = 1;                                   /* (after the layers: the hook composes from them) */
+}
+
 static void ui_leds(void)
 {
-    uint8_t nl[FM1_NCOL] = {0};
-    uint32_t k, c, fam = cur_fam(), beats = 0;        /* beats: the keys of steps 1 5 9 13 (step keys) */
+    uint8_t nl[FM1_NCOL] = {0}, nb[FM1_NCOL] = {0};
+    uint32_t k, fam = cur_fam(), beats = 0;           /* beats: the keys of steps 1 5 9 13 (step keys) */
     static uint8_t ready;
     if (safe_start) {                                 /* safe start: LEDs off */
         uint32_t c0;
@@ -82,11 +182,10 @@ static void ui_leds(void)
         }
     } else if (step_keys()) {                         /* the bank's steps; the playhead inverted */
         const track_t *t = TSEL;
-        led_put(nl, panel.btn[B_OCTDN], ui.bank > 0u);
-        led_put(nl, panel.btn[B_OCTUP], ui.bank + 1u < bank_count());
         for (k = 0; k < 16u; k++) {
             uint32_t si = ui.bank * 16u + k;
-            int on = si < view_len(t) && view_step(t, si).on;
+            int on = si < view_len(t) && view_step(t, si).on && (!acc_oct || view_step(t, si).acc);   /* OCT+ held:
+                                                       * the accents */
             if (song.playing && si == view_idx(t))
                 on = !on;
             led_put(nl, 14u + STEP_KEY[k], on);
@@ -96,30 +195,23 @@ static void ui_leds(void)
     } else if (comp_mode()) {                         /* COMP: the ducked tracks' keys */
         for (k = 0; k < NTRK; k++)
             led_put(nl, 14u + KEY_TRK_KEY[k], trk[k].p[P_DUCK] && k != comp_src());
-    } else if (keys_mode()) {                         /* KEYS: the keys held lit; OCT- / OCT+ lit off octave 0 */
-        led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
-        led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
+    } else if (track_keys()) {                        /* HOME, EDIT, FX, LFO: the selected track's key (item 2) */
+        led_put(nl, 14u + KEY_TRK_KEY[song.sel % NTRK], 1);
+        for (k = 0; k < 27u; k++)
+            led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
+    } else if (keys_mode()) {                         /* KEYS: the keys held lit (OCT- / OCT+: oct_leds) */
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
     } else {
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
     }
-    if (backlight) {                                  /* BACKLIGHT: every unlit key at 5 %, a beat's step at 25 % */
-        uint32_t lay[FM1_NCOL] = {0};
-        for (k = 0; k < 27u; k++) {
-            uint8_t q = led_pos[14u + k];
-            if (q != 0xFF && !((nl[q >> 3] >> (q & 7u)) & 1u))
-                lay[q >> 3] |= 1u << ((q & 7u) + ((beats >> k) & 1u ? 8u : 16u));
-        }
-        for (c = 0; c < FM1_NCOL; c++)
-            led_lay[c] = nl[c] | lay[c];              /* one store per column: the scan sees all of it or none */
-        led_dim_on = 1;                               /* (after the layers: the hook composes from them) */
-        return;
-    }
-    led_dim_on = 0;                                   /* (before fm1_led: the hook stops composing) */
-    for (c = 0; c < FM1_NCOL; c++)
-        fm1_led[c] = nl[c];
+    k = oct_leds();                                   /* OCT- / OCT+: lit, or breathing (item 5) */
+    led_put(nl, panel.btn[B_OCTDN], (int)(k & OCT_LIT_DN));
+    led_put(nl, panel.btn[B_OCTUP], (k & OCT_LIT_UP) != 0u);
+    led_put(nb, panel.btn[B_OCTUP], (k & OCT_BR_UP) != 0u);
+    led_put(nb, panel.btn[B_OCTDN], (k & OCT_BR_DN) != 0u);
+    leds_out(nl, nb, beats);
 }
 
 /* ---------------------------------------------------------- input --- */
@@ -148,8 +240,9 @@ static int32_t accel(uint32_t role, int32_t s, int32_t range)
     return s * (int32_t)m;
 }
 
-/* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH. The first turn of a hold cancels the hold's accent
- * flip: the step is as before the press, and on. A held key outside LEN takes the turn and does nothing. */
+/* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH. The first turn of a hold undoes the press's on / off: the
+ * step is as before the press, and on (pressed with OCT+: as the accent left it). A held key outside LEN takes the
+ * turn and does nothing. */
 static int step_edit(uint32_t knob, int32_t steps)
 {
     uint32_t k = ui.held;
@@ -165,7 +258,7 @@ static int step_edit(uint32_t knob, int32_t steps)
         s->tie = 0;
         if (!ui.step_prev[k].on)
             s->nt = new_step_nt(TSEL);
-        ui.step_t0[k] |= 6u;                          /* edited: no hold accent from now on */
+        ui.step_t0[k] |= 6u;                          /* edited: the press undone once */
     }
     if (knob == 0u)
         s->cond = (uint8_t)cond_store((uint32_t)clamp((int32_t)cond_pos(s->cond) + accel(EN_K1, steps, COND_MAX), 0,
@@ -422,7 +515,6 @@ static void edit_param(uint32_t slot, int32_t steps)
 /* HOME / REC: tap on release, hold 0.7 s fires once. t0 = press time | 1,
  * bit 1 = fired (or swallowed: then the release is no tap either) */
 enum { BT_NONE, BT_TAP, BT_HOLD };
-#define STEP_HOLD_MS 400u                               /* a STEP grid key held this long: accent (user, 0.4 s) */
 static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok)
 {
     uint32_t tap;
@@ -450,6 +542,9 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 #define FX_OPEN 2u
 #define FX_DEAD 4u
 static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute && !pl_on(); }
+/* fixes 2026-10-21 item 7: PERFORM has KNOB 1..4 (fx_layer reads them; set each pass): the page's loop leaves them
+ * alone, so detents that come in after fx_layer's read wait for its next one instead of reaching the page under it */
+static uint8_t fx_knobs;
 /* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros stay on; keys
  * still held stay the layer's until let go */
 static void perf_page_close(void)
@@ -480,7 +575,8 @@ static void fx_layer(uint32_t now, int home_tap)
             open_family(FAM_FX);                        /* a tap: the FX pages, as the button always did */
         *t0 = 0;
     }
-    if ((down && !(*t0 & FX_DEAD)) || ui.pg_open || (kb_layer && fx_allowed()))   /* the knobs follow the screen: */
+    fx_knobs = (down && !(*t0 & FX_DEAD)) || ui.pg_open || (kb_layer && fx_allowed());
+    if (fx_knobs)                                       /* the knobs follow the screen: */
         for (k = 0; k < 4u; k++)                        /* the macros (FILTER CRUSH THROW DEPTH) while it is PERFORM's */
             if ((s = panel_enc(EN_K1 + k)) != 0) {
                 int32_t v = clamp(perf_k[k] + accel(EN_K1 + k, s, 200), k ? 0 : -100, 100);
@@ -553,7 +649,7 @@ static void glo_input(uint32_t now, uint32_t notes)
             *t0 |= GLO_OPEN;                            /* the MUTE screen */
             ui.mute = 1;
             ui.force = 1;
-            grid_drop_holds();                          /* a grid key held flips no accent under it */
+            grid_drop_holds();                          /* a grid key held edits nothing under it */
         }
     } else if (*t0) {
         if (!(*t0 & (GLO_OPEN | GLO_DEAD)) && !glo_dead())
@@ -674,6 +770,17 @@ static void srec_knob(uint32_t k, int32_t s)
 
 #include "ui_preset.c"                             /* PRESETS: the encoder's popup, the list on a long EDIT */
 
+/* fixes 2026-10-21 item 1: OCT+ let go where it was pressed on the steps: alone (no step key accented with it), and the
+ * keys still the steps, the next bank; anything else (an accent, another page, the menu, a dialog) nothing */
+static void acc_oct_poll(void)
+{
+    if (!acc_oct || ((fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u))
+        return;
+    if (acc_oct == 1u && step_keys() && !ui.confirm && !name_on() && !pl_on())
+        bank_set((int32_t)ui.bank + 1);
+    acc_oct = 0;
+}
+
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
@@ -682,6 +789,7 @@ static void ui_input(void)
     int32_t s, dt;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+    acc_oct_poll();                                     /* OCT+ let go on the steps: the next bank (item 1) */
     pre_frame(now);                                     /* PRESETS: EDIT's hold, the popup's time (ui_preset.c) */
 #if FELUCCA_BLE
     bt_autostart();                                     /* AUTOSTART: BLUETOOTH ON once, 5 s after power-on (the
@@ -843,8 +951,12 @@ static void ui_input(void)
                 ml_oct(b == B_OCTUP);
             } else if (keys_mode()) {
                 keys_octave(b == B_OCTUP ? 1 : -1);
-            } else if (step_keys()) {
-                bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
+            } else if (step_keys()) {                   /* OCT+: held + a step key its accent, let go alone the
+                                                         * next bank (acc_oct_poll); OCT-: the bank before */
+                if (b == B_OCTUP)
+                    acc_oct = 1;
+                else
+                    bank_set((int32_t)ui.bank - 1);
             } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_SND) {
                 ui.fam_last[FAM_LAY] = 0;               /* LAYER 1/2 */
                 open_family(FAM_LAY);
@@ -878,16 +990,19 @@ static void ui_input(void)
         srec_keys(notes);
     } else if (step_keys()) {
         for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a press */
-            uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off, a hold flips its accent */
+            uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off; with OCT+ held, its accent */
             if ((notes >> STEP_KEY[k]) & 1u) {
-                step_press(k);
-                *t0 = (now | 1u) & ~6u;
+                if (acc_oct) {
+                    step_accent(k);
+                    acc_oct = 2;
+                    *t0 = (now | 1u | 4u) & ~2u;        /* (as it is now: a knob turned while held edits it) */
+                } else {
+                    step_press(k);
+                    *t0 = (now | 1u) & ~6u;
+                }
                 ui.held = (uint8_t)k;
             } else if (!((fm1_in.notes >> STEP_KEY[k]) & 1u)) {
                 *t0 = 0;
-            } else if (*t0 && !(*t0 & 2u) && now - (*t0 & ~7u) > STEP_HOLD_MS * 1000u * FM1_TICKS_PER_US) {
-                *t0 |= 2u;
-                step_hold(k);
             }
         }
     } else if (comp_mode()) {
@@ -910,7 +1025,9 @@ static void ui_input(void)
     }
     if (dt)                                             /* NEXT / PREV TRACK learned (MIDI LEARN) */
         track_select((uint32_t)clamp((int32_t)song.sel + dt, 0, NTRK - 1));
-    if ((s = panel_enc(EN_SELECT)) != 0) {              /* SELECT: the section's pages; HOME's TRACKS mode: BPM */
+    if ((s = panel_enc(EN_SELECT)) != 0 && (fx_knobs || ui.layer)) {
+        /* PERFORM up: SELECT turns no page under it (item 7; the turn dropped) */
+    } else if (s) {                                     /* SELECT: the section's pages; HOME's TRACKS mode: BPM */
         if (!mix_mode())
             page_turn(s > 0 ? 1 : -1);
         else if (song.g[G_CLOCK])                       /* following a clock: its tempo, not the knob */
@@ -920,7 +1037,7 @@ static void ui_input(void)
             ui.bpm_t = 40;
         }
     }
-    for (k = 0; k < 4u; k++) {
+    for (k = 0; k < 4u && !fx_knobs; k++) {            /* (PERFORM's: fx_layer's alone, item 7) */
         const page_t *pg = cur_page();
         int16_t *hv;
         if ((s = panel_enc(EN_K1 + k)) == 0)

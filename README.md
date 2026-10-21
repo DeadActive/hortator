@@ -51,7 +51,8 @@ firmware ([below](#back-to-the-official-firmware)).
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
 - **Metronome.** GLOBAL 3/3 METRO: a click on every quarter note while playing, the bar's first higher.
-- **Key backlight.** MENU BACKLIGHT ON: the keys glow dimly while unlit, the steps 1, 5, 9 and 13 a little brighter.
+- **Key backlight.** MENU BACKLIGHT DIM LO / DIM HI: the keys and buttons glow dimly while unlit, the steps 1, 5, 9
+  and 13 a little brighter; INV turns the LEDs around. OCT- / OCT+ breathe when pressing them would do something.
 - **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
   REC, next / previous track, or holds a PERFORM effect ([below](#midi-learn)).
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
@@ -64,8 +65,8 @@ firmware ([below](#back-to-the-official-firmware)).
 | Button | Opens |
 | --- | --- |
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
-| **EDIT** | the selected track's sound: its model and knobs |
-| **SEQ** | the steps on the white keys, then PATTERN, MOTION and SONG |
+| **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
+| **SEQ** | the steps on the white keys (a tap: on / off; hold OCT+ and tap a step: its accent; hold a step and turn KNOB 1 / 2: PROB / RATCH; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
 | **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
@@ -149,7 +150,8 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
 
 Hold FX for the PERFORM screen. The black keys are buffer effects while held (REPEAT 1/8 1/16 1/32, REVERSE, TAPE
 STOP, LPF and HPF sweeps, FREEZE, OCT UP / DN), the white keys silence their tracks while held, and KNOB 1 to 4 are
-FILTER (left LPF, right HPF), CRUSH, THROW and DEPTH. **The knob effects stay on** after FX is let go (or the PERFORM
+FILTER (left LPF, right HPF), CRUSH, THROW and DEPTH: while the PERFORM screen is up the knobs are only these, and
+SELECT turns no page under it. **The knob effects stay on** after FX is let go (or the PERFORM
 page closes) and keep working on every page; the top bar shows an amber `FX` in place of the tempo icon while any
 is on. To switch one off, turn it back to 0 on the PERFORM screen; TOOLS `INIT*` switches them all off. The
 buffer effects stop when their key is let go.
@@ -171,13 +173,19 @@ MASTER volume, on the speaker, the headphones and USB audio. A device setting: s
 
 ### Key backlight
 
-MENU (hold HOME) **BACKLIGHT**: OFF (as before) or ON. With ON, every key LED that is not lit glows at about 5 %, so
-the keys can be found in the dark; on every screen where the white keys are the selected track's steps (STEP,
-PATTERN, MOTION and SONG while KEYS is off; HOME's TRACKS mode while no track is armed), the unlit steps 1, 5, 9 and
-13 of the bank shown glow at about 25 % (bank 2: 17, 21, 25, 29), marking the beats. Lit keys
-(steps that are on, the playhead, held keys, the MUTE screen's heard tracks, PERFORM's effects) stay fully lit; the
-buttons' LEDs are unchanged. KNOB 1 or OCT+ on the row switches it. A device setting: saved when the menu closes,
-not part of projects; OFF until it is set. A safe start keeps every LED dark, as before.
+MENU (hold HOME) **BACKLIGHT** (the LED levels of upstream Felucca's MENU > LEDS): OFF (lit or dark, as before),
+DIM LO, DIM HI, INV, INV LO, INV HI. DIM LO (an older Hortator's BACKLIGHT ON): every key LED that is not lit and every
+idle button glows at about 5 %, so the panel can be found in the dark; on every screen where the white keys are the
+selected track's steps (STEP, PATTERN, MOTION and SONG while KEYS is off; HOME's TRACKS mode while no track is armed),
+the unlit steps 1, 5, 9 and 13 of the bank shown glow at about 25 % (bank 2: 17, 21, 25, 29), marking the beats. DIM
+HI: the same, brighter (about 10 %, the beats about 30 %). INV turns it around as the stock firmware does: the idle
+LEDs lit, the active ones (steps that are on, the playhead, held keys, the page's button) dark; INV LO / INV HI the
+same with the idle ones at about 10 % / 25 %. In every mode OCT- / OCT+ **breathe** (fade in and out, upstream
+Felucca's) where pressing them would do something: the next / previous bank on the steps, LAYER from SOUND, the LFO pages' RATE MODE (OCT+),
+YES in a dialog, OK in the menu, NAME's RENAME, MIDI LEARN's DONE, the PRESETS list's LOAD (and DELETE on a used user slot); a
+way back (NO, CANCEL, BACK, LAYER's OCT-) is lit; KEYS' octave shift lit as before. KNOB 1 on the row steps through the
+levels, OCT+ steps on and wraps. A device setting: saved when the menu closes, not part of projects; OFF until it is
+set. A safe start keeps every LED dark, as before.
 
 ### CPU and PRIO
 

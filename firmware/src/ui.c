@@ -177,7 +177,7 @@ static uint8_t seq_mode_now(void)
     return (uint8_t)(step_keys() || comp_mode() ? 1u : mix_mode() ? (song.rec ? 2u : 1u) : 0u);
 }
 
-/* a held grid key lets go of its step (another track or page): keys still held edit nothing, flip no accent */
+/* a held grid key lets go of its step (another track or page): keys still held edit nothing */
 static void grid_drop_holds(void)
 {
     uint32_t k;
@@ -384,19 +384,29 @@ static void step_press(uint32_t k)
     }
 }
 
-/* key k held STEP_HOLD: the step as before the press, on, its accent flipped */
-static void step_hold(uint32_t k)
+/* key k pressed with OCT+ held (fixes 2026-10-21 item 1: the accent's gesture; a held key is PROB / RATCH's): step
+ * bank * 16 + k accented, an off one turned on with it (a TIE: plays), an accented one plain again (still on), inside
+ * LEN only; kept as the press's step (a knob turned while the key is held edits it as it is now) */
+static void step_accent(uint32_t k)
 {
+    uint32_t si = ui.bank * 16u + k;
     step_t *s;
-    if (k >= 16u || ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
+    ui.step_si[k] = 0xFFFFu;
+    if (song_lock())
         return;
-    s = &TSEL->step[ui.step_si[k]];
-    *s = ui.step_prev[k];
-    s->on = 1;
-    s->tie = 0;
-    if (!ui.step_prev[k].on)
-        s->nt = new_step_nt(TSEL);
-    s->acc = (uint8_t)!ui.step_prev[k].acc;
+    if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
+        return;
+    s = &TSEL->step[si];
+    if (!s->on) {
+        s->nt = new_step_nt(TSEL);                    /* (as a tap's new step) */
+        s->on = 1;
+        s->tie = 0;
+        s->acc = 1;
+    } else {
+        s->acc = (uint8_t)!s->acc;
+    }
+    ui.step_si[k] = (uint16_t)si;
+    ui.step_prev[k] = *s;
 }
 
 static void track_clear(track_t *t)               /* its steps and its motion; its last KEYS note C4 again */

@@ -118,10 +118,10 @@ Report what you saw first; we'll go through it together.
   step rolls three hits.
 - ARP: GRIDS 1/2 (MODE X Y CHAOS; MODE EUCL: LEN K S H) and 2/2 (FIL K S H, routing line). PATTERN KNOB 4 SRC
   `G-KCK` / `G-SNR` / `G-HAT` makes a track follow Grids; its STEP grid shows the pattern, keys do nothing.
-- Every SEQ page (STEP, PATTERN, MOTION, SONG): the white keys are the selected track's steps (tap: on / off, hold:
-  accent), OCT+ / OCT- the bank; the footer strip shows them; ALGO picks the track (no sound).
-- TRACKS (HOME's first mode): the white keys are the selected track's steps (as on STEP: tap on / off, hold:
-  accent; OCT+ / OCT- the bank; no sound); KNOB 1 or ALGO picks the track. With a track armed (REC tap) the white
+- Every SEQ page (STEP, PATTERN, MOTION, SONG): the white keys are the selected track's steps (tap: on / off, OCT+
+  held + tap: accent), OCT+ (let go alone) / OCT- the bank; the footer strip shows them; ALGO picks the track (no sound).
+- TRACKS (HOME's first mode): the white keys are the selected track's steps (as on STEP: tap on / off, OCT+ held +
+  tap: accent; OCT+ / OCT- the bank; no sound); KNOB 1 or ALGO picks the track. With a track armed (REC tap) the white
   keys play their tracks instead and record into the armed one, the selection stays.
 - The MUTE screen: hold GLO (0.4 s, or GLO + a key at once): eight boxes, filled = heard, outline = muted, the keys
   F3 .. F4 under them; the 8 white keys lit for the heard tracks. A white key mutes / unmutes its track (a muted
@@ -508,10 +508,11 @@ Report what you saw first; we'll go through it together.
   shed. A light kit: no icon.
 - An older project (0.16.0's) loads and plays as before, every track PRIO HIGH; a project saved now cannot be loaded
   by 0.16.0.
-- BACKLIGHT (MENU, HOME held; screen `build/ui_shots/fixes/menu_backlight.png`): ON, on STEP with a few steps on:
-  the unlit keys glow dimly, steps 1 5 9 13 (unlit) brighter, the on steps full; no visible flicker, also with a
-  dense pattern playing and while turning knobs; the playhead still reads. The MUTE screen and PERFORM: unlit keys
-  dim. OFF: the LEDs exactly as before. Survives a power cycle; a safe start keeps every LED dark.
+- BACKLIGHT (MENU, HOME held; screen `build/ui_shots/fixes/menu_backlight.png`): DIM LO (was ON), on STEP with a few
+  steps on: the unlit keys glow dimly, steps 1 5 9 13 (unlit) brighter, the on steps full; no visible flicker, also
+  with a dense pattern playing and while turning knobs; the playhead still reads. The MUTE screen and PERFORM: unlit
+  keys dim. OFF: the LEDs as before (OCT- / OCT+ breathe where they act: 2026-10-21 below). Survives a power cycle; a
+  safe start keeps every LED dark.
 
 ### MIDI LEARN (check on the FM-1)
 
@@ -610,9 +611,9 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
 
 - LFO: four pages. 1/4 WAVE RATE | WAVE RATE, 2/4 MORPH PHASE | MORPH PHASE, 3/4 TRIG MODE | TRIG MODE: LFO 1 on
   KNOB 1-2, LFO 2 on KNOB 3-4, the picture split the same way ("LFO 1" left, "LFO 2" right, each its wave, live dot,
-  rate mode, TRIG and where it goes: "> TONE", "> 2 DEST", "> OFF"). OCT- does nothing here any more and the LFO
-  button no longer blinks. OCT+ switches the RATE MODE of the LFO whose knob was turned last (LFO 1 at first; on
-  DEST: the selected slot's source).
+  rate mode, TRIG and where it goes: "> TONE", "> 2 DEST", "> OFF"). OCT- does nothing here any more (dark) and the
+  LFO button no longer blinks. OCT+ (breathing) switches the RATE MODE of the LFO whose knob was turned last (LFO 1 at
+  first; on DEST: the selected slot's source).
 - 4/4 DEST: four rows, one per slot ("1 LFO1 > SWEEP +40%" and a small meter of what the slot adds now). KNOB 1 picks
   the slot (the row inverts, SLOT n/4), KNOB 2 its SRC (LFO1 / LFO2), KNOB 3 its DEST (any knob an LFO could target
   before: the engine's knobs, LVL, PAN, R.TUN .. R.POS, F.CUT, F.RES), KNOB 4 its DEPTH. Set slot 3 to LFO2 > DECAY and
@@ -623,6 +624,35 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   now move slot 1 / 2's DEPTH (the same thing). A project saved now cannot be loaded by 0.22.0.
 - MIDI LEARN on DEST: pick the slot with KNOB 1, LEARN on, turn KNOB 4: "T1 D3.DEPTH"; a CC moves that slot's depth.
   MOTION records a slot's DEPTH (not its SRC / DEST).
+
+### Fixes 2026-10-21: accent, track keys, OCT breath, PERFORM knobs, LED levels (check on the FM-1)
+
+- Accent (item 1; screen `build/ui_shots/fixes/step_oct_accent_hint.png`, the hint `[OCT+] +TAP ACCENT`): on STEP hold
+  OCT+ and tap a step key: an on step gets its accent (the tall bar), again: plain; an off step turns on accented.
+  While OCT+ is held the keys show only the accented steps. A step key held 1 s: nothing but its tap (no accent);
+  held + KNOB 1 / KNOB 2: PROB / RATCH as before. OCT+ tapped alone (32 steps): bank 2 when let go; OCT+ held while
+  accenting: the bank stays. The same on PATTERN, MOTION, SONG and TRACKS (unarmed). Play: accented steps louder.
+- Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page, DLY / REVERB / CHORUS
+  too) and LFO the selected track's white key is lit (track 1: F3, track 2: G3 .. track 8: F4); ALGORITHM moves it, a
+  white key selects its track and its key stays lit. KEYS on (SCL): no track key, the keyboard as before. COMP: the
+  DUCK keys as before; GLOBAL, SAVE, GRIDS: dark.
+- OCT breath (item 5): OCT+ / OCT- fade in and out (~1.1 s, smooth, never a hard blink) where they would act: STEP
+  with 2+ banks (OCT+ on bank 1, both in the middle, OCT- on the last), SOUND (OCT+: LAYER), the LFO pages (OCT+: RATE
+  MODE; OCT- dark), a CLEAR TRACK dialog
+  (OCT+ YES breathes, OCT- NO lit), the menu (OCT+ breathes, OCT- lit), NAME, MIDI LEARN, the PRESETS list (OCT+;
+  OCT- too on a used USER slot). LAYER: OCT- lit. KEYS: OCT+ lit at octave +1, as before. Look for flicker at the
+  breath's dark end (a short fade, a few flickers there are the floor of the 1.1 ms scan frames) and with
+  BACKLIGHT OFF / DIM LO / INV alike.
+- PERFORM knobs (item 7): on HOME, hold FX and turn KNOB 2 fast back and forth for a few seconds: CRUSH moves, DECAY
+  (HOME's KNOB 2) never; let go, HOME's DECAY is where it was. MENU PERFORM PAGE: FX held and let go over FILTER 1/2,
+  turn KNOB 1 fast: FILTER's macro only, TYPE never; SELECT does nothing while the PERFORM screen is up; HOME, a page
+  button or an FX tap close it as before.
+- LED levels (item 9; screen `build/ui_shots/fixes/menu_backlight.png`, BACKLIGHT DIM HI): MENU BACKLIGHT, KNOB 1
+  steps OFF, DIM LO, DIM HI, INV, INV LO, INV HI (stops at the ends; OCT+ steps and wraps). On STEP with a few steps
+  on: DIM LO the unlit keys and the idle buttons glow (the old ON's keys), beats 1 5 9 13 brighter; DIM HI the same,
+  brighter; INV the idle keys and buttons lit, the on steps and SEQ's button dark; INV LO / INV HI the idle ones dim
+  / mid. No visible flicker with a dense pattern playing. Power off and on: the level kept. An older Hortator
+  (0.22.0) after this one: BACKLIGHT ON for any level but OFF.
 
 ### BENCH: the performance cases on the FM-1
 
