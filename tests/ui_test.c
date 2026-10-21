@@ -764,67 +764,103 @@ static void test_layer_in_edit(void)
     check("EDIT from another section opens SOUND, not the layer", str_eq(cur_page()->title, "SOUND"));
 }
 
-/* the LFO button: two pages (WAVE RATE MORPH DEPTH / DEST TRIG PHASE) of the LFO OCT- selects; OCT+ its rate mode */
+/* the LFO button (fixes 2026-10-21 item 3): one page set with both LFOs, LFO 1 on KNOB 1-2 and LFO 2 on KNOB 3-4
+ * (WAVE RATE, MORPH PHASE, TRIG MODE), then DEST: the track's 4 slots (KNOB 1 the slot, 2 SRC, 3 DEST, 4 DEPTH). OCT-
+ * does nothing there any more; OCT+ the RATE MODE of the LFO turned last (DEST: the slot's source) */
 static void test_lfo_pages(void)
 {
-    uint32_t w, k, pos, on = 0, off = 0;
+    uint32_t w, k, pos, on = 0;
     char v[12];
     const char *u;
     ui_host_init();
     tap(B_LFO);
-    check("LFO opens LFO 1/2: WAVE RATE MORPH DEPTH of LFO 1",
+    check("LFO opens LFO 1/4: WAVE RATE of LFO 1, WAVE RATE of LFO 2",
           str_eq(cur_page()->title, "LFO") && page_id(cur_page(), 0) == P_LFO1 + LF_WAVE &&
-              page_id(cur_page(), 3) == P_LFO1 + LF_DEPTH && fam_pages(FAM_LFO, &pos) == 2u && pos == 1u);
+              page_id(cur_page(), 1) == P_LFO1 + LF_RATE && page_id(cur_page(), 2) == P_LFO2 + LF_WAVE &&
+              page_id(cur_page(), 3) == P_LFO2 + LF_RATE && fam_pages(FAM_LFO, &pos) == 4u && pos == 1u);
     param_format(&TP[P_LFO1 + LF_RATE], 23, v, &u);
     check("LFO RATE in SYNC: 23 = 1BAR", str_eq(v, "1BAR"));
     tap(B_OCTUP);
     param_format(&TP[P_LFO1 + LF_RATE], 127, v, &u);
-    check("OCT+ on an LFO page: LFO 1 -> Hz (RATE 127 = 40.0 Hz)",
-          TSEL->p[P_LFO1 + LF_MODE] == LM_HZ && str_eq(v, "40.0") && str_eq(u, "Hz"));
-    tap(B_OCTUP);
-    param_format(&TP[P_LFO1 + LF_RATE], 0, v, &u);
-    check("OCT+ again: TIME (RATE 0 = 25 ms)", TSEL->p[P_LFO1 + LF_MODE] == LM_TIME && str_eq(v, "25") && str_eq(u, "ms"));
-    tap(B_OCTUP);
-    check("OCT+ again: back to SYNC", TSEL->p[P_LFO1 + LF_MODE] == LM_SYNC);
-    tap(B_LFO);
-    check("LFO again: LFO 2/2 (DEST TRIG PHASE of LFO 1)", page_id(cur_page(), 0) == P_LFO1 + LF_DEST);
-    turn(EN_K1, 3);
+    check("OCT+ on an LFO page (nothing turned yet): LFO 1 -> Hz (RATE 127 = 40.0 Hz)",
+          TSEL->p[P_LFO1 + LF_MODE] == LM_HZ && TSEL->p[P_LFO2 + LF_MODE] == LM_SYNC && str_eq(v, "40.0") &&
+              str_eq(u, "Hz"));
+    turn(EN_K3, 1);
     ui_frame();
-    param_format(&TP[P_LFO1 + LF_DEST], TSEL->p[P_LFO1 + LF_DEST], v, &u);
-    check("LFO DEST shows the track's knob by its label (K909: DEST 3 = SWEEP)", str_eq(v, "SWEEP"));
+    tap(B_OCTUP);
+    check("KNOB 3 turns LFO 2's WAVE; OCT+ then switches LFO 2's mode only",
+          TSEL->p[P_LFO2 + LF_WAVE] == LW_TRI && TSEL->p[P_LFO2 + LF_MODE] == LM_HZ &&
+              TSEL->p[P_LFO1 + LF_MODE] == LM_HZ);
     tap(B_OCTDN);
-    check("OCT- on an LFO page: LFO 2, the same page (2/2: DEST of LFO 2)",
-          str_eq(cur_page()->title, "LFO") && page_id(cur_page(), 0) == P_LFO2 + LF_DEST && song.lsel == 1u);
-    turn(EN_K1, 2);
-    ui_frame();
-    check("LFO 2's DEST knob edits LFO 2 (LFO 1's DEST kept)",
-          TSEL->p[P_LFO2 + LF_DEST] > 0 && TSEL->p[P_LFO1 + LF_DEST] == 3);
-    tap(B_LFO);
-    tap(B_OCTUP);
-    check("LFO 1/2 on LFO 2: OCT+ switches LFO 2's mode only",
-          page_id(cur_page(), 0) == P_LFO2 + LF_WAVE && TSEL->p[P_LFO2 + LF_MODE] == LM_HZ &&
-              TSEL->p[P_LFO1 + LF_MODE] == LM_SYNC);
-    for (k = 0; k < 40u; k++) {                      /* the LFO LED blinks while LFO 2 is shown (2 s, 50 ms frames) */
+    check("OCT- on an LFO page: nothing (the same page, the same knobs)",
+          ui.page == page_first(FAM_LFO) && page_id(cur_page(), 0) == P_LFO1 + LF_WAVE &&
+              TSEL->p[P_LFO2 + LF_MODE] == LM_HZ && TSEL->p[P_LFO1 + LF_MODE] == LM_HZ);
+    for (k = 0; k < 40u; k++) {                      /* the LFO LED steady (2 s, 50 ms frames) */
         host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
         ui_frame();
-        if (led_lit(panel.btn[B_LFO]))
-            on++;
-        else
-            off++;
+        on += led_lit(panel.btn[B_LFO]);
     }
-    check("LFO 2: the LFO LED blinks", on > 5u && off > 5u);
-    snap_page("lfo/lfo2_page1");
+    check("LFO pages: the LFO LED steady", on == 40u);
+    snap_page("lfo/page1_wave_rate");
+    tap(B_LFO);
+    check("LFO again: 2/4 MORPH PHASE of LFO 1, MORPH PHASE of LFO 2",
+          page_id(cur_page(), 0) == P_LFO1 + LF_MORPH && page_id(cur_page(), 1) == P_LFO1 + LF_PHASE &&
+              page_id(cur_page(), 2) == P_LFO2 + LF_MORPH && page_id(cur_page(), 3) == P_LFO2 + LF_PHASE &&
+              fam_pages(FAM_LFO, &pos) == 4u && pos == 2u);
+    snap_page("lfo/page2_morph_phase");
+    tap(B_LFO);
+    check("3/4: TRIG MODE of LFO 1, TRIG MODE of LFO 2",
+          page_id(cur_page(), 0) == P_LFO1 + LF_TRIG && page_id(cur_page(), 1) == P_LFO1 + LF_MODE &&
+              page_id(cur_page(), 2) == P_LFO2 + LF_TRIG && page_id(cur_page(), 3) == P_LFO2 + LF_MODE);
+    turn(EN_K2, 1);
+    ui_frame();
+    check("KNOB 2 on 3/4: LFO 1's MODE (Hz -> TIME)", TSEL->p[P_LFO1 + LF_MODE] == LM_TIME);
+    snap_page("lfo/page3_trig_mode");
+    tap(B_LFO);
+    check("4/4 DEST: KNOB 1 the slot (1), 2 SRC 3 DEST 4 DEPTH of slot 1 (LFO 1's own DEST and DEPTH)",
+          str_eq(cur_page()->title, "DEST") && fam_pages(FAM_LFO, &pos) == 4u && pos == 4u && song.lslot == 0u &&
+              page_id(cur_page(), 0) == 0xFFu && page_id(cur_page(), 1) == P_LSRC1 &&
+              page_id(cur_page(), 2) == P_LFO1 + LF_DEST && page_id(cur_page(), 3) == P_LFO1 + LF_DEPTH);
+    turn(EN_K3, 3);
+    ui_frame();
+    param_format(&TP[P_LFO1 + LF_DEST], TSEL->p[P_LFO1 + LF_DEST], v, &u);
+    check("slot 1's DEST shows the track's knob by its label (K909: DEST 3 = SWEEP)", str_eq(v, "SWEEP"));
+    turn(EN_K1, 2);
+    ui_frame();
+    check("KNOB 1: slot 3 (its SRC DEST DEPTH on KNOB 2-4)", song.lslot == 2u && page_id(cur_page(), 1) == P_LS3SRC &&
+                                                                 page_id(cur_page(), 2) == P_LS3DEST &&
+                                                                 page_id(cur_page(), 3) == P_LS3DEPTH);
+    turn(EN_K2, 1);
+    ui_frame();
+    turn(EN_K3, 2);
+    ui_frame();
+    turn(EN_K4, 8);
+    ui_frame();
+    check("slot 3: SRC LFO 2, DEST 2, DEPTH 8; slot 1 kept",
+          TSEL->p[P_LS3SRC] == 1 && TSEL->p[P_LS3DEST] == 2 && TSEL->p[P_LS3DEPTH] == 8 &&
+              TSEL->p[P_LFO1 + LF_DEST] == 3 && TSEL->p[P_LSRC1] == 0);
+    tap(B_OCTUP);
+    check("OCT+ on DEST: the selected slot's source (LFO 2) Hz -> TIME", TSEL->p[P_LFO2 + LF_MODE] == LM_TIME &&
+                                                                         TSEL->p[P_LFO1 + LF_MODE] == LM_TIME);
+    turn(EN_K1, 5);
+    ui_frame();
+    check("KNOB 1 stops at slot 4", song.lslot == 3u && page_id(cur_page(), 3) == P_LS4DEPTH);
+    turn(EN_K1, -1);
+    ui_frame();
+    render_mix(0, 0, CTL * 20);
+    snap_page("lfo/dest_page");
     keys(1u << KEY_TRK_KEY[3]);
     ui_frame();
     keys(0);
     ui_frame();
-    check("LFO pages: a white key selects its track, LFO 2 stays shown", song.sel == 3 && song.lsel == 1u);
-    tap(B_OCTDN);
-    ui_frame();
-    check("OCT- again: back to LFO 1, its LED steady", song.lsel == 0u && page_id(cur_page(), 0) == P_LFO1 + LF_WAVE &&
-                                                          led_lit(panel.btn[B_LFO]));
-    for (w = 0; w < LW_COUNT; w++) {                 /* every waveform's page, LFO 1 on TONE, playing */
+    check("DEST: a white key selects its track (the slot stays)", song.sel == 3 && song.lslot == 2u &&
+                                                                   str_eq(cur_page()->title, "DEST"));
+    tap(B_LFO);
+    check("LFO on DEST: back to 1/4", ui.page == page_first(FAM_LFO));
+    for (w = 0; w < LW_COUNT; w++) {                 /* every waveform's page: LFO 1 this wave on TONE, LFO 2 the
+                                                      * next one on LVL, playing */
         char name[40];
+        uint32_t w2 = (w + 1u) % LW_COUNT;
         ui_host_init();
         TSEL->p[P_LFO1 + LF_WAVE] = (int16_t)w;
         TSEL->p[P_LFO1 + LF_MORPH] = 64;
@@ -832,6 +868,12 @@ static void test_lfo_pages(void)
         TSEL->p[P_LFO1 + LF_DEPTH] = 40;
         TSEL->p[P_LFO1 + LF_MODE] = LM_HZ;           /* ~8 Hz: the random waves' trail fills in the frames below */
         TSEL->p[P_LFO1 + LF_RATE] = 100;
+        TSEL->p[P_LFO2 + LF_WAVE] = (int16_t)w2;
+        TSEL->p[P_LFO2 + LF_DEST] = 9;
+        TSEL->p[P_LFO2 + LF_DEPTH] = -30;
+        TSEL->p[P_LFO2 + LF_MODE] = LM_HZ;
+        TSEL->p[P_LFO2 + LF_RATE] = 90;
+        TSEL->p[P_LFO2 + LF_TRIG] = LT_FREE;
         tap(B_LFO);
         transport_req = 1;
         seq_play_to(0, 3);
@@ -847,11 +889,12 @@ static void test_lfo_pages(void)
     }
 }
 
-/* S&H / WANDER / RWALK: a scope, the live value as a dot at the right edge and its trail to the left */
+/* S&H / WANDER / RWALK: a scope, the live value as a dot at the right edge of the LFO's half and its trail to the
+ * left; each LFO its own */
 static void test_lfo_trail(void)
 {
     static int16_t seen[4000];
-    uint32_t k, n = 0, ok = 1, distinct = 0, y;
+    uint32_t k, n = 0, ok = 1, distinct = 0, y, n2;
     int32_t prev = 99999;
     ui_host_init();
     TSEL->p[P_LFO1 + LF_WAVE] = LW_SH;
@@ -862,13 +905,19 @@ static void test_lfo_trail(void)
     for (k = 0; k < 127u && LR_HZ_X100[k] < 1000u; k++)   /* ~10 Hz: ~140 frames (blocks) a cycle */
         ;
     TSEL->p[P_LFO1 + LF_RATE] = (int16_t)k;
+    TSEL->p[P_LFO2 + LF_WAVE] = LW_RWALK;            /* LFO 2: its own trail */
+    TSEL->p[P_LFO2 + LF_DEST] = 10;
+    TSEL->p[P_LFO2 + LF_DEPTH] = 64;
+    TSEL->p[P_LFO2 + LF_TRIG] = LT_FREE;
+    TSEL->p[P_LFO2 + LF_MODE] = LM_HZ;
+    TSEL->p[P_LFO2 + LF_RATE] = (int16_t)k;
     tap(B_LFO);
     for (k = 0; k < 600u; k++) {
         ui_frame();
         seen[n++] = (int16_t)(lfo_out(TSEL, 0) >> 1);
     }
-    for (k = 0; k < ui.tr_n; k++) {                  /* every trail point is a value the LFO had */
-        int16_t tv = ui.tr[(ui.tr_h + 136u - ui.tr_n + k) % 136u];
+    for (k = 0; k < ui.tr_n[0]; k++) {               /* every trail point is a value the LFO had */
+        int16_t tv = ui.tr[0][(ui.tr_h[0] + LTR_N - ui.tr_n[0] + k) % LTR_N];
         uint32_t j, f = 0;
         for (j = 0; j < n && !f; j++)
             f = seen[j] == tv;
@@ -876,21 +925,24 @@ static void test_lfo_trail(void)
         distinct += tv != prev;
         prev = tv;
     }
-    printf("     LFO trail: %u points, %u changes\n", (unsigned)ui.tr_n, (unsigned)distinct);
-    check("LFO S&H trail: full width, made of the LFO's values, several steps", ui.tr_n == 136u && ok && distinct >= 3u);
-    y = (uint32_t)(Y_GRAPH + G_OY + 40 - lfo_out(TSEL, 0) * 34 / 32767);
-    check("LFO S&H: the dot at the right edge at the live value", fb[y * 240u + 235u] == C_INK);
-    check("LFO 1/2 shows the routing and TRIG too (the line under the picture)",
-          ui.page == page_first(FAM_LFO) && fb_lit(Y_GRAPH + G_OY + 84u, Y_GRAPH + G_OY + 96u) > 20u);
+    printf("     LFO trail: %u points, %u changes; LFO 2's %u points\n", (unsigned)ui.tr_n[0], (unsigned)distinct,
+           (unsigned)ui.tr_n[1]);
+    check("LFO S&H trail: full width, made of the LFO's values, several steps", ui.tr_n[0] == LTR_N && ok && distinct >= 3u);
+    check("LFO 2 (RWALK) has its own full trail", ui.tr_n[1] == LTR_N);
+    y = (uint32_t)(Y_GRAPH + G_OY + LG_CY - lfo_out(TSEL, 0) * LG_A / 32767);
+    check("LFO S&H: the dot at the right edge of LFO 1's half at the live value",
+          fb[y * 240u + LG_X0 + LTR_N - 1u] == C_INK);
+    check("LFO 1/4 shows TRIG and the routing too (the line under the pictures)",
+          ui.page == page_first(FAM_LFO) && fb_lit(Y_GRAPH + G_OY + 84u, Y_GRAPH + G_OY + 96u) > 40u);
     snap_page("lfo/trail_SnH");
+    n2 = ui.tr_n[1];
+    TSEL->p[P_LFO1 + LF_WAVE] = LW_WANDER;
+    ui_frame();
+    check("LFO trail: LFO 1's wave changed starts its trail over, LFO 2's goes on", ui.tr_n[0] <= 1u && ui.tr_n[1] >= n2);
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
     keys(0);
-    check("LFO trail: another track starts it over", ui.tr_n <= 1u);
-    for (k = 0; k < 20u; k++)
-        ui_frame();
-    tap(B_OCTDN);
-    check("LFO trail: switching to LFO 2 starts it over", ui.tr_n <= 1u);
+    check("LFO trail: another track starts both over", ui.tr_n[0] <= 1u && ui.tr_n[1] <= 1u);
 }
 
 /* the EDIT gauge marker: a modulated knob shows its live value */
@@ -2365,10 +2417,10 @@ static void test_graph_lfo_fill(void)
     tap(B_LFO);
     ui.force = 1;
     ui_frame();
-    mid = fb_count(134, Y_GRAPH + G_OY + 12u, 1, 26, C_INK);
-    above = fb_count(100, Y_GRAPH + G_OY + 0u, 136, 4, C_INK);
+    mid = fb_count(LG_X0 + LTR_N / 4u, Y_GRAPH + G_OY + LG_CY - LG_A + 2u, 1, LG_A - 2u, C_INK);   /* (LFO 1's half) */
+    above = fb_count(LG_X0, Y_GRAPH + G_OY + 12u, LTR_N, 3, C_INK);   /* (under its name, over the crest) */
     check("LFO: the wave's area dithered down to the zero line (half the column under the crest), nothing above it",
-          mid >= 10u && mid <= 16u && above == 0u);
+          mid >= 11u && mid <= 17u && above == 0u);
 }
 
 /* spec 2026-10-19-md-ui §8: TRACKS keeps every item of its rows (number, arm, model, the bank's 16 steps, the level

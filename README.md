@@ -68,13 +68,14 @@ firmware ([below](#back-to-the-official-firmware)).
 | **SEQ** | the steps on the white keys, then PATTERN, MOTION and SONG |
 | **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
 | **ARP** | Grids |
-| **LFO** | the track's two LFOs |
+| **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
 | **REC** | arms / disarms the selected track for recording, on any screen (arming while stopped starts play). On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
 | **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
 | **SAVE** | projects (save, load, name) and tools |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
 
-With KEYS on, OCT- / OCT+ are the octave: LAYER (from EDIT) and the LFO pages' OCT buttons need KEYS off; the STEP
+With KEYS on, OCT- / OCT+ are the octave: LAYER (from EDIT) and the LFO pages' OCT+ (the RATE MODE of the LFO turned
+last) need KEYS off; the STEP
 bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu, PERFORM (FX held) and the MUTE
 screen (GLO held) keep their keys.
 Step record starts in KEYS mode, on the STEP page, with the transport stopped, by a REC tap: the cursor starts at the
@@ -129,7 +130,7 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
   (`CC NOT LEARNABLE`). MODEL and RESON's MODEL can't be learned (`NOT LEARNABLE`).
 - **While LEARN is on, OCT- and OCT+ are its own:** OCT- clears the pick's CC or note (`T3 DECAY CC CLEARED`,
   `PLAY CLEARED`); with nothing picked it asks `CLEAR ALL LEARNED?` (OCT+ yes, OCT- no). **OCT+ ends LEARN**
-  (`LEARN DONE`), as GLO + G4 does. So pick the page first (LAYER, LFO 2, the step bank), then turn LEARN on. The
+  (`LEARN DONE`), as GLO + G4 does. So pick the page first (LAYER, the step bank, a DEST slot), then turn LEARN on. The
   menu, a confirm, or NAME also end it; it is always off at power-on.
 - **What a CC does on a knob:** 0 to 127 spans the knob's whole range; a centred knob (PAN, an LFO's DEPTH, FILTER
   ENV) is 0 at 64; a list (FILTER TYPE, DIV, WAVE) steps through it in its order. A model's knob follows the track's

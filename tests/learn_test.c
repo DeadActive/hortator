@@ -386,13 +386,24 @@ static void test_pages(void)
     tap(B_LFO);
     learn_toggle();
     knob(3, 1);
-    ok &= ui.ml.pick && ui.ml.trk == 2u && ui.ml.id == P_LFO1 + LF_DEPTH;
-    check("LFO 1: DEPTH of the selected track (T3)", ok);
+    ok &= ui.ml.pick && ui.ml.trk == 2u && ui.ml.id == P_LFO2 + LF_RATE;
+    check("LFO 1/4: KNOB 4 is LFO 2's RATE, of the selected track (T3)", ok);
     oct(B_OCTUP);
-    oct(B_OCTDN);                                    /* (LEARN off: OCT- is the page's) */
+    tap(B_LFO);
+    tap(B_LFO);
+    tap(B_LFO);                                      /* DEST */
     learn_toggle();
     knob(3, 1);
-    check("LFO 2 (OCT- with LEARN off): its DEPTH", ui.ml.id == P_LFO2 + LF_DEPTH);
+    check("DEST, slot 1: its DEPTH (LFO 1's own DEPTH id)", ui.ml.pick && ui.ml.id == P_LFO1 + LF_DEPTH);
+    knob(0, 2);                                      /* KNOB 1: slot 3 (no pick: not a parameter) */
+    knob(3, 1);
+    {
+        char b[16];
+        ml_name(b);
+        check("DEST, slot 3: its DEPTH, named T3 D3.DEPTH", ui.ml.id == P_LS3DEPTH && same(b, "T3 D3.DEPTH"));
+    }
+    knob(1, 1);
+    check("DEST, slot 3: its SRC", ui.ml.id == P_LS3SRC);
     tap(B_FX);
     for (k = 0; k < 6u && cur_page()->graph != GR_FX; k++)
         tap(B_FX);
@@ -1247,9 +1258,9 @@ static void test_screens(void)
     snap("tracks_learned_line");
     oct(B_OCTUP);
     tap(B_LFO);
-    tap(B_LFO);                                      /* LFO 2/2: DEST TRIG PHASE */
+    tap(B_LFO);                                      /* LFO 2/4: MORPH PHASE of LFO 1, of LFO 2 */
     learn_toggle();
-    knob(2, 1);
+    knob(1, 1);
     {
         char ln[32];
         ml_line(ln);

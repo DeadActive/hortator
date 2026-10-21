@@ -842,7 +842,7 @@ static int fdr9_round_trip(void)
     project_load(2);
     return chain.cfg.count == 2u && chain.cfg.loop == 1u && chain.cfg.row[0].slot == 1u &&
            chain.cfg.row[0].repeat == 4u && chain.cfg.row[1].slot == 3u && chain.cfg.row[1].repeat == 16u &&
-           str_eq(chain.name, "BREAK 2") && chain.from == 3u && sizeof(project_t) == 3712u;   /* (FDRD) */
+           str_eq(chain.name, "BREAK 2") && chain.from == 3u && sizeof(project_t) == 3840u;   /* (FDRE) */
 }
 /* an FDR9 record (3592 B): its values, steps, motion, song and name; the filter OFF */
 static int fdr9_converts(void)
@@ -1217,8 +1217,8 @@ static int fdrc_round_trip(void)
     memset(proj_slot, 0, sizeof proj_slot);
     persist_boot();
     project_load(0);
-    return trk[1].p[P_PRIO] == 1 && trk[6].p[P_PRIO] == 1 && trk[0].p[P_PRIO] == 0 && sizeof(project_t) == 3712u &&
-           proj_slot[0].magic == 0x44524446u;       /* "FDRD" */
+    return trk[1].p[P_PRIO] == 1 && trk[6].p[P_PRIO] == 1 && trk[0].p[P_PRIO] == 0 && sizeof(project_t) == 3840u &&
+           proj_slot[0].magic == 0x45524446u;       /* "FDRE" */
 }
 
 /* one pattern played 2 s from a loaded slot: a hash of the mix */
@@ -1314,6 +1314,98 @@ static int old_formats_play_same(void)
     if (ref != ref2 || h1 != ref || ha != ref || hb != ref)
         printf("     play hashes: FDRC %08x (again %08x), FDR1 %08x, FDRA %08x, FDRB %08x\n", ref, ref2, h1, ha, hb);
     return (int)ok && ref == ref2 && h1 == ref && ha == ref && hb == ref;
+}
+
+
+/* ---- FDRE (fixes 2026-10-21 item 3): the LFO DEST slots. An FDRD record's per-LFO DEST and DEPTH are slots 1 and 2
+ * (sources LFO 1 and LFO 2), slots 3 and 4 off: it plays as its FDRE save, its motion and presets kept */
+static void fdrd_of_live(project_vd_t *v)
+{
+    uint32_t i, k;
+    memset(v, 0, sizeof *v);
+    v->magic = PROJ_MAGIC_VD;
+    v->size = sizeof *v;
+    for (i = 0; i < G_COUNT; i++)
+        v->g[i] = song.g[i];
+    v->sel = song.sel;
+    for (k = 0; k < NTRK; k++) {
+        for (i = 0; i <= P_PRIO; i++)
+            v->t[k].p[i] = trk[k].p[i];
+        memcpy(v->t[k].step, trk[k].step, sizeof v->t[k].step);
+        v->pre[k] = (uint16_t)preset_rec_enc(trk[k].pre);
+        v->pre_ed[k] = trk[k].pre_ed;
+    }
+    v->motion = mo.s;
+    v->song = chain.cfg;
+    memcpy(v->name, chain.name, NAME_LEN);
+    v->sum = proj_hash(v, sizeof *v - 4u);
+}
+static int fdrd_lfo_converts(void)
+{
+    static project_vd_t v;
+    uint32_t k, ok = 1, ref, h, pre;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    pattern_kit();
+    trk[0].p[P_LFO1 + LF_DEST] = 3;                  /* T1: LFO 1 on TONE, LFO 2 on LVL */
+    trk[0].p[P_LFO1 + LF_DEPTH] = 40;
+    trk[0].p[P_LFO1 + LF_WAVE] = LW_SQUARE;
+    trk[0].p[P_LFO1 + LF_MODE] = LM_HZ;
+    trk[0].p[P_LFO1 + LF_RATE] = 80;
+    trk[0].p[P_LFO2 + LF_DEST] = 9;
+    trk[0].p[P_LFO2 + LF_DEPTH] = -30;
+    trk[0].p[P_LFO2 + LF_WAVE] = LW_SAW;
+    trk[3].p[P_LFO2 + LF_DEST] = 10;                 /* T4: LFO 2 alone, on PAN */
+    trk[3].p[P_LFO2 + LF_DEPTH] = 64;
+    pre = preset_first_of((uint32_t)trk[2].p[P_MODEL]);   /* a factory preset reference, edited */
+    trk[2].pre = (uint16_t)pre;
+    trk[2].pre_ed = 1;
+    motion_add(0, 2, P_LFO1 + LF_DEPTH, 12);         /* motion on LFO 1's DEPTH: slot 1's now */
+    name_set(chain.name, "LFO OLD");
+    fdrd_of_live(&v);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    project_save(0);                                 /* the same state as FDRE */
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    host_init();
+    ref = play_hash(0);
+    host_init();
+    h = play_hash(1);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_LSRC1] == 0 && trk[k].p[P_LSRC2] == 1 && trk[k].p[P_LS3DEST] == 0 && trk[k].p[P_LS3DEPTH] == 0 &&
+              trk[k].p[P_LS4DEST] == 0 && trk[k].p[P_LS4DEPTH] == 0;
+    ok &= trk[0].p[P_LFO1 + LF_DEST] == 3 && trk[0].p[P_LFO1 + LF_DEPTH] == 40 && trk[0].p[P_LFO2 + LF_DEST] == 9 &&
+          trk[0].p[P_LFO2 + LF_DEPTH] == -30 && trk[3].p[P_LFO2 + LF_DEST] == 10 && trk[3].p[P_LFO2 + LF_DEPTH] == 64;
+    ok &= pre != PRE_NONE && trk[2].pre == pre && trk[2].pre_ed == 1u && mo.s.count == 1u && mo.s.ev[0].param == P_LFO1 + LF_DEPTH &&
+          str_eq(chain.name, "LFO OLD");
+    if (h != ref || !ok)
+        printf("     FDRD -> FDRE: play %08x (FDRE save %08x), fields %u\n", h, ref, ok);
+    return (int)ok && h == ref && sizeof v == 3712u && proj_slot[1].magic == PROJ_MAGIC && proj_ok(&proj_slot[1]);
+}
+/* FDRE round trip: slots 3 and 4 (sources, DEST, DEPTH) and changed sources of 1 and 2 */
+static int fdre_slots_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    trk[5].p[P_LSRC1] = 1;
+    trk[5].p[P_LSRC2] = 0;
+    trk[5].p[P_LS3SRC] = 1;
+    trk[5].p[P_LS3DEST] = 17;
+    trk[5].p[P_LS3DEPTH] = -64;
+    trk[5].p[P_LS4SRC] = 0;
+    trk[5].p[P_LS4DEST] = 2;
+    trk[5].p[P_LS4DEPTH] = 33;
+    project_save(3);
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(3);
+    return trk[5].p[P_LSRC1] == 1 && trk[5].p[P_LSRC2] == 0 && trk[5].p[P_LS3SRC] == 1 && trk[5].p[P_LS3DEST] == 17 &&
+           trk[5].p[P_LS3DEPTH] == -64 && trk[5].p[P_LS4SRC] == 0 && trk[5].p[P_LS4DEST] == 2 &&
+           trk[5].p[P_LS4DEPTH] == 33 && sizeof(project_t) == 3840u && sizeof(project_t) <= ST_PAYLOAD_MAX &&
+           proj_slot[3].magic == 0x45524446u;       /* "FDRE" */
 }
 
 /* RAM slots left by 0.16.0 (.noinit, FDRB at 3672 B a slot; FDRC's are 3688 B): never read as projects; every slot
@@ -1641,9 +1733,12 @@ int main(void)
           "the device kept); an older record and none load OFF", settings_autostart_round_trip());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
-    check("project: PRIO kept through a save and a load (FDRD)", fdrc_round_trip());
+    check("project: PRIO kept through a save and a load (FDRE)", fdrc_round_trip());
     check("project: FDR1, FDRA and FDRB records load with PRIO HIGH and play as the FDRC save", old_formats_play_same());
     check("project: 0.16.0's RAM slots (FDRB) are not read; the flash records load (converted)", fdrb_ram_refetched());
+    check("project: an FDRD record's LFO DEST / DEPTH load as DEST slots 1 / 2 (LFO 1 / 2), 3 / 4 off; it plays as its "
+          "FDRE save, motion and presets kept", fdrd_lfo_converts());
+    check("project: the DEST slots kept through a save and a load (FDRE, 3840 B: one flash sector)", fdre_slots_round_trip());
     check("last project: a flash SAVE remembers its slot; power-on loads it (stopped, LOADED, no IRQ enable)",
           last_project_loads());
     check("last project: an empty slot asks START NEW PROJECT? over the power-on kit; NO asks again, YES forgets",

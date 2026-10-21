@@ -38,6 +38,10 @@ enum { CV_NORM, CV_HOT, CV_DIM };              /* a knob cell's value: plain, to
 #define H_KNOB 43
 #define Y_GRAPH 61
 #define H_GRAPH 120
+#define LTR_N 108u                     /* LFO pages: a half's wave / trail width (one cycle; ui_draw.c graph_lfo) */
+#define LG_X0 6u                       /* .. its x in the half */
+#define LG_CY 46                       /* .. the zero line (graph y) and the full swing */
+#define LG_A 30
 #define G_OY 20
 #define Y_TRIG 181
 #define H_TRIG 31
@@ -77,9 +81,11 @@ static struct {
     char focus_l[8], focus_v[8], focus_u[8];
     uint32_t graph_sig, head_sig, foot_sig, msg_sig, tempo_sig, col_sig, lev_sig, lev_m, frame;
     uint8_t graph_top;
-    int16_t tr[136];             /* LFO pages, random waves: the shown LFO's trail (a ring, newest at tr_h - 1) */
-    uint8_t tr_h, tr_n;
-    uint32_t tr_ph, tr_key, tr_frame;   /* the phase at the last point; what the trail is of; the frame it was fed */
+    int16_t tr[2][LTR_N];        /* LFO pages, random waves: each LFO's trail (a ring, newest at tr_h - 1) */
+    uint8_t tr_h[2], tr_n[2];
+    uint32_t tr_ph[2], tr_key[2], tr_frame;   /* the phase at the last point; what the trail is of; the frame they
+                                               * were fed */
+    uint8_t lfo_l;               /* LFO pages: the LFO whose knob was turned last (OCT+ cycles its RATE MODE) */
     uint8_t persist_pending;     /* a settings save asked for while playing: written once stopped (project.c) */
     uint8_t cpu_on;              /* the top bar's CPU icon: since cpu_ms, after song.sheds moved past sheds (2 s) */
     uint32_t sheds, cpu_ms;

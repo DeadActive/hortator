@@ -1214,82 +1214,139 @@ static void graph_comp(uint16_t c, int curve)
 
 static int lfo_random(uint32_t wave) { return wave == LW_SH || wave == LW_WANDER || wave == LW_RWALK; }
 
-/* every frame on an LFO page: the shown LFO's trail gets a point each 1/136 of its cycle (the width = one cycle; at
- * most one a frame); it starts over on another track, LFO or wave, or after frames away from the LFO pages */
+/* every frame on an LFO page: each LFO's trail gets a point each 1/LTR_N of its cycle (the width = one cycle; at most
+ * one a frame); a trail starts over on another track or another wave of its LFO, or after frames away from the LFO
+ * pages */
 static void lfo_trail(void)
 {
     const track_t *t = TSEL;
-    uint32_t l = song.lsel & 1u, ph = t->lfo[l].ph;
-    uint32_t key = (uint32_t)song.sel << 8 | l << 4 | (uint32_t)clamp(t->p[(l ? P_LFO2 : P_LFO1) + LF_WAVE], 0, 15);
-    if (key != ui.tr_key || ui.frame != ui.tr_frame + 1u) {
-        ui.tr_key = key;
-        ui.tr_n = ui.tr_h = 0;
-    }
+    uint32_t l, cont = ui.frame == ui.tr_frame + 1u;
     ui.tr_frame = ui.frame;
-    if (ui.tr_n && ph - ui.tr_ph < 0xFFFFFFFFu / 136u)
-        return;
-    ui.tr_ph = ph;
-    ui.tr[ui.tr_h] = (int16_t)(lfo_out(t, l) >> 1);
-    ui.tr_h = (uint8_t)((ui.tr_h + 1u) % 136u);
-    if (ui.tr_n < 136u)
-        ui.tr_n++;
+    for (l = 0; l < 2u; l++) {
+        uint32_t ph = t->lfo[l].ph;
+        uint32_t key = 1u << 16 | (uint32_t)song.sel << 8 | (uint32_t)clamp(t->p[(l ? P_LFO2 : P_LFO1) + LF_WAVE], 0, 15);
+        if (key != ui.tr_key[l] || !cont) {
+            ui.tr_key[l] = key;
+            ui.tr_n[l] = ui.tr_h[l] = 0;
+        }
+        if (ui.tr_n[l] && ph - ui.tr_ph[l] < 0xFFFFFFFFu / LTR_N)
+            continue;
+        ui.tr_ph[l] = ph;
+        ui.tr[l][ui.tr_h[l]] = (int16_t)(lfo_out(t, l) >> 1);
+        ui.tr_h[l] = (uint8_t)((ui.tr_h[l] + 1u) % LTR_N);
+        if (ui.tr_n[l] < LTR_N)
+            ui.tr_n[l]++;
+    }
 }
 
-/* LFO pages: the LFO's name; one cycle of the wave (as morphed, phase-shifted) with the live position, or for the
- * random waves a scope (the live value at the right edge, its trail to the left); the rate mode; the routing and
- * TRIG */
-static void graph_lfo(uint16_t c, uint32_t l)
+/* the routing of LFO l under its picture: "> TONE" (one slot), "> 2 DEST" (more), "> OFF" (none) */
+static void lfo_route_text(const track_t *t, uint32_t l, char *b, uint32_t n)
 {
-    const track_t *t = TSEL;
+    uint32_t s, cnt = 0, first = 0;
+    for (s = 0; s < LS_N; s++)
+        if (t->p[LS_ID[s][LS_DEST]] && t->p[LS_ID[s][LS_DEPTH]] && (t->p[LS_ID[s][LS_SRC]] ? 1u : 0u) == l && !cnt++)
+            first = s;
+    str_cpy(b, "> ", n);
+    if (cnt == 1u)
+        str_cpy(b + 2, lfo_dest_label(t, t->p[LS_ID[first][LS_DEST]]), n - 2u);
+    else if (cnt) {
+        fmt_int(b + 2, (int32_t)cnt);
+        str_cpy(b + str_len(b), " DEST", n - str_len(b));
+    } else
+        str_cpy(b + 2, "OFF", n - 2u);
+}
+
+/* LFO pages: both LFOs side by side, LFO 1 over KNOB 1-2, LFO 2 over KNOB 3-4: the name and the rate mode; one cycle
+ * of the wave (as morphed, phase-shifted) with the live position, or for the random waves a scope (the live value at
+ * the half's right edge, its trail to the left); TRIG and the routing (the DEST slots it feeds) */
+static void graph_lfo_half(const track_t *t, uint32_t l)
+{
     const int16_t *q = &t->p[l ? P_LFO2 : P_LFO1];
     uint32_t wave = (uint32_t)clamp(q[LF_WAVE], 0, LW_COUNT - 1), k, off = (uint32_t)clamp(q[LF_PHASE], 0, 127) << 25;
-    int32_t m = clamp(q[LF_MORPH], 0, 127), px, dx, dy;
-    char b[24];
-    (void)c;
-    str_cpy(b, l ? "LFO 2" : "LFO 1", sizeof b);
-    md_text(4, 4, &MD_F3, 4, b, C_INK);
-    str_cpy(b, "RATE: ", sizeof b);
-    str_cpy(b + str_len(b), N_LMODE[clamp(q[LF_MODE], 0, 2)], sizeof b - str_len(b));
-    md_text(4, 44, &MD_F3, 2, b, C_INK);
-    cv_hdot(100, 235, 40, C_INK);
+    int32_t m = clamp(q[LF_MORPH], 0, 127), x0 = l ? 120 : 0, gx = x0 + (int32_t)LG_X0, px, dx, dy;
+    const char *mode = N_LMODE[clamp(q[LF_MODE], 0, 2)], *trig = N_LTRIG[clamp(q[LF_TRIG], 0, 2)];
+    char b[16];
+    md_text(x0 + 6, 2, &MD_F3, 2, l ? "LFO 2" : "LFO 1", C_INK);
+    md_text(x0 + 114 - md_text_w(&MD_F3, 2, mode), 2, &MD_F3, 2, mode, C_INK);
+    cv_hdot(gx, gx + (int32_t)LTR_N - 1, LG_CY, C_INK);
     if (lfo_random(wave)) {
-        for (k = 0, px = 0; k < ui.tr_n; k++) {      /* newest at the right edge, older to the left */
-            int32_t py = 40 - ui.tr[(ui.tr_h + 135u - k) % 136u] * 68 / 32767;
+        for (k = 0, px = 0; k < ui.tr_n[l]; k++) {   /* newest at the right edge, older to the left */
+            int32_t py = LG_CY - ui.tr[l][(ui.tr_h[l] + LTR_N - 1u - k) % LTR_N] * (2 * LG_A) / 32767;
             if (!k)
                 px = py;
-            cv_rect(235 - (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, C_INK);
+            cv_rect(gx + (int32_t)LTR_N - 1 - (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, C_INK);
             px = py;
         }
-        dx = 235;
-        dy = 40 - lfo_out(t, l) * 34 / 32767;
+        dx = gx + (int32_t)LTR_N - 1;
     } else {
-        for (k = 0, px = 0; k < 136u; k++) {         /* px: the previous point's y (joined: no gaps at edges); the
+        for (k = 0, px = 0; k < LTR_N; k++) {        /* px: the previous point's y (joined: no gaps at edges); the
                                                        * area to the zero line dithered */
-            int32_t py = 40 - lfo_shape(wave, m, k * (0xFFFFFFFFu / 136u) + off) * 34 / 32767;
+            int32_t py = LG_CY - lfo_shape(wave, m, k * (0xFFFFFFFFu / LTR_N) + off) * LG_A / 32767;
             if (!k)
                 px = py;
-            if (py < 39)
-                cv_dither(100 + (int32_t)k, py + 2, 1, 40 - py - 2, C_INK);
-            else if (py > 41)
-                cv_dither(100 + (int32_t)k, 41, 1, py - 41, C_INK);
-            cv_rect(100 + (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, C_INK);
+            if (py < LG_CY - 1)
+                cv_dither(gx + (int32_t)k, py + 2, 1, LG_CY - py - 2, C_INK);
+            else if (py > LG_CY + 1)
+                cv_dither(gx + (int32_t)k, LG_CY + 1, 1, py - LG_CY - 1, C_INK);
+            cv_rect(gx + (int32_t)k, py < px ? py : px, 1, (py < px ? px - py : py - px) + 2, C_INK);
             px = py;
         }
-        dx = 100 + (int32_t)(t->lfo[l].ph / (0xFFFFFFFFu / 136u));
-        dy = 40 - lfo_out(t, l) * 34 / 32767;
+        k = t->lfo[l].ph / (0xFFFFFFFFu / LTR_N);
+        dx = gx + (int32_t)(k < LTR_N ? k : LTR_N - 1u);
     }
+    dy = LG_CY - lfo_out(t, l) * LG_A / 32767;
     cv_rect(dx - 3, dy - 3, 7, 7, C_BG);             /* the live value: 5x5 solid, a clear ring round it */
     cv_rect(dx - 2, dy - 2, 5, 5, C_INK);
-    {
+    md_text(x0 + 6, 86, &MD_F3, 2, trig, C_INK);
+    lfo_route_text(t, l, b, sizeof b);
+    md_text(x0 + 114 - md_text_w(&MD_F3, 2, b), 86, &MD_F3, 2, b, C_INK);
+}
+static void graph_lfo(uint16_t c)
+{
+    (void)c;
+    graph_lfo_half(TSEL, 0);
+    graph_lfo_half(TSEL, 1);
+    cv_vdot(120, 2, 98, C_INK);                       /* between the halves (KNOB 2 | KNOB 3) */
+}
+
+/* a DEST slot's modulation now: its source's last value x DEPTH, Q15 (0: off) */
+static int32_t lfo_slot_now(const track_t *t, uint32_t s)
+{
+    if (!t->p[LS_ID[s][LS_DEST]] || !t->p[LS_ID[s][LS_DEPTH]])
+        return 0;
+    return lfo_out(t, t->p[LS_ID[s][LS_SRC]] ? 1u : 0u) * clamp(t->p[LS_ID[s][LS_DEPTH]], -64, 64) / 64;
+}
+
+/* LFO DEST: the 4 slots as rows ("3  LFO2  > DECAY  -40%" and a meter of the slot's modulation now, from its middle);
+ * the selected slot (KNOB 1) inverted */
+static void graph_ldest(void)
+{
+    const track_t *t = TSEL;
+    uint32_t s;
+    char b[16], v[12];
+    const char *u;
+    for (s = 0; s < LS_N; s++) {
+        int32_t y = 6 + (int32_t)s * 24, w = lfo_slot_now(t, s) * 20 / 32767;
+        uint16_t pen = s == (song.lslot & 3u) ? C_BG : C_INK;
+        if (s == (song.lslot & 3u))
+            cv_rect(1, y - 3, 238, 18, C_INK);
+        b[0] = (char)('1' + s);
+        b[1] = 0;
+        md_text(8, y, &MD_F3, 2, b, pen);
+        md_text(28, y, &MD_F3, 2, N_LSRC[t->p[LS_ID[s][LS_SRC]] ? 1 : 0], pen);
         str_cpy(b, "> ", sizeof b);
-        str_cpy(b + 2, lfo_dest_label(t, q[LF_DEST]), sizeof b - 2);
-        str_cpy(b + str_len(b), " ", sizeof b - str_len(b));
-        fmt_int(b + str_len(b), clamp(q[LF_DEPTH], -64, 64) * 100 / 64);
-        str_cpy(b + str_len(b), "%", sizeof b - str_len(b));
-        md_text(4, 86, &MD_F3, 2, b, C_INK);
-        md_text(234 - md_text_w(&MD_F3, 2, N_LTRIG[clamp(q[LF_TRIG], 0, 2)]), 86, &MD_F3, 2,
-                N_LTRIG[clamp(q[LF_TRIG], 0, 2)], C_INK);
+        str_cpy(b + 2, lfo_dest_label(t, t->p[LS_ID[s][LS_DEST]]), sizeof b - 2u);
+        md_text(76, y, &MD_F3, 2, b, pen);
+        param_format(&TP[P_LS3DEPTH], t->p[LS_ID[s][LS_DEPTH]], v, &u);
+        str_cpy(v + str_len(v), u, sizeof v - str_len(v));
+        md_text(186 - md_text_w(&MD_F3, 2, v), y, &MD_F3, 2, v, pen);
+        cv_rect(214, y, 1, 11, pen);                  /* the meter's middle; the modulation from it */
+        if (w)
+            cv_rect(w > 0 ? 215 : 214 + w, y + 2, w > 0 ? w : -w, 7, pen);
     }
+    cv_vdot(22, 3, 97, C_INK);                        /* the column rules: slot | source | dest, depth | meter */
+    cv_vdot(70, 3, 97, C_INK);
+    cv_vdot(192, 3, 97, C_INK);
 }
 
 /* RESON pages: the model in large type, the pitch (CHORD: its four notes), the ring's partials on a 4-octave
@@ -1445,11 +1502,14 @@ static uint32_t graph_signature(void)
         if (comp_on())
             h ^= ((uint32_t)(-comp.gr) >> 7) * 2654435761u + (uint32_t)meter_px(comp.peak) * 40503u;
     }
-    if (pg->graph == GR_LFO) {
-        uint32_t l = song.lsel & 1u;
-        h ^= ui.page * 389u + l * 7919u + (t->lfo[l].ph >> 26) * 2654435761u + (uint32_t)(lfo_out(t, l) >> 10) * 40503u;
-        if (lfo_random((uint32_t)t->p[(l ? P_LFO2 : P_LFO1) + LF_WAVE]))
-            h ^= (ui.tr_h + 1u) * 97u + ui.tr_n * 65537u;
+    if (pg->graph == GR_LFO || pg->graph == GR_LDEST) {
+        uint32_t l;
+        h ^= ui.page * 389u + song.lslot * 7919u;
+        for (l = 0; l < 2u; l++) {
+            h ^= ((t->lfo[l].ph >> 26) * 2654435761u + (uint32_t)(lfo_out(t, l) >> 10) * 40503u) * (l + 1u);
+            if (lfo_random((uint32_t)t->p[(l ? P_LFO2 : P_LFO1) + LF_WAVE]))
+                h ^= ((ui.tr_h[l] + 1u) * 97u + ui.tr_n[l] * 65537u) * (l + 3u);
+        }
     }
     if (pg->graph == GR_RESON)
         h ^= ((uint32_t)t->rs.peak >> 9) * 2654435761u + (uint32_t)rs_chord(t) * 7919u;
@@ -1795,7 +1855,10 @@ static uint32_t graph_paint(int whole)
         graph_comp(c, pg->id[0] == G_CATK);
         break;
     case GR_LFO:
-        graph_lfo(c, song.lsel & 1u);
+        graph_lfo(c);
+        break;
+    case GR_LDEST:
+        graph_ldest();
         break;
     case GR_RESON:
         graph_reson(c);
@@ -2396,6 +2459,11 @@ static void draw_columns(void)
     for (c = 0; c < 4u; c++) {
         int16_t *vp;
         const param_desc_t *d = page_desc(pg, c, &vp);
+        if (pg->graph == GR_LDEST && c == 0u) {        /* LFO DEST: KNOB 1 the slot */
+            fmt_int(val, (int32_t)(song.lslot & 3u) + 1);
+            draw_column(0, "SLOT", val, "/4", HOT(0u), -1);
+            continue;
+        }
         if (!d || !d->label || d->label[0] == '-') {
             draw_column(c, "", "", "", CV_NORM, -1);
             continue;
@@ -2419,7 +2487,7 @@ static void draw_columns(void)
             int32_t mv, mod = -1;
             if (pg->scope == SC_TRACK && lfo_live(TSEL, page_id(pg, c), &mv))
                 mod = RATIO(d, mv);
-            draw_column_m(c, d->label, val, unit, HOT(c), d->fmt == F_ENUM ? -1 : RATIO(d, *vp), mod);
+            draw_column_m(c, d->label, val, unit, HOT(c), d->fmt == F_ENUM || d->fmt == F_LDEST ? -1 : RATIO(d, *vp), mod);
         }
     }
 }

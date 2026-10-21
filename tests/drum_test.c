@@ -3418,6 +3418,113 @@ static void test_trx_kit_default(void)
               trk[0].p[P_NOTE] == 36);
 }
 
+/* ---- LFO DEST slots (fixes 2026-10-21 item 3): 4 slots a track, each SRC (LFO 1 / 2) + DEST + DEPTH; slot 1 / 2 are
+ * LFO 1's / LFO 2's own DEST and DEPTH (the routing before slots), sources LFO 1 / LFO 2 by default */
+static void lfo_slot_set(uint32_t ti, uint32_t s, int16_t src, int16_t dest, int16_t depth)
+{
+    trk[ti].p[LS_ID[s][LS_SRC]] = src;
+    trk[ti].p[LS_ID[s][LS_DEST]] = dest;
+    trk[ti].p[LS_ID[s][LS_DEPTH]] = depth;
+}
+static double lfo_slots_cost(int mode)          /* host instructions a block (lfo_apply + lfo_restore), 8 tracks */
+{
+    uint32_t i, k;
+    uint64_t i0;
+    host_init();
+    for (i = 0; i < NTRK; i++) {
+        old_set_model(&trk[i], DM_K909);
+        for (k = 0; k < 2u; k++) {
+            int16_t *q = lfo_q(i, k);
+            q[LF_WAVE] = (int16_t)(k ? LW_WANDER : LW_TRI);
+            q[LF_MODE] = LM_HZ;
+            q[LF_RATE] = 90;
+        }
+        if (mode >= 1) {                             /* the two routes an older project has */
+            lfo_slot_set(i, 0, 0, 3, 40);
+            lfo_slot_set(i, 1, 1, 9, 40);
+        }
+        if (mode >= 2) {                             /* every slot */
+            lfo_slot_set(i, 2, 0, 2, 30);
+            lfo_slot_set(i, 3, 1, 10, -30);
+        }
+    }
+    for (k = 0; k < 100u; k++) {
+        lfo_apply(CTL);
+        lfo_restore();
+    }
+    i0 = instr_now();
+    for (k = 0; k < 20000u; k++) {
+        lfo_apply(CTL);
+        lfo_restore();
+    }
+    return i0 ? (double)(instr_now() - i0) / 20000.0 : 0;
+}
+static void test_lfo_dest_slots(void)
+{
+    uint32_t k, moved3 = 0, moved1 = 0;
+    int32_t v, mv;
+    host_init();
+    check("LFO slots: defaults: slot 1 LFO 1, slot 2 LFO 2, slot 3 LFO 1, slot 4 LFO 2, all off",
+          TP[LS_ID[0][LS_SRC]].def == 0 && TP[LS_ID[1][LS_SRC]].def == 1 && TP[LS_ID[2][LS_SRC]].def == 0 &&
+              TP[LS_ID[3][LS_SRC]].def == 1 && TP[P_LS3DEST].def == 0 && TP[P_LS4DEPTH].def == 0 &&
+              LS_ID[0][LS_DEST] == P_LFO1 + LF_DEST && LS_ID[1][LS_DEPTH] == P_LFO2 + LF_DEPTH);
+    lfo_q(0, 1)[LF_WAVE] = LW_SQUARE;                /* LFO 2 square, Hz; LFO 1 has no slot */
+    lfo_q(0, 1)[LF_MODE] = LM_HZ;
+    lfo_q(0, 1)[LF_RATE] = 100;
+    lfo_slot_set(0, 2, 1, 3, 32);                    /* slot 3: LFO 2 -> E2 +50 % */
+    trk[0].p[P_E2] = 64;
+    for (k = 0; k < 2000u; k++) {
+        v = lfo_probe(0, P_E2);
+        moved3 |= v != 64;
+    }
+    check("LFO slot 3 from LFO 2 moves its knob; LFO 1 (no slot) is not computed",
+          moved3 && trk[0].lfo[0].ph == 0u && trk[0].lfo[0].out == 0 && trk[0].p[P_E2] == 64);
+    lfo_slot_set(0, 0, 1, 9, 64);                    /* slot 1 from LFO 2 too: LVL */
+    lfo_apply(CTL);
+    check("LFO slot 1 set to LFO 2: LFO 1 still not computed, LVL follows LFO 2",
+          trk[0].lfo[0].ph == 0u && trk[0].lnum == 2u && trk[0].lval[1] != trk[0].lsave[1]);
+    check("LFO slots: the UI's live value of a slot-modulated knob", lfo_live(&trk[0], P_E2, &mv) && mv != 64);
+    lfo_restore();
+    host_init();                                     /* all four slots on four knobs */
+    lfo_q(0, 0)[LF_WAVE] = lfo_q(0, 1)[LF_WAVE] = LW_SQUARE;
+    lfo_slot_set(0, 0, 0, 1, 50);
+    lfo_slot_set(0, 1, 1, 2, 50);
+    lfo_slot_set(0, 2, 0, 3, -50);
+    lfo_slot_set(0, 3, 1, 9, 50);
+    lfo_apply(CTL);
+    check("LFO slots: four slots on four knobs at once", trk[0].lnum == 4u);
+    lfo_restore();
+    check("LFO slots: every knob back after the block", trk[0].lnum == 0u);
+    host_init();                                     /* two slots of one LFO on one knob add and clamp */
+    lfo_q(0, 0)[LF_WAVE] = LW_SQUARE;
+    lfo_q(0, 0)[LF_MODE] = LM_HZ;
+    lfo_q(0, 0)[LF_RATE] = 90;
+    lfo_slot_set(0, 0, 0, 9, 64);
+    lfo_slot_set(0, 3, 0, 9, 64);
+    trk[0].p[P_LEVEL] = 100;
+    lfo_start();
+    for (k = 0, v = -999; k < 500u; k++) {
+        int32_t x = lfo_probe(0, P_LEVEL);
+        v = x > v ? x : v;
+        moved1 |= trk[0].lfo[1].ph != 0u;
+    }
+    check("LFO slots: two slots of LFO 1 on LVL add and clamp; LFO 2 unused, not computed", v == 127 && !moved1);
+    host_init();                                     /* R.TUN through slot 4 */
+    trk[0].p[P_RMODEL] = RS_STRNG;
+    lfo_q(0, 1)[LF_WAVE] = LW_SQUARE;
+    lfo_slot_set(0, 3, 1, 11, 64);
+    lfo_apply(CTL);
+    check("LFO slot 4 on R.TUN: the resonator's fine pitch", trk[0].rfine != 0 && lfo_live(&trk[0], P_RTUNE, &mv));
+    lfo_restore();
+    {
+        double c0 = lfo_slots_cost(0), c2 = lfo_slots_cost(1), c4 = lfo_slots_cost(2);
+        printf("     LFO cost, host instructions a block (8 tracks): none %.0f, 2 slots (an older project's routes) %.0f, "
+               "4 slots %.0f (0e76751, 2 LFOs routed: none 663, 2 routes 3712)\n", c0, c2, c4);
+        check("LFO slots: 4 slots on 2 LFOs cost less than twice the 2 routes (the LFOs are computed once)",
+              !c0 || c4 < 2.0 * c2);
+    }
+}
+
 int main(void)
 {
     test_cond_codes();
@@ -3446,6 +3553,7 @@ int main(void)
     test_lfo_play_first_hit();
     test_lfo_random_phase_restart();
     test_lfo_activate_on_bar();
+    test_lfo_dest_slots();
     test_mute_next_bar();
     test_mute_next_bar_solo();
     test_reson_params();
