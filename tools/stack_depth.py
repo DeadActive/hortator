@@ -74,7 +74,7 @@ def address_taken(funcs, starts, blobs):
                 taken.add(by_addr[v])
     for insns in funcs.values():
         for _, t in insns:
-            if CALL.match(t):
+            if CALL.match(t) or GOTO.search(t):         # control flow (a call, a jump or tail call), not a pointer
                 continue
             for m in LOAD.finditer(t):
                 if m.group(1) in funcs and int(m.group(2), 16) == starts.get(m.group(1)):
@@ -125,7 +125,8 @@ def analyse(funcs, blobs):
             raise StackError(f"recursion through {n}")
         onpath.add(n)
         best, path = 0, []
-        for c in list(edges.get(n, ())) + [c for c in iedges.get(n, ()) if c not in onpath]:
+        for c in sorted(edges.get(n, ())) + sorted(c for c in iedges.get(n, ()) if c not in onpath):   # (sorted: the
+            # same walk on every run; a set's order changes with Python's hash seed, so a finding came and went)
             d, p = deep(c)
             if d > best:
                 best, path = d, p
@@ -171,6 +172,13 @@ def selftest():
         ok = False
     except StackError as e:
         print(f"stack_depth selftest: an unknown call form is caught ({e})")
+    funcs = _listing(["a:", _insn(0x1000, "[--sp] = {rets, r4}"), _insn(0x1002, "r0 = r0 + 1"),
+                      _insn(0x1004, "if (r0 != 0) goto -6 <a : 1000 >"), _insn(0x1006, "rts")])
+    starts = {n: ins[0][0] for n, ins in funcs.items() if ins}
+    taken = address_taken(funcs, starts, [])         # a jump back to a function's start (a loop the compiler made
+    print("stack_depth selftest: a goto to a function's own start is not an address take: "  # of a tail call) does
+          + ("ok" if "a" not in taken else "NOT ok"))                                  # not take its address
+    ok &= "a" not in taken
     cases = (
         ("an unannotated call (address + 4 + N) reaches its callee",
          ["a:", _insn(0x1000, "[--sp] = {rets, r4}"), _insn(0x1002, "call 10"), "b:", _insn(0x1010, "sp += -100"),
