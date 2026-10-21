@@ -53,6 +53,10 @@ enum {                          /* per-track parameters */
     P_RTUNE, P_RDECAY, P_RMIX, P_RTONE, P_RSTRCT, P_RPOS,
     P_FTYPE, P_FCUT, P_FRESO, P_FENV, P_FDEC,   /* FILTER (filter.c): TYPE CUT RESO ENV DECAY */
     P_PRIO,                      /* 0 HIGH, 1 LOW: a LOW track's voice goes first (the voice cap, a CPU shed; FDRC) */
+    P_LSRC1, P_LSRC2,            /* the LFO DEST slots (lfo.c LS_ID; FDRE): slot 1 / 2's SRC (0 LFO 1, 1 LFO 2); their
+                                  * DEST / DEPTH are LFO 1's / LFO 2's own (P_LFO1 / P_LFO2 + LF_DEST, LF_DEPTH) */
+    P_LS3SRC, P_LS3DEST, P_LS3DEPTH,   /* slot 3: SRC DEST DEPTH */
+    P_LS4SRC, P_LS4DEST, P_LS4DEPTH,   /* slot 4 */
     P_COUNT
 };
 
@@ -170,8 +174,8 @@ typedef struct track {
     reson_t rs;                  /* RESON runtime (reson.c) */
     int32_t rfine;               /* RESON fine pitch from the LFOs (R.TUN), 1/256 semitone (lfo.c) */
     uint32_t lrng;               /* random generator of S&H / WANDER / RWALK, reseeded at PLAY */
-    uint8_t lon, lnum, lpid[2];       /* knobs written this block, which */
-    int16_t lsave[2], lval[2];   /* their set values (restored at the end of the block), the modulated values */
+    uint8_t lon, lnum, lpid[4];  /* the LFOs on (bit l), the knobs written this block (at most the 4 DEST slots'), which */
+    int16_t lsave[4], lval[4];   /* their set values (restored at the end of the block), the modulated values */
     /* mix runtime (fx.c) */
     int32_t peak;
     int32_t dist_hp, dist_lp1, dist_lp2;   /* DIST insert state */
@@ -202,7 +206,7 @@ typedef struct {
     uint8_t mute_q;              /* mutes to flip on the next bar (bit per track; seq.c) */
     uint8_t solo;                /* SOLO (the SMC-Mixer): bit per track, runtime only (trk_silent) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */
-    uint8_t lsel;                /* the LFO pages show LFO 1 / 2 (OCT-): screen state, never stored */
+    uint8_t lslot;               /* the LFO DEST page's slot 0..3 (KNOB 1): screen state, never stored */
 } song_t;
 
 static track_t trk[NTRK];

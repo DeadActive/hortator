@@ -368,16 +368,16 @@ static void test_fdrc_converts(void)
     check("loads", proj_load(1, 1) == 1);
     check("the hats keep CHOKE 1", trk[3].p[P_CHOKE] == 1 && trk[4].p[P_CHOKE] == 1);
     for (k = 0; k < NTRK; k++)
-        ok &= trk[k].pre == PRE_NONE && !trk[k].pre_ed && !memcmp(trk[k].p, old.t[k].p, sizeof trk[k].p);
+        ok &= trk[k].pre == PRE_NONE && !trk[k].pre_ed && !memcmp(trk[k].p, old.t[k].p, sizeof old.t[k].p);
     check("every track: no preset, not edited, every parameter as stored (sound unchanged)", ok);
-    check("the converted slot is an FDRD one now", proj_slot[1].magic == PROJ_MAGIC && proj_ok(&proj_slot[1]));
+    check("the converted slot is an FDRE one now", proj_slot[1].magic == PROJ_MAGIC && proj_ok(&proj_slot[1]));
 }
 
 static void test_fdrd_round_trip(void)
 {
     uint32_t k, ok = 1;
     fresh();
-    check("(FDRD: 3712 B, one flash sector)", sizeof(project_t) == 3712u && sizeof(project_t) <= ST_PAYLOAD_MAX);
+    check("(FDRE: 3840 B, one flash sector)", sizeof(project_t) == 3840u && sizeof(project_t) <= ST_PAYLOAD_MAX);
     preset_load(&trk[2], preset_first_of(DM_SDEFM));
     preset_load(&trk[5], preset_first_of(DM_MEMB));
     trk[5].pre_ed = 1;

@@ -69,7 +69,7 @@ For each: what you should see / hear. Note anything different (page, knob, what 
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
   then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
   REVERB, CHORUS, COMP (HOME 2/3 and 3/3: SELECT right on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
-  GLOBAL 3/3 (MUTE NOW / BAR, METRO), LFO 1/2 and 2/2,
+  GLOBAL 3/3 (MUTE NOW / BAR, METRO), LFO 1/4..3/4 and DEST 4/4,
   PROJECT, TOOLS, TRACKS (HOME's first mode), the MUTE screen (GLO held) — each draws like the screenshots in
   `build/ui_shots/` (the engines' SOUND pages in `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`,
   the new screens in `build/ui_shots/fixes/`).
@@ -283,12 +283,12 @@ Report what you saw first; we'll go through it together.
 
 ### LFOs (check on the FM-1)
 
-- LFO: LFO 1/2 (WAVE RATE MORPH DEPTH) and 2/2 (DEST TRIG PHASE). OCT- switches LFO 1 / LFO 2 on the same page
-  (the picture says "LFO 2" in large type, the LFO button blinks; a white key keeps LFO 2 shown). OCT+ switches the
-  shown LFO between SYNC / Hz / TIME (the RATE value and "RATE: ..." change). Set DEST TONE and DEPTH: the
-  picture's dot moves, the sound changes; on EDIT the TONE gauge shows a second moving mark.
-- S&H, WANDR, RWALK: the picture is a scope, the dot at the right edge, the trail behind it (one cycle wide); it
-  starts over on another track, LFO or wave.
+- LFO (since the DEST slots, below): both LFOs on every page, LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4: 1/4 WAVE RATE,
+  2/4 MORPH PHASE, 3/4 TRIG MODE, then DEST 4/4. OCT+ switches the LFO turned last between SYNC / Hz / TIME (its RATE
+  value and the mode over its picture change). On DEST set slot 1's DEST to TONE and its DEPTH: LFO 1's dot moves,
+  the sound changes; on EDIT the TONE gauge shows a second moving mark.
+- S&H, WANDR, RWALK: that LFO's picture is a scope, the dot at the right edge of its half, the trail behind it (one
+  cycle wide); it starts over on another track or wave.
 - Each WAVE with MORPH turned: SQUAR softer, SAW bent, SINE squarer, TRI from falling to rising, S&H from steps to
   glides; TRIG HIT restarts on each hit, PLAY at PLAY.
 - SAVE / power cycle / LOAD: the LFOs come back; an older project loads with the LFOs off.
@@ -604,6 +604,24 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
 - A project saved now cannot be loaded by 0.20.0. It stores each track's factory preset by a fixed number of its own
   (not its place in the banks) and a USER preset by its slot, so a later firmware with more or reordered presets still
   shows the same names.
+
+### LFO DEST slots (check on the FM-1)
+
+- LFO: four pages. 1/4 WAVE RATE | WAVE RATE, 2/4 MORPH PHASE | MORPH PHASE, 3/4 TRIG MODE | TRIG MODE: LFO 1 on
+  KNOB 1-2, LFO 2 on KNOB 3-4, the picture split the same way ("LFO 1" left, "LFO 2" right, each its wave, live dot,
+  rate mode, TRIG and where it goes: "> TONE", "> 2 DEST", "> OFF"). OCT- does nothing here any more and the LFO
+  button no longer blinks. OCT+ switches the RATE MODE of the LFO whose knob was turned last (LFO 1 at first; on
+  DEST: the selected slot's source).
+- 4/4 DEST: four rows, one per slot ("1 LFO1 > SWEEP +40%" and a small meter of what the slot adds now). KNOB 1 picks
+  the slot (the row inverts, SLOT n/4), KNOB 2 its SRC (LFO1 / LFO2), KNOB 3 its DEST (any knob an LFO could target
+  before: the engine's knobs, LVL, PAN, R.TUN .. R.POS, F.CUT, F.RES), KNOB 4 its DEPTH. Set slot 3 to LFO2 > DECAY and
+  slot 4 to LFO1 > PAN: four knobs can move at once, from the same LFO or both; two slots on one knob add.
+- An LFO no slot uses costs nothing (its dot stands still).
+- A project saved before this firmware: its LFO 1 / LFO 2 routing comes back as slots 1 / 2 (sources LFO1 / LFO2, the
+  same DEST and DEPTH), slots 3 / 4 OFF; it sounds as before; MOTION on an LFO's DEPTH and a MIDI LEARNed LFO DEPTH
+  now move slot 1 / 2's DEPTH (the same thing). A project saved now cannot be loaded by 0.22.0.
+- MIDI LEARN on DEST: pick the slot with KNOB 1, LEARN on, turn KNOB 4: "T1 D3.DEPTH"; a CC moves that slot's depth.
+  MOTION records a slot's DEPTH (not its SRC / DEST).
 
 ### BENCH: the performance cases on the FM-1
 

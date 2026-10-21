@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- LFO: the OCT- switch between LFO 1 and LFO 2 is gone. The LFO pages show both LFOs side by side (LFO 1 on KNOB 1-2,
+  LFO 2 on KNOB 3-4): WAVE RATE, MORPH PHASE, TRIG MODE (the RATE MODE now has a knob; OCT+ still switches the one of
+  the LFO turned last), and a last page, DEST: 4 slots per track, each a source (LFO 1 / LFO 2), a destination (any
+  knob an LFO could target) and its own depth (KNOB 1 the slot, 2 SRC, 3 DEST, 4 DEPTH). Older projects load with
+  their LFO 1 / LFO 2 routing as slots 1 / 2 (the sound, motion and MIDI LEARN unchanged); projects are saved in a new
+  format (FDRE) that 0.22.0 cannot load.
+
 ## 0.22.0 - 2026-10-21
 
 - Faster screen: only what changed is sent to the display (the same look, pixel for pixel). A message popup (an

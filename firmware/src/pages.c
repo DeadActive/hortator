@@ -5,7 +5,8 @@
  * the four knobs edit on each page. */
 enum { FAM_HOME, FAM_SND, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS, FAM_LFO, FAM_MIX, FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX };   /* knobs edit: the selected track, song.g, the STEP grid, the mixer */
-enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS, GR_COMP, GR_LFO, GR_RESON, GR_MOTION, GR_SONG, GR_FILTER };
+enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS, GR_COMP, GR_LFO, GR_RESON, GR_MOTION, GR_SONG, GR_FILTER,
+       GR_LDEST };
 
 #define SND_SLOT 0xC0u                            /* EDIT page ids: SND_SLOT + n = the track's n-th sound knob */
 
@@ -46,9 +47,12 @@ static const page_t PAGES[] = {
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_CLRALL, G_INITALL}},   /* track; all */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GFILL1, G_GFILL2, G_GFILL3, 0xFF}},
-    /* LFO: LFO 1's knobs; OCT- shows LFO 2 (song.lsel, page_id) */
-    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_WAVE, P_LFO1 + LF_RATE, P_LFO1 + LF_MORPH, P_LFO1 + LF_DEPTH}},
-    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_DEST, P_LFO1 + LF_TRIG, P_LFO1 + LF_PHASE, 0xFF}},
+    /* LFO: both LFOs on every page, LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4; then DEST, the track's 4 slots: KNOB 1 the
+     * slot (song.lslot), 2-4 its SRC DEST DEPTH (page_id; lfo.c LS_ID) */
+    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_WAVE, P_LFO1 + LF_RATE, P_LFO2 + LF_WAVE, P_LFO2 + LF_RATE}},
+    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_MORPH, P_LFO1 + LF_PHASE, P_LFO2 + LF_MORPH, P_LFO2 + LF_PHASE}},
+    {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_TRIG, P_LFO1 + LF_MODE, P_LFO2 + LF_TRIG, P_LFO2 + LF_MODE}},
+    {"DEST", FAM_LFO, SC_TRACK, GR_LDEST, {0xFF, 0xFF, 0xFF, 0xFF}},
     /* HOME's TRACKS mode (spec §3: a HOME tap on HOME; no button of its own): TRACK LEVEL LEN PAN */
     {"TRACKS", FAM_MIX, SC_MIX, GR_MIX, {0xFF, 0xFF, 0xFF, 0xFF}},
 };
@@ -77,7 +81,8 @@ static uint32_t snd_list(const track_t *t, uint8_t *ids)
 }
 
 /* the parameter of a column: an EDIT slot is the selected track's sound list; GRIDS 1/2 in EUCLID mode turns
- * LEN K / S / H where MAP has X / Y / CHAOS; an LFO page edits the LFO OCT- selected; 0xFF = empty */
+ * LEN K / S / H where MAP has X / Y / CHAOS; LFO DEST: KNOB 2-4 the selected slot's SRC DEST DEPTH (KNOB 1 the slot:
+ * no parameter); 0xFF = empty */
 static uint32_t page_id(const page_t *pg, uint32_t slot)
 {
     uint32_t id = pg->id[slot & 3u];
@@ -88,8 +93,8 @@ static uint32_t page_id(const page_t *pg, uint32_t slot)
     }
     if (pg->graph == GR_GRIDS && id >= G_GX && id <= G_GCHAOS && song.g[G_GMODE])
         id = G_GLEN1 + (id - G_GX);
-    if (pg->graph == GR_LFO && id != 0xFFu && song.lsel)
-        id += LF_N;
+    if (pg->graph == GR_LDEST)
+        return slot & 3u ? LS_ID[song.lslot & 3u][(slot & 3u) - 1u] : 0xFFu;
     return id;
 }
 

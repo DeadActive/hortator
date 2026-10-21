@@ -35,6 +35,7 @@ static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", 
 static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS", "F.CUT", "F.RES"};   /* LFO DEST 11..18 */
 static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
 static const char *const N_PRIO[] = {"HIGH", "LOW"};                 /* P_PRIO */
+static const char *const N_LSRC[] = {"LFO1", "LFO2"};                /* an LFO DEST slot's SRC */
 #define LFO_TP(b, rf)                                                                                     \
     [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
     [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
@@ -80,6 +81,12 @@ static const param_desc_t TP[P_COUNT] = {
     [P_FENV] = PD("ENV", F_INT, -64, 63, 0),
     [P_FDEC] = PD("DECAY", F_FDEC, 0, 127, 40),
     [P_PRIO] = PE("PRIO", N_PRIO, 0),
+    [P_LSRC1] = PE("SRC", N_LSRC, 0), [P_LSRC2] = PE("SRC", N_LSRC, 1),   /* slots 1 / 2: LFO 1 / LFO 2 (the routing
+                                                                            * before slots) */
+    [P_LS3SRC] = PE("SRC", N_LSRC, 0), [P_LS3DEST] = PD("DEST", F_LDEST, 0, 18, 0),
+    [P_LS3DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0),
+    [P_LS4SRC] = PE("SRC", N_LSRC, 1), [P_LS4DEST] = PD("DEST", F_LDEST, 0, 18, 0),
+    [P_LS4DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -225,7 +232,7 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         fmt_ms10(val, unit, TIME_MS_X10[v & 127]);
         break;
     case F_LRATE1:
-    case F_LRATE2: {                                  /* by the LFO's RATE MODE (OCT+ on its page) */
+    case F_LRATE2: {                                  /* by the LFO's RATE MODE (its MODE knob, OCT+) */
         uint32_t mode = (uint32_t)clamp(TSEL->p[(d->fmt == F_LRATE1 ? P_LFO1 : P_LFO2) + LF_MODE], 0, 2), k = (uint32_t)clamp(v, 0, 127);
         if (mode == LM_SYNC) {
             str_cpy(val, N_LSYNC[k * 17u / 128u], 6);

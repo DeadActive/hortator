@@ -25,7 +25,8 @@
 typedef struct { uint8_t num, trk, code, src; } ml_ent_t;
 typedef char ml_ent_size[sizeof(ml_ent_t) == 4u ? 1 : -1];
 typedef char ml_ids_pinned[P_E0 == 1 && P_LEVEL == 9 && P_SLEN == 22 && P_LFO1 == 32 && P_RMODEL == 48 &&
-                           P_FTYPE == 55 && P_PRIO == 60 && P_COUNT < 0x80 ? 1 : -1];
+                           P_FTYPE == 55 && P_PRIO == 60 && P_LSRC1 == 61 && P_LS3SRC == 63 && P_LS4DEPTH == 68 &&
+                           P_COUNT < 0x80 ? 1 : -1];
 typedef char ml_pf_pinned[PF_R8 == 0 && PF_REV == 3 && PF_LPF == 4 && PF_TAPE == 6 && PF_OUP == 8 && PF_ODN == 9 &&
                           PF_M1 == 10 && PF_N == 18 && ML_A_FX + PF_N <= ML_A_MAC && ML_N <= 32u ? 1 : -1];
 static ml_ent_t ml_map[ML_N];
@@ -94,7 +95,7 @@ static __attribute__((noinline)) void ml_set(track_t *t, uint32_t id, uint32_t v
         mo.base[k][id] = (int16_t)nv;
     if (*motion_slot(t, id) == nv)
         return;
-    lf = song.lfo_in && (t->lon || (id >= P_LFO1 && id < P_LFO2 + LF_N));   /* (lfo_track: lon, the LFOs on) */
+    lf = song.lfo_in && (t->lon || lfo_own(id));    /* (lfo_track: lon, the LFOs on; an LFO's or a slot's knob) */
     if (lf)
         lfo_restore_track(t);
     t->p[id] = (int16_t)nv;

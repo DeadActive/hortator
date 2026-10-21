@@ -50,8 +50,8 @@ static void ui_leds(void)
         led_pos_init();
         ready = 1;
     }
-    led_put(nl, panel.btn[FAM_BTN[fam]],                /* LAYER: EDIT blinks, LFO 2: LFO blinks, 250 ms on / off */
-            (fam != FAM_LAY && (fam != FAM_LFO || !song.lsel)) || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
+    led_put(nl, panel.btn[FAM_BTN[fam]],                /* LAYER: EDIT blinks, 250 ms on / off */
+            fam != FAM_LAY || ((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u));
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ui.srec);
     led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
@@ -305,6 +305,12 @@ static void edit_param(uint32_t slot, int32_t steps)
         song_edit(slot, steps);
         return;
     }
+    if (pg->graph == GR_LDEST && slot == 0u) {        /* LFO DEST: KNOB 1 the slot */
+        song.lslot = (uint8_t)clamp((int32_t)(song.lslot & 3u) + steps, 0, (int32_t)LS_N - 1);
+        return;
+    }
+    if (pg->graph == GR_LFO)
+        ui.lfo_l = (uint8_t)(slot >> 1);              /* OCT+: this LFO's RATE MODE */
     if (pg->scope == SC_MIX) {
         tracks_edit(slot, steps);
         return;
@@ -844,13 +850,13 @@ static void ui_input(void)
                 open_family(FAM_LAY);
             } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LAY) {
                 open_family(FAM_SND);                   /* the SOUND page it came from */
-            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_LFO) {   /* the shown LFO: SYNC -> Hz -> TIME */
-                int16_t *mp = &TSEL->p[(song.lsel ? P_LFO2 : P_LFO1) + LF_MODE];
+            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_LFO) {   /* the LFO turned last (DEST: the slot's
+                                                                               * source): SYNC -> Hz -> TIME */
+                uint32_t l = cur_page()->graph == GR_LDEST ? (TSEL->p[LS_ID[song.lslot & 3u][LS_SRC]] ? 1u : 0u)
+                                                           : ui.lfo_l & 1u;
+                int16_t *mp = &TSEL->p[(l ? P_LFO2 : P_LFO1) + LF_MODE];
                 *mp = (int16_t)((clamp(*mp, 0, 2) + 1) % 3);
                 ui.force = 1;
-            } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LFO) {   /* LFO 1 <-> 2, the same page */
-                song.lsel ^= 1u;
-                page_entered();
             }
             break;
         default: {
@@ -927,7 +933,8 @@ static void ui_input(void)
         }
         if (grid_mode() && step_edit(k, s))
             continue;
-        if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || pg->graph == GR_SONG || page_desc(pg, k, &hv)) {
+        if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || pg->graph == GR_SONG || pg->graph == GR_LDEST ||
+            page_desc(pg, k, &hv)) {
             ui.hot_col = (uint8_t)k;
             ui.hot_t = 40;
         }

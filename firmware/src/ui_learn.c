@@ -157,15 +157,19 @@ static void ml_pick_act(uint32_t code)
     ml_heard = 0;
     ml_arm = ml_btn(code) ? 2u : 1u;
 }
-/* the picked one's name: "T3 DECAY", a section's knob with its section ("T3 L1.DEPTH", "T3 F.DECAY", "T3 R.TUNE",
- * "T3 S.RATE": the same labels are on other pages); an action "PLAY", "REC", "NEXT TRACK", "PREV TRACK", "FX R1/16",
+/* the picked one's name: "T3 DECAY", a section's knob with its section ("T3 L1.RATE", a DEST slot's "T3 D2.DEPTH",
+ * "T3 F.DECAY", "T3 R.TUNE", "T3 S.RATE": the same labels are on other pages); an action "PLAY", "REC", "NEXT TRACK", "PREV TRACK", "FX R1/16",
  * "FX MUTE T3", "FX FILTER"; b: 16 bytes */
 static const char *const ML_ACT_NAME[4] = {"PLAY", "REC", "NEXT TRACK", "PREV TRACK"};
 static const char *const ML_MAC_NAME[4] = {"FX FILTER", "FX CRUSH", "FX THROW", "FX DEPTH"};
 static void ml_name(char *b)
 {
     uint32_t id = ui.ml.id, k = ui.ml.trk % NTRK, c = ui.ml.act;
-    const char *pre = id >= P_LFO1 && id < P_LFO2 ? "L1." : id >= P_LFO2 && id < P_LFO2 + LF_N ? "L2."
+    uint32_t f;
+    int ls = lfo_slot_of(id, &f);
+    char dn[4] = "D1.";
+    const char *pre = ls >= 0 ? (dn[1] = (char)('1' + ls), dn) : id >= P_LFO1 && id < P_LFO2 ? "L1."
+                    : id >= P_LFO2 && id < P_LFO2 + LF_N ? "L2."
                     : id >= P_RMODEL && id <= P_RPOS ? "R." : id >= P_FTYPE && id <= P_FDEC ? "F."
                     : id >= P_SLCR && id <= P_SLDEPTH ? "S." : "";
     if (c) {

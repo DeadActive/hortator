@@ -15,24 +15,28 @@
 typedef struct { uint8_t trk, step, param; int8_t value; } motion_event_t;   /* every recordable range: -64..127 */
 typedef struct { uint8_t count, on, rsv[2]; motion_event_t ev[MOTION_MAX]; } motion_store_t;   /* on: PLAY bits */
 typedef char motion_store_size[sizeof(motion_store_t) == 516u ? 1 : -1];
-typedef char motion_ids_fit[P_COUNT <= 64 ? 1 : -1];
+#define MO_W ((P_COUNT + 31u) / 32u)            /* words of a track's moved-knob bits */
+typedef char motion_ids_fit[P_COUNT <= 96 && MO_W == 3u ? 1 : -1];
 
 static struct {
     motion_store_t s;                /* the events and PLAY bits (saved with the project) */
     int16_t base[NTRK][P_COUNT];     /* every knob as set, while motion plays */
-    uint32_t act[NTRK][2];           /* the knobs motion moved off the base (bit = id) */
+    uint32_t act[NTRK][MO_W];        /* the knobs motion moved off the base (bit = id) */
     uint8_t base_ok, full;           /* tracks whose base is taken; a turn found no free place (the UI says so) */
     const motion_store_t *src;       /* a song's row: its slot's motion (song.c), 0 = mo.s */
     const uint8_t *model;            /* .. its slot's models: a track's model now another one skips its P_E events */
 } mo;
 
-/* the knobs motion records: the sound (not the model, mute, choke, note, routing, timing, the LFOs' shapes) */
+/* the knobs motion records: the sound (not the model, mute, choke, note, routing, timing, the LFOs' shapes); an LFO's
+ * RATE and MORPH, a DEST slot's DEPTH (not its SRC / DEST: routing) */
 static int motion_param(uint32_t id)
 {
     if (id >= P_LFO1 && id < P_LFO1 + 2u * LF_N) {
         uint32_t f = (id - P_LFO1) % LF_N;
         return f == LF_RATE || f == LF_MORPH || f == LF_DEPTH;
     }
+    if (id >= P_LSRC1 && id <= P_LS4DEPTH)
+        return id == P_LS3DEPTH || id == P_LS4DEPTH;
     return (id >= P_E0 && id <= P_E7) || id == P_LEVEL || id == P_PAN || (id >= P_DIST && id <= P_REV) ||
            (id >= P_SLPAT && id <= P_SLDEPTH) || (id >= P_LLEVEL && id <= P_LDEC) || (id >= P_RTUNE && id <= P_RPOS) ||
            (id >= P_FCUT && id <= P_FDEC);   /* the FILTER's knobs, not its TYPE (as RESON's MODEL) */
@@ -62,7 +66,7 @@ static void motion_take_base(uint32_t k)
     uint32_t id;
     for (id = 0; id < P_COUNT; id++)
         mo.base[k][id] = *motion_slot(&trk[k], id);
-    mo.act[k][0] = mo.act[k][1] = 0;
+    mo.act[k][0] = mo.act[k][1] = mo.act[k][2] = 0;
     mo.base_ok |= (uint8_t)(1u << k);
 }
 static void motion_restore(uint32_t k)            /* the moved knobs back to the base */
@@ -73,7 +77,7 @@ static void motion_restore(uint32_t k)            /* the moved knobs back to the
     for (id = 0; id < P_COUNT; id++)
         if (motion_moved(k, id))
             *motion_slot(&trk[k], id) = mo.base[k][id];
-    mo.act[k][0] = mo.act[k][1] = 0;
+    mo.act[k][0] = mo.act[k][1] = mo.act[k][2] = 0;
 }
 
 /* ---- the ISR (seq.c) */
@@ -102,7 +106,7 @@ static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
     if (!((mo.base_ok >> k) & 1u))
         motion_take_base(k);
     if (!s) {
-        moved = mo.act[k][0] | mo.act[k][1];
+        moved = mo.act[k][0] | mo.act[k][1] | mo.act[k][2];
         motion_restore(k);
     }
     for (i = 0; i < m->count; i++) {

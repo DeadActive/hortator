@@ -102,6 +102,9 @@ static void test_recordable_list(void)
     for (i = 0; i < sizeof NO; i++)
         ok &= !motion_param(NO[i]);
     check("the recordable knobs are the sound knobs of the spec, the rest not", ok);
+    check("the LFO DEST slots: every slot's DEPTH recorded, its SRC / DEST not",
+          motion_param(P_LS3DEPTH) && motion_param(P_LS4DEPTH) && motion_param(P_LFO1 + LF_DEPTH) &&
+              !motion_param(P_LS3SRC) && !motion_param(P_LS3DEST) && !motion_param(P_LSRC1) && !motion_param(P_LS4DEST));
 }
 
 static void test_full(void)
@@ -179,6 +182,22 @@ static void test_lfo_and_motion(void)
     check("LFO + motion: after the block the knob rests on motion's value", trk[0].p[P_E1] == 100);
     to_step(0, 64);
     check("LFO + motion: the loop start puts the patch's value back", trk[0].p[P_E1] == 64);
+    stop();
+}
+
+/* the LFO DEST slots' DEPTH (ids past 63: motion's third word of moved knobs) plays and goes back at step 0 */
+static void test_lfo_slot_depth_motion(void)
+{
+    fresh();
+    trk[0].p[P_LS4DEST] = 9;
+    trk[0].p[P_LS4DEPTH] = 10;
+    motion_add(0, 2, P_LS4DEPTH, 50);
+    mo.s.on = 1u;
+    play();
+    to_step(2, 64);
+    check("motion on slot 4's DEPTH: played at its step", trk[0].p[P_LS4DEPTH] == 50);
+    to_step(0, 64);
+    check("motion on slot 4's DEPTH: the base back at step 0", trk[0].p[P_LS4DEPTH] == 10);
     stop();
 }
 
@@ -331,6 +350,7 @@ int main(void)
     test_playback();
     test_stop_restores();
     test_lfo_and_motion();
+    test_lfo_slot_depth_motion();
     test_len_shortened();
     test_clamp();
     test_grids_track();
