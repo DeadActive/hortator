@@ -553,8 +553,8 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   CLEANBD FMKICK SUBKICK; SSNAP SHELLSN DRUMSHEL SNAPPY PICCOLO; SCRAK CRACKSN METALSN HISSNARE LOWCRACK; HMETL
   SHINYHAT CHIPHAT BRASSHAT GRITHAT; HNOIS STATIC SPRAY STEAM RINGHAT; MEMB HEADTOM TIMPANI TABLA EDGEHIT; FM FMPERC
   FMBELL FMNOISE FMTOM; ACID SQUELCH DEEPBASS SCREAMER SQUAREAC; SMPL SMPKICK TAMBO SHAKER LOFICONG.
-- Check: a fresh KTRX / SDTRX / CHTRX track sounds as its first preset did in the demos; the power-on kit's K909 shows
-  `PRESET HOUSEBD`; turning through the banks every name is readable (8 characters) in the popup and the list.
+- Check: a fresh KTRX / SDTRX / CHTRX track sounds as its first preset did in the demos; the power-on kit's KTRX shows
+  `PRESET SUBTHUMP` (before the TRX classic kit: its K909 `PRESET HOUSEBD`); turning through the banks every name is readable (8 characters) in the popup and the list.
 
 
 - PRESETS (the encoder that did nothing): each detent loads the next / previous preset onto the selected track at once
@@ -568,7 +568,7 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   refuses them (`ACID: 2 TRACKS MAX`).
 - EDIT held ~0.4 s: the PRESETS list (`06_list.png`) over the page you were on (an EDIT tap still opens SOUND / its
   next page; in step record EDIT stays the rest, held too). Seven presets on screen, no `K1 MOVE  K2 BANK` line any
-  more (the knobs still work). KNOB 1 or PRESETS the cursor, KNOB 2 or SELECT the bank (tabs MD CLASSIC MODERN USER),
+  more (the knobs still work). KNOB 1 or PRESETS the cursor, KNOB 2 or SELECT the bank (tabs MD MODERN CLASSIC USER),
   ALGORITHM or a white key the track (the keys play), the track's own preset marked amber.
 - Scrub the list: every cursor move (PRESETS, KNOB 1, a bank jump with KNOB 2 / SELECT) plays the preset under the
   cursor once on the selected track (`15_list_preview.png`): the track takes its voice and 8 knobs for now (FILTER,
@@ -598,7 +598,8 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   it on another track while stopped: the knob is where you left it).
 - MIDI LEARN on (GLO + G4): EDIT held does nothing more than a tap (no list; LEARN stays on). LEARN off: the hold opens
   the list again.
-- No default choke: the power-on kit's HATC / HATO (tracks 4, 5) no longer cut each other; CHOKE 1 on both (EDIT, the
+- No default choke: the power-on kit's CHTRX / OHTRX (tracks 4, 5; HATC / HATO before the TRX classic kit) do not
+  cut each other; CHOKE 1 on both (EDIT, the
   last SOUND page) and they do. A MODEL change or a preset load never changes CHOKE; an older project keeps its stored
   CHOKE (its hats still choke).
 - A project saved now cannot be loaded by 0.20.0. It stores each track's factory preset by a fixed number of its own
@@ -614,3 +615,39 @@ untouched). The tool runs the same cases on the host and writes `build/bench/rep
 instructions per sample next to the FM-1's render time, average / worst CPU % (as SYSTEM CPU) and late halves.
 Voices are never shed during a run (overloaded cases show their true cost; a half above 80 % is followed by a
 silent one so the FM-1 stays responsive). `bench stop` on the console ends a run early.
+
+### Default kit: the TRX classic kit (check on the FM-1)
+
+The screens: `build/ui_shots/fixes/trx_kit_home.png`, `trx_kit_tracks.png`.
+
+- Power on with no project to load (or TOOLS INIT ALL, or START NEW PROJECT? YES): the tracks are 1 KTRX, 2 SDTRX,
+  3 CPTRX, 4 CHTRX, 5 OHTRX, 6 XTTRX, 7 RSTRX, 8 CYTRX (TRACKS), each on its first preset (`SUBTHUMP`, `HARDSNAP`,
+  `ROOMCLAP`, `NOISEHAT`, `AIROPEN`, `SWOOPTOM`, `KNOCK`, `WASHCYM`), no `*`.
+- The roles and MIDI notes as before: kick 36, snare 38, clap 39, closed hat 42, open hat 46, tom 45, rim 37,
+  cymbal 49 (a MIDI keyboard's GM drum keys play the same tracks).
+- No choke: CHOKE OFF on every track (EDIT, the last SOUND page); a closed hat does not cut the open hat.
+- A saved project loads its own kit, unchanged. BENCH's heavy cases keep the old kit (K909 S808 C808 HATC HATO TOM
+  RIM CYMB), so a run compares with the earlier ones.
+
+### HOME: the bar boxes (check on the FM-1)
+
+The screen: `build/ui_shots/fixes/home_bar3.png` (the third bar).
+
+- HOME (the main screen): the 4 small boxes above PROJ are always 4. Stopped: the first is solid.
+- PLAY: the solid box moves one box a bar (every 16 steps) with the playhead, 1 2 3 4 1 2 ..., whatever the selected
+  track's LEN (16 or 64 alike); STOP: back to the first; PLAY again (also while playing): from the first.
+- Following MIDI clock: the boxes move with the clock's bars.
+
+### MODEL list and preset banks: MD, MODERN, CLASSIC (check on the FM-1)
+
+The screens: `build/ui_shots/presets/06_list.png` (the tabs MD MODERN CLASSIC USER), `03_popup_bank_edge.png`.
+
+- The MODEL knob (EDIT, the first SOUND page) runs KTRX SDTRX XTTRX XCTRX CPTRX RSTRX CBTRX CHTRX OHTRX CYTRX MATRX
+  CLTRX B2TRX BDEFM SDEFM XTEFM CPEFM RSEFM CBEFM HHEFM CYEFM, then KBOOM KPUNC SSNAP SCRAK HMETL HNOIS MEMB FM ACID
+  SMPL, then K808 K909 S808 S909 C808 C909 HATC HATO CYMB COWB TOM CONGA RIM CLAVE, and round (CLAVE to KTRX, both
+  ways). ACID on 2 other tracks: skipped (FM to SMPL).
+- PRESETS and the list's banks: MACHINEDRUM, then MODERN, then CLASSIC, then USER (MACHINEDRUM's last preset to
+  MODERN's `BOOMBD`; CLASSIC's last `BLIP` to the first USER slot).
+- A project saved on 0.22.0 or earlier loads with the same presets and sound (projects store each model by its
+  number and each preset by its fixed uid, neither of which moved): load one, every track's `PRESET` name and `*` as
+  before. USER presets unchanged.

@@ -513,14 +513,34 @@ static void drum_boot_init(void)
         project_boot();                                /* the last saved project (project.c; no IRQ enable) */
 }
 
-/* the next / previous model on the selected track, with its default sound; with the audio IRQ off,
+/* the MODEL knob's list (fix 8, owner 2026-10-21): MD -> MODERN -> CLASSIC, as the preset banks; within MD and CLASSIC
+ * the enum's order, MODERN as its bank (ACID, SMPL last). Only the order shown: the models keep their numbers (projects
+ * store them, dmodels.c) */
+static const uint8_t MODEL_LIST[NMODELS] = {
+    DM_KTRX, DM_SDTRX, DM_XTTRX, DM_XCTRX, DM_CPTRX, DM_RSTRX, DM_CBTRX, DM_CHTRX, DM_OHTRX, DM_CYTRX, DM_MATRX, DM_CLTRX,
+    DM_B2TRX, DM_BDEFM, DM_SDEFM, DM_XTEFM, DM_CPEFM, DM_RSEFM, DM_CBEFM, DM_HHEFM, DM_CYEFM,
+    DM_KBOOM, DM_KPUNC, DM_SSNAP, DM_SCRAK, DM_HMETL, DM_HNOIS, DM_MEMB, DM_FM, DM_ACID, DM_SMPL,
+    DM_K808, DM_K909, DM_S808, DM_S909, DM_C808, DM_C909, DM_HATC, DM_HATO, DM_CYMB, DM_COWB, DM_TOM, DM_CONGA, DM_RIM,
+    DM_CLAVE,
+};
+static uint32_t model_list_next(uint32_t m, int32_t dir)   /* the model after / before m in MODEL_LIST, wrapping */
+{
+    uint32_t i;
+    for (i = 0; i < NMODELS && MODEL_LIST[i] != m; i++)
+        ;
+    if (i == NMODELS)
+        i = 0;
+    return MODEL_LIST[(i + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS];
+}
+
+/* the next / previous model on the selected track (MODEL_LIST's order), with its default sound; with the audio IRQ off,
  * so the ISR never renders a model with another model's parameters */
 static void model_step(int32_t dir)
 {
-    uint32_t m = ((uint32_t)TSEL->p[P_MODEL] + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
+    uint32_t m = model_list_next((uint32_t)TSEL->p[P_MODEL] % NMODELS, dir);
     int capped = m == DM_ACID && acid_tracks(TSEL) >= ACID_MAXTRK;   /* ACID on 2 tracks at most: the list skips it */
     if (capped)
-        m = (m + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS;
+        m = model_list_next(m, dir);
     fm1_irq_off();
     drum_set_model(TSEL, m);
     motion_rebase(song.sel);                        /* motion.c: the new sound is the base */

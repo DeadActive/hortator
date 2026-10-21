@@ -88,15 +88,15 @@ static void test_defaults_are_first_presets(void)
         }
     }
     check("every model's default knobs = its first preset's (MATRX, CLTRX: no preset)", ok);
-    ok = PRE_NFACT == 151u && PRE_BANK_START[PB_MD] == 0u && PRE_BANK_START[PB_CLASSIC] == 55u &&
-         PRE_BANK_START[PB_MODERN] == 111u && PRE_BANK_START[PB_USER] == PRE_NFACT &&
-         PRE_BANK_START[PB_N] == PRE_NFACT + PRE_NUSER;
+    ok = PRE_NFACT == 151u && PRE_BANK_START[PB_MD] == 0u && PRE_BANK_START[PB_MODERN] == 55u &&
+         PRE_BANK_START[PB_CLASSIC] == 95u && PRE_BANK_START[PB_USER] == PRE_NFACT &&
+         PRE_BANK_START[PB_N] == PRE_NFACT + PRE_NUSER;          /* (fix 8: MACHINEDRUM, MODERN, CLASSIC) */
     for (i = 0; i < PRE_NFACT; i++)
-        ok &= preset_get(i, &p) && preset_bank_of(i) == (i < 55u ? (uint32_t)PB_MD : i < 111u ? (uint32_t)PB_CLASSIC
-                                                                                               : (uint32_t)PB_MODERN);
+        ok &= preset_get(i, &p) && preset_bank_of(i) == (i < 55u ? (uint32_t)PB_MD : i < 95u ? (uint32_t)PB_MODERN
+                                                                                              : (uint32_t)PB_CLASSIC);
     ok &= preset_bank_of(user_id(0)) == PB_USER && preset_bank_of(user_id(127)) == PB_USER &&
           !preset_get(user_id(128), &p) && !preset_get(PRE_NONE, &p);
-    check("banks: MACHINEDRUM 55, CLASSIC 56, MODERN 40, then USER 128; a bad id: none", ok);
+    check("banks: MACHINEDRUM 55, MODERN 40, CLASSIC 56, then USER 128; a bad id: none", ok);
     for (i = 0, ok = 1; i < PRE_NFACT; i++) {
         uint32_t len = (uint32_t)strnlen(PRE_FACTORY[i].name, sizeof PRE_FACTORY[i].name);
         p = PRE_FACTORY[i];
@@ -119,9 +119,11 @@ static void test_defaults_are_first_presets(void)
          preset_get(preset_first_of(DM_CPEFM), &p) && !strcmp(p.name, "BUZZCLAP") && p.k[0] == 24 &&
          preset_get(PRE_BANK_START[PB_CLASSIC], &p) && p.model == DM_K808 && !strcmp(p.name, "ROUNDBD") &&
          preset_get(PRE_BANK_START[PB_MODERN], &p) && p.model == DM_KBOOM && !strcmp(p.name, "BOOMBD") &&
-         preset_get(PRE_NFACT - 1u, &p) && p.model == DM_SMPL && !strcmp(p.name, "LOFICONG");
-    check("SUBTHUMP first, BUZZCLAP CPEFM's default (TUNE +24), ROUNDBD, BOOMBD each bank's first, LOFICONG last", ok);
-    check("bank names", !strcmp(N_PBANK[PB_MD], "MACHINEDRUM") && !strcmp(N_PBANK[PB_USER], "USER"));
+         preset_get(PRE_NFACT - 1u, &p) && p.model == DM_CLAVE && !strcmp(p.name, "BLIP");
+    check("SUBTHUMP first, BUZZCLAP CPEFM's default (TUNE +24), BOOMBD, ROUNDBD each bank's first, BLIP last", ok);
+    check("bank names, in order", !strcmp(N_PBANK[PB_MD], "MACHINEDRUM") && !strcmp(N_PBANK[1], "MODERN") &&
+          !strcmp(N_PBANK[2], "CLASSIC") && !strcmp(N_PBANK[PB_USER], "USER") && PB_MD == 0 && PB_MODERN == 1 &&
+          PB_CLASSIC == 2 && PB_USER == 3);
 }
 
 static void test_load_sets_voice_only(void)
@@ -557,6 +559,49 @@ static void test_edit_marks(void)
           t->pre == preset_first_of((uint32_t)t->p[P_MODEL]));
 }
 
+/* fix 8 (owner, 2026-10-21): the factory banks now run MACHINEDRUM, MODERN, CLASSIC, so MODERN's and CLASSIC's ids moved;
+ * a project stores uids, never ids (presets.c preset_rec_enc): every 0.22.0 factory preset's uid (the frozen fixture,
+ * tests/preset_old_022.h) finds the same preset here, and a 0.22.0 FDRD record with presets of every bank loads onto
+ * the same presets and sound, unchanged */
+#include "preset_old_022.h"
+static void test_bank_order_old_refs(void)
+{
+    static const uint32_t PICK[NTRK] = {0, 54, 55, 110, 111, 150, 60, 120};   /* 0.22.0 ids: each bank's ends */
+    uint32_t i, k, moved = 0, ok = 1;
+    preset_t p;
+    for (i = 0; i < PRE022_N; i++) {
+        uint32_t id = preset_rec_dec(PRE022[i].uid);
+        ok &= id < PRE_NFACT && preset_get(id, &p) && !strcmp(p.name, PRE022[i].name) && p.model == PRE022[i].model &&
+              preset_rec_enc(id) == PRE022[i].uid;
+        moved += id != i;
+        if (!ok) {
+            printf("      0.22.0 id %u %s\n", i, PRE022[i].name);
+            break;
+        }
+    }
+    check("every 0.22.0 factory preset's uid: the same preset (name, voice) in the new banks", ok && PRE022_N == PRE_NFACT);
+    check("(the reorder moved MODERN's and CLASSIC's ids: 96 of them; MACHINEDRUM's 55 stay)", moved == 96u);
+    fresh();
+    for (k = 0; k < NTRK; k++)                       /* a 0.22.0 project: the presets of every bank, one edited */
+        preset_load(&trk[k], preset_rec_dec(PRE022[PICK[k]].uid));
+    trk[6].p[P_E1] = 3;
+    trk[6].pre_ed = 1;
+    project_save(1);
+    for (k = 0; k < NTRK; k++)                       /* the record holds the 0.22.0 uids (what 0.22.0 wrote) */
+        ok &= proj_slot[1].pre[k] == PRE022[PICK[k]].uid;
+    check("the record: each track's preset by its 0.22.0 uid", ok);
+    proj_slot[1].magic = 0;
+    host_init();
+    check("loads (from flash)", proj_load(1, 1) == 1);
+    for (k = 0, ok = 1; k < NTRK; k++) {
+        preset_name_of(trk[k].pre, (char *)&p.name);
+        ok &= !strcmp(p.name, PRE022[PICK[k]].name) && (uint32_t)trk[k].p[P_MODEL] == PRE022[PICK[k]].model &&
+              trk[k].pre_ed == (k == 6u);
+    }
+    check("loaded: every track on its 0.22.0 preset (name, voice), the edited mark and knob kept",
+          ok && trk[6].p[P_E1] == 3);
+}
+
 int main(void)
 {
     test_defaults_are_first_presets();
@@ -572,6 +617,7 @@ int main(void)
     test_user_slot_reused();
     test_save_while_motion_plays();
     test_edit_marks();
+    test_bank_order_old_refs();
     printf(fails ? "preset_test: %d FAILED\n" : "preset_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

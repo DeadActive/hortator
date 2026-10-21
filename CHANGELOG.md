@@ -5,6 +5,15 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- The power-on kit (also TOOLS INIT ALL and a new project) is the TRX classic kit: KTRX, SDTRX, CPTRX, CHTRX, OHTRX,
+  XTTRX, RSTRX, CYTRX, each on its default preset, with the same roles and MIDI notes as before (kick 36, snare 38,
+  clap 39, closed hat 42, open hat 46, tom 45, rim 37, cymbal 49) and no choke. Saved projects load unchanged.
+- HOME: the 4 boxes above PROJ show the bar of a 4-bar cycle: the current bar solid, moving with the playhead, back to
+  the first at every PLAY (stopped: the first). They used to show the selected track's banks.
+- The MODEL knob's list runs MD, MODERN, CLASSIC (KTRX .. CYEFM, KBOOM .. SMPL, K808 .. CLAVE), and the preset banks
+  MACHINEDRUM, MODERN, CLASSIC, USER. Models keep their numbers and presets their uids, so older projects load with
+  the same voices and presets.
+
 ## 0.22.0 - 2026-10-21
 
 - Faster screen: only what changed is sent to the display (the same look, pixel for pixel). A message popup (an

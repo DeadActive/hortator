@@ -2,7 +2,7 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Presets (spec docs/superpowers/specs/2026-10-19-presets-design.md): a preset is a voice, MODEL + the 8 SOUND knobs
  * P_E0..P_E7, nothing else (not the FILTER, LFOs, sends, LEVEL, PAN, NOTE, CHOKE, steps). One id for every preset: the
- * factory banks in order (MACHINEDRUM, CLASSIC, MODERN: const tables, preset_bank.h), then the 128 USER slots
+ * factory banks in order (MACHINEDRUM, MODERN, CLASSIC: const tables, preset_bank.h), then the 128 USER slots
  * (PRE_NFACT + slot). A track remembers the id it was loaded from (track_t.pre, PRE_NONE none) and whether a SOUND knob
  * moved since (pre_ed: preset_touch); projects store both (project.c, FDRD: the reference by a stable key, a factory
  * preset's uid or a user slot, preset_rec_enc, never the positional id). The user bank lives in RAM here; its flash
@@ -12,8 +12,9 @@
 typedef struct { uint8_t model; int8_t k[8]; char name[9]; } preset_t;
 #define PRE_NONE 0xFFFFu                                /* no preset (track_t.pre) */
 #define PRE_NUSER 128u                                  /* user slots */
-enum { PB_MD, PB_CLASSIC, PB_MODERN, PB_USER, PB_N };
-static const char *const N_PBANK[PB_N] = {"MACHINEDRUM", "CLASSIC", "MODERN", "USER"};
+enum { PB_MD, PB_MODERN, PB_CLASSIC, PB_USER, PB_N };   /* (the order shown; MODERN before CLASSIC since fix 8: a
+                                                          * project's reference is a uid, never an id or a bank) */
+static const char *const N_PBANK[PB_N] = {"MACHINEDRUM", "MODERN", "CLASSIC", "USER"};
 #include "preset_bank.h"
 #define PRE_NID (PRE_NFACT + PRE_NUSER)                 /* ids 0 .. PRE_NID - 1 */
 #define ACID_MAXTRK 2u                                  /* ACID is the model of 2 tracks at most (CPU), by user decision */

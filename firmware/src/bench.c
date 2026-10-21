@@ -210,6 +210,10 @@ static void bench_kit(uint32_t mi, int fx_on, int32_t r, uint32_t nr)
 static const int8_t BENCH_ACID_NT[16] = {-36, -24, -22, -24, 0, -29, -27, -24, -36, -34, 0, -24, -19, -24, -22, -31};
 static const uint8_t BENCH_ACID_FL[16] = {1, 2, 0, 4, 8, 0, 3, 0, 0, 1, 8, 2, 0, 1, 4, 2};
 
+/* the heavy cases' kit: the power-on kit up to drum 0.22.0 (the power-on kit is the TRX classic kit since; the cases keep
+ * theirs, so a run stays comparable with the earlier ones, docs/PERFORMANCE.md) */
+static const uint8_t BENCH_KIT[NTRK] = {DM_K909, DM_S808, DM_C808, DM_HATC, DM_HATO, DM_TOM, DM_RIM, DM_CYMB};
+
 /* the realistic heavy kit (drum_test's test_cost: the demo with a layer, DIST, SLICER and sends on every track,
  * RESON CHORD on 2, STRNG on 4) at 120 BPM; phys: MEMB on 5 and 7, RESON 2 CHORD + 2 MODAL (DECAY 110);
  * off: the features taken out (BH_), or added (BH_FILTER on all 8, BH_COMP keyed by T1, BH_SIDE: DUCK on 2..8, BH_ACID: tracks 7 and 8 ACID) */
@@ -222,8 +226,7 @@ static void bench_heavy(int phys, uint32_t off)
     uint32_t i, k;
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        if (phys && (i == 4u || i == 6u))
-            drum_set_model(t, DM_MEMB);
+        drum_set_model(t, phys && (i == 4u || i == 6u) ? DM_MEMB : BENCH_KIT[i]);
         for (k = 0; k < 16; k++)
             t->step[k].on = PAT[i][k] == 'x';
         if ((off & BH_ACID) && i >= 6u) {

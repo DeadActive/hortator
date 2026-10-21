@@ -598,8 +598,8 @@ static void test_acid_cap(void)
     song.sel = 2;
     old_set_model(&trk[2], DM_FM);
     model_step(1);
-    check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the next model (KTRX)",
-          trk[2].p[P_MODEL] == DM_KTRX && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
+    check("ACID cap: a 3rd track's MODEL knob goes past ACID (full) to the next model in the list (SMPL)",
+          trk[2].p[P_MODEL] == DM_SMPL && str_eq(ui.msg, "ACID: 2 TRACKS MAX"));
     model_step(-1);
     check("ACID cap: back down, past ACID (full) to FM", trk[2].p[P_MODEL] == DM_FM);
     old_set_model(&trk[1], DM_K808);                /* a place frees */
@@ -2448,7 +2448,7 @@ static void test_perform_buttons(void)
     ui_frame();
 }
 
-/* spec 2026-10-19-md-ui §9: HOME = the top bar, the MD main-screen strip (bank boxes, the project box, the mode
+/* spec 2026-10-19-md-ui §9: HOME = the top bar, the MD main-screen strip (bar boxes, the project box, the mode
  * line | LEV | 4 knobs, the values under them), the scope below */
 static void test_home_strip(void)
 {
@@ -2462,9 +2462,9 @@ static void test_home_strip(void)
     nb = bank_count();
     check("HOME strip: the project box inverted (x 2..60, y 30..53)", ui.home &&
           fb_count(2, 30, 59, 24, C_INK) > 59u * 24u * 6u / 10u && fb_count(2, 30, 59, 24, C_BG) > 40u);
-    check("HOME strip: a bank box per bank (2), the playing one solid", nb == 2u &&
+    check("HOME strip: 4 bar boxes (fix 6: not a box per bank), the playing bar (2: step 20) solid", nb == 2u &&
           fb_count(6, 20, 10, 6, C_INK) == 28u && fb_count(19, 20, 10, 6, C_INK) == 60u &&
-          fb_count(32, 20, 10, 6, C_INK) == 0u);
+          fb_count(32, 20, 10, 6, C_INK) == 28u && fb_count(45, 20, 10, 6, C_INK) == 28u);
     check("HOME strip: rules at x 62 / 87 and y 68", fb[40u * 240u + 62u] == C_INK && fb[40u * 240u + 87u] == C_INK &&
           fb_count(1, 68, 238, 1, C_INK) == 238u);
     transport_req = 2;
@@ -6366,17 +6366,17 @@ static void test_popup_shows_and_loads(void)
     pre_turn(-1);
     check("PRESETS with no preset: the first detent (either way) loads the voice's first preset",
           TSEL->pre == preset_first_of(m) && voice_is(TSEL, preset_first_of(m)));
-    while (TSEL->pre != PRE_BANK_START[PB_CLASSIC] - 1u)   /* the MACHINEDRUM bank's last */
-        pre_turn(TSEL->pre < PRE_BANK_START[PB_CLASSIC] ? 1 : -1);
+    while (TSEL->pre != PRE_BANK_START[PB_MODERN] - 1u)    /* the MACHINEDRUM bank's last (fix 8: MODERN next) */
+        pre_turn(TSEL->pre < PRE_BANK_START[PB_MODERN] ? 1 : -1);
     pre_turn(1);
-    check("PRESETS across banks: MACHINEDRUM's last -> CLASSIC's first", TSEL->pre == PRE_BANK_START[PB_CLASSIC] &&
+    check("PRESETS across banks: MACHINEDRUM's last -> MODERN's first", TSEL->pre == PRE_BANK_START[PB_MODERN] &&
                                                                           preset_bank_of(ui.pr.shown[1]) == PB_MD);
     snap_page("presets/03_popup_bank_edge");
     pre_wait(1600);
     open_tracks();
     pre_turn(1);
     check("PRESETS on TRACKS: loads, the popup over the rows, TRACKS stays", pp_on() && mix_mode() &&
-                                                                         TSEL->pre == PRE_BANK_START[PB_CLASSIC] + 1u);
+                                                                         TSEL->pre == PRE_BANK_START[PB_MODERN] + 1u);
     snap_page("presets/04_popup_tracks");
     pre_wait(1600);
     check("PRESETS on TRACKS: the rows back", !pp_on() && mix_mode());
@@ -6468,7 +6468,7 @@ static void test_popup_skips_capped_acid(void)
  * in the list at once and in flash at STOP */
 static void test_list_save_delete_overwrite(void)
 {
-    uint32_t u0 = PRE_NFACT, kb = PRE_BANK_START[PB_MODERN];
+    uint32_t u0 = PRE_NFACT, kb = PRE_BANK_START[PB_CLASSIC];   /* (fix 8: CLASSIC the last factory bank) */
     char nb[9];
     ui_host_init();
     users_clear();
@@ -6505,7 +6505,7 @@ static void test_list_save_delete_overwrite(void)
           upr.s[3].used != 1u && TSEL->pre == u0 + 3u && TSEL->p[P_E1] == 20 && str_eq(nb, "-"));
     turn(EN_K2, -1);
     ui_frame();
-    check("list KNOB 2 left: the bank before, on its first (MODERN)", ui.pr.cur == kb);
+    check("list KNOB 2 left: the bank before, on its first (CLASSIC)", ui.pr.cur == kb);
     tap(B_SAVE);
     check("list SAVE off the user bank: the first free slot (2: 1 used, 4 deleted)", upr.s[1].used == 1u && TSEL->pre == u0 + 1u);
     turn(EN_K2, -1);
@@ -6681,16 +6681,17 @@ static void test_list_preview_scrub(void)
     check("list KNOB 1: the cursor, auditioned (one hit)", ui.pr.cur == id0 + 2u && voice_is(TSEL, id0 + 2u) &&
                                                           voices_on(TSEL) == 1u);
     drum_cut(TSEL);
-    want = PRE_BANK_START[(preset_bank_of(ui.pr.cur) + 1u) % PB_N];
-    turn(EN_SELECT, 1);
+    want = PRE_BANK_START[(preset_bank_of(ui.pr.cur) + PB_N - 1u) % PB_N];   /* (fix 8: CLASSIC is the last factory
+                                                                              * bank, USER after it: back to MODERN) */
+    turn(EN_SELECT, -1);
     ui_frame();
-    check("list SELECT: the next bank's first, auditioned (another voice: one hit)", ui.pr.cur == want &&
+    check("list SELECT: the bank before's first, auditioned (another voice: one hit)", ui.pr.cur == want &&
           voice_is(TSEL, want) && voices_on(TSEL) == 1u && voice_kept(TSEL, &s));
     drum_cut(TSEL);
-    turn(EN_K2, -1);
+    turn(EN_K2, 1);
     ui_frame();
-    want = PRE_BANK_START[(preset_bank_of(want) + PB_N - 1u) % PB_N];
-    check("list KNOB 2: the bank before's first, auditioned", ui.pr.cur == want && voice_is(TSEL, want) &&
+    want = PRE_BANK_START[(preset_bank_of(want) + 1u) % PB_N];
+    check("list KNOB 2: the next bank's first, auditioned", ui.pr.cur == want && voice_is(TSEL, want) &&
                                                               voices_on(TSEL) == 1u);
     drum_cut(TSEL);
     keys(1u << KEY_TRK_KEY[0]);
@@ -6699,7 +6700,7 @@ static void test_list_preview_scrub(void)
     ui_frame();
     check("list: the track's own key plays the auditioned sound (the track stays)", song.sel == 0u &&
           voice_is(TSEL, want) && voices_on(TSEL) == 1u && pl_on());
-    while (preset_bank_of(ui.pr.cur) != PB_MODERN) {
+    while (preset_bank_of(ui.pr.cur) != PB_CLASSIC) {         /* the last factory bank (fix 8) */
         turn(EN_SELECT, 1);
         ui_frame();
     }
@@ -6725,7 +6726,7 @@ static void test_list_cancel_restores(void)
     snd_take(TSEL, &s);
     hold(B_EDIT);
     pre_turn(5);
-    turn(EN_SELECT, 1);                                 /* another voice */
+    turn(EN_SELECT, -1);                                /* another voice (MODERN: CLASSIC's next is USER, fix 8) */
     ui_frame();
     check("(list: another voice auditioned)", (uint32_t)TSEL->p[P_MODEL] != s.model && pl_on());
     drum_cut(TSEL);
@@ -6766,7 +6767,7 @@ static void test_list_load_closes(void)
     TSEL->p[P_E1] = 10;
     preset_touch(TSEL);
     hold(B_EDIT);
-    turn(EN_SELECT, 1);
+    turn(EN_SELECT, -1);                                /* (MODERN: CLASSIC's next is USER, fix 8) */
     ui_frame();
     c = ui.pr.cur;
     tap(B_OCTUP);
@@ -6785,7 +6786,7 @@ static void test_list_save_saves_real_sound(void)
     TSEL->p[P_E1] = 10;
     preset_touch(TSEL);
     hold(B_EDIT);
-    turn(EN_SELECT, 1);
+    turn(EN_SELECT, -1);                                /* (MODERN: CLASSIC's next is USER, fix 8) */
     ui_frame();
     check("(list: another voice auditioned)", (uint32_t)TSEL->p[P_MODEL] != m);
     tap(B_SAVE);
@@ -6916,6 +6917,117 @@ static void test_about_moves_only_the_logo(void)
     press(B_OCTDN);
     ui_frame();
     release_all();
+}
+
+/* fix 6 (owner, 2026-10-21): HOME's 4 boxes above PROJ are the bar position of a 4-bar cycle: always 4, the current bar
+ * solid (1/16s since PLAY / 16, mod 4: the selected track's LEN or bank does not matter), advancing with the playhead,
+ * box 1 again at every PLAY; stopped: box 1 (where PLAY starts) */
+static int hbar_lit(uint32_t c)                       /* box c (x 6 + 13c, y 20, 10 x 6): 1 solid, 0 an outline, -1 else */
+{
+    uint32_t n = fb_count(6u + c * 13u, 20, 10, 6, C_INK);
+    return n == 60u ? 1 : n == 28u ? 0 : -1;
+}
+static int hbar_only(uint32_t b)                      /* box b solid, the 3 others outlines */
+{
+    uint32_t c;
+    int ok = 1;
+    for (c = 0; c < 4u; c++)
+        ok &= hbar_lit(c) == (c == b);
+    return ok;
+}
+static void test_home_bar_cycle(void)
+{
+    uint32_t b, k, ok = 1;
+    ui_host_init();
+    TSEL->p[P_SLEN] = 16;                            /* one bank: the old boxes showed one */
+    ui.force = 1;
+    ui_frame();
+    check("HOME bars: stopped, 4 boxes, bar 1 solid", ui.home && hbar_only(0));
+    transport_req = 1;
+    for (b = 0; b < 6u; b++) {                       /* 6 bars: 1 2 3 4 1 2, redrawn as they change (no force) */
+        for (k = 0; k < 20000u && (gclk.cnt == 0xFFFFFFFFu || gclk.cnt < b * 16u + 3u); k++)
+            ui_frame();
+        ui_frame();
+        ok &= hbar_only(b % 4u);
+        if (!hbar_only(b % 4u))
+            printf("      bar %u (1/16 %u): boxes %d %d %d %d\n", b, gclk.cnt, hbar_lit(0), hbar_lit(1), hbar_lit(2),
+                   hbar_lit(3));
+        if (b == 2u)
+            shot("build/ui_shots/fixes/home_bar3.ppm");
+    }
+    check("HOME bars: playing, the current bar of 4 solid (1 2 3 4 1 2), the others outlines", ok);
+    transport_req = 2;
+    ui_frame();
+    ui_frame();
+    check("HOME bars: STOP, bar 1 again", hbar_only(0));
+    TSEL->p[P_SLEN] = 64;                            /* 4 banks: still the bar, not the bank */
+    transport_req = 1;
+    ui_frame();                                      /* (PLAY taken: the count from 0) */
+    for (k = 0; k < 20000u && (gclk.cnt == 0xFFFFFFFFu || gclk.cnt < 16u + 3u); k++)
+        ui_frame();
+    ui_frame();
+    ok = hbar_only(1);
+    if (!ok)
+        printf("      LEN 64 (1/16 %u): boxes %d %d %d %d\n", gclk.cnt, hbar_lit(0), hbar_lit(1), hbar_lit(2), hbar_lit(3));
+    transport_req = 1;                               /* PLAY again while playing: from bar 1 */
+    ui_frame();
+    ui_frame();
+    if (!hbar_only(0))
+        printf("      again (1/16 %u): boxes %d %d %d %d\n", gclk.cnt, hbar_lit(0), hbar_lit(1), hbar_lit(2), hbar_lit(3));
+    check("HOME bars: LEN 64, bar 2 solid; PLAY again: bar 1", ok && hbar_only(0));
+    transport_req = 2;
+    ui_frame();
+}
+
+/* fix 8 (owner, 2026-10-21): the MODEL knob's list runs MD -> MODERN -> CLASSIC (the models keep their numbers: projects
+ * store them); each voice with its first preset, wrapping both ways */
+static void test_model_list_order(void)
+{
+    static const char *const WANT[NMODELS] = {
+        "KTRX", "SDTRX", "XTTRX", "XCTRX", "CPTRX", "RSTRX", "CBTRX", "CHTRX", "OHTRX", "CYTRX", "MATRX", "CLTRX",
+        "B2TRX", "BDEFM", "SDEFM", "XTEFM", "CPEFM", "RSEFM", "CBEFM", "HHEFM", "CYEFM",
+        "KBOOM", "KPUNC", "SSNAP", "SCRAK", "HMETL", "HNOIS", "MEMB", "FM", "ACID", "SMPL",
+        "K808", "K909", "S808", "S909", "C808", "C909", "HATC", "HATO", "CYMB", "COWB", "TOM", "CONGA", "RIM", "CLAVE"};
+    uint32_t i, ok = 1, okb = 1, okp = 1;
+    ui_host_init();
+    song.sel = 0;
+    old_set_model(TSEL, DM_KTRX);
+    for (i = 1; i <= NMODELS; i++) {
+        model_step(1);
+        ok &= str_eq(N_MODEL[TSEL->p[P_MODEL]], WANT[i % NMODELS]);
+        okp &= TSEL->pre == preset_first_of((uint32_t)TSEL->p[P_MODEL]) && !TSEL->pre_ed;
+        if (!str_eq(N_MODEL[TSEL->p[P_MODEL]], WANT[i % NMODELS]))
+            printf("      step %u: %s, want %s\n", i, N_MODEL[TSEL->p[P_MODEL]], WANT[i % NMODELS]);
+    }
+    for (i = NMODELS; i-- > 0;) {
+        model_step(-1);
+        okb &= str_eq(N_MODEL[TSEL->p[P_MODEL]], WANT[i]);
+    }
+    check("MODEL list: MD (KTRX .. CYEFM), MODERN (KBOOM .. SMPL), CLASSIC (K808 .. CLAVE), CLAVE wraps to KTRX", ok);
+    check("MODEL list: the same order backwards (KTRX back to CLAVE)", okb);
+    check("MODEL list: each voice on its first preset, not edited", okp);
+    check("models keep their numbers (projects store them): K808 0, ACID 23, KTRX 24, CYEFM 44",
+          DM_K808 == 0 && DM_ACID == 23 && DM_KTRX == 24 && DM_CYEFM == 44 && NMODELS == 45);
+}
+
+/* fix 4: TOOLS INIT ALL (a new project) gives the TRX classic kit, each on its first preset, no choke; TRACKS and HOME
+ * shown with it (build/ui_shots/fixes/trx_kit_*) */
+static void test_init_all_trx_kit(void)
+{
+    static const uint32_t M[NTRK] = {DM_KTRX, DM_SDTRX, DM_CPTRX, DM_CHTRX, DM_OHTRX, DM_XTTRX, DM_RSTRX, DM_CYTRX};
+    uint32_t k, ok = 1;
+    ui_host_init();
+    init_all();
+    for (k = 0; k < NTRK; k++)
+        ok &= (uint32_t)trk[k].p[P_MODEL] == M[k] && trk[k].p[P_CHOKE] == 0 &&
+              trk[k].pre == preset_first_of(M[k]) && !trk[k].pre_ed;
+    check("TOOLS INIT ALL: the TRX classic kit, first presets, no choke", ok);
+    ui.force = 1;
+    snap_page("fixes/trx_kit_home");
+    open_tracks();
+    ui.force = 1;
+    snap_page("fixes/trx_kit_tracks");
+    check("(TRACKS: the kit's models listed)", mix_mode());
 }
 
 int main(void)
@@ -7101,6 +7213,9 @@ int main(void)
     test_crumb_unassigned_knob();
     test_song_rules_under_the_bar();
     test_about_moves_only_the_logo();
+    test_home_bar_cycle();
+    test_model_list_order();
+    test_init_all_trx_kit();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

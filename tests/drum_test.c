@@ -3397,6 +3397,27 @@ static void test_slicer_exact(void)
     check("exact timing: SLICER slices keep their steps' timing for 2 minutes at 120 BPM (5 rates)", ok);
 }
 
+/* fix 4 (owner, 2026-10-21): the power-on / new-project kit is the TRX classic kit: KTRX SDTRX CPTRX CHTRX OHTRX XTTRX
+ * RSTRX CYTRX, each on its voice's first (default) preset, the old kit's notes (kick 36, snare 38, clap 39, closed hat 42,
+ * open hat 46, tom 45, rim 37, cymbal 49), no track in a choke group. (host_init keeps the old kit for the metrics.) */
+static void test_trx_kit_default(void)
+{
+    static const uint32_t M[NTRK] = {DM_KTRX, DM_SDTRX, DM_CPTRX, DM_CHTRX, DM_OHTRX, DM_XTTRX, DM_RSTRX, DM_CYTRX};
+    static const int16_t N[NTRK] = {36, 38, 39, 42, 46, 45, 37, 49};
+    uint32_t k, ok = 1;
+    host_init_live();                                /* drum_tracks_init: power-on, TOOLS INIT ALL, a new project */
+    for (k = 0; k < NTRK; k++)
+        ok &= (uint32_t)trk[k].p[P_MODEL] == M[k] && trk[k].model == M[k] && trk[k].p[P_NOTE] == N[k] &&
+              trk[k].p[P_CHOKE] == 0 && trk[k].pre == preset_first_of(M[k]) && trk[k].pre != PRE_NONE &&
+              !trk[k].pre_ed;
+    check("power-on kit: the TRX classic kit (KTRX SDTRX CPTRX CHTRX OHTRX XTTRX RSTRX CYTRX), default presets, the old "
+          "notes, no choke", ok);
+    host_init();
+    check("(host_init: the old kit K909 S808 C808 HATC HATO TOM RIM CYMB for the tests' metrics)",
+          trk[0].p[P_MODEL] == DM_K909 && trk[3].p[P_MODEL] == DM_HATC && trk[7].p[P_MODEL] == DM_CYMB &&
+              trk[0].p[P_NOTE] == 36);
+}
+
 int main(void)
 {
     test_cond_codes();
@@ -3506,6 +3527,7 @@ int main(void)
     test_m1c_ends();
     test_m1c_ends_early();
     test_m1c_swap();
+    test_trx_kit_default();
 #ifdef DM_QCHECK
     check("q24: no Q24 overflow in any drum test render", dm_qover == 0);
 #endif

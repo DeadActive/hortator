@@ -9,7 +9,7 @@
  * EDIT held PP_HOLD_MS (as GLO_HOLD_MS): the PRESETS list. The press still acts at once, as a tap (SOUND, its next
  * page); the hold puts the page before the press back under the list. Step record keeps EDIT for its rest (no list);
  * while MIDI LEARN is on the hold does nothing (the list would end LEARN: ui_learn.c ml_guard).
- * The list: every preset by bank (MACHINEDRUM, CLASSIC, MODERN, USER with its 128 slots, empty ones too), the track's
+ * The list: every preset by bank (MACHINEDRUM, MODERN, CLASSIC, USER with its 128 slots, empty ones too), the track's
  * own marked. KNOB 1 / PRESETS the cursor, KNOB 2 / SELECT the bank (its first), ALGORITHM / a white key the track (the
  * keys play, as on HOME). Each cursor move auditions the preset under it (owner, 2026-10-19): the track takes its MODEL
  * and 8 knobs for now and is hit once (its key and the pattern play it too; an empty slot or a capped ACID: said, the
@@ -25,7 +25,7 @@
 #define PL_ROWS 7u                                      /* the list's rows */
 #define PL_RH 20                                        /* .. their height */
 #define PL_HALF 4u                                      /* .. drawn 4 at a time (cv_begin's CV_MAX: 6 rows) */
-static const char *const PB_TAB[PB_N] = {"MD", "CLASSIC", "MODERN", "USER"};
+static const char *const PB_TAB[PB_N] = {"MD", "MODERN", "CLASSIC", "USER"};
 
 static int pp_on(void) { return ui.pr.pop; }
 static int pl_on(void) { return ui.pr.lst; }

@@ -70,12 +70,21 @@ static void old_set_model(track_t *t, uint32_t mi)    /* drum_set_model at the o
     old_knobs(t);
 }
 
-static void old_kit(void)                             /* the power-on kit (drum_tracks_init) at the old defaults */
+/* the power-on kit up to drum 0.22.0 (drum_core.c KIT_DEF then; since fix 4 the power-on kit is the TRX classic kit):
+ * model and MIDI note of each track. The tests' "power-on kit" stays this one, so no metric moves */
+static const uint8_t OLD_KIT[NTRK][2] = {
+    {DM_K909, 36}, {DM_S808, 38}, {DM_C808, 39}, {DM_HATC, 42},
+    {DM_HATO, 46}, {DM_TOM, 45}, {DM_RIM, 37}, {DM_CYMB, 49},
+};
+
+static void old_kit(void)                             /* the old power-on kit (OLD_KIT) at the old defaults */
 {
     uint32_t k;
     for (k = 0; k < NTRK; k++) {
+        drum_set_model(&trk[k], OLD_KIT[k][0]);       /* (as drum_tracks_init did: model, its first preset) */
+        trk[k].p[P_NOTE] = OLD_KIT[k][1];
         old_knobs(&trk[k]);
         if (trk[k].model == DM_SMPL)
-            trk[k].p[P_E5] = KIT_DEF[k][1];           /* (as drum_tracks_init: the GM kit's sound for the note) */
+            trk[k].p[P_E5] = OLD_KIT[k][1];           /* (as drum_tracks_init: the GM kit's sound for the note) */
     }
 }

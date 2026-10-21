@@ -940,6 +940,691 @@
   ]
  },
  {
+  "bank": "MODERN",
+  "presets": [
+   {
+    "uid": 112,
+    "name": "BOOMBD",
+    "model": "KBOOM",
+    "k": [
+     0,
+     64,
+     64,
+     32,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the resonator kick (today's default)"
+   },
+   {
+    "uid": 113,
+    "name": "LONGBOOM",
+    "model": "KBOOM",
+    "k": [
+     -4,
+     110,
+     40,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "deep long boom"
+   },
+   {
+    "uid": 114,
+    "name": "PUNCHER",
+    "model": "KBOOM",
+    "k": [
+     2,
+     50,
+     90,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "short punchy kick, attack FM"
+   },
+   {
+    "uid": 115,
+    "name": "OVERDRV",
+    "model": "KBOOM",
+    "k": [
+     -2,
+     80,
+     70,
+     127,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "self-FM into overdrive"
+   },
+   {
+    "uid": 116,
+    "name": "SYNTHBD",
+    "model": "KPUNC",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the synthetic kick (today's default)"
+   },
+   {
+    "uid": 117,
+    "name": "CLEANBD",
+    "model": "KPUNC",
+    "k": [
+     0,
+     40,
+     40,
+     10,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "clean short sine kick"
+   },
+   {
+    "uid": 118,
+    "name": "FMKICK",
+    "model": "KPUNC",
+    "k": [
+     -3,
+     80,
+     90,
+     120,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "heavy FM, bright attack"
+   },
+   {
+    "uid": 119,
+    "name": "SUBKICK",
+    "model": "KPUNC",
+    "k": [
+     -6,
+     110,
+     50,
+     50,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low long kick"
+   },
+   {
+    "uid": 120,
+    "name": "SHELLSN",
+    "model": "SSNAP",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the shell snare (today's default)"
+   },
+   {
+    "uid": 121,
+    "name": "DRUMSHEL",
+    "model": "SSNAP",
+    "k": [
+     -3,
+     70,
+     40,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tonal shell, little snap"
+   },
+   {
+    "uid": 122,
+    "name": "SNAPPY",
+    "model": "SSNAP",
+    "k": [
+     3,
+     60,
+     100,
+     110,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "bright, all snap"
+   },
+   {
+    "uid": 123,
+    "name": "PICCOLO",
+    "model": "SSNAP",
+    "k": [
+     7,
+     35,
+     90,
+     80,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "high short piccolo"
+   },
+   {
+    "uid": 124,
+    "name": "CRACKSN",
+    "model": "SCRAK",
+    "k": [
+     0,
+     64,
+     64,
+     64,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the synthetic snare (today's default)"
+   },
+   {
+    "uid": 125,
+    "name": "METALSN",
+    "model": "SCRAK",
+    "k": [
+     0,
+     70,
+     120,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "metallic FM snare"
+   },
+   {
+    "uid": 126,
+    "name": "HISSNARE",
+    "model": "SCRAK",
+    "k": [
+     2,
+     60,
+     30,
+     127,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "mostly noise"
+   },
+   {
+    "uid": 127,
+    "name": "LOWCRACK",
+    "model": "SCRAK",
+    "k": [
+     -5,
+     90,
+     50,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "low long crack"
+   },
+   {
+    "uid": 128,
+    "name": "SHINYHAT",
+    "model": "HMETL",
+    "k": [
+     0,
+     40,
+     80,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the metallic hat (today's default)"
+   },
+   {
+    "uid": 129,
+    "name": "CHIPHAT",
+    "model": "HMETL",
+    "k": [
+     0,
+     15,
+     90,
+     20,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tight short hat"
+   },
+   {
+    "uid": 130,
+    "name": "BRASSHAT",
+    "model": "HMETL",
+    "k": [
+     0,
+     100,
+     70,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "long open metal"
+   },
+   {
+    "uid": 131,
+    "name": "GRITHAT",
+    "model": "HMETL",
+    "k": [
+     -3,
+     50,
+     40,
+     100,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "dark, noisy"
+   },
+   {
+    "uid": 132,
+    "name": "STATIC",
+    "model": "HNOIS",
+    "k": [
+     0,
+     40,
+     80,
+     40,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the noisy hat (today's default)"
+   },
+   {
+    "uid": 133,
+    "name": "SPRAY",
+    "model": "HNOIS",
+    "k": [
+     0,
+     15,
+     100,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tight bright spray"
+   },
+   {
+    "uid": 134,
+    "name": "STEAM",
+    "model": "HNOIS",
+    "k": [
+     0,
+     100,
+     80,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "long open noise"
+   },
+   {
+    "uid": 135,
+    "name": "RINGHAT",
+    "model": "HNOIS",
+    "k": [
+     3,
+     60,
+     50,
+     10,
+     0,
+     0,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "ring-mod buzz, little noise"
+   },
+   {
+    "uid": 136,
+    "name": "HEADTOM",
+    "model": "MEMB",
+    "k": [
+     0,
+     60,
+     64,
+     20,
+     40,
+     30,
+     24,
+     0
+    ],
+    "source": "designed",
+    "note": "the struck head (today's default)"
+   },
+   {
+    "uid": 137,
+    "name": "TIMPANI",
+    "model": "MEMB",
+    "k": [
+     -12,
+     110,
+     64,
+     0,
+     30,
+     30,
+     24,
+     0
+    ],
+    "source": "designed",
+    "note": "low long ideal head"
+   },
+   {
+    "uid": 138,
+    "name": "TABLA",
+    "model": "MEMB",
+    "k": [
+     7,
+     60,
+     64,
+     120,
+     40,
+     60,
+     50,
+     0
+    ],
+    "source": "designed",
+    "note": "loaded head, pitch bend"
+   },
+   {
+    "uid": 139,
+    "name": "EDGEHIT",
+    "model": "MEMB",
+    "k": [
+     0,
+     60,
+     64,
+     20,
+     127,
+     30,
+     90,
+     0
+    ],
+    "source": "designed",
+    "note": "struck at the rim, hard stick"
+   },
+   {
+    "uid": 140,
+    "name": "FMPERC",
+    "model": "FM",
+    "k": [
+     0,
+     50,
+     60,
+     2,
+     40,
+     0,
+     0,
+     64
+    ],
+    "source": "designed",
+    "note": "the 2-op FM hit (today's default)"
+   },
+   {
+    "uid": 141,
+    "name": "FMBELL",
+    "model": "FM",
+    "k": [
+     12,
+     100,
+     50,
+     5,
+     90,
+     0,
+     0,
+     64
+    ],
+    "source": "designed",
+    "note": "bell (ratio 2.76), long"
+   },
+   {
+    "uid": 142,
+    "name": "FMNOISE",
+    "model": "FM",
+    "k": [
+     0,
+     40,
+     90,
+     9,
+     30,
+     0,
+     100,
+     64
+    ],
+    "source": "designed",
+    "note": "metallic noise, feedback up"
+   },
+   {
+    "uid": 143,
+    "name": "FMTOM",
+    "model": "FM",
+    "k": [
+     -12,
+     70,
+     40,
+     1,
+     20,
+     80,
+     0,
+     64
+    ],
+    "source": "designed",
+    "note": "low tom, a pitch sweep"
+   },
+   {
+    "uid": 144,
+    "name": "SQUELCH",
+    "model": "ACID",
+    "k": [
+     0,
+     50,
+     40,
+     64,
+     64,
+     64,
+     0,
+     56
+    ],
+    "source": "designed",
+    "note": "the bass line (today's default)"
+   },
+   {
+    "uid": 145,
+    "name": "DEEPBASS",
+    "model": "ACID",
+    "k": [
+     -12,
+     30,
+     20,
+     30,
+     30,
+     40,
+     0,
+     70
+    ],
+    "source": "designed",
+    "note": "low, round, little squelch"
+   },
+   {
+    "uid": 146,
+    "name": "SCREAMER",
+    "model": "ACID",
+    "k": [
+     0,
+     80,
+     60,
+     115,
+     100,
+     100,
+     0,
+     56
+    ],
+    "source": "designed",
+    "note": "high resonance, deep envelope"
+   },
+   {
+    "uid": 147,
+    "name": "SQUAREAC",
+    "model": "ACID",
+    "k": [
+     0,
+     60,
+     50,
+     80,
+     70,
+     64,
+     1,
+     40
+    ],
+    "source": "designed",
+    "note": "square wave, short gate"
+   },
+   {
+    "uid": 148,
+    "name": "SMPKICK",
+    "model": "SMPL",
+    "k": [
+     0,
+     127,
+     127,
+     0,
+     0,
+     36,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "the PERC set's kick (today's default)"
+   },
+   {
+    "uid": 149,
+    "name": "TAMBO",
+    "model": "SMPL",
+    "k": [
+     0,
+     127,
+     127,
+     0,
+     0,
+     54,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "tambourine"
+   },
+   {
+    "uid": 150,
+    "name": "SHAKER",
+    "model": "SMPL",
+    "k": [
+     0,
+     127,
+     110,
+     0,
+     0,
+     82,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "shaker, slightly darker"
+   },
+   {
+    "uid": 151,
+    "name": "LOFICONG",
+    "model": "SMPL",
+    "k": [
+     -5,
+     127,
+     100,
+     60,
+     0,
+     63,
+     0,
+     0
+    ],
+    "source": "designed",
+    "note": "conga pitched down, driven"
+   }
+  ]
+ },
+ {
   "bank": "CLASSIC",
   "presets": [
    {
@@ -1893,691 +2578,6 @@
     ],
     "source": "designed",
     "note": "a falling blip"
-   }
-  ]
- },
- {
-  "bank": "MODERN",
-  "presets": [
-   {
-    "uid": 112,
-    "name": "BOOMBD",
-    "model": "KBOOM",
-    "k": [
-     0,
-     64,
-     64,
-     32,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "the resonator kick (today's default)"
-   },
-   {
-    "uid": 113,
-    "name": "LONGBOOM",
-    "model": "KBOOM",
-    "k": [
-     -4,
-     110,
-     40,
-     20,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "deep long boom"
-   },
-   {
-    "uid": 114,
-    "name": "PUNCHER",
-    "model": "KBOOM",
-    "k": [
-     2,
-     50,
-     90,
-     100,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "short punchy kick, attack FM"
-   },
-   {
-    "uid": 115,
-    "name": "OVERDRV",
-    "model": "KBOOM",
-    "k": [
-     -2,
-     80,
-     70,
-     127,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "self-FM into overdrive"
-   },
-   {
-    "uid": 116,
-    "name": "SYNTHBD",
-    "model": "KPUNC",
-    "k": [
-     0,
-     64,
-     64,
-     64,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "the synthetic kick (today's default)"
-   },
-   {
-    "uid": 117,
-    "name": "CLEANBD",
-    "model": "KPUNC",
-    "k": [
-     0,
-     40,
-     40,
-     10,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "clean short sine kick"
-   },
-   {
-    "uid": 118,
-    "name": "FMKICK",
-    "model": "KPUNC",
-    "k": [
-     -3,
-     80,
-     90,
-     120,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "heavy FM, bright attack"
-   },
-   {
-    "uid": 119,
-    "name": "SUBKICK",
-    "model": "KPUNC",
-    "k": [
-     -6,
-     110,
-     50,
-     50,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "low long kick"
-   },
-   {
-    "uid": 120,
-    "name": "SHELLSN",
-    "model": "SSNAP",
-    "k": [
-     0,
-     64,
-     64,
-     64,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "the shell snare (today's default)"
-   },
-   {
-    "uid": 121,
-    "name": "DRUMSHEL",
-    "model": "SSNAP",
-    "k": [
-     -3,
-     70,
-     40,
-     20,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "tonal shell, little snap"
-   },
-   {
-    "uid": 122,
-    "name": "SNAPPY",
-    "model": "SSNAP",
-    "k": [
-     3,
-     60,
-     100,
-     110,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "bright, all snap"
-   },
-   {
-    "uid": 123,
-    "name": "PICCOLO",
-    "model": "SSNAP",
-    "k": [
-     7,
-     35,
-     90,
-     80,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "high short piccolo"
-   },
-   {
-    "uid": 124,
-    "name": "CRACKSN",
-    "model": "SCRAK",
-    "k": [
-     0,
-     64,
-     64,
-     64,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "the synthetic snare (today's default)"
-   },
-   {
-    "uid": 125,
-    "name": "METALSN",
-    "model": "SCRAK",
-    "k": [
-     0,
-     70,
-     120,
-     60,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "metallic FM snare"
-   },
-   {
-    "uid": 126,
-    "name": "HISSNARE",
-    "model": "SCRAK",
-    "k": [
-     2,
-     60,
-     30,
-     127,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "mostly noise"
-   },
-   {
-    "uid": 127,
-    "name": "LOWCRACK",
-    "model": "SCRAK",
-    "k": [
-     -5,
-     90,
-     50,
-     40,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "low long crack"
-   },
-   {
-    "uid": 128,
-    "name": "SHINYHAT",
-    "model": "HMETL",
-    "k": [
-     0,
-     40,
-     80,
-     40,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "the metallic hat (today's default)"
-   },
-   {
-    "uid": 129,
-    "name": "CHIPHAT",
-    "model": "HMETL",
-    "k": [
-     0,
-     15,
-     90,
-     20,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "tight short hat"
-   },
-   {
-    "uid": 130,
-    "name": "BRASSHAT",
-    "model": "HMETL",
-    "k": [
-     0,
-     100,
-     70,
-     40,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "long open metal"
-   },
-   {
-    "uid": 131,
-    "name": "GRITHAT",
-    "model": "HMETL",
-    "k": [
-     -3,
-     50,
-     40,
-     100,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "dark, noisy"
-   },
-   {
-    "uid": 132,
-    "name": "STATIC",
-    "model": "HNOIS",
-    "k": [
-     0,
-     40,
-     80,
-     40,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "the noisy hat (today's default)"
-   },
-   {
-    "uid": 133,
-    "name": "SPRAY",
-    "model": "HNOIS",
-    "k": [
-     0,
-     15,
-     100,
-     60,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "tight bright spray"
-   },
-   {
-    "uid": 134,
-    "name": "STEAM",
-    "model": "HNOIS",
-    "k": [
-     0,
-     100,
-     80,
-     60,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "long open noise"
-   },
-   {
-    "uid": 135,
-    "name": "RINGHAT",
-    "model": "HNOIS",
-    "k": [
-     3,
-     60,
-     50,
-     10,
-     0,
-     0,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "ring-mod buzz, little noise"
-   },
-   {
-    "uid": 136,
-    "name": "HEADTOM",
-    "model": "MEMB",
-    "k": [
-     0,
-     60,
-     64,
-     20,
-     40,
-     30,
-     24,
-     0
-    ],
-    "source": "designed",
-    "note": "the struck head (today's default)"
-   },
-   {
-    "uid": 137,
-    "name": "TIMPANI",
-    "model": "MEMB",
-    "k": [
-     -12,
-     110,
-     64,
-     0,
-     30,
-     30,
-     24,
-     0
-    ],
-    "source": "designed",
-    "note": "low long ideal head"
-   },
-   {
-    "uid": 138,
-    "name": "TABLA",
-    "model": "MEMB",
-    "k": [
-     7,
-     60,
-     64,
-     120,
-     40,
-     60,
-     50,
-     0
-    ],
-    "source": "designed",
-    "note": "loaded head, pitch bend"
-   },
-   {
-    "uid": 139,
-    "name": "EDGEHIT",
-    "model": "MEMB",
-    "k": [
-     0,
-     60,
-     64,
-     20,
-     127,
-     30,
-     90,
-     0
-    ],
-    "source": "designed",
-    "note": "struck at the rim, hard stick"
-   },
-   {
-    "uid": 140,
-    "name": "FMPERC",
-    "model": "FM",
-    "k": [
-     0,
-     50,
-     60,
-     2,
-     40,
-     0,
-     0,
-     64
-    ],
-    "source": "designed",
-    "note": "the 2-op FM hit (today's default)"
-   },
-   {
-    "uid": 141,
-    "name": "FMBELL",
-    "model": "FM",
-    "k": [
-     12,
-     100,
-     50,
-     5,
-     90,
-     0,
-     0,
-     64
-    ],
-    "source": "designed",
-    "note": "bell (ratio 2.76), long"
-   },
-   {
-    "uid": 142,
-    "name": "FMNOISE",
-    "model": "FM",
-    "k": [
-     0,
-     40,
-     90,
-     9,
-     30,
-     0,
-     100,
-     64
-    ],
-    "source": "designed",
-    "note": "metallic noise, feedback up"
-   },
-   {
-    "uid": 143,
-    "name": "FMTOM",
-    "model": "FM",
-    "k": [
-     -12,
-     70,
-     40,
-     1,
-     20,
-     80,
-     0,
-     64
-    ],
-    "source": "designed",
-    "note": "low tom, a pitch sweep"
-   },
-   {
-    "uid": 144,
-    "name": "SQUELCH",
-    "model": "ACID",
-    "k": [
-     0,
-     50,
-     40,
-     64,
-     64,
-     64,
-     0,
-     56
-    ],
-    "source": "designed",
-    "note": "the bass line (today's default)"
-   },
-   {
-    "uid": 145,
-    "name": "DEEPBASS",
-    "model": "ACID",
-    "k": [
-     -12,
-     30,
-     20,
-     30,
-     30,
-     40,
-     0,
-     70
-    ],
-    "source": "designed",
-    "note": "low, round, little squelch"
-   },
-   {
-    "uid": 146,
-    "name": "SCREAMER",
-    "model": "ACID",
-    "k": [
-     0,
-     80,
-     60,
-     115,
-     100,
-     100,
-     0,
-     56
-    ],
-    "source": "designed",
-    "note": "high resonance, deep envelope"
-   },
-   {
-    "uid": 147,
-    "name": "SQUAREAC",
-    "model": "ACID",
-    "k": [
-     0,
-     60,
-     50,
-     80,
-     70,
-     64,
-     1,
-     40
-    ],
-    "source": "designed",
-    "note": "square wave, short gate"
-   },
-   {
-    "uid": 148,
-    "name": "SMPKICK",
-    "model": "SMPL",
-    "k": [
-     0,
-     127,
-     127,
-     0,
-     0,
-     36,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "the PERC set's kick (today's default)"
-   },
-   {
-    "uid": 149,
-    "name": "TAMBO",
-    "model": "SMPL",
-    "k": [
-     0,
-     127,
-     127,
-     0,
-     0,
-     54,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "tambourine"
-   },
-   {
-    "uid": 150,
-    "name": "SHAKER",
-    "model": "SMPL",
-    "k": [
-     0,
-     127,
-     110,
-     0,
-     0,
-     82,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "shaker, slightly darker"
-   },
-   {
-    "uid": 151,
-    "name": "LOFICONG",
-    "model": "SMPL",
-    "k": [
-     -5,
-     127,
-     100,
-     60,
-     0,
-     63,
-     0,
-     0
-    ],
-    "source": "designed",
-    "note": "conga pitched down, driven"
    }
   ]
  }

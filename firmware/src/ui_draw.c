@@ -2201,8 +2201,8 @@ static void draw_home_lev(int again)
     cv_blit(63, Y_KNOB);
 }
 
-/* HOME (spec 2026-10-19-md-ui §9), y 17..68 under the top bar: the MD main screen's strip. The selected track's bank
- * boxes (the playing one solid), the project box (inverted: slot, name), the mode line | LEV (the track's level) |
+/* HOME (spec 2026-10-19-md-ui §9), y 17..68 under the top bar: the MD main screen's strip. The 4 bar boxes (fix 6:
+ * the bar of a 4-bar cycle, home_bar), the project box (inverted: slot, name), the mode line | LEV (the track's level) |
  * the model's first four sound knobs (rings r 7, the values under them; enums as text) | a rule at y 68. Drawn whole
  * on ui.force; else in parts: the left block, a knob's cell (its label, value, touched), a knob's ring alone (its LFO's
  * live dot); LEV its own (draw_home_lev) */
@@ -2212,12 +2212,18 @@ static struct {
     int16_t lfo[4];              /* the LFO dots shown (-1 none) */
     int16_t lx1;                 /* the left block's mode line's end shown */
 } hs;
+/* the bar HOME's boxes light (fix 6, owner 2026-10-21): the bar of a 4-bar cycle, 0..3, from the 1/16s since PLAY (the
+ * shared clock seq.c's gclk counts: any track's LEN or bank aside), bar 1 at every PLAY; stopped: bar 1 */
+static uint32_t home_bar(void)
+{
+    return song.playing && gclk.cnt != 0xFFFFFFFFu ? (gclk.cnt >> 4) & 3u : 0u;
+}
+
 static void draw_home_strip(void)
 {
-    const track_t *t = TSEL;
     char l[4][8], v[4][8], ab[8], m[16], nm[NAME_LEN + 1u], pj[8];
     int32_t r[4], md[4], lx1;
-    uint32_t c, i, sig, nb = bank_count(), len = view_len(t), cur = song.playing ? (view_idx(t) % len) / 16u : ui.bank;
+    uint32_t c, i, sig, cur = home_bar();
     uint32_t hot = ui.hot_t ? ui.hot_col : 9u, lev = 0;
     for (c = 0; c < 4u; c++) {
         int16_t *vp;
@@ -2262,7 +2268,7 @@ static void draw_home_strip(void)
         rg_add(87, 0, 153, 52);
         lev = 1;
     }
-    sig = str_hash(str_hash(str_hash(0x811C9DC5u, m), nm), pj) + nb * 31u + cur * 101u;
+    sig = str_hash(str_hash(str_hash(0x811C9DC5u, m), nm), pj) + cur * 101u;
     if (!ui.force && sig != hs.left) {                /* the left block (the mode line may run on) */
         int32_t x1 = lx1 > hs.lx1 ? lx1 : hs.lx1;
         rg_add(0, 0, x1 > 62 ? x1 : 62, 51);
@@ -2288,7 +2294,7 @@ static void draw_home_strip(void)
         rg_win(i, Y_KNOB, C_BG);
         cv_rect(0, 0, 1, 52, C_INK);
         cv_rect(239, 0, 1, 52, C_INK);
-        for (c = 0; c < nb && c < 4u; c++)            /* the bank boxes */
+        for (c = 0; c < 4u; c++)                      /* the bar boxes (home_bar) */
             if (c == cur)
                 cv_rect(6 + (int32_t)c * 13, 3, 10, 6, C_INK);
             else
