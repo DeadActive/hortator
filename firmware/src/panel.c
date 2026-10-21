@@ -73,8 +73,14 @@ static struct { uint32_t btmode, bt_type, bt_lo, bt_hi, bt_auto; } btset;
 /* the last project saved to flash (spec 2026-10-11 §6): set, its slot 0..3 (lowcut's bits 2, 3..4). As btset: only
  * from the flash record, else 0 */
 static struct { uint8_t set, slot; } lastp;
-/* MENU > BACKLIGHT (spec 2026-10-11 §12): 1 = the unlit keys dimly lit (ui_input.c ui_leds, led_dim.c). As btset: only
- * from the flash record (lowcut's bit 7), else OFF */
+/* MENU > BACKLIGHT (spec 2026-10-11 §12; fixes 2026-10-21 item 9: upstream Felucca's LEDS levels): BL_* (ui_input.c
+ * ui_leds, led_dim.c). OFF: lit or dark (as 1.0); DIM LO (1, the old ON): the unlit keys and the idle buttons glow at
+ * 5 %, the STEP keys' unlit beats at 25 %; DIM HI: a brighter glow, 10 % (beats 30 %); INV: turned around as the stock
+ * firmware, the idle ones lit and the active ones dark; INV LO / INV HI: so, the idle ones at 10 % / 25 %. The OCT
+ * breath in every mode. As btset: only from the flash record (the palette word's bits 9..11, else lowcut's bit 7: an
+ * older Hortator's ON is DIM LO), else OFF */
+enum { BL_OFF, BL_DIM_LO, BL_DIM_HI, BL_INV, BL_INV_LO, BL_INV_HI, BL_COUNT };
+static const char *const BL_NAME[BL_COUNT] = {"OFF", "DIM LO", "DIM HI", "INV", "INV LO", "INV HI"};
 static uint32_t backlight;
 
 static void settings_save(void);

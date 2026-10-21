@@ -667,13 +667,13 @@ static void preset_user_tick(void)                  /* the main loop (settings_p
 }
 
 /* the stored lowcut word's bits 0..7 (bits 8..31: btset.bt_hi): 0..1 SPEAKER EQ, 2..4 the last project (2 set, 3..4
- * its slot), 5..6 METRO (spec 2026-10-11 §9), 7 BACKLIGHT (§12). An older firmware reads SPEAKER EQ FLAT from a record
- * with any of 2..7 set */
+ * its slot), 5..6 METRO (spec 2026-10-11 §9), 7 BACKLIGHT not OFF (§12; its level: the palette word's bits 9..11,
+ * fixes 2026-10-21 item 9, settings_save). An older firmware reads SPEAKER EQ FLAT from a record with any of 2..7 set */
 static uint32_t lc_pack(void)
 {
     return (settings.lowcut & 3u) |
            (lastp.set ? 1u << 2 | (uint32_t)(lastp.slot & 3u) << 3 : 0u) | (uint32_t)(fx_metro & 3u) << 5 |
-           (backlight & 1u) << 7;
+           (uint32_t)(backlight != BL_OFF) << 7;
 }
 static void lc_unpack(uint32_t lc)
 {
@@ -681,7 +681,7 @@ static void lc_unpack(uint32_t lc)
     lastp.set = (uint8_t)((lc >> 2) & 1u);
     lastp.slot = (uint8_t)((lc >> 3) & 3u);
     fx_metro = (uint8_t)((lc >> 5) & 3u);
-    backlight = (lc >> 7) & 1u;
+    backlight = (lc >> 7) & 1u;                      /* (ON: DIM LO; the level from the palette word, persist_boot) */
 }
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
@@ -712,6 +712,9 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
         btset.bt_auto = (p.palette >> 8) & 1u;
         lc_unpack(p.lowcut);
+        if (((p.palette >> 9) & 7u) - 1u < BL_COUNT - 1u && backlight)   /* BACKLIGHT's level, bits 9..11 (item 9; 0:
+                                                     * an older record, its ON = DIM LO) */
+            backlight = (p.palette >> 9) & 7u;
         settings.zoom = p.zoom & 1u;
         settings.mutebar = (p.zoom >> 1) & 1u;     /* kept in zoom's bit 1: the flash format stays Felucca's */
         settings.accel = !((p.zoom >> 2) & 1u);    /* bit 2 = KNOB ACCEL OFF: older saves read as on */
@@ -823,8 +826,10 @@ static void settings_save(void)                    /* asked for while playing: w
         return;
     memset(&p, 0, sizeof p);
     p.magic = PERSIST_MAGIC;
-    p.palette = (settings.palette & 0xFFu) | (btset.bt_auto & 1u) << 8;   /* an older Hortator reads a palette
-                                                     * out of range from bit 8: its display settings reset */
+    p.palette = (settings.palette & 0xFFu) | (btset.bt_auto & 1u) << 8 | (backlight & 7u) << 9;   /* an older
+                                                     * Hortator reads a palette out of range from bit 8: its display
+                                                     * settings reset; 9..11 BACKLIGHT's level (item 9: an older one reads
+                                                     * lowcut's bit 7, ON) */
     p.lowcut = lc_pack() | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
              (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;

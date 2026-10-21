@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, BACKLIGHT (OFF ON), HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
+/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, BACKLIGHT (OFF DIM LO DIM HI INV INV LO INV HI), HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
 /* ------------------------------------------------------------ menu --- */
 #if FELUCCA_BLE                                     /* the Bluetooth page's row (bt_page.c) before ABOUT */
 enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
@@ -25,7 +25,7 @@ static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
     return i == MI_USB ? &settings.usbfix : i == MI_PERF ? &settings.perfpage : i == MI_ZOOM ? &settings.zoom :
-           i == MI_ACCEL ? &settings.accel : i == MI_BACKLIGHT ? &backlight : 0;
+           i == MI_ACCEL ? &settings.accel : 0;
 }
 
 static void draw_menu(void)
@@ -91,6 +91,8 @@ static void draw_menu(void)
                         *menu_onoff(i) ? "ON" : "OFF";
                 if (i == MI_SPKEQ)
                     v = SPK_EQ[settings.lowcut % 3u];
+                if (i == MI_BACKLIGHT)              /* (item 9: upstream's LEDS levels) */
+                    v = BL_NAME[backlight % BL_COUNT];
                 list_row(10, 225, y, MI_NAME[i], v, sel);
                 if (i == MI_COLOR) {                /* the themes as boxes, the current one solid */
                     uint32_t k, cur = theme_index(settings.palette);
@@ -180,6 +182,14 @@ static void menu_input(uint32_t pressed)
         settings.lowcut = s > 0 ? (settings.lowcut < 2u ? settings.lowcut + 1u : 2u)
                         : s < 0 ? (settings.lowcut ? settings.lowcut - 1u : 0u) : (settings.lowcut + 1u) % 3u;
         fx_lowcut = (uint8_t)settings.lowcut;
+        ok = 0;
+        s = 0;
+    }
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_BACKLIGHT) {
+        /* BACKLIGHT (item 9): KNOB 1 steps OFF DIM LO DIM HI INV INV LO INV HI and stops at the ends; OCT+ steps and
+         * wraps (as SPEAKER EQ) */
+        backlight = s > 0 ? (backlight + 1u < BL_COUNT ? backlight + 1u : BL_COUNT - 1u)
+                  : s < 0 ? (backlight ? backlight - 1u : 0u) : (backlight + 1u) % BL_COUNT;
         ok = 0;
         s = 0;
     }

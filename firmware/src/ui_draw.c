@@ -613,7 +613,7 @@ static void graph_grid(const track_t *t, uint16_t c)
         md_text(4, 84, &MD_F3, 2, srec_ok() ? "KEYS  REC: STEP RECORD" : "KEYS", C_INK);
     } else if (held_line(t, 84)) {
     } else {
-        cv_keycap(cv_keycap(4, 84, "TAP", "ON/OFF", C_INK) + 10, 84, "HOLD", "ACCENT", C_INK);
+        cv_keycap(cv_keycap(4, 84, "TAP", "ON/OFF", C_INK) + 10, 84, "OCT+", "+TAP ACCENT", C_INK);   /* (item 1) */
     }
 }
 

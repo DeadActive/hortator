@@ -53,7 +53,15 @@ static uint32_t host_btn_edges, host_note_edges, host_ticks;
 static int32_t host_enc[7];
 #define FM1_TICKS_PER_US 24u
 static uint32_t fm1_ticks(void) { return host_ticks += 24u * 1000u; }   /* 1 ms per call */
-static int32_t fm1_enc_take(uint32_t e) { int32_t s = host_enc[e % 7u]; host_enc[e % 7u] = 0; return s; }
+static int32_t host_enc_late[7];                      /* detents that come in after a pass's first read of the encoder
+                                                       * (the scan ISR runs while ui_input does: the next read has them) */
+static int32_t fm1_enc_take(uint32_t e)
+{
+    int32_t s = host_enc[e % 7u];
+    host_enc[e % 7u] = host_enc_late[e % 7u];
+    host_enc_late[e % 7u] = 0;
+    return s;
+}
 static uint32_t fm1_input_edges(uint32_t *released) { uint32_t p = host_btn_edges; (void)released; host_btn_edges = 0; return p; }
 static uint32_t fm1_input_note_edges(void) { uint32_t p = host_note_edges; host_note_edges = 0; return p; }
 static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }

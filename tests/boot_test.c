@@ -405,8 +405,9 @@ static int settings_autostart_round_trip(void)
         backlight = 1;
         settings_save();
         st_load(OBJ_SETTINGS, &p, sizeof p);
-        ok &= p.palette == (THEME_TAG | 3u | a << 8) && (p.lowcut & 0xFFu) == (2u | 1u << 7) && p.lowcut >> 8 == 0xABCDEFu &&
-              p.zoom >> 8 == 0x123456u && ((p.zoom >> 5) & 3u) == 2u;
+        ok &= p.palette == (THEME_TAG | 3u | a << 8 | 1u << 9) &&   /* (bit 9: BACKLIGHT's level DIM LO, item 9) */
+              (p.lowcut & 0xFFu) == (2u | 1u << 7) && p.lowcut >> 8 == 0xABCDEFu && p.zoom >> 8 == 0x123456u &&
+              ((p.zoom >> 5) & 3u) == 2u;
         rfill(&settings, sizeof settings);           /* power off */
         memset(&btset, 0, sizeof btset);             /* (.bss) */
         btset.bt_auto = !a;
@@ -506,6 +507,40 @@ static int settings_backlight_round_trip(void)
     persist_boot();
     settings_init();
     ok &= backlight == 0u;
+    for (b = 0; b < BL_COUNT; b++) {                 /* fixes 2026-10-21 item 9: every level survives, in the palette
+                                                      * word's bits 9..11, lowcut's bit 7 "not OFF" for an older one */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = THEME_TAG | 2u;
+        btset.bt_auto = 1;
+        backlight = b;
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= ((p.lowcut >> 7) & 1u) == (b != 0u) && ((p.palette >> 9) & 7u) == b && (p.palette & 0x1FFu) ==
+              ((THEME_TAG | 2u) & 0xFFu) + 0x100u;
+        backlight = 0;
+        btset.bt_auto = 0;
+        persist_boot();
+        settings_init();
+        ok &= backlight == b && btset.bt_auto == 1u && theme_index(settings.palette) == 2u;
+    }
+    {                                                /* an older Hortator's record: ON (bit 7), no level: DIM LO */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.lowcut = 1u << 7;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        persist_boot();
+        settings_init();
+        ok &= backlight == BL_DIM_LO;
+    }
     return (int)ok;
 }
 
@@ -1636,7 +1671,8 @@ int main(void)
     check("settings: METRO survives a power cycle in lowcut's bits 5..6 (SPEAKER EQ, the device kept); 0.16.0's record "
           "and none load OFF", settings_metro_round_trip());
     check("settings: BACKLIGHT survives a power cycle in lowcut's bit 7 (SPEAKER EQ, the last project, METRO, the "
-          "device kept); an older record and none load OFF", settings_backlight_round_trip());
+          "device kept); an older record and none load OFF; every level (item 9) kept, an older ON is DIM LO",
+          settings_backlight_round_trip());
     check("settings: AUTOSTART survives a power cycle in the palette word's bit 8 (the palette, SPEAKER EQ, BACKLIGHT, "
           "the device kept); an older record and none load OFF", settings_autostart_round_trip());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());

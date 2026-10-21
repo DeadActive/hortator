@@ -7,7 +7,8 @@
  *   - ON: per column, the full layer lit in every frame, the 25 % layer in 5 of 20, the 5 % layer in 1 of 20;
  *   - a column is lit with the value composed for it from its layers (the next-column write: never another
  *     column's, never half of a change); a layer change shows from the next frame on;
- *   - led_dim_compose: phase by phase. */
+ *   - led_dim_compose: phase by phase;
+ *   - fixes 2026-10-21: the dim layers' frame masks (item 9), the OCT breath (item 5). */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -157,6 +158,78 @@ int main(void)
             c = tick(&lit);
         ok &= c == n && lit == 0x10u;
         check("a layer change: the column already composed keeps its value; the new one from its next frame", ok);
+    }
+    /* fixes 2026-10-21 item 9: the dim layers' frames from their masks (DIM HI: mid 6 of 20, glow 2 of 20) */
+    reset();
+    led_mid_ph = 0x22489u;
+    led_glow_ph = 0x401u;
+    for (c = 0; c < FM1_NCOL; c++)
+        led_lay[c] = 0x02u | 0x04u << 8 | 0x08u << 16;
+    led_dim_on = 1;
+    tick(&lit);
+    memset(cnt, 0, sizeof cnt);
+    for (i = 0; i < 5u * FM1_NCOL * 40u; i++) {
+        uint32_t r;
+        c = tick(&lit);
+        for (r = 1; r < 5u; r++)
+            cnt[c][r] += (lit >> r) & 1u;
+    }
+    ok = 1;
+    for (c = 0; c < FM1_NCOL; c++)
+        ok &= cnt[c][1] == 200u && cnt[c][2] == 60u && cnt[c][3] == 20u && cnt[c][4] == 0u;
+    check("item 9: the masks: DIM HI's mid in 6 of 20 frames, its glow in 2 of 20, per column", ok);
+    led_mid_ph = 0x11111u;
+    led_glow_ph = 0x1u;
+
+    /* item 5: the breath (upstream Felucca's curve): dark at its ends, ~60 % at its peak, a smooth rise; while it is on
+     * the breath layer lit in the frames its sigma-delta picks (spread: no long dark run near the peak), every column
+     * alike; off: never lit, and the next one starts at its peak */
+    {
+        uint32_t x, up = 1, lv;
+        ok = led_br_level(0) == 0u && led_br_level(LED_BR_FRAMES - 1u) < 64u;
+        lv = led_br_level(LED_BR_FRAMES / 2u);
+        ok &= lv > 38000u && lv < 40000u;             /* 154 / 256 of lit */
+        for (x = 1; x <= LED_BR_FRAMES / 2u; x++)
+            up &= led_br_level(x) >= led_br_level(x - 1u);
+        check("item 5: the breath's level: 0 at its ends, ~60 % at the peak, rising to it", ok && up);
+    }
+    reset();
+    for (c = 0; c < FM1_NCOL; c++)
+        led_lay[c] = 0x10u << 24 | 0x02u;           /* row 4 breathing, row 1 full */
+    led_dim_on = 1;
+    led_br_on = 1;
+    led_br_ph = 0;
+    led_br_acc = 0;
+    {
+        uint32_t litf[FM1_NCOL] = {0}, gap = 0, maxgap = 0, peak = 0, full_ok = 1;
+        tick(&lit);
+        for (i = 0; i < LED_BR_FRAMES * FM1_NCOL; i++) {
+            c = tick(&lit);
+            full_ok &= (lit & 0x02u) != 0u;
+            litf[c] += (lit >> 4) & 1u;
+            if (c == 0u) {
+                if (led_br_ph > 400u && led_br_ph < 624u) {   /* around the peak: lit at least every 3rd frame */
+                    gap = (lit >> 4) & 1u ? 0u : gap + 1u;
+                    maxgap = gap > maxgap ? gap : maxgap;
+                    peak += (lit >> 4) & 1u;
+                }
+            }
+        }
+        ok = full_ok && maxgap <= 2u && peak > 100u;
+        for (c = 1; c < FM1_NCOL; c++)
+            ok &= litf[c] + 1u >= litf[0] && litf[c] <= litf[0] + 1u;
+        ok &= litf[0] > LED_BR_FRAMES / 8u && litf[0] < LED_BR_FRAMES / 3u;   /* the average: ~20 % of the frames */
+        check("item 5: breathing: lit in the frames the sigma-delta picks (around the peak never 3 dark in a row), "
+              "every column alike, ~20 % on average; the full layer unaffected", ok);
+        led_br_on = 0;
+        tick(&lit);                                /* (the column composed before: the next tick) */
+        ok = 1;
+        for (i = 0; i < 4u * FM1_NCOL; i++) {
+            c = tick(&lit);
+            ok &= (lit & 0x10u) == 0u;
+        }
+        check("item 5: no LED breathing: the layer dark, the next breath from its peak", ok &&
+              led_br_ph == LED_BR_FRAMES / 2u);
     }
     printf(fails ? "led_dim_test: %d FAILED\n" : "led_dim_test: all passed\n", fails);
     return fails != 0;
