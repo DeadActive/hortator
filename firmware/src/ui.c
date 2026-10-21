@@ -539,14 +539,16 @@ static const uint8_t MODEL_LIST[NMODELS] = {
     DM_K808, DM_K909, DM_S808, DM_S909, DM_C808, DM_C909, DM_HATC, DM_HATO, DM_CYMB, DM_COWB, DM_TOM, DM_CONGA, DM_RIM,
     DM_CLAVE,
 };
-static uint32_t model_list_next(uint32_t m, int32_t dir)   /* the model after / before m in MODEL_LIST, wrapping */
+static uint32_t model_list_idx(uint32_t m)           /* m's place in MODEL_LIST, from 0 (0: not in it) */
 {
     uint32_t i;
     for (i = 0; i < NMODELS && MODEL_LIST[i] != m; i++)
         ;
-    if (i == NMODELS)
-        i = 0;
-    return MODEL_LIST[(i + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS];
+    return i == NMODELS ? 0u : i;
+}
+static uint32_t model_list_next(uint32_t m, int32_t dir)   /* the model after / before m in MODEL_LIST, wrapping */
+{
+    return MODEL_LIST[(model_list_idx(m) + (dir > 0 ? 1u : NMODELS - 1u)) % NMODELS];
 }
 
 /* the next / previous model on the selected track (MODEL_LIST's order), with its default sound; with the audio IRQ off,

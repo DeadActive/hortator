@@ -7128,6 +7128,72 @@ static void test_model_list_order(void)
           DM_K808 == 0 && DM_ACID == 23 && DM_KTRX == 24 && DM_CYEFM == 44 && NMODELS == 45);
 }
 
+/* s in F3 at 2x somewhere in the graph's area (the preset's band included), whole and 2 px clear of any other ink */
+static int graph_has_text(const char *s)
+{
+    uint32_t w = (uint32_t)md_text_w(&MD_F3, 2, s) + 4u, h = 14u, x0, y0, x, y;
+    int ok;
+    cv_begin(w, h, C_BG);
+    md_text(2, 2, &MD_F3, 2, s, C_INK);
+    for (y0 = Y_GRAPH; y0 + h <= Y_GRAPH + H_GRAPH; y0++)
+        for (x0 = 0; x0 + w <= 240u; x0++) {
+            for (ok = 1, y = 0; y < h && ok; y++)
+                for (x = 0; x < w && ok; x++)
+                    ok = (fb[(y0 + y) * 240u + x0 + x] == C_INK) == (cv_px[y * w + x] == swap16(C_INK));
+            if (ok)
+                return 1;
+        }
+    return 0;
+}
+
+/* owner 2026-10-22: the engine view shows the model's place in the MODEL knob's list (MD -> MODERN -> CLASSIC),
+ * "#NN/45" (the list's length), not its number in the enum; every model, CHOKE and LAYER on, ACID's ENVMD line at
+ * its leftmost: the number whole, nothing over it */
+static void test_engine_number(void)
+{
+    static const struct { uint8_t m; const char *s; } C[] = {
+        {DM_KTRX, "#01/45"}, {DM_FM, "#29/45"}, {DM_ACID, "#30/45"}, {DM_K808, "#32/45"}, {DM_CLAVE, "#45/45"}};
+    uint32_t i, ok = 1, okall = 1;
+    char want[12];
+    ui_host_init();
+    song.sel = 0;
+    tap(B_EDIT);
+    for (i = 0; i < sizeof C / sizeof C[0]; i++) {
+        old_set_model(TSEL, C[i].m);
+        ui.force = 1;
+        ui_frame();
+        if (!graph_has_text(C[i].s)) {
+            ok = 0;
+            printf("      %s: no %s\n", N_MODEL[C[i].m], C[i].s);
+        }
+    }
+    check("engine view: KTRX #01/45 (the first), FM #29, ACID #30, K808 #32 (a Classic), CLAVE #45/45 (the last)", ok);
+    old_set_model(TSEL, DM_K808);
+    ui.force = 1;
+    ui_frame();
+    check("engine view: K808 (enum 0) is not #01 (the list's place, not the model's number)",
+          !graph_has_text("#01/45"));
+    check("engine view: the total is the MODEL list's length", sizeof MODEL_LIST / sizeof MODEL_LIST[0] == 45u);
+    for (i = 0; i < NMODELS; i++) {
+        old_set_model(TSEL, MODEL_LIST[i]);
+        TSEL->p[P_CHOKE] = 2;
+        TSEL->p[P_LLEVEL] = 100;
+        if (MODEL_LIST[i] == DM_ACID) {
+            TSEL->p[P_E0 + 2] = 0;                   /* CUT 0, ENVMD a little: its dotted line at the graph's left */
+            TSEL->p[P_E0 + 4] = 3;
+        }
+        ui.force = 1;
+        ui_frame();
+        snprintf(want, sizeof want, "#%02u/%u", i + 1u, (unsigned)NMODELS);
+        if (!graph_has_text(want)) {
+            okall = 0;
+            printf("      %s (CHOKE, LAYER): no %s clear\n", N_MODEL[MODEL_LIST[i]], want);
+        }
+    }
+    check("engine view: every model's number whole and clear, with CHOKE and LAYER (FM, ACID, KTRX graphs too)",
+          okall);
+}
+
 /* fix 4: TOOLS INIT ALL (a new project) gives the TRX classic kit, each on its first preset, no choke; TRACKS and HOME
  * shown with it (build/ui_shots/fixes/trx_kit_*) */
 static void test_init_all_trx_kit(void)
@@ -7697,6 +7763,7 @@ int main(void)
     test_about_moves_only_the_logo();
     test_home_bar_cycle();
     test_model_list_order();
+    test_engine_number();
     test_init_all_trx_kit();
     test_fk_perform_own_knobs();                     /* fixes 2026-10-21 (fix-keys) */
     test_fk_oct_under_mute_perform();                /* (fix-keys review) */

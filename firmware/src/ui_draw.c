@@ -471,16 +471,26 @@ static void preset_line(const track_t *t, int32_t x, int32_t y, int label)
         md_text(x + 2, y + 2, &MD_F3, 2, "*", C_INK);
 }
 
-/* the selected track's model: its preset in the band above (preset_line), name large, voices and choke group */
+/* the selected track's model: its preset in the band above (preset_line), name large with its place in the MODEL
+ * knob's list ("#32/45", MODEL_LIST: right of the name, bottom-aligned; under it where a graph is right), voices and
+ * choke group */
 static void graph_model(const track_t *t, uint16_t c)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
-    uint32_t mi = (uint32_t)t->p[P_MODEL] % NMODELS;
+    uint32_t mi = (uint32_t)t->p[P_MODEL] % NMODELS, n = model_list_idx(mi) + 1u;
     int fm = mi == DM_FM || mi == DM_ACID || mi == DM_KTRX;   /* FM, ACID, KTRX: their graph right: the labels left */
-    char b[16];
+    char b[16], nb[8];
     preset_line(t, 4, 2 - G_OY, 1);
-    int32_t y = fm ? 40 : 44;
-    md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 5, m->name)) / 2, 10, &MD_F3, fm ? 4 : 5, m->name, C_INK);
+    int32_t y = fm ? 50 : 44, x;
+    nb[0] = '#';
+    nb[1] = (char)('0' + n / 10u);
+    nb[2] = (char)('0' + n % 10u);
+    nb[3] = '/';
+    nb[4] = (char)('0' + NMODELS / 10u);
+    nb[5] = (char)('0' + NMODELS % 10u);
+    nb[6] = 0;
+    x = md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 5, m->name)) / 2, 10, &MD_F3, fm ? 4 : 5, m->name, C_INK);
+    md_text(fm ? 4 : x + 2, fm ? 34 : 25, &MD_F3, 2, nb, C_INK);
     str_cpy(b, m->voices > 1 ? "2 VOICES" : "1 VOICE", sizeof b);
     md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 2, b)) / 2, y, &MD_F3, 2, b, C_INK);
     if (t->p[P_CHOKE]) {

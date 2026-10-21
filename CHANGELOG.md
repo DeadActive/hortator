@@ -13,6 +13,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 - The MODEL knob's list runs MD, MODERN, CLASSIC (KTRX .. CYEFM, KBOOM .. SMPL, K808 .. CLAVE), and the preset banks
   MACHINEDRUM, MODERN, CLASSIC, USER. Models keep their numbers and presets their uids, so older projects load with
   the same voices and presets.
+- The SOUND pages show the engine's place in that list next to its name, "#01/45" (KTRX) .. "#45/45" (CLAVE); with
+  FM, ACID and KTRX (their graph on the right) on its own line under the name.
 - LFO: the OCT- switch between LFO 1 and LFO 2 is gone. The LFO pages show both LFOs side by side (LFO 1 on KNOB 1-2,
   LFO 2 on KNOB 3-4): WAVE RATE, MORPH PHASE, TRIG MODE (the RATE MODE now has a knob; OCT+ still switches the one of
   the LFO turned last), and a last page, DEST: 4 slots per track, each a source (LFO 1 / LFO 2), a destination (any
