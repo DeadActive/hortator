@@ -5,6 +5,18 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.22.0 - 2026-10-21
+
+- A new screen look in the style of a classic digital drum machine's LCD, on every screen: two colours only (ink on a
+  backlight; dither, dotted rules, inverted bars and title tabs instead of grey tones), a square pixel font drawn at
+  2x with no smoothing, round knob dials with their values under them, shadowed popups. Layout: an inverted top bar,
+  a compact knob row, the graph area, a trig strip with gaps between steps, and a breadcrumb (`T1>K909>SOUND`).
+  HOME: a main-screen strip under the top bar, four small knobs with values below and a large scope; TRACKS keeps
+  everything it shows on dithered level boxes. MENU > COLOR now cycles four themes: MD RED (the default), RED ON
+  BLACK, WHITE ON BLUE and BLACK ON GREEN (old colour settings map to the nearest). A new 1-bit logo on BOOT and
+  ABOUT. The PRESETS popup and list, MENU, NAME, the Bluetooth page and every popup in the same style. Nothing that
+  was on a screen before is lost.
+
 ## 0.21.0 - 2026-10-19
 
 - Presets: a preset is a voice (MODEL and the 8 SOUND knobs), in banks MACHINEDRUM, CLASSIC, MODERN (151 factory
