@@ -123,6 +123,18 @@ static void rg_add(int32_t x, int32_t y, int32_t w, int32_t h)
 
 static void rg_whole(void) { rg_add(0, 0, rg.rw, rg.rh); }
 
+static void rg_clip_h(int32_t h)                     /* the windows planned, less the region's rows from h */
+{
+    uint32_t i, n = 0;
+    rc_t c = {0, 0, rg.rw, (int16_t)h};
+    for (i = 0; i < rg.n; i++) {
+        rc_t a = rg.win[i];
+        if (rc_cut(&a, c))
+            rg.win[n++] = a;
+    }
+    rg.n = (uint8_t)n;
+}
+
 static void rg_damaged(void)                         /* the region's part in the damage */
 {
     rc_t a = {rg.rx, rg.ry, rg.rw, rg.rh};
@@ -1920,7 +1932,8 @@ static int foot_note(char *b)
  * dither, none an outline; the playhead an outline 2 px out) | the breadcrumb: T<n>>model>page left, the page number
  * right; a held / cursor step's note at x 120 (the number then hidden); MIDI LEARN's line across it */
 static struct {
-    uint32_t trig_sig;           /* the trig strip's steps shown */
+    uint32_t trig_sig;           /* the trig strip's steps shown: on | acc << 16 (exact, no hash) */
+    uint8_t trig_n;              /* .. and their count */
     uint8_t ph;                  /* its playhead shown (16+: none) */
     int16_t x0, x1;              /* the breadcrumb's text span shown */
 } ft;
@@ -1995,10 +2008,11 @@ static void draw_foot(void)
     }
     if (song.playing && view_idx(t) / 16u == ui.bank)
         ph = view_idx(t) % 16u;
-    sig = on * 7u + acc * 13u + n * 101u + 1u;        /* the trig strip: whole when the steps change, else the
-                                                       * playhead's old box and its new */
+    sig = on | acc << 16;                             /* the trig strip (all it shows: on, acc, n; the playhead):
+                                                       * whole when the steps change, else the playhead's old box and
+                                                       * its new */
     rg_region(0, Y_TRIG, 240, H_TRIG);
-    if (ui.force || sig != ft.trig_sig)
+    if (ui.force || sig != ft.trig_sig || n != ft.trig_n)
         rg_whole();
     else if (ph != ft.ph) {
         if (ft.ph < 16u)
@@ -2007,6 +2021,7 @@ static void draw_foot(void)
             rg_add(4 + (int32_t)ph * 14 + (int32_t)ph / 4 * 2, 3, 14, 14);
     }
     ft.trig_sig = sig;
+    ft.trig_n = (uint8_t)n;
     ft.ph = (uint8_t)ph;
     for (i = 0; i < rg.n; i++) {
         rg_win(i, Y_TRIG, C_BG);
@@ -2059,8 +2074,8 @@ static void draw_foot(void)
 }
 
 /* a message (ui_say): a small MD popup over the graph area while ui.msg_t runs (the graph holds still under it);
- * drawn when it changes, or a popup's end uncovered its place (rg.dmg). Gone (or narrower), what it covered draws
- * again (ui_draw: the damage) */
+ * drawn when it changes, or a popup's end uncovered its place (rg.dmg), or TEMPO was drawn over it this frame (again:
+ * the message over TEMPO, as a full repaint). Gone (or narrower), what it covered draws again (ui_draw: the damage) */
 #define MSG_Y 106
 #define MSG_H 31                                        /* (30 + the shadow's row) */
 static struct {
@@ -2071,11 +2086,11 @@ static int32_t msg_w(void)
     int32_t w = md_text_w(&MD_F3, 2, ui.msg) + 24;
     return w > 236 ? 236 : w;
 }
-static void draw_msg(void)
+static void draw_msg(int again)
 {
     uint32_t sig = ui.msg_t ? str_hash(7u, ui.msg) : 0u;
     int32_t w = msg_w(), h = 30;
-    if (!sig || (!ui.force && sig == ui.msg_sig && !rg_meets(120 - w / 2, MSG_Y, w, MSG_H)))
+    if (!sig || (!again && !ui.force && sig == ui.msg_sig && !rg_meets(120 - w / 2, MSG_Y, w, MSG_H)))
         return;
     ui.msg_sig = sig;
     cv_begin((uint32_t)w, (uint32_t)h + 1u, C_BG);
@@ -2100,12 +2115,12 @@ static void popup_tab(int32_t x, int32_t y, int32_t w, const char *title)
  * digits at 3x (as messages: drawn when it changes, or uncovered; gone, what it covered draws again). x 30..209, y
  * 70..166 (the tab over the box) */
 #define TEMPO_RC 30, 70, 180, 97
-static void draw_tempo(void)
+static int draw_tempo(void)                          /* 1: drawn */
 {
     char b[8];
     int32_t w;
     if (!ui.bpm_t || (!ui.force && ui.tempo_sig == (uint32_t)song.g[G_BPM] + 1u && !rg_meets(TEMPO_RC)))
-        return;
+        return 0;
     ui.tempo_sig = (uint32_t)song.g[G_BPM] + 1u;
     cv_begin(180, 91, C_BG);
     cv_popup(0, 0, 180, 90, "TEMPO", C_INK, C_BG);
@@ -2114,6 +2129,7 @@ static void draw_tempo(void)
     md_text(90 - w / 2, 28, &MD_BIG, 3, b, C_INK);
     cv_blit(30, 76);
     popup_tab(30, 76, 180, "TEMPO");
+    return 1;
 }
 
 /* a confirm (spec §7): a popup over the page, the question's first word its title, OCT- NO / OCT+ YES as keycaps */
@@ -2155,7 +2171,8 @@ static const char *abbr4(const char *l, char *b)
 
 /* HOME's LEV column (x 63..86, y 17..67; the user, 2026-10-19: a level meter): the selected track's live level as the
  * solid bar (its peak since the last frame, falling 1 px a frame), the level setting a 10 px marker wider than it;
- * redrawn when either changes (again: the strip was just redrawn under it) */
+ * redrawn when either changes (again: the strip was just redrawn under it). PRESETS' popup up (from y 61): only the
+ * rows above it */
 static void draw_home_lev(int again)
 {
     track_t *t = TSEL;
@@ -2171,7 +2188,7 @@ static void draw_home_lev(int again)
     if (!again && !ui.force && sig == ui.lev_sig)
         return;
     ui.lev_sig = sig;
-    cv_begin_at(24, 51, Y_KNOB, C_BG);
+    cv_begin_at(24, !ui.force && pp_on() ? (uint32_t)(Y_GRAPH - Y_KNOB) : 51u, Y_KNOB, C_BG);
     md_text(12 - md_text_w(&MD_F3, 2, "LEV") / 2, 2, &MD_F3, 2, "LEV", C_INK);
     if (m)
         cv_rect(9, 49 - m, 6, m, C_INK);
@@ -2194,7 +2211,6 @@ static struct {
     uint32_t left, cell[4];      /* the parts' signatures shown */
     int16_t lfo[4];              /* the LFO dots shown (-1 none) */
     int16_t lx1;                 /* the left block's mode line's end shown */
-    int16_t lvl;                 /* the level shown (PRESETS' popup up: the strip whole on any change, as before) */
 } hs;
 static void draw_home_strip(void)
 {
@@ -2265,15 +2281,9 @@ static void draw_home_strip(void)
         hs.cell[c] = sig;
         hs.lfo[c] = (int16_t)md[c];
     }
-    if (!ui.force && pp_on() && (rg.n || hs.lvl != (t->p[P_LEVEL] & 127))) {   /* PRESETS' popup over the strip's
-                                                       * last rows (y 61..68): the strip whole over it, as it was */
-        rg.n = 0;
-        rg_add(0, 0, 63, 52);
-        rg_add(63, 51, 24, 1);
-        rg_add(87, 0, 153, 52);
-        lev = 1;
-    }
-    hs.lvl = (int16_t)(t->p[P_LEVEL] & 127);
+    if (!ui.force && pp_on())                         /* PRESETS' popup over the strip's last rows (y 61..68): the
+                                                       * rows above it (a full repaint draws the popup over them) */
+        rg_clip_h(Y_GRAPH - Y_KNOB);
     for (i = 0; i < rg.n; i++) {
         rg_win(i, Y_KNOB, C_BG);
         cv_rect(0, 0, 1, 52, C_INK);
@@ -2513,8 +2523,7 @@ __attribute__((always_inline)) static inline void ui_draw(void)
         draw_popup();                                 /* PRESETS turned: the popup in the graph's place */
     else
         draw_graph();
-    draw_tempo();
-    draw_msg();
+    draw_msg(draw_tempo());                           /* (the message over TEMPO) */
     if (ui.msg_t)
         ui.msg_t--;
     if (ui.bpm_t)
