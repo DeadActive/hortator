@@ -191,6 +191,8 @@ plain one, and the release has it as `hortator-X.Y.Z-bluetooth.fwsc`. Everything
 Bluetooth is **off at every power-on**, unless you set AUTOSTART ON (below); it runs only after you turn it on, until
 the FM-1 is switched off.
 
+Please credit me if you using bluetooth code in your firmware🙏🏻
+
 ### The Bluetooth page
 
 MENU (hold HOME), SELECT to **BLUETOOTH**, OCT+. SELECT moves the cursor, KNOB 1 changes the row, OCT+ acts on it,
