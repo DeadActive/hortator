@@ -634,7 +634,8 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   accenting: the bank stays. The same on PATTERN, MOTION, SONG and TRACKS (unarmed). Play: accented steps louder.
 - Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page, DLY / REVERB / CHORUS
   too) and LFO the selected track's white key is lit (track 1: F3, track 2: G3 .. track 8: F4); ALGORITHM moves it, a
-  white key selects its track and its key stays lit. KEYS on (SCL): no track key, the keyboard as before. COMP: the
+  white key selects its track and its key stays lit (on DLY / REVERB / CHORUS, the global FX pages, a white key only
+  plays its drum: the selection stays, as before). KEYS on (SCL): no track key, the keyboard as before. COMP: the
   DUCK keys as before; GLOBAL, SAVE, GRIDS: dark.
 - OCT breath (item 5): OCT+ / OCT- fade in and out (~1.1 s, smooth, never a hard blink) where they would act: STEP
   with 2+ banks (OCT+ on bank 1, both in the middle, OCT- on the last), SOUND (OCT+: LAYER), the LFO pages (OCT+: RATE

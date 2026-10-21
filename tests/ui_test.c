@@ -7194,6 +7194,117 @@ static void test_fk_perform_own_knobs(void)
     ui_frame();
 }
 
+/* review of fix-keys (item 7: PERFORM is its own page, never the page under it; item 1: OCT+ alone, the next bank on
+ * its release): OCT+ let go under the MUTE screen or PERFORM, or held across either, moves no bank under it */
+static void test_fk_oct_under_mute_perform(void)
+{
+    uint32_t octb = 1u << panel.btn[B_OCTUP], glob = 1u << panel.btn[B_GLO];
+    int was;
+    ui_host_init();
+    trk[0].p[P_SLEN] = 32;                           /* two banks */
+    open_step_page();
+    press(B_OCTUP);
+    ui_frame();
+    press(B_GLO);
+    ui_frame();
+    host_ticks += 500u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    was = ui.mute;
+    fm1_in.buttons &= ~octb;                         /* OCT+ let go under the MUTE screen */
+    ui_frame();
+    check("OCT+ held, GLO held into MUTE, OCT+ let go under it: no bank change", was && ui.bank == 0u);
+    release_all();
+    ui_frame();
+    check("..GLO let go: the STEP page, bank 1", !ui.mute && step_keys() && ui.bank == 0u);
+    press(B_OCTUP);
+    ui_frame();
+    press(B_GLO);
+    ui_frame();
+    host_ticks += 500u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    was = ui.mute;
+    fm1_in.buttons &= ~glob;                         /* MUTE closed, OCT+ still held */
+    ui_frame();
+    release_all();                                   /* OCT+ let go on the steps */
+    ui_frame();
+    check("OCT+ held across the MUTE screen, let go on the steps: no bank change", was && ui.bank == 0u);
+    press(B_OCTUP);
+    ui_frame();
+    press(B_FX);
+    fx_hold_frames(500);
+    was = ui.layer;
+    fm1_in.buttons &= ~octb;                         /* OCT+ let go under PERFORM */
+    fx_hold_frames(1);
+    check("OCT+ held, FX held into PERFORM, OCT+ let go under it: no bank change", was && ui.bank == 0u);
+    release_all();
+    ui_frame();
+    press(B_FX);
+    fx_hold_frames(500);
+    press(B_OCTUP);                                  /* OCT+ tapped under PERFORM */
+    fx_hold_frames(1);
+    fm1_in.buttons &= ~octb;
+    fx_hold_frames(1);
+    check("OCT+ tapped under PERFORM: no bank change", ui.layer && ui.bank == 0u);
+    release_all();
+    ui_frame();
+    tap(B_OCTUP);
+    check("(OCT+ tapped alone on the steps: still the next bank)", step_keys() && ui.bank == 1u);
+}
+
+/* FX let go while KNOB 2 turns: the detents read on the pass FX is let go are PERFORM's (CRUSH), never HOME's DECAY */
+static void test_fk_fx_release_knobs(void)
+{
+    int16_t e1;
+    ui_host_init();
+    e1 = trk[0].p[P_E1];
+    press(B_FX);
+    fx_hold_frames(500);
+    check("(FX held: PERFORM up over HOME)", ui.layer && ui.home);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    release_all();                                   /* FX let go .. */
+    turn(EN_K2, 2);                                  /* .. while KNOB 2 turns */
+    host_enc_late[panel.enc[EN_K2]] = 3 * panel.dir[EN_K2];
+    ui_frame();
+    check("FX let go during a KNOB 2 turn: HOME's DECAY untouched on that pass", ui.home && trk[0].p[P_E1] == e1);
+    ui_frame();
+    perf_k[1] = 0;
+}
+
+/* PRESETS and ALGORITHM turn nothing under PERFORM (FX held, the PAGE screen): no preset loaded, no track change */
+static void test_fk_perform_preset_algo(void)
+{
+    uint16_t pre;
+    int16_t p[P_COUNT];
+    uint32_t sel0;
+    ui_host_init();
+    pre = TSEL->pre;
+    sel0 = song.sel;
+    memcpy(p, TSEL->p, sizeof p);
+    press(B_FX);
+    fx_hold_frames(500);
+    turn(EN_PRESET, 1);
+    turn(EN_ALGO, 1);
+    fx_hold_frames(1);
+    check("PERFORM (FX held): PRESETS loads no preset, ALGORITHM keeps the track",
+          ui.layer && song.sel == sel0 && TSEL->pre == pre && !memcmp(p, TSEL->p, sizeof p) && !ui.pr.pop);
+    release_all();
+    ui_frame();
+    tap(B_FX);
+    settings.perfpage = 1;                           /* PAGE: the screen stays after FX */
+    press(B_FX);
+    fx_hold_frames(500);
+    release_all();
+    ui_frame();
+    turn(EN_PRESET, -1);
+    turn(EN_ALGO, 1);
+    ui_frame();
+    check("PERFORM PAGE: PRESETS loads no preset, ALGORITHM keeps the track",
+          ui.pg_open && song.sel == sel0 && TSEL->pre == pre && !memcmp(p, TSEL->p, sizeof p) && !ui.pr.pop);
+    tap(B_HOME);
+    settings.perfpage = 0;
+    ui_frame();
+}
+
 /* item 2: the HOME screen and the EDIT (SOUND, LAYER), FX and LFO pages show the selected track on the keys: its
  * white key (KEY_TRK_KEY) lit, the other keys dark unless held; it follows ALGORITHM and a key's select; KEYS (the
  * keyboard), COMP (DUCK), the step pages and GLOBAL / SAVE / GRIDS keep their own; the menu none */
@@ -7588,6 +7699,9 @@ int main(void)
     test_model_list_order();
     test_init_all_trx_kit();
     test_fk_perform_own_knobs();                     /* fixes 2026-10-21 (fix-keys) */
+    test_fk_oct_under_mute_perform();                /* (fix-keys review) */
+    test_fk_fx_release_knobs();
+    test_fk_perform_preset_algo();
     test_fk_track_keys();
     test_fk_oct_breath();
     test_fk_led_levels();

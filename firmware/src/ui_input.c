@@ -543,7 +543,9 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 #define FX_DEAD 4u
 static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute && !pl_on(); }
 /* fixes 2026-10-21 item 7: PERFORM has KNOB 1..4 (fx_layer reads them; set each pass): the page's loop leaves them
- * alone, so detents that come in after fx_layer's read wait for its next one instead of reaching the page under it */
+ * alone, so detents that come in after fx_layer's read wait for its next one instead of reaching the page under it.
+ * 1 PERFORM's; 2 the pass it stops being (FX let go): the detents read then are still the macros', the page's loop
+ * still leaves them (a knob turning while FX is let go moves nothing under it); 0 the page's */
 static uint8_t fx_knobs;
 /* PERFORM PAGE: the screen closed (the screen under it changed, HOME, the menu, a dialog): the macros stay on; keys
  * still held stay the layer's until let go */
@@ -575,7 +577,7 @@ static void fx_layer(uint32_t now, int home_tap)
             open_family(FAM_FX);                        /* a tap: the FX pages, as the button always did */
         *t0 = 0;
     }
-    fx_knobs = (down && !(*t0 & FX_DEAD)) || ui.pg_open || (kb_layer && fx_allowed());
+    fx_knobs = (down && !(*t0 & FX_DEAD)) || ui.pg_open || (kb_layer && fx_allowed()) ? 1u : fx_knobs == 1u ? 2u : 0u;
     if (fx_knobs)                                       /* the knobs follow the screen: */
         for (k = 0; k < 4u; k++)                        /* the macros (FILTER CRUSH THROW DEPTH) while it is PERFORM's */
             if ((s = panel_enc(EN_K1 + k)) != 0) {
@@ -771,12 +773,13 @@ static void srec_knob(uint32_t k, int32_t s)
 #include "ui_preset.c"                             /* PRESETS: the encoder's popup, the list on a long EDIT */
 
 /* fixes 2026-10-21 item 1: OCT+ let go where it was pressed on the steps: alone (no step key accented with it), and the
- * keys still the steps, the next bank; anything else (an accent, another page, the menu, a dialog) nothing */
+ * keys still the steps, the next bank; anything else (an accent, another page, the menu, a dialog, the MUTE screen or
+ * PERFORM up while it was held: acc_oct 2, ui_input) nothing */
 static void acc_oct_poll(void)
 {
     if (!acc_oct || ((fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u))
         return;
-    if (acc_oct == 1u && step_keys() && !ui.confirm && !name_on() && !pl_on())
+    if (acc_oct == 1u && step_keys() && !ui.confirm && !name_on() && !pl_on() && !ui.mute && !ui.layer && !fx_knobs)
         bank_set((int32_t)ui.bank + 1);
     acc_oct = 0;
 }
@@ -797,6 +800,9 @@ static void ui_input(void)
 #endif
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
+    if (acc_oct && (ui.mute || ui.layer || fx_knobs))
+        acc_oct = 2;                                    /* OCT+ held under MUTE / PERFORM: no bank on its release, there
+                                                         * or after (they own the panel: item 7) */
     ml_guard();                                         /* MIDI LEARN: off in the menu, NAME, another confirm */
     ml_poll();                                          /* .. a CC / note came for the picked one */
     if (ui.ml.on && !ui.confirm) {                      /* .. PLAY / REC pick their action, and do nothing else */
@@ -1014,10 +1020,15 @@ static void ui_input(void)
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);
     }
-    if ((s = panel_enc(EN_PRESET)) != 0)              /* PRESETS: each detent the next / previous preset, loaded */
+    if ((s = panel_enc(EN_PRESET)) != 0 && (fx_knobs || ui.layer)) {
+        /* PERFORM up: no preset loaded under it (item 7; the turn dropped) */
+    } else if (s) {                                     /* PRESETS: each detent the next / previous preset, loaded */
         for (; s; s += s > 0 ? -1 : 1)                  /* (ui_preset.c: the popup) */
             preset_popup_turn(s > 0 ? 1 : -1);
-    if ((s = panel_enc(EN_ALGO)) != 0) {
+    }
+    if ((s = panel_enc(EN_ALGO)) != 0 && (fx_knobs || ui.layer)) {
+        /* PERFORM up: no track change under it (item 7; the turn dropped) */
+    } else if (s) {
         if (ui.ml.on)
             ml_pick_act(s > 0 ? ML_A_NEXT : ML_A_PREV);   /* MIDI LEARN: NEXT / PREV TRACK picked, no track change */
         else
