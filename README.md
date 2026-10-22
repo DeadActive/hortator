@@ -275,10 +275,11 @@ FM-1's keys as live record does.
 Releases are also on [GitHub](https://github.com/DeadActive/hortator/releases) as `hortator-<version>.fwsc`, with
 what changed in each ([CHANGELOG.md](CHANGELOG.md)). `tools/fm1_install.py` installs a package from a terminal.
 
-The web installer counts finished installs with [GoatCounter](https://www.goatcounter.com): one anonymous event
-("install", titled with the version) after it says Done, with no cookies and no personal data, and the landing page
-shows the total. It is off until the site code is set in `web/sim/counter.js` (`GC_CODE`), and never runs on a local
-copy. `tools/fm1_install.py` sends nothing.
+The site counts visits and finished installs with [GoatCounter](https://www.goatcounter.com) (site code
+`deadactive`, `GC_CODE` in `web/sim/counter.js`; empty turns it off): its count.js on the landing page, the installer
+and the editor, and one anonymous event ("install", titled with the version) after the installer says Done. No
+cookies, no personal data; the landing page shows the install total. Nothing is counted on a local copy or a preview,
+and `tools/fm1_install.py` sends nothing.
 
 ### Back to the official firmware
 

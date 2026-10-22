@@ -66,9 +66,10 @@ with, endorsed by or supported by Elektron, Joe Landers or The Usual Suspects.
 
 ## Services used by the site
 
-The published installer and landing page use [GoatCounter](https://www.goatcounter.com) (a hosted service, not part
-of the firmware or the packages) to count finished installs: one anonymous event per install, no cookies, no
-personal data; off while `GC_CODE` in `web/sim/counter.js` is empty.
+The published landing page, installer and editor use [GoatCounter](https://www.goatcounter.com) (a hosted service,
+not part of the firmware or the packages): its script count.js (from gc.zgo.at) counts visits, and the installer
+sends one anonymous event per finished install. No cookies, no personal data; off while `GC_CODE` in
+`web/sim/counter.js` is empty, and never on a local copy.
 
 ## Contributions
 

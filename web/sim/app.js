@@ -8,7 +8,7 @@ import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
 import { parseReel } from './reel.js';
 import { initFeatures } from './features.js';
-import { installCount } from './counter.js';
+import { installCount, loadPageCounter } from './counter.js';
 import { ditherBackground, initGlitch } from './dither.js';
 import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js';
 
@@ -493,6 +493,7 @@ function plainNote(n) {                            // the changelog's line for p
   if (t.startsWith(n.title)) t = t.slice(n.title.length).replace(/^[\s:,]+/, '');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+loadPageCounter();                                  // visits (count.js), on the published site only
 // the hero's install count (counter.js: GoatCounter's public count; off, slow or failed: nothing shows)
 installCount().then(n => {
   const el = document.getElementById('install-count');

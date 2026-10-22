@@ -144,7 +144,7 @@ const TEXT = {
     back: "To go back to the official firmware, use M-VAVE's updater M-UPGRADE (Downloads → PC Software → M-UPGRADE) with the official firmware (PC Firmware → FM-1 V15).",
     nomidi: "This browser cannot install firmware. Open the page in Chrome or Edge on a computer.", loadfail: "Could not load the firmware: ",
     start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
-    counted: "Counts installs anonymously with GoatCounter: no cookies, no personal data.",
+    counted: "Counts visits and installs anonymously with GoatCounter: no cookies, no personal data.",
     reboot: "Restarting", done: "Done. The FM-1 restarts with Hortator.", stopped: "Stopped. Replug the USB cable and press Install again.",
     error: "Error: ",
     denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
@@ -194,6 +194,7 @@ const load = async () => {
   } catch (e) { sayK("loadfail", e.message); }
 };
 load();
+loadPageCounter();
 if (counterOn()) $("counted").hidden = false;
 if ((meta.variants || []).length > 1) $("variants").hidden = false;
 document.querySelectorAll('input[name="variant"]').forEach((r) => r.addEventListener("change", () => {

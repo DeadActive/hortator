@@ -1,20 +1,37 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
-// The install count (GoatCounter, https://www.goatcounter.com): the installer sends one anonymous event after an
-// install says Done; the landing page shows the public count beside its install button. No script from GoatCounter,
-// no cookies (credentials omitted), no referrer, nothing about the device. Off when GC_CODE is empty, and on any page
-// that is not the published site over https (localhost, a preview, a file, the tests). Used by the landing page
-// (imported) and the installer (inlined by web/make_site.py and tools/build_sim.sh).
+// The site's counts (GoatCounter, https://www.goatcounter.com): page visits by GoatCounter's count.js, added from
+// here only where the counter is on; one anonymous "install" event the installer sends after an install says Done
+// (a plain request, whether count.js loaded or not: it never waits on it); the landing page shows the public count
+// of installs beside its install button. No cookies, nothing about the device. Off when GC_CODE is empty, and on any
+// page that is not the published site over https (localhost, a preview, a file, the tests). Used by the landing page
+// (imported), the installer and the editor (inlined by web/make_site.py and tools/build_sim.sh).
 
-// the GoatCounter site code (CODE.goatcounter.com); '' = the counter is off: no ping, no count shown. The site's
-// settings must allow "adding visitor counts on your website" for the count to be readable.
-export const GC_CODE = '';
+// the GoatCounter site code (CODE.goatcounter.com); '' = the counter is off: no count.js, no ping, no count shown.
+// The site's settings must allow "adding visitor counts on your website" for the count to be readable.
+export const GC_CODE = 'deadactive';
 const GC_EVENT = 'install';                          // the event's path (its name in the dashboard)
 const LOCAL = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0|.*\.local)$/;
 
 // on: a code, and a page served over https from a real host
 export function counterOn(loc = globalThis.location, code = GC_CODE) {
   return !!(code && loc && loc.protocol === 'https:' && loc.hostname && !LOCAL.test(loc.hostname));
+}
+
+// page visits: GoatCounter's count.js (async), added once to the page's head where the counter is on; never throws
+export function loadPageCounter({ doc = globalThis.document, loc = globalThis.location, code = GC_CODE } = {}) {
+  try {
+    const src = 'https://gc.zgo.at/count.js';
+    if (!counterOn(loc, code) || !doc || doc.querySelector(`script[src="${src}"]`)) return false;
+    const s = doc.createElement('script');
+    s.async = true;
+    s.src = src;
+    s.setAttribute('data-goatcounter', `https://${code}.goatcounter.com/count`);
+    doc.head.append(s);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // one event "install" titled with the firmware version: fire and forget. Returns at once (true: a request went out);

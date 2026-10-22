@@ -31,6 +31,7 @@ const CHANGES = [
   ['(async () => {', 'const load = async () => {'],
   ['})();\n', `};
 load();
+loadPageCounter();
 if (counterOn()) $("counted").hidden = false;
 if ((meta.variants || []).length > 1) $("variants").hidden = false;
 document.querySelectorAll('input[name="variant"]').forEach((r) => r.addEventListener("change", () => {
@@ -401,6 +402,8 @@ test('the hero shows the install count beside the install button: hidden until t
   assert.match(css, /\.cta-slot\s*{[^}]*position: relative/);
   assert.match(css, /\.install-count\s*{[^}]*position: absolute/, 'no layout shift when it appears');
   const app = readFileSync('web/sim/app.js', 'utf8');
-  assert.match(app, /import \{ installCount \} from '\.\/counter\.js';/);
   assert.match(app, /installCount\(\)\.then\(/, 'fetched once, not awaited by the page');
+  assert.match(app, /import \{ installCount, loadPageCounter \} from '\.\/counter\.js';/);
+  assert.match(app, /^loadPageCounter\(\);/m, 'visits counted by count.js, added only where the counter is on');
+  assert.doesNotMatch(LANDING, /gc\.zgo\.at/, 'no count.js tag in the page itself (it would load on previews)');
 });

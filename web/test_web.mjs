@@ -18,7 +18,7 @@ import { join } from "node:path";
 import vm from "node:vm";
 import { logicalImage, productOf } from "./fm1pkg.js";
 import { Updater, pack7, unpack7 } from "./fm1ota.js";
-import { GC_CODE, counterOn, countInstall, installCount } from "./sim/counter.js";
+import { GC_CODE, counterOn, countInstall, installCount, loadPageCounter } from "./sim/counter.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(64)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -624,10 +624,10 @@ async function counter() {
   const site = { protocol: "https:", hostname: "deadactive.github.io" };
   const calls = [];
   const spy = (url, opt) => { calls.push([url, opt]); return Promise.resolve({ ok: true }); };
-  ok(GC_CODE === "", "counter: the shipped site code is empty (off until the owner sets it)");
-  ok(!counterOn(site) && countInstall("0.23.0", { loc: site, fetch: spy }) === false && calls.length === 0,
+  ok(GC_CODE === "deadactive" && counterOn(site), "counter: the site's code, deadactive: on at the published site");
+  ok(!counterOn(site, "") && countInstall("0.23.0", { code: "", loc: site, fetch: spy }) === false && calls.length === 0,
     "counter: off without a code: no ping");
-  ok(await installCount({ loc: site, fetch: spy }) === null && calls.length === 0, "counter: off: no read");
+  ok(await installCount({ code: "", loc: site, fetch: spy }) === null && calls.length === 0, "counter: off: no read");
   for (const loc of [{ protocol: "http:", hostname: "localhost" }, { protocol: "http:", hostname: "127.0.0.1" },
     { protocol: "https:", hostname: "localhost" }, { protocol: "file:", hostname: "" }, { protocol: "http:", hostname: "example.org" }, undefined])
     ok(!counterOn(loc, "hortator") && countInstall("0.23.0", { code: "hortator", loc, fetch: spy }) === false && calls.length === 0,
@@ -662,13 +662,39 @@ async function counter() {
   const slow = (u, o) => new Promise((res, rej) => o.signal.addEventListener("abort", () => rej(new Error("aborted"))));
   ok(await installCount({ code: "hortator", loc: site, fetch: slow, timeout: 50 }) === null && Date.now() - t0 < 1000,
     "counter: a slow read gives up after its timeout");
+  // page visits: GoatCounter's count.js, added only where the counter is on, once
+  const fakeDoc = () => {
+    const added = [];
+    return { added, querySelector: (q) => added.find((e) => q.includes(e.src)) || null,
+      createElement: (tag) => ({ tag, dataset: {}, setAttribute(k, v) { this[k] = v; } }), head: { append: (e) => added.push(e) } };
+  };
+  const d1 = fakeDoc();
+  ok(loadPageCounter({ doc: d1, loc: site }) === true && d1.added.length === 1 && d1.added[0].tag === "script"
+    && d1.added[0].src === "https://gc.zgo.at/count.js" && d1.added[0].async === true
+    && d1.added[0]["data-goatcounter"] === "https://deadactive.goatcounter.com/count", "counter: count.js on the site, async, https");
+  ok(loadPageCounter({ doc: d1, loc: site }) === false && d1.added.length === 1, "counter: count.js added once");
+  for (const loc of [{ protocol: "http:", hostname: "127.0.0.1" }, { protocol: "http:", hostname: "localhost" }, undefined]) {
+    const d = fakeDoc();
+    ok(loadPageCounter({ doc: d, loc }) === false && d.added.length === 0, `counter: no count.js on ${loc ? loc.hostname : "no page"}`);
+  }
+  const d2 = fakeDoc();
+  ok(loadPageCounter({ doc: d2, loc: site, code: "" }) === false && d2.added.length === 0, "counter: no count.js without a code");
+  ok(loadPageCounter({ doc: { createElement() { throw new Error("x"); }, querySelector: () => null }, loc: site }) === false,
+    "counter: a failing page never throws");
+  const editorSite = py(`import sys; sys.path.insert(0, ${JSON.stringify(HERE)}); import make_site; print(make_site.editor_html())`).toString();
+  ok(/loadPageCounter\(\);\s*<\/script>\s*<\/body>/.test(editorSite) && editorSite.includes("function loadPageCounter"),
+    "counter: the published editor loads count.js the same way");
+  for (const f of ["index_pkg.html", "editor.html", "sim/index.html", "sim/counter.js", "sim/app.js"])
+    ok(!/["']\/\/gc\.zgo\.at/.test(readFileSync(join(HERE, f), "utf8")), `counter: no protocol-relative count.js in ${f}`);
   // the installer: the ping is the "done" step's last act, never awaited; the note shows only when it is on
   const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
   const uses = inst.match(/.*countInstall\(.*$/gm) || [];
   ok(uses.length === 1 && /if \(k === "done"\) \{[^}]*sayK\("done"\); countInstall\(meta\.version\); \}/.test(uses[0]) && !/await\s+countInstall/.test(inst),
     "installer: one ping, after Done, not awaited");
-  ok(/<p id="counted" data-t="counted" hidden><\/p>/.test(inst) && /if \(counterOn\(\)\) \$\("counted"\)\.hidden = false;/.test(inst),
+  ok(/<p id="counted" data-t="counted" hidden><\/p>/.test(inst) && /if \(counterOn\(\)\) \$\("counted"\)\.hidden = false;/.test(inst)
+    && inst.includes('counted: "Counts visits and installs anonymously with GoatCounter: no cookies, no personal data."'),
     "installer: the privacy note, shown only when counting");
+  ok(/^loadPageCounter\(\);$/m.test(inst), "installer: its visits counted (count.js, guarded)");
 }
 
 await editorMock();

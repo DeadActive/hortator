@@ -12,7 +12,7 @@
   firmware/felucca-VER-ble.fwsc  with a second package (the Bluetooth build, FELUCCA_BLE=1): the installer offers
                               both, the plain one first (2026-10-09)
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js, sim/counter.js and the metadata inlined
-  webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
+  webapp/editor/index.html    editor.html with sim/counter.js's visit count (+ fukiai.ttf, FUKIAI-LICENSE.txt)
   src/                        not touched
 
   web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR [build/felucca-ble-X.Y.fwsc]
@@ -35,6 +35,15 @@ BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
 def strip_module(src):
     src = re.sub(r"^export\s+", "", src, flags=re.M)
     return re.sub(r"^import .*?;\n", "", src, flags=re.M)
+
+
+def editor_html():
+    """editor.html with its visits counted: sim/counter.js inlined before </body>, count.js added only on the site"""
+    html = (HERE / "editor.html").read_text(encoding="utf-8")
+    if html.count("</body>") != 1:
+        raise SystemExit("editor.html must contain </body> once; update make_site.py")
+    counter = strip_module((HERE / "sim" / "counter.js").read_text(encoding="utf-8"))
+    return html.replace("</body>", f'<script type="module">\n{counter}\nloadPageCounter();\n</script>\n</body>')
 
 
 def product_of(raw):
@@ -93,7 +102,7 @@ def main(pkg, version, out, ble_pkg=None):
         encoding="utf-8")
     for doc in ("LICENSE", "LICENSING.md"):
         shutil.copy(HERE.parent / doc, fw / doc)
-    shutil.copy(HERE / "editor.html", ed / "index.html")
+    (ed / "index.html").write_text(editor_html(), encoding="utf-8")
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
