@@ -90,7 +90,7 @@ test('releaseAll lets go of held keys and buttons', async () => {
   assert.ok((sim.keyLeds() >>> 5) & 1, 'held key lit');
   sim.releaseAll();
   run(sim, 2048);
-  assert.equal(sim.keyLeds(), 0, 'released');
+  assert.equal(sim.keyLeds(), 1 << 0, 'released: only the selected track\'s key stays lit (track 1: key 0)');
 });
 
 // ---- controls.js: the panel's data, checked against the firmware

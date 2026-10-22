@@ -146,18 +146,19 @@ static void test_leds(void)
           mix_mode() && ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == steps_lit(&trk[0]));
     tap(B_HOME);                                     /* HOME's second mode: the keys play */
     run(4096);
-    check("HOME (mode 2): its button LED lit, no key LED lit", ui.home && ((sim_leds() >> B_HOME) & 1u) &&
-          sim_key_leds() == 0u);
+    check("HOME (mode 2): its button LED lit, only the selected track's key lit (track 1)", ui.home &&
+          ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == 1u << KEY_TRK_KEY[song.sel]);
     sim_key(5, 1);
     run(2048);
     check("a held note key lights its LED", (sim_key_leds() >> 5) & 1u);
     sim_key(5, 0);
     sim_key(24, 1);
     run(2048);
-    check("a held high key (F5) lights its own LED only", sim_key_leds() == 1u << 24);
+    check("a held high key (F5) lights its own LED, besides the selected track's",
+          sim_key_leds() == (1u << 24 | 1u << KEY_TRK_KEY[song.sel]));
     sim_key(24, 0);
     run(2048);
-    check("released: the key LEDs go off", sim_key_leds() == 0u);
+    check("released: only the selected track's key stays lit", sim_key_leds() == 1u << KEY_TRK_KEY[song.sel]);
 }
 
 static uint32_t dirty_count(void)
