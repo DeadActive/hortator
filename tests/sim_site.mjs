@@ -142,10 +142,10 @@ test('hero pose: the shine never plays while the scene is blurred (a blur filter
 // the panel (Bluetooth, a separate test build, has no panel control yet)
 import { BTN, ENC } from '../web/sim/controls.js';
 
-test('features: nine chapters with a plate each; every panel hint names real controls', () => {
+test('features: eight chapters with a plate each; every panel hint names real controls', () => {
   const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
   const ids = [...sec.matchAll(/<article class="chapter" id="f-(\w+)"/g)].map(m => m[1]);
-  assert.deepEqual(ids, ['md', 'voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
+  assert.deepEqual(ids, ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
   const labels = new Set([...BTN.map(b => b.label), ...ENC.map(e => e.label)]);
   for (const ch of sec.split('<article').slice(1)) {
     const id = ch.match(/id="f-(\w+)"/)[1];
@@ -351,21 +351,14 @@ test('the engine count is the firmware\'s, in the hero and the voices chapter: 4
     assert.match(v, new RegExp(`\\b${n}\\b[^.;:]*${what}|${what}[^.;:]*\\b${n}\\b`), `${n} ${what}`);
   assert.ok(v.indexOf('MD') < v.indexOf('MODERN') && v.indexOf('MODERN') < v.indexOf('CLASSIC'), 'told MD, MODERN, CLASSIC');
   assert.doesNotMatch(LANDING, /Twenty-three|23 drum models/i, 'the old count is gone');
-});
-
-test('the MD chapter: the 21 Machinedrum engines, how they were measured, what is partial, the disclaimer', () => {
-  const md = words(chapter('md'));
-  for (const s of ['Joe Landers', 'Gearmulator', 'The Usual Suspects', 'knob by knob', 'fixed-point', 'CYTRX', 'TMEFM',
-    'partial', 'Machinedrum is a trademark of Elektron. Hortator is not affiliated with Elektron, Joe Landers or The Usual Suspects.'])
-    assert.ok(md.includes(s), s);
-  assert.match(md, /no code, ROM or samples/i);
-  assert.match(md, new RegExp(`\\b${FW.trx.length} TRX\\b`));
-  assert.match(md, new RegExp(`\\b${FW.efm.length} EFM\\b`));
+  const claim = 'Machinedrum is a trademark of Elektron; Hortator is not affiliated.';
+  assert.equal(words(LANDING).split(claim).length, 2, 'the trademark line, once');
+  assert.doesNotMatch(LANDING, /id="f-md"|data-piece="md"/, 'no Machinedrum chapter');
 });
 
 test('the examples lead with MD and MODERN engines: no CLASSIC model in a plate (the voices plate lists it last)', () => {
   const classic = new Set(FW.classic);
-  for (const f of ['lab_reson', 'lab_comp', 'lab_lfo', 'lab_seq', 'lab_grids', 'lab_fx', 'lab_md', 'lab_voices']) {
+  for (const f of ['lab_reson', 'lab_comp', 'lab_lfo', 'lab_seq', 'lab_grids', 'lab_fx', 'lab_voices']) {
     const js = readFileSync(`web/sim/${f}.js`, 'utf8').replace(/\/\/.*$/gm, '');
     for (const [, n] of js.matchAll(/DM\.(\w+)/g)) assert.ok(!classic.has(n), `${f}: DM.${n} is CLASSIC`);
     for (const [, n] of js.matchAll(/'(\w+)'/g)) assert.ok(!classic.has(n), `${f}: '${n}' is CLASSIC`);

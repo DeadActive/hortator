@@ -583,7 +583,7 @@ test('features reel: a clip per chapter (not Bluetooth: no page), each over 5 s,
   const { gunzipSync } = await import('node:zlib');
   const b = gunzipSync(gz), reel = parseReel(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
   const list = JSON.parse(readFileSync(join(DIR, 'features.json'), 'utf8'));
-  assert.deepEqual(list.map(c => c.name), ['md', 'voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
+  assert.deepEqual(list.map(c => c.name), ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
   let at = 0;
   for (const c of list) {
     assert.equal(c.from, at, `${c.name} follows on`);
@@ -644,11 +644,3 @@ test('lab: the pump under an MD kick: BDTRX keys the compressor, an ACID line (n
   assert.equal(off.gr, 0);
 });
 
-import { MACHINES } from '../web/sim/lab_md.js';
-test('the MD plate names every MD engine, and only those, with the machine it was measured from', () => {
-  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
-  const md = ids.list.map(id => ids.models[id]).filter(m => ids.banks[m.bank] === 'MACHINEDRUM').map(m => m.name);
-  assert.deepEqual(Object.keys(MACHINES).sort(), [...md].sort());
-  for (const [name, [machine]] of Object.entries(MACHINES))
-    assert.match(machine, new RegExp(`^${name.slice(-3)}-[A-Z0-9]{2}$`), name);
-});

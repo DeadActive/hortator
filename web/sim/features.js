@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
-// The features section (docs/superpowers/specs/2026-10-09-websim-features-lab-design.md): nine chapters, each a
+// The features section (docs/superpowers/specs/2026-10-09-websim-features-lab-design.md): eight chapters, each a
 // piece on the firmware's own DSP. The analyser (lab.js Lab, silent, in the page) starts when the section nears the
 // screen and draws every piece; the player (LabPlayer, an AudioWorklet) starts on the first Play and sounds one piece
 // at a time. A piece that leaves the screen, or a hidden tab, stops.
@@ -11,7 +11,6 @@ import { parseReel, snapshots } from './reel.js';
 
 const PIECES = {                                     // data-piece -> its module, loaded once the analyser runs
   voices: () => import('./lab_voices.js'),
-  md: () => import('./lab_md.js'),
   reson: () => import('./lab_reson.js'),
   comp: () => import('./lab_comp.js'),
   lfo: () => import('./lab_lfo.js'),
@@ -25,7 +24,6 @@ const PIECES = {                                     // data-piece -> its module
 // mode), as the chapter's "On the panel"
 const PAGES = {
   voices: [{ sel: 0 }, { tap: 'EDIT' }],                       // SOUND 1/3
-  md: [{ sel: 0 }, { tap: 'EDIT' }],                           // SOUND 1/3 of the picked MD engine
   reson: [{ sel: 0 }, ...Array(5).fill({ tap: 'FX' })],       // FILTER 1, 2, FX, SLICER, RESON 1
   comp: [{ tap: 'HOME' }, { enc: 'SELECT' }],                   // the HOME screen, SELECT on: COMP 2/3
   lfo: [{ sel: 0 }, { tap: 'LFO' }],                           // LFO 1
