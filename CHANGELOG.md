@@ -5,6 +5,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.23.1 - 2026-10-22
+
+- Web site only (the firmware is the same as 0.23.0): the landing page and the installer count visits and installs
+  anonymously with GoatCounter (deadactive.goatcounter.com; no cookies, no personal data); the hero shows "Installed N
+  times" under the install button. The install is counted once, after the installer says Done, and never holds it up.
+
 ## 0.23.0 - 2026-10-22
 
 The first published release since 0.16.0: it also brings everything in 0.17.0 .. 0.22.0 (CHANGELOG.md): the MD
