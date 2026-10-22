@@ -70,6 +70,12 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 "$OUT/smc_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/bt_page_test" tests/bt_page_test.c -lm
 "$OUT/bt_page_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/bt_devs_test" tests/bt_devs_test.c -lm   # (the Bluetooth store, the saved devices)
+"$OUT/bt_devs_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/bt_midi_test" tests/bt_midi_test.c -lm   # (MIDI out, clock out, the release, FM-LINK)
+"$OUT/bt_midi_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/bt_fml_test" tests/bt_fml_test.c -lm   # (FM-Link through the sequencer)
+"$OUT/bt_fml_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/redraw_test" tests/redraw_test.c -lm   # (the LCD traffic per frame)
 "$OUT/redraw_test"
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \

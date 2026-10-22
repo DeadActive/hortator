@@ -218,6 +218,20 @@ static uint32_t cpu_alert(void)
     return ui.cpu_on;
 }
 
+#if FELUCCA_BLE
+static uint32_t bt_head_icon(void);                    /* bt_page.c: 0 none, 1 struck (on, nothing linked), 2 lit */
+static void draw_bt_icon(int32_t cx, uint32_t k)       /* the rune in BG lines, 7 x 10 px about cx; struck: a diagonal */
+{
+    const int32_t t = 3, b = 12;
+    cv_line(cx, t, cx, b, C_BG);                       /* the spine, the two arrows on its right */
+    cv_line(cx, t, cx + 3, t + 3, C_BG);
+    cv_line(cx + 3, t + 3, cx - 3, b - 3, C_BG);
+    cv_line(cx, b, cx + 3, b - 3, C_BG);
+    cv_line(cx + 3, b - 3, cx - 3, t + 3, C_BG);
+    if (k == 1u)
+        cv_line(cx - 5, b + 1, cx + 5, t - 1, C_BG);
+}
+#endif
 /* the top bar (spec 2026-10-19-md-ui §5): an ink bar; in BG the state glyph (stop, play, REC armed elsewhere: an
  * outlined circle, the selected track armed: solid), BPM, FX (a PERFORM knob effect on), the mode or the song's row,
  * T<n>, the CPU chip (steady for 2 s after an overload), USB, battery. Messages are a popup (draw_msg). */
@@ -235,6 +249,9 @@ static void draw_head(void)
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
                    (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u;
     sig += cpu * 50021u + blink * 27u;
+#if FELUCCA_BLE
+    sig += bt_head_icon() * 2654435761u;               /* (the Bluetooth icon: none, struck, lit) */
+#endif
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
@@ -269,6 +286,11 @@ static void draw_head(void)
             cv_pset(cx + 8, 5 + (int32_t)k * 2, C_BG);
         }
     }
+#if FELUCCA_BLE
+    if (bt_head_icon() && (blink ? x + 13 : x) <= 180)   /* Bluetooth (on: struck, linked: whole), left of USB
+                                                       * (x 181..191); not when a long mode text took the room */
+        draw_bt_icon(186, bt_head_icon());
+#endif
     if (usb.config && !usb.suspended)
         md_text(196, 3, &MD_ICON, 2, "u", C_BG);
     lvl = batt_shown();                               /* the battery: outline, nub, up to 3 cells */
