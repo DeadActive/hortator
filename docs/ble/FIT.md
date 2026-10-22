@@ -170,7 +170,7 @@ glue, the page's new rows, the top-bar icon. Nothing is left out (the user, 2026
 | 0.23.2, plain | 328,388 | 253,176 | 55,740 | 307,308 | 2,888 |
 | 0.23.2, Bluetooth (the first generation) | 462,640 | 118,924 | 68,412 | 331,056 | |
 | the upgrade, the heap and the tasks in the pool | 477,924 | 103,640 | 70,592 | 338,304 (5,760 spare: under the 8 KB kept) | 6,864 |
-| **the upgrade, the chorus line (4,096 B) in `.bss`** | **477,924** | **103,640** | **74,688** (23,616 spare) | **334,208** (9,856 spare) | **6,864** |
+| **the upgrade, the chorus line (4,096 B) in `.bss` (the packaged build)** | **478,020** | **103,544** | **74,704** (23,600 spare) | **334,208** (9,856 spare) | **6,864** |
 
 The pool would keep less than its 8 KB with the larger heap, so the Bluetooth build places FX's chorus line
 (`fx.c cho_buf`, 4,096 B, zeroed at boot as the pool is) in `.bss` (`#if FELUCCA_BLE`): `.bss` has the room, the
