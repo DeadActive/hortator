@@ -3,7 +3,7 @@
 // The web simulator's page glue on the built wasm (tools/build_sim.sh): node tests/sim_glue.mjs [build/sim]
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Fm1Sim, FS } from '../web/sim/engine.js';
 
@@ -583,7 +583,7 @@ test('features reel: a clip per chapter (not Bluetooth: no page), each over 5 s,
   const { gunzipSync } = await import('node:zlib');
   const b = gunzipSync(gz), reel = parseReel(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
   const list = JSON.parse(readFileSync(join(DIR, 'features.json'), 'utf8'));
-  assert.deepEqual(list.map(c => c.name), ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
+  assert.deepEqual(list.map(c => c.name), ['voices', 'md', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
   let at = 0;
   for (const c of list) {
     assert.equal(c.from, at, `${c.name} follows on`);
@@ -597,4 +597,58 @@ test('features reel: a clip per chapter (not Bluetooth: no page), each over 5 s,
     if (i % 15 === 0) seen.add(fb.reduce((h, v) => (h * 31 + v) >>> 0, 7));
   }
   assert.ok(seen.size > reel.frames / 15 * 0.9, `${seen.size} different screens in ${reel.frames / 15} s`);
+});
+
+test('lab ids: the models by their shown names, each in its bank, the MODEL list MD -> MODERN -> CLASSIC; every DM the pages name exists', () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  assert.equal(ids.models.length, 45);
+  for (const m of ids.models) assert.equal(ids.DM[m.name], m.id, m.name);
+  const banks = ids.list.map(id => ids.models[id].bank);
+  assert.deepEqual(ids.banks, ['MACHINEDRUM', 'MODERN', 'CLASSIC']);
+  assert.deepEqual([0, 1, 2].map(b => banks.filter(x => x === b).length), [21, 10, 14]);
+  assert.deepEqual(banks, [...banks].sort((a, b) => a - b), 'the list runs bank by bank');
+  assert.equal(ids.models[ids.list[0]].name, 'BDTRX');
+  assert.deepEqual([ids.presets.factory, ids.presets.user], [151, 128]);
+  for (const f of readdirSync('web/sim').filter(f => f.endsWith('.js')))
+    for (const [, n] of readFileSync(`web/sim/${f}`, 'utf8').matchAll(/\bDM\.(\w+)/g))
+      assert.ok(n in ids.DM, `${f}: DM.${n} is not a model`);
+});
+
+test('lab: the pump under an MD kick: BDTRX keys the compressor, an ACID line (notes, a slide) ducks under it', async () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const lab = await Lab.create(WASM, ids);
+  const { P, G, DM } = ids, bar = ids.fs * 2;
+  const run = src => {
+    lab.reset();
+    lab.model(0, DM.BDTRX);
+    lab.model(1, DM.ACID);
+    for (let s = 0; s < 16; s++) {
+      lab.step(0, s, s % 4 === 0);
+      lab.step(1, s, true, s % 4 === 2);
+      lab.note(1, s, s % 8 === 6 ? -12 : -24, s === 7, false);
+    }
+    lab.param(1, P.DUCK, 1);
+    lab.global(G.CSRC, src);
+    lab.global(G.CTHR, 20);
+    lab.global(G.CRAT, 90);
+    lab.param(0, P.LEVEL, 0);
+    lab.play(true);
+    lab.renderMono(bar);
+    lab.probeClear();
+    const a = lab.renderMono(bar);
+    return { gr: Math.min(...lab.probes().map(p => p.gr)) * 241 / 327680, peak: Math.max(...a.map(Math.abs)) };
+  };
+  const on = run(1), off = run(0);
+  assert.ok(off.peak > 0.02, `the ACID line is heard (${off.peak})`);
+  assert.ok(on.gr < -3, `keyed by BDTRX it ducks (${on.gr.toFixed(1)} dB)`);
+  assert.equal(off.gr, 0);
+});
+
+import { MACHINES } from '../web/sim/lab_md.js';
+test('the MD plate names every MD engine, and only those, with the machine it was measured from', () => {
+  const ids = JSON.parse(readFileSync(join(DIR, 'lab_ids.json'), 'utf8'));
+  const md = ids.list.map(id => ids.models[id]).filter(m => ids.banks[m.bank] === 'MACHINEDRUM').map(m => m.name);
+  assert.deepEqual(Object.keys(MACHINES).sort(), [...md].sort());
+  for (const [name, [machine]] of Object.entries(MACHINES))
+    assert.match(machine, new RegExp(`^${name.slice(-3)}-[A-Z0-9]{2}$`), name);
 });

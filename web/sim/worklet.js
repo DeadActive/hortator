@@ -52,7 +52,7 @@ registerProcessor('fm1', Fm1Processor);
 // instance; calls arrive as messages (whitelisted Lab methods), probes go back about 60 times a second.
 import { Lab } from './lab.js';
 
-const LAB_CALLS = new Set(['reset', 'model', 'param', 'global', 'step', 'play', 'hit', 'perf', 'watch', 'mute', 'motion',
+const LAB_CALLS = new Set(['reset', 'model', 'param', 'global', 'step', 'note', 'play', 'hit', 'perf', 'watch', 'mute', 'motion',
   'knob', 'motionClear']);
 
 class Fm1LabProcessor extends AudioWorkletProcessor {

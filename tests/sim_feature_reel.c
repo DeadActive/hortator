@@ -22,12 +22,24 @@ typedef struct { const char *name; float seconds; const act_t *acts; uint32_t n;
 #define W5 7u
 #define W6 9u
 
-static const act_t VOICES[] = {                           /* SOUND: eight models stepped through, DECAY and TUNE to their ends */
+static const act_t VOICES[] = {                           /* SOUND: the MODEL list's three banks from demo 1's BDTRX
+                                                           * (#01): through MD to MODERN, then to CLASSIC; DECAY and
+                                                           * TUNE to their ends */
+    {0.3f, 'b', B_EDIT, 0, 0},
+    {1.2f, 's', EN_K1, 1, 21},                            /* the 21 MD engines in turn, to BOOM (#22) */
+    {3.0f, 'e', EN_K1, 1, 0}, {3.45f, 'e', EN_K1, 1, 0}, {3.9f, 'e', EN_K1, 1, 0},   /* PUNCH SNAP CRACK */
+    {4.5f, 's', EN_K1, 1, 7},                             /* to K808 (#32), the CLASSIC bank */
+    {5.4f, 'e', EN_K1, 1, 0}, {5.85f, 'e', EN_K1, 1, 0},
+    {6.4f, 's', EN_K3, 5, 14}, {7.4f, 's', EN_K3, -5, 14},
+    {8.4f, 's', EN_K2, 3, 12}, {9.2f, 's', EN_K2, -3, 12},
+};
+static const act_t MD[] = {                               /* SOUND: the MD bank engine by engine, BDTRX to CYEFM */
     {0.3f, 'b', B_EDIT, 0, 0},
     {0.9f, 'e', EN_K1, 1, 0}, {1.35f, 'e', EN_K1, 1, 0}, {1.8f, 'e', EN_K1, 1, 0}, {2.25f, 'e', EN_K1, 1, 0},
     {2.7f, 'e', EN_K1, 1, 0}, {3.15f, 'e', EN_K1, 1, 0}, {3.6f, 'e', EN_K1, 1, 0}, {4.05f, 'e', EN_K1, 1, 0},
-    {4.6f, 's', EN_K3, 5, 16}, {5.8f, 's', EN_K3, -5, 26},
-    {7.6f, 's', EN_K2, 3, 16}, {8.8f, 's', EN_K2, -3, 16},
+    {4.5f, 'e', EN_K1, 1, 0}, {4.95f, 'e', EN_K1, 1, 0}, {5.4f, 'e', EN_K1, 1, 0}, {5.85f, 'e', EN_K1, 1, 0},
+    {6.3f, 'e', EN_K1, 1, 0}, {6.75f, 'e', EN_K1, 1, 0}, {7.2f, 'e', EN_K1, 1, 0}, {7.65f, 'e', EN_K1, 1, 0},
+    {8.1f, 'e', EN_K1, 1, 0}, {8.55f, 'e', EN_K1, 1, 0}, {9.0f, 'e', EN_K1, 1, 0}, {9.45f, 'e', EN_K1, 1, 0},
 };
 static const act_t RESON[] = {                            /* FX to RESON; the four models, TUNE, DECAY, MIX swept */
     {0.3f, 'b', B_FX, 0, 0}, {0.6f, 'b', B_FX, 0, 0}, {0.9f, 'b', B_FX, 0, 0}, {1.2f, 'b', B_FX, 0, 0},
@@ -82,7 +94,7 @@ static const act_t FX[] = {                               /* FILTER's CUT swept,
 };
 #define CLIP(name, s, a) {name, s, a, sizeof a / sizeof a[0]}
 static const clip_t CLIPS[] = {
-    CLIP("voices", 10.0f, VOICES), CLIP("reson", 9.8f, RESON), CLIP("comp", 8.2f, COMP), CLIP("lfo", 10.0f, LFO),
+    CLIP("voices", 10.0f, VOICES), CLIP("md", 10.4f, MD), CLIP("reson", 9.8f, RESON), CLIP("comp", 8.2f, COMP), CLIP("lfo", 10.0f, LFO),
     CLIP("seq", 8.0f, SEQ), CLIP("grids", 9.4f, GRIDS), CLIP("fx", 10.6f, FX),
 };
 #define NCLIPS (sizeof CLIPS / sizeof CLIPS[0])

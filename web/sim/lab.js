@@ -22,6 +22,7 @@ export class Lab {
   param(t, p, v) { this.x.lab_param(t, p, Math.round(v)); }
   global(g, v) { this.x.lab_global(g, Math.round(v)); }
   step(t, s, on, acc = false, cond = 0, rat = 0) { this.x.lab_step(t, s, on ? 1 : 0, acc ? 1 : 0, cond, rat); }
+  note(t, s, nt, slide = false, tie = false) { this.x.lab_note(t, s, nt, slide ? 1 : 0, tie ? 1 : 0); }   // 0 = C4
   play(on) { this.x.lab_play(on ? 1 : 0); }
   hit(t, vel = 127) { this.x.lab_hit(t, vel); }
   perf(e, down) { this.x.lab_perf(e, down ? 1 : 0); }

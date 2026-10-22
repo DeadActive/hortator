@@ -97,6 +97,8 @@ html { scroll-snap-type: y proximity; }
   text-shadow: 4px 4px 0 var(--k);
 }
 .hero-copy p { margin: 16px 0 0; max-width: 46ch; color: var(--c4); background: var(--k); }
+.hero-copy .hero-count { color: var(--c5); }
+.hero-copy .hero-count b { padding: 0 4px; color: var(--k); background: var(--w); font-weight: normal; }   /* the screen's inverted bars */
 .hero-copy .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 24px; background: none; }
 .scroll-cue {
   position: absolute; right: max(16px, 4vw); bottom: 24px; margin: 0; color: var(--c3);
@@ -219,6 +221,7 @@ html { scroll-behavior: smooth; }
 .ch-text p { margin: 0 0 8px; color: var(--c4); }
 .ch-text p.where { margin-top: 16px; color: var(--c5); }
 .device-screen { margin: 24px 0 0; }
+.ch-text p.fine { margin-top: 24px; max-width: 268px; color: var(--c3); }
 .device-screen canvas { display: block; width: 240px; height: 240px; max-width: 100%; aspect-ratio: 1; padding: 12px;
   box-sizing: content-box; background: var(--k); image-rendering: pixelated; image-rendering: crisp-edges;
   border: 2px solid var(--c2); box-shadow: 6px 6px 0 var(--c1); }
@@ -263,6 +266,20 @@ html { scroll-behavior: smooth; }
 .plate .lfo-head.key-led::before { background: var(--w); }
 .plate .lfo-head.key-warm::before { background: var(--k) var(--d50) 0 0 / 4px 4px; }
 .plate .scopes.two { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+/* the MD plate (lab_md.js): a tile per engine, its name, the machine it was measured from, its hit */
+.plate .md-families { display: grid; gap: 10px; }
+.plate .md-families .family-name { margin: 6px 0 0; }
+.plate .md-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+.plate .md-tile { display: grid; gap: 4px; padding: 8px; text-align: left; font: 16px/1 var(--mono); cursor: pointer;
+  background: var(--k); color: var(--c4); border: 2px solid var(--c2); }
+.plate .md-tile:hover { border-color: var(--c4); }
+.plate .md-tile[aria-checked="true"] { border-color: var(--w); box-shadow: 4px 4px 0 var(--c1); }
+.plate .md-head { display: flex; justify-content: space-between; gap: 6px; }
+.plate .md-name { color: var(--w); }
+.plate .md-tag { padding: 0 3px; background: var(--c4); color: var(--k); }
+.plate .md-what, .plate .md-len { color: var(--c3); }
+.plate .scope.md-thumb { height: 40px; }
+.plate .md-hint { color: var(--c3); }
 .plate .controls-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .plate .families { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); gap: 14px 22px; }
 .plate .families.inline { display: flex; flex-wrap: wrap; gap: 14px 32px; }

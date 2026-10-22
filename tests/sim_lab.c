@@ -103,6 +103,17 @@ void lab_step(uint32_t t, uint32_t s, uint32_t on, uint32_t acc, uint32_t cond, 
     st->cond = (uint8_t)(cond < COND_MAX ? cond : COND_MAX);
     st->rat = (uint8_t)(rat < 3u ? rat : 3u);
 }
+void lab_note(uint32_t t, uint32_t s, int32_t nt, uint32_t slide, uint32_t tie)   /* a step's NOTE (ACID's, a drum's
+                                                                                     * transpose; 0 = C4), SLIDE, TIE */
+{
+    step_t *st;
+    if (t >= NTRK || s >= NSTEP)
+        return;
+    st = &trk[t].step[s];
+    st->nt = (int8_t)(nt < NT_MIN ? NT_MIN : nt > NT_MAX ? NT_MAX : nt);
+    st->slide = slide ? 1u : 0u;
+    st->tie = tie ? 1u : 0u;
+}
 void lab_play(int on) { transport_req = on ? 1u : 2u; }   /* taken at the next block, as the UI does */
 void lab_hit(uint32_t t, uint32_t vel) { if (t < NTRK) drum_hit(&trk[t], vel); }
 void lab_perf(uint32_t e, int down) { if (e < PF_N) perf_press(e, down); }

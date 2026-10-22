@@ -48,6 +48,16 @@ static void names(const char *k, const char *const *n, int count)
     printf("]");
 }
 
+/* a model's bank (PB_MD, PB_MODERN, PB_CLASSIC): its first factory preset's; a voice with none (SHTRX, CLTRX) is in
+ * the bank of the model before it in the MODEL list */
+static uint32_t model_bank(uint32_t m)
+{
+    uint32_t id = preset_first_of(m);
+    if (id != PRE_NONE)
+        return preset_bank_of(id);
+    return model_list_idx(m) ? model_bank(MODEL_LIST[model_list_idx(m) - 1u]) : PB_MD;
+}
+
 #define ID(prefix, name) key(#name), printf("%d", prefix##name)
 #define TPD(name) key(#name), desc(&TP[P_##name])
 #define GPD(name) key(#name), desc(&GP[G_##name])
@@ -79,11 +89,10 @@ int main(void)
     printf("},\n\"RS\": {");
     first = 1;
     ID(RS_, OFF); ID(RS_, STRNG); ID(RS_, PIPE); ID(RS_, CHORD); ID(RS_, MODAL);
-    printf("},\n\"DM\": {");
+    printf("},\n\"DM\": {");                     /* every model by the name the FM-1 shows (N_MODEL) */
     first = 1;
-    ID(DM_, K808); ID(DM_, K909); ID(DM_, S808); ID(DM_, S909); ID(DM_, C808); ID(DM_, C909); ID(DM_, HATC); ID(DM_, HATO);
-    ID(DM_, CYMB); ID(DM_, COWB); ID(DM_, TOM); ID(DM_, CONGA); ID(DM_, RIM); ID(DM_, CLAVE); ID(DM_, SMPL);
-    ID(DM_, KBOOM); ID(DM_, KPUNC); ID(DM_, SSNAP); ID(DM_, SCRAK); ID(DM_, HMETL); ID(DM_, HNOIS); ID(DM_, MEMB); ID(DM_, FM);
+    for (m = 0; m < NMODELS; m++)
+        key(N_MODEL[m]), printf("%u", m);
     printf("},\n\"tp\": {");
     first = 1;
     TPD(LEVEL); TPD(PAN); TPD(DIST); TPD(CHOR); TPD(DLY); TPD(REV); TPD(SLCR); TPD(SLPAT); TPD(SLRATE); TPD(SLDEPTH);
@@ -103,14 +112,24 @@ int main(void)
     for (m = 0; m < NMODELS; m++) {
         printf("%s\n {\"id\": %u, \"name\": ", m ? "," : "", m);
         str(N_MODEL[m]);
-        printf(", \"voices\": %u, \"edit\": [", (unsigned)DMODELS[m].voices);
+        printf(", \"bank\": %u, \"voices\": %u, \"edit\": [", model_bank(m), (unsigned)DMODELS[m].voices);
         for (e = 0; e < 8u; e++) {
             printf(e ? ", " : "");
             desc(&DMODELS[m].edit[e]);
         }
         printf("]}");
     }
-    printf("],\n\"names\": {");
+    printf("],\n\"list\": [");                    /* the MODEL knob's order (ui.c MODEL_LIST) */
+    for (m = 0; m < NMODELS; m++)
+        printf("%s%u", m ? ", " : "", (unsigned)MODEL_LIST[m]);
+    printf("],\n\"banks\": [");
+    for (m = 0; m < PB_USER; m++)
+        printf(m ? ", " : ""), str(N_PBANK[m]);
+    printf("],\n\"presets\": {\"factory\": %u, \"user\": %u, \"bank\": [", (unsigned)PRE_NFACT, (unsigned)PRE_NUSER);
+    for (m = 0; m < PB_USER; m++)
+        printf("%s%u", m ? ", " : "", (unsigned)(PRE_BANK_START[m + 1u] - PRE_BANK_START[m]));
+    printf("]}");
+    printf(",\n\"names\": {");
     first = 1;
     names("lwave", N_LWAVE, LW_COUNT);
     names("rmodel", N_RMODEL, RS_NMODEL);

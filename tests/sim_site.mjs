@@ -142,10 +142,10 @@ test('hero pose: the shine never plays while the scene is blurred (a blur filter
 // the panel (Bluetooth, a separate test build, has no panel control yet)
 import { BTN, ENC } from '../web/sim/controls.js';
 
-test('features: eight chapters with a plate each; every panel hint names real controls', () => {
+test('features: nine chapters with a plate each; every panel hint names real controls', () => {
   const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
   const ids = [...sec.matchAll(/<article class="chapter" id="f-(\w+)"/g)].map(m => m[1]);
-  assert.deepEqual(ids, ['voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
+  assert.deepEqual(ids, ['voices', 'md', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
   const labels = new Set([...BTN.map(b => b.label), ...ENC.map(e => e.label)]);
   for (const ch of sec.split('<article').slice(1)) {
     const id = ch.match(/id="f-(\w+)"/)[1];
@@ -312,4 +312,86 @@ test('the type is the firmware\'s: Terminus from its BDF as a web font, every ch
   assert.deepEqual(missing, [], 'characters Terminus lacks');
   assert.doesNotMatch(LANDING, /Archivo|IBM\+Plex/, 'no other typeface');
   assert.match(readFileSync('web/sim/sim.css', 'utf8'), /@font-face\s*{[^}]*terminus\.woff/);
+});
+
+// ---- the engines: the page's numbers are the firmware's (dmodels.c N_MODEL, the presets' banks), MD first
+const FW = (() => {
+  const src = f => readFileSync(f, 'utf8');
+  const names = [...src('firmware/src/dmodels.c').match(/N_MODEL\[NMODELS\] = \{([^}]*)\}/)[1].matchAll(/"(\w+)"/g)]
+    .map(m => m[1]);
+  const classic = names.slice(0, names.indexOf('CLAVE') + 1);   // the enum's first models, K808 .. CLAVE (ui.c MODEL_LIST)
+  const trx = names.filter(n => n.endsWith('TRX')), efm = names.filter(n => n.endsWith('EFM'));
+  const modern = names.filter(n => !classic.includes(n) && !trx.includes(n) && !efm.includes(n));
+  const banks = JSON.parse(src('tools/presets.json'));
+  return {
+    names, classic, trx, efm, modern, md: [...trx, ...efm],
+    factory: banks.reduce((a, b) => a + b.presets.length, 0),
+    mdPresets: banks.find(b => b.bank === 'MACHINEDRUM').presets.length,
+    user: Number(src('firmware/src/presets.c').match(/#define PRE_NUSER (\d+)u/)[1]),
+  };
+})();
+const chapter = id => {
+  const at = LANDING.indexOf(`<article class="chapter" id="f-${id}"`);
+  assert.ok(at >= 0, `chapter f-${id}`);
+  return LANDING.slice(at, LANDING.indexOf('</article>', at));
+};
+const words = html => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#8209;/g, ' ').replace(/\s+/g, ' ');
+
+test('the engine count is the firmware\'s, in the hero and the voices chapter: 45 in three banks, MD first', () => {
+  assert.deepEqual([FW.names.length, FW.md.length, FW.trx.length, FW.efm.length, FW.modern.length, FW.classic.length],
+    [45, 21, 13, 8, 10, 14], 'the firmware changed: update the page and this line');
+  assert.deepEqual([FW.factory, FW.user, FW.mdPresets], [151, 128, 55]);
+  const hero = words(LANDING.slice(LANDING.indexOf('id="hero-copy"'), LANDING.indexOf('id="scroll-cue"')));
+  assert.match(hero, new RegExp(`\\b${FW.names.length} (drum |sound )?engines\\b`), 'the hero tells the count');
+  assert.match(hero, new RegExp(`\\b${FW.md.length}\\b[^.]*Machinedrum`), 'and the MD bank\'s');
+  const v = words(chapter('voices'));
+  for (const [n, what] of [[FW.names.length, 'engines'], [FW.md.length, 'MD'], [FW.trx.length, 'TRX'],
+    [FW.efm.length, 'EFM'], [FW.modern.length, 'MODERN'], [FW.classic.length, 'CLASSIC'], [FW.factory, 'factory presets'],
+    [FW.user, 'user']])
+    assert.match(v, new RegExp(`\\b${n}\\b[^.;:]*${what}|${what}[^.;:]*\\b${n}\\b`), `${n} ${what}`);
+  assert.ok(v.indexOf('MD') < v.indexOf('MODERN') && v.indexOf('MODERN') < v.indexOf('CLASSIC'), 'told MD, MODERN, CLASSIC');
+  assert.doesNotMatch(LANDING, /Twenty-three|23 drum models/i, 'the old count is gone');
+});
+
+test('the MD chapter: the 21 Machinedrum engines, how they were measured, what is partial, the disclaimer', () => {
+  const md = words(chapter('md'));
+  for (const s of ['Joe Landers', 'Gearmulator', 'The Usual Suspects', 'knob by knob', 'fixed-point', 'CYTRX', 'TMEFM',
+    'partial', 'Machinedrum is a trademark of Elektron. Hortator is not affiliated with Elektron, Joe Landers or The Usual Suspects.'])
+    assert.ok(md.includes(s), s);
+  assert.match(md, /no code, ROM or samples/i);
+  assert.match(md, new RegExp(`\\b${FW.trx.length} TRX\\b`));
+  assert.match(md, new RegExp(`\\b${FW.efm.length} EFM\\b`));
+});
+
+test('the examples lead with MD and MODERN engines: no CLASSIC model in a plate (the voices plate lists it last)', () => {
+  const classic = new Set(FW.classic);
+  for (const f of ['lab_reson', 'lab_comp', 'lab_lfo', 'lab_seq', 'lab_grids', 'lab_fx', 'lab_md', 'lab_voices']) {
+    const js = readFileSync(`web/sim/${f}.js`, 'utf8').replace(/\/\/.*$/gm, '');
+    for (const [, n] of js.matchAll(/DM\.(\w+)/g)) assert.ok(!classic.has(n), `${f}: DM.${n} is CLASSIC`);
+    for (const [, n] of js.matchAll(/'(\w+)'/g)) assert.ok(!classic.has(n), `${f}: '${n}' is CLASSIC`);
+  }
+  assert.match(readFileSync('web/sim/lab_voices.js', 'utf8'), /model: DM\.BDTRX/, 'the voices plate opens on BDTRX');
+});
+
+test('the compressor pumps ACID, the 303-style bass line, under an MD kick (BDTRX the key)', () => {
+  const js = readFileSync('web/sim/lab_comp.js', 'utf8');
+  const kit = js.slice(js.indexOf('const kit'), js.indexOf('const settings'));
+  assert.match(kit, /'model', 0, DM\.BDTRX/, 'track 1, the key: BDTRX');
+  assert.match(kit, /'model', \w+, DM\.ACID/, 'the ducked voice: ACID');
+  assert.match(kit, /'note',/, 'ACID plays a line of notes');
+  assert.doesNotMatch(kit, /RIM|CLAVE|CHORD/, 'no rimshot chord any more');
+  assert.match(words(chapter('comp')), /ACID/);
+});
+
+test('the first-visit demos (tests/sim_demo.c) lead with the MD bank; CLASSIC, if any, is the last demo', () => {
+  const src = readFileSync('tests/sim_demo.c', 'utf8');
+  const kits = [...src.slice(src.indexOf('SIM_KITS[4]')).matchAll(/\{\{(DM_\w+(?:, DM_\w+)*)\}/g)].slice(0, 4)
+    .map(m => m[1].split(', '));
+  assert.equal(kits.length, 4);
+  const order = readFileSync('firmware/src/dmodels.c', 'utf8')   // the enum's names.match(/enum \{ (DM_K808[^}]*) \}/)[1].split(', ');
+  const isClassic = m => order.indexOf(m) <= order.indexOf('DM_CLAVE');
+  const isMd = m => /TRX$|EFM$/.test(m);
+  assert.ok(kits[0].every(isMd) && kits[1].every(isMd), `demos 1 and 2 are MD kits: ${kits[0]} / ${kits[1]}`);
+  for (const k of kits.slice(0, 3)) assert.ok(!k.some(isClassic), `no CLASSIC before the last demo: ${k}`);
+  assert.ok(kits.some(k => k.includes('DM_ACID')), 'a demo plays ACID');
 });

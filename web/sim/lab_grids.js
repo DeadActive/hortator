@@ -20,7 +20,7 @@ export default function grids(plate, { lab, ids, screen }) {
     t.call('global', G.GCHAOS, state.chaos);
     state.fill.forEach((f, ch) => t.call('global', G.GFILL1 + ch, f));
   };
-  const kit = t => [DM.K909, DM.S909, DM.HATC].forEach((m, k) => {
+  const kit = t => [DM.BDTRX, DM.SDTRX, DM.CHTRX].forEach((m, k) => {
     t.call('model', k, m);
     t.call('param', k, P.SRC, k + 1);                // the track follows Grids' channel k + 1 (SEQ > PATTERN SRC)
   });

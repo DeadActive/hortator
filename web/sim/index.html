@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hortator: drum-machine firmware for the M-VAVE FM-1</title>
-<meta name="description" content="Hortator turns the M-VAVE FM-1 into an eight-track drum machine. Play it in your browser, then install it over USB.">
+<meta name="description" content="Hortator turns the M-VAVE FM-1 into an eight-track drum machine with 45 drum engines, 21 of them measured from the Machinedrum. Play it in your browser, then install it over USB.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -41,6 +41,8 @@
       <h1>Eight tracks of drums, inside the M&#8209;VAVE&nbsp;FM&#8209;1.</h1>
       <p>Hortator is custom firmware by DEADACTIVE, named after the drummer who kept a Roman galley's rowers in
         time. Keep scrolling and the machine is yours to play: the real firmware, running in your browser.</p>
+      <p class="hero-count"><b>45</b> drum engines in three banks: <b>21</b> measured from the Machinedrum (13 TRX,
+        8 EFM), <b>10</b> modern, <b>14</b> classic. <b>151</b> factory presets, <b>128</b> user slots.</p>
       <p class="hero-actions">
         <a class="cta" href="#play">Play it</a>
         <a class="cta ghost" href="webapp/installer/">Install on your FM-1</a>
@@ -99,16 +101,43 @@
   </header>
   <article class="chapter" id="f-voices" aria-labelledby="f-voices-title">
     <div class="ch-text">
-      <h3 id="f-voices-title">Drum voices</h3>
-      <p>Twenty-three drum models: the 808 and 909, FM, a modelled drumhead, Plaits-style kicks, snares and hats, and samples. On the FM-1 they are joined by ACID, a 303-style bass voice.</p>
-      <p>Each model has its own knobs. The picture is one hit, drawn as it sounds and as its spectrum.</p>
-      <p class="where">On the panel: <b>EDIT</b>, then <b>KNOB1</b> picks the model; on the HOME screen (<b>HOME</b>, tapped again from TRACKS) the four knobs shape it.</p>
+      <h3 id="f-voices-title">45 engines in three banks</h3>
+      <p>The MODEL knob runs through three banks, in this order. MD has 21 engines measured from the Machinedrum,
+        13 TRX and 8 EFM. MODERN has 10, the Plaits-style kicks, snares and hats, a modelled drumhead, FM, ACID (a
+        303-style bass voice) and samples. CLASSIC has 14, the 808 and 909 kicks, snares and claps, hats, cymbal,
+        cowbell, tom, conga, rim and clave.</p>
+      <p>151 factory presets (MACHINEDRUM 55, MODERN 40, CLASSIC 56) and 128 user slots. Each engine has its own
+        knobs, and its SOUND page on the FM-1 draws it: a graph, or the hit it renders.</p>
+      <p>Here the picture is one hit, drawn as it sounds and as its spectrum.</p>
+      <p class="where">On the panel: <b>EDIT</b>, then <b>KNOB1</b> picks the model, from #01/45 (BDTRX) to #45/45 (CLAVE); on the HOME screen (<b>HOME</b>, tapped again from TRACKS) the four knobs shape it.</p>
       <figure class="device-screen">
         <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
         <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
       </figure>
     </div>
     <div class="plate" data-piece="voices"></div>
+  </article>
+  <article class="chapter" id="f-md" aria-labelledby="f-md-title">
+    <div class="ch-text">
+      <h3 id="f-md-title">Machinedrum engines, measured</h3>
+      <p>The MD bank is the Machinedrum's two synthesis families, rebuilt: all 13 TRX and all 8 EFM machines of its
+        OS 1.63, 21 engines.</p>
+      <p>Each machine was measured knob by knob from Joe Landers' Machinedrum emulator, a fork of Gearmulator by The
+        Usual Suspects (the dsp56300 project), running the original OS. Every knob was swept, its law written down in
+        hertz, milliseconds and decibels, and the engine rebuilt from those laws in Hortator's own fixed-point code.
+        No code, ROM or samples from the machine or the emulator are in the firmware.</p>
+      <p>Two are partial: CYTRX, whose filters are not settled yet, and TMEFM, whose FM is a stand-in because the
+        machine's own is not understood (with MOD at 0 it follows the machine). The MACHINEDRUM preset bank holds 55
+        sounds read from the Machinedrum's factory kits.</p>
+      <p class="where">On the panel: <b>EDIT</b>, then <b>KNOB1</b>: the model list starts with the MD bank, #01 (BDTRX) to #21 (CYEFM).</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded stepping through the MD bank; an engine you pick above shows here live.</figcaption>
+      </figure>
+      <p class="fine">Machinedrum is a trademark of Elektron. Hortator is not affiliated with Elektron, Joe Landers or
+        The Usual Suspects.</p>
+    </div>
+    <div class="plate" data-piece="md"></div>
   </article>
   <article class="chapter" id="f-reson" aria-labelledby="f-reson-title">
     <div class="ch-text">
@@ -127,7 +156,8 @@
     <div class="ch-text">
       <h3 id="f-comp-title">A compressor that pumps</h3>
       <p>The Streams compressor, keyed by the kick, pulls the rest of the mix down on every hit.</p>
-      <p>The amber trace is its gain reduction as it happens. GHOST keeps the pump going with the kick muted.</p>
+      <p>Here an MD kick (BDTRX) keys it, and ACID's 303-style bass line and the open hats pump under it. The amber
+        trace is its gain reduction as it happens. GHOST keeps the pump going with the kick muted.</p>
       <p class="where">On the panel: <b>HOME</b> to the HOME screen (a tap switches from TRACKS), then <b>SELECT</b> to the COMP pages; a white key ducks a track.</p>
       <figure class="device-screen">
         <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
@@ -140,8 +170,8 @@
     <div class="ch-text">
       <h3 id="f-lfo-title">Two LFOs on every track</h3>
       <p>Ten waves with a morph between them, synced to the tempo, each on its own destination.</p>
-      <p>Here they move a hi-hat: the first its tone, the second its decay, step by step.</p>
-      <p class="where">On the panel: <b>LFO</b>; <b>OCT-</b> switches to the second one.</p>
+      <p>Here they move an MD hi-hat (CHTRX): the first its MTAL, from noise to metal, the second its decay, step by step.</p>
+      <p class="where">On the panel: <b>LFO</b>: both LFOs side by side, LFO 1 on <b>KNOB1</b>-<b>KNOB2</b>, LFO 2 on <b>KNOB3</b>-<b>KNOB4</b>; <b>SELECT</b> to the last page, DEST, to route them.</p>
       <figure class="device-screen">
         <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
         <figcaption>The FM-1’s own screen, recorded with its knobs turned to their ends; a change you make above shows here live.</figcaption>
