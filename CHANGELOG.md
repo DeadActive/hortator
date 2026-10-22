@@ -5,6 +5,18 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Bluetooth version: the Bluetooth of felucca-ble (its newest, ble-kit), in Hortator's own look. The Bluetooth page
+  has ROLE (HOST / DEVICE), MODE FM-LINK and RECONNECT (AUTO / FAST / SLOW), and up to 8 saved devices, controllers
+  and FM-1s, each on its line (connected or not, CTRL or FM-1, ON / NEAR / AWAY), with + ADD A DEVICE (an 8 s scan,
+  then the list stays), FORGET and "use now". Two links at once (a controller and another FM-1), reconnected by
+  themselves in the order you picked; scanning never drops a link. ROLE DEVICE: the FM-1 is a BLE-MIDI device for a
+  computer, a tablet or another FM-1. FM-Link: two FM-1s in time (CLK LINK follows a CLK INT leader), with Felucca's
+  Bluetooth build too. MIDI mode sends the key hits and, on CLK INT, the clock to the device. The top bar shows a
+  Bluetooth rune (struck through while nothing is linked). The SMC-Mixer's knobs 5-8 are MIDI LEARN's. The device the
+  old page remembered is the first saved device; MODE and AUTOSTART carry over. The saved devices, ROLE, RECONNECT and
+  this FM-1's Bluetooth address are kept in a new flash object (0x9F000 / 0xFE000) that older versions ignore. The
+  plain version is unchanged.
+
 ## 0.23.2 - 2026-10-23
 
 - REC: on TRACKS a REC tap arms / disarms the selected track, saying so (`T3 REC ARMED` / `T3 REC OFF`). On every

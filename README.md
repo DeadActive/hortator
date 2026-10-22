@@ -147,7 +147,8 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
   PERFORM effect held this way follows the keys' rules (the last pressed buffer effect plays) and ends with the
   release, or when the menu, a confirm, NAME or the MUTE screen comes up (press again after).
 - Learned CCs and notes act whether LEARN is on or off, on every input but Bluetooth in SMC DAW mode (the
-  SMC-Mixer's layout keeps its own controls). PLAY, REC and the track buttons act where the FM-1's own would (not in
+  SMC-Mixer's layout keeps its own controls, but for its knobs 5-8, which are LEARN's: a click steps the learned
+  parameter). PLAY, REC and the track buttons act where the FM-1's own would (not in
   the menu or a confirm). They are saved in the FM-1's flash (not in projects) after each change, when stopped; the
   16 CCs of the first MIDI LEARN load as they were.
 
@@ -214,26 +215,46 @@ OCT- goes back to the menu.
 
 | Row | What it does |
 | --- | --- |
-| **BLUETOOTH** | ON starts Bluetooth and reconnects to the remembered device; OFF disconnects and stops reconnecting. KNOB 1 right / left, or OCT+. Not saved: off at every power-on (unless AUTOSTART is ON). |
-| **AUTOSTART** | ON: Bluetooth starts by itself 5 s after every power-on, as if you chose BLUETOOTH ON, and reconnects to the remembered device. KNOB 1 right / left, or OCT+. Saved when the menu closes; OFF by default. Not in a safe start (SEQ held). If the last Bluetooth start before this power-on did not finish (a hang or a crash in it) or ended in an error, it is skipped and the top bar says `BT AUTOSTART SKIPPED`; BLUETOOTH ON by hand still works. |
-| **MODE** | What the connected device's MIDI does: **AUTO** (SMC DAW for a device whose name starts with `SMC`, else MIDI), **SMC DAW** or **MIDI**. Saved when the menu closes. |
-| **DEVICE** | The remembered device: its name once it has been seen since power-on, else its address; `NONE`. KNOB 1 left forgets it (and disconnects). |
-| **SCAN** | OCT+: scans for 10 s (BLUETOOTH ON only). Up to 8 devices are listed under it, BLE-MIDI ones (`MIDI`) first, then by signal. |
-| **1 .. 8** | A device found: OCT+ remembers it (saved at once) and connects to it. |
+| **BLUETOOTH** | ON starts Bluetooth and connects to the saved devices; OFF drops the links and stops connecting. KNOB 1 right / left, or OCT+. Not saved: off at every power-on (unless AUTOSTART is ON). |
+| **AUTOSTART** | ON: Bluetooth starts by itself 5 s after every power-on, as if you chose BLUETOOTH ON. KNOB 1 right / left, or OCT+. Saved when the menu closes; OFF by default. Not in a safe start (SEQ held), nor while OCT- + OCT+ are held. After a boot that was not clean (a crash in the first 30 s of the last one, or a hang) it is skipped and the top bar says `BT AUTOSTART SKIPPED`; BLUETOOTH ON by hand still works. |
+| **ROLE** | **HOST**: the FM-1 connects to its saved devices. **DEVICE**: the FM-1 is itself a Bluetooth MIDI device that a computer, a tablet or another FM-1 connects to (below). Saved. |
+| **MODE** | What a controller's MIDI does: **AUTO** (SMC DAW for a device whose name starts with `SMC`, else MIDI), **SMC DAW**, **MIDI**, or **FM-LINK** (no MIDI either way, FM-Link only). KNOB 1 steps, OCT+ wraps. Saved (FM-LINK at once; the others when the menu closes). |
+| **RECONNECT** | How long a link rests after a drop or a refused connect: **FAST** 2 s, doubling to 16 s; **SLOW** 8 s, then 16 s (each refused try holds the audio off for a moment); **AUTO** SLOW while playing, FAST while stopped. Saved. |
+| a saved device | (ROLE HOST) A filled square when connected, an empty one when not; its name (an FM-1: `FM-1` and the last four digits of its address, since every FM-1 is called Felucca FM-1); `CTRL` or `FM-1`; `ON` (connected), `NEAR` (switched on, seen lately) or `AWAY`. KNOB 1 left: `FORGET <name>?` on the state line, OCT+ yes, OCT- no. OCT+ on a `NEAR` one: use it now. |
+| **+ ADD A DEVICE** | (ROLE HOST) OCT+: an 8 s scan (`SCANNING 8 S`) lists the devices nearby that are not saved, BLE-MIDI ones (`MIDI`) first, then by signal; after it the list stays still. OCT+ saves one and connects it; OCT- goes back; `NOTHING FOUND`: OCT+ scans again. |
 
-Above the rows, the state: OFF, STARTING, IDLE, SCANNING, CONNECTING, CONNECTED and the device's name, or FAILED and
-the reason (`NO RF TRIM IN FLASH`: this FM-1 cannot run Bluetooth; `BT START TIMEOUT`: switch off and on to retry).
-Under it, the last error (`CONNECT TIMEOUT`, `NO BLE-MIDI SERVICE`, `DISCONNECTED 0x08`). `BT CONNECTED` and
-`BT LOST` show in the top bar on any page.
+Above the rows, the state: OFF, STARTING, `ON, NO DEVICE SAVED`, `ON, SEARCHING`, `ON, 2 CONNECTED`, the ADD list's
+scan, `WAITING FOR A HOST` / `CONNECTED` and the host (ROLE DEVICE), or FAILED and the reason (`NO RF TRIM IN FLASH`:
+this FM-1 cannot run Bluetooth; `BT START TIMEOUT`: switch off and on to retry). Under it, the last error.
+`BT CONNECTED` and `BT LOST` show in the top bar on any page; the top bar's Bluetooth rune is whole while a link is up,
+struck through while Bluetooth is on and nothing is linked, and gone while it is off.
 
-**Reconnecting.** With BLUETOOTH ON and a remembered device, the FM-1 connects to it whenever it is in range: when
-it is switched on again or comes back after a lost connection, and after a power-on as soon as you turn BLUETOOTH
-ON, or 5 s after it with AUTOSTART ON (no scan or pick needed). While it is not found, it scans 10 s at a time with a
-2 s pause. A SCAN from the page pauses this while the page stays open, so you can pick another device.
+**Saved devices.** Up to 8, controllers and FM-1s, kept over power-off with their names. The FM-1 holds two links at
+once: a controller and an FM-1. For each kind it connects the first saved device that is around, in the order you
+picked them (ADD, or OCT+ "use now", puts one first); connecting by itself never changes the order. After a lost link
+it reconnects by itself, as long as BLUETOOTH is ON; a device that dropped keeps its link for 30 s (no other of its
+kind takes its place meanwhile). Scanning never drops a link. The device the earlier Bluetooth page remembered becomes
+the first saved device (its name appears once it is seen). Each FM-1 has one Bluetooth address for good (made the
+first time Bluetooth starts), so a saved FM-1 is found again.
 
-**MIDI mode.** Notes on the drum channel (GLO: CH) play the tracks whose NOTE matches, as over USB and TRS. GLO:
-**CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as CLK USB / TRS do; the tempo knobs then say
-`CLK BLE`. A project saved with CLK BLE loads with CLK INT in the plain version.
+**MIDI mode.** Notes on the drum channel (GLO: CH) play the tracks whose NOTE matches, as over USB and TRS; MIDI LEARN
+learns the device's CCs and notes. GLO: **CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as
+CLK USB / TRS do; the tempo knobs then say `CLK BLE`. The FM-1's key hits go to the device (note on / off on the drum
+channel), and while the FM-1 runs on its own tempo (CLK INT) its clock too: Start on PLAY, 24 pulses a beat, Stop.
+When the link drops, what the device held is released. A project saved with CLK BLE or CLK LINK loads with CLK INT in
+the plain version.
+
+**ROLE DEVICE.** With BLUETOOTH ON the FM-1 advertises the standard BLE-MIDI service as **Felucca FM-1**: macOS
+(Audio MIDI Setup > MIDI Studio > Bluetooth, Connect), iOS apps' Bluetooth MIDI screens, Android / Windows apps that
+connect BLE-MIDI devices. Then it is MIDI mode both ways with that host. No pairing is needed.
+
+**FM-Link: two FM-1s in time.** No clock pulses: the two measure the difference between their clocks and share a
+timeline. One FM-1 in ROLE DEVICE with BLUETOOTH ON; on the other (ROLE HOST) + ADD A DEVICE and pick
+`Felucca FM-1`. The leader runs CLK **INT**, the follower CLK **LINK** (GLO: CLK, after BLE). The screen says
+`FM-LINK: LEADING` / `FM-LINK: FOLLOWING`. PLAY on the leader starts both together, about 80 ms after the press; the
+leader's BPM is the follower's; STOP on the leader stops both; PLAY / STOP on a linked follower say `FOLLOWING LINK`.
+A follower that joins while the leader plays starts on its next bar. If the link drops the follower plays on at the
+last BPM; CLK LINK with no other FM-1 plays as INT. It works with FM-1s running Felucca's Bluetooth build too.
 
 ### The SMC-Mixer (DAW mode)
 
@@ -244,7 +265,7 @@ The M-VAVE SMC-Mixer in its DAW (Mackie Control) mode, MODE AUTO or SMC DAW. Onl
 | Fader 1–8 | track 1–8 LEVEL, with pickup (below); recorded as motion for the selected track while it is armed and playing |
 | Master fader | nothing |
 | Knob 1–4 | the selected track's first four knobs (TUNE DECAY TONE and the model's fourth; ACID: TUNE DECAY CUTOF RESO), one step a click; the top bar shows e.g. `T3 DECAY 64`; recorded as motion while the track is armed and playing |
-| Knob 5–8 | nothing |
+| Knob 5–8 | MIDI LEARN's (CC 20–23): learned to a parameter, a click steps it by one value from where it is; while LEARN waits for a CC, turning one learns it; not learned: nothing |
 | MUTE 1–8 | mute / unmute the track, as its key on the MUTE screen (MUTE: NEXT BAR applies) |
 | SOLO 1–8 | solo / unsolo the track (below) |
 | REC 1–8 | arm / disarm the track for recording (as a REC tap: no play started). During REC ALL: REC ALL ends and that track is disarmed, the others stay armed |
@@ -256,7 +277,7 @@ The M-VAVE SMC-Mixer in its DAW (Mackie Control) mode, MODE AUTO or SMC DAW. Onl
 | REW, FF, the arrows | nothing |
 
 While a song plays or is armed, REC 1–8 and REC say `STOP TO EDIT`, as the FM-1's REC does. An armed track records the
-FM-1's keys as live record does.
+FM-1's keys as live record does. While a dialog or NAME is on the screen, the mixer's buttons and knobs do nothing.
 
 - **LEDs:** MUTE n lit = track n muted (or a mute waiting for the next bar), SOLO n = soloed, REC n = armed,
   SELECT n = the selected track, PLAY = playing, STOP = stopped, REC = any track armed. They are sent again on every
@@ -268,7 +289,7 @@ FM-1's keys as live record does.
   is dimmed on HOME and TRACKS, as a muted one; the mutes are unchanged. The FM-1 has no SOLO control, so solo
   clears by itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (every track audible again; nothing
   is cut). Solo is not saved: INIT and a power-on clear it too.
-- **Leaving SMC DAW** (MODE MIDI while connected): Hortator turns the mixer's LEDs off once and sends it nothing
+- **Leaving SMC DAW** (MODE MIDI or FM-LINK while connected): Hortator turns the mixer's LEDs off once and sends it nothing
   more.
 
 ## Install

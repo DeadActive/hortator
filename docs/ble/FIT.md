@@ -158,3 +158,20 @@ For 1b's device test: the sections LTO dropped in step 2 (above: `.link_task_cod
 ECDH / HMAC / crypto code, `.vendor_manager_code`, most of the link layer's and the HCI's code) are where a failed
 start, scan, connect, discovery or pairing looks first; `ble` prints the heap high-water, each task's unused stack,
 the start-up stage and a library fault (`fatal`).
+
+## The upgrade to felucca-ble's current Bluetooth (2026-10-23, Hortator 0.23.2)
+
+Layer 1 from felucca-ble ble-kit (109fda7): two host links, the device role, FM-Link, a 23,552 B heap (13,824 B
+before) and one task slot fewer; the core's side: the saved devices and their store, MIDI and clock out, FM-Link's
+glue, the page's new rows, the top-bar icon. Nothing is left out (the user, 2026-10-23: Hortator has the room).
+
+| | image B | slot free B | `.data + .bss` B (of 98304) | pool B (of 344064) | `.ram_text` B |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0.23.2, plain | 328,388 | 253,176 | 55,740 | 307,308 | 2,888 |
+| 0.23.2, Bluetooth (the first generation) | 462,640 | 118,924 | 68,412 | 331,056 | |
+| the upgrade, the heap and the tasks in the pool | 477,924 | 103,640 | 70,592 | 338,304 (5,760 spare: under the 8 KB kept) | 6,864 |
+| **the upgrade, the chorus line (4,096 B) in `.bss`** | **477,924** | **103,640** | **74,688** (23,616 spare) | **334,208** (9,856 spare) | **6,864** |
+
+The pool would keep less than its 8 KB with the larger heap, so the Bluetooth build places FX's chorus line
+(`fx.c cho_buf`, 4,096 B, zeroed at boot as the pool is) in `.bss` (`#if FELUCCA_BLE`): `.bss` has the room, the
+plain build is byte-identical, and the BLE unit (layer 1) stays as copied. The heap stays where layer 1 puts it.
