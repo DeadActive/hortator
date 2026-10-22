@@ -4,7 +4,7 @@
 // Bluetooth page's rows in the order they are used (MENU > BLUETOOTH: ON, SCAN, a device picked), the states it shows,
 // then an SMC-Mixer in its DAW mode: a fader moved, its message flies to the FM-1, that track's level follows. It
 // runs while on screen; with reduced motion it shows the connected state, still.
-import { el } from './lab_ui.js?v=323936c05d';
+import { el } from './lab_ui.js?v=87b2aef9a5';
 
 const SCRIPT = [                                     // [the page's row, what it does, the state after, ms]
   ['BLUETOOTH  ON', 'Bluetooth starts (off at every power-on)', 'IDLE', 1800],
