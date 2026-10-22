@@ -583,7 +583,7 @@ test('features reel: a clip per chapter (not Bluetooth: no page), each over 5 s,
   const { gunzipSync } = await import('node:zlib');
   const b = gunzipSync(gz), reel = parseReel(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
   const list = JSON.parse(readFileSync(join(DIR, 'features.json'), 'utf8'));
-  assert.deepEqual(list.map(c => c.name), ['voices', 'md', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
+  assert.deepEqual(list.map(c => c.name), ['md', 'voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx']);
   let at = 0;
   for (const c of list) {
     assert.equal(c.from, at, `${c.name} follows on`);

@@ -99,6 +99,28 @@
     <p>Every picture here is drawn by the firmware's own sound code, running in your browser. Turn the knobs to
       change it; press Play to hear it.</p>
   </header>
+  <article class="chapter" id="f-md" aria-labelledby="f-md-title">
+    <div class="ch-text">
+      <h3 id="f-md-title">Machinedrum engines, measured</h3>
+      <p>21 of Hortator's 45 engines are the Machinedrum's two synthesis families, rebuilt: all 13 TRX and all 8 EFM
+        machines of its OS 1.63. They are the MD bank, first in the model list.</p>
+      <p>Each machine was measured knob by knob from Joe Landers' Machinedrum emulator, a fork of Gearmulator by The
+        Usual Suspects (the dsp56300 project), running the original OS. Every knob was swept, its law written down in
+        hertz, milliseconds and decibels, and the engine rebuilt from those laws in Hortator's own fixed-point code.
+        No code, ROM or samples from the machine or the emulator are in the firmware.</p>
+      <p>Two are partial: CYTRX, whose filters are not settled yet, and TMEFM, whose FM is a stand-in because the
+        machine's own is not understood (with MOD at 0 it follows the machine). The MACHINEDRUM preset bank holds 55
+        sounds read from the Machinedrum's factory kits.</p>
+      <p class="where">On the panel: <b>EDIT</b>, then <b>KNOB1</b>: the model list starts with the MD bank, #01 (BDTRX) to #21 (CYEFM).</p>
+      <figure class="device-screen">
+        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
+        <figcaption>The FM-1’s own screen, recorded stepping through the MD bank; an engine you pick above shows here live.</figcaption>
+      </figure>
+      <p class="fine">Machinedrum is a trademark of Elektron. Hortator is not affiliated with Elektron, Joe Landers or
+        The Usual Suspects.</p>
+    </div>
+    <div class="plate" data-piece="md"></div>
+  </article>
   <article class="chapter" id="f-voices" aria-labelledby="f-voices-title">
     <div class="ch-text">
       <h3 id="f-voices-title">45 engines in three banks</h3>
@@ -116,28 +138,6 @@
       </figure>
     </div>
     <div class="plate" data-piece="voices"></div>
-  </article>
-  <article class="chapter" id="f-md" aria-labelledby="f-md-title">
-    <div class="ch-text">
-      <h3 id="f-md-title">Machinedrum engines, measured</h3>
-      <p>The MD bank is the Machinedrum's two synthesis families, rebuilt: all 13 TRX and all 8 EFM machines of its
-        OS 1.63, 21 engines.</p>
-      <p>Each machine was measured knob by knob from Joe Landers' Machinedrum emulator, a fork of Gearmulator by The
-        Usual Suspects (the dsp56300 project), running the original OS. Every knob was swept, its law written down in
-        hertz, milliseconds and decibels, and the engine rebuilt from those laws in Hortator's own fixed-point code.
-        No code, ROM or samples from the machine or the emulator are in the firmware.</p>
-      <p>Two are partial: CYTRX, whose filters are not settled yet, and TMEFM, whose FM is a stand-in because the
-        machine's own is not understood (with MOD at 0 it follows the machine). The MACHINEDRUM preset bank holds 55
-        sounds read from the Machinedrum's factory kits.</p>
-      <p class="where">On the panel: <b>EDIT</b>, then <b>KNOB1</b>: the model list starts with the MD bank, #01 (BDTRX) to #21 (CYEFM).</p>
-      <figure class="device-screen">
-        <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
-        <figcaption>The FM-1’s own screen, recorded stepping through the MD bank; an engine you pick above shows here live.</figcaption>
-      </figure>
-      <p class="fine">Machinedrum is a trademark of Elektron. Hortator is not affiliated with Elektron, Joe Landers or
-        The Usual Suspects.</p>
-    </div>
-    <div class="plate" data-piece="md"></div>
   </article>
   <article class="chapter" id="f-reson" aria-labelledby="f-reson-title">
     <div class="ch-text">

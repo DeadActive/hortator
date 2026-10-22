@@ -94,7 +94,7 @@ static const act_t FX[] = {                               /* FILTER's CUT swept,
 };
 #define CLIP(name, s, a) {name, s, a, sizeof a / sizeof a[0]}
 static const clip_t CLIPS[] = {
-    CLIP("voices", 10.0f, VOICES), CLIP("md", 10.4f, MD), CLIP("reson", 9.8f, RESON), CLIP("comp", 8.2f, COMP), CLIP("lfo", 10.0f, LFO),
+    CLIP("md", 10.4f, MD), CLIP("voices", 10.0f, VOICES), CLIP("reson", 9.8f, RESON), CLIP("comp", 8.2f, COMP), CLIP("lfo", 10.0f, LFO),
     CLIP("seq", 8.0f, SEQ), CLIP("grids", 9.4f, GRIDS), CLIP("fx", 10.6f, FX),
 };
 #define NCLIPS (sizeof CLIPS / sizeof CLIPS[0])

@@ -145,7 +145,7 @@ import { BTN, ENC } from '../web/sim/controls.js';
 test('features: nine chapters with a plate each; every panel hint names real controls', () => {
   const sec = LANDING.slice(LANDING.indexOf('id="features"'), LANDING.indexOf('id="install"'));
   const ids = [...sec.matchAll(/<article class="chapter" id="f-(\w+)"/g)].map(m => m[1]);
-  assert.deepEqual(ids, ['voices', 'md', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
+  assert.deepEqual(ids, ['md', 'voices', 'reson', 'comp', 'lfo', 'seq', 'grids', 'fx', 'ble']);
   const labels = new Set([...BTN.map(b => b.label), ...ENC.map(e => e.label)]);
   for (const ch of sec.split('<article').slice(1)) {
     const id = ch.match(/id="f-(\w+)"/)[1];
@@ -383,7 +383,7 @@ test('the compressor pumps ACID, the 303-style bass line, under an MD kick (BDTR
   assert.match(words(chapter('comp')), /ACID/);
 });
 
-test('the first-visit demos (tests/sim_demo.c) lead with the MD bank; CLASSIC, if any, is the last demo', () => {
+test('the first-visit demos (tests/sim_demo.c) lead with the MD bank; none plays a CLASSIC voice', () => {
   const src = readFileSync('tests/sim_demo.c', 'utf8');
   const kits = [...src.slice(src.indexOf('SIM_KITS[4]')).matchAll(/\{\{(DM_\w+(?:, DM_\w+)*)\}/g)].slice(0, 4)
     .map(m => m[1].split(', '));
@@ -392,6 +392,7 @@ test('the first-visit demos (tests/sim_demo.c) lead with the MD bank; CLASSIC, i
   const isClassic = m => order.indexOf(m) <= order.indexOf('DM_CLAVE');
   const isMd = m => /TRX$|EFM$/.test(m);
   assert.ok(kits[0].every(isMd) && kits[1].every(isMd), `demos 1 and 2 are MD kits: ${kits[0]} / ${kits[1]}`);
-  for (const k of kits.slice(0, 3)) assert.ok(!k.some(isClassic), `no CLASSIC before the last demo: ${k}`);
+  for (const k of kits) assert.ok(!k.some(isClassic), `no CLASSIC in a demo: ${k}`);
+  assert.ok(kits[3].some(m => m.endsWith('TRX')) && kits[3].some(m => m.endsWith('EFM')), 'demo 4 mixes TRX and EFM');
   assert.ok(kits.some(k => k.includes('DM_ACID')), 'a demo plays ACID');
 });

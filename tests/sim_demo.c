@@ -2,11 +2,11 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* The web simulator's first-visit demos, saved to project slots 1-4 with the firmware's own project_save; slot 1 is
  * then loaded (and remembered as the last project, so a returning visit opens it), so PLAY grooves at once. MD first,
- * as the MODEL list: 1 the TRX kit (the power-on kit's voices), 2 an EFM kit, 3 MODERN (Plaits-style) with an ACID
- * line, 4 the 808 (drumsim's kit, tests/drumsim.c).
+ * as the MODEL list: 1 the TRX kit (the power-on kit's voices, its LEVEL raised to sit with the others), 2 an EFM
+ * kit, 3 MODERN (Plaits-style) with an ACID line, 4 TRX and EFM mixed. The 808 and 909 are not in the demos.
  * 'x' = a hit, 'X' = an accent; TUNE (P_E0, KEEP = the voice's default sound's), DECAY (P_E1, -1 = the default's);
  * an ACID track plays acid[] (its notes from C4, slide where 's'). CLASSIC and the first MODERN models take their
- * knobs as up to drum 0.20.0 (SIM_OLD_DEF, as tests/old_defs.h: the 808 sounds as drumsim's, whatever the models'
+ * knobs as up to drum 0.20.0 (SIM_OLD_DEF, as tests/old_defs.h: they sound as drumsim's, whatever the models'
  * defaults are now); the MD and ACID voices start on their first factory preset (drum_set_model). */
 #define KEEP INT16_MIN
 typedef struct {
@@ -15,13 +15,14 @@ typedef struct {
     const char *pat[NTRK];
     int8_t acid[16];                                     /* an ACID track's notes, from C4 */
     const char *slide;                                   /* 's': that step slides into the next (0: none) */
+    int16_t level;                                       /* every track's LEVEL (P_LEVEL), 0: the default */
 } sim_kit_t;
 
 static const sim_kit_t SIM_KITS[4] = {
     {{DM_KTRX, DM_SDTRX, DM_CPTRX, DM_CHTRX, DM_OHTRX, DM_XTTRX, DM_RSTRX, DM_CYTRX},
      {KEEP, KEEP, KEEP, KEEP, KEEP, KEEP, KEEP, KEEP}, {-1, -1, -1, -1, -1, -1, -1, -1},
      {"X..x..x...x..x..", "....X.......X...", "....x.......x..x", "x.x.x.x.x.x.x.x.", "..x...x...x...x.",
-      "..........x.x.xX", ".x.....x...x....", "X..............."}, {0}, 0},
+      "..........x.x.xX", ".x.....x...x....", "X..............."}, {0}, 0, 120},
     {{DM_BDEFM, DM_SDEFM, DM_CPEFM, DM_HHEFM, DM_CYEFM, DM_XTEFM, DM_RSEFM, DM_CBEFM},
      {KEEP, KEEP, KEEP, KEEP, KEEP, KEEP, KEEP, KEEP}, {-1, -1, -1, -1, 40, -1, -1, -1},
      {"X...x...x...x...", "....X.......X..x", "....x.......x...", "xxxxxxxxxxxxxxXx", "..x...x...x...x.",
@@ -31,10 +32,10 @@ static const sim_kit_t SIM_KITS[4] = {
      {"X..x..x...x..x..", "....X.......X...", "....x.......x..x", "x.x.x.x.x.x.x.x.", "..x...x...x...x.",
       "X.......X.......", "X.xxX.xxX.xxX.xX", ".x.....x...x...."},
      {-24, 0, -12, -24, -21, 0, -17, -12, -24, 0, -14, -24, -19, 0, -24, -12}, "...s.......s...."},
-    {{DM_K808, DM_S808, DM_C808, DM_HATC, DM_HATO, DM_TOM, DM_COWB, DM_CYMB},
-     {0, 0, 0, 0, 0, 0, 0, 0}, {-1, -1, -1, -1, -1, -1, -1, -1},
-     {"X..x..x...x..x..", "....X.......X...", "....x.......x..x", "x.x.x.x.x.x.x.x.", "..x...x...x...x.",
-      "..........x.x.xX", ".x.....x...x....", "X..............."}, {0}, 0},
+    {{DM_B2TRX, DM_SDEFM, DM_CPTRX, DM_HHEFM, DM_OHTRX, DM_BDEFM, DM_XTTRX, DM_CYEFM},
+     {KEEP, KEEP, KEEP, KEEP, KEEP, KEEP, KEEP, KEEP}, {-1, -1, -1, -1, -1, -1, -1, -1},
+     {"X...x...x...x...", "....X.......X...", "....x.......x..x", "x.x.x.x.x.x.x.x.", "..x...x...x...x.",
+      "..x.......x..x..", "..........x.x.xX", "X..............."}, {0}, 0},
 };
 
 #define SIM_OLD_N 21u                                    /* the kits' models: K808 .. HNOIS (enum order) */
@@ -64,6 +65,8 @@ static void sim_demo_install(void)
                 t->p[P_E0] = kit->tune[i];
             if (kit->decay[i] >= 0)
                 t->p[P_E1] = kit->decay[i];
+            if (kit->level)
+                t->p[P_LEVEL] = kit->level;
             for (k = 0; k < 16u; k++) {
                 t->step[k].on = kit->pat[i][k] != '.';
                 t->step[k].acc = kit->pat[i][k] == 'X';

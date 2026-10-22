@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
-// Piece 2, the MD bank: the 21 engines measured from the Machinedrum's TRX and EFM machines, one tile each in the
+// Piece 1, the MD bank: the 21 engines measured from the Machinedrum's TRX and EFM machines, one tile each in the
 // MODEL list's order (ids.list), with the machine it was measured from, what it plays, and one hit at its default
 // sound drawn by the firmware (lab_voice). A tile picks the engine (the FM-1's screen shows its SOUND page) and hits
 // it; Play loops the picked one on the quarters.
