@@ -298,13 +298,11 @@ static void mute_bar_set(uint32_t on)                  /* the mutes: at once / o
     ui_message(settings.mutebar ? "MUTE: NEXT BAR" : "MUTE: NOW");
 }
 
-static void track_rec_toggle(uint32_t k)               /* arm / disarm track k (REC, every screen; the SMC-Mixer);
-                                                        * arming while stopped starts play */
+static void track_rec_toggle(uint32_t k)               /* arm / disarm track k (REC, every screen; the SMC-Mixer). It
+                                                        * never starts play (owner, 2026-10-22): PLAY does; an armed
+                                                        * track records once playing */
 {
-    uint8_t bit = (uint8_t)(1u << k);
-    song.rec ^= bit;
-    if ((song.rec & bit) && !song.playing)
-        transport_req = 1;
+    song.rec ^= (uint8_t)(1u << k);
 }
 
 /* REC ALL (a REC double-tap): every track armed, so each white key that plays its track records it (seq.c input_hit:
@@ -342,9 +340,7 @@ static void rec_tap(uint32_t t, uint32_t now)          /* a REC tap (the button,
     if (quick) {                                       /* the second tap: REC ALL (the first tap's toggle undone) */
         ui.rec_keep = ui.rec_prev;
         ui.rec_all = 1;
-        song.rec = REC_ALL_MASK;
-        if (!song.playing)
-            transport_req = 1;                         /* (arming from stopped starts play, as a tap) */
+        song.rec = REC_ALL_MASK;                       /* (no play started, as a tap) */
         ui_message("REC ALL");
         return;
     }

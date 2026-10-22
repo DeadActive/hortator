@@ -12,6 +12,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   A single REC tap acts at once, as before; REC held, step record and `STOP TO EDIT` while a song plays are unchanged.
   A learned REC and the SMC-Mixer's REC double-tap as the button; the SMC-Mixer's REC n during REC ALL ends it and
   disarms track n (the others stay armed). Not saved in projects, as the arm state.
+- REC no longer starts play: a REC tap (and REC ALL, a learned REC, the SMC-Mixer's REC and REC 1-8) only arms /
+  disarms; PLAY starts the transport, and an armed track records once playing. Step record is unchanged.
 
 ## 0.23.1 - 2026-10-22
 

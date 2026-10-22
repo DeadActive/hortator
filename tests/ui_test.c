@@ -1150,7 +1150,7 @@ static void test_home_modes(void)
     ui_frame();
 }
 
-/* REC (spec §4): a tap arms / disarms the selected track on every screen (arming while stopped starts play); never
+/* REC (spec §4): a tap arms / disarms the selected track on every screen (it never starts play: PLAY does); never
  * opens TRACKS; the menu, NAME and a confirm keep it */
 static void test_rec_everywhere(void)
 {
@@ -1169,12 +1169,15 @@ static void test_rec_everywhere(void)
         pg = ui.page;
         home = ui.home;
         tap(B_REC);
-        snprintf(what, sizeof what, "%s: a REC tap arms track 2, starts play, the screen stays, REC lit", S[i].what);
-        check(what, song.rec == 2u && song.playing && ui.page == pg && ui.home == home && led_lit(panel.btn[B_REC]));
+        ui_frame();
+        snprintf(what, sizeof what, "%s: a REC tap arms track 2, no play (still stopped), the screen stays, REC lit",
+                 S[i].what);
+        check(what, song.rec == 2u && !song.playing && !transport_req && ui.page == pg && ui.home == home &&
+                    led_lit(panel.btn[B_REC]));
         rec_gap();                                   /* (a single tap: not REC ALL's double-tap) */
         tap(B_REC);
-        snprintf(what, sizeof what, "%s: a REC tap again disarms it (still playing), REC dark", S[i].what);
-        check(what, song.rec == 0u && song.playing && ui.page == pg && ui.home == home && !led_lit(panel.btn[B_REC]));
+        snprintf(what, sizeof what, "%s: a REC tap again disarms it (still stopped), REC dark", S[i].what);
+        check(what, song.rec == 0u && !song.playing && ui.page == pg && ui.home == home && !led_lit(panel.btn[B_REC]));
         transport_req = 2;
         ui_frame();
     }
@@ -1594,7 +1597,8 @@ static void test_tracks_rec_keys(void)
     open_tracks();
     turn(EN_K1, 1);                                  /* track 2 */
     ui_frame();
-    tap(B_REC);                                      /* arms track 2, starts play */
+    tap(B_REC);                                      /* arms track 2 */
+    tap(B_PLAY);                                     /* (REC starts nothing: PLAY) */
     seq_play_to(1, 3);
     a = hit_age(&trk[1]);
     keys(1u << KEY_TRK_KEY[1]);
@@ -1681,9 +1685,10 @@ static void test_rec_all(void)
     check("REC ALL: REC pressed (not let go): nothing yet", song.rec == 0u && !song.playing);
     release_all();
     ui_input();
-    check("REC: a single tap arms the selected track at once (in the release's pass), play asked",
-          song.rec == 4u && (transport_req == 1u || song.playing) && !ui.rec_all);
+    check("REC: a single tap arms the selected track at once (in the release's pass), no play asked",
+          song.rec == 4u && !transport_req && !song.playing && !ui.rec_all);
     ui_frame();
+    tap(B_PLAY);                                     /* PLAY starts it (REC never does) */
     rec_gap();
     tap(B_REC);
     check("REC: a tap 0.4 s later disarms it (a single tap, still playing)", song.rec == 0u && song.playing &&
@@ -1769,8 +1774,8 @@ static void test_rec_all(void)
     rec_gap();
     tap(B_REC);
     tap(B_REC);
-    check("REC double-tap while stopped: REC ALL, play starts", ui.rec_all && song.rec == 0xFFu &&
-          (transport_req == 1u || song.playing));
+    check("REC double-tap while stopped: REC ALL, play not started", ui.rec_all && song.rec == 0xFFu &&
+          !transport_req && !song.playing);
     ui_frame();
     init_all();
     check("INIT ALL: REC ALL off, nothing armed", !ui.rec_all && song.rec == 0u);
@@ -5710,8 +5715,9 @@ static void test_srec_exits(void)
     ui_host_init();
     seq_open("STEP");
     tap(B_REC);
-    check("KEYS off: a REC tap on STEP arms the track and starts play (STEP stays)", !ui.srec && song.rec == 1u &&
-          song.playing && cur_page()->scope == SC_GRID);
+    ui_frame();
+    check("KEYS off: a REC tap on STEP arms the track, no play (STEP stays)", !ui.srec && song.rec == 1u &&
+          !song.playing && cur_page()->scope == SC_GRID);
     transport_req = 2;
     ui_frame();
     ui_host_init();

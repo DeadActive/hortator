@@ -245,7 +245,7 @@ static void test_buttons(void)
     in(note(0x09, 100));
     check("SOLO 2 again: off", !song.solo);
     in(note(0x04, 1));
-    check("REC 5 while stopped: track 5 armed, play requested", song.rec == 16u && transport_req == 1u);
+    check("REC 5 while stopped: track 5 armed, no play requested", song.rec == 16u && !transport_req);
     transport_req = 0;
     in(note(0x04, 1));
     check("REC 5 again: disarmed, no request", !song.rec && !transport_req);
@@ -264,7 +264,7 @@ static void test_buttons(void)
     in(note(0x30, 127));
     check("CHANNEL > > <: track 2", song.sel == 1u);
     in(note(0x5F, 127));
-    check("REC: the selected track (2) armed, play requested", song.rec == 2u && transport_req == 1u);
+    check("REC: the selected track (2) armed, no play requested", song.rec == 2u && !transport_req);
     transport_req = 0;
     host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (past REC_DOUBLE_MS: a single tap) */
     in(note(0x5F, 127));
@@ -319,8 +319,8 @@ static void test_rec_all(void)
     host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
     in(note(0x5F, 127));
     in(note(0x5F, 127));
-    check("REC twice quickly: REC ALL, every track armed, play requested, REC ALL said",
-          song.rec == 0xFFu && ui.rec_all && transport_req == 1u && str_eq(ui.msg, "REC ALL"));
+    check("REC twice quickly: REC ALL, every track armed, no play requested, REC ALL said",
+          song.rec == 0xFFu && ui.rec_all && !transport_req && str_eq(ui.msg, "REC ALL"));
     clear_sent();
     smc_frame();
     for (ok = was_sent(0x90, 0x5F, 127), i = 0; i < NTRK; i++)
@@ -388,7 +388,8 @@ static void test_leds(void)
     check("SOLO 3, SELECT 3, REC: SOLO 3, SELECT 3 lit, SELECT 1 dark, REC 3 lit, REC lit",
           nsent == 5u && was_sent(0x90, 0x0A, 127) && was_sent(0x90, 0x1A, 127) && was_sent(0x90, 0x18, 0) &&
           was_sent(0x90, 0x02, 127) && was_sent(0x90, 0x5F, 127));
-    render_mix(0, 0, CTL);                           /* (REC started play) */
+    in(note(0x5E, 127));                             /* PLAY (REC starts nothing) */
+    render_mix(0, 0, CTL);
     clear_sent();
     smc_frame();
     check("playing: PLAY lit, STOP dark", nsent == 2u && was_sent(0x90, 0x5E, 127) && was_sent(0x90, 0x5D, 0));

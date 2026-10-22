@@ -87,7 +87,7 @@ For each: what you should see / hear. Note anything different (page, knob, what 
   EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
 - Live recording: a REC tap on any page (HOME, EDIT, FX, SEQ, GLOBAL ...) arms the selected track (the REC LED
-  lights, play starts when stopped; the page stays); play its key while running, on TRACKS or any page where the
+  lights; play does not start: press PLAY; the page stays); play its key while running, on TRACKS or any page where the
   keys play: the steps appear. A REC tap again disarms. REC never opens TRACKS.
 - PROJECT: save to slot A, change things, load slot A: everything comes back.
 - The master knob changes the volume; the battery icon shows a level.
@@ -682,9 +682,9 @@ The screens: `build/ui_shots/fixes/trx_kit_home.png`, `trx_kit_tracks.png`.
 
 The screen: `build/ui_shots/fixes/rec_all.png` (the `REC ALL` message on FX).
 
-- Stopped, on HOME: a single REC tap arms the selected track at once (REC lit, play starts), as before. Wait a
-  moment, tap again: disarmed.
-- REC double-tap (quickly): `REC ALL`, REC lit, play starts if stopped. Finger-drum the white keys F3..F4 on HOME,
+- Stopped, on HOME: a single REC tap arms the selected track at once (REC lit) and does NOT start play (new: PLAY
+  starts it). Wait a moment, tap again: disarmed. The same for a learned REC and the SMC-Mixer's REC / REC 1-8.
+- REC double-tap (quickly): `REC ALL`, REC lit, still stopped; press PLAY. Finger-drum the white keys F3..F4 on HOME,
   TRACKS, SOUND or FX: each key's own track records (open STEP after: the hits are on each track). A muted track's key
   records too.
 - KEYS on (SCL) during REC ALL: the keys play and record the selected track only; a knob turn records motion on the

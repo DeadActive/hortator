@@ -979,7 +979,7 @@ static void test_act_trigger(void)
     check("64 again: PLAY (stops)", !song.playing);
     send_cc(25, 0);
     send_cc(20, 127);
-    check("CC20 (REC): the selected track armed (and play starts, as REC's tap)", song.rec == 1u && song.playing);
+    check("CC20 (REC): the selected track armed (no play, as REC's tap)", song.rec == 1u && !song.playing);
     send_cc(20, 0);
     host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (past REC_DOUBLE_MS: a single tap) */
     send_cc(20, 127);
