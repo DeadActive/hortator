@@ -544,7 +544,7 @@ static int settings_backlight_round_trip(void)
     return (int)ok;
 }
 
-/* spec 2026-10-10 §4: a project saved with CLK BLE (3) loads as CLK INT in a build whose CLK ends at TRS (2), not as
+/* spec 2026-10-10 §4: a project saved with CLK BLE (3) or LINK (4) loads as CLK INT in a build whose CLK ends at TRS (2), not as
  * TRS; a value inside the range is kept */
 static int clock_beyond_range_is_int(void)
 {
@@ -559,6 +559,11 @@ static int clock_beyond_range_is_int(void)
     song.g[G_CLOCK] = 1;
     project_load(0);
     ok = GP[G_CLOCK].max == 2 && song.g[G_CLOCK] == 0;
+    p->g[G_CLOCK] = 4;                              /* (CLK LINK, the Bluetooth build's FM-Link follower) */
+    p->sum = proj_sum(p);
+    song.g[G_CLOCK] = 1;
+    project_load(0);
+    ok &= song.g[G_CLOCK] == 0;
     p->g[G_CLOCK] = 2;
     p->sum = proj_sum(p);
     project_load(0);
@@ -1767,7 +1772,7 @@ int main(void)
           settings_backlight_round_trip());
     check("settings: AUTOSTART survives a power cycle in the palette word's bit 8 (the palette, SPEAKER EQ, BACKLIGHT, "
           "the device kept); an older record and none load OFF", settings_autostart_round_trip());
-    check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
+    check("project: CLK beyond this build's range (BLE, LINK) loads as INT, not TRS", clock_beyond_range_is_int());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
     check("project: PRIO kept through a save and a load (FDRE)", fdrc_round_trip());
     check("project: FDR1, FDRA and FDRB records load with PRIO HIGH and play as the FDRC save", old_formats_play_same());
