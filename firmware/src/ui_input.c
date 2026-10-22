@@ -305,48 +305,50 @@ static void track_rec_toggle(uint32_t k)               /* arm / disarm track k (
     song.rec ^= (uint8_t)(1u << k);
 }
 
-/* REC ALL (a REC double-tap): every track armed, so each white key that plays its track records it (seq.c input_hit:
- * TRACKS, HOME, the FX / SOUND pages ...; KEYS and step record stay the selected track's, motion too). A REC tap
- * leaves it: the arm state from before it back. A single tap acts at once (on its release, as before); the second
- * tap, pressed within REC_DOUBLE_MS of the first's release, replaces the first's effect. Never stored */
-#define REC_DOUBLE_MS 350u
+/* REC (owner, 2026-10-22): on TRACKS a tap arms / disarms the selected track ("T3 REC ARMED" / "T3 REC OFF"); on every
+ * other page it turns REC ALL on or off. REC ALL: every track armed, so each white key that plays its track records it
+ * (seq.c input_hit: HOME, the SOUND / FX pages, TRACKS ...; KEYS, step record and motion stay the selected track's);
+ * off: the arm state from before it back. On TRACKS during REC ALL: it ends, the arm state from before it plus the
+ * selected track. REC never starts play. Never stored */
 #define REC_ALL_MASK ((uint8_t)((1u << NTRK) - 1u))
-static void rec_all_drop(void)                         /* REC ALL off, the arm state as it is (SMC REC n; INIT ALL) */
+static void rec_all_drop(void) { ui.rec_all = 0; }    /* REC ALL off, the arm state as it is (SMC REC n) */
+static void rec_say(uint32_t k, const char *what)      /* "T3 REC ARMED" */
 {
-    ui.rec_all = 0;
-    ui.rec_win = 0;
+    char m[4] = "T1 ";
+    m[1] = (char)('1' + k);
+    ui_say(m, what);
 }
-static void rec_tap(uint32_t t, uint32_t now)          /* a REC tap (the button, a learned REC, the SMC's REC) pressed at
-                                                        * t, acting now; song_lock and step record already passed */
+static void rec_tap(void)                              /* a REC tap (the button, a learned REC, the SMC's REC); song_lock
+                                                        * and step record already passed */
 {
-    uint32_t win = ui.rec_win;
-    int quick = win && t - ui.rec_t1 <= REC_DOUBLE_MS * 1000u * FM1_TICKS_PER_US;
-    ui.rec_win = 0;
-    ui.rec_t1 = now;
-    if (quick && win == 2u)                            /* the second tap of a double-tap that left REC ALL: nothing */
+    uint32_t k = song.sel, bit = 1u << k;
+    if (mix_mode()) {                                  /* TRACKS: the selected track */
+        if (ui.rec_all) {
+            ui.rec_all = 0;
+            song.rec = (uint8_t)(ui.rec_keep | bit);
+        } else {
+            track_rec_toggle(k);
+        }
+        rec_say(k, (song.rec & bit) ? "REC ARMED" : "REC OFF");
         return;
-    if (ui.rec_all) {                                  /* leave: the arm state from before REC ALL */
-        char m[8] = "REC T1";
-        uint32_t k = 0;
+    }
+    if (ui.rec_all) {                                  /* off: the arm state from before REC ALL */
         ui.rec_all = 0;
         song.rec = ui.rec_keep;
-        ui.rec_win = 2;
-        while (k + 1u < NTRK && !((song.rec >> k) & 1u))
-            k++;
-        m[5] = (char)('1' + k);
-        ui_message(!song.rec ? "REC OFF" : song.rec & (song.rec - 1u) ? "REC TRACKS" : m);   /* (one armed: its name) */
+        for (k = 0; k + 1u < NTRK && !((song.rec >> k) & 1u); k++)
+            ;
+        if (!song.rec)
+            ui_message("REC OFF");
+        else if (song.rec & (song.rec - 1u))
+            ui_message("REC TRACKS");
+        else
+            rec_say(k, "REC ARMED");                   /* (one armed: its name) */
         return;
     }
-    if (quick) {                                       /* the second tap: REC ALL (the first tap's toggle undone) */
-        ui.rec_keep = ui.rec_prev;
-        ui.rec_all = 1;
-        song.rec = REC_ALL_MASK;                       /* (no play started, as a tap) */
-        ui_message("REC ALL");
-        return;
-    }
-    ui.rec_prev = song.rec;
-    track_rec_toggle(song.sel);                        /* the selected track armed / disarmed */
-    ui.rec_win = 1;
+    ui.rec_keep = song.rec;
+    ui.rec_all = 1;
+    song.rec = REC_ALL_MASK;                           /* (no play started) */
+    ui_message("REC ALL");
 }
 
 /* MOTION page: KNOB 1 PLAY (right ON, left OFF), KNOB 4 CLEAR (a turn right asks: "CLEAR MOTION T<n>?") */
@@ -830,13 +832,10 @@ static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
-    uint32_t rec_down = ui.rec_t0 & ~3u;                /* REC's press time (a tap's: REC ALL's double-tap) */
     uint32_t rec = btn_hold(&ui.rec_t0, B_REC, now, !ui.menu && fam == FAM_SEQ), acts;
     int32_t s, dt;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
-    if (ui.rec_win && rec != BT_TAP && !ui.rec_t0 && now - ui.rec_t1 > REC_DOUBLE_MS * 1000u * FM1_TICKS_PER_US)
-        ui.rec_win = 0;                                 /* REC's double-tap window over (no stale one on a wrap) */
     acc_oct_poll();                                     /* OCT+ let go on the steps: the next bank (item 1) */
     pre_frame(now);                                     /* PRESETS: EDIT's hold, the popup's time (ui_preset.c) */
 #if FELUCCA_BLE
@@ -864,10 +863,8 @@ static void ui_input(void)
                                                          * NEXT / PREV TRACK as ALGORITHM (each where the button acts) */
     if (acts & 1u)
         pressed |= 1u << panel.btn[B_PLAY];
-    if ((acts & 2u) && rec == BT_NONE) {
+    if ((acts & 2u) && rec == BT_NONE)
         rec = BT_TAP;
-        rec_down = now;                                 /* (a learned REC: pressed now) */
-    }
     if (ui.mute) {                                      /* the MUTE screen owns the panel (its keys: glo_input), PLAY
                                                          * aside; a HOME / REC press under it is no tap or hold */
         if ((pressed >> panel.btn[B_PLAY]) & 1u)
@@ -912,7 +909,6 @@ static void ui_input(void)
         return;
     }
     if (rec == BT_HOLD) {                               /* REC held on SEQ: "clear track n?"; SONG: its row */
-        ui.rec_win = 0;                                 /* (no double-tap through a hold) */
         if (!ui.home && cur_page()->graph == GR_SONG) {
             song_rec_hold();
         } else if (!song_lock()) {
@@ -921,14 +917,12 @@ static void ui_input(void)
             ui.force = 1;
         }
     } else if (rec == BT_TAP && !ui.confirm) {          /* spec §4: REC arms on every screen */
-        if (ui.srec || srec_ok())
-            ui.rec_win = 0;                             /* (a step record tap: no double-tap with it) */
         if (ui.srec) {
             ui.srec = 0;                                /* step record ends */
         } else if (srec_ok()) {
             srec_start();                               /* KEYS, STEP, stopped: step record */
         } else if (!song_lock()) {
-            rec_tap(rec_down, now);                     /* the selected track armed / disarmed; a double-tap REC ALL */
+            rec_tap();                                  /* TRACKS: the selected track armed / disarmed; else REC ALL */
         }
     }
     if (ui.confirm) {                                   /* OCT- cancels (NO), OCT+ clears (YES); nothing else reacts */

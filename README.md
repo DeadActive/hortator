@@ -32,13 +32,13 @@ firmware ([below](#back-to-the-official-firmware)).
   303-style bass voice (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE: saw or square into a resonant 24 dB filter, with
   accent, slide and tie), plays them as a bass line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys
   into a keyboard for the selected track (KEYS): play it, record it live, or enter a line step by step. Live record:
-  a REC tap, on any screen, arms the selected track (it never starts the transport: PLAY does, and an armed track
-  records once playing); a key writes the nearest step, a key
-  held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on ACID tracks only). REC ALL, to
-  finger-drum a whole kit live: a REC double-tap (the second tap within 0.35 s) arms every track (`REC ALL`), and each
-  white track key plays and records its own track wherever the keys play tracks (TRACKS, HOME, SOUND, FX ...); KEYS,
-  step record and knob motion stay the selected track's. A REC tap leaves it: the tracks armed before it are armed
-  again (`REC T3`, or `REC OFF` when none was). An ACID
+  on TRACKS a REC tap arms / disarms the selected track (`T3 REC ARMED` / `T3 REC OFF`); on every other screen a REC
+  tap is REC ALL, to finger-drum a whole kit live: every track armed (`REC ALL`), each white track key plays and records
+  its own track wherever the keys play tracks (HOME, SOUND, FX, TRACKS ...), while KEYS, step record and knob motion
+  stay the selected track's; a REC tap there again ends it, the tracks armed before it armed again (`T3 REC ARMED`, or
+  `REC OFF` when none was). REC never starts the transport: PLAY does, and an armed track records once playing. A key
+  writes the nearest step, a key held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on
+  ACID tracks only). An ACID
   track's STEP page is a piano roll; a step the white keys turn on takes the last KEYS note on an ACID track, C4 on a
   drum. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
   is cut (a safety limit). A loaded project keeps ACID on its first two ACID tracks; the others come back as their
@@ -75,7 +75,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
-| **REC** | arms / disarms the selected track for recording, on any screen (it never starts play: PLAY does). Double-tap: REC ALL, every track armed, each white key records its own track; a tap leaves it (the arm state from before back). On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
+| **REC** | on TRACKS: arms / disarms the selected track for recording (`T3 REC ARMED` / `T3 REC OFF`; during REC ALL: REC ALL ends, the selected track armed). On every other screen: REC ALL on / off (every track armed, each white key records its own track; off: the arm state from before back). It never starts play: PLAY does. On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
 | **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
 | **SAVE** | projects (save, load, name) and tools |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
@@ -112,7 +112,7 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
 | --- | --- | --- | --- |
 | a knob of a track | turn the knob (it edits as usual) | a CC | moves that knob of that track, 0..127 over its range |
 | PLAY | press PLAY (nothing plays) | a CC or a note | a press = a PLAY tap: play / stop (on SONG: the song) |
-| REC | press REC (nothing arms) | a CC or a note | a press = a REC tap: arm / disarm the selected track (step record, and two presses within 0.35 s REC ALL, as the button) |
+| REC | press REC (nothing arms) | a CC or a note | a press = a REC tap, as the button: TRACKS the selected track, elsewhere REC ALL (step record as the button) |
 | NEXT TRACK / PREV TRACK | turn ALGORITHM right / left (the track stays) | a CC or a note | a press selects the next / previous track |
 | a PERFORM effect | hold FX, press its black key (nothing plays) | a CC or a note | held while the controller's button is held, as the key (FX need not be held) |
 | a track's PERFORM mute | hold FX, press its white key F3..F4 | a CC or a note | the track silent while held |
@@ -251,7 +251,7 @@ The M-VAVE SMC-Mixer in its DAW (Mackie Control) mode, MODE AUTO or SMC DAW. Onl
 | SELECT 1–8 | select the track |
 | PLAY | stopped: play; playing: nothing |
 | STOP | stop |
-| REC | as the FM-1's REC tap: arm / disarm the selected track; twice within 0.35 s REC ALL |
+| REC | as the FM-1's REC tap: on TRACKS arm / disarm the selected track, elsewhere REC ALL on / off |
 | BANK ◀ / CHANNEL ◀, BANK ▶ / CHANNEL ▶ | the previous / next track (stops at 1 and 8) |
 | REW, FF, the arrows | nothing |
 

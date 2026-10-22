@@ -68,11 +68,8 @@ static struct {
     uint8_t bpm_t;
     uint8_t arm, arm_t;          /* destructive action armed: param id, frames left to confirm */
     uint32_t rec_t0;             /* REC press time (btn_hold) */
-    uint8_t rec_all, rec_keep;   /* REC ALL (a REC double-tap, ui_input.c rec_tap): on; the arm mask before it (back
+    uint8_t rec_all, rec_keep;   /* REC ALL (a REC tap off TRACKS, ui_input.c rec_tap): on; the arm mask before it (back
                                   * when it is left). Never stored, as the arm state */
-    uint8_t rec_win, rec_prev;   /* the last REC tap: 1 it armed / disarmed the selected track (rec_prev: the mask before
-                                  * it), 2 it left REC ALL; 0 none (or REC_DOUBLE_MS past) */
-    uint32_t rec_t1;             /* .. its time (a tap's release) */
     uint32_t step_t0[16];        /* STEP grid: a white key's press time (as btn_hold: bit1 = the hold acted) */
     uint16_t step_si[16];        /* the step it pressed, 0xFFFF none */
     step_t step_prev[16];        /* that step before the press (a hold or a knob turn restores it) */
@@ -453,7 +450,6 @@ static void init_all(void)
     song.playing = 0;
     song.rec = 0;
     ui.rec_all = 0;                                     /* (no REC ALL: nothing armed) */
-    ui.rec_win = 0;
     song.solo = 0;
     memset(&mo, 0, sizeof mo);                     /* no motion */
     memset(&chain, 0, sizeof chain);               /* no song, no name */

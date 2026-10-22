@@ -122,12 +122,10 @@ static void smc_button(uint32_t n)
         if (song.playing || chain_busy())
             transport_req = 2;
         break;
-    case 0x5Fu:                                       /* REC: the selected track, as the FM-1's REC tap (a double-tap
-                                                       * REC ALL, ui_input.c rec_tap) */
-        if (!song_lock()) {
-            uint32_t now = fm1_ticks();
-            rec_tap(now, now);
-        }
+    case 0x5Fu:                                       /* REC: as the FM-1's REC tap (TRACKS: the selected track;
+                                                       * elsewhere REC ALL, ui_input.c rec_tap) */
+        if (!song_lock())
+            rec_tap();
         break;
     case 0x2Eu:
     case 0x30u:                                       /* BANK / CHANNEL <: the previous track */

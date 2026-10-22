@@ -71,6 +71,12 @@ static void link_down(void)
     bt_link(0);
     smc_link(0);
 }
+static void to_tracks(void)                          /* the TRACKS screen (REC: the selected track; elsewhere REC ALL) */
+{
+    ui.home = 0;
+    ui.page = (uint8_t)page_first(FAM_MIX);
+    page_entered();
+}
 static void fresh(void)                              /* AUTO, linked to an SMC-Mixer, the first frame sent */
 {
     ui_host_init();
@@ -263,10 +269,11 @@ static void test_buttons(void)
     in(note(0x31, 127));
     in(note(0x30, 127));
     check("CHANNEL > > <: track 2", song.sel == 1u);
+    to_tracks();
     in(note(0x5F, 127));
-    check("REC: the selected track (2) armed, no play requested", song.rec == 2u && !transport_req);
+    check("REC on TRACKS: the selected track (2) armed, T2 REC ARMED, no play requested", song.rec == 2u &&
+          !transport_req && str_eq(ui.msg, "T2 REC ARMED"));
     transport_req = 0;
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (past REC_DOUBLE_MS: a single tap) */
     in(note(0x5F, 127));
     check("REC again: disarmed", !song.rec);
     chain.armed = 1;                                 /* a song armed (PLAY on SONG): REC as on TRACKS */
@@ -315,11 +322,9 @@ static void test_buttons(void)
 static void test_rec_all(void)
 {
     uint32_t i, ok;
-    fresh();
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
+    fresh();                                         /* HOME */
     in(note(0x5F, 127));
-    in(note(0x5F, 127));
-    check("REC twice quickly: REC ALL, every track armed, no play requested, REC ALL said",
+    check("REC on HOME: REC ALL, every track armed, no play requested, REC ALL said",
           song.rec == 0xFFu && ui.rec_all && !transport_req && str_eq(ui.msg, "REC ALL"));
     clear_sent();
     smc_frame();
@@ -329,12 +334,13 @@ static void test_rec_all(void)
     in(note(0x02, 127));
     check("REC 3 during REC ALL: REC ALL left, track 3 disarmed, the others still armed", song.rec == 0xFBu &&
           !ui.rec_all);
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
     in(note(0x5F, 127));
-    in(note(0x02, 127));
     in(note(0x5F, 127));
-    check("REC, REC 3, REC quickly: three single toggles (REC n between: no REC ALL)", song.rec == 0xFFu &&
-          !ui.rec_all);
+    check("REC, REC on HOME: REC ALL on and off, the arm state from before back", song.rec == 0xFBu && !ui.rec_all);
+    to_tracks();
+    in(note(0x5F, 127));
+    check("REC on TRACKS: the selected track (1) toggled: T1 REC OFF", song.rec == 0xFAu && !ui.rec_all &&
+          str_eq(ui.msg, "T1 REC OFF"));
     song.rec = 0;
     transport_req = 0;
 }
@@ -382,6 +388,7 @@ static void test_leds(void)
     settings.mutebar = 0;
     in(note(0x0A, 127));
     in(note(0x1A, 127));
+    to_tracks();                                     /* (REC there: the selected track) */
     in(note(0x5F, 127));
     clear_sent();
     smc_frame();

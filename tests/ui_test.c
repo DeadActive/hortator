@@ -19,7 +19,6 @@ static uint32_t foot_lit(void);
 static uint32_t fb_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint16_t c);
 static void tap(uint32_t b);
 static void hold(uint32_t label);
-static void rec_gap(void);
 static void safe_boot(int seq_held);
 static void kit_session(void);
 static void fx_hold_frames(uint32_t n);
@@ -1151,7 +1150,7 @@ static void test_home_modes(void)
 }
 
 /* REC (spec §4): a tap arms / disarms the selected track on every screen (it never starts play: PLAY does); never
- * opens TRACKS; the menu, NAME and a confirm keep it */
+ * opens TRACKS; the menu, NAME and a confirm keep it. On TRACKS the selected track, elsewhere REC ALL (test_rec_all) */
 static void test_rec_everywhere(void)
 {
     static const struct { const char *what; uint32_t btn, n; } S[] = {
@@ -1170,14 +1169,20 @@ static void test_rec_everywhere(void)
         home = ui.home;
         tap(B_REC);
         ui_frame();
-        snprintf(what, sizeof what, "%s: a REC tap arms track 2, no play (still stopped), the screen stays, REC lit",
-                 S[i].what);
-        check(what, song.rec == 2u && !song.playing && !transport_req && ui.page == pg && ui.home == home &&
-                    led_lit(panel.btn[B_REC]));
-        rec_gap();                                   /* (a single tap: not REC ALL's double-tap) */
+        if (mix_mode()) {                            /* TRACKS: the selected track */
+            snprintf(what, sizeof what, "%s: a REC tap arms track 2 (T2 REC ARMED), no play, the screen stays, REC lit",
+                     S[i].what);
+            check(what, song.rec == 2u && !ui.rec_all && str_eq(ui.msg, "T2 REC ARMED") && !song.playing &&
+                        !transport_req && ui.page == pg && ui.home == home && led_lit(panel.btn[B_REC]));
+        } else {                                     /* elsewhere: REC ALL */
+            snprintf(what, sizeof what, "%s: a REC tap: REC ALL, no play, the screen stays, REC lit", S[i].what);
+            check(what, song.rec == 0xFFu && ui.rec_all && !song.playing && !transport_req && ui.page == pg &&
+                        ui.home == home && led_lit(panel.btn[B_REC]));
+        }
         tap(B_REC);
-        snprintf(what, sizeof what, "%s: a REC tap again disarms it (still stopped), REC dark", S[i].what);
-        check(what, song.rec == 0u && !song.playing && ui.page == pg && ui.home == home && !led_lit(panel.btn[B_REC]));
+        snprintf(what, sizeof what, "%s: a REC tap again disarms (still stopped), REC dark", S[i].what);
+        check(what, song.rec == 0u && !ui.rec_all && !song.playing && ui.page == pg && ui.home == home &&
+                    !led_lit(panel.btn[B_REC]));
         transport_req = 2;
         ui_frame();
     }
@@ -1185,8 +1190,8 @@ static void test_rec_everywhere(void)
     tap(B_EDIT);
     pg = ui.page;
     hold(B_REC);
-    check("REC held long off the SEQ pages: no dialog; the release arms (a tap)", !ui.confirm && song.rec == 1u &&
-          ui.page == pg);
+    check("REC held long off the SEQ pages: no dialog; the release is a tap (REC ALL)", !ui.confirm &&
+          song.rec == 0xFFu && ui.rec_all && ui.page == pg);
     transport_req = 2;
     ui_frame();
     ui_host_init();
@@ -1638,13 +1643,9 @@ static void test_tracks_rec_keys(void)
     ui_frame();
 }
 
-/* REC ALL (a REC double-tap): every track armed, each white key plays and records its own track wherever the keys play
- * tracks; a REC tap leaves it, the arm state from before back. A single tap acts at once, as before */
-static void rec_gap(void)                            /* 0.4 s: past REC_DOUBLE_MS (the next REC tap is a single one) */
-{
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
-    ui_frame();
-}
+/* REC (owner, 2026-10-22): on TRACKS a tap arms / disarms the selected track ("T3 REC ARMED" / "T3 REC OFF"); on every
+ * other page a tap turns REC ALL on (every track armed, each white key plays and records its own track wherever the
+ * keys play tracks) or off (the arm state from before it back). REC never starts play */
 static uint32_t steps_on(uint32_t t)
 {
     uint32_t k, n = 0;
@@ -1677,35 +1678,33 @@ static void test_rec_all(void)
     uint32_t i, ok;
     ui_host_init();
     settings.mutebar = 0;
-    tap(B_FX);                                       /* FX: the keys play their drums */
+    open_tracks();
     track_select(2);
     ui_frame();
     press(B_REC);
     ui_frame();
-    check("REC ALL: REC pressed (not let go): nothing yet", song.rec == 0u && !song.playing);
+    check("TRACKS: REC pressed (not let go): nothing yet", song.rec == 0u && !song.playing);
     release_all();
     ui_input();
-    check("REC: a single tap arms the selected track at once (in the release's pass), no play asked",
-          song.rec == 4u && !transport_req && !song.playing && !ui.rec_all);
-    ui_frame();
-    tap(B_PLAY);                                     /* PLAY starts it (REC never does) */
-    rec_gap();
+    check("TRACKS: a REC tap arms the selected track at once (the release's pass): T3 REC ARMED, no play",
+          song.rec == 4u && !ui.rec_all && str_eq(ui.msg, "T3 REC ARMED") && !transport_req && !song.playing);
+    snap_page("fixes/rec_tracks_armed");
     tap(B_REC);
-    check("REC: a tap 0.4 s later disarms it (a single tap, still playing)", song.rec == 0u && song.playing &&
-          !ui.rec_all && !led_lit(panel.btn[B_REC]));
-    rec_gap();
+    check("TRACKS: a REC tap again disarms it: T3 REC OFF, REC dark", song.rec == 0u && !ui.rec_all &&
+          str_eq(ui.msg, "T3 REC OFF") && !led_lit(panel.btn[B_REC]));
+    tap(B_REC);                                      /* track 3 armed */
+    tap(B_FX);                                       /* FX: the keys play their drums */
     tap(B_REC);
-    tap(B_REC);
-    check("REC double-tap: REC ALL, every track armed, REC ALL said, REC lit", song.rec == 0xFFu && ui.rec_all &&
-          str_eq(ui.msg, "REC ALL") && led_lit(panel.btn[B_REC]) && song.playing);
+    check("FX: a REC tap: REC ALL, every track armed, REC ALL said, REC lit, no play", song.rec == 0xFFu &&
+          ui.rec_all && str_eq(ui.msg, "REC ALL") && led_lit(panel.btn[B_REC]) && !transport_req && !song.playing);
     snap_page("fixes/rec_all");
+    tap(B_PLAY);
     steps_clear();
     seq_play_to(0, 3);
     key_hit(0);
     key_hit(3);
     key_hit(7);
-    check("REC ALL on FX: keys 1, 4, 8 each record into their own track (none into the selected 3)",
-          only_steps(1u | 8u | 128u));
+    check("REC ALL on FX: keys 1, 4, 8 each record into their own track", only_steps(1u | 8u | 128u));
     trk[5].p[P_MUTE] = 1;
     key_hit(5);
     check("REC ALL: a muted track's key records too (as an armed muted track)", only_steps(1u | 8u | 32u | 128u));
@@ -1717,7 +1716,7 @@ static void test_rec_all(void)
     key_hit(1);
     key_hit(6);
     check("REC ALL on TRACKS: keys 2 and 7 record into their tracks, the selection stays",
-          only_steps(2u | 64u) && song.sel == 2u && song.seq_mode == 2u);
+          only_steps(2u | 64u) && song.sel == 2u && song.seq_mode == 2u && ui.rec_all);
     snap_page("fixes/rec_all_tracks");
     tap(B_HOME);                                     /* the HOME screen */
     steps_clear();
@@ -1738,72 +1737,66 @@ static void test_rec_all(void)
     check("REC ALL + KEYS: the key records into the selected track only", only_steps(16u));
     tap(B_SCL);
     track_select(2);
-    rec_gap();
     tap(B_REC);
-    check("REC ALL left by a tap: nothing armed again (as before it), REC OFF, REC dark, still playing",
-          song.rec == 0u && !ui.rec_all && str_eq(ui.msg, "REC OFF") && !led_lit(panel.btn[B_REC]) && song.playing);
+    check("HOME: a REC tap leaves REC ALL: track 3 armed again, as before it (T3 REC ARMED), still playing",
+          song.rec == 4u && !ui.rec_all && str_eq(ui.msg, "T3 REC ARMED") && led_lit(panel.btn[B_REC]) && song.playing);
+    tap(B_REC);
+    check("HOME: a REC tap again: REC ALL", song.rec == 0xFFu && ui.rec_all);
+    track_select(1);
+    open_tracks();
+    tap(B_REC);
+    check("TRACKS during REC ALL: a REC tap ends it, the tracks from before and the selected one armed (T2 REC ARMED)",
+          song.rec == 6u && !ui.rec_all && str_eq(ui.msg, "T2 REC ARMED"));
+    tap(B_REC);
+    track_select(2);
+    tap(B_REC);
+    check("TRACKS: T2, then T3 disarmed: nothing armed", song.rec == 0u && str_eq(ui.msg, "T3 REC OFF"));
+    tap(B_HOME);
+    tap(B_REC);
+    tap(B_REC);
+    check("HOME: REC ALL on and off with nothing armed before: REC OFF, REC dark, still playing", song.rec == 0u &&
+          !ui.rec_all && str_eq(ui.msg, "REC OFF") && !led_lit(panel.btn[B_REC]) && song.playing);
+    track_select(1);
+    tap(B_REC);
+    tap(B_REC);
     steps_clear();
     key_hit(1);
     check(".. the keys only play again", only_steps(0u));
-    track_select(2);                                 /* (the key selected track 2) */
-    rec_gap();
-    tap(B_REC);
-    rec_gap();
-    tap(B_REC);
-    tap(B_REC);
-    check("REC double-tap with track 3 armed: REC ALL (the first tap's disarm replaced)", song.rec == 0xFFu &&
-          ui.rec_all);
-    rec_gap();
-    tap(B_REC);
-    check("REC ALL left: track 3 armed again (REC T3)", song.rec == 4u && !ui.rec_all && str_eq(ui.msg, "REC T3") &&
-          led_lit(panel.btn[B_REC]));
-    rec_gap();
-    tap(B_REC);
-    tap(B_REC);
-    rec_gap();
-    tap(B_REC);
-    tap(B_REC);
-    check("REC ALL left by a double-tap: as a single tap (track 3 armed, the second tap nothing)",
-          song.rec == 4u && !ui.rec_all);
-    rec_gap();
-    tap(B_REC);
-    check(".. a later tap: track 3 disarmed (a single tap)", song.rec == 0u && !ui.rec_all);
     transport_req = 2;
     ui_frame();
     ui_frame();
-    rec_gap();
     tap(B_REC);
-    tap(B_REC);
-    check("REC double-tap while stopped: REC ALL, play not started", ui.rec_all && song.rec == 0xFFu &&
-          !transport_req && !song.playing);
+    check("HOME, stopped: a REC tap: REC ALL, play not started", ui.rec_all && song.rec == 0xFFu && !transport_req &&
+          !song.playing);
     ui_frame();
     init_all();
     check("INIT ALL: REC ALL off, nothing armed", !ui.rec_all && song.rec == 0u);
 
-    srec_open();                                     /* STEP, KEYS, stopped: the first tap started step record */
+    srec_open();                                     /* STEP, KEYS, stopped: the tap started step record */
+    check("STEP + KEYS, stopped: a REC tap starts step record, no REC ALL", ui.srec && !ui.rec_all && song.rec == 0u);
     tap(B_REC);
-    check("STEP + KEYS, stopped: REC tap tap = step record on, then off; no REC ALL, nothing armed",
-          !ui.srec && !ui.rec_all && song.rec == 0u && !song.playing);
+    check(".. a REC tap ends it, no REC ALL, nothing armed", !ui.srec && !ui.rec_all && song.rec == 0u &&
+          !song.playing);
 
     ui_host_init();
     trk[0].step[0].on = 1;
     seq_open("STEP");
-    tap(B_REC);                                      /* track 1 armed, playing */
+    tap(B_REC);
+    check("STEP, KEYS off: a REC tap: REC ALL (no play)", ui.rec_all && song.rec == 0xFFu && !song.playing);
     hold(B_REC);
-    check("REC tap then REC held on SEQ: CLEAR TRACK? (no REC ALL)", ui.confirm == 1u && song.rec == 1u &&
-          !ui.rec_all);
+    check("STEP: REC held: CLEAR TRACK? (REC ALL as it was)", ui.confirm == 1u && song.rec == 0xFFu && ui.rec_all);
     tap(B_OCTDN);
     tap(B_REC);
-    check(".. a tap after: track 1 disarmed (a single tap)", song.rec == 0u && !ui.rec_all);
-    transport_req = 2;
-    ui_frame();
+    check(".. a tap after: REC ALL off", song.rec == 0u && !ui.rec_all);
 
     ui_host_init();
     chain.armed = 1;                                 /* a song armed: REC says STOP TO EDIT */
     tap(B_REC);
-    tap(B_REC);
-    check("a song armed: REC double-tap: STOP TO EDIT, nothing armed, no REC ALL", str_eq(ui.msg, "STOP TO EDIT") &&
+    check("a song armed: REC: STOP TO EDIT, nothing armed, no REC ALL", str_eq(ui.msg, "STOP TO EDIT") &&
           song.rec == 0u && !ui.rec_all);
+    open_tracks();
+    tap(B_REC);
+    check("a song armed, TRACKS: REC: STOP TO EDIT, nothing armed", str_eq(ui.msg, "STOP TO EDIT") && song.rec == 0u);
     chain.armed = 0;
 }
 
@@ -5716,7 +5709,7 @@ static void test_srec_exits(void)
     seq_open("STEP");
     tap(B_REC);
     ui_frame();
-    check("KEYS off: a REC tap on STEP arms the track, no play (STEP stays)", !ui.srec && song.rec == 1u &&
+    check("KEYS off: a REC tap on STEP: REC ALL, no play (STEP stays)", !ui.srec && song.rec == 0xFFu && ui.rec_all &&
           !song.playing && cur_page()->scope == SC_GRID);
     transport_req = 2;
     ui_frame();
@@ -5726,8 +5719,8 @@ static void test_srec_exits(void)
     transport_req = 1;
     ui_frame();
     tap(B_REC);
-    check("KEYS on, playing: a REC tap on STEP arms the track (STEP stays)", !ui.srec && song.rec == 1u &&
-          cur_page()->scope == SC_GRID);
+    check("KEYS on, playing: a REC tap on STEP: REC ALL, no step record (STEP stays)", !ui.srec && song.rec == 0xFFu &&
+          ui.rec_all && cur_page()->scope == SC_GRID);
     transport_req = 2;
     ui_frame();
 }

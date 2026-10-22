@@ -86,9 +86,10 @@ For each: what you should see / hear. Note anything different (page, knob, what 
   track's engine to the kit's (e.g. kit_808: K808 S808 C808 HATC HATO TOM COWB CYMB, with MODEL (KNOB 1) on
   EDIT), then enter its pattern (one line of x / X per track) on the STEP grid and press PLAY at 120 BPM:
   it sounds like `build/drum_renders/kit_808.wav`.
-- Live recording: a REC tap on any page (HOME, EDIT, FX, SEQ, GLOBAL ...) arms the selected track (the REC LED
-  lights; play does not start: press PLAY; the page stays); play its key while running, on TRACKS or any page where the
-  keys play: the steps appear. A REC tap again disarms. REC never opens TRACKS.
+- Live recording: on TRACKS a REC tap arms the selected track (`T3 REC ARMED`); on any other page (HOME, EDIT, FX,
+  SEQ, GLOBAL ...) it is REC ALL (every track armed). The REC LED lights; play does not start: press PLAY; the page
+  stays. Play the keys while running, on TRACKS or any page where the keys play: the steps appear. A REC tap again
+  disarms. REC never opens TRACKS.
 - PROJECT: save to slot A, change things, load slot A: everything comes back.
 - The master knob changes the volume; the battery icon shows a level.
 
@@ -121,7 +122,7 @@ Report what you saw first; we'll go through it together.
 - Every SEQ page (STEP, PATTERN, MOTION, SONG): the white keys are the selected track's steps (tap: on / off, OCT+
   held + tap: accent), OCT+ (let go alone) / OCT- the bank; the footer strip shows them; ALGO picks the track (no sound).
 - TRACKS (HOME's first mode): the white keys are the selected track's steps (as on STEP: tap on / off, OCT+ held +
-  tap: accent; OCT+ / OCT- the bank; no sound); KNOB 1 or ALGO picks the track. With a track armed (REC tap) the white
+  tap: accent; OCT+ / OCT- the bank; no sound); KNOB 1 or ALGO picks the track. With a track armed (REC tap on TRACKS) the white
   keys play their tracks instead and record into the armed one, the selection stays.
 - The MUTE screen: hold GLO (0.4 s, or GLO + a key at once): eight boxes, filled = heard, outline = muted, the keys
   F3 .. F4 under them; the 8 white keys lit for the heard tracks. A white key mutes / unmutes its track (a muted
@@ -678,23 +679,24 @@ The screens: `build/ui_shots/fixes/trx_kit_home.png`, `trx_kit_tracks.png`.
 - A saved project loads its own kit, unchanged. BENCH's heavy cases keep the old kit (K909 S808 C808 HATC HATO TOM
   RIM CYMB), so a run compares with the earlier ones.
 
-### REC ALL (check on the FM-1)
+### REC: TRACKS and REC ALL (check on the FM-1)
 
-The screen: `build/ui_shots/fixes/rec_all.png` (the `REC ALL` message on FX).
+The screens: `build/ui_shots/fixes/rec_all.png` (the `REC ALL` message on FX), `rec_tracks_armed.png`
+(`T3 REC ARMED` on TRACKS), `rec_all_tracks.png`.
 
-- Stopped, on HOME: a single REC tap arms the selected track at once (REC lit) and does NOT start play (new: PLAY
-  starts it). Wait a moment, tap again: disarmed. The same for a learned REC and the SMC-Mixer's REC / REC 1-8.
-- REC double-tap (quickly): `REC ALL`, REC lit, still stopped; press PLAY. Finger-drum the white keys F3..F4 on HOME,
-  TRACKS, SOUND or FX: each key's own track records (open STEP after: the hits are on each track). A muted track's key
-  records too.
+- TRACKS (HOME's first mode), stopped: a REC tap arms the selected track at once: `T3 REC ARMED`, REC lit, play does
+  NOT start (press PLAY). A REC tap again: `T3 REC OFF`. Its key records while playing.
+- Any other page (HOME screen, EDIT, FX, SEQ ...): a REC tap = `REC ALL`, REC lit, still stopped; press PLAY.
+  Finger-drum the white keys F3..F4 on HOME, SOUND or FX (or TRACKS): each key's own track records (open STEP after:
+  the hits are on each track). A muted track's key records too.
 - KEYS on (SCL) during REC ALL: the keys play and record the selected track only; a knob turn records motion on the
   selected track only.
-- A REC tap: REC ALL ends; `REC OFF` (nothing was armed before) or `REC T3` (track 3 was armed before: armed again).
-  A double-tap to leave does the same (the second tap does nothing).
-- On STEP with KEYS on, stopped: REC tap tap = step record on, then off (no REC ALL). REC held on a SEQ page: CLEAR
-  TRACK, as before. While a song plays: REC (single or double) says `STOP TO EDIT`.
-- SMC-Mixer: REC twice quickly = REC ALL (REC 1-8 all lit); REC 3 then: REC ALL ends, track 3 dark, the others lit.
-  A learned REC (MIDI LEARN) pressed twice quickly: REC ALL.
+- A REC tap off TRACKS during REC ALL: it ends; `REC OFF` (nothing was armed before) or `T3 REC ARMED` (track 3 was
+  armed before: armed again). On TRACKS during REC ALL: it ends, the selected track armed (`T3 REC ARMED`).
+- On STEP with KEYS on, stopped: REC tap = step record on, again = off (no REC ALL). REC held on a SEQ page: CLEAR
+  TRACK, as before. While a song plays: REC says `STOP TO EDIT`.
+- SMC-Mixer: REC acts as the FM-1's REC on the page shown (REC ALL: REC 1-8 all lit); REC 3 during REC ALL: it ends,
+  track 3 dark, the others lit. A learned REC (MIDI LEARN) acts as the button.
 
 ### HOME: the bar boxes (check on the FM-1)
 

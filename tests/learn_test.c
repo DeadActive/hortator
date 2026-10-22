@@ -918,7 +918,7 @@ static void test_act_learn(void)
     frames(1);
     tap(B_REC);
     frames(1);
-    check(".. REC arms again", song.rec == 1u);
+    check(".. REC arms again (HOME: REC ALL)", song.rec == 0xFFu && ui.rec_all);
     tap(B_REC);
     song.rec = 0;
     transport_req = 2;
@@ -979,24 +979,23 @@ static void test_act_trigger(void)
     check("64 again: PLAY (stops)", !song.playing);
     send_cc(25, 0);
     send_cc(20, 127);
-    check("CC20 (REC): the selected track armed (no play, as REC's tap)", song.rec == 1u && !song.playing);
-    send_cc(20, 0);
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (past REC_DOUBLE_MS: a single tap) */
-    send_cc(20, 127);
-    check("again: disarmed", !song.rec);
-    send_cc(20, 0);
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
-    send_cc(20, 127);
+    check("CC20 (REC) on HOME: REC ALL, as REC's tap there (every track armed, no play)", song.rec == 0xFFu &&
+          ui.rec_all && same(ui.msg, "REC ALL") && !song.playing);
     send_cc(20, 0);
     send_cc(20, 127);
-    check("CC20 (REC) twice quickly: REC ALL, as REC's double-tap (every track armed)", song.rec == 0xFFu &&
-          ui.rec_all && same(ui.msg, "REC ALL"));
+    check("again: REC ALL off, nothing armed (as before it)", !song.rec && !ui.rec_all);
     send_cc(20, 0);
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
+    ui.home = 0;                                     /* TRACKS */
+    ui.page = (uint8_t)page_first(FAM_MIX);
+    page_entered();
     send_cc(20, 127);
-    check("CC20 again: REC ALL left, nothing armed (as before it)", !song.rec && !ui.rec_all);
+    check("CC20 on TRACKS: the selected track armed (T1 REC ARMED)", song.rec == 1u && !ui.rec_all &&
+          same(ui.msg, "T1 REC ARMED"));
     send_cc(20, 0);
-    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (the next REC: a single tap) */
+    send_cc(20, 127);
+    send_cc(20, 0);
+    ui.home = 1;
+    page_entered();
     transport_req = 2;
     frames(1);
     send_cc(21, 127);
@@ -1044,10 +1043,11 @@ static void test_act_trigger(void)
     ml_bind(ML_NOTE << 8 | (uint32_t)trk[0].p[P_NOTE], 0, ML_A_REC);
     usb_note(9, (uint32_t)trk[0].p[P_NOTE], 100);
     frames(2);
-    check("a learned note on the drum channel: its action, its drum does not play", hit_age(&trk[0]) == a &&
-          song.rec == 1u);
+    check("a learned note on the drum channel: its action (HOME: REC ALL), its drum does not play",
+          hit_age(&trk[0]) == a && song.rec == 0xFFu);
     usb_noff(9, (uint32_t)trk[0].p[P_NOTE]);
     song.rec = 0;
+    ui.rec_all = 0;
     transport_req = 2;
     frames(1);
     usb_note(9, (uint32_t)trk[1].p[P_NOTE], 100);

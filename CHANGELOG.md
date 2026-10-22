@@ -5,13 +5,14 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
-- REC ALL: a REC double-tap (the second tap within 0.35 s of the first) arms every track (`REC ALL`, the REC LED and
-  the SMC-Mixer's REC 1-8 lit), so each white track key plays and records its own track wherever the keys play
-  tracks (TRACKS, HOME, SOUND, FX ...): finger-drum a whole kit live. KEYS, step record and knob motion stay the
-  selected track's. A REC tap (or double-tap) leaves it and arms again the tracks armed before (`REC T3` / `REC OFF`).
-  A single REC tap acts at once, as before; REC held, step record and `STOP TO EDIT` while a song plays are unchanged.
-  A learned REC and the SMC-Mixer's REC double-tap as the button; the SMC-Mixer's REC n during REC ALL ends it and
-  disarms track n (the others stay armed). Not saved in projects, as the arm state.
+- REC: on TRACKS a REC tap arms / disarms the selected track, saying so (`T3 REC ARMED` / `T3 REC OFF`). On every
+  other page a REC tap is REC ALL: every track armed (`REC ALL`, the REC LED and the SMC-Mixer's REC 1-8 lit), so each
+  white track key plays and records its own track wherever the keys play tracks (HOME, SOUND, FX, TRACKS ...):
+  finger-drum a whole kit live. KEYS, step record and knob motion stay the selected track's. A REC tap off TRACKS ends
+  it and arms again the tracks armed before (`T3 REC ARMED` / `REC OFF`); on TRACKS it ends it with the selected track
+  armed. Step record on STEP, REC held and `STOP TO EDIT` while a song plays are unchanged; a learned REC and the
+  SMC-Mixer's REC act as the button on the page shown; the SMC-Mixer's REC n during REC ALL ends it and disarms track n
+  (the others stay armed). Not saved in projects, as the arm state.
 - REC no longer starts play: a REC tap (and REC ALL, a learned REC, the SMC-Mixer's REC and REC 1-8) only arms /
   disarms; PLAY starts the transport, and an armed track records once playing. Step record is unchanged.
 
