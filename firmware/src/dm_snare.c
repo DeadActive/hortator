@@ -246,7 +246,7 @@ static void ssnap_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     dm_qend(v, n, pk, FS / 20);
 }
 
-#define DM_SSNAP_DEF {"SSNAP", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+#define DM_SSNAP_DEF {"SNAP", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("TONE", F_INT, 0, 127, 64), PD("SNAP", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, ssnap_trigger, ssnap_render, 2}
 
@@ -340,6 +340,6 @@ static void scrak_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     dm_qend(v, n, pk, FS / 10);
 }
 
-#define DM_SCRAK_DEF {"SCRAK", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+#define DM_SCRAK_DEF {"CRACK", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("FM", F_INT, 0, 127, 64), PD("SNAP", F_INT, 0, 127, 64), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, scrak_trigger, scrak_render, 2}

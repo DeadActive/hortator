@@ -135,7 +135,7 @@ static void ktrx_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-#define DM_KTRX_DEF {"KTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -4), PD("DECAY", F_INT, 0, 127, 68), \
+#define DM_KTRX_DEF {"BDTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, -4), PD("DECAY", F_INT, 0, 127, 68), \
     PD("SWEEP", F_INT, 0, 127, 35), PD("SDEC", F_INT, 0, 127, 35), PD("PUNCH", F_INT, 0, 127, 14), \
     PD("NOISE", F_INT, 0, 127, 14), PD("SUB", F_INT, 0, 127, 35), PD("CLIP", F_INT, 0, 127, 24)}, ktrx_trigger, \
     ktrx_render}

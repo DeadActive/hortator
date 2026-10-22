@@ -17,10 +17,10 @@ for 2 s.
 |---|---|---|---|
 | idle (nothing playing) | 12 % | 12 % | 0 |
 | realistic heavy kit (demo, layer / DIST / SLICER / sends on 8, CHORD + STRNG) | 41 % | 63 % | 0 |
-| PHYS-heavy (2 MEMB, RESON 2 CHORD + 2 MODAL) | **84 %** | **99 %** | **48 / 344** |
+| PHYS-heavy (2 SKIN, RESON 2 CHORD + 2 MODAL) | **84 %** | **99 %** | **48 / 344** |
 | PHYS-heavy without RESON | 45 % | 58 % | 0 |
-| 8 × MEMB (4 sound at once) | 57 % | 65 % | 0 |
-| 8 × S909 / SMPL (heaviest classic models), no FX | 47 / 50 % | 50 / 54 % | 0 |
+| 8 × SKIN (4 sound at once) | 57 % | 65 % | 0 |
+| 8 × S909 / SAMPL (heaviest classic models), no FX | 47 / 50 % | 50 / 54 % | 0 |
 
 Cost of the parts on the FM-1:
 
@@ -39,7 +39,7 @@ Findings:
 - The PHYS-heavy kit is the "80 % CPU" seen on the device; RESON is ~39 of its 84 points.
 - The worst half sits 15–20 points above the average in the heavy kits: voices are shed by the peaks, not the
   average (per-hit work landing in one half).
-- Light cases run 20–40 % slower than the host predicts (idle, hats, HMETL, HNOIS, KBOOM): the fixed per-half
+- Light cases run 20–40 % slower than the host predicts (idle, hats, METAL, HISS, BOOM): the fixed per-half
   work (buses, master, ISR) is memory-bound on the FM-1. Heavy DSP is not: running code from RAM probably gains
   little (an inference, not measured).
 
@@ -49,7 +49,7 @@ Sound identical (proved by host tests: identical output hashes), each measured w
 
 1. **RESON: coefficients only on change.** STRNG / PIPE / CHORD setup and MODAL's `px_modal_block_q` (12 modes,
    two 64 ÷ 32 divides each) run every 32-sample block even when no knob, LFO or R.TUN moves. Cache the inputs,
-   skip when equal. MEMB's `px_memb_block` likewise once its BEND has settled. Expected: ~10 % of RESON / MEMB on
+   skip when equal. SKIN's `px_memb_block` likewise once its BEND has settled. Expected: ~10 % of RESON / SKIN on
    the host, likely more on the FM-1 (divides).
 2. **Idle buses stop.** Chorus, delay, reverb run every half (12 % idle). A bus with no send from any track whose
    tail has fully died (its buffer and states exactly zero: tracked by the largest |value| written over one buffer
@@ -60,8 +60,8 @@ Sound identical (proved by host tests: identical output hashes), each measured w
 
 Sound changed slightly (WAV A/B for the user, nothing without approval):
 
-4. **MODAL / MEMB: fewer modes.** Drop modes above ~12 kHz or with tiny gain (est. 20–40 % of their cost);
-   or 8 instead of 12 modes for MODAL, 6–8 for MEMB.
+4. **MODAL / SKIN: fewer modes.** Drop modes above ~12 kHz or with tiny gain (est. 20–40 % of their cost);
+   or 8 instead of 12 modes for MODAL, 6–8 for SKIN.
 5. **Envelopes per few samples** (sample layer, models) instead of per sample.
 6. **Reverb at half rate.**
 7. **Lower-precision mode filters** (must keep the DaisySP check, 5 cents; any threshold change: the user).

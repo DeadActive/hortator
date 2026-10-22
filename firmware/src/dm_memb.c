@@ -70,6 +70,6 @@ static void memb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     }
 }
 
-#define DM_MEMB_DEF {"MEMB", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 60), \
+#define DM_MEMB_DEF {"SKIN", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 60), \
     PD("TONE", F_INT, 0, 127, 64), PD("HEAD", F_INT, 0, 127, 20), PD("POS", F_INT, 0, 127, 40), \
     PD("BEND", F_INT, 0, 127, 30), PD("STICK", F_INT, 0, 127, 24), PD("-", F_INT, 0, 0, 0)}, memb_trigger, memb_render, 2}

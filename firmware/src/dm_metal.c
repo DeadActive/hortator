@@ -288,9 +288,9 @@ static void hh_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     dm_qend(v, n, pk, FS / 50);
 }
 
-#define DM_HMETL_DEF {"HMETL", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 40), \
+#define DM_HMETL_DEF {"METAL", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 40), \
     PD("TONE", F_INT, 0, 127, 80), PD("NOISE", F_INT, 0, 127, 40), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, hmetl_trigger, hh_render}
-#define DM_HNOIS_DEF {"HNOIS", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 40), \
+#define DM_HNOIS_DEF {"HISS", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 40), \
     PD("TONE", F_INT, 0, 127, 80), PD("NOISE", F_INT, 0, 127, 40), PD("-", F_INT, 0, 0, 0), \
     PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, hnois_trigger, hh_render}

@@ -37,14 +37,11 @@ static int dmm_pairs(const dmm_t *ref_takes, const dmm_t *our_takes, int kick, c
     return 0;
 }
 
-static int model_of(const char *name)
-{
-    uint32_t mi;
-    for (mi = 0; mi < NMODELS; mi++)
-        if (str_eq(N_MODEL[mi], name))
-            return (int)mi;
-    return -1;
-}
+/* the grid's models (REF_NAME: their old names, the reference renders' keys; shown since as BOOM PUNCH SNAP CRACK METAL
+ * HISS) */
+static const int REF_MI[REF_NMODELS] = {DM_KBOOM, DM_KPUNC, DM_SSNAP, DM_SCRAK, DM_HMETL, DM_HNOIS};
+
+static int model_of(uint32_t m) { return REF_MI[m]; }
 
 /* our take tk of grid render (m, g, v), model mi: another hit count, so other noise seeds and start phases; knobs 1..4
  * from the grid (REF_DEF at its middle), knobs 5..8 at the old defaults (tests/old_defs.h), whatever the model's
@@ -79,7 +76,7 @@ int main(int argc, char **argv)
     }
     fclose(f);
     for (m = 0; m < REF_NMODELS; m++) {
-        int mi = model_of(REF_NAME[m]), ns = 0, nl = 0, shown = 0, defs = 1, bounded = 1;
+        int mi = model_of((uint32_t)m), ns = 0, nl = 0, shown = 0, defs = 1, bounded = 1;
         char what[160], why[160];
         if (mi < 0) {
             printf("     fidelity: %s not built yet\n", REF_NAME[m]);

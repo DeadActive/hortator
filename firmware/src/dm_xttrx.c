@@ -135,9 +135,9 @@ static void xt_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-#define DM_XTTRX_DEF {"XTTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 48), \
+#define DM_XTTRX_DEF {"TMTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 48), \
     PD("RAMP", F_INT, 0, 127, 48), PD("RDEC", F_INT, 0, 127, 102), PD("DAMP", F_INT, 0, 127, 64), \
     PD("DIST", F_INT, 0, 127, 0), PD("DTYP", F_INT, 0, 127, 0), PD("-", F_INT, 0, 0, 0)}, xttrx_trigger, xt_render}
-#define DM_XCTRX_DEF {"XCTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 11), PD("DECAY", F_INT, 0, 127, 15), \
+#define DM_XCTRX_DEF {"CGTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 11), PD("DECAY", F_INT, 0, 127, 15), \
     PD("RAMP", F_INT, 0, 127, 30), PD("RDEC", F_INT, 0, 127, 29), PD("DAMP", F_INT, 0, 127, 105), \
     PD("DIST", F_INT, 0, 127, 127), PD("DTYP", F_INT, 0, 127, 107), PD("-", F_INT, 0, 0, 0)}, xctrx_trigger, xt_render}

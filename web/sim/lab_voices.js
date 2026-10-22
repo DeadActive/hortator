@@ -7,11 +7,11 @@ import { tailLength, spectrum } from './lab_dsp.js';
 import * as draw from './lab_draw.js';
 
 const FAMILIES = [                                    // the chips, grouped as a drummer looks for them
-  ['Kicks', ['K808', 'K909', 'KBOOM', 'KPUNC', 'KTRX', 'B2TRX', 'BDEFM']],
-  ['Snares and claps', ['S808', 'S909', 'SSNAP', 'SCRAK', 'SDTRX', 'C808', 'C909', 'CPTRX', 'SDEFM', 'CPEFM']],
-  ['Hats and cymbals', ['HATC', 'HATO', 'HMETL', 'HNOIS', 'CYMB', 'CHTRX', 'OHTRX', 'CYTRX', 'HHEFM', 'CYEFM']],
-  ['Percussion', ['TOM', 'CONGA', 'MEMB', 'RIM', 'CLAVE', 'COWB', 'XTTRX', 'XCTRX', 'RSTRX', 'CBTRX', 'MATRX', 'CLTRX', 'XTEFM', 'RSEFM', 'CBEFM']],
-  ['FM and samples', ['FM', 'SMPL']],
+  ['Kicks', ['K808', 'K909', 'BOOM', 'PUNCH', 'BDTRX', 'B2TRX', 'BDEFM']],
+  ['Snares and claps', ['S808', 'S909', 'SNAP', 'CRACK', 'SDTRX', 'C808', 'C909', 'CPTRX', 'SDEFM', 'CPEFM']],
+  ['Hats and cymbals', ['HATC', 'HATO', 'METAL', 'HISS', 'CYMB', 'CHTRX', 'OHTRX', 'CYTRX', 'HHEFM', 'CYEFM']],
+  ['Percussion', ['TOM', 'CONGA', 'SKIN', 'RIM', 'CLAVE', 'COWB', 'TMTRX', 'CGTRX', 'RSTRX', 'CBTRX', 'SHTRX', 'CLTRX', 'TMEFM', 'RSEFM', 'CBEFM']],
+  ['FM and samples', ['FM', 'SAMPL']],
 ];
 
 export default function voices(plate, { lab, ids, audition, screen }) {

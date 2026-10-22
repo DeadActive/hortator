@@ -99,6 +99,6 @@ static void smpl_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     smp_render(v, out, n, vel_gain(v), v->x[0], t->p[P_E3]);
 }
 
-#define DM_SMPL_DEF {"SMPL", 2, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 127), \
+#define DM_SMPL_DEF {"SAMPL", 2, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 127), \
     PD("TONE", F_INT, 0, 127, 127), PD("DRIVE", F_PCT, 0, 127, 0), PE("SET", SMP_ALL_NAMES, 0), \
     PD("KEY", F_INT, 0, 127, 36), PD("-", F_INT, 0, 0, 0), PD("-", F_INT, 0, 0, 0)}, smpl_trigger, smpl_render}

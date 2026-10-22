@@ -268,12 +268,12 @@ Report what you saw first; we'll go through it together.
 - Save, power off and on, load: the song and the name are there.
 
 ### PHYS (check on the FM-1)
-- A track to MEMB (SOUND, MODEL after HNOIS): TUNE / DECAY / TONE / HEAD on HOME. HEAD from a tom (0) to a tabla
+- A track to SKIN (SOUND, MODEL after HISS): TUNE / DECAY / TONE / HEAD on HOME. HEAD from a tom (0) to a tabla
   (127); BEND drops the pitch after each hit; POS from the centre (round) to the rim; STICK the click of the strike.
   Hit it fast: the head rings on, no clicks.
 - RESON MODAL (after CHORD) on a kick, a snare, a clap: STRCT from harmonic to bell, DECAY the ring time (as STRNG),
   TONE, POS. A third MODAL track is refused ("MODAL: 2 TRACKS MAX"); with CHORD full the MODEL knob skips to MODAL.
-- Four MEMB tracks and two MODAL RESONs playing: no dropouts (CPU on SYSTEM INFO).
+- Four SKIN tracks and two MODAL RESONs playing: no dropouts (CPU on SYSTEM INFO).
 
 ### TOOLS (check on the FM-1)
 
@@ -342,20 +342,20 @@ Report what you saw first; we'll go through it together.
   (zaps, toms); FBK adds grit up to noise; accented steps are brighter (VEL).
 - `tools/fm1_bench.py --yes`: the cases FM and FM+fx (8 tracks of the model).
 
-### KTRX (check on the FM-1)
+### BDTRX (check on the FM-1)
 
-- The MODEL list after ACID: KTRX SDTRX XTTRX XCTRX CPTRX RSTRX CBTRX CHTRX OHTRX CYTRX MATRX CLTRX B2TRX (B2TRX
+- The MODEL list after ACID: BDTRX SDTRX TMTRX CGTRX CPTRX RSTRX CBTRX CHTRX OHTRX CYTRX SHTRX CLTRX B2TRX (B2TRX
   last).
-- A track to MODEL KTRX (after ACID): SOUND 1/4 MODEL TUNE DECAY SWEEP, 2/4 SDEC PUNCH NOISE SUB,
+- A track to MODEL BDTRX (after ACID): SOUND 1/4 MODEL TUNE DECAY SWEEP, 2/4 SDEC PUNCH NOISE SUB,
   3/4 CLIP LVL PAN NOTE; the graph shows the pitch (falling from SWEEP over SDEC) and the level over 300 ms
   (`build/ui_shots/ktrx/sound_1.png`, `sweep127.png`).
-- By ear against the A/B files (`~/Desktop/hortator-md/ktrx-ab`: the emulator, then KTRX): the defaults a round
+- By ear against the A/B files (`~/Desktop/hortator-md/ktrx-ab`: the emulator, then BDTRX): the defaults a round
   61 Hz kick with a short click; SWEEP up a deeper zap (SDEC longer); PUNCH a harder first cycle; NOISE a short hiss;
   SUB a growl an octave down that fades; CLIP above 64 a buzzy square that gets quieter towards 127.
 - The demo WAVs (`build/drum_renders/ktrx_*.wav`; TUNE DECAY SWEEP SDEC PUNCH NOISE SUB CLIP): default 0 64 64 32 0 0 0
   0; boom_sub -5 100 40 90 0 0 90 0; punch_noise 3 50 80 20 127 70 0 0; zap 7 60 127 50 0 0 0 0; clip 0 70 60 30 60
   40 0 120.
-- `tools/fm1_bench.py --yes`: the cases KTRX and KTRX+fx (8 tracks of the model).
+- `tools/fm1_bench.py --yes`: the cases BDTRX and BDTRX+fx (8 tracks of the model).
 
 ### SDTRX (check on the FM-1)
 
@@ -382,13 +382,13 @@ Report what you saw first; we'll go through it together.
   0 0; boom -5 90 60 80 40 0 0 0; dirt 0 70 40 0 60 40 104 0; dist 3 64 90 20 80 0 0 64.
 - `tools/fm1_bench.py --yes`: the cases B2TRX and B2TRX+fx (8 tracks of the model).
 
-### XTTRX, XCTRX, CLTRX, RSTRX (check on the FM-1)
+### TMTRX, CGTRX, CLTRX, RSTRX (check on the FM-1)
 
-- A track to MODEL XTTRX, XCTRX, CLTRX, RSTRX: XTTRX / XCTRX SOUND 1/4 MODEL TUNE DECAY
+- A track to MODEL TMTRX, CGTRX, CLTRX, RSTRX: TMTRX / CGTRX SOUND 1/4 MODEL TUNE DECAY
   RAMP, 2/4 RDEC DAMP DIST DTYP; CLTRX 1/4 MODEL TUNE DECAY DUAL, 2/4 ENH TUNE2 CLICK; RSTRX 1/4 MODEL TUNE DECAY
   DIST.
 - By ear against the A/B files (`~/Desktop/hortator-md/trx-xt-ab`, `trx-xc-ab`, `trx-cl-ab`, `trx-rs-ab`: the
-  emulator, then the model): XTTRX's defaults a round 145 Hz tom with a soft click, XCTRX a shorter 173 Hz conga;
+  emulator, then the model): TMTRX's defaults a round 145 Hz tom with a soft click, CGTRX a shorter 173 Hz conga;
   RAMP a pitch drop at the start (RDEC slower); DAMP a duller body, a louder click; DIST a buzzier, quieter tone that
   clears as it decays, DTYP (with DIST) hollower. CLTRX a short 2 kHz click-tone; TUNE2 away from 64 a second
   pitch; DUAL a flam; ENH louder; CLICK a tick at the start. RSTRX a 258 Hz knock with a woody burst; DIST grittier,
@@ -397,23 +397,23 @@ Report what you saw first; we'll go through it together.
   default 0 64 0 64 0 0 0; xttrx_fill the same, notes 7 .. -9; xttrx_ramp -5 90 110 40 0 0 0; xttrx_dist / xctrx_dist
   0 80 30 64 40 110 127; xctrx_default the defaults; cltrx_default 0 64 0 0 64 0; cltrx_dual 0 80 64 90 100 127;
   rstrx_default 0 64 0; rstrx_dist -5 90 127.
-- `tools/fm1_bench.py --yes`: the cases XTTRX, XCTRX, CLTRX, RSTRX and their +fx (8 tracks of the model).
+- `tools/fm1_bench.py --yes`: the cases TMTRX, CGTRX, CLTRX, RSTRX and their +fx (8 tracks of the model).
 
-### CPTRX, MATRX (check on the FM-1)
+### CPTRX, SHTRX (check on the FM-1)
 
 - A track to MODEL CPTRX: SOUND 1/4 MODEL TUNE DECAY CLPY, 2/4 HARD RATE ROOM RSIZ, 3/4 RTUN LVL PAN
-  NOTE. MODEL MATRX: 1/4 MODEL TUNE DECAY ATT, 2/4 REV DAMP RATL TONE, 3/4 HARD LVL PAN NOTE.
+  NOTE. MODEL SHTRX: 1/4 MODEL TUNE DECAY ATT, 2/4 REV DAMP RATL TONE, 3/4 HARD LVL PAN NOTE.
 - By ear against the A/B files (`~/Desktop/hortator-md/cptrx-ab`, `matrx-ab`: the emulator, then the model; the
   machine's knobs: CP TONE t is TUNE (t - 64) x 12 / 50, MA SUS is DECAY, its RTYP left at 0). CPTRX: the defaults a
   tight 4-clap; RATE spreads the claps (merged below ~16); DECAY longer claps up to a wash; CLPY louder first claps;
   HARD a ringing, louder clap; TUNE brighter / darker; ROOM 0 dry, up a short resonant tail (RSIZ longer, RTUN
-  brighter). MATRX: the defaults a 0.1 s shake; DECAY longer; ATT a swell in; REV a dip and a second shake; DAMP
+  brighter). SHTRX: the defaults a 0.1 s shake; DECAY longer; ATT a swell in; REV a dip and a second shake; DAMP
   sparser grains; RATL a growing rattle; TONE and TUNE brighter.
 - The demo WAVs (`build/drum_renders/cptrx_*.wav`, TUNE DECAY CLPY HARD RATE ROOM RSIZ RTUN: default 0 64 64 64 64 0
   64 64; room -3 70 90 80 56 110 100 60; snap 6 20 40 100 30 0 64 64; wide -6 110 127 40 110 60 80 40.
   `matrx_*.wav`, TUNE DECAY ATT REV DAMP RATL TONE HARD: default 0 64 0 0 0 0 64 64; shaker 0 30 0 0 60 0 90 80; swell
   -2 90 70 60 30 90 50 64; rattle 3 127 10 0 100 127 40 30).
-- `tools/fm1_bench.py --yes`: the cases CPTRX, CPTRX+fx, MATRX and MATRX+fx (8 tracks of the model).
+- `tools/fm1_bench.py --yes`: the cases CPTRX, CPTRX+fx, SHTRX and SHTRX+fx (8 tracks of the model).
 
 ### CBTRX, CHTRX, OHTRX, CYTRX (check on the FM-1)
 
@@ -435,22 +435,22 @@ Report what you saw first; we'll go through it together.
   and cutting, OHTRX on track 2; both CHOKE 1).
 - `tools/fm1_bench.py --yes`: the cases CBTRX, CHTRX, OHTRX, CYTRX and their +fx (8 tracks of the model).
 
-### BDEFM, XTEFM (check on the FM-1)
+### BDEFM, TMEFM (check on the FM-1)
 
-- MODEL BDEFM, XTEFM (after B2TRX): SOUND 1/4 MODEL TUNE DECAY RAMP, 2/4 RDEC MOD MFRQ MDEC, 3/4 MFB (XTEFM: CLIC)
+- MODEL BDEFM, TMEFM (after B2TRX): SOUND 1/4 MODEL TUNE DECAY RAMP, 2/4 RDEC MOD MFRQ MDEC, 3/4 MFB (TMEFM: CLIC)
   LVL PAN NOTE.
 - By ear against the A/B files (`~/Desktop/hortator-md/efm-bd-ab`, `efm-xt-ab`: the emulator, then the model):
   BDEFM's defaults a thump whose pitch rises from 0 Hz to 103 Hz with a bright FM edge; RAMP 16 a steady pitch, above
   it a drop (RDEC slower); MOD brighter, MFRQ moves the overtones, MDEC keeps them longer; MFB grittier, noise-like
-  from ~40 (the machine's own chaos: the character, not the same noise). XTEFM's defaults a quieter rising tom with
-  grit; MOD 0 a clean tom (exact); CLIC towards 127 a click at the hit. XTEFM's FM (MOD above 0) is an approximation:
+  from ~40 (the machine's own chaos: the character, not the same noise). TMEFM's defaults a quieter rising tom with
+  grit; MOD 0 a clean tom (exact); CLIC towards 127 a click at the hit. TMEFM's FM (MOD above 0) is an approximation:
   the machine's FM tom is not understood, the model gives its kind of grit, not its tone. A step's note moves the
   pitch by semitones.
 - The demo WAVs (`build/drum_renders/bdefm_*.wav`, `xtefm_*`; TUNE DECAY RAMP RDEC MOD MFRQ MDEC MFB / CLIC):
   bdefm_default 0 64 0 64 64 64 64 0; boom -12 100 48 40 24 16 30 0; zap -5 80 127 30 64 32 40 0; grit 0 70 32 50 80
   40 50 96. xtefm_default the same defaults; clean_fill 0 90 32 50 0 64 64 64, notes 7 .. -9; grit 3 80 64 40 40 40
   60 127.
-- `tools/fm1_bench.py --yes`: the cases BDEFM, XTEFM and their +fx (8 tracks of the model).
+- `tools/fm1_bench.py --yes`: the cases BDEFM, TMEFM and their +fx (8 tracks of the model).
 
 ### SDEFM, CPEFM, RSEFM (check on the FM-1)
 
@@ -538,23 +538,23 @@ Report what you saw first; we'll go through it together.
 The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/presets.json`, the header generated by
 `tools/gen_presets.py`); each voice's first preset is its default sound (a fresh track, a MODEL change):
 
-- MACHINEDRUM (55, from the Machinedrum's factory kits; MATRX and CLTRX have none and keep their sound): KTRX
-  SUBTHUMP; SDTRX HARDSNAP POPSNARE; XTTRX SWOOPTOM FUZZTOM SHORTTOM BUZZLOW; XCTRX GRITCONG; CPTRX ROOMCLAP WIDECLAP;
+- MACHINEDRUM (55, from the Machinedrum's factory kits; SHTRX and CLTRX have none and keep their sound): BDTRX
+  SUBTHUMP; SDTRX HARDSNAP POPSNARE; TMTRX SWOOPTOM FUZZTOM SHORTTOM BUZZLOW; CGTRX GRITCONG; CPTRX ROOMCLAP WIDECLAP;
   RSTRX KNOCK GRITRIM; CBTRX PUREBELL LONGBELL; CHTRX NOISEHAT METALHAT THINHAT TINHAT; OHTRX AIROPEN DARKOPEN SIZZLE
   HALFOPEN; CYTRX WASHCYM PINGBELL THINCRSH LONGRIDE; B2TRX BIGBOOM ZAPKICK TICKKICK SUBDIRT; BDEFM FMSUB NOISEZAP
-  FMBOOM RISEKICK; SDEFM TONESNR; XTEFM LONGTOM DROPTOM RISETOM GRITTOM; CPEFM BUZZCLAP FMZAP DEEPBLIP RATTLE; RSEFM
+  FMBOOM RISEKICK; SDEFM TONESNR; TMEFM LONGTOM DROPTOM RISETOM GRITTOM; CPEFM BUZZCLAP FMZAP DEEPBLIP RATTLE; RSEFM
   FMRIM RIMSNARE; CBEFM CLANK GONG; HHEFM FMHAT TRASHHAT TREMHAT SPITHAT; CYEFM FMCRASH LOWCHIME FMSPLASH SIZZRIDE.
-  These 19 voices' defaults are now their first preset (a fresh KTRX is SUBTHUMP, CPEFM is BUZZCLAP at TUNE +24, ...).
+  These 19 voices' defaults are now their first preset (a fresh BDTRX is SUBTHUMP, CPEFM is BUZZCLAP at TUNE +24, ...).
 - CLASSIC (56, 4 per voice, the first = the voice's sound so far): K808 ROUNDBD SUBBOOM PUNCHBD DIRTBD; K909 HOUSEBD
   HARDBD TIGHTBD DEEPBD; S808 WARMSN TONALSN BRITESN SHORTSN; S909 CRISPSN FATSN NOISYSN TIGHTSN; C808 HANDCLAP
   DARKCLAP DRYCLAP BIGCLAP; C909 SNAPCLAP LOOSECLP TIGHTCLP LOWCLAP; HATC CLOSEDHH TICK DARKHAT LOOSEHAT; HATO OPENHAT
   HALFHAT WASHHAT DUSTYHAT; CYMB CRASH RIDE DARKCRSH SPLASH; COWB COWBELL CLINK LOWBELL RINGBELL; TOM MIDTOM FLOORTOM
   HITOM PEWTOM; CONGA CONGA TUMBA SLAPCONG BONGO; RIM RIMSHOT STICK HOTRIM WOODRIM; CLAVE CLAVE WOODBLK PIP BLIP.
-- MODERN (40, 4 per voice, the first = the voice's sound so far): KBOOM BOOMBD LONGBOOM PUNCHER OVERDRV; KPUNC SYNTHBD
-  CLEANBD FMKICK SUBKICK; SSNAP SHELLSN DRUMSHEL SNAPPY PICCOLO; SCRAK CRACKSN METALSN HISSNARE LOWCRACK; HMETL
-  SHINYHAT CHIPHAT BRASSHAT GRITHAT; HNOIS STATIC SPRAY STEAM RINGHAT; MEMB HEADTOM TIMPANI TABLA EDGEHIT; FM FMPERC
-  FMBELL FMNOISE FMTOM; ACID SQUELCH DEEPBASS SCREAMER SQUAREAC; SMPL SMPKICK TAMBO SHAKER LOFICONG.
-- Check: a fresh KTRX / SDTRX / CHTRX track sounds as its first preset did in the demos; the power-on kit's KTRX shows
+- MODERN (40, 4 per voice, the first = the voice's sound so far): BOOM BOOMBD LONGBOOM PUNCHER OVERDRV; PUNCH SYNTHBD
+  CLEANBD FMKICK SUBKICK; SNAP SHELLSN DRUMSHEL SNAPPY PICCOLO; CRACK CRACKSN METALSN HISSNARE LOWCRACK; METAL
+  SHINYHAT CHIPHAT BRASSHAT GRITHAT; HISS STATIC SPRAY STEAM RINGHAT; SKIN HEADTOM TIMPANI TABLA EDGEHIT; FM FMPERC
+  FMBELL FMNOISE FMTOM; ACID SQUELCH DEEPBASS SCREAMER SQUAREAC; SAMPL SMPKICK TAMBO SHAKER LOFICONG.
+- Check: a fresh BDTRX / SDTRX / CHTRX track sounds as its first preset did in the demos; the power-on kit's BDTRX shows
   `PRESET SUBTHUMP` (before the TRX classic kit: its K909 `PRESET HOUSEBD`); turning through the banks every name is readable (8 characters) in the popup and the list.
 
 
@@ -669,8 +669,8 @@ silent one so the FM-1 stays responsive). `bench stop` on the console ends a run
 
 The screens: `build/ui_shots/fixes/trx_kit_home.png`, `trx_kit_tracks.png`.
 
-- Power on with no project to load (or TOOLS INIT ALL, or START NEW PROJECT? YES): the tracks are 1 KTRX, 2 SDTRX,
-  3 CPTRX, 4 CHTRX, 5 OHTRX, 6 XTTRX, 7 RSTRX, 8 CYTRX (TRACKS), each on its first preset (`SUBTHUMP`, `HARDSNAP`,
+- Power on with no project to load (or TOOLS INIT ALL, or START NEW PROJECT? YES): the tracks are 1 BDTRX, 2 SDTRX,
+  3 CPTRX, 4 CHTRX, 5 OHTRX, 6 TMTRX, 7 RSTRX, 8 CYTRX (TRACKS), each on its first preset (`SUBTHUMP`, `HARDSNAP`,
   `ROOMCLAP`, `NOISEHAT`, `AIROPEN`, `SWOOPTOM`, `KNOCK`, `WASHCYM`), no `*`.
 - The roles and MIDI notes as before: kick 36, snare 38, clap 39, closed hat 42, open hat 46, tom 45, rim 37,
   cymbal 49 (a MIDI keyboard's GM drum keys play the same tracks).
@@ -691,10 +691,10 @@ The screen: `build/ui_shots/fixes/home_bar3.png` (the third bar).
 
 The screens: `build/ui_shots/presets/06_list.png` (the tabs MD MODERN CLASSIC USER), `03_popup_bank_edge.png`.
 
-- The MODEL knob (EDIT, the first SOUND page) runs KTRX SDTRX XTTRX XCTRX CPTRX RSTRX CBTRX CHTRX OHTRX CYTRX MATRX
-  CLTRX B2TRX BDEFM SDEFM XTEFM CPEFM RSEFM CBEFM HHEFM CYEFM, then KBOOM KPUNC SSNAP SCRAK HMETL HNOIS MEMB FM ACID
-  SMPL, then K808 K909 S808 S909 C808 C909 HATC HATO CYMB COWB TOM CONGA RIM CLAVE, and round (CLAVE to KTRX, both
-  ways). ACID on 2 other tracks: skipped (FM to SMPL).
+- The MODEL knob (EDIT, the first SOUND page) runs BDTRX SDTRX TMTRX CGTRX CPTRX RSTRX CBTRX CHTRX OHTRX CYTRX SHTRX
+  CLTRX B2TRX BDEFM SDEFM TMEFM CPEFM RSEFM CBEFM HHEFM CYEFM, then BOOM PUNCH SNAP CRACK METAL HISS SKIN FM ACID
+  SAMPL, then K808 K909 S808 S909 C808 C909 HATC HATO CYMB COWB TOM CONGA RIM CLAVE, and round (CLAVE to BDTRX, both
+  ways). ACID on 2 other tracks: skipped (FM to SAMPL).
 - PRESETS and the list's banks: MACHINEDRUM, then MODERN, then CLASSIC, then USER (MACHINEDRUM's last preset to
   MODERN's `BOOMBD`; CLASSIC's last `BLIP` to the first USER slot).
 - A project saved on 0.22.0 or earlier loads with the same presets and sound (projects store each model by its

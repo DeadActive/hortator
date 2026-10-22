@@ -134,7 +134,7 @@ static void bdefm_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
     PD("RAMP", F_INT, 0, 127, 10), PD("RDEC", F_INT, 0, 127, 32), PD("MOD", F_INT, 0, 127, 29), \
     PD("MFRQ", F_INT, 0, 127, 5), PD("MDEC", F_INT, 0, 127, 4), PD("MFB", F_INT, 0, 127, 24)}, bdefm_trigger, \
     bdefm_render}
-#define DM_XTEFM_DEF {"XTEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 12), PD("DECAY", F_INT, 0, 127, 85), \
+#define DM_XTEFM_DEF {"TMEFM", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 12), PD("DECAY", F_INT, 0, 127, 85), \
     PD("RAMP", F_INT, 0, 127, 62), PD("RDEC", F_INT, 0, 127, 36), PD("MOD", F_INT, 0, 127, 64), \
     PD("MFRQ", F_INT, 0, 127, 4), PD("MDEC", F_INT, 0, 127, 45), PD("CLIC", F_INT, 0, 127, 51)}, xtefm_trigger, \
     bdefm_render}

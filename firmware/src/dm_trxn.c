@@ -292,7 +292,7 @@ static void matrx_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
         dm_end(v);
 }
 
-#define DM_MATRX_DEF {"MATRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
+#define DM_MATRX_DEF {"SHTRX", 1, 0, {PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_INT, 0, 127, 64), \
     PD("ATT", F_INT, 0, 127, 0), PD("REV", F_INT, 0, 127, 0), PD("DAMP", F_INT, 0, 127, 0), \
     PD("RATL", F_INT, 0, 127, 0), PD("TONE", F_INT, 0, 127, 64), PD("HARD", F_INT, 0, 127, 64)}, matrx_trigger, \
     matrx_render}

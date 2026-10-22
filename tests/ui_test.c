@@ -7102,9 +7102,9 @@ static void test_home_bar_cycle(void)
 static void test_model_list_order(void)
 {
     static const char *const WANT[NMODELS] = {
-        "KTRX", "SDTRX", "XTTRX", "XCTRX", "CPTRX", "RSTRX", "CBTRX", "CHTRX", "OHTRX", "CYTRX", "MATRX", "CLTRX",
-        "B2TRX", "BDEFM", "SDEFM", "XTEFM", "CPEFM", "RSEFM", "CBEFM", "HHEFM", "CYEFM",
-        "KBOOM", "KPUNC", "SSNAP", "SCRAK", "HMETL", "HNOIS", "MEMB", "FM", "ACID", "SMPL",
+        "BDTRX", "SDTRX", "TMTRX", "CGTRX", "CPTRX", "RSTRX", "CBTRX", "CHTRX", "OHTRX", "CYTRX", "SHTRX", "CLTRX",
+        "B2TRX", "BDEFM", "SDEFM", "TMEFM", "CPEFM", "RSEFM", "CBEFM", "HHEFM", "CYEFM",
+        "BOOM", "PUNCH", "SNAP", "CRACK", "METAL", "HISS", "SKIN", "FM", "ACID", "SAMPL",
         "K808", "K909", "S808", "S909", "C808", "C909", "HATC", "HATO", "CYMB", "COWB", "TOM", "CONGA", "RIM", "CLAVE"};
     uint32_t i, ok = 1, okb = 1, okp = 1;
     ui_host_init();
@@ -7121,11 +7121,42 @@ static void test_model_list_order(void)
         model_step(-1);
         okb &= str_eq(N_MODEL[TSEL->p[P_MODEL]], WANT[i]);
     }
-    check("MODEL list: MD (KTRX .. CYEFM), MODERN (KBOOM .. SMPL), CLASSIC (K808 .. CLAVE), CLAVE wraps to KTRX", ok);
-    check("MODEL list: the same order backwards (KTRX back to CLAVE)", okb);
+    check("MODEL list: MD (BDTRX .. CYEFM), MODERN (BOOM .. SAMPL), CLASSIC (K808 .. CLAVE), CLAVE wraps to BDTRX", ok);
+    check("MODEL list: the same order backwards (BDTRX back to CLAVE)", okb);
     check("MODEL list: each voice on its first preset, not edited", okp);
-    check("models keep their numbers (projects store them): K808 0, ACID 23, KTRX 24, CYEFM 44",
+    check("models keep their numbers (projects store them): K808 0, ACID 23, BDTRX 24, CYEFM 44",
           DM_K808 == 0 && DM_ACID == 23 && DM_KTRX == 24 && DM_CYEFM == 44 && NMODELS == 45);
+}
+
+/* the renamed engines (owner, fixes 9): the MODEL message, the engine view's title (DMODELS' name) and N_MODEL agree,
+ * every name 1..5 characters */
+static void test_model_names(void)
+{
+    static const struct { uint32_t m; const char *s; } C[] = {
+        {DM_KTRX, "BDTRX"}, {DM_XTTRX, "TMTRX"}, {DM_MATRX, "SHTRX"}, {DM_XTEFM, "TMEFM"},
+        {DM_KBOOM, "BOOM"}, {DM_SCRAK, "CRACK"}, {DM_HNOIS, "HISS"}, {DM_MEMB, "SKIN"}, {DM_SMPL, "SAMPL"}};
+    uint32_t i, ok = 1, oks = 1, okl = 1;
+    char want[16];
+    for (i = 0; i < NMODELS; i++) {
+        size_t n = strlen(N_MODEL[i]);
+        okl &= n >= 1u && n <= 5u && str_eq(DMODELS[i].name, N_MODEL[i]);
+        if (!str_eq(DMODELS[i].name, N_MODEL[i]))
+            printf("      %u: DMODELS %s, N_MODEL %s\n", (unsigned)i, DMODELS[i].name, N_MODEL[i]);
+    }
+    for (i = 0; i < sizeof C / sizeof C[0]; i++) {
+        ui_host_init();
+        song.sel = 0;
+        old_set_model(TSEL, model_list_next(C[i].m, -1));
+        model_step(1);
+        snprintf(want, sizeof want, "MODEL %s", C[i].s);
+        ok &= TSEL->p[P_MODEL] == (int16_t)C[i].m && str_eq(ui.msg, want);
+        oks &= str_eq(N_MODEL[C[i].m], C[i].s);
+        if (!str_eq(ui.msg, want))
+            printf("      %s: message %s\n", C[i].s, ui.msg);
+    }
+    check("renamed engines: the MODEL message says BDTRX TMTRX SHTRX TMEFM BOOM CRACK HISS SKIN SAMPL", ok);
+    check("renamed engines: N_MODEL has the new names", oks);
+    check("every engine's name: 1..5 characters, the engine view's title (DMODELS) = N_MODEL", okl);
 }
 
 /* s in F3 at 2x somewhere in the graph's area (the preset's band included), whole and 2 px clear of any other ink */
@@ -7763,6 +7794,7 @@ int main(void)
     test_about_moves_only_the_logo();
     test_home_bar_cycle();
     test_model_list_order();
+    test_model_names();
     test_engine_number();
     test_init_all_trx_kit();
     test_fk_perform_own_knobs();                     /* fixes 2026-10-21 (fix-keys) */

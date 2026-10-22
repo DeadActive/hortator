@@ -252,6 +252,17 @@ static void test_user_save_load_delete(void)
     check("names: \"SDTRX 99\", \"K909 100\", \"SDTRX128\" (8 characters at most)",
           !strcmp(name_of(user_id(98)), "SDTRX 99") && !strcmp(name_of(user_id(99)), "K909 100") &&
               !strcmp(name_of(user_id(127)), "SDTRX128"));
+    drum_set_model(&trk[2], DM_KBOOM);                 /* the renamed models (owner, fixes 9): 4 characters, the space */
+    drum_set_model(&trk[3], DM_XCTRX);
+    preset_user_save(6, &trk[2]);
+    preset_user_save(100, &trk[2]);
+    preset_user_save(101, &trk[3]);
+    check("renamed models' slots: \"BOOM 07\", \"BOOM 101\", \"CGTRX102\"",
+          !strcmp(name_of(user_id(6)), "BOOM 07") && !strcmp(name_of(user_id(100)), "BOOM 101") &&
+              !strcmp(name_of(user_id(101)), "CGTRX102"));
+    preset_user_delete(6);
+    preset_user_delete(100);
+    preset_user_delete(101);
     check("a slot out of range: refused", preset_user_save(128, t) == -1);
     preset_user_delete(0);
     check("DELETE: the slot empty, free again", !preset_get(user_id(0), &p) && preset_user_free() == 0);
