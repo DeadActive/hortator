@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.23.2 - 2026-10-23
+
 - REC: on TRACKS a REC tap arms / disarms the selected track, saying so (`T3 REC ARMED` / `T3 REC OFF`). On every
   other page a REC tap is REC ALL: every track armed (`REC ALL`, the REC LED and the SMC-Mixer's REC 1-8 lit), so each
   white track key plays and records its own track wherever the keys play tracks (HOME, SOUND, FX, TRACKS ...):
