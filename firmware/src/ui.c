@@ -61,6 +61,7 @@ static struct {
     uint8_t hot_col, hot_t;      /* column whose knob was just turned (drawn white) */
     uint8_t menu;                /* 0 off, 1 list, 2 about (HOME held), 3 Bluetooth (BLE build: bt_page.c) */
     uint8_t menu_sel;
+    uint8_t about_top;           /* ABOUT: the first credits row shown (ui_menu.c; 0 whenever ABOUT opens) */
     uint32_t menu_sig, home_t0;
     uint8_t force;               /* full redraw pending */
     uint8_t msg_t;               /* transient message frames */

@@ -178,7 +178,9 @@ test('footer: the name and its origin, the ways around the page, the credits and
   const foot = LANDING.slice(LANDING.indexOf('<footer'), LANDING.indexOf('</footer>'));
   assert.match(foot, /HORTATOR/);
   for (const href of ['#play', 'webapp/installer/', '#install', 'source.tar.gz']) assert.ok(foot.includes(`href="${href}"`), href);
-  for (const credit of ['Felucca', 'Leo Kuroshita', 'DEADACTIVE', 'Terminus', 'CC0', 'GPL-3.0', 'not affiliated'])
+  for (const credit of ['Felucca', 'Leo Kuroshita', 'DEADACTIVE', 'Terminus', 'CC0', 'GPL-3.0', 'not affiliated',
+                        'Mutable Instruments', 'Emilie Gillet', 'DaisySP', 'Electrosmith', 'Joe Landers', 'Gearmulator',
+                        'Elektron', 'jl-uboot-tool', 'Fukiai'])
     assert.ok(foot.includes(credit), credit);
 });
 

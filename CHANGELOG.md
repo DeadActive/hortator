@@ -54,6 +54,11 @@ don't load in older versions.
   ~5 %, the step beats ~25 %), DIM HI (~10 %, beats ~30 %), INV (idle lit, active dark), INV LO / INV HI (idle at
   ~10 % / ~25 %). KNOB 1 steps, OCT+ steps and wraps. Saved in the settings record's palette word (bits 9..11); an
   older Hortator reads any level but OFF as ON, and an older record's ON loads as DIM LO.
+- MENU > ABOUT credits everyone whose work is in the firmware, its research and its pages (Felucca, Mutable
+  Instruments, DaisySP, the samples, the recovery tool, the web fonts and icons, the emulator the MD voices were
+  measured from, with a disclaimer). The credits scroll under the logo with SELECT, a row a detent, with a scroll
+  bar at the right; ABOUT opens at the top. LICENSING.md lists DaisySP (MIT, LICENSES/MIT-DaisySP.txt) and the
+  research; README and the site's footer carry the same credits.
 
 ## 0.22.0 - 2026-10-21
 

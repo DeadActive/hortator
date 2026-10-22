@@ -3046,6 +3046,10 @@ static void test_screens(void)
                 d += fb[(18u + y) * 240u + 80u + x] != a[y * 80u + x];
         check("ABOUT: the VU mark on top (half size), moving", n0 > 300u && d > 20u);
     }
+    turn(EN_SELECT, 12);                             /* the credits scrolled: the middle, the end */
+    snap_page("91_about_2");
+    turn(EN_SELECT, 80);
+    snap_page("91_about_3");
     press(B_OCTDN);
     ui_frame();
     release_all();
@@ -7044,6 +7048,156 @@ static void test_about_moves_only_the_logo(void)
     release_all();
 }
 
+/* owner 2026-10-22: ABOUT credits everyone whose work went into the firmware, its research and its pages; the credits
+ * scroll under the fixed logo with SELECT (one row per detent, clamped at both ends; a scroll bar at the right), back
+ * at the top whenever ABOUT opens. Rows of 14 px from y 78, eleven shown (78..228), x 6..228, the bar at x 232..234 */
+#define AB_T_Y0 78u
+#define AB_T_ROWS 11u
+
+/* s in F3 at 2x anywhere in the credits' area (y 76..238), whole and 2 px clear of other ink: 1, its top-left */
+static int about_text_at(const char *s, uint32_t *px, uint32_t *py)
+{
+    uint32_t w = (uint32_t)md_text_w(&MD_F3, 2, s) + 4u, h = 14u, x0, y0, x, y;
+    int ok;
+    cv_begin(w, h, C_BG);
+    md_text(2, 2, &MD_F3, 2, s, C_INK);
+    for (y0 = AB_T_Y0 - 2u; y0 + h <= 239u; y0++)
+        for (x0 = 0; x0 + w <= 240u; x0++) {
+            for (ok = 1, y = 0; y < h && ok; y++)
+                for (x = 0; x < w && ok; x++)
+                    ok = (fb[(y0 + y) * 240u + x0 + x] == C_INK) == (cv_px[y * w + x] == swap16(C_INK));
+            if (ok) {
+                *px = x0 + 2u;
+                *py = y0 + 2u;
+                return 1;
+            }
+        }
+    return 0;
+}
+
+static void about_open(void)
+{
+    uint32_t k;
+    ui_host_init();
+    hold(B_HOME);
+    for (k = 0; k < MI_ABOUT; k++) {
+        turn(EN_SELECT, 1);
+        ui_frame();
+    }
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+}
+
+static int about_layout_ok(void)                      /* the credits in their rows, clear of the frame and the bar */
+{
+    uint32_t r, ok = 1;
+    ok &= fb_count(1, AB_T_Y0, 4, 239u - AB_T_Y0, C_INK) == 0u;           /* the left margin */
+    ok &= fb_count(229, AB_T_Y0, 3, 239u - AB_T_Y0, C_INK) == 0u;         /* text .. bar */
+    ok &= fb_count(235, AB_T_Y0, 4, 239u - AB_T_Y0, C_INK) == 0u;         /* bar .. the right edge */
+    ok &= fb_count(1, AB_T_Y0 + AB_T_ROWS * 14u - 4u, 238, 239u - (AB_T_Y0 + AB_T_ROWS * 14u - 4u), C_INK) == 0u;
+    for (r = 0; r < AB_T_ROWS; r++)                   /* each row's 4 px gap under its glyphs */
+        ok &= fb_count(1, AB_T_Y0 + r * 14u + 10u, 228, 4, C_INK) == 0u;
+    return (int)ok;
+}
+
+static void test_about_credits_scroll(void)
+{
+    static const char *const WHO[] = {"FORK: DEADACTIVE", "LEO KUROSHITA", "HUGELTON INSTRUMENTS",
+                                      "GITHUB.COM/HUGELTON/FELUCCA", "MUTABLE", "EMILIE GILLET", "PLAITS", "STMLIB",
+                                      "GRIDS", "STREAMS", "DAISYSP", "ELECTROSMITH", "SKIN", "RESON", "VERSILIAN",
+                                      "VCSL", "CC0", "PIXEL FONT: DEADACTIVE", "LANDERS'", "GEARMULATOR",
+                                      "SUSPECTS", "DSP56300", "ELEKTRON", "NOT AFFILIATED", "JIELI", "APACHE-2.0",
+                                      "JL-UBOOT-TOOL", "KAGAIMIQ", "GRIGORYEV", "TERMINUS", "ZHEKOV", "FUKIAI",
+                                      "UNIFRAKTUR", "WIEGEL", "GPL-3.0, NO WARRANTY"};
+    uint32_t x, y, k, i, pos, ok = 1, okl = 1, found[sizeof WHO / sizeof WHO[0]] = {0}, px;
+    uint16_t logo[60 * 76], snap[240 * 162];
+    about_open();
+    check("ABOUT: the first credit at the top (6, 78), the fork's under it",
+          about_text_at("DRUM MACHINE ON FELUCCA", &x, &y) && x == 6u && y == AB_T_Y0 &&
+          about_text_at(FELUCCA_VERSION, &x, &y) && y == AB_T_Y0 + 14u &&
+          about_text_at("FORK: DEADACTIVE", &x, &y) && y == AB_T_Y0 + 28u);
+    check("ABOUT: the last credit not yet shown", !about_text_at("GPL-3.0, NO WARRANTY", &x, &y));
+    check("ABOUT: the scroll bar's thumb at the top", fb_count(232, AB_T_Y0, 3, 6, C_INK) > 0u &&
+          fb_count(232, 222, 3, 6, C_INK) == 0u);
+    check("ABOUT: the credits in their rows, inside 240 px (top)", about_layout_ok());
+    for (y = 0; y < 60u; y++)
+        for (x = 0; x < 76u; x++)
+            logo[y * 76u + x] = fb[(17u + y) * 240u + 82u + x];
+    host_blit_px = 0;
+    turn(EN_SELECT, 1);
+    ui_frame();
+    check("ABOUT: SELECT one detent: the credits one row up", !about_text_at("DRUM MACHINE ON FELUCCA", &x, &y) &&
+          about_text_at(FELUCCA_VERSION, &x, &y) && y == AB_T_Y0 &&
+          about_text_at("FORK: DEADACTIVE", &x, &y) && y == AB_T_Y0 + 14u && host_blit_px > 0u);
+    for (k = 0, y = 0; y < 60u; y++)
+        for (x = 0; x < 76u; x++)
+            k += fb[(17u + y) * 240u + 82u + x] != logo[y * 76u + x];
+    check("ABOUT: the logo stays put while the credits scroll", k == 0u);
+    turn(EN_SELECT, 2);
+    ui_frame();
+    check("ABOUT: two detents at once: two rows more (the fork's credit scrolled off)",
+          !about_text_at("FORK: DEADACTIVE", &x, &y) && !about_text_at(FELUCCA_VERSION, &x, &y));
+    turn(EN_SELECT, -3);
+    ui_frame();
+    check("ABOUT: three detents back: the top again", about_text_at("DRUM MACHINE ON FELUCCA", &x, &y) &&
+          y == AB_T_Y0);
+    turn(EN_SELECT, -2);
+    ui_frame();
+    check("ABOUT: SELECT back at the top: it stays", about_text_at("DRUM MACHINE ON FELUCCA", &x, &y) && y == AB_T_Y0);
+    for (pos = 0; pos < 80u; pos++) {                  /* every position, row by row, to the end */
+        okl &= about_layout_ok();
+        for (i = 0; i < sizeof WHO / sizeof WHO[0]; i++)
+            if (!found[i])
+                found[i] = (uint32_t)about_text_at(WHO[i], &x, &y);
+        turn(EN_SELECT, 1);
+        ui_frame();
+    }
+    for (i = 0; i < sizeof WHO / sizeof WHO[0]; i++)
+        if (!found[i]) {
+            ok = 0;
+            printf("      ABOUT: no %s\n", WHO[i]);
+        }
+    check("ABOUT: every credit shows somewhere on the way down", ok);
+    check("ABOUT: the credits in their rows, inside 240 px (every position)", okl);
+    check("ABOUT: at the end the last credit on the last row", about_text_at("GPL-3.0, NO WARRANTY", &x, &y) &&
+          x == 6u && y == AB_T_Y0 + (AB_T_ROWS - 1u) * 14u);
+    check("ABOUT: the scroll bar's thumb at the bottom", fb_count(232, AB_T_Y0, 3, 6, C_INK) == 0u &&
+          fb_count(232, 222, 3, 6, C_INK) > 0u);
+    memcpy(snap, fb + 77u * 240u, sizeof snap);
+    host_blit_px = 0;
+    turn(EN_SELECT, 3);
+    ui_frame();
+    check("ABOUT: SELECT past the end: clamped, nothing redrawn", !memcmp(snap, fb + 77u * 240u, sizeof snap) &&
+          host_blit_px < 240u * 70u);
+    host_blit_px = 0;
+    fm1_ms += 70u;                                   /* the logo's next frame, scrolled */
+    ui_frame();
+    px = host_blit_px;
+    check("ABOUT scrolled: a logo frame sends the logo alone, the credits stay", px > 0u && px < 240u * 70u &&
+          !memcmp(snap, fb + 77u * 240u, sizeof snap));
+    turn(EN_SELECT, -4);
+    ui_frame();
+    press(B_OCTDN);                                  /* back to the list, ABOUT again: the top */
+    ui_frame();
+    release_all();
+    check("ABOUT: OCT- back to the list", ui.menu == 1u);
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("ABOUT reopened: the credits from the top", ui.menu == 2u &&
+          about_text_at("DRUM MACHINE ON FELUCCA", &x, &y) && y == AB_T_Y0);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    check("ABOUT: OCT- twice closes the menu", ui.menu == 0u);
+}
+
 /* fix 6 (owner, 2026-10-21): HOME's 4 boxes above PROJ are the bar position of a 4-bar cycle: always 4, the current bar
  * solid (1/16s since PLAY / 16, mod 4: the selected track's LEN or bank does not matter), advancing with the playhead,
  * box 1 again at every PLAY; stopped: box 1 (where PLAY starts) */
@@ -8120,6 +8274,7 @@ int main(void)
     test_crumb_unassigned_knob();
     test_song_rules_under_the_bar();
     test_about_moves_only_the_logo();
+    test_about_credits_scroll();
     test_home_bar_cycle();
     test_model_list_order();
     test_model_names();

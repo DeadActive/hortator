@@ -28,6 +28,101 @@ static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting,
            i == MI_ACCEL ? &settings.accel : 0;
 }
 
+/* ABOUT (owner 2026-10-22): the credits under the fixed logo, one string a credit, wrapped at its spaces to the text's
+ * width (a credit's further lines indented); SELECT scrolls them a row a detent (ui.about_top), clamped at both ends;
+ * a thumb at the right shows where. LICENSING.md and README's Credits say the same in full. */
+static const char *const AB[] = {
+    "DRUM MACHINE ON FELUCCA", FELUCCA_VERSION, "FORK: DEADACTIVE",
+    "FELUCCA: LEO KUROSHITA, H\xDCGELTON INSTRUMENTS", "GITHUB.COM/HUGELTON/FELUCCA",
+    "MUTABLE INSTRUMENTS, EMILIE GILLET: PLAITS + STMLIB (DRUM ALGORITHMS, MIT), GRIDS (PATTERN ENGINE, GPL-3.0+), "
+    "STREAMS (COMPRESSOR, MIT)",
+    "DAISYSP, ELECTROSMITH + EMILIE GILLET: MODAL / MEMBRANE (SKIN, RESON; MIT)",
+    "SAMPLES: VERSILIAN STUDIOS VSCO-2 CE / VCSL (CC0) + H\xDCGELTON SAMPLE PACK",
+    "PIXEL FONT: DEADACTIVE",
+    "MD VOICES MEASURED FROM JOE LANDERS' MACHINEDRUM EMULATOR, A FORK OF GEARMULATOR BY THE USUAL SUSPECTS (DSP56300 "
+    "PROJECT): MEASUREMENTS ONLY, NO CODE OR DATA FROM IT",
+    "MACHINEDRUM IS A TRADEMARK OF ELEKTRON. NOT AFFILIATED WITH ELEKTRON, JOE LANDERS OR THE USUAL SUSPECTS",
+    "JIELI AC79 SDK (APACHE-2.0) IN THE PACKAGE",
+    "RECOVERY TOOL: JL-UBOOT-TOOL BY KAGAIMIQ (ANDREY GRIGORYEV), MIT",
+    "WEB FONT: TERMINUS (DIMITAR ZHEKOV, OFL)", "WEB ICONS: FUKIAI (H\xDCGELTON INSTRUMENTS, MIT)",
+    "BOOT SCREEN STUDY: UNIFRAKTUR FONTS (J. 'MACH' WUST, PETER WIEGEL, OFL)",
+    "GPL-3.0, NO WARRANTY"};
+#define AB_Y0 78                                    /* the first row (under the logo), 14 px rows, eleven shown */
+#define AB_DY 14
+#define AB_ROWS 11u
+#define AB_X 6
+#define AB_IND 12                                   /* a credit's further lines */
+#define AB_R 228                                    /* the text's right edge (exclusive) */
+#define AB_BX 232                                   /* the thumb: x 232..234 in rows 78..227 */
+#define AB_BH (int32_t)(AB_ROWS * AB_DY - 4u)
+#define AB_MAXL 64u
+static struct { uint8_t c, at, n; } ab_line[AB_MAXL];   /* the wrapped rows: credit, first character, length */
+static uint32_t ab_lines;
+
+static void ab_str(char *b, uint32_t r)              /* row r's text */
+{
+    memcpy(b, AB[ab_line[r].c] + ab_line[r].at, ab_line[r].n);
+    b[ab_line[r].n] = 0;
+}
+
+static void about_wrap(void)                         /* once: the credits as rows */
+{
+    uint32_t c, len, at, end, cut, fit, n = 0;
+    char b[64];
+    if (ab_lines)
+        return;
+    for (c = 0; c < sizeof AB / sizeof AB[0]; c++) {
+        const char *s = AB[c];
+        for (len = 0; s[len]; len++)
+            ;
+        for (at = 0; at < len && n < AB_MAXL;) {
+            int32_t x = at ? AB_X + AB_IND : AB_X;
+            for (cut = fit = 0, end = at + 1u; end <= len && end - at < sizeof b; end++) {
+                memcpy(b, s + at, end - at);
+                b[end - at] = 0;
+                if (x + md_text_w(&MD_F3, 2, b) > AB_R)
+                    break;
+                fit = end;
+                if (end == len || s[end] == ' ')
+                    cut = end;                      /* the last word end that fits */
+            }
+            if (!cut)                               /* (a word wider than the row: as much as fits) */
+                cut = fit > at ? fit : at + 1u;
+            ab_line[n].c = (uint8_t)c;
+            ab_line[n].at = (uint8_t)at;
+            ab_line[n].n = (uint8_t)(cut - at);
+            n++;
+            for (at = cut; at < len && s[at] == ' '; at++)
+                ;
+        }
+    }
+    ab_lines = n;
+}
+
+static uint32_t about_max(void)                      /* the last first row: the last credit on the last row */
+{
+    about_wrap();
+    return ab_lines > AB_ROWS ? ab_lines - AB_ROWS : 0u;
+}
+
+static void draw_about(void)                         /* the credits' rows and the thumb (into the band's canvas) */
+{
+    uint32_t i, r;
+    char b[64];
+    int32_t th, ty, mx = (int32_t)about_max();
+    for (i = 0; i < AB_ROWS && (r = ui.about_top + i) < ab_lines; i++) {
+        int32_t y = AB_Y0 + (int32_t)i * AB_DY;
+        ab_str(b, r);
+        md_text(ab_line[r].at ? AB_X + AB_IND : AB_X, y, &MD_F3, 2, b, C_INK);
+        if (ab_line[r].c == 1u && !ab_line[r].at)   /* the version's row: the build date at the right */
+            md_text(AB_R - md_text_w(&MD_F3, 2, __DATE__), y, &MD_F3, 2, __DATE__, C_INK);
+    }
+    th = mx ? AB_BH * (int32_t)AB_ROWS / (int32_t)ab_lines : AB_BH;
+    th = th < 10 ? 10 : th;
+    ty = AB_Y0 + (mx ? (AB_BH - th) * (int32_t)ui.about_top / mx : 0);
+    cv_rect(AB_BX, ty, 3, th, C_INK);
+}
+
 static void draw_menu(void)
 {
     static int16_t pk[8];                           /* ABOUT: the logo's peak dots */
@@ -35,7 +130,8 @@ static void draw_menu(void)
     uint32_t i, pass, fr = fm1_ms / 66u,
                       sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u +
-                            settings.perfpage * 49979687u + backlight * 67867967u;
+                            settings.perfpage * 49979687u + backlight * 67867967u +
+                            ui.about_top * 86028121u;
 #if FELUCCA_BLE
     if (ui.menu == 3u) {                            /* the Bluetooth page: its own drawing and signature */
         bt_page_draw();
@@ -63,12 +159,7 @@ static void draw_menu(void)
         cv_rect(0, (int32_t)y0, 1, (int32_t)h, C_INK);
         cv_rect(239, (int32_t)y0, 1, (int32_t)h, C_INK);
         cv_rect(0, 239, 240, 1, C_INK);
-        if (ui.menu == 2) {                         /* ABOUT: the logo, the credits */
-            static const char *const AB[] = {"DRUM MACHINE ON FELUCCA", FELUCCA_VERSION, "FORK: DEADACTIVE",
-                                             "FELUCCA: LEO KUROSHITA", "H\xDCGELTON INSTRUMENTS", "GPL-3.0, NO WARRANTY",
-                                             "GITHUB.COM/HUGELTON/FELUCCA", "PIXEL FONT: DEADACTIVE",
-                                             "SAMPLES: VERSILIAN (CC0)",
-                                             "+ H\xDCGELTON SAMPLE PACK"};
+        if (ui.menu == 2) {                         /* ABOUT: the logo, the credits (scrolled) */
             if (pass == 0u && fr != pf) {           /* (the peaks step once a frame, not once a band) */
                 pf = fr;
                 cv_vu(84, 18, fr, 1, pk);
@@ -77,9 +168,7 @@ static void draw_menu(void)
                 memcpy(keep, pk, sizeof keep);
                 cv_vu(84, 18, fr, 1, keep);
             }
-            for (i = 0; i < sizeof AB / sizeof AB[0]; i++)
-                md_text(6, 78 + (int32_t)i * 14, &MD_F3, 2, AB[i], C_INK);
-            md_text(234 - md_text_w(&MD_F3, 2, __DATE__), 92, &MD_F3, 2, __DATE__, C_INK);   /* build date */
+            draw_about();
         } else {                                    /* MENU: a window, the cursor an inverted bar */
             cv_popup(6, 30, 228, 184, "MENU", C_INK, C_BG);
             for (i = 0; i < MI_COUNT; i++) {
@@ -171,6 +260,10 @@ static void menu_input(uint32_t pressed)
     }
     if ((s = panel_enc(EN_SELECT)) != 0 && ui.menu == 1)
         ui.menu_sel = (uint8_t)((ui.menu_sel + (s > 0 ? 1u : MI_COUNT - 1u)) % MI_COUNT);
+    else if (s != 0 && ui.menu == 2) {                 /* ABOUT: the credits a row a detent, clamped */
+        int32_t t = (int32_t)ui.about_top + s, mx = (int32_t)about_max();
+        ui.about_top = (uint8_t)(t < 0 ? 0 : t > mx ? mx : t);
+    }
     s = panel_enc(EN_K1);
     if (s != 0 && ui.menu == 1 && ui.menu_sel == MI_COLOR) {
         settings.palette = THEME_TAG | (theme_index(settings.palette) + (s > 0 ? 1u : NTHEMES - 1u)) % NTHEMES;
@@ -218,6 +311,7 @@ static void menu_input(uint32_t pressed)
 #endif
         case MI_ABOUT:
             ui.menu = 2;
+            ui.about_top = 0;                          /* the credits from the top */
             ui.force = 1;
             break;
         default:

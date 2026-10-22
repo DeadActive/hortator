@@ -314,7 +314,10 @@ If it does not start at all and never reaches boot mode, recovering it needs a
 - [Streams](https://github.com/pichenettes/eurorack/tree/master/streams) by Emilie Gillet, Mutable Instruments: the
   compressor is a C port (MIT).
 - [Plaits](https://github.com/pichenettes/eurorack/tree/master/plaits) by Emilie Gillet, Mutable Instruments: integer
-  ports of its drum algorithms (MIT).
+  ports of its drum algorithms and stmlib (MIT).
+- [DaisySP](https://github.com/electro-smith/DaisySP) by Electrosmith and Emilie Gillet: the modal resonator and
+  membrane of the SKIN engine and the RESON effect are fixed-point ports (MIT).
+- Pixel font and VU logo: drawn by DEADACTIVE.
 - Font: [Terminus](https://terminus-font.sourceforge.net/) by Dimitar Toshkov Zhekov,
   [SIL OFL 1.1](assets/fonts/Terminus-LICENSE.txt).
 - Samples: [Versilian Studios](https://versilian-studios.com/) VSCO-2 Community Edition and VCSL, CC0 1.0
@@ -322,6 +325,12 @@ If it does not start at all and never reaches boot mode, recovering it needs a
 - Web editor icons: Fukiai by Hügelton Instruments, [MIT](web/FUKIAI-LICENSE.txt).
 - Package format and boot files: [JieLi AC79 SDK](https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK) (Apache-2.0, not
   included).
+- Recovery tool: [jl-uboot-tool](https://github.com/kagaimiq/jl-uboot-tool) by Andrey Grigoryev (kagaimiq), MIT.
+- Boot screen study: UnifrakturMaguntia and UnifrakturCook by j. 'mach' wust and Peter Wiegel, SIL OFL 1.1.
+- Research: the MD voices were measured from Joe Landers' Machinedrum emulator, a fork of
+  [Gearmulator](https://github.com/dsp56300/gearmulator) by The Usual Suspects (the DSP56300 project); measurements
+  only, no code or data from it. Machinedrum is a trademark of Elektron. Hortator is not affiliated with Elektron,
+  Joe Landers or The Usual Suspects.
 
 ## Licence
 
