@@ -13,11 +13,13 @@ static int check(const char *what, int ok)
 static void snap_page(const char *name);
 static void seq_play_to(uint32_t ti, uint32_t step);
 static void seq_open(const char *title);
+static void srec_open(void);
 static uint32_t fb_lit(uint32_t y0, uint32_t y1);
 static uint32_t foot_lit(void);
 static uint32_t fb_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint16_t c);
 static void tap(uint32_t b);
 static void hold(uint32_t label);
+static void rec_gap(void);
 static void safe_boot(int seq_held);
 static void kit_session(void);
 static void fx_hold_frames(uint32_t n);
@@ -1169,6 +1171,7 @@ static void test_rec_everywhere(void)
         tap(B_REC);
         snprintf(what, sizeof what, "%s: a REC tap arms track 2, starts play, the screen stays, REC lit", S[i].what);
         check(what, song.rec == 2u && song.playing && ui.page == pg && ui.home == home && led_lit(panel.btn[B_REC]));
+        rec_gap();                                   /* (a single tap: not REC ALL's double-tap) */
         tap(B_REC);
         snprintf(what, sizeof what, "%s: a REC tap again disarms it (still playing), REC dark", S[i].what);
         check(what, song.rec == 0u && song.playing && ui.page == pg && ui.home == home && !led_lit(panel.btn[B_REC]));
@@ -1629,6 +1632,174 @@ static void test_tracks_rec_keys(void)
           song.rec == 0 && song.sel == 1 && hit_age(&trk[5]) == a && song.seq_mode == 1u);
     transport_req = 2;
     ui_frame();
+}
+
+/* REC ALL (a REC double-tap): every track armed, each white key plays and records its own track wherever the keys play
+ * tracks; a REC tap leaves it, the arm state from before back. A single tap acts at once, as before */
+static void rec_gap(void)                            /* 0.4 s: past REC_DOUBLE_MS (the next REC tap is a single one) */
+{
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+}
+static uint32_t steps_on(uint32_t t)
+{
+    uint32_t k, n = 0;
+    for (k = 0; k < NSTEP; k++)
+        n += trk[t].step[k].on;
+    return n;
+}
+static void steps_clear(void)
+{
+    uint32_t i;
+    for (i = 0; i < NTRK; i++)
+        memset(trk[i].step, 0, sizeof trk[i].step);
+}
+static void key_hit(uint32_t t)                      /* track t's white key struck */
+{
+    keys(1u << KEY_TRK_KEY[t]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+}
+static int only_steps(uint32_t mask)                 /* exactly one recorded step on each track of mask, none elsewhere */
+{
+    uint32_t i, ok = 1;
+    for (i = 0; i < NTRK; i++)
+        ok &= steps_on(i) == ((mask >> i) & 1u);
+    return (int)ok;
+}
+static void test_rec_all(void)
+{
+    uint32_t i, ok;
+    ui_host_init();
+    settings.mutebar = 0;
+    tap(B_FX);                                       /* FX: the keys play their drums */
+    track_select(2);
+    ui_frame();
+    press(B_REC);
+    ui_frame();
+    check("REC ALL: REC pressed (not let go): nothing yet", song.rec == 0u && !song.playing);
+    release_all();
+    ui_input();
+    check("REC: a single tap arms the selected track at once (in the release's pass), play asked",
+          song.rec == 4u && (transport_req == 1u || song.playing) && !ui.rec_all);
+    ui_frame();
+    rec_gap();
+    tap(B_REC);
+    check("REC: a tap 0.4 s later disarms it (a single tap, still playing)", song.rec == 0u && song.playing &&
+          !ui.rec_all && !led_lit(panel.btn[B_REC]));
+    rec_gap();
+    tap(B_REC);
+    tap(B_REC);
+    check("REC double-tap: REC ALL, every track armed, REC ALL said, REC lit", song.rec == 0xFFu && ui.rec_all &&
+          str_eq(ui.msg, "REC ALL") && led_lit(panel.btn[B_REC]) && song.playing);
+    snap_page("fixes/rec_all");
+    steps_clear();
+    seq_play_to(0, 3);
+    key_hit(0);
+    key_hit(3);
+    key_hit(7);
+    check("REC ALL on FX: keys 1, 4, 8 each record into their own track (none into the selected 3)",
+          only_steps(1u | 8u | 128u));
+    trk[5].p[P_MUTE] = 1;
+    key_hit(5);
+    check("REC ALL: a muted track's key records too (as an armed muted track)", only_steps(1u | 8u | 32u | 128u));
+    trk[5].p[P_MUTE] = 0;
+    check("REC ALL on FX: a key selects its track, as before (track 6 last)", song.sel == 5u);
+    track_select(2);
+    open_tracks();
+    steps_clear();
+    key_hit(1);
+    key_hit(6);
+    check("REC ALL on TRACKS: keys 2 and 7 record into their tracks, the selection stays",
+          only_steps(2u | 64u) && song.sel == 2u && song.seq_mode == 2u);
+    snap_page("fixes/rec_all_tracks");
+    tap(B_HOME);                                     /* the HOME screen */
+    steps_clear();
+    key_hit(4);
+    check("REC ALL on HOME: key 5 records into track 5 (and selects it, as before)", ui.home && only_steps(16u) &&
+          song.sel == 4u);
+    turn(EN_K1, 3);
+    ui_frame();
+    for (ok = motion_count(4) >= 1u, i = 0; i < NTRK; i++)
+        ok &= i == 4u || motion_count(i) == 0u;
+    check("REC ALL: a knob's motion records on the selected track only", ok);
+    tap(B_SCL);                                      /* KEYS: the selected track's keyboard */
+    steps_clear();
+    keys(1u << 0);
+    ui_frame();
+    keys(0);
+    ui_frame();
+    check("REC ALL + KEYS: the key records into the selected track only", only_steps(16u));
+    tap(B_SCL);
+    track_select(2);
+    rec_gap();
+    tap(B_REC);
+    check("REC ALL left by a tap: nothing armed again (as before it), REC OFF, REC dark, still playing",
+          song.rec == 0u && !ui.rec_all && str_eq(ui.msg, "REC OFF") && !led_lit(panel.btn[B_REC]) && song.playing);
+    steps_clear();
+    key_hit(1);
+    check(".. the keys only play again", only_steps(0u));
+    track_select(2);                                 /* (the key selected track 2) */
+    rec_gap();
+    tap(B_REC);
+    rec_gap();
+    tap(B_REC);
+    tap(B_REC);
+    check("REC double-tap with track 3 armed: REC ALL (the first tap's disarm replaced)", song.rec == 0xFFu &&
+          ui.rec_all);
+    rec_gap();
+    tap(B_REC);
+    check("REC ALL left: track 3 armed again (REC T3)", song.rec == 4u && !ui.rec_all && str_eq(ui.msg, "REC T3") &&
+          led_lit(panel.btn[B_REC]));
+    rec_gap();
+    tap(B_REC);
+    tap(B_REC);
+    rec_gap();
+    tap(B_REC);
+    tap(B_REC);
+    check("REC ALL left by a double-tap: as a single tap (track 3 armed, the second tap nothing)",
+          song.rec == 4u && !ui.rec_all);
+    rec_gap();
+    tap(B_REC);
+    check(".. a later tap: track 3 disarmed (a single tap)", song.rec == 0u && !ui.rec_all);
+    transport_req = 2;
+    ui_frame();
+    ui_frame();
+    rec_gap();
+    tap(B_REC);
+    tap(B_REC);
+    check("REC double-tap while stopped: REC ALL, play starts", ui.rec_all && song.rec == 0xFFu &&
+          (transport_req == 1u || song.playing));
+    ui_frame();
+    init_all();
+    check("INIT ALL: REC ALL off, nothing armed", !ui.rec_all && song.rec == 0u);
+
+    srec_open();                                     /* STEP, KEYS, stopped: the first tap started step record */
+    tap(B_REC);
+    check("STEP + KEYS, stopped: REC tap tap = step record on, then off; no REC ALL, nothing armed",
+          !ui.srec && !ui.rec_all && song.rec == 0u && !song.playing);
+
+    ui_host_init();
+    trk[0].step[0].on = 1;
+    seq_open("STEP");
+    tap(B_REC);                                      /* track 1 armed, playing */
+    hold(B_REC);
+    check("REC tap then REC held on SEQ: CLEAR TRACK? (no REC ALL)", ui.confirm == 1u && song.rec == 1u &&
+          !ui.rec_all);
+    tap(B_OCTDN);
+    tap(B_REC);
+    check(".. a tap after: track 1 disarmed (a single tap)", song.rec == 0u && !ui.rec_all);
+    transport_req = 2;
+    ui_frame();
+
+    ui_host_init();
+    chain.armed = 1;                                 /* a song armed: REC says STOP TO EDIT */
+    tap(B_REC);
+    tap(B_REC);
+    check("a song armed: REC double-tap: STOP TO EDIT, nothing armed, no REC ALL", str_eq(ui.msg, "STOP TO EDIT") &&
+          song.rec == 0u && !ui.rec_all);
+    chain.armed = 0;
 }
 
 /* FX: RESON 1/2 and 2/2 after SLICER; STRCT is CHORD on CHORD; CHORD on 2 tracks at most (knob and load) */
@@ -8119,6 +8290,7 @@ int main(void)
     test_knob_accel();
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
+    test_rec_all();
     test_reson_pages();
     test_acid_cap();
     test_select_pages();

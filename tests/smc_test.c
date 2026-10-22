@@ -266,6 +266,7 @@ static void test_buttons(void)
     in(note(0x5F, 127));
     check("REC: the selected track (2) armed, play requested", song.rec == 2u && transport_req == 1u);
     transport_req = 0;
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (past REC_DOUBLE_MS: a single tap) */
     in(note(0x5F, 127));
     check("REC again: disarmed", !song.rec);
     chain.armed = 1;                                 /* a song armed (PLAY on SONG): REC as on TRACKS */
@@ -307,6 +308,35 @@ static void test_buttons(void)
     check("REW, FF, arrows: nothing", !transport_req && song.sel == 1u && !song.rec);
     in(0x09u | 0x91u << 8 | 0x13u << 16 | 127u << 24);
     check("a note on channel 2: nothing", !trk[3].p[P_MUTE]);
+}
+
+/* REC ALL: REC (0x5F) as the panel's REC, double-tap included; REC n during REC ALL leaves it and toggles track n on
+ * what the mixer shows (all armed: n disarmed, the others stay) */
+static void test_rec_all(void)
+{
+    uint32_t i, ok;
+    fresh();
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
+    in(note(0x5F, 127));
+    in(note(0x5F, 127));
+    check("REC twice quickly: REC ALL, every track armed, play requested, REC ALL said",
+          song.rec == 0xFFu && ui.rec_all && transport_req == 1u && str_eq(ui.msg, "REC ALL"));
+    clear_sent();
+    smc_frame();
+    for (ok = was_sent(0x90, 0x5F, 127), i = 0; i < NTRK; i++)
+        ok &= was_sent(0x90, (uint8_t)i, 127);
+    check("REC ALL: REC 1-8 lit, REC lit", ok);
+    in(note(0x02, 127));
+    check("REC 3 during REC ALL: REC ALL left, track 3 disarmed, the others still armed", song.rec == 0xFBu &&
+          !ui.rec_all);
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
+    in(note(0x5F, 127));
+    in(note(0x02, 127));
+    in(note(0x5F, 127));
+    check("REC, REC 3, REC quickly: three single toggles (REC n between: no REC ALL)", song.rec == 0xFFu &&
+          !ui.rec_all);
+    song.rec = 0;
+    transport_req = 0;
 }
 
 static void test_leds(void)
@@ -516,6 +546,7 @@ int main(void)
     test_midi_mode();
     test_solo_clears();
     test_mode_end();
+    test_rec_all();
     printf(fails ? "smc_test: %d FAILED\n" : "smc_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

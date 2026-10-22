@@ -981,9 +981,22 @@ static void test_act_trigger(void)
     send_cc(20, 127);
     check("CC20 (REC): the selected track armed (and play starts, as REC's tap)", song.rec == 1u && song.playing);
     send_cc(20, 0);
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (past REC_DOUBLE_MS: a single tap) */
     send_cc(20, 127);
     check("again: disarmed", !song.rec);
     send_cc(20, 0);
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
+    send_cc(20, 127);
+    send_cc(20, 0);
+    send_cc(20, 127);
+    check("CC20 (REC) twice quickly: REC ALL, as REC's double-tap (every track armed)", song.rec == 0xFFu &&
+          ui.rec_all && same(ui.msg, "REC ALL"));
+    send_cc(20, 0);
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;
+    send_cc(20, 127);
+    check("CC20 again: REC ALL left, nothing armed (as before it)", !song.rec && !ui.rec_all);
+    send_cc(20, 0);
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;   /* (the next REC: a single tap) */
     transport_req = 2;
     frames(1);
     send_cc(21, 127);

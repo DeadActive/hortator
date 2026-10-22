@@ -678,6 +678,24 @@ The screens: `build/ui_shots/fixes/trx_kit_home.png`, `trx_kit_tracks.png`.
 - A saved project loads its own kit, unchanged. BENCH's heavy cases keep the old kit (K909 S808 C808 HATC HATO TOM
   RIM CYMB), so a run compares with the earlier ones.
 
+### REC ALL (check on the FM-1)
+
+The screen: `build/ui_shots/fixes/rec_all.png` (the `REC ALL` message on FX).
+
+- Stopped, on HOME: a single REC tap arms the selected track at once (REC lit, play starts), as before. Wait a
+  moment, tap again: disarmed.
+- REC double-tap (quickly): `REC ALL`, REC lit, play starts if stopped. Finger-drum the white keys F3..F4 on HOME,
+  TRACKS, SOUND or FX: each key's own track records (open STEP after: the hits are on each track). A muted track's key
+  records too.
+- KEYS on (SCL) during REC ALL: the keys play and record the selected track only; a knob turn records motion on the
+  selected track only.
+- A REC tap: REC ALL ends; `REC OFF` (nothing was armed before) or `REC T3` (track 3 was armed before: armed again).
+  A double-tap to leave does the same (the second tap does nothing).
+- On STEP with KEYS on, stopped: REC tap tap = step record on, then off (no REC ALL). REC held on a SEQ page: CLEAR
+  TRACK, as before. While a song plays: REC (single or double) says `STOP TO EDIT`.
+- SMC-Mixer: REC twice quickly = REC ALL (REC 1-8 all lit); REC 3 then: REC ALL ends, track 3 dark, the others lit.
+  A learned REC (MIDI LEARN) pressed twice quickly: REC ALL.
+
 ### HOME: the bar boxes (check on the FM-1)
 
 The screen: `build/ui_shots/fixes/home_bar3.png` (the third bar).
