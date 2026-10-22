@@ -3,13 +3,13 @@
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
 // frames it sends back, and keeps the flash it writes in IndexedDB (store.js).
-import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=7bf91331b2';
-import { FlashStore, openFlashDb } from './store.js?v=7bf91331b2';
-import { needsResume, playbackSession } from './audio.js?v=7bf91331b2';
-import { parseReel } from './reel.js?v=7bf91331b2';
-import { initFeatures } from './features.js?v=7bf91331b2';
-import { ditherBackground, initGlitch } from './dither.js?v=7bf91331b2';
-import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=7bf91331b2';
+import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=1e296c5e84';
+import { FlashStore, openFlashDb } from './store.js?v=1e296c5e84';
+import { needsResume, playbackSession } from './audio.js?v=1e296c5e84';
+import { parseReel } from './reel.js?v=1e296c5e84';
+import { initFeatures } from './features.js?v=1e296c5e84';
+import { ditherBackground, initGlitch } from './dither.js?v=1e296c5e84';
+import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=1e296c5e84';
 
 // ---- the panel's elements (built once, placed per layout)
 const device = document.getElementById('device');
@@ -56,6 +56,7 @@ function build() {
     el.dataset.ctl = `btn:${id}`;
     el.setAttribute('role', 'button');
     el.setAttribute('aria-label', b.label);
+    if (b.tip) el.title = `${b.label}: ${b.tip}`;
     el.innerHTML = b.label === 'PLAY' ? '<span class="two">PLAY<br>STOP</span>' : `<span>${b.label}</span>`;
     addHint(el, `btn:${id}`);
     device.append(el);
@@ -72,12 +73,13 @@ function build() {
     device.append(el);
     els.ctl[`key:${k.n}`] = el;
   });
-  [...ENC.map((e, i) => [String(i), e.label]), ['master', 'MASTER']].forEach(([id, label]) => {
+  [...ENC.map((e, i) => [String(i), e.label, e.tip]), ['master', 'MASTER', 'the volume']].forEach(([id, label, tip]) => {
     const el = document.createElement('div');
     el.className = `enc${id === 'master' ? ' master' : ''}`;
     el.tabIndex = 0;
     el.setAttribute('role', 'slider');
     el.setAttribute('aria-label', label);
+    if (tip) el.title = `${label}: ${tip}`;
     el.innerHTML = '<span class="skirt"></span><span class="cap"></span>';
     device.append(el);
     els.enc[id] = el;
@@ -294,7 +296,7 @@ function wake() {                                 // a tap or a key brings a sto
 }
 
 // ---- power on
-const wasmBytes = fetch('fm1sim.wasm?v=7bf91331b2').then(r => {
+const wasmBytes = fetch('fm1sim.wasm?v=1e296c5e84').then(r => {
   if (!r.ok) throw new Error(`fm1sim.wasm: HTTP ${r.status}`);
   return r.arrayBuffer();
 });
@@ -321,7 +323,7 @@ async function powerOn() {
     playbackSession(navigator);
     ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                         // inside the tap: browsers allow sound from here on
-    await ctx.audioWorklet.addModule('worklet.js?v=7bf91331b2');
+    await ctx.audioWorklet.addModule('worklet.js?v=1e296c5e84');
     const [wasm, sectors] = await Promise.all([wasmBytes, store.load()]);
     node = new AudioWorkletNode(ctx, 'fm1', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm, sectors } });
     node.port.onmessage = e => {
@@ -391,7 +393,7 @@ function bindPage() {
 let reel = null, reelPos = -1, reelT0 = 0;
 const reelFb = new Uint16Array(240 * 240);
 if (window.DecompressionStream)
-  fetch('reel.bin.gz?v=7bf91331b2')
+  fetch('reel.bin.gz?v=1e296c5e84')
     .then(r => r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : Promise.reject())
     .then(b => { reel = parseReel(b); reelT0 = performance.now(); })
     .catch(() => { /* no reel: the screen stays dark until Switch on */ });
@@ -490,7 +492,7 @@ function plainNote(n) {                            // the changelog's line for p
   if (t.startsWith(n.title)) t = t.slice(n.title.length).replace(/^[\s:,]+/, '');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
-fetch('version.json?v=7bf91331b2').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
+fetch('version.json?v=1e296c5e84').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
   const [y, m, d] = v.date.split('-').map(Number);
   const newer = v.since.length ? ` and ${v.since.length} newer change${v.since.length > 1 ? 's' : ''}` : '';
   document.getElementById('fw-version').textContent =

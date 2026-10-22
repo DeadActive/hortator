@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
-// Piece 7, effects per track and live: a groove whose rimshot runs through its track's chain (FILTER, RESON, DIST,
-// SLICER, then the delay, reverb and chorus sends), each stage switchable with one knob; stopped, the firmware
-// renders a bar of it. Playing, the picture is the output as heard, scrolling, and the PERFORM keys (the black keys
-// with FX held, perform.c PF_BLACK) repeat, reverse, stop, filter, freeze or shift the whole mix while held.
-import { el, knob, scope, INK } from './lab_ui.js?v=7bf91331b2';
-import * as draw from './lab_draw.js?v=7bf91331b2';
+// Piece 7, effects per track and live: an MD groove (BDTRX, RSTRX, CHTRX) whose rim shot runs through its track's
+// chain (FILTER, RESON, DIST, SLICER, then the delay, reverb and chorus sends), each stage switchable with one knob;
+// stopped, the firmware renders a bar of it. Playing, the picture is the output as heard, scrolling, and the PERFORM
+// keys (the black keys with FX held, perform.c PF_BLACK) repeat, reverse, stop, filter, freeze or shift the whole mix
+// while held.
+import { el, knob, scope, INK } from './lab_ui.js?v=1e296c5e84';
+import * as draw from './lab_draw.js?v=1e296c5e84';
 
 const KEYS = [                                       // perform.c PF_BLACK: the black keys from F#3, in groups of 3 and 2
   ['R8', 'REPEAT 1/8'], ['R16', 'REPEAT 1/16'], ['R32', 'REPEAT 1/32'], ['REV', 'REVERSE'], ['TAPE', 'TAPE STOP'],
@@ -33,9 +34,9 @@ export default function fx(plate, { lab, ids, audition, screen }) {
   let player = null, buf = new Float32Array(0), queued = false, tape = null, raf = 0, looping = false;
 
   const kit = t => {
-    t.call('model', 0, DM.K909);
-    t.call('model', 1, DM.RIM);
-    t.call('model', 2, DM.HATC);
+    t.call('model', 0, DM.BDTRX);
+    t.call('model', 1, DM.RSTRX);
+    t.call('model', 2, DM.CHTRX);
     for (let s = 0; s < 16; s++) {
       t.call('step', 0, s, s % 4 === 0, false);
       t.call('step', 1, s, RIM.includes(s), s === 0);
@@ -128,7 +129,7 @@ export default function fx(plate, { lab, ids, audition, screen }) {
     return b;
   });
   const voice = el('div', 'stage voice');
-  voice.append(el('span', 'stage-name fixed', 'RIM'));
+  voice.append(el('span', 'stage-name fixed', 'RSTRX'));
   const sends = el('div', 'sends');
   sends.append(...blocks.slice(4));
   chainEl.append(voice, ...blocks.slice(0, 4), sends);

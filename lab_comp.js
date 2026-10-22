@@ -1,36 +1,38 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
-// Piece 3, the pump compressor: a bar of kick, offbeat hats and a chord ringing on the 8ths, the hats and the chord ducked under
-// the kick (Streams' compressor keyed by track 1). The firmware renders the bar twice, bypassed and compressed, after
-// a bar of warm-up; the compressor's gain reduction per audio half (the lab's probes) is drawn under it. Playing, a
-// playhead follows the sequencer's step and a meter shows the reduction now.
-import { el, knob, chips, scope, INK } from './lab_ui.js?v=7bf91331b2';
-import * as draw from './lab_draw.js?v=7bf91331b2';
-import { ditherPattern } from './dither.js?v=7bf91331b2';
+// Piece 3, the pump compressor: a bar of an MD kick (BDTRX), offbeat open hats (OHTRX) and ACID's 303-style line on
+// the 16ths, the hats and the line ducked under the kick (Streams' compressor keyed by track 1). The firmware renders
+// the bar twice, bypassed and compressed, after a bar of warm-up; the compressor's gain reduction per audio half (the
+// lab's probes) is drawn under it. Playing, a playhead follows the sequencer's step and a meter shows the reduction now.
+import { el, knob, chips, scope, INK } from './lab_ui.js?v=1e296c5e84';
+import * as draw from './lab_draw.js?v=1e296c5e84';
+import { ditherPattern } from './dither.js?v=1e296c5e84';
 
 const DB = gr => gr * 241 / 327680;                  // comp.gr -> dB, as the FM-1's COMP page (ui_draw.c)
 const FLOOR = -24;                                   // the trace's bottom, dB
+const LINE = [                                       // ACID's line: [NOTE from C4, accent, slide into the next]
+  [-24, 1], [-24, 0], [-12, 0], [-24, 0], [-21, 0], [-24, 1], [-17, 0, 1], [-12, 0],
+  [-24, 1], [-24, 0], [-14, 0], [-24, 0], [-19, 0], [-24, 1, 1], [-17, 0], [-12, 0],
+];
 
 export default function comp(plate, { lab, ids, screen }) {
-  const { fs, P, G, DM, RS, gp, names } = ids;
+  const { fs, P, G, DM, gp, names } = ids;
   const state = { on: true, kickMuted: false, ghost: gp.CGHOST.def, thr: 20, rat: 90, rel: 20 };
   const bar = Math.round(fs * 60 / 120 * 4);         // 120 BPM (lab_reset)
   let player = null, comp = new Float32Array(0), dry = comp, gr = [], bypassKey = '', queued = false;
   let now = null;                                    // playing: { pos (steps), db }
 
   const kit = t => {                                 // the loop, on an instance (both calls go through t.call)
-    t.call('model', 0, DM.K909);
-    t.call('model', 1, DM.HATO);
-    t.call('model', 2, DM.RIM);
-    for (let s = 0; s < 16; s++) {
+    t.call('model', 0, DM.BDTRX);
+    t.call('model', 1, DM.OHTRX);
+    t.call('model', 2, DM.ACID);
+    LINE.forEach(([nt, acc, slide], s) => {
       t.call('step', 0, s, s % 4 === 0, false);
       t.call('step', 1, s, s % 4 === 2, false);
-      t.call('step', 2, s, s % 2 === 0, false);
-    }
-    t.call('param', 2, P.RMODEL, RS.CHORD);          // a rimshot through RESON CHORD: a held chord to pump
-    t.call('param', 2, P.RDECAY, 127);
-    t.call('param', 2, P.RMIX, 127);
-    t.call('param', 2, P.RTUNE, 57);
+      t.call('step', 2, s, true, acc);
+      t.call('note', 2, s, nt, slide, false);
+    });
+    t.call('param', 1, P.LEVEL, 80);
     t.call('param', 1, P.DUCK, 1);
     t.call('param', 2, P.DUCK, 1);
   };
@@ -178,7 +180,7 @@ export default function comp(plate, { lab, ids, screen }) {
 
   const legend = el('p', 'legend');
   const grKey = el('span', 'key-warm', 'Gain reduction');
-  legend.append(el('span', 'key-dim', 'Hats and chord, bypassed'), el('span', 'key-led', 'Compressed'), grKey);
+  legend.append(el('span', 'key-dim', 'Hats and ACID, bypassed'), el('span', 'key-led', 'Compressed'), grKey);
   const readout = () => {                            // playing: the reduction now, in the legend
     grKey.textContent = now ? `Gain reduction, now ${now.db < -0.05 ? '\u2212' : ''}${Math.abs(now.db).toFixed(1)} dB`
       : 'Gain reduction';

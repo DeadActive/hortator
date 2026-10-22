@@ -3,8 +3,8 @@
 // Piece 6, Grids: the X / Y pad over Mutable Instruments' map and the three densities; the firmware's lanes (Kick,
 // Snare, Hats: one bar of 32nds, grids_preview) redraw as the point moves. Playing, three tracks follow the channels;
 // the cells light as they fire, amber where CHAOS added a hit the map did not have.
-import { el, knob, scope, INK } from './lab_ui.js?v=7bf91331b2';
-import { ditherPattern } from './dither.js?v=7bf91331b2';
+import { el, knob, scope, INK } from './lab_ui.js?v=1e296c5e84';
+import { ditherPattern } from './dither.js?v=1e296c5e84';
 
 const LANES = ['Kick', 'Snare', 'Hats'];
 
@@ -20,7 +20,7 @@ export default function grids(plate, { lab, ids, screen }) {
     t.call('global', G.GCHAOS, state.chaos);
     state.fill.forEach((f, ch) => t.call('global', G.GFILL1 + ch, f));
   };
-  const kit = t => [DM.K909, DM.S909, DM.HATC].forEach((m, k) => {
+  const kit = t => [DM.BDTRX, DM.SDTRX, DM.CHTRX].forEach((m, k) => {
     t.call('model', k, m);
     t.call('param', k, P.SRC, k + 1);                // the track follows Grids' channel k + 1 (SEQ > PATTERN SRC)
   });

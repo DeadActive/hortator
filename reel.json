@@ -5,7 +5,7 @@
   {"name": "fx", "from": 192, "to": 270},
   {"name": "grids", "from": 270, "to": 348},
   {"name": "comp", "from": 348, "to": 390},
-  {"name": "tracks", "from": 390, "to": 438},
-  {"name": "lfo", "from": 438, "to": 486},
-  {"name": "end", "from": 486, "to": 510}
+  {"name": "tracks", "from": 390, "to": 456},
+  {"name": "lfo", "from": 456, "to": 495},
+  {"name": "end", "from": 495, "to": 510}
 ]

@@ -3,18 +3,18 @@
 // Piece 2, the resonators: an exciter (a short drum hit) through RESON. The firmware renders the hit twice, dry and
 // through its inserts (lab_voice), and both are drawn on one scale: the dry hit dim, the ring bright, in time and as
 // spectra, where the string's or the chord's partials stand up as a comb. Play loops a figure; the pad hits it.
-import { el, knob, chips, scope, INK, hitPad } from './lab_ui.js?v=7bf91331b2';
-import { tailLength, spectrum } from './lab_dsp.js?v=7bf91331b2';
-import * as draw from './lab_draw.js?v=7bf91331b2';
+import { el, knob, chips, scope, INK, hitPad } from './lab_ui.js?v=1e296c5e84';
+import { tailLength, spectrum } from './lab_dsp.js?v=1e296c5e84';
+import * as draw from './lab_draw.js?v=1e296c5e84';
 
-const EXCITERS = ['RIM', 'CLAVE', 'S909', 'HATC', 'TOM'];
+const EXCITERS = ['RSTRX', 'CLTRX', 'SDTRX', 'CHTRX', 'TMTRX'];   // MD voices: rim, claves, snare, hat, tom
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const note = n => `${NOTES[n % 12]}${Math.floor(n / 12) - 1}`;   // params.c F_NOTEO: 60 = C4
 const FIGURE = [0, 3, 6, 10, 12];                    // the loop's hits in a 16-step bar
 
 export default function reson(plate, { lab, ids, audition, screen }) {
   const { fs, P, RS, DM, tp, names } = ids;
-  const state = { ex: DM.RIM, model: RS.STRNG, tune: 52, decay: 96, mix: 100, strct: 40 };
+  const state = { ex: DM.RSTRX, model: RS.STRNG, tune: 52, decay: 96, mix: 100, strct: 40 };
   let player = null, dry = new Float32Array(0), wet = dry, view = 0, ddb = new Float32Array(1), wdb = ddb, queued = false;
 
   const sets = () => [                               // the state as the firmware's track parameters

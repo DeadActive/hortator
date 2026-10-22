@@ -2,22 +2,28 @@
 // Drum machine fork: 2026 DEADACTIVE
 // Piece 1, the drum voices: a model, its four HOME knobs; one hit rendered by the firmware (lab_voice) drawn as its
 // waveform (the window fits the hit's length) and its spectrum. Play loops the hit on the quarters; the pad hits it.
-import { el, knob, chips, scope, hitPad } from './lab_ui.js?v=7bf91331b2';
-import { tailLength, spectrum } from './lab_dsp.js?v=7bf91331b2';
-import * as draw from './lab_draw.js?v=7bf91331b2';
+// The chips are the MODEL knob's list (ids.list, ui.c MODEL_LIST) in its banks: MD (TRX, EFM), MODERN, CLASSIC.
+import { el, knob, chips, scope, hitPad } from './lab_ui.js?v=1e296c5e84';
+import { tailLength, spectrum } from './lab_dsp.js?v=1e296c5e84';
+import * as draw from './lab_draw.js?v=1e296c5e84';
 
-const FAMILIES = [                                    // the chips, grouped as a drummer looks for them
-  ['Kicks', ['K808', 'K909', 'KBOOM', 'KPUNC']],
-  ['Snares and claps', ['S808', 'S909', 'SSNAP', 'SCRAK', 'C808', 'C909']],
-  ['Hats and cymbals', ['HATC', 'HATO', 'HMETL', 'HNOIS', 'CYMB']],
-  ['Percussion', ['TOM', 'CONGA', 'MEMB', 'RIM', 'CLAVE', 'COWB']],
-  ['FM and samples', ['FM', 'SMPL']],
-];
+const GROUP = { MACHINEDRUM: 'MD' };                 // a bank's short name, as the voices chapter tells it
+
+function groups(ids) {                               // [[title, [model, ...]], ...] in the list's order
+  const out = [];
+  for (const id of ids.list) {
+    const m = ids.models[id], bank = ids.banks[m.bank];
+    const fam = bank === 'MACHINEDRUM' ? m.name.slice(-3) : '';   // MD: TRX, then EFM
+    const title = [GROUP[bank] ?? bank, fam].filter(Boolean).join(' ');
+    if (out.at(-1)?.[0] !== title) out.push([title, []]);
+    out.at(-1)[1].push(m);
+  }
+  return out.map(([t, list]) => [`${t} (${list.length})`, list]);
+}
 
 export default function voices(plate, { lab, ids, audition, screen }) {
-  const fs = ids.fs, models = ids.models, byName = Object.fromEntries(models.map(m => [m.name, m]));
-  const P = ids.P;
-  const state = { model: ids.DM.K909, e: models[ids.DM.K909].edit.slice(0, 4).map(d => d.def) };
+  const { fs, models, P, DM } = ids;
+  const state = { model: DM.BDTRX, e: models[DM.BDTRX].edit.slice(0, 4).map(d => d.def) };
   let player = null, buf = new Float32Array(0), view = 0, db = new Float32Array(1), queued = false;
 
   const apply = t => {                                // the state onto an instance: the analyser or the player
@@ -46,13 +52,12 @@ export default function voices(plate, { lab, ids, audition, screen }) {
   });
   const specScope = scope('spec', (g, w, h) => draw.spectrum(g, w, h, db, fs));
 
-  const groups = el('div', 'families');
-  const pickers = FAMILIES.map(([name, list]) => {
+  const families = el('div', 'families');
+  const pickers = groups(ids).map(([name, list]) => {
     const fam = el('div', 'family');
-    const items = list.filter(n => byName[n]).map(n => ({ label: n, value: byName[n].id }));
-    const c = chips(items, state.model, setModel, name);
+    const c = chips(list.map(m => ({ label: m.name, value: m.id })), state.model, setModel, name);
     fam.append(el('span', 'family-name', name), c.root);
-    groups.append(fam);
+    families.append(fam);
     return c;
   });
   const knobsRow = el('div', 'knobs');
@@ -85,7 +90,7 @@ export default function voices(plate, { lab, ids, audition, screen }) {
   const controls = el('div', 'controls-row'), hand = el('div', 'play-slot');
   hand.append(pad);
   controls.append(knobsRow, hand);
-  plate.append(groups, scopes, controls);
+  plate.append(families, scopes, controls);
   buildKnobs();
   render();
 

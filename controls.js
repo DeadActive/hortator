@@ -2,16 +2,22 @@
 // Drum machine fork: 2026 DEADACTIVE
 // The FM-1 panel's controls as data (no DOM): label ids are panel.c's enum order (tests/sim_glue.mjs checks it),
 // the 27 keys, the computer keyboard map, and the held-state bookkeeping the page uses.
+// tip: what the control does (the page shows it on hover), as the firmware has it
 export const BTN = [
-  { c: 'B_FX', label: 'FX' }, { c: 'B_SCL', label: 'SEL' }, { c: 'B_ENV', label: 'ENV' }, { c: 'B_LFO', label: 'LFO' },
-  { c: 'B_EDIT', label: 'EDIT' }, { c: 'B_GLO', label: 'GLO' }, { c: 'B_HOME', label: 'HOME' },
-  { c: 'B_SAVE', label: 'SAVE' }, { c: 'B_ARP', label: 'ARP' }, { c: 'B_SEQ', label: 'SEQ' },
-  { c: 'B_PLAY', label: 'PLAY' }, { c: 'B_REC', label: 'REC' }, { c: 'B_OCTDN', label: 'OCT-' }, { c: 'B_OCTUP', label: 'OCT+' },
+  { c: 'B_FX', label: 'FX', tip: 'FX pages; hold for PERFORM' }, { c: 'B_SCL', label: 'SEL', tip: 'KEYS: the keys play the selected track' },
+  { c: 'B_ENV', label: 'ENV' }, { c: 'B_LFO', label: 'LFO', tip: 'the track\'s two LFOs' },
+  { c: 'B_EDIT', label: 'EDIT', tip: 'the selected track\'s sound' }, { c: 'B_GLO', label: 'GLO', tip: 'tap: GLOBAL; hold: the MUTE screen' },
+  { c: 'B_HOME', label: 'HOME', tip: 'TRACKS / HOME (a tap switches); hold for the menu' },
+  { c: 'B_SAVE', label: 'SAVE', tip: 'projects and tools' }, { c: 'B_ARP', label: 'ARP', tip: 'Grids' },
+  { c: 'B_SEQ', label: 'SEQ', tip: 'steps, PATTERN, MOTION, SONG' },
+  { c: 'B_PLAY', label: 'PLAY', tip: 'play / stop' }, { c: 'B_REC', label: 'REC', tip: 'arm the selected track to record, on any page' },
+  { c: 'B_OCTDN', label: 'OCT-' }, { c: 'B_OCTUP', label: 'OCT+' },
 ];
 export const B = Object.fromEntries(BTN.map((b, i) => [b.label, i]));
 
 export const ENC = [
-  { c: 'EN_SELECT', label: 'SELECT' }, { c: 'EN_ALGO', label: 'ALGORITHM' }, { c: 'EN_PRESET', label: 'PRESETS' },
+  { c: 'EN_SELECT', label: 'SELECT', tip: 'turns the pages; on TRACKS: the tempo' },
+  { c: 'EN_ALGO', label: 'ALGORITHM', tip: 'picks the track' }, { c: 'EN_PRESET', label: 'PRESETS', tip: 'not used' },
   { c: 'EN_K1', label: 'KNOB1' }, { c: 'EN_K2', label: 'KNOB2' }, { c: 'EN_K3', label: 'KNOB3' }, { c: 'EN_K4', label: 'KNOB4' },
 ];
 

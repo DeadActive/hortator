@@ -4,7 +4,7 @@
 // (tests/sim_lab.c in fm1sim.wasm) driven directly for the feature pieces. One class, two uses: the analyser in the
 // page (silent: a voice's waveform, the Grids lanes, the sequencer's dice) and the player in an AudioWorklet
 // (worklet.js 'fm1lab': the same calls, heard live). Ids come from lab_ids.json, made from the firmware's enums.
-import { Fm1Sim } from './engine.js?v=7bf91331b2';
+import { Fm1Sim } from './engine.js?v=1e296c5e84';
 
 const PROBE = { gr: 0, lfo: 4, fired: 68, idx: 72, muteQ: 88, muted: 89, watch: 90 };   // sim_lab.c lab_probe_t (92 B)
 
@@ -22,6 +22,7 @@ export class Lab {
   param(t, p, v) { this.x.lab_param(t, p, Math.round(v)); }
   global(g, v) { this.x.lab_global(g, Math.round(v)); }
   step(t, s, on, acc = false, cond = 0, rat = 0) { this.x.lab_step(t, s, on ? 1 : 0, acc ? 1 : 0, cond, rat); }
+  note(t, s, nt, slide = false, tie = false) { this.x.lab_note(t, s, nt, slide ? 1 : 0, tie ? 1 : 0); }   // 0 = C4
   play(on) { this.x.lab_play(on ? 1 : 0); }
   hit(t, vel = 127) { this.x.lab_hit(t, vel); }
   perf(e, down) { this.x.lab_perf(e, down ? 1 : 0); }
@@ -65,7 +66,8 @@ export class Lab {
   }
 
   // the FM-1's own screen for the state now, after the panel moves that open a page: ops [{ sel: track }, { tap:
-  // button }, { hold: button }, { perf: PF id }] (button ids: panel.c's labels). -> RGB565, 240 x 240 (a copy)
+  // button }, { hold: button }, { enc: role, steps }, { perf: PF id }] (button ids: panel.c's labels; role: EN_SELECT
+  // .. EN_K4). -> RGB565, 240 x 240 (a copy)
   screen(ops) {
     const run = ms => this.renderMono(Math.round(this.ids.fs * ms / 1000));
     for (const op of ops) {
@@ -80,6 +82,10 @@ export class Lab {
       if ('hold' in op) {
         this.sim.btn(op.hold, true);
         run(600);
+      }
+      if ('enc' in op) {                               // a turn, taken at the next UI frame
+        this.sim.enc(op.enc, op.steps);
+        run(40);
       }
     }
     run(40);
@@ -111,7 +117,7 @@ export class LabPlayer {
   static async start(wasm, ids) {
     const ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                     // inside the click: the browser allows sound from here
-    await ctx.audioWorklet.addModule('worklet.js?v=7bf91331b2');
+    await ctx.audioWorklet.addModule('worklet.js?v=1e296c5e84');
     const node = new AudioWorkletNode(ctx, 'fm1lab', {
       numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm: wasm.slice(0), ids },
     });

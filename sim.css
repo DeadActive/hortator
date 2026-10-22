@@ -3,7 +3,7 @@
 /* The page as the FM-1's screen: its MONO palette (firmware/src/gfx.c: five steps of one colour plus white, in the
  * firmware's own roles), its typeface (Terminus 8 x 16, tests/sim_font.mjs, on its 16 px grid: 16, 32, 48, 64, 80),
  * blends dithered (dither.js), headings that glitch as they arrive. Only the device keeps its hardware greys. */
-@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=7bf91331b2") format("woff"); font-display: swap; }
+@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=1e296c5e84") format("woff"); font-display: swap; }
 :root {
   --k: #000000;                                    /* the screen */
   --c1: #282828;                                   /* rules, separators */
@@ -97,6 +97,8 @@ html { scroll-snap-type: y proximity; }
   text-shadow: 4px 4px 0 var(--k);
 }
 .hero-copy p { margin: 16px 0 0; max-width: 46ch; color: var(--c4); background: var(--k); }
+.hero-copy .hero-count { color: var(--c5); }
+.hero-copy .hero-count b { padding: 0 4px; color: var(--k); background: var(--w); font-weight: normal; }   /* the screen's inverted bars */
 .hero-copy .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 24px; background: none; }
 .scroll-cue {
   position: absolute; right: max(16px, 4vw); bottom: 24px; margin: 0; color: var(--c3);

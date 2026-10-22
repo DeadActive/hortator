@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
-// Piece 5, the sequencer's chance and live hands: a hi-hat lane over a kick and a snare. Each step has its PROB (a
+// Piece 5, the sequencer's chance and live hands: an MD hi-hat lane (CHTRX) over a kick and a snare (BDTRX, SDTRX). Each step has its PROB (a
 // chance, 1-SHOT, or A of every B bars) and RATCH; the firmware plays the lane for 8 bars in the analyser and the dice
 // view shows what each bar played: the same 8 bars after every PLAY, as on the FM-1 (seq.c seeds the dice at PLAY).
-// Playing: the steps light as they fire; the hats mute at once or on the next bar (waiting shown); TONE turns record
+// Playing: the steps light as they fire; the hats mute at once or on the next bar (waiting shown); MTAL turns record
 // into the pattern (MOTION) and play back.
-import { el, knob, chips, scope, INK } from './lab_ui.js?v=7bf91331b2';
+import { el, knob, chips, scope, INK } from './lab_ui.js?v=1e296c5e84';
 
 const BARS = 8;
 const PATTERN = ['100%', '30%', '100%', '60%', '100%', '30%', '1/2', '60%',   // the hats' PROB per step
@@ -15,15 +15,16 @@ export default function seq(plate, { lab, ids, audition, screen }) {
   const { fs, P, DM, conds, models } = ids;
   const posOf = name => conds.findIndex(c => c.name === name);
   const steps = PATTERN.map((n, s) => ({ on: true, pos: posOf(n), rat: s === 14 ? 3 : 0 }));
-  const tone = models[DM.HATC].edit[2];
+  const toneAt = models[DM.CHTRX].edit.findIndex(d => d.label === 'MTAL'), TONE = P.E0 + toneAt;   // noise to metal
+  const tone = models[DM.CHTRX].edit[toneAt];
   const live = { atBar: true, rec: false, tone: tone.def };
   let sel = 1, player = null, dice = [], queued = false, playing = false;
   let now = -1, lastIdx = -1, muteQ = 0, muted = 0, motionVals = new Array(16).fill(null);
 
   const kit = t => {
-    t.call('model', 0, DM.K909);
-    t.call('model', 1, DM.HATC);
-    t.call('model', 2, DM.S909);
+    t.call('model', 0, DM.BDTRX);
+    t.call('model', 1, DM.CHTRX);
+    t.call('model', 2, DM.SDTRX);
     for (let s = 0; s < 16; s++) {
       t.call('step', 0, s, s % 4 === 0, false);
       t.call('step', 2, s, s === 4 || s === 12, false);
@@ -143,7 +144,7 @@ export default function seq(plate, { lab, ids, audition, screen }) {
     recBtn.setAttribute('aria-pressed', String(live.rec));
     (await startLoop())?.call('motion', 1, live.rec);
   });
-  const toneKnob = knob(tone, v => { live.tone = v; player?.call('knob', 1, P.E2, v); }, { value: live.tone });
+  const toneKnob = knob(tone, v => { live.tone = v; player?.call('knob', 1, TONE, v); }, { value: live.tone });
   const clearBtn = el('button', 'live-btn quiet', 'Clear');
   clearBtn.type = 'button';
   clearBtn.addEventListener('click', () => {
@@ -151,7 +152,7 @@ export default function seq(plate, { lab, ids, audition, screen }) {
     motionVals.fill(null);
     motionScope.redraw();
   });
-  const motionScope = scope('motion', (g, w, h) => {   // the hats' TONE as each step played it (the probes)
+  const motionScope = scope('motion', (g, w, h) => {   // the hats' MTAL as each step played it (the probes)
     const cw = w / 16;
     g.save();
     g.fillStyle = INK.grid;
@@ -171,7 +172,7 @@ export default function seq(plate, { lab, ids, audition, screen }) {
   muteGroup.append(el('p', 'family-name', 'Mute'), muteWhen.root, muteBtn, muteState);
   const motionRow = el('div', 'motion-row');
   motionRow.append(toneKnob.root, motionScope.canvas);
-  motionGroup.append(el('p', 'family-name', 'Motion: the hats’ TONE per step'), motionRow, el('div', 'motion-btns'));
+  motionGroup.append(el('p', 'family-name', 'Motion: the hats’ MTAL per step'), motionRow, el('div', 'motion-btns'));
   motionGroup.lastChild.append(recBtn, clearBtn);
 
   const editRow = el('div', 'controls-row'), stepKnobs = el('div', 'knobs');
@@ -194,8 +195,8 @@ export default function seq(plate, { lab, ids, audition, screen }) {
     start(p, loop) {
       player = p;
       kit(p);
-      p.call('watch', 1, P.E2);
-      p.call('knob', 1, P.E2, live.tone);
+      p.call('watch', 1, TONE);
+      p.call('knob', 1, TONE, live.tone);
       if (live.rec) p.call('motion', 1, true);
       p.onProbes(list => {
         for (const q of list) {

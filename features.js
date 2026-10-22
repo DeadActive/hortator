@@ -4,34 +4,36 @@
 // piece on the firmware's own DSP. The analyser (lab.js Lab, silent, in the page) starts when the section nears the
 // screen and draws every piece; the player (LabPlayer, an AudioWorklet) starts on the first Play and sounds one piece
 // at a time. A piece that leaves the screen, or a hidden tab, stops.
-import { Lab, LabPlayer } from './lab.js?v=7bf91331b2';
-import { el } from './lab_ui.js?v=7bf91331b2';
-import { B } from './controls.js?v=7bf91331b2';
-import { parseReel, snapshots } from './reel.js?v=7bf91331b2';
+import { Lab, LabPlayer } from './lab.js?v=1e296c5e84';
+import { el } from './lab_ui.js?v=1e296c5e84';
+import { B, ENC } from './controls.js?v=1e296c5e84';
+import { parseReel, snapshots } from './reel.js?v=1e296c5e84';
 
 const PIECES = {                                     // data-piece -> its module, loaded once the analyser runs
-  voices: () => import('./lab_voices.js?v=7bf91331b2'),
-  reson: () => import('./lab_reson.js?v=7bf91331b2'),
-  comp: () => import('./lab_comp.js?v=7bf91331b2'),
-  lfo: () => import('./lab_lfo.js?v=7bf91331b2'),
-  seq: () => import('./lab_seq.js?v=7bf91331b2'),
-  grids: () => import('./lab_grids.js?v=7bf91331b2'),
-  fx: () => import('./lab_fx.js?v=7bf91331b2'),
-  ble: () => import('./lab_ble.js?v=7bf91331b2'),
+  voices: () => import('./lab_voices.js?v=1e296c5e84'),
+  reson: () => import('./lab_reson.js?v=1e296c5e84'),
+  comp: () => import('./lab_comp.js?v=1e296c5e84'),
+  lfo: () => import('./lab_lfo.js?v=1e296c5e84'),
+  seq: () => import('./lab_seq.js?v=1e296c5e84'),
+  grids: () => import('./lab_grids.js?v=1e296c5e84'),
+  fx: () => import('./lab_fx.js?v=1e296c5e84'),
+  ble: () => import('./lab_ble.js?v=1e296c5e84'),
 };
 
-// each chapter's page on the FM-1's own screen: the panel moves that open it from HOME (as the chapter's "On the panel")
+// each chapter's page on the FM-1's own screen: the panel moves that open it from the power-on screen (HOME's TRACKS
+// mode), as the chapter's "On the panel"
 const PAGES = {
   voices: [{ sel: 0 }, { tap: 'EDIT' }],                       // SOUND 1/3
   reson: [{ sel: 0 }, ...Array(5).fill({ tap: 'FX' })],       // FILTER 1, 2, FX, SLICER, RESON 1
-  comp: [{ tap: 'HOME' }],                                      // HOME again: COMP 2/3
+  comp: [{ tap: 'HOME' }, { enc: 'SELECT' }],                   // the HOME screen, SELECT on: COMP 2/3
   lfo: [{ sel: 0 }, { tap: 'LFO' }],                           // LFO 1
   seq: [{ sel: 1 }, { tap: 'SEQ' }],                           // STEP 1/4
   grids: [{ tap: 'ARP' }],                                      // GRIDS 1/2
   fx: [{ sel: 1 }, { hold: 'FX' }],                            // the PERFORM layer, FX held
-  ble: [],                                                      // no page: HOME, as it stays
+  ble: [],                                                      // no page: TRACKS, as it stays
 };
-const panel = ops => ops.map(o => ('tap' in o ? { tap: B[o.tap] } : 'hold' in o ? { hold: B[o.hold] } : o));
+const panel = ops => ops.map(o => ('tap' in o ? { tap: B[o.tap] } : 'hold' in o ? { hold: B[o.hold] } :
+  'enc' in o ? { enc: ENC.findIndex(e => e.label === o.enc), steps: o.steps ?? 1 } : o));
 
 function paint(canvas, fb) {                          // RGB565 -> the canvas, 1:1
   const g = canvas.getContext('2d'), img = g.createImageData(240, 240), px = img.data;
@@ -55,9 +57,9 @@ const screens = new Map();                            // chapter -> { lcd, clip,
 function loadClips() {
   if (!window.DecompressionStream || still.matches) return Promise.resolve();
   return Promise.all([
-    fetch('features.bin.gz?v=7bf91331b2').then(r => (r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+    fetch('features.bin.gz?v=1e296c5e84').then(r => (r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
       : Promise.reject(new Error(`features.bin.gz: HTTP ${r.status}`)))),
-    fetch('features.json?v=7bf91331b2').then(r => (r.ok ? r.json() : Promise.reject(new Error(`features.json: HTTP ${r.status}`)))),
+    fetch('features.json?v=1e296c5e84').then(r => (r.ok ? r.json() : Promise.reject(new Error(`features.json: HTTP ${r.status}`)))),
   ]).then(([buf, list]) => {
     reel = parseReel(buf);
     clips = Object.fromEntries(list.map(c => [c.name, c]));
@@ -116,8 +118,8 @@ let lab = null, ids = null, wasm = null, player = null, starting = null, playing
 
 async function boot() {
   const [w, i] = await Promise.all([
-    fetch('fm1sim.wasm?v=7bf91331b2').then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`fm1sim.wasm: HTTP ${r.status}`)))),
-    fetch('lab_ids.json?v=7bf91331b2').then(r => (r.ok ? r.json() : Promise.reject(new Error(`lab_ids.json: HTTP ${r.status}`)))),
+    fetch('fm1sim.wasm?v=1e296c5e84').then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`fm1sim.wasm: HTTP ${r.status}`)))),
+    fetch('lab_ids.json?v=1e296c5e84').then(r => (r.ok ? r.json() : Promise.reject(new Error(`lab_ids.json: HTTP ${r.status}`)))),
   ]);
   wasm = w;
   ids = i;

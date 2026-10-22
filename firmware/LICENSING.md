@@ -2,7 +2,7 @@
 
 Felucca is free software. Its **code** is licensed under the GNU General Public License,
 version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Its **assets** are not part of
-that licence: the icon atlas `assets/icons.png`, the panel image `docs/panel.jpg` and the drum sounds made by
+that licence: the panel image `docs/panel.jpg` and the drum sounds made by
 `tools/gen_waves.py` (the Hügelton Sample Pack) are Copyright (C) 2026 Hügelton Instruments,
 all rights reserved. Their licence terms will be published later.
 
@@ -41,19 +41,28 @@ assets, is entirely governed by the GPL.
 | What | Licence | Where |
 | --- | --- | --- |
 | Instrument samples (Versilian Studios VSCO-2 CE, VCSL) | CC0 1.0 | `assets/samples-cc0/`, provenance in `ATTRIBUTION.txt` there |
-| Terminus font 8x16 (ter-u16n) | SIL OFL 1.1 | `assets/fonts/ter-u16n.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
-| UnifrakturMaguntia (j. 'mach' wust, Peter Wiegel): the HortatoR logo on ABOUT (`tools/gen_logo.py`) and the start screen (`assets/boot.png`, rendered by `tools/boot_variants.py --ship`) | SIL OFL 1.1 | `assets/fonts/UnifrakturMaguntia-Book.ttf`, `assets/fonts/UnifrakturMaguntia-LICENSE.txt` |
+| Terminus font 8x16 (ter-u16n): the web pages' typeface (`tests/sim_font.mjs`); no longer in the firmware | SIL OFL 1.1 | `assets/fonts/ter-u16n.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
+| UnifrakturMaguntia (j. 'mach' wust, Peter Wiegel): the boot screen study (`tools/boot_variants.py`; no longer in the firmware: the screens are drawn in the pixel font below) | SIL OFL 1.1 | `assets/fonts/UnifrakturMaguntia-Book.ttf`, `assets/fonts/UnifrakturMaguntia-LICENSE.txt` |
 | UnifrakturCook Bold (j. 'mach' wust, Peter Wiegel): one face of the boot screen study (`tools/boot_variants.py`; its other faces are SIL OFL 1.1, fetched from Google Fonts at run time, not shipped) | SIL OFL 1.1 | `assets/fonts/UnifrakturCook-Bold.ttf`, `assets/fonts/UnifrakturCook-LICENSE.txt` |
 | Fukiai icon font (Hügelton Instruments), web editor only | MIT | `web/fukiai.ttf`, `web/FUKIAI-LICENSE.txt`, `LICENSES/MIT-Fukiai.txt` |
 | Grids by Emilie Gillet / Mutable Instruments (<https://github.com/pichenettes/eurorack>): the GRIDS pattern engine is a C port of `grids/pattern_generator.cc` with its pattern tables (and avrlib's random generator) | GPL-3.0-or-later | `firmware/src/grids.c`, `firmware/src/grids_tables.h` |
 | Streams by Emilie Gillet / Mutable Instruments (<https://github.com/pichenettes/eurorack>): the COMP sidechain compressor is a C port of `streams/compressor.cc` with its tables | MIT | `firmware/src/comp.c`, `firmware/src/comp_tables.h`; `LICENSES/MIT-Mutable-Instruments.txt` |
 | Plaits and stmlib by Emilie Gillet / Mutable Instruments (<https://github.com/pichenettes/eurorack>): integer ports of its drum algorithms | MIT | `firmware/src/dm_kick.c`, `dm_snare.c`, `dm_metal.c`, `dm_dsp.c`; `LICENSES/MIT-Mutable-Instruments.txt` |
+| DaisySP by Electrosmith and Emilie Gillet (<https://github.com/electro-smith/DaisySP>): the modal resonator and the membrane (SKIN engine, RESON effect) are fixed-point ports of its physical models (Source/PhysicalModeling, Filters, Noise, Utility) | MIT | `firmware/src/phys_dsp.c`; `LICENSES/MIT-DaisySP.txt` |
 | jl-uboot-tool by Andrey Grigoryev (kagaimiq) (<https://github.com/kagaimiq/jl-uboot-tool>): the boot-mode cipher and command framing in the Mac recovery tool. Its `wl82loader.bin` is not in this tree; users fetch it (docs/RECOVERY.md) | MIT | `tools/rescue/fm1_uboot.py`; `LICENSES/MIT-jl-uboot-tool.txt` |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK>; `LICENSES/Apache-2.0.txt` |
 | JieLi AC79 SDK BT libraries (btctrler, btstack, wl_rf_common, crypto_toolbox, lib_ccm_aes, compiler_rt; members of system.a, cpu.a) and its BT config sources (`lib_btctrler_config.c`, `bt_profile_config.c`), linked into BLE builds only (`FELUCCA_BLE=1`): read from your SDK V1.2.0 copy at build time, none in this tree | Apache-2.0 | SDK V1.2.0, pinned in `tools/ble_libs.py`; `LICENSES/Apache-2.0.txt` |
 | JieLi AC79 SDK `apps/common/net/wifi_conf.c`: the radio's RX thresholds and RF look-up table, BLE builds only | Apache-2.0 | `firmware/src/ble/ble_rf_tables.c`; `LICENSES/Apache-2.0.txt` |
 
 The licence texts in `LICENSES/` travel with every published package (`web/make_site.py`).
+
+## Research (not in the firmware)
+
+The MD bank's voices (TRX, EFM) were tuned against measurements of Joe Landers' Machinedrum emulator, a fork of
+[Gearmulator](https://github.com/dsp56300/gearmulator) by The Usual Suspects (the DSP56300 project). Only
+measurements were taken (renders, analysed by ear and by tools); no code, firmware or data from the emulator or the
+Machinedrum is in this tree or in the firmware. Machinedrum is a trademark of Elektron. Hortator is not affiliated
+with, endorsed by or supported by Elektron, Joe Landers or The Usual Suspects.
 
 ## Contributions
 
@@ -71,3 +80,7 @@ by those owners.
 ## Radio
 
 Felucca never enables the Bluetooth / Wi-Fi radio of the hardware.
+
+The screen's pixel fonts (`assets/fonts/md_font.txt`) and the VU logo (`cv_vu`, `firmware/src/gfx.c`) are drawn by
+hand for this fork, in the style of the Elektron Machinedrum's LCD (no Elektron material is included): GPL-3.0-only,
+2026 DEADACTIVE.

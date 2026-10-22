@@ -1,43 +1,63 @@
 {
- "version": "0.16.0",
- "commit": "1235e59",
- "date": "2026-10-12",
+ "version": "0.23.0",
+ "commit": "38fafbd",
+ "date": "2026-10-22",
  "since": [],
  "release": {
-  "version": "0.16.0",
-  "date": "2026-10-11",
+  "version": "0.23.0",
+  "date": "2026-10-22",
   "notes": [
    {
-    "title": "ACID",
-    "text": "ACID: every step holds a note, SLIDE and TIE (format FDRB; older projects load and play as before, but projects saved by this build can't be read by 0.15.0); drum tracks play their steps transposed; ACID, a 303-style bass voice (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE), plays them with accent, slide and tie on up to two tracks (\"ACID: 2 TRACKS MAX\"). KEYS (an SCL tap): the keys play the selected track chromatically, OCT- / OCT+ the octave (-2 to +2; LAYER from EDIT and the LFO pages' OCT buttons need KEYS off, the STEP bank stays on KNOB 1, TRACKS keeps OCT as its bank); KEYS notes send no MIDI out; an ACID note (or a tied chain) over 5.5 s is cut. Live record (a REC tap on TRACKS arms the track, and starts the transport when stopped): a key writes the nearest step, a held key TIEs the later steps, a legato overlap SLIDEs (TIE / SLIDE on ACID tracks only). Step record: KEYS on, STEP page, stopped, a REC tap (KNOB 1..4 STEP NOTE TIME FLAG, EDIT a rest; REC, PLAY or leaving the page ends it). A loaded project keeps ACID on its first two ACID tracks, the others return as their power-on kit drum. A step the white keys turn on takes the last KEYS note on an ACID track, C4 on a drum (the last note resets on LOAD and on clearing the pattern). An ACID track's STEP page is a piano roll, the note shows in the footer; ACID's SOUND page shows its filter and the note's shape."
+    "title": "SOUND pages",
+    "text": "SOUND pages: every engine as FM, ACID and BDTRX: the name on the left, its number \"#NN/45\" under it, VOICES, CHOKE and \"+ LAYER\" under that, a graph on the right. The engines with no graph of their own show their rendered hit: the voice's real sound (one hit at velocity 100, played silently in the background, never touching what you hear) as a waveform, its length labelled (\"HIT / 300 MS\", 100 .. 1000 ms, following the sound). It draws again when MODEL or a SOUND knob changes, over a few frames (the old picture stays until the new one is done); SAMPL shows its sample."
    },
    {
-    "title": "A new start screen, CRT COLLAPSE",
-    "text": "A new start screen, CRT COLLAPSE: the HortatoR logo squashed through five dithered frames into one white scan line that bursts sideways, in the chosen COLOR (assets/boot.png, made by tools/boot_variants.py --ship; the study's other screens: tools/boot_variants.py OUTDIR). The logo, there and on ABOUT, is now UnifrakturMaguntia (SIL OFL)."
+    "title": "Engines renamed",
+    "text": "Engines renamed (the names shown only: projects, presets and MIDI unchanged). MD bank: KTRX -> BDTRX, XTTRX -> TMTRX, XCTRX -> CGTRX, MATRX -> SHTRX, XTEFM -> TMEFM. MODERN bank: KBOOM -> BOOM, KPUNC -> PUNCH, SSNAP -> SNAP, SCRAK -> CRACK, HMETL -> METAL, HNOIS -> HISS, MEMB -> SKIN, SMPL -> SAMPL. User preset slots saved from them are named after the new names (\"BOOM 07\")."
    },
    {
-    "title": "Releases can carry two versions",
-    "text": "Releases can carry two versions: the plain firmware and the same build with Bluetooth MIDI. The web installer offers a choice (the plain one by default), the release a second file hortator-X.Y.Z-bluetooth.fwsc (BLE=1 tools/publish.sh; first used for the Bluetooth version with parts 2, 3 and 5)."
+    "title": "The power-on kit",
+    "text": "The power-on kit (also TOOLS INIT ALL and a new project) is the TRX classic kit: KTRX, SDTRX, CPTRX, CHTRX, OHTRX, XTTRX, RSTRX, CYTRX, each on its default preset, with the same roles and MIDI notes as before (kick 36, snare 38, clap 39, closed hat 42, open hat 46, tom 45, rim 37, cymbal 49) and no choke. Saved projects load unchanged."
    },
    {
-    "title": "Bluetooth MIDI",
-    "text": "Bluetooth MIDI (the Bluetooth version only): MENU (HOME held) > BLUETOOTH turns Bluetooth on (off at every power-on), scans, lists the devices found (BLE-MIDI ones first) and connects to the one picked. It remembers it (saved) and reconnects whenever it is in range, also after a power-on once BLUETOOTH is ON; KNOB 1 left on DEVICE forgets it. MODE (saved): AUTO (SMC DAW for a device named SMC\u2026, else MIDI), SMC DAW, MIDI. BT CONNECTED / BT LOST in the top bar. The console's ble stays for testing."
+    "title": "HOME",
+    "text": "HOME: the 4 boxes above PROJ show the bar of a 4-bar cycle: the current bar solid, moving with the playhead, back to the first at every PLAY (stopped: the first). They used to show the selected track's banks."
    },
    {
-    "title": "The M-VAVE SMC-Mixer in its DAW mode",
-    "text": "The M-VAVE SMC-Mixer in its DAW mode: faders 1\u20138 = the track levels (pickup: a fader acts once it reaches the level; the mixer blinks it until then), knobs 1\u20134 = the selected track's first four knobs, MUTE / SOLO / REC / SELECT per track, PLAY / STOP / REC, BANK / CHANNEL \u25c0 \u25b6 the track; its LEDs show the mutes, solos, armed tracks, the selected track and the transport. Fader and knob moves record as motion on the selected track while armed."
+    "title": "The MODEL knob's list runs MD, MODERN, CLASSIC",
+    "text": "The MODEL knob's list runs MD, MODERN, CLASSIC (KTRX .. CYEFM, KBOOM .. SMPL, K808 .. CLAVE), and the preset banks MACHINEDRUM, MODERN, CLASSIC, USER. Models keep their numbers and presets their uids, so older projects load with the same voices and presets."
    },
    {
-    "title": "MIDI mode",
-    "text": "MIDI mode: the device's notes on the drum channel play the tracks, as USB and TRS; GLO CLK BLE follows its clock (a project saved with CLK BLE loads with CLK INT in the plain version)."
+    "title": "The SOUND pages show the",
+    "text": "The SOUND pages show the engine's place in that list under its name, \"#01/45\" (KTRX) .. \"#45/45\" (CLAVE)."
    },
    {
-    "title": "SOLO",
-    "text": "SOLO (from the SMC-Mixer): while any track is soloed only the soloed ones are heard; not saved, cleared by INIT, and cleared (nothing cut) when the SMC-Mixer disconnects or MODE leaves SMC DAW, as the FM-1 has no unsolo. Leaving SMC DAW while connected turns the mixer's LEDs off."
+    "title": "LFO",
+    "text": "LFO: the OCT- switch between LFO 1 and LFO 2 is gone. The LFO pages show both LFOs side by side (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4): WAVE RATE, MORPH PHASE, TRIG MODE (the RATE MODE now has a knob; OCT+ still switches the one of the LFO turned last), and a last page, DEST: 4 slots per track, each a source (LFO 1 / LFO 2), a destination (any knob an LFO could target) and its own depth (KNOB 1 the slot, 2 SRC, 3 DEST, 4 DEPTH). Older projects load with their LFO 1 / LFO 2 routing as slots 1 / 2 (the sound, motion and MIDI LEARN unchanged); projects are saved in a new format (FDRE) that 0.22.0 cannot load."
    },
    {
-    "title": "MODE and the remembered device",
-    "text": "MODE and the remembered device are kept in spare bits of the device settings, in both versions. Going back to an older Hortator after picking a device: its SPEAKER EQ reads FLAT."
+    "title": "Accent",
+    "text": "Accent: hold OCT+ and tap a step key (STEP, PATTERN, MOTION, SONG, TRACKS): the step accented (an off step turns on accented), or plain again. Holding a step key no longer sets the accent, so a held step is only PROB (KNOB 1) and RATCH (KNOB 2). OCT+ on its own changes the bank when it is let go; while it is held the keys show the bank's accents. The STEP hint reads [OCT+] +TAP ACCENT."
+   },
+   {
+    "title": "The selected track on the keys",
+    "text": "The selected track on the keys: on HOME and every EDIT (SOUND, LAYER), FX and LFO page its white key (F3..F4) is lit, as the keys select tracks there (held keys lit too). KEYS, COMP, the step pages and GLOBAL / SAVE / GRIDS keep their own."
+   },
+   {
+    "title": "OCT- / OCT+ breathe",
+    "text": "OCT- / OCT+ breathe (upstream Felucca's breathing LED, #119): fading in and out, ~1.1 s, where pressing them would do something (the next / previous bank on the steps, LAYER from SOUND, the LFO pages' RATE MODE (OCT+), YES in a dialog, OK in the menu, NAME's RENAME, MIDI LEARN's DONE, the PRESETS list's LOAD and DELETE); a way back (NO, CANCEL, BACK) is lit."
+   },
+   {
+    "title": "PERFORM keeps its knobs",
+    "text": "PERFORM keeps its knobs: while its screen is up (FX held, the PAGE, a layer key held) KNOB 1-4 are its macros only, also for detents that arrive while the firmware is between its two knob reads (they used to reach the page under it), and SELECT turns no page under it (a page button, HOME or an FX tap still close the PAGE)."
+   },
+   {
+    "title": "MENU BACKLIGHT has upstream Felucca's LED levels",
+    "text": "MENU BACKLIGHT has upstream Felucca's LED levels: OFF, DIM LO (the old ON: unlit keys and now the idle buttons at ~5 %, the step beats ~25 %), DIM HI (~10 %, beats ~30 %), INV (idle lit, active dark), INV LO / INV HI (idle at ~10 % / ~25 %). KNOB 1 steps, OCT+ steps and wraps. Saved in the settings record's palette word (bits 9..11); an older Hortator reads any level but OFF as ON, and an older record's ON loads as DIM LO."
+   },
+   {
+    "title": "MENU > ABOUT credits everyone",
+    "text": "MENU > ABOUT credits everyone whose work is in the firmware, its research and its pages (Felucca, Mutable Instruments, DaisySP, the samples, the recovery tool, the web fonts and icons, the emulator the MD voices were measured from, with a disclaimer). The credits scroll under the logo with SELECT, a row a detent, with a scroll bar at the right; ABOUT opens at the top. LICENSING.md lists DaisySP (MIT, LICENSES/MIT-DaisySP.txt) and the research; README and the site's footer carry the same credits."
    }
   ]
  }
