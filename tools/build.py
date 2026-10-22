@@ -79,7 +79,10 @@ def tc(tool, *args):
                "-v", f"{toolchain()}:/opt/jieli:ro", "-w", "/work", DOCKER_IMAGE, f"/opt/jieli/{tool}", *rel]
     else:
         cmd = [str(toolchain() / tool), *rel]
-    r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
+    for _ in range(5):              # Docker's amd64 emulation now and then refuses to start a tool: again
+        r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
+        if not (r.returncode and use_docker() and "exec format error" in r.stdout + r.stderr):
+            break
     if r.returncode:
         sys.stderr.write(r.stdout + r.stderr)
         raise SystemExit(f"build: {tool} failed")
