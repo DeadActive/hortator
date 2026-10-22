@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.23.0 - 2026-10-22
+
+The first published release since 0.16.0: it also brings everything in 0.17.0 .. 0.22.0 (CHANGELOG.md): the MD
+bank's 21 voices (13 TRX, 8 EFM), 151 factory presets and 128 user preset slots, the default TRX kit, the 4-slot LFO
+routing, accents on OCT+ and a step, the Machinedrum-style screen and its faster redraws. Projects saved by 0.23.0
+don't load in older versions.
+
 - SOUND pages: every engine as FM, ACID and BDTRX: the name on the left, its number "#NN/45" under it, VOICES, CHOKE
   and "+ LAYER" under that, a graph on the right. The engines with no graph of their own show their rendered hit: the
   voice's real sound (one hit at velocity 100, played silently in the background, never touching what you hear) as a
