@@ -65,6 +65,7 @@
   progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
   progress::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
   #status { margin: 10px 0 0; min-height: 1.55em; font-weight: 500; color: var(--ink); }
+  #counted { margin: 6px 0 0; font-size: 13px; opacity: .75; }
   .notes { background: var(--card); border-radius: 16px; padding: 18px 20px; margin: 0 0 20px; }
   .notes p { margin: 0 0 12px; font-size: 15px; color: var(--ink-soft); }
   .notes p:last-child { margin-bottom: 0; }
@@ -101,6 +102,7 @@
       <button id="go" disabled data-t="install"></button>
       <progress id="bar" max="100" value="0"></progress>
       <p id="status" role="status"></p>
+      <p id="counted" data-t="counted" hidden></p>
     </li>
   </ol>
 
@@ -142,6 +144,7 @@ const TEXT = {
     back: "To go back to the official firmware, use M-VAVE's updater M-UPGRADE (Downloads → PC Software → M-UPGRADE) with the official firmware (PC Firmware → FM-1 V15).",
     nomidi: "This browser cannot install firmware. Open the page in Chrome or Edge on a computer.", loadfail: "Could not load the firmware: ",
     start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
+    counted: "Counts installs anonymously with GoatCounter: no cookies, no personal data.",
     reboot: "Restarting", done: "Done. The FM-1 restarts with Hortator.", stopped: "Stopped. Replug the USB cable and press Install again.",
     error: "Error: ",
     denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
@@ -191,6 +194,7 @@ const load = async () => {
   } catch (e) { sayK("loadfail", e.message); }
 };
 load();
+if (counterOn()) $("counted").hidden = false;
 if ((meta.variants || []).length > 1) $("variants").hidden = false;
 document.querySelectorAll('input[name="variant"]').forEach((r) => r.addEventListener("change", () => {
   const v = meta.variants.find((x) => x.id === r.value);
@@ -220,7 +224,7 @@ $("go").addEventListener("click", async () => {
       if (k === "loader") sayK("loader");
       if (k === "write") { sayK("write"); $("bar").value = ((74 + a) / total) * 100; }
       if (k === "reboot") sayK("reboot");
-      if (k === "done") { $("bar").value = 100; sayK("done"); }
+      if (k === "done") { $("bar").value = 100; sayK("done"); countInstall(meta.version); }
     };
     const ota = await up.find((id) => /^ota-/i.test(id.model));
     if (ota) {

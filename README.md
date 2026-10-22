@@ -275,6 +275,11 @@ FM-1's keys as live record does.
 Releases are also on [GitHub](https://github.com/DeadActive/hortator/releases) as `hortator-<version>.fwsc`, with
 what changed in each ([CHANGELOG.md](CHANGELOG.md)). `tools/fm1_install.py` installs a package from a terminal.
 
+The web installer counts finished installs with [GoatCounter](https://www.goatcounter.com): one anonymous event
+("install", titled with the version) after it says Done, with no cookies and no personal data, and the landing page
+shows the total. It is off until the site code is set in `web/sim/counter.js` (`GC_CODE`), and never runs on a local
+copy. `tools/fm1_install.py` sends nothing.
+
 ### Back to the official firmware
 
 Use M-VAVE's updater, M-UPGRADE, from <https://www.m-vave.com/download> (Downloads → PC Software → M-UPGRADE), with

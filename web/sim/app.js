@@ -8,6 +8,7 @@ import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
 import { parseReel } from './reel.js';
 import { initFeatures } from './features.js';
+import { installCount } from './counter.js';
 import { ditherBackground, initGlitch } from './dither.js';
 import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js';
 
@@ -492,6 +493,15 @@ function plainNote(n) {                            // the changelog's line for p
   if (t.startsWith(n.title)) t = t.slice(n.title.length).replace(/^[\s:,]+/, '');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+// the hero's install count (counter.js: GoatCounter's public count; off, slow or failed: nothing shows)
+installCount().then(n => {
+  const el = document.getElementById('install-count');
+  if (n == null || !el) return;
+  const b = document.createElement('b');
+  b.textContent = n.toLocaleString('en');
+  el.replaceChildren('Installed ', b, n === 1 ? ' time' : ' times');
+  el.hidden = false;
+});
 fetch('version.json').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
   const [y, m, d] = v.date.split('-').map(Number);
   const newer = v.since.length ? ` and ${v.since.length} newer change${v.since.length > 1 ? 's' : ''}` : '';

@@ -64,6 +64,12 @@ measurements were taken (renders, analysed by ear and by tools); no code, firmwa
 Machinedrum is in this tree or in the firmware. Machinedrum is a trademark of Elektron. Hortator is not affiliated
 with, endorsed by or supported by Elektron, Joe Landers or The Usual Suspects.
 
+## Services used by the site
+
+The published installer and landing page use [GoatCounter](https://www.goatcounter.com) (a hosted service, not part
+of the firmware or the packages) to count finished installs: one anonymous event per install, no cookies, no
+personal data; off while `GC_CODE` in `web/sim/counter.js` is empty.
+
 ## Contributions
 
 Contributions are welcome under GPL-3.0-only. By submitting one, you agree that it may be

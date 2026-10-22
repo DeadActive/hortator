@@ -11,7 +11,7 @@
                               JieLi SDK files under Apache-2.0, see LICENSING.md)
   firmware/felucca-VER-ble.fwsc  with a second package (the Bluetooth build, FELUCCA_BLE=1): the installer offers
                               both, the plain one first (2026-10-09)
-  webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js and the metadata inlined
+  webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js, sim/counter.js and the metadata inlined
   webapp/editor/index.html    editor.html (+ fukiai.ttf, FUKIAI-LICENSE.txt)
   src/                        not touched
 
@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+LIB = ("fm1pkg.js", "fm1ota.js", "sim/counter.js")   # inlined into the installer (sim/counter.js: the install count)
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
 
 
@@ -59,8 +60,7 @@ def main(pkg, version, out, ble_pkg=None):
     if ble_pkg is not None and checked(ble_pkg)[1] != product:
         raise SystemExit(f"{ble_pkg}: identity {checked(ble_pkg)[1]} is not {product}'s")
     html = (HERE / "index_pkg.html").read_text(encoding="utf-8")
-    lib = strip_module((HERE / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
-        strip_module((HERE / "fm1ota.js").read_text(encoding="utf-8"))
+    lib = "\n".join(strip_module((HERE / f).read_text(encoding="utf-8")) for f in LIB)
     name = f"felucca-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"
     info = {"version": version, "product": product, "pkg": "../../firmware/" + name}
     ble_name = name.replace(".fwsc", "-ble.fwsc")

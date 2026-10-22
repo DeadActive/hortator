@@ -9,6 +9,7 @@
 //   and the user-sample pipeline byte for byte against tools/sampleio.py
 // - fm1pkg.js: productOf and logicalImage on build/felucca.fwsc (skipped without a build)
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
+// - sim/counter.js: the GoatCounter install count (off without a site code; never blocks or breaks an install)
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -17,6 +18,7 @@ import { join } from "node:path";
 import vm from "node:vm";
 import { logicalImage, productOf } from "./fm1pkg.js";
 import { Updater, pack7, unpack7 } from "./fm1ota.js";
+import { GC_CODE, counterOn, countInstall, installCount } from "./sim/counter.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(64)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -617,6 +619,58 @@ async function updater() {
   ok(e6 && e6.code === "notfound" && dev6.served === 0, "fm1ota.js: no same-named output -> not paired with the only output");
 }
 
+/* ------------------------------------------------------------ the install counter (GoatCounter) --- */
+async function counter() {
+  const site = { protocol: "https:", hostname: "deadactive.github.io" };
+  const calls = [];
+  const spy = (url, opt) => { calls.push([url, opt]); return Promise.resolve({ ok: true }); };
+  ok(GC_CODE === "", "counter: the shipped site code is empty (off until the owner sets it)");
+  ok(!counterOn(site) && countInstall("0.23.0", { loc: site, fetch: spy }) === false && calls.length === 0,
+    "counter: off without a code: no ping");
+  ok(await installCount({ loc: site, fetch: spy }) === null && calls.length === 0, "counter: off: no read");
+  for (const loc of [{ protocol: "http:", hostname: "localhost" }, { protocol: "http:", hostname: "127.0.0.1" },
+    { protocol: "https:", hostname: "localhost" }, { protocol: "file:", hostname: "" }, { protocol: "http:", hostname: "example.org" }, undefined])
+    ok(!counterOn(loc, "hortator") && countInstall("0.23.0", { code: "hortator", loc, fetch: spy }) === false && calls.length === 0,
+      `counter: never from ${loc ? loc.protocol + "//" + loc.hostname : "no page"}`);
+  const r = countInstall("0.23.0", { code: "hortator", loc: site, fetch: spy });
+  const [url, opt] = calls[0] || [];
+  ok(r === true && calls.length === 1 && /^https:\/\/hortator\.goatcounter\.com\/count\?p=install&e=true&t=0\.23\.0&rnd=\w+$/.test(url),
+    "counter: one event ping, GET /count?p=install&e=true&t=VERSION");
+  ok(opt && opt.keepalive === true && opt.mode === "no-cors" && opt.credentials === "omit" && opt.referrerPolicy === "no-referrer",
+    "counter: keepalive, no cookies, no referrer");
+  ok(typeof r === "boolean", "counter: returns at once (nothing to await)");
+  let unhandled = 0;
+  const onUnhandled = () => { unhandled++; };
+  process.on("unhandledRejection", onUnhandled);
+  ok(countInstall("0.23.0", { code: "hortator", loc: site, fetch: () => { throw new Error("blocked"); } }) === false,
+    "counter: a throwing fetch is swallowed");
+  ok(countInstall("0.23.0", { code: "hortator", loc: site, fetch: () => Promise.reject(new Error("offline")) }) === true,
+    "counter: a failing request is ignored");
+  ok(countInstall("0.23.0", { code: "hortator", loc: site, fetch: null }) === false, "counter: no fetch: nothing");
+  await new Promise((res) => setTimeout(res, 20));
+  process.off("unhandledRejection", onUnhandled);
+  ok(unhandled === 0, "counter: no unhandled rejection");
+  const reply = (status, body) => () => Promise.resolve({ ok: status === 200, status, json: () => Promise.resolve(body) });
+  const read = [];
+  ok(await installCount({ code: "hortator", loc: site, fetch: (u, o) => { read.push([u, o]); return reply(200, { count: "1,234" })(); } }) === 1234
+    && read[0][0] === "https://hortator.goatcounter.com/counter/install.json" && read[0][1].credentials === "omit",
+    "counter: the public count, /counter/install.json, \"1,234\" -> 1234");
+  ok(await installCount({ code: "hortator", loc: site, fetch: reply(404, {}) }) === null, "counter: 404 (no installs yet / counts off) -> hidden");
+  ok(await installCount({ code: "hortator", loc: site, fetch: reply(200, {}) }) === null, "counter: no count -> hidden");
+  ok(await installCount({ code: "hortator", loc: site, fetch: () => Promise.reject(new Error("x")) }) === null, "counter: a failed read -> hidden");
+  const t0 = Date.now();
+  const slow = (u, o) => new Promise((res, rej) => o.signal.addEventListener("abort", () => rej(new Error("aborted"))));
+  ok(await installCount({ code: "hortator", loc: site, fetch: slow, timeout: 50 }) === null && Date.now() - t0 < 1000,
+    "counter: a slow read gives up after its timeout");
+  // the installer: the ping is the "done" step's last act, never awaited; the note shows only when it is on
+  const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
+  const uses = inst.match(/.*countInstall\(.*$/gm) || [];
+  ok(uses.length === 1 && /if \(k === "done"\) \{[^}]*sayK\("done"\); countInstall\(meta\.version\); \}/.test(uses[0]) && !/await\s+countInstall/.test(inst),
+    "installer: one ping, after Done, not awaited");
+  ok(/<p id="counted" data-t="counted" hidden><\/p>/.test(inst) && /if \(counterOn\(\)\) \$\("counted"\)\.hidden = false;/.test(inst),
+    "installer: the privacy note, shown only when counting");
+}
+
 await editorMock();
 await editorLibrarian();
 await editorLive();
@@ -628,5 +682,6 @@ editorIcons();
 samplesMatch();
 await packages();
 await updater();
+await counter();
 console.log(failed ? `WEB TESTS FAILED (${failed})` : "web tests passed");
 process.exit(failed ? 1 : 0);

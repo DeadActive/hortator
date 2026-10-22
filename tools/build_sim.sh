@@ -187,7 +187,8 @@ web, out, version = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 sys.path.insert(0, str(web))
 from make_site import strip_module                   # the site's own assembly (web/make_site.py main)
 html = (web / "index_pkg.html").read_text(encoding="utf-8")
-lib = strip_module((web / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + strip_module((web / "fm1ota.js").read_text(encoding="utf-8"))
+from make_site import LIB
+lib = "\n".join(strip_module((web / f).read_text(encoding="utf-8")) for f in LIB)
 meta = json.dumps({"version": version + " (preview)", "product": "FM-1_900", "pkg": "../../firmware/preview-has-no-package.fwsc"})
 out.write_text(html.replace("/*LIB*/", lib).replace("/*META*/", meta), encoding="utf-8")
 PY

@@ -53,6 +53,10 @@ button { font: inherit; }
   background: var(--w); color: var(--k); position: relative;
 }
 .cta.ghost { background: transparent; color: var(--w); }
+.cta-slot { position: relative; display: inline-flex; }          /* the install count hangs under its button: */
+.install-count { position: absolute; left: 0; top: 100%; margin-top: 8px; white-space: nowrap; color: var(--c5);
+  background: var(--k); }                                          /* out of the flow, so nothing moves when it shows */
+.install-count b { padding: 0 4px; color: var(--k); background: var(--w); font-weight: normal; }
 .cta:hover { background: var(--k); color: var(--w); }
 .cta.ghost:hover { background: var(--w); color: var(--k); }
 .cta:focus-visible { outline: 2px dashed var(--w); outline-offset: 4px; }

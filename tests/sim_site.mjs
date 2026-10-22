@@ -24,10 +24,14 @@ const CHANGES = [
   ['  $("lang").textContent = t("other");\n', ''],
   ['$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });\n', ''],
   ['say(`Felucca ${meta.version}`);', 'say(`Hortator ${meta.version}`);'],
+  // the install count (2026-10-22): one GoatCounter event after Done, never awaited (web/sim/counter.js)
+  ['if (k === "done") { $("bar").value = 100; sayK("done"); }',
+    'if (k === "done") { $("bar").value = 100; sayK("done"); countInstall(meta.version); }'],
   // two versions in one release (2026-10-09): the package loader runs again for the chosen version
   ['(async () => {', 'const load = async () => {'],
   ['})();\n', `};
 load();
+if (counterOn()) $("counted").hidden = false;
 if ((meta.variants || []).length > 1) $("variants").hidden = false;
 document.querySelectorAll('input[name="variant"]').forEach((r) => r.addEventListener("change", () => {
   const v = meta.variants.find((x) => x.id === r.value);
@@ -388,4 +392,15 @@ test('the first-visit demos (tests/sim_demo.c) lead with the MD bank; none plays
   for (const k of kits) assert.ok(!k.some(isClassic), `no CLASSIC in a demo: ${k}`);
   assert.ok(kits[3].some(m => m.endsWith('TRX')) && kits[3].some(m => m.endsWith('EFM')), 'demo 4 mixes TRX and EFM');
   assert.ok(kits.some(k => k.includes('DM_ACID')), 'a demo plays ACID');
+});
+
+test('the hero shows the install count beside the install button: hidden until the count arrives, out of the flow', () => {
+  const hero = LANDING.slice(LANDING.indexOf('id="hero-copy"'), LANDING.indexOf('id="scroll-cue"'));
+  assert.match(hero, /<span class="cta-slot"><a class="cta ghost" href="webapp\/installer\/">[^<]*<\/a><span class="install-count" id="install-count" hidden><\/span><\/span>/);
+  const css = readFileSync('web/sim/sim.css', 'utf8');
+  assert.match(css, /\.cta-slot\s*{[^}]*position: relative/);
+  assert.match(css, /\.install-count\s*{[^}]*position: absolute/, 'no layout shift when it appears');
+  const app = readFileSync('web/sim/app.js', 'utf8');
+  assert.match(app, /import \{ installCount \} from '\.\/counter\.js';/);
+  assert.match(app, /installCount\(\)\.then\(/, 'fetched once, not awaited by the page');
 });
