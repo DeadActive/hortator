@@ -38,7 +38,14 @@ int core_flash_read(uint32_t off, void *buf, uint32_t n)    /* plain flash only 
 #endif
 }
 uint32_t core_audio_late(void) { return felucca_dbg.late; }
+uint32_t core_audio_gap_us(void)                /* the longest gap between two audio halves since the last call */
+{
+    uint32_t g = audio_gap_max;
+    audio_gap_max = 0;
+    return g / FM1_TICKS_PER_US;
+}
 uint32_t core_ui_frames(void) { return felucca_dbg.ui_frames; }
+int core_ble_slow(void) { return bt_set_slow(song.playing); }
 void core_con_puts(const char *s)
 {
 #if FELUCCA_CDC
@@ -47,10 +54,14 @@ void core_con_puts(const char *s)
     (void)s;
 #endif
 }
+void core_ble_mac(uint8_t mac[6]) { bt_mac(mac); }
+int core_rf_keep_get(uint8_t rec[68]) { return bt_rf_io(rec, 0); }
+void core_rf_keep_put(const uint8_t rec[68]) { (void)bt_rf_io((uint8_t *)rec, 1); }
 void core_ble_midi_in(uint32_t pkt) { bt_midi_in(pkt); }
+void core_fml_rx(const uint8_t *p, uint32_t len, uint32_t t) { bt_fml_rx(p, len, t); }
 uint32_t core_ble_in_drops(void) { return bt_in.drops; }
 void core_ble_link(int up)
 {
     bt_link(up);                                /* first: smc_link's frame needs the mode */
-    smc_link(up);
+    smc_link(up);                               /* (BT CONNECTED / BT LOST) */
 }

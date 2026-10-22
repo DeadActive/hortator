@@ -5,7 +5,12 @@
 #define DLY_LEN 65536u           /* 1.49 s: 1/4 at 40 BPM fits */
 #define CHO_LEN 2048u
 static int16_t dly_buf[DLY_LEN] __attribute__((section(".pool")));
+#if FELUCCA_BLE                  /* the Bluetooth build: in .bss, so the pool keeps its 8 KiB spare beside the BT heap
+                                 * (23,552 B) and task stacks (tools/build.py); .bss keeps its 4 KiB */
+static int16_t cho_buf[CHO_LEN];
+#else
 static int16_t cho_buf[CHO_LEN] __attribute__((section(".pool")));
+#endif
 static const uint16_t REV_COMB[4] = {1116, 1188, 1277, 1356};
 static const uint16_t REV_AP[2] = {556, 441};
 static int16_t rev_comb[1116 + 1188 + 1277 + 1356] __attribute__((section(".pool")));

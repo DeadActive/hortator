@@ -23,8 +23,11 @@ int ble_midi_send(const uint8_t *m, uint32_t n)
     memcpy(sent[nsent++], m, 3);
     return 1;
 }
+#include "../firmware/src/bt_set.c"
 #include "../firmware/src/smc.c"
 #include "../firmware/src/bt_midi.c"
+#include "../firmware/src/bt_fml.c"
+#include "../firmware/src/bt_devs.c"
 #include "../firmware/src/bt_page.c"                  /* (ui_menu.c's Bluetooth row needs it) */
 
 static int fails;
@@ -226,7 +229,7 @@ static void test_knobs(void)
     in(cc(16, 0));
     in(cc(16, 0x40));
     in(0x0Bu | 0xB1u << 8 | 16u << 16 | 5u << 24);   /* CC 16 on channel 2 */
-    check("knobs 5-8, a zero delta, another channel: nothing", !memcmp(before, trk[1].p, sizeof before) && !ui.msg[0]);
+    check("knobs 5-8 (nothing learned), a zero delta, another channel: nothing", !memcmp(before, trk[1].p, sizeof before) && !ui.msg[0]);
     song.rec = 1u << 1;
     transport_req = 1;
     render_mix(0, 0, CTL);
@@ -544,6 +547,60 @@ static void test_mode_end(void)
     check("AUTO, a MIDI device linked: no LEDs off (SMC mode never began)", !tries);
 }
 
+/* knobs 5..8 (CC 20..23): MIDI LEARN's. Learned to a parameter, a click steps it from where it is (through the MIDI
+ * input ring, source 3, as any learned CC); while MIDI LEARN waits for a CC it hears this one; a dialog: nothing */
+static void test_learnable(void)
+{
+    const param_desc_t *d;
+    int32_t v0;
+    uint32_t a;
+    fresh();
+    memset(ml_map, 0, sizeof ml_map);
+    ml_map[0].num = 21;                              /* knob 6 -> track 3's P_E1 */
+    ml_map[0].trk = 2;
+    ml_map[0].code = (uint8_t)(P_E1 + 1u);
+    ml_map[0].src = ML_CC;
+    d = track_desc(&trk[2], P_E1);
+    trk[2].p[P_E1] = 40;
+    v0 = trk[2].p[P_E1];
+    mi_r = mi_w = 0;
+    in(cc(21, 1));
+    a = mi_r % MQ;
+    check("knob 6 learned: one CC into the ring (source 3)", mi_w - mi_r == 1u && midi_in_source[a] == 3u &&
+          ((midi_in_q[a] >> 16) & 0xFFu) == 21u);
+    render_mix(0, 0, CTL);
+    check("knob 6 +1: its parameter one value up, from where it was", trk[2].p[P_E1] == param_turn(d, v0, 1));
+    in(cc(21, 0x41));
+    in(cc(21, 0x41));
+    render_mix(0, 0, CTL);
+    check("knob 6 -1 twice: one value below where it began", trk[2].p[P_E1] == param_turn(d, v0, -1));
+    check("knob 6: the top bar says T3 and the parameter", ui.msg[0] == 'T' && ui.msg[1] == '3');
+    trk[2].p[P_E1] = 100;                            /* changed on the FM-1 meanwhile: no jump */
+    in(cc(21, 1));
+    render_mix(0, 0, CTL);
+    check("changed on the FM-1: the next click steps from there", trk[2].p[P_E1] == param_turn(d, 100, 1));
+    mi_r = mi_w = 0;
+    in(cc(22, 3));
+    check("knob 7, nothing learned: nothing", mi_w == mi_r);
+    ml_arm = 1;                                      /* MIDI LEARN waits for a CC */
+    ml_heard = 0;
+    in(cc(23, 1));
+    render_mix(0, 0, CTL);
+    check("MIDI LEARN waiting: knob 8 is heard as CC 23", ml_heard == 23u + 1u);
+    ml_arm = 0;
+    ml_heard = 0;
+    ui.confirm = 1;                                  /* a dialog */
+    mi_r = mi_w = 0;
+    v0 = trk[0].p[P_E0];
+    in(cc(21, 1));
+    in(cc(16, 1));
+    in(note(0x10, 127));
+    check("a dialog on the screen: knobs and buttons do nothing", mi_w == mi_r && trk[0].p[P_E0] == v0 &&
+          !trk[0].p[P_MUTE]);
+    ui.confirm = 0;
+    memset(ml_map, 0, sizeof ml_map);
+}
+
 int main(void)
 {
     test_decode();
@@ -555,6 +612,7 @@ int main(void)
     test_solo_clears();
     test_mode_end();
     test_rec_all();
+    test_learnable();
     printf(fails ? "smc_test: %d FAILED\n" : "smc_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

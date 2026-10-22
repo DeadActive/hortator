@@ -15,8 +15,11 @@ static uint8_t hflash[0x100000];
 #include "ble_ui_stub.h"
 uint32_t ble_midi_room(void) { return 64u; }
 int ble_midi_send(const uint8_t *m, uint32_t n) { (void)m; (void)n; return 1; }
+#include "../firmware/src/bt_set.c"
 #include "../firmware/src/smc.c"
 #include "../firmware/src/bt_midi.c"
+#include "../firmware/src/bt_fml.c"
+#include "../firmware/src/bt_devs.c"
 #include "../firmware/src/bt_page.c"
 
 static int fails;

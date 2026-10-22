@@ -1,29 +1,64 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * BLE MIDI: 2026 DEADACTIVE
  * Drum machine fork: 2026 DEADACTIVE */
-/* FELUCCA_BLE (felucca.c includes it after the UI and ble/ble_core.h): the core's side of BLE MIDI in (spec 2026-10-10
- * §4). Each USB-MIDI packet the BLE unit received goes to the SMC-Mixer layout (SMC DAW mode) or, in MIDI mode,
- * through the USB filter into the MIDI input ring as source 3 (seq.c midi_block: notes on the drum channel, the
- * realtime messages with CLK BLE). Main loop only. */
+/* FELUCCA_BLE (felucca.c includes it after the UI, ble/ble_core.h, bt_set.c and smc.c): the core's side of Bluetooth
+ * MIDI (after felucca-ble's bt_midi.c). On the controller's link (ROLE HOST: the CTRL slot) or the host's (ROLE DEVICE).
+ * In: each USB-MIDI packet the BLE unit received goes to the SMC-Mixer layout (SMC DAW mode, smc.c) or, in MIDI mode,
+ *   through the USB filter into the MIDI input ring as source 3 (seq.c midi_block: notes on the drum channel, MIDI
+ *   LEARN's CCs and notes, the realtime bytes with CLK BLE).
+ * Out, MIDI mode: what the FM-1 sends to USB MIDI out (the keys' hits on the drum channel, seq.c keyboard_block) also
+ *   goes to the connected device. Its caller runs in the audio interrupt, so it queues here and the main loop hands
+ *   the queue to the BLE unit. No realtime bytes but the clock's.
+ * Clock out: while the FM-1 runs on its own tempo (CLK INT) and is linked in MIDI mode it is the master of the BLE
+ *   device (a computer, another FM-1 with CLK BLE): Start on PLAY, 24 clock pulses a beat counted from the audio's own
+ *   samples (so they never drift from its steps), Stop on STOP. A unit following a clock itself (CLK USB / TRS / BLE /
+ *   LINK) sends none: no loop. bt_clock_block, from seq.c events_block (the audio ISR).
+ * FM-LINK mode: no MIDI either way (received packets dropped, nothing sent, no clock out): the link carries FM-Link
+ *   only (bt_fml.c runs in every mode).
+ * The link down: what the device held is released (CC 64 = 0 and CC 123 on each channel it played), as a pulled cable
+ *   would otherwise leave it held. */
+#define BT_MIDI_C 1
+#define BT_OUT_Q 32u
 static struct {
     uint32_t drops;                                  /* MIDI mode: packets refused, the ring's last 8 slots are TRS's */
+    uint32_t out_drops;                              /* MIDI out: messages lost to a full queue here */
+    uint16_t held, release;                          /* channels the device played / still to be released */
     uint8_t smc;                                     /* the linked device's name starts with "SMC" (bt_link) */
+    uint8_t up;                                      /* linked (subscribed to the device's BLE-MIDI) */
+    volatile uint8_t out_on;                         /* MIDI out wanted: linked, MIDI mode (bt_midi_frame) */
 } bt_in;
-
-/* core_ble_link: the link up (the connected device's name read once: an auto scan waits up to 500 ms for the
- * target's name, ble_auto_step) / down */
-static void bt_link(int up)
-{
-    char n[24];
-    bt_in.smc = (uint8_t)(up && ble_ui_conn_name(n) && n[0] == 'S' && n[1] == 'M' && n[2] == 'C');
-}
+static uint32_t bt_out_q[BT_OUT_Q];
+static volatile uint32_t bt_out_w, bt_out_r;
 
 /* 1 = the SMC-Mixer DAW layout, 0 = MIDI: MODE, or AUTO by the connected device's name */
 static uint32_t bt_mode_now(void)
 {
-    if (btset.btmode)
-        return btset.btmode == 1u;
+    bt_set_t s;
+    bt_set_get(&s);
+    if (s.mode != BT_MODE_AUTO)
+        return s.mode == BT_MODE_SMC;
     return bt_in.smc;
+}
+static int bt_link_only(void)                        /* MODE FM-LINK: no MIDI either way */
+{
+    bt_set_t s;
+    bt_set_get(&s);
+    return s.mode == BT_MODE_LINK;
+}
+
+/* core_ble_link: the link up (the connected device's name read once) / down */
+static void bt_link(int up)
+{
+    char n[24];
+    bt_in.up = (uint8_t)(up != 0);
+    bt_in.smc = (uint8_t)(up && ble_ui_conn_name(n) && n[0] == 'S' && n[1] == 'M' && n[2] == 'C');
+    bt_in.out_on = (uint8_t)(up && !bt_mode_now() && !bt_link_only());   /* (at once: bt_midi_frame follows MODE from
+                                                                           * then on) */
+    if (!up) {
+        bt_in.release |= bt_in.held;                 /* (bt_midi_frame: into the ring when it has room) */
+        bt_in.held = 0;
+        bt_out_r = bt_out_w;                         /* nothing queued for a device that is gone */
+    }
 }
 
 /* usb_app.c midi_in_event's filter: the realtime F8 FA FB FC (as their status), channel voice with CIN = the status'
@@ -39,8 +74,34 @@ static uint32_t bt_midi_filter(uint32_t pkt)
     return 0;
 }
 
+/* one packet into the MIDI input ring as source 3; 0 = refused. 8 slots stay for TRS (usb_app.c EP1_ROOM), so BLE
+ * never sets the overflow; while USB / TRS have set it, midi_enqueue refuses too. The TIMER5 ISR fills the ring as
+ * well (USB, TRS): interrupts off */
+static int bt_midi_put(uint32_t pkt)
+{
+    int took;
+    fm1_irq_off();
+    took = MQ - (mi_w - mi_r) > 8u && midi_enqueue(pkt, 3u);
+    fm1_irq_on();
+    return took;
+}
+
+/* two packets, both or neither (the release of a channel: the pedal up, then All Notes Off), in one interrupts-off
+ * region so nothing from USB / TRS lands between them; 0 = refused */
+static int bt_midi_put2(uint32_t a, uint32_t b)
+{
+    int took;
+    fm1_irq_off();
+    took = MQ - (mi_w - mi_r) > 9u && !midi_in_overflow && midi_enqueue(a, 3u) && midi_enqueue(b, 3u);
+    fm1_irq_on();
+    return took;
+}
+
 static void bt_midi_in(uint32_t pkt)
 {
+    uint32_t cin, st;
+    if (bt_link_only())
+        return;                                      /* FM-LINK: MIDI from the device ignored */
     if (bt_mode_now()) {
         smc_in(pkt);
         return;
@@ -48,10 +109,84 @@ static void bt_midi_in(uint32_t pkt)
     pkt = bt_midi_filter(pkt);
     if (!pkt)
         return;
-    fm1_irq_off();                                   /* the TIMER5 ISR fills the ring too (USB, TRS) */
-    if (MQ - (mi_w - mi_r) <= 8u || !midi_enqueue(pkt, 3u))   /* 8 slots stay for TRS (usb_app.c EP1_ROOM), so BLE
-                                                               * never sets the overflow; while USB / TRS have set
-                                                               * it, midi_enqueue refuses: counted too */
+    if (!bt_midi_put(pkt)) {
         bt_in.drops++;
-    fm1_irq_on();
+        return;
+    }
+    cin = pkt & 15u;
+    st = (pkt >> 8) & 0xFFu;
+    if ((cin == 9u && (pkt >> 24)) || (cin == 0xBu && ((pkt >> 16) & 0xFFu) == 64u && (pkt >> 24)))
+        bt_in.held |= (uint16_t)(1u << (st & 15u));  /* a note-on or the pedal down: this channel has something held */
+}
+
+static void bt_out_push(uint32_t pkt)               /* the out ring (one producer at a time: the audio ISR, or with
+                                                     * interrupts off). Full: dropped and counted */
+{
+    if (bt_out_w - bt_out_r >= BT_OUT_Q) {
+        bt_in.out_drops++;
+        return;
+    }
+    bt_out_q[bt_out_w % BT_OUT_Q] = pkt;
+    RING_PUBLISH();
+    bt_out_w++;
+}
+
+/* clock out (the audio ISR, every block after the transport's requests): restart = a PLAY while playing (seq_start
+ * again, from step 0) */
+static struct { uint8_t run; uint32_t acc; } bt_clk;  /* acc: samples since the last pulse, x 24 */
+static void bt_clock_block(uint32_t n, int restart)
+{
+    uint32_t beat;
+    int run = song.playing && !song.g[G_CLOCK] && bt_in.out_on;
+    if (!run) {
+        if (bt_clk.run && bt_in.out_on && !song.playing)
+            bt_out_push(0xFu | 0xFCu << 8);         /* Stop */
+        bt_clk.run = 0;
+        return;
+    }
+    if (!bt_clk.run || restart) {
+        bt_out_push(0xFu | 0xFAu << 8);             /* Start, then the first beat's pulse */
+        bt_out_push(0xFu | 0xF8u << 8);
+        bt_clk.run = 1;
+        bt_clk.acc = 0;
+    }
+    bt_clk.acc += n * 24u;
+    beat = beat_samples();                          /* samples a beat at the FM-1's tempo (fx.c) */
+    while (beat && bt_clk.acc >= beat) {
+        bt_clk.acc -= beat;
+        bt_out_push(0xFu | 0xF8u << 8);
+    }
+}
+
+/* a channel voice message the FM-1 sent to USB MIDI out (seq.c keyboard_block), for the BLE device too. From the
+ * audio interrupt: one producer at a time. Full: dropped and counted */
+static void bt_midi_out_isr(uint32_t pkt)
+{
+    uint32_t cin = pkt & 15u;
+    if (!bt_in.out_on || cin < 8u || cin > 0xEu)
+        return;
+    bt_out_push(pkt);
+}
+
+/* the main loop (core_ble_api.c bt_service): the releases owed after a dropped link, then the out queue to the BLE
+ * unit while it has room (ble_midi_send: main loop only) */
+static void bt_midi_frame(void)
+{
+    uint32_t ch;
+    for (ch = 0; ch < 16u && bt_in.release; ch++) {
+        if (!((bt_in.release >> ch) & 1u))
+            continue;
+        if (!bt_midi_put2(0x0Bu | (0xB0u | ch) << 8 | 64u << 16,       /* the pedal up, All Notes Off */
+                          0x0Bu | (0xB0u | ch) << 8 | 123u << 16))
+            break;                                   /* still owed: the next pass */
+        bt_in.release &= (uint16_t)~(1u << ch);
+    }
+    bt_in.out_on = (uint8_t)(bt_in.up && !bt_mode_now() && !bt_link_only());
+    while (bt_out_r != bt_out_w && ble_midi_room()) {
+        uint32_t pkt = bt_out_q[bt_out_r % BT_OUT_Q], cin = pkt & 15u;
+        uint8_t m[3] = {(uint8_t)(pkt >> 8), (uint8_t)(pkt >> 16), (uint8_t)(pkt >> 24)};
+        if (!ble_midi_send(m, cin == 0xFu ? 1u : cin == 0xCu || cin == 0xDu ? 2u : 3u))
+            break;
+        bt_out_r++;
+    }
 }

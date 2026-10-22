@@ -51,6 +51,12 @@ static void shed_voice(void)
     song.sheds++;
 }
 
+#if FELUCCA_BLE
+static uint32_t audio_t0_prev, audio_gap_max;      /* the half interrupts' entries: the longest gap (ticks; nominal
+                                                    * HALF_FRAMES samples, 5.8 ms), for the console's `ble` */
+#define BT_FML_HEARD_AUDIO 1
+static uint32_t bt_fml_heard;                      /* the tick the block being rendered is heard at (bt_fml.c: FM-Link) */
+#endif
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
 {
     uint8_t p;
@@ -58,6 +64,13 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     felucca_dbg.in_audio = 1;                   /* (upstream 1.0) first: TIMER5 nests from here on (main.c) */
     p = fm1_audio_pending();
     t0 = fm1_ticks();
+#if FELUCCA_BLE
+    if (p & FM1_AUDIO_HALF) {                   /* (held off: a gap longer than a half) */
+        if (t0 - audio_t0_prev > audio_gap_max)
+            audio_gap_max = t0 - audio_t0_prev;
+        audio_t0_prev = t0;
+    }
+#endif
     t5_nested_ticks = 0;
     fm1_audio_ack_aux(p);
     if (p & FM1_AUDIO_HALF) {
@@ -72,8 +85,13 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         uac_render_start();
 #endif
         if (!rest)
-            for (b = 0; b < HALF_FRAMES; b += CTL)
+            for (b = 0; b < HALF_FRAMES; b += CTL) {
+#if FELUCCA_BLE
+                bt_fml_heard = t0 + (HALF_FRAMES + b) * 544u;   /* (the free half plays after the one playing:
+                                                     * 544 TIMER4 ticks a sample, fmlink.c FML_TPS) */
+#endif
                 audio_block(r + 2u * b, CTL);
+            }
         if (bench.mode)
             bench_mute(o);                              /* the DAC: silence */
         fm1_audio_ack_half();
