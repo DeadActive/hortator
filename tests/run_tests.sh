@@ -66,12 +66,15 @@ run "H3 self-test (an unknown stack form is caught)" python3 tools/stack_depth.p
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 run "BENCH report (fm1_bench.py): the FM-1's lines against the host's" python3 tools/fm1_bench.py --selftest
 run "site: one release, two versions (make_site.py with the Bluetooth package)" python3 tests/make_site_test.py
-for t in ble_midi ble_scan ble_central ble_vm; do $CC -o "$OUT/${t}_test" "tests/ble/${t}_test.c"; done
+for t in ble_midi ble_scan ble_central ble_vm ble_gatt; do $CC -o "$OUT/${t}_test" "tests/ble/${t}_test.c"; done
 $CC -Wno-deprecated-declarations -Ifirmware/src/ble -o "$OUT/ble_os_test" tests/ble/ble_os_test.c
-run "BLE-MIDI parser" "$OUT/ble_midi_test"
+run "BLE-MIDI parser and packer" "$OUT/ble_midi_test"
 run "BLE scan table" "$OUT/ble_scan_test"
-run "BLE central state machine, UUID match, monitor text" "$OUT/ble_central_test"
+run "BLE central state machine, reconnecting, UUID match, monitor text" "$OUT/ble_central_test"
 run "BLE stored RF calibration (config store)" "$OUT/ble_vm_test"
+run "BLE device role: the GATT table (BLE-MIDI service, characteristic, CCCD), advertising data, scan response" "$OUT/ble_gatt_test"
+$CC -o "$OUT/fmlink_test" tests/fmlink_test.c
+run "FM-Link: two FM-1s over a simulated Bluetooth link (bursts, delays, loss, crystals apart): start, 3 min, BPM, join, STOP" "$OUT/fmlink_test"
 run "BLE OS layer (host back end)" "$OUT/ble_os_test"
 run "BLE fault path: records and reboots, never waits on interrupts" python3 tests/ble/check_ble_fatal.py
 run "gate 2 tool self-test (update path: machine code, sources)" python3 tools/check_update_path.py --selftest

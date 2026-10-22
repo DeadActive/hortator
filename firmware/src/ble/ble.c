@@ -35,8 +35,11 @@ static __attribute__((unused)) void ble_stage(uint32_t s)
 #include "ble/ble_vm.c"
 #include "ble/ble_port.c"
 /* the BT libraries' heap, in .pool: the measured high-water + 25 % (budget, user-approved 2026-10-09): 10824 B on the
- * FM-1 started, connected to the SMC-Mixer and receiving (docs/ble/DEVICE_STEPS.md), so 13530, rounded up to 512 B */
-#define BLE_HEAP_BYTES 13824u
+ * FM-1 started, connected to the SMC-Mixer and receiving (docs/ble/DEVICE_STEPS.md), so 13530, rounded up to 512 B;
+ * with two links at once (ROLE HOST + LINK) 17920 B ran out (measured on the FM-1 2026-10-22: 17880 B high with the
+ * controller and an FM-1 linked; a link lost, then the whole heap in use and a library assert, `fatal 1`): 23552 B,
+ * what the pool keeps (8 KB spare) with the BT task table one slot smaller (ble_os.c NTASK) */
+#define BLE_HEAP_BYTES 23552u
 static uint8_t ble_heap[BLE_HEAP_BYTES] __attribute__((section(".pool")));
 static uint8_t ble_on;
 int ble_started(void) { return ble_on; }
@@ -49,20 +52,32 @@ int ble_started(void) { return ble_on; }
  * heap_high / alloc_fails = the heap's most in use and its refused requests; irq_lowered = BT IRQ requests above
  * priority 2, attached at 2 (ble_port.c request_irq) */
 
+#include "ble/ble_gatt.c"                      /* the device role's GATT table and advertising data */
 #include "ble/ble_central.c"
 void ble_service(void)                             /* the main loop (ed_service): a 5 ms slice for the BT tasks */
 {
+    static uint8_t kept;
     uint32_t pkt;
     ble_loop_note(&loop, core_ui_frames(), core_ms());   /* BT off too: the period to compare with */
+    if (!kept) {                                  /* once a power-on, BT off too: the radio calibration found in flash
+                                                   * handed to the firmware to keep (core_rf_keep_put) before its own
+                                                   * data can cover the store; a flash scan, no Bluetooth started */
+        kept = 1;
+        (void)ble_rf_trim_load();
+    }
     if (!ble_on)
         return;
     ble_os_service(5000);
     ble_diag.heap_high = ble_os_heap_high();       /* (.noinit: kept over a crash reboot, for the heap's size) */
     ble_diag.alloc_fails = ble_os_alloc_fails();
-    ble_tick();                                    /* deadlines: scan end, start / connect / discovery timeouts */
-    ble_auto();                                    /* link up / down to the core; reconnecting (ble_auto_step) */
+    ble_tick();                                    /* the start's deadline */
+    ble_auto();                                    /* the role; the host's slots and scanner or the device role; the
+                                                    * MIDI link up / down to the core */
     ble_out_flush();                               /* MIDI out (ble_midi_send) as write-without-response packets */
     while (ble_midi_take(&pkt))                    /* to the core while linked (after core_ble_link(1)); a drop's */
         if (ble_linked())                          /* leftovers are discarded (the core heard core_ble_link(0)) */
             core_ble_midi_in(pkt);
+    for (; fq_t != fq_h; fq_t++)                   /* FM-Link in, with the tick each came at (the same while linked) */
+        if (ble_fml_ready())
+            core_fml_rx(fq[fq_t & 15u].b, fq[fq_t & 15u].len, fq[fq_t & 15u].t);
 }

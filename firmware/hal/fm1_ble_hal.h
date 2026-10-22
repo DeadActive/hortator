@@ -73,14 +73,21 @@ static uint32_t fm1_clk_hz(uint32_t which)
 }
 
 static volatile uint32_t fm1_ble_irq_depth;
+static volatile uint32_t fm1_ble_irq_t0, fm1_ble_irq_max;   /* the outermost off stretch's start; the longest (ticks)
+                                                            * (`ble`: irq_off max, read and cleared) */
 static inline __attribute__((always_inline)) void fm1_ble_irq_off(void)
 {
     __asm__ volatile("cli" ::: "memory");
-    fm1_ble_irq_depth++;
+    if (!fm1_ble_irq_depth++)
+        fm1_ble_irq_t0 = fm1_ticks();
 }
 static inline __attribute__((always_inline)) void fm1_ble_irq_on(void)
 {
-    if (fm1_ble_irq_depth && !--fm1_ble_irq_depth)
+    if (fm1_ble_irq_depth && !--fm1_ble_irq_depth) {
+        uint32_t d = fm1_ticks() - fm1_ble_irq_t0;
+        if (d > fm1_ble_irq_max)
+            fm1_ble_irq_max = d;
         __asm__ volatile("csync\n\tsti" ::: "memory");
+    }
 }
 #endif

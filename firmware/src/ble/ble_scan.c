@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * BLE MIDI test: 2026 DEADACTIVE */
 /* Scan results: one entry per address (advertising and scan response merge), up to BLE_SCAN_MAX; when full, a
- * stronger new device replaces the weakest. AD structures: [len][type][data len-1]; names 0x08 / 0x09; 128-bit
+ * stronger new device replaces the weakest. Entries are kept from scan to scan with the time of their last report and
+ * age out (ble_scan_expire): the list is what has been around lately (the saved devices' AROUND, the page's ADD list). AD structures: [len][type][data len-1]; names 0x08 / 0x09; 128-bit
  * service lists 0x06 / 0x07 (little-endian UUIDs) for the BLE-MIDI tag. */
 #include "ble_scan.h"
 
@@ -54,7 +55,7 @@ static void parse_ad(ble_dev_t *d, const uint8_t *ad, uint32_t n)
 }
 
 void ble_scan_report(ble_scan_t *s, const uint8_t addr[6], uint8_t addr_type, int8_t rssi,
-                     const uint8_t *ad, uint32_t ad_len)
+                     const uint8_t *ad, uint32_t ad_len, uint32_t now_ms)
 {
     ble_dev_t *d = 0, *weak = 0;
     uint32_t i;
@@ -89,7 +90,16 @@ void ble_scan_report(ble_scan_t *s, const uint8_t addr[6], uint8_t addr_type, in
         d->used = 1;
     }
     d->rssi = rssi;
+    d->seen_ms = now_ms;
     parse_ad(d, ad, ad_len);
+}
+
+void ble_scan_expire(ble_scan_t *s, uint32_t now_ms, uint32_t max_age_ms)
+{
+    uint32_t i;
+    for (i = 0; i < BLE_SCAN_MAX; i++)
+        if (s->dev[i].used && now_ms - s->dev[i].seen_ms > max_age_ms)
+            s->dev[i].used = 0;
 }
 
 uint32_t ble_scan_sorted(const ble_scan_t *s, uint8_t idx[BLE_SCAN_MAX])

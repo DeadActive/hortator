@@ -43,13 +43,12 @@ int strcmp(const char *a, const char *b)
 /* ---- interrupts: the libraries' critical sections nest; their radio IRQs go into our vector table ---- */
 void local_irq_disable(void) { fm1_ble_irq_off(); }
 void local_irq_enable(void) { fm1_ble_irq_on(); }
-void __local_irq_disable(void) { fm1_ble_irq_off(); }
-void __local_irq_enable(void) { fm1_ble_irq_on(); }
-void sys_local_irq_disable(void) { fm1_ble_irq_off(); }
-void sys_local_irq_enable(void) { fm1_ble_irq_on(); }
+void __local_irq_disable(void) __attribute__((alias("local_irq_disable")));   /* (one body each: the timing of */
+void __local_irq_enable(void) __attribute__((alias("local_irq_enable")));     /* the off stretches, fm1_ble_hal.h) */
+void sys_local_irq_disable(void) __attribute__((alias("local_irq_disable")));
+void sys_local_irq_enable(void) __attribute__((alias("local_irq_enable")));
 int cpu_irq_disabled(void) { return fm1_ble_irq_depth != 0; }
 int cpu_in_irq(void) { return 0; }                       /* (only CRC16's hardware path and asserts ask) */
-static uint32_t ble_irqs_requested[2];                   /* bit per index < 64, for the console */
 void request_irq(unsigned char index, unsigned char priority, void (*handler)(void), unsigned char cpu_id)
 {
     (void)cpu_id;                                        /* one core runs everything here */
@@ -58,12 +57,10 @@ void request_irq(unsigned char index, unsigned char priority, void (*handler)(vo
         priority = 2u;
         ble_diag.irq_lowered++;
     }
-    fm1_ble_irq_off();
+    local_irq_disable();
     core_irq_attach(index, handler, priority);           /* the SDK's handlers are interrupt functions (rti):
                                                           * checked in the link (fm1-lsdj docs/ble/LINK_NOTES.md) */
-    fm1_ble_irq_on();
-    if (index < 64u)
-        ble_irqs_requested[index >> 5] |= 1u << (index & 31u);
+    local_irq_enable();
 }
 void unrequest_irq(uint8_t index, uint8_t cpu_id) { (void)cpu_id; core_irq_mask(index); }
 void bit_set_ie(unsigned char index, uint8_t cpuid) { (void)cpuid; core_irq_unmask(index); }
@@ -85,11 +82,11 @@ BLE_RAM static void ble_spin(uint32_t n)
 void ble_delay_calibrate(void)                           /* (interrupts off: they would only lengthen the run) */
 {
     uint32_t t0, dt;
-    fm1_ble_irq_off();
+    local_irq_disable();
     t0 = fm1_ble_ticks();
     ble_spin(100000);
     dt = fm1_ble_ticks() - t0;                           /* 24 ticks per us */
-    fm1_ble_irq_on();
+    local_irq_enable();
     if (dt)
         ble_loops_per_us = (100000u * FM1_TICKS_PER_US + dt - 1u) / dt;
 }
@@ -145,6 +142,8 @@ int power_is_poweroff_post(void) { return 0; }
 static void ble_fatal(uint32_t why)
 {
     ble_diag.fatal = why;
+    ble_diag.heap_high = heap_high;               /* (ble_os.c's, as they were then: ble_service copies them only */
+    ble_diag.alloc_fails = alloc_fails;           /* between runs; read, not called: interrupts may be off) */
     core_audio_stop();
     core_reboot();                                        /* (uptime > 30 s: not counted by the boot guard) */
 }
@@ -213,13 +212,17 @@ const uint8_t WIFI_PA_ENABLE = 0, wifi_temperature_drift_trim_on = 0;
  * crashes here (fm1-lsdj docs/ble/DEVICE_STEPS.md, round 4): with a valid record, wf_rf_common_init skips wf_rf_trim */
 const uint8_t RFIinitUseTrimValue = 1;
 static uint8_t ble_rf_trim[BLE_VM_RF_TRIM_LEN];
-static uint32_t ble_rf_trim_at;                          /* flash offset of the record used, 0 = none */
+static uint32_t ble_rf_trim_at;                          /* flash offset of the record used, 1 the kept copy, 0 none */
 #define BLE_VM_FROM 0xE5000u                             /* the plain area the stock config store lives in */
 #define BLE_VM_TO 0xFC000u
-static __attribute__((unused)) int ble_rf_trim_load(void)  /* scan the config store; 1 = a valid record found */
+/* scan the config store; 1 = a record for the radio (the store's, else the copy the firmware kept: core_rf_keep_get).
+ * The store's is handed to the firmware to keep whenever its copy is missing or another (ble_vm_rf_pick) */
+static __attribute__((unused)) int ble_rf_trim_load(void)
 {
     static uint8_t buf[512];
-    uint32_t off;
+    uint8_t kept[BLE_VM_RF_TRIM_LEN], found[BLE_VM_RF_TRIM_LEN];
+    uint32_t off, from;
+    int keep;
     ble_rf_trim_at = 0;
     for (off = BLE_VM_FROM; off < BLE_VM_TO; off += sizeof buf - (4u + BLE_VM_RF_TRIM_LEN)) {
         uint32_t n = BLE_VM_TO - off < sizeof buf ? BLE_VM_TO - off : sizeof buf;
@@ -228,13 +231,18 @@ static __attribute__((unused)) int ble_rf_trim_load(void)  /* scan the config st
         if (core_flash_read(off, buf, n))
             return 0;
         if (ble_vm_rf_trim(buf, n, rec)) {
-            memcpy(ble_rf_trim, rec, sizeof rec);
+            memcpy(found, rec, sizeof rec);
             ble_rf_trim_at = off;
         }
         if (n < sizeof buf)
             break;
     }
-    return ble_rf_trim_at != 0;
+    from = ble_vm_rf_pick(ble_rf_trim_at ? found : 0, core_rf_keep_get(kept) ? kept : 0, ble_rf_trim, &keep);
+    if (keep)
+        core_rf_keep_put(ble_rf_trim);
+    if (from == 2u)
+        ble_rf_trim_at = 1;
+    return from != 0;
 }
 uint8_t RTDebugLevel = 0;
 int wifi_get_rf_trim_data(void *info, int size)
@@ -281,7 +289,7 @@ static void ble_irq_check(int task)
     if (fm1_ble_irq_depth) {
         ble_diag.irq_leaks++;
         fm1_ble_irq_depth = 1;
-        fm1_ble_irq_on();
+        local_irq_enable();
     }
 }
 

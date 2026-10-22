@@ -13,7 +13,8 @@
 #define BLE_POOL __attribute__((section(".pool")))
 #endif
 
-#define NTASK 4
+#define NTASK 3                                    /* app_core, btctrler, btstack: the libraries create no other
+                                                    * (SDK demo_ble task_info_table); a 4th slot's 2.5 KB went to the heap */
 #define QWORDS 96                                  /* message words per task queue */
 #define NTIMER 16
 #define STACK_WORDS BLE_STACK_WORDS

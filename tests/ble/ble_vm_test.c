@@ -53,6 +53,36 @@ int main(void)
         CHECK(ble_vm_rf_trim(b3, sizeof b3, out) == 0, "an erased sector has none");
         CHECK(ble_vm_rf_trim(SECTOR, 60, out) == 0, "a record cut off by the buffer end is not read");
     }
+    {   /* the kept copy (ble_vm_rf_pick): the firmware keeps the record in its settings, since its own data may later
+         * cover the config store (Skiff's pattern bank, SLOOP's USR4, Felucca's autosave sit in 0xE5000..0xFC000) */
+        const uint8_t *rec = SECTOR + 25;
+        uint8_t other[68], got[68];
+        int keep;
+        memcpy(other, rec, 68);
+        other[1] = 0x04;                         /* another valid record: fix its own CRC */
+        {
+            uint32_t c = ble_vm_crc16(other, 64);
+            other[64] = (uint8_t)c;
+            other[65] = (uint8_t)(c >> 8);
+        }
+        CHECK(ble_vm_rf_ok(rec) && ble_vm_rf_ok(other), "rf_ok: a record's own check (64 values' CRC16, non-zero)");
+        memcpy(got, rec, 68);
+        got[3] ^= 1;
+        CHECK(!ble_vm_rf_ok(got), "rf_ok: a damaged record is refused");
+        memset(got, 0, 68);
+        CHECK(!ble_vm_rf_ok(got), "rf_ok: all zero (an empty copy) is refused");
+        CHECK(ble_vm_rf_pick(rec, 0, got, &keep) == 1u && !memcmp(got, rec, 68) && keep,
+              "rf_pick: in the store, no copy kept -> the store's, and keep it");
+        CHECK(ble_vm_rf_pick(rec, rec, got, &keep) == 1u && !keep, "rf_pick: the same copy kept -> nothing to save");
+        CHECK(ble_vm_rf_pick(other, rec, got, &keep) == 1u && !memcmp(got, other, 68) && keep,
+              "rf_pick: the store has a newer one -> the store's, kept anew");
+        CHECK(ble_vm_rf_pick(0, rec, got, &keep) == 2u && !memcmp(got, rec, 68) && !keep,
+              "rf_pick: gone from the store -> the kept copy");
+        memcpy(got, rec, 68);
+        got[3] ^= 1;
+        CHECK(ble_vm_rf_pick(0, got, other, &keep) == 0u && !keep, "rf_pick: gone, the kept copy damaged -> none");
+        CHECK(ble_vm_rf_pick(0, 0, got, &keep) == 0u && !keep, "rf_pick: neither -> none");
+    }
     printf(fails ? "ble_vm: %d FAILED\n" : "ble_vm: all checks passed\n", fails);
     return fails != 0;
 }
