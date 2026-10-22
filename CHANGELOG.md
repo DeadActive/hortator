@@ -5,6 +5,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- MUTE: NEXT BAR works while following a clock (CLK USB, TRS or BLE): the waiting mutes now flip on the bar line
+  instead of never. The bar is found from the clock's real advance in the block (read after the block's Clock), not
+  the block's length; a muted COMP source (GHOST KEEP / HIDE) starts its 5 ms fade on the bar's last Clock pulse, so
+  the fade ends before the bar's first hit. CLK INT is unchanged.
+
 ## 0.23.2 - 2026-10-23
 
 - REC: on TRACKS a REC tap arms / disarms the selected track, saying so (`T3 REC ARMED` / `T3 REC OFF`). On every

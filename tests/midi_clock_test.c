@@ -26,7 +26,10 @@ static int32_t grid_err;                             /* the largest |step positi
 static void clk_send(uint32_t status, uint32_t src, double at)   /* arrives at `at` (samples): stamped then */
 {
     fm1_ms = (uint32_t)(at * 1000.0 / FS);
-    midi_enqueue(0x0Fu | status << 8, src);
+    if (src == 2u)
+        um_byte(status);                             /* TRS: the byte through the UART parser (midi_uart.c) */
+    else
+        midi_enqueue(0x0Fu | status << 8, src);      /* USB (usb_app.c midi_in_event), BLE (bt_midi.c bt_midi_in) */
 }
 static int clk_jitter = 1;                           /* 0: every pulse on time */
 static double late(void)                             /* a pulse arrives 0 .. 4 ms late (USB / TRS jitter) */
@@ -161,9 +164,105 @@ static int long_run(double bpm)
     return hits_early == 0u && hits_late == 0u && N0 > 10000u && grid_err <= (int32_t)CTL;
 }
 
+/* TRACKS' MUTE: NEXT BAR (seq.c mute_bar) following a clock: track 3 (every 1/16 on) muted mid bar 2 and unmuted mid
+ * bar 3 (song.mute_q, as TRACKS queues it with settings.mutebar). The flip comes exactly at the bar line: track 3's
+ * bar-2 step 16 plays, its bar-3 step 1 does not (the mute flipped in that block, before its steps), its bar-4 step 1
+ * plays. ghost: track 3 is the COMP source (GHOST KEEP: a muted source plays on for the compressor), muted ahead of
+ * the bar: its 5 ms fade has ended before the bar's first hit (gfade full by the end of the block before), within two
+ * pulses of the bar; unmuted on the bar with its attack (gfade 0). src 0: CLK INT (the lead MUTE_LEAD, as before) */
+static uint32_t mf_lead;                             /* samples from the ghost mute to the bar's block (the last run) */
+static int mute_follow(double bpm, uint32_t src, int ghost)
+{
+    uint32_t i, k, blk = 0, lead_blk = 0, a2, bad = 0;
+    int hit31 = 0, done_before = 0, muted_at = 0, hit32 = 0, early = 0, unmuted_at = 0, hit48 = 0, faded_in = 0;
+    H0 = h0;
+    H1 = h1;
+    CAP = 6000u;
+    setup(src);
+    for (i = 0; i < 16u; i++)
+        trk[2].step[i].on = 1;
+    trk[2].p[P_SDIV] = 2;
+    trk[2].p[P_SLEN] = 16;
+    if (ghost) {
+        song.g[G_CSRC] = 3;                          /* track 3 keys the compressor, track 1 ducks */
+        song.g[G_CGHOST] = CG_KEEP;
+        trk[0].p[P_DUCK] = 1;
+    }
+    a2 = hit_age(&trk[2]);
+    if (src)
+        clk_send(0xFAu, src, (double)now);
+    else
+        transport_req = 1;
+    for (k = 0; k < 2u; k++) {                       /* k 0: the mute for bar 3; 1: the unmute for bar 4 */
+        uint32_t bar = 32u + 16u * k, guard = 0;
+        while (!(song.playing && gclk.cnt != 0xFFFFFFFFu && gclk.cnt >= bar - 8u) && guard++ < 40000u)
+            run(CTL, bpm, src, src != 0u);
+        song.mute_q |= 1u << 2;                      /* mid bar: TRACKS, MUTE: NEXT BAR */
+        guard = 0;
+        while (gclk.cnt != bar && guard++ < 40000u) {
+            uint32_t was = gclk.cnt, m0 = (uint32_t)trk[2].p[P_MUTE], g0 = trk[2].gfade, hit;
+            run(CTL, bpm, src, src != 0u);
+            blk++;
+            hit = hit_age(&trk[2]) != a2;
+            a2 = hit_age(&trk[2]);
+            if (gclk.cnt == bar - 1u && was != gclk.cnt)
+                hit31 |= hit && !trk[2].p[P_MUTE];   /* the bar's last 1/16: still heard */
+            if (!k && ghost && !m0 && trk[2].p[P_MUTE])
+                lead_blk = blk;
+            if (gclk.cnt == bar) {                   /* the bar's block: its first steps fired */
+                if (!k) {
+                    muted_at = trk[2].p[P_MUTE] == 1 && !(song.mute_q & 4u);
+                    hit32 = hit;
+                    done_before = g0 == 32767u;
+                    mf_lead = (blk - lead_blk) * CTL;
+                } else {
+                    unmuted_at = trk[2].p[P_MUTE] == 0 && !(song.mute_q & 4u);
+                    hit48 = hit;
+                    faded_in = trk[2].gfade == 0u;
+                }
+            } else if (!ghost && (uint32_t)trk[2].p[P_MUTE] != (k ? 1u : 0u)) {
+                early = 1;                           /* flipped before the bar */
+            }
+        }
+    }
+    clk_jitter = 1;
+    bad += !hit31;
+    bad += !muted_at;
+    bad += !ghost && hit32;                          /* muted: no hit on the bar's step 1 */
+    bad += early;
+    bad += !unmuted_at;
+    bad += !hit48;
+    if (ghost) {
+        uint32_t pulse = (uint32_t)(FS * 60.0 / bpm / 24.0);
+        bad += !done_before || !faded_in || !lead_blk;
+        bad += src ? mf_lead > 2u * pulse + 2u * CTL : mf_lead > MUTE_LEAD + 2u * CTL;
+    }
+    if (bad)
+        printf("     %.0f BPM src %u%s: bar-2 step 16 heard %d, muted on the bar %d (step 1 hit %d, flipped early %d), "
+               "unmuted on the bar %d (step 1 hit %d); ghost fade done before the bar %d, %u samples ahead, back %d\n",
+               bpm, src, ghost ? " (COMP source)" : "", hit31, muted_at, hit32, early, unmuted_at, hit48, done_before,
+               mf_lead, faded_in);
+    return bad == 0u;
+}
+
 int main(void)
 {
     uint32_t k, n0;
+    {
+        static const double BPMS[4] = {120.0, 97.0, 180.0, 240.0};
+        static const char *const SRC[4] = {"INT", "USB", "TRS", "BLE"};
+        uint32_t s, b, g;
+        char what[160];
+        for (s = 0; s < 4u; s++)
+            for (b = 0; b < 4u; b++)
+                for (g = 0; g < 2u; g++) {
+                    snprintf(what, sizeof what, "MUTE: NEXT BAR, CLK %s, %.0f BPM%s: muted / unmuted exactly on the bar line",
+                             SRC[s], BPMS[b], g ? ", the COMP source (its fade done before the bar's first hit)" : "");
+                    check(what, mute_follow(BPMS[b], s, (int)g));
+                    if (g)
+                        printf("     (the COMP source muted %u samples before the bar's block; its fade takes 219)\n", mf_lead);
+                }
+    }
     check("CLK USB, 120 BPM, jittered timestamps: 1/16 on every 6th pulse, 4BAR on every 384th, 5 000 steps", locked(120.0, 1));
     check("CLK TRS, 140 BPM, jittered timestamps: the same", locked(140.0, 2));
     check("following: BPM shows the measured tempo (140, +-3 with the ms jitter)", abs(song.g[G_BPM] - 140) <= 3);
