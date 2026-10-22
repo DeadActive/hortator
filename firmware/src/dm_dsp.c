@@ -71,6 +71,12 @@ static inline void dm_end(dvoice_t *v)
     v->last = 0;
 }
 
+/* the engine view's rendered hit (drum_core.c vg_hit, ui_draw.c vg_step): a scratch track the UI thread plays one hit
+ * of, offline. A model whose voices share state across tracks (the metal bank: dm_metal.c metal_src; SKIN's bodies:
+ * dm_memb.c memb_of) keeps a private copy of it for this track, so the audio ISR, which preempts the render anywhere,
+ * never meets the scratch's state, nor the render the live one */
+static track_t vg_trk __attribute__((section(".pool")));
+
 /* ---- M1-C: integer ports of Mutable Instruments' drum algorithms (Plaits, stmlib), MIT licence:
  * Copyright 2012-2016 Emilie Gillet (emilie.o.gillet@gmail.com).
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated

@@ -457,6 +457,140 @@ static void graph_acid(const track_t *t, uint16_t c)
     }
 }
 
+/* the engine view's rendered hit (owner 2026-10-22: every model with no graph of its own, all but FM, ACID, BDTRX): the
+ * voice's real sound, one hit at velocity 100 (as the keys play it) struck offline on a scratch track (drum_core.c
+ * vg_hit: nothing live touched), its min / max over each block of CTL samples, then over each of the graph's 136
+ * columns, normalised to its peak (a hat as tall as a kick: the shape, not the level; LEVEL is the mix's). The span
+ * follows the sound: its length to -30 dB of its peak, + 1/4, rounded up to 100 150 200 300 400 500 750 1000 ms (a
+ * rim's click and a cymbal's wash both fill the width; 1 s at most: the render stops there, or at the voice's end, or
+ * after 100 ms under 1/64 of the peak). Rendered over the frames, VG_STEP samples each, while the engine view shows
+ * (draw_graph), anew when the sound changes (vg_sig: MODEL, the 8 SOUND knobs, SAMPL's user samples); until it is done
+ * the graph keeps the model's last one (no flicker while a knob turns); nothing on idle frames */
+#define VG_NB (FS / CTL)                                /* blocks: 1 s at most */
+#define VG_STEP 1024u                                   /* samples rendered a frame (~2.3 ms on the FM-1 at most) */
+#define VG_VEL 100u
+#define VG_QUIET (FS / 10u / CTL)                       /* 100 ms under 1/64 of the peak so far: the hit is over */
+#define VG_CY 58                                        /* the centre line (graph y); the columns swing +- VG_A */
+#define VG_A 28
+static const uint16_t VG_SPAN[] = {100, 150, 200, 300, 400, 500, 750, 1000};
+static struct {
+    uint32_t sig, ok, shown;     /* the sound rendering; the sound the columns show (0: none); the one drawn */
+    uint32_t n, work;            /* samples rendered: this hit; since power-on (the tests') */
+    uint32_t loud;               /* the blocks up to the last at 1/64 of the peak so far */
+    uint32_t span;               /* the columns' span, ms (0: the hit made no sound) */
+    int32_t pk;                  /* the peak so far (>> 2, as the blocks) */
+    uint8_t run, okm;            /* rendering; the columns' model */
+    int16_t bmn[VG_NB], bmx[VG_NB];   /* each block's min / max (>> 2) */
+    int8_t cmn[136], cmx[136];   /* the columns: px under / over the centre line */
+} vg __attribute__((section(".pool")));
+
+static int vg_model(uint32_t mi) { return mi != DM_FM && mi != DM_ACID && mi != DM_KTRX; }   /* (the others' own) */
+
+static uint32_t vg_sig(const track_t *t)             /* what the hit is of: MODEL, the 8 SOUND knobs (+ SAMPL's samples) */
+{
+    uint32_t h = 2166136261u, i;
+    for (i = P_MODEL; i <= P_E7; i++)
+        h = (h ^ (uint32_t)(uint16_t)t->p[i]) * 16777619u;
+    if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_SMPL)
+        h = (h ^ smp_user_gen) * 16777619u;
+    return h | 1u;
+}
+
+static void vg_finish(uint32_t mi)                   /* the hit rendered: its span, its columns */
+{
+    uint32_t nb = vg.n / CTL, len = 0, b, c, k, nbs;
+    int32_t pk = vg.pk;
+    for (b = 0; b < nb; b++)
+        if (pk && (vg.bmx[b] > -vg.bmn[b] ? vg.bmx[b] : -vg.bmn[b]) * 32 >= pk)
+            len = b + 1u;
+    len = len * CTL * 5u / 4u;
+    for (k = 0; k + 1u < sizeof VG_SPAN / sizeof VG_SPAN[0] && VG_SPAN[k] * 441u / 10u < len; k++)
+        ;
+    nbs = VG_SPAN[k] * 441u / 10u / CTL;
+    for (c = 0; c < 136u; c++) {
+        uint32_t b0 = c * nbs / 136u, b1 = (c + 1u) * nbs / 136u;
+        int32_t mn = 0, mx = 0;
+        if (b1 <= b0)
+            b1 = b0 + 1u;
+        for (b = b0; b < b1 && b < nb; b++) {
+            mn = vg.bmn[b] < mn ? vg.bmn[b] : mn;
+            mx = vg.bmx[b] > mx ? vg.bmx[b] : mx;
+        }
+        vg.cmx[c] = (int8_t)(pk ? (mx * VG_A + pk / 2) / pk : 0);
+        vg.cmn[c] = (int8_t)(pk ? -((-mn * VG_A + pk / 2) / pk) : 0);
+    }
+    vg.span = pk ? VG_SPAN[k] : 0u;
+    vg.ok = vg.sig;
+    vg.okm = (uint8_t)mi;
+    vg.run = 0;
+}
+
+/* one frame's share of t's rendered hit (draw_graph, the engine view shown): a new sound starts it again; VG_STEP
+ * samples at most; nothing once it is done */
+static void vg_step(const track_t *t)
+{
+    uint32_t mi = (uint32_t)t->p[P_MODEL] % NMODELS, sig, k, i;
+    int32_t b[CTL];
+    if (!vg_model(mi)) {
+        vg.run = 0;
+        vg.sig = 0;
+        return;
+    }
+    sig = vg_sig(t);
+    if (sig != vg.sig) {
+        vg.sig = sig;
+        vg.n = 0;
+        vg.pk = 0;
+        vg.loud = 0;
+        vg.run = 1;
+        vg_hit(t, VG_VEL);
+    }
+    for (k = 0; vg.run && k < VG_STEP; k += CTL) {
+        uint32_t on = vg_render(b, CTL), bi = vg.n / CTL;
+        int32_t mn = 0, mx = 0, a;
+        for (i = 0; i < CTL; i++) {
+            mn = b[i] < mn ? b[i] : mn;
+            mx = b[i] > mx ? b[i] : mx;
+        }
+        mn = clamp(mn >> 2, -32767, 0);
+        mx = clamp(mx >> 2, 0, 32767);
+        vg.bmn[bi] = (int16_t)mn;
+        vg.bmx[bi] = (int16_t)mx;
+        a = mx > -mn ? mx : -mn;
+        vg.pk = a > vg.pk ? a : vg.pk;
+        if (a && a * 64 >= vg.pk)
+            vg.loud = bi + 1u;
+        vg.n += CTL;
+        vg.work += CTL;
+        if (!on || !vg_trk.v[0].active || vg.n >= VG_NB * CTL || (vg.pk && bi + 1u >= vg.loud + VG_QUIET))
+            vg_finish(mi);
+    }
+}
+
+/* the rendered hit's graph (x 100..235): "HIT / 300 MS", a dotted centre line, each column's min .. max solid (a DAW's
+ * waveform); a new model's first hit still rendering: the line only */
+static void graph_wave(const track_t *t)
+{
+    uint32_t x, n;
+    char b[20];
+    cv_hdot(100, 235, VG_CY, C_INK);
+    if (!vg.ok || vg.okm != (uint32_t)t->p[P_MODEL] % NMODELS)
+        return;
+    str_cpy(b, "HIT / ", sizeof b);
+    if (vg.span) {
+        fmt_int(b + 6, (int32_t)vg.span);
+        n = str_len(b);
+        str_cpy(b + n, " MS", sizeof b - n);
+    } else {
+        str_cpy(b + 6, "NO SOUND", sizeof b - 6);
+    }
+    md_text(100, 10, &MD_F3, 2, b, C_INK);
+    vg.shown = vg.ok;
+    for (x = 0; x < 136u; x++)
+        if (vg.cmx[x] || vg.cmn[x])
+            cv_rect(100 + (int32_t)x, VG_CY - vg.cmx[x], 1, vg.cmx[x] - vg.cmn[x] + 1, C_INK);
+}
+
 /* the track's preset (spec 2026-10-19 presets): "PRESET K909", "*" (amber) once a SOUND knob moved since; "PRESET -"
  * with none (or its user slot emptied, or holding another voice now: presets.c preset_of). At (x, y): an inverted
  * PRESET tab (label), the name in F3 at 2x, the mark after it */
@@ -471,17 +605,17 @@ static void preset_line(const track_t *t, int32_t x, int32_t y, int label)
         md_text(x + 2, y + 2, &MD_F3, 2, "*", C_INK);
 }
 
-/* the selected track's model: its preset in the band above (preset_line), name large with its place in the MODEL
- * knob's list ("#32/45", MODEL_LIST: right of the name, bottom-aligned; under it where a graph is right), voices and
- * choke group */
+/* the selected track's model (owner 2026-10-22: every model as FM, ACID, BDTRX): its preset in the band above
+ * (preset_line); left, the name in F3 4x (5 glyphs, 76 px, end at x 80 at most), its place in the MODEL knob's list
+ * under it ("#32/45", MODEL_LIST), voices, choke group, the layer under that; right (x 100..235) the graph: FM's
+ * sidebands, ACID's filter, BDTRX's pitch and level, the others' rendered hit (graph_wave) */
 static void graph_model(const track_t *t, uint16_t c)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
     uint32_t mi = (uint32_t)t->p[P_MODEL] % NMODELS, n = model_list_idx(mi) + 1u;
-    int fm = mi == DM_FM || mi == DM_ACID || mi == DM_KTRX;   /* FM, ACID, KTRX: their graph right: the labels left */
     char b[16], nb[8];
+    int32_t y = 50;
     preset_line(t, 4, 2 - G_OY, 1);
-    int32_t y = fm ? 50 : 44, x;
     nb[0] = '#';
     nb[1] = (char)('0' + n / 10u);
     nb[2] = (char)('0' + n % 10u);
@@ -489,21 +623,21 @@ static void graph_model(const track_t *t, uint16_t c)
     nb[4] = (char)('0' + NMODELS / 10u);
     nb[5] = (char)('0' + NMODELS % 10u);
     nb[6] = 0;
-    x = md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 5, m->name)) / 2, 10, &MD_F3, fm ? 4 : 5, m->name, C_INK);
-    md_text(fm ? 4 : x + 2, fm ? 34 : 25, &MD_F3, 2, nb, C_INK);
-    str_cpy(b, m->voices > 1 ? "2 VOICES" : "1 VOICE", sizeof b);
-    md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 2, b)) / 2, y, &MD_F3, 2, b, C_INK);
+    md_text(4, 10, &MD_F3, 4, m->name, C_INK);
+    md_text(4, 34, &MD_F3, 2, nb, C_INK);
+    md_text(4, y, &MD_F3, 2, m->voices > 1 ? "2 VOICES" : "1 VOICE", C_INK);
     if (t->p[P_CHOKE]) {
         str_cpy(b, "CHOKE 1", sizeof b);
         b[6] = (char)('0' + t->p[P_CHOKE]);
         y += 16;
-        md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 2, b)) / 2, y, &MD_F3, 2, b, C_INK);
+        md_text(4, y, &MD_F3, 2, b, C_INK);
     }
     if (t->p[P_LLEVEL]) {
-        const char *ls = fm ? "+ LAYER" : "+ SAMPLE LAYER";
         y += 16;
-        md_text(fm ? 4 : (240 - md_text_w(&MD_F3, 2, ls)) / 2, y, &MD_F3, 2, ls, C_INK);
+        md_text(4, y, &MD_F3, 2, "+ LAYER", C_INK);
     }
+    if (vg_model(mi))
+        graph_wave(t);                               /* the rendered hit */
     if (mi == DM_FM) {                                 /* FM: the ratio, the carrier and its sidebands f +- k r f */
         uint32_t r8 = FM_RATIO_Q8[(uint32_t)clamp(t->p[P_E3], 0, 15)], k;
         int32_t h0 = clamp(t->p[P_E2], 0, 127) * 48 / 127;   /* INDEX 0: a pure sine, no sidebands */
@@ -1489,7 +1623,8 @@ static uint32_t graph_signature(void)
              (kz.key && kz.trk == song.sel ? (uint32_t)(t->key_nt + 61) : 0u) * 389u + (uint32_t)keys_mode() * 99991u;
     if (pg->graph == GR_MODEL) {
         char nb[9];
-        h ^= (uint32_t)song.g[G_BPM] * 40503u;        /* ACID's gate: GATE of a step at the tempo */
+        h ^= (uint32_t)song.g[G_BPM] * 40503u + vg.ok * 2654435761u;   /* ACID's gate: GATE of a step at the tempo; the
+                                                                          * rendered hit done */
         preset_name_of(preset_of(t), nb);             /* the preset's line (its user slot may change) */
         h = str_hash(h ^ t->pre_ed * 7919u, nb);
     }
@@ -1903,6 +2038,12 @@ static void draw_graph(void)
     const page_t *pg = cur_page();
     uint32_t sig, i, n, top;
     int whole;
+    if (!ui.home && !ui.layer && pg->graph == GR_MODEL) {
+        vg_step(TSEL);                                /* the engine view's rendered hit: a frame's share (under a popup
+                                                       * too: MODEL's message) */
+        if (vg.ok != vg.shown && vg.okm == (uint32_t)TSEL->p[P_MODEL] % NMODELS && vg_model(vg.okm))
+            rg.thaw = 1;                              /* .. done, not shown yet: drawn now, round the popups */
+    }
     if ((ui.msg_t || ui.bpm_t) && !ui.force && !rg.thaw)   /* a popup over the graph: the graph holds still under it
                                                        * (no redraw-then-popup flicker); a popup coming / going: the
                                                        * graph as it is now, round the popups up (rg.ex) */

@@ -17,10 +17,12 @@ typedef struct {
     uint32_t blk;                                     /* dblock of the last block rendered */
 } memb_body_t;
 static memb_body_t memb_body[NTRK] __attribute__((section(".pool")));
+static memb_body_t vg_memb __attribute__((section(".pool")));   /* the rendered hit's (vg_trk: dm_dsp.c) */
+static memb_body_t *memb_of(const track_t *t) { return t == &vg_trk ? &vg_memb : &memb_body[t - trk]; }
 
 static void memb_trigger(track_t *t, dvoice_t *v)
 {
-    memb_body_t *B = &memb_body[t - trk];
+    memb_body_t *B = memb_of(t);
     if (B->blk == dblock && B->last) {
         t->dtail -= B->last;                          /* the head rings on: no declick copy of it */
     } else {
@@ -33,7 +35,7 @@ static void memb_trigger(track_t *t, dvoice_t *v)
 
 static void memb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 {
-    memb_body_t *B = &memb_body[t - trk];
+    memb_body_t *B = memb_of(t);
     const int16_t *p = &t->p[P_E0];
     int32_t y[CTL], ax[CTL], pk = 0, exc = p[6] * 258, g = B->gain, dg;
     int32_t acc = clamp(MEMB_ACC * v->vel * 4, 0, 65536);

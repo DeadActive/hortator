@@ -5,6 +5,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- SOUND pages: every engine as FM, ACID and BDTRX: the name on the left, its number "#NN/45" under it, VOICES, CHOKE
+  and "+ LAYER" under that, a graph on the right. The engines with no graph of their own show their rendered hit: the
+  voice's real sound (one hit at velocity 100, played silently in the background, never touching what you hear) as a
+  waveform, its length labelled ("HIT / 300 MS", 100 .. 1000 ms, following the sound). It draws again when MODEL or a
+  SOUND knob changes, over a few frames (the old picture stays until the new one is done); SAMPL shows its sample.
 - Engines renamed (the names shown only: projects, presets and MIDI unchanged). MD bank: KTRX -> BDTRX, XTTRX -> TMTRX,
   XCTRX -> CGTRX, MATRX -> SHTRX, XTEFM -> TMEFM. MODERN bank: KBOOM -> BOOM, KPUNC -> PUNCH, SSNAP -> SNAP,
   SCRAK -> CRACK, HMETL -> METAL, HNOIS -> HISS, MEMB -> SKIN, SMPL -> SAMPL. User preset slots saved from them are
@@ -17,8 +22,7 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 - The MODEL knob's list runs MD, MODERN, CLASSIC (KTRX .. CYEFM, KBOOM .. SMPL, K808 .. CLAVE), and the preset banks
   MACHINEDRUM, MODERN, CLASSIC, USER. Models keep their numbers and presets their uids, so older projects load with
   the same voices and presets.
-- The SOUND pages show the engine's place in that list next to its name, "#01/45" (KTRX) .. "#45/45" (CLAVE); with
-  FM, ACID and KTRX (their graph on the right) on its own line under the name.
+- The SOUND pages show the engine's place in that list under its name, "#01/45" (KTRX) .. "#45/45" (CLAVE).
 - LFO: the OCT- switch between LFO 1 and LFO 2 is gone. The LFO pages show both LFOs side by side (LFO 1 on KNOB 1-2,
   LFO 2 on KNOB 3-4): WAVE RATE, MORPH PHASE, TRIG MODE (the RATE MODE now has a knob; OCT+ still switches the one of
   the LFO turned last), and a last page, DEST: 4 slots per track, each a source (LFO 1 / LFO 2), a destination (any

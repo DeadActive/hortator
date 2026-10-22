@@ -21,6 +21,7 @@ static void hold(uint32_t label);
 static void safe_boot(int seq_held);
 static void kit_session(void);
 static void fx_hold_frames(uint32_t n);
+static void vg_settle(void);
 static int led_on(uint32_t id)                       /* the LED of button / key id lit (ui_leds' last frame: fm1_led,
                                                       * or the full layer while the scan's hook composes them) */
 {
@@ -2371,22 +2372,24 @@ static void test_cell_value_fits(void)
           fb_count(118, Y_KNOB + 22u, 2, 13, C_INK) == 0u);
 }
 
-/* spec 2026-10-19-md-ui §8, graphs I (two tones): the model's name in F3 5x; STEP's bars; PROJECT's and SONG's
- * cursor rows inverted */
+/* spec 2026-10-19-md-ui §8, graphs I (two tones): the model's name in F3 4x, left (owner 2026-10-22: every engine
+ * view as FM's); STEP's bars; PROJECT's and SONG's cursor rows inverted */
 static void test_graph_model_name(void)
 {
-    uint32_t x, y, y0 = 999, y1 = 0;
+    uint32_t x, y, y0 = 999, y1 = 0, x0 = 999;
     ui_host_init();
     tap(B_EDIT);
     ui.force = 1;
     ui_frame();
-    for (y = Y_GRAPH + G_OY; y < Y_GRAPH + G_OY + 40u; y++)
-        for (x = 2; x < 238u; x++)
+    for (y = Y_GRAPH + G_OY; y < Y_GRAPH + G_OY + 30u; y++)
+        for (x = 2; x < 98u; x++)
             if (fb[y * 240u + x] == C_INK) {
                 y0 = y < y0 ? y : y0;
                 y1 = y > y1 ? y : y1;
+                x0 = x < x0 ? x : x0;
             }
-    check("SOUND: the model's name in F3 at 5x (25 px tall) on the theme's ground", y1 - y0 + 1u == 25u &&
+    check("SOUND: the model's name in F3 at 4x (20 px tall), left, on the theme's ground", y1 - y0 + 1u == 20u &&
+          x0 == 4u &&
           fb_count(2, Y_GRAPH + G_OY, 236, 60, C_BG) > 236u * 60u / 2u);
 }
 
@@ -2901,8 +2904,12 @@ static void snap_page(const char *name)
 {
     char path[96];
     uint32_t i;
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 3; i++) {
+        if (i == 2u && !ui.home && !ui.layer && cur_page()->graph == GR_MODEL)
+            vg_settle();                             /* (the engine view's rendered hit whole: the frames' budgets at
+                                                      * once) */
         ui_frame();
+    }
     snprintf(path, sizeof path, "build/ui_shots/%s.ppm", name);
     shot(path);
 }
@@ -7225,6 +7232,327 @@ static void test_engine_number(void)
           okall);
 }
 
+/* ------------------------------------------------------------------ voicegraph (owner 2026-10-22) --- */
+/* every engine view as FM's / ACID's / BDTRX's: the name left (F3 4x), "#NN/45" under it, VOICES / CHOKE / LAYER under
+ * that, the graph right (x 100..235); a model with no graph of its own draws its rendered hit (ui_draw.c vg_step): the
+ * voice's real sound, offline, on a scratch track, as min / max columns */
+
+/* s in F3 at scale sc in the graph's area, whole and 2 px clear of any other ink: 1, its top-left in *px, *py (the
+ * first such place, top to bottom) */
+static int graph_text_at(const char *s, uint32_t sc, uint32_t *px, uint32_t *py)
+{
+    uint32_t w = (uint32_t)md_text_w(&MD_F3, sc, s) + 4u, h = MD_F3.h * sc + 4u, x0, y0, x, y;
+    int ok;
+    cv_begin(w, h, C_BG);
+    md_text(2, 2, &MD_F3, sc, s, C_INK);
+    for (y0 = Y_GRAPH; y0 + h <= Y_GRAPH + H_GRAPH; y0++)
+        for (x0 = 0; x0 + w <= 240u; x0++) {
+            for (ok = 1, y = 0; y < h && ok; y++)
+                for (x = 0; x < w && ok; x++)
+                    ok = (fb[(y0 + y) * 240u + x0 + x] == C_INK) == (cv_px[y * w + x] == swap16(C_INK));
+            if (ok) {
+                *px = x0 + 2u;
+                *py = y0 + 2u;
+                return 1;
+            }
+        }
+    return 0;
+}
+
+static int vg_drawn(uint32_t mi) { return mi != DM_FM && mi != DM_ACID && mi != DM_KTRX; }   /* (the rendered hit's) */
+
+static void vg_settle(void)                          /* the rendered hit to its end: the frames' budgets at once */
+{
+    uint32_t k;
+    for (k = 0; k < 4096u; k++) {
+        vg_step(TSEL);
+        if (!vg.run)
+            break;
+    }
+}
+
+static void engine_view_ready(void)                  /* a frame (the render starts), the render done, a frame */
+{
+    ui.force = 1;
+    ui_frame();
+    vg_settle();
+    ui_frame();
+}
+
+static void vg_label(char *b, size_t n) { snprintf(b, n, "HIT / %u MS", (unsigned)vg.span); }
+
+/* the layout, every model with CHOKE and LAYER on: the name left at 4x (the widest, 76 px, ends left of the graph),
+ * the number under it, VOICES / CHOKE / LAYER under that, each whole, 2 px clear of all else; every model a graph; the
+ * rendered hit's: columns, its span labelled (100 .. 1000 MS) */
+static void test_vg_layout(void)
+{
+    static const uint16_t SPAN[] = {100, 150, 200, 300, 400, 500, 750, 1000};
+    uint32_t i, k, ok = 1, okg = 1;
+    char want[12], lab[20];
+    ui_host_init();
+    song.sel = 0;
+    tap(B_EDIT);
+    for (i = 0; i < NMODELS; i++) {
+        uint32_t mi = MODEL_LIST[i], xn = 0, yn = 0, xx = 0, yy = 0, xv = 0, yv = 0, xc = 0, yc = 0, xl = 0, yl = 0;
+        uint32_t lit, cols = 0, x, y, sp = 0, lx = 0, ly = 0;
+        const char *vs = DMODELS[mi].voices > 1 ? "2 VOICES" : "1 VOICE";
+        int found;
+        old_set_model(TSEL, mi);
+        TSEL->p[P_CHOKE] = 2;
+        TSEL->p[P_LLEVEL] = 100;
+        if (mi == DM_ACID) {
+            TSEL->p[P_E0 + 2] = 0;
+            TSEL->p[P_E0 + 4] = 3;
+        }
+        engine_view_ready();
+        if (mi == DM_SMPL || mi == DM_CYTRX)
+            snap_page(mi == DM_SMPL ? "voicegraph/sampl_choke_layer" : "voicegraph/cytrx_choke_layer");
+        snprintf(want, sizeof want, "#%02u/%u", i + 1u, (unsigned)NMODELS);
+        found = graph_text_at(N_MODEL[mi], 4, &xn, &yn) && graph_text_at(want, 2, &xx, &yy) &&
+                graph_text_at(vs, 2, &xv, &yv) && graph_text_at("CHOKE 2", 2, &xc, &yc) &&
+                graph_text_at("+ LAYER", 2, &xl, &yl);
+        if (!found || xn != 4u || xx != 4u || xv != 4u || xc != 4u || xl != 4u || yy < yn + 22u || yv < yy + 12u ||
+            yc < yv + 12u || yl < yc + 12u || xn + (uint32_t)md_text_w(&MD_F3, 4, N_MODEL[mi]) > 98u) {
+            ok = 0;
+            printf("      %s: name (%u,%u) %s (%u,%u) %s (%u,%u) CHOKE (%u,%u) LAYER (%u,%u)%s\n", N_MODEL[mi], xn, yn,
+                   want, xx, yy, vs, xv, yv, xc, yc, xl, yl, found ? "" : " (not all found clear)");
+        }
+        lit = fb_count(100, Y_GRAPH + G_OY, 136, H_GRAPH - G_OY, C_INK);
+        for (x = 100; x < 236u; x++) {                /* columns with 3+ px under the label: the waveform's */
+            uint32_t n = 0;
+            for (y = Y_GRAPH + G_OY + 22u; y < Y_GRAPH + H_GRAPH; y++)
+                n += fb[y * 240u + x] == C_INK;
+            cols += n >= 3u;
+        }
+        if (vg_drawn(mi)) {
+            for (k = 0; k < sizeof SPAN / sizeof SPAN[0]; k++)
+                sp |= vg.span == SPAN[k];
+            vg_label(lab, sizeof lab);
+            if (!sp || !graph_text_at(lab, 2, &lx, &ly) || lx != 100u || cols < 3u || lit < 60u || vg.ok != vg.sig) {
+                okg = 0;
+                printf("      %s: rendered hit: span %u (%s), label at (%u,%u), %u columns, %u lit\n", N_MODEL[mi],
+                       (unsigned)vg.span, sp ? "ok" : "not one of the spans", lx, ly, cols, lit);
+            }
+        } else if (lit < 60u) {
+            okg = 0;
+            printf("      %s: its own graph: %u lit\n", N_MODEL[mi], lit);
+        }
+    }
+    check("engine view: every model's name left (F3 4x), its number under it, VOICES / CHOKE / LAYER under that, "
+          "each whole and clear (CHOKE and LAYER on)", ok);
+    check("engine view: every model a graph right; the rendered hit (all but FM, ACID, BDTRX): columns, the span "
+          "labelled HIT / N MS", okg);
+}
+
+static void graph_copy(uint16_t *d) { memcpy(d, fb + Y_GRAPH * 240u, 240u * H_GRAPH * sizeof fb[0]); }
+
+/* the same sound draws the same pixels: again after a knob went and came back, after the live state moved on (hits on
+ * every track: the metal bank, SKIN's bodies, the voices' ages and seeds), on a forced redraw; another knob value
+ * draws another hit */
+static void test_vg_deterministic(void)
+{
+    static const uint8_t M[] = {DM_HATC, DM_CYMB, DM_MEMB, DM_SMPL, DM_CYTRX, DM_KPUNC, DM_CPTRX, DM_SSNAP, DM_HNOIS};
+    static uint16_t a[240 * H_GRAPH], b[240 * H_GRAPH], c[240 * H_GRAPH];
+    uint32_t i, same = 1, differs = 0;
+    for (i = 0; i < sizeof M; i++) {
+        const param_desc_t *d = &DMODELS[M[i]].edit[1];
+        int16_t old;
+        ui_host_init();
+        song.sel = 0;
+        tap(B_EDIT);
+        old_set_model(TSEL, M[i]);
+        vg.sig = 0;
+        engine_view_ready();
+        graph_copy(a);
+        old = TSEL->p[P_E1];
+        TSEL->p[P_E1] = (int16_t)(old != d->max ? d->max : d->min);
+        engine_view_ready();
+        graph_copy(b);
+        TSEL->p[P_E1] = old;
+        engine_view_ready();
+        graph_copy(c);
+        same &= !memcmp(a, c, sizeof a);
+        differs += memcmp(a, b, sizeof a) != 0;
+        old_set_model(&trk[1], M[i]);
+        old_set_model(&trk[2], DM_HATO);
+        drum_hit(&trk[0], 127);
+        drum_hit(&trk[1], 90);
+        drum_hit(&trk[2], 127);
+        render_mix(0, 0, 3000);
+        vg.sig = 0;
+        engine_view_ready();
+        graph_copy(c);
+        same &= !memcmp(a, c, sizeof a);
+        ui.force = 1;
+        ui_frame();
+        graph_copy(c);
+        same &= !memcmp(a, c, sizeof a);
+        if (M[i] == DM_CYMB)
+            snap_page("voicegraph/cymb_decay");
+    }
+    check("rendered hit: the same sound the same pixels (after a knob's round trip, live hits, a forced redraw)", same);
+    check("rendered hit: another DECAY another picture", differs == sizeof M);
+}
+
+/* the render touches nothing live: every track, the song, the voices' age counter, the block counter, the metal bank,
+ * SKIN's bodies, the RNG are the same after a whole render of each model: hits sounding on every track, and again once
+ * they have all ended (the metal bank then idle, blocks behind: a render must not make it) */
+static void test_vg_state_untouched(void)
+{
+    static track_t t0[NTRK];
+    static song_t s0;
+    static memb_body_t mb0[NTRK];
+    static int32_t mbuf0[CTL];
+    uint32_t i, k, ok = 1, ph0[6], blk0, db0, age0, rng0, j;
+    for (i = 0; i < 2u * NMODELS; i++) {
+        uint32_t mi = MODEL_LIST[i / 2u];
+        ui_host_init();
+        song.sel = 0;
+        tap(B_EDIT);
+        for (k = 1; k < NTRK; k++)
+            old_set_model(&trk[k], k == 1u ? DM_MEMB : k == 2u ? mi : trk[k].p[P_MODEL]);
+        old_set_model(TSEL, mi);
+        for (k = 0; k < NTRK; k++)
+            drum_hit(&trk[k], 100);
+        render_mix(0, 0, 1000);
+        for (j = 0; i % 2u && j < 200u; j++)          /* (all ended: 6 s) */
+            render_mix(0, 0, 1323);
+        memcpy(t0, trk, sizeof t0);
+        memcpy(&s0, &song, sizeof s0);
+        memcpy(mb0, memb_body, sizeof mb0);
+        memcpy(mbuf0, metal_buf, sizeof mbuf0);
+        memcpy(ph0, metal_ph, sizeof ph0);
+        blk0 = metal_blk;
+        db0 = dblock;
+        age0 = dvage;
+        rng0 = rng_state;
+        vg.sig = 0;
+        vg_settle();
+        if (memcmp(t0, trk, sizeof t0) || memcmp(&s0, &song, sizeof s0) || memcmp(mb0, memb_body, sizeof mb0) ||
+            memcmp(mbuf0, metal_buf, sizeof mbuf0) || memcmp(ph0, metal_ph, sizeof ph0) || blk0 != metal_blk ||
+            db0 != dblock || age0 != dvage || rng0 != rng_state) {
+            ok = 0;
+            printf("      %s: the render changed live state\n", N_MODEL[mi]);
+        }
+    }
+    check("rendered hit: no live state touched (tracks, voices, song, ages, blocks, metal bank, SKIN bodies, RNG)", ok);
+}
+
+/* the audio is bit for bit the same with the renders as without: a pattern on 7 tracks (hats, cymbal, SKIN, SAMPL,
+ * the TRX and EFM metals; sparse: the metal bank idle between) while the selected track (muted, no steps) runs through
+ * every model, its engine view rendering each (the renders interleaved with the audio blocks, as the ISR preempts the
+ * UI) */
+static uint32_t vg_audio_run(int draw, uint32_t *rendered)
+{
+    static const uint8_t M[7] = {DM_HATC, DM_HATO, DM_CYMB, DM_MEMB, DM_SMPL, DM_CHTRX, DM_CYEFM};
+    static const uint16_t STEPS[7] = {0x0101, 0x0010, 0x0001, 0x0404, 0x4040, 0x1000, 0x0002};   /* (bit = step) */
+    static int32_t l[256], r[256];
+    uint32_t h = 2166136261u, f, k, i, w0;
+    ui_host_init();
+    for (k = 0; k < 7u; k++) {
+        old_set_model(&trk[k], M[k]);
+        memset(trk[k].step, 0, sizeof trk[k].step);
+        for (i = 0; i < 16u; i++)
+            trk[k].step[i].on = (STEPS[k] >> i) & 1u;
+        trk[k].p[P_MUTE] = 0;
+    }
+    memset(trk[7].step, 0, sizeof trk[7].step);
+    trk[7].p[P_MUTE] = 1;
+    song.sel = 7;
+    tap(B_EDIT);
+    vg.sig = 0;
+    w0 = vg.work;
+    transport_req = 1;
+    for (f = 0; f < 700u; f++) {
+        if (f % 15u == 0u)
+            old_set_model(&trk[7], MODEL_LIST[(f / 15u) % NMODELS]);
+        ui_input();
+        ui_leds();
+        render_mix(l, r, 256);
+        for (i = 0; i < 256u; i++)
+            h = ((h ^ (uint32_t)l[i]) * 16777619u ^ (uint32_t)r[i]) * 16777619u;
+        if (draw)
+            ui_draw();
+        render_mix(l, r, 256);
+        for (i = 0; i < 256u; i++)
+            h = ((h ^ (uint32_t)l[i]) * 16777619u ^ (uint32_t)r[i]) * 16777619u;
+    }
+    *rendered = vg.work - w0;
+    return h;
+}
+
+static void test_vg_live_audio(void)
+{
+    uint32_t w1, w0, h1 = vg_audio_run(1, &w1), h0 = vg_audio_run(0, &w0);
+    printf("     rendered hit: %u samples rendered beside the pattern (none without the view)\n", w1);
+    check("rendered hit: the audio bit for bit the same with the engine view's renders as without", h1 == h0 &&
+          w1 > 100000u && w0 == 0u);
+}
+
+/* progressive: at most VG_STEP samples a frame, a long voice over several frames, the graph as it was meanwhile (no
+ * redraw until the render is done); idle frames render nothing and redraw nothing. The cost of each model's hit
+ * (host instructions; the FM-1 at ~6.86 ns each, docs/PERFORMANCE.md) */
+static void test_vg_budget(void)
+{
+    uint32_t f, w, maxw = 0, done = 0, blit_frames = 0, b, i, worst = 0;
+    uint64_t i0, d, ins_max = 0, frame_max = 0;
+    ui_host_init();
+    song.sel = 0;
+    tap(B_EDIT);
+    old_set_model(TSEL, DM_CYTRX);
+    engine_view_ready();
+    TSEL->p[P_E1] = (int16_t)(TSEL->p[P_E1] > 64 ? 20 : 120);   /* another DECAY: a new render, the old graph shown */
+    vg.sig = 0;
+    for (f = 0; f < 200u; f++) {
+        w = vg.work;
+        b = host_graph_blits;
+        ui_frame();
+        maxw = vg.work - w > maxw ? vg.work - w : maxw;
+        blit_frames += host_graph_blits != b;
+        if (!vg.run && vg.ok == vg.sig) {
+            done = f + 1u;
+            break;
+        }
+    }
+    printf("     rendered hit: CYTRX done in %u frames, %u samples a frame at most, the graph drawn in %u of them\n",
+           done, maxw, blit_frames);
+    check("rendered hit: progressive, at most VG_STEP samples a frame (a long voice over several frames)",
+          maxw <= VG_STEP && done > 3u && done < 60u);
+    check("rendered hit: the graph redrawn at the knob's frame and when the render is done, not while it runs",
+          blit_frames <= 2u);
+    w = vg.work;
+    b = host_graph_blits;
+    for (f = 0; f < 30u; f++)
+        ui_frame();
+    check("rendered hit: idle frames render nothing, redraw nothing", vg.work == w && host_graph_blits == b);
+    for (i = 0; i < NMODELS; i++) {
+        uint32_t mi = MODEL_LIST[i], n;
+        if (!vg_drawn(mi))
+            continue;
+        old_set_model(TSEL, mi);
+        vg.sig = 0;
+        w = vg.work;
+        i0 = instr_now();
+        vg_settle();
+        d = instr_now() - i0;
+        n = vg.work - w;
+        printf("     %-5s %4u MS span, %6u samples, %8llu host instructions (%3llu a sample, ~%5.1f ms on the FM-1), "
+               "%2u frames\n", N_MODEL[mi], (unsigned)vg.span, n, (unsigned long long)d,
+               (unsigned long long)(n ? d / n : 0), (double)d * 6.86e-6, (n + VG_STEP - 1u) / VG_STEP);
+        if (d > ins_max) {
+            ins_max = d;
+            worst = mi;
+        }
+        if (n && d * VG_STEP / n > frame_max)
+            frame_max = d * VG_STEP / n;
+    }
+    printf("     rendered hit: the dearest hit %s %llu host instructions (~%.1f ms on the FM-1, over the frames); a "
+           "frame's share at most ~%llu (~%.2f ms)\n", N_MODEL[worst], (unsigned long long)ins_max, (double)ins_max * 6.86e-6,
+           (unsigned long long)frame_max, (double)frame_max * 6.86e-6);
+    check("rendered hit: a frame's share of any model's render under 3 ms on the FM-1 (~437000 host instructions)",
+          frame_max < 437000u);
+}
+
 /* fix 4: TOOLS INIT ALL (a new project) gives the TRX classic kit, each on its first preset, no choke; TRACKS and HOME
  * shown with it (build/ui_shots/fixes/trx_kit_*) */
 static void test_init_all_trx_kit(void)
@@ -7796,6 +8124,11 @@ int main(void)
     test_model_list_order();
     test_model_names();
     test_engine_number();
+    test_vg_layout();                                /* voicegraph (owner 2026-10-22) */
+    test_vg_deterministic();
+    test_vg_state_untouched();
+    test_vg_live_audio();
+    test_vg_budget();
     test_init_all_trx_kit();
     test_fk_perform_own_knobs();                     /* fixes 2026-10-21 (fix-keys) */
     test_fk_oct_under_mute_perform();                /* (fix-keys review) */

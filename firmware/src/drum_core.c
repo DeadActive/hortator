@@ -194,6 +194,40 @@ static void drum_hit(track_t *t, uint32_t vel)
     }
 }
 
+/* the engine view's rendered hit (ui_draw.c vg_step), on the UI thread: t's model, one voice (a two-voice model's one
+ * hit; no sample layer, no FX, no RESON, no LFO), struck on the scratch track vg_trk (dm_dsp.c) with t's knobs at C4,
+ * velocity vel. Nothing live is touched: no voice from the pool, no voice cap, no choke, no age or seed from dvage (age
+ * 1 and its seed, as the first hit after power-on: the same knobs, the same sound), the metal bank and SKIN's body the
+ * scratch's own. A SAMPLE with no sample: no voice */
+static void vg_hit(const track_t *t, uint32_t vel)
+{
+    dvoice_t *v = &vg_trk.v[0];
+    memset(&vg_trk, 0, sizeof vg_trk);
+    memcpy(vg_trk.p, t->p, sizeof vg_trk.p);
+    vg_trk.model = (uint8_t)((uint32_t)t->p[P_MODEL] % NMODELS);
+    memset(vg_metal_ph, 0, sizeof vg_metal_ph);
+    memset(&vg_memb, 0, sizeof vg_memb);
+    if (vg_trk.model == DM_SMPL && !smpl_playable(&vg_trk))
+        return;
+    v->active = 1;
+    v->vel = (uint8_t)vel;
+    v->age = 1;
+    v->rng = (int32_t)2654435761u | 1;
+    DMODELS[vg_trk.model].trigger(&vg_trk, v);
+}
+
+/* the next n (<= CTL) samples of the rendered hit into out (cleared first); 0 once its voice has ended */
+static uint32_t vg_render(int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        out[i] = 0;
+    if (!vg_trk.v[0].active)
+        return 0;
+    DMODELS[vg_trk.model].render(&vg_trk, &vg_trk.v[0], out, n);
+    return 1;
+}
+
 /* track t's voices and tail into out (cleared first); returns non-zero while anything sounds */
 static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
 {

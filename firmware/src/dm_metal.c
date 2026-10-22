@@ -7,8 +7,11 @@ static uint32_t dblock;                              /* blocks rendered (drum_co
 static const uint32_t METAL_INC[6] = {HZ(205.3), HZ(304.4), HZ(369.6), HZ(522.7), HZ(540.0), HZ(800.0)};
 static uint32_t metal_ph[6], metal_blk = 0xFFFFFFFFu;
 static int32_t metal_buf[CTL];
+static uint32_t vg_metal_ph[6];                      /* the rendered hit's own bank (vg_trk: dm_dsp.c), from phase 0 */
+static int32_t vg_metal_buf[CTL];
 
-static void metal_make(uint32_t n)
+__attribute__((noinline)) static void metal_make(uint32_t n)   /* (a function of its own, as before: its code and the
+                                                                * target budget's count unchanged) */
 {
     uint32_t i, k;
     if (metal_blk == dblock)
@@ -24,15 +27,38 @@ static void metal_make(uint32_t n)
     }
 }
 
+__attribute__((noinline)) static const int32_t *vg_metal_make(uint32_t n)   /* the same, the rendered hit's bank (every
+                                                                             * block: one voice) */
+{
+    uint32_t i, k;
+    for (i = 0; i < n; i++) {
+        int32_t s = 0;
+        for (k = 0; k < 6u; k++) {
+            vg_metal_ph[k] += METAL_INC[k];
+            s += (int32_t)(vg_metal_ph[k] >> 31);
+        }
+        vg_metal_buf[i] = (2 * s - 6) * 5461;
+    }
+    return vg_metal_buf;
+}
+
+/* the metal t's voice hears this block: the live bank (once per block for every voice), or the rendered hit's own */
+static inline const int32_t *metal_src(const track_t *t, uint32_t n)
+{
+    if (t == &vg_trk)
+        return vg_metal_make(n);
+    metal_make(n);
+    return metal_buf;
+}
+
 /* hats: metal -> band-pass c[0] -> high-pass c[1] -> env[0] */
 static void hat_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 {
     uint32_t i;
-    (void)t;
-    metal_make(n);
+    const int32_t *mb = metal_src(t, n);
     for (i = 0; i < n; i++) {
         int32_t bp, hp, b2, h2;
-        dsvf_tick(&v->c[0], metal_buf[i], &v->f[0], &v->f[1], &bp, &hp);
+        dsvf_tick(&v->c[0], mb[i], &v->f[0], &v->f[1], &bp, &hp);
         dsvf_tick(&v->c[1], bp, &v->f[2], &v->f[3], &b2, &h2);
         dm_put(v, out, i, mulq15(h2, env_q15(v->env[0])));
         env_step(v, 0);
@@ -58,12 +84,11 @@ static void hato_trigger(track_t *t, dvoice_t *v) { hat_start(t, v, 50 + t->p[P_
 static void cymb_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)
 {
     uint32_t i;
-    (void)t;
-    metal_make(n);
+    const int32_t *mb = metal_src(t, n);
     for (i = 0; i < n; i++) {
         int32_t b1, h1, b2, h2, x;
-        dsvf_tick(&v->c[0], metal_buf[i], &v->f[0], &v->f[1], &b1, &h1);
-        dsvf_tick(&v->c[1], metal_buf[i], &v->f[2], &v->f[3], &b2, &h2);
+        dsvf_tick(&v->c[0], mb[i], &v->f[0], &v->f[1], &b1, &h1);
+        dsvf_tick(&v->c[1], mb[i], &v->f[2], &v->f[3], &b2, &h2);
         x = mulq15(mulq15(b1, env_q15(v->env[0])), v->x[0]) + mulq15(mulq15(h2, env_q15(v->env[1])), v->x[1]);
         dm_put(v, out, i, x);
         env_step(v, 0);
