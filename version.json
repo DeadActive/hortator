@@ -1,63 +1,15 @@
 {
- "version": "0.23.0",
- "commit": "38fafbd",
+ "version": "0.23.1",
+ "commit": "7330f69",
  "date": "2026-10-22",
  "since": [],
  "release": {
-  "version": "0.23.0",
+  "version": "0.23.1",
   "date": "2026-10-22",
   "notes": [
    {
-    "title": "SOUND pages",
-    "text": "SOUND pages: every engine as FM, ACID and BDTRX: the name on the left, its number \"#NN/45\" under it, VOICES, CHOKE and \"+ LAYER\" under that, a graph on the right. The engines with no graph of their own show their rendered hit: the voice's real sound (one hit at velocity 100, played silently in the background, never touching what you hear) as a waveform, its length labelled (\"HIT / 300 MS\", 100 .. 1000 ms, following the sound). It draws again when MODEL or a SOUND knob changes, over a few frames (the old picture stays until the new one is done); SAMPL shows its sample."
-   },
-   {
-    "title": "Engines renamed",
-    "text": "Engines renamed (the names shown only: projects, presets and MIDI unchanged). MD bank: KTRX -> BDTRX, XTTRX -> TMTRX, XCTRX -> CGTRX, MATRX -> SHTRX, XTEFM -> TMEFM. MODERN bank: KBOOM -> BOOM, KPUNC -> PUNCH, SSNAP -> SNAP, SCRAK -> CRACK, HMETL -> METAL, HNOIS -> HISS, MEMB -> SKIN, SMPL -> SAMPL. User preset slots saved from them are named after the new names (\"BOOM 07\")."
-   },
-   {
-    "title": "The power-on kit",
-    "text": "The power-on kit (also TOOLS INIT ALL and a new project) is the TRX classic kit: KTRX, SDTRX, CPTRX, CHTRX, OHTRX, XTTRX, RSTRX, CYTRX, each on its default preset, with the same roles and MIDI notes as before (kick 36, snare 38, clap 39, closed hat 42, open hat 46, tom 45, rim 37, cymbal 49) and no choke. Saved projects load unchanged."
-   },
-   {
-    "title": "HOME",
-    "text": "HOME: the 4 boxes above PROJ show the bar of a 4-bar cycle: the current bar solid, moving with the playhead, back to the first at every PLAY (stopped: the first). They used to show the selected track's banks."
-   },
-   {
-    "title": "The MODEL knob's list runs MD, MODERN, CLASSIC",
-    "text": "The MODEL knob's list runs MD, MODERN, CLASSIC (KTRX .. CYEFM, KBOOM .. SMPL, K808 .. CLAVE), and the preset banks MACHINEDRUM, MODERN, CLASSIC, USER. Models keep their numbers and presets their uids, so older projects load with the same voices and presets."
-   },
-   {
-    "title": "The SOUND pages show the",
-    "text": "The SOUND pages show the engine's place in that list under its name, \"#01/45\" (KTRX) .. \"#45/45\" (CLAVE)."
-   },
-   {
-    "title": "LFO",
-    "text": "LFO: the OCT- switch between LFO 1 and LFO 2 is gone. The LFO pages show both LFOs side by side (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4): WAVE RATE, MORPH PHASE, TRIG MODE (the RATE MODE now has a knob; OCT+ still switches the one of the LFO turned last), and a last page, DEST: 4 slots per track, each a source (LFO 1 / LFO 2), a destination (any knob an LFO could target) and its own depth (KNOB 1 the slot, 2 SRC, 3 DEST, 4 DEPTH). Older projects load with their LFO 1 / LFO 2 routing as slots 1 / 2 (the sound, motion and MIDI LEARN unchanged); projects are saved in a new format (FDRE) that 0.22.0 cannot load."
-   },
-   {
-    "title": "Accent",
-    "text": "Accent: hold OCT+ and tap a step key (STEP, PATTERN, MOTION, SONG, TRACKS): the step accented (an off step turns on accented), or plain again. Holding a step key no longer sets the accent, so a held step is only PROB (KNOB 1) and RATCH (KNOB 2). OCT+ on its own changes the bank when it is let go; while it is held the keys show the bank's accents. The STEP hint reads [OCT+] +TAP ACCENT."
-   },
-   {
-    "title": "The selected track on the keys",
-    "text": "The selected track on the keys: on HOME and every EDIT (SOUND, LAYER), FX and LFO page its white key (F3..F4) is lit, as the keys select tracks there (held keys lit too). KEYS, COMP, the step pages and GLOBAL / SAVE / GRIDS keep their own."
-   },
-   {
-    "title": "OCT- / OCT+ breathe",
-    "text": "OCT- / OCT+ breathe (upstream Felucca's breathing LED, #119): fading in and out, ~1.1 s, where pressing them would do something (the next / previous bank on the steps, LAYER from SOUND, the LFO pages' RATE MODE (OCT+), YES in a dialog, OK in the menu, NAME's RENAME, MIDI LEARN's DONE, the PRESETS list's LOAD and DELETE); a way back (NO, CANCEL, BACK) is lit."
-   },
-   {
-    "title": "PERFORM keeps its knobs",
-    "text": "PERFORM keeps its knobs: while its screen is up (FX held, the PAGE, a layer key held) KNOB 1-4 are its macros only, also for detents that arrive while the firmware is between its two knob reads (they used to reach the page under it), and SELECT turns no page under it (a page button, HOME or an FX tap still close the PAGE)."
-   },
-   {
-    "title": "MENU BACKLIGHT has upstream Felucca's LED levels",
-    "text": "MENU BACKLIGHT has upstream Felucca's LED levels: OFF, DIM LO (the old ON: unlit keys and now the idle buttons at ~5 %, the step beats ~25 %), DIM HI (~10 %, beats ~30 %), INV (idle lit, active dark), INV LO / INV HI (idle at ~10 % / ~25 %). KNOB 1 steps, OCT+ steps and wraps. Saved in the settings record's palette word (bits 9..11); an older Hortator reads any level but OFF as ON, and an older record's ON loads as DIM LO."
-   },
-   {
-    "title": "MENU > ABOUT credits everyone",
-    "text": "MENU > ABOUT credits everyone whose work is in the firmware, its research and its pages (Felucca, Mutable Instruments, DaisySP, the samples, the recovery tool, the web fonts and icons, the emulator the MD voices were measured from, with a disclaimer). The credits scroll under the logo with SELECT, a row a detent, with a scroll bar at the right; ABOUT opens at the top. LICENSING.md lists DaisySP (MIT, LICENSES/MIT-DaisySP.txt) and the research; README and the site's footer carry the same credits."
+    "title": "Web site only",
+    "text": "Web site only (the firmware is the same as 0.23.0): the landing page and the installer count visits and installs anonymously with GoatCounter (deadactive.goatcounter.com; no cookies, no personal data); the hero shows \"Installed N times\" under the install button. The install is counted once, after the installer says Done, and never holds it up."
    }
   ]
  }

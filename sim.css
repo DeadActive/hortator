@@ -3,7 +3,7 @@
 /* The page as the FM-1's screen: its MONO palette (firmware/src/gfx.c: five steps of one colour plus white, in the
  * firmware's own roles), its typeface (Terminus 8 x 16, tests/sim_font.mjs, on its 16 px grid: 16, 32, 48, 64, 80),
  * blends dithered (dither.js), headings that glitch as they arrive. Only the device keeps its hardware greys. */
-@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=1e296c5e84") format("woff"); font-display: swap; }
+@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=323936c05d") format("woff"); font-display: swap; }
 :root {
   --k: #000000;                                    /* the screen */
   --c1: #282828;                                   /* rules, separators */
@@ -53,6 +53,10 @@ button { font: inherit; }
   background: var(--w); color: var(--k); position: relative;
 }
 .cta.ghost { background: transparent; color: var(--w); }
+.cta-slot { position: relative; display: inline-flex; }          /* the install count hangs under its button: */
+.install-count { position: absolute; left: 0; top: 100%; margin-top: 8px; white-space: nowrap; color: var(--c5);
+  background: var(--k); }                                          /* out of the flow, so nothing moves when it shows */
+.install-count b { padding: 0 4px; color: var(--k); background: var(--w); font-weight: normal; }
 .cta:hover { background: var(--k); color: var(--w); }
 .cta.ghost:hover { background: var(--w); color: var(--k); }
 .cta:focus-visible { outline: 2px dashed var(--w); outline-offset: 4px; }

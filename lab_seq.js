@@ -5,7 +5,7 @@
 // view shows what each bar played: the same 8 bars after every PLAY, as on the FM-1 (seq.c seeds the dice at PLAY).
 // Playing: the steps light as they fire; the hats mute at once or on the next bar (waiting shown); MTAL turns record
 // into the pattern (MOTION) and play back.
-import { el, knob, chips, scope, INK } from './lab_ui.js?v=1e296c5e84';
+import { el, knob, chips, scope, INK } from './lab_ui.js?v=323936c05d';
 
 const BARS = 8;
 const PATTERN = ['100%', '30%', '100%', '60%', '100%', '30%', '1/2', '60%',   // the hats' PROB per step

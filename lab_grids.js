@@ -3,8 +3,8 @@
 // Piece 6, Grids: the X / Y pad over Mutable Instruments' map and the three densities; the firmware's lanes (Kick,
 // Snare, Hats: one bar of 32nds, grids_preview) redraw as the point moves. Playing, three tracks follow the channels;
 // the cells light as they fire, amber where CHAOS added a hit the map did not have.
-import { el, knob, scope, INK } from './lab_ui.js?v=1e296c5e84';
-import { ditherPattern } from './dither.js?v=1e296c5e84';
+import { el, knob, scope, INK } from './lab_ui.js?v=323936c05d';
+import { ditherPattern } from './dither.js?v=323936c05d';
 
 const LANES = ['Kick', 'Snare', 'Hats'];
 

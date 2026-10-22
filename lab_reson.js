@@ -3,9 +3,9 @@
 // Piece 2, the resonators: an exciter (a short drum hit) through RESON. The firmware renders the hit twice, dry and
 // through its inserts (lab_voice), and both are drawn on one scale: the dry hit dim, the ring bright, in time and as
 // spectra, where the string's or the chord's partials stand up as a comb. Play loops a figure; the pad hits it.
-import { el, knob, chips, scope, INK, hitPad } from './lab_ui.js?v=1e296c5e84';
-import { tailLength, spectrum } from './lab_dsp.js?v=1e296c5e84';
-import * as draw from './lab_draw.js?v=1e296c5e84';
+import { el, knob, chips, scope, INK, hitPad } from './lab_ui.js?v=323936c05d';
+import { tailLength, spectrum } from './lab_dsp.js?v=323936c05d';
+import * as draw from './lab_draw.js?v=323936c05d';
 
 const EXCITERS = ['RSTRX', 'CLTRX', 'SDTRX', 'CHTRX', 'TMTRX'];   // MD voices: rim, claves, snare, hat, tom
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];

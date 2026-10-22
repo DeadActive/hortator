@@ -4,8 +4,8 @@
 // their DECAY. The firmware
 // renders two bars; the lab's probes give both LFOs' outputs per audio half, drawn over the hats' waveform (whose
 // tails stretch and shrink with the DECAY), and the knob each hit gets, as lfo.c computes it, per step below.
-import { el, knob, scope, INK } from './lab_ui.js?v=1e296c5e84';
-import * as draw from './lab_draw.js?v=1e296c5e84';
+import { el, knob, scope, INK } from './lab_ui.js?v=323936c05d';
+import * as draw from './lab_draw.js?v=323936c05d';
 
 const HAT = { MTAL: 64, DECAY: 40 };                 // CHTRX: the two knobs the LFOs move, set mid-way to swing both ways
 const STEPS = 32;                                    // two bars of 16ths
