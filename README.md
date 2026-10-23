@@ -73,7 +73,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | --- | --- |
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
-| **SEQ** | the steps on the white keys (a tap: on / off; hold OCT+ and tap a step: its accent; hold a step and turn KNOB 1 / 2: PROB / RATCH; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
+| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; a step held (0.3 s or more) stays as it is: hold it and turn KNOB 1 / 2: PROB / RATCH, an off step turns on; hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
 | **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |

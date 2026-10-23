@@ -702,11 +702,12 @@ static int held_line(const track_t *t, int32_t y)
 {
     const step_t *hs;
     char h[32], cs[8];
-    if (!(ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] != 0xFFFFu))
+    uint32_t si = held_step();                        /* (held STEP_HOLD_MS, or edited: a tap shows nothing) */
+    if (si >= NSTEP)
         return 0;
-    hs = &t->step[ui.step_si[ui.held]];
+    hs = &t->step[si];
     str_cpy(h, "STEP ", sizeof h);
-    fmt_int(h + str_len(h), (int32_t)ui.step_si[ui.held] + 1);
+    fmt_int(h + str_len(h), (int32_t)si + 1);
     str_cpy(h + str_len(h), "  ", sizeof h - str_len(h));
     cond_format(hs->cond, cs);
     str_cpy(h + str_len(h), cs, sizeof h - str_len(h));
@@ -1616,7 +1617,7 @@ static uint32_t graph_signature(void)
     }
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
         h ^= steps_hash(t) + (song.playing ? view_idx(t) + 1u : 0u) * 31u;
-        h ^= (ui.held < 16u && ui.step_t0[ui.held] ? ui.held + 1u : 0u) * 977u;
+        h ^= (held_step() + 1u) * 977u;
     if (pg->graph == GR_GRID)                         /* step record's cursor, the key sounding, KEYS (the roll's view
                                                        * follows from these: draw_graph) */
         h ^= (ui.srec ? ui.sr_cur + 1u : 0u) * 1543u +
@@ -2117,8 +2118,8 @@ static int foot_note(char *b)
     b[0] = 0;
     if (ui.srec)
         si = ui.sr_cur % NSTEP;
-    else if (step_keys() && ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] < NSTEP)
-        si = ui.step_si[ui.held];
+    else if (step_keys() && held_step() < NSTEP)
+        si = held_step();
     else
         return 0;
     s = &st[si];

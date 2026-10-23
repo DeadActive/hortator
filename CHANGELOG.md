@@ -15,6 +15,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   join RED INV (red on black); the row shows the theme's name as its value (RED, RED INV, BLUE, BLUE INV, GREEN,
   GREEN INV, in that order) instead of the boxes. A stored colour loads as the same theme as before (the new
   inverses take new indexes; an older Hortator shows them as RED).
+- Step keys: holding a step no longer turns it off. A step toggles only on a short tap (let go within 0.3 s, no knob
+  edit meanwhile), on the release; a longer press, or KNOB 1 / 2 (PROB / RATCH) turned while held, leaves it as it
+  was, so holding is for editing only (an off step edited turns on). The `STEP n PROB RATCH` line shows once a step
+  is held 0.3 s or edited. OCT+ held + a step key (accent) acts at the press as before. Every page whose white keys
+  are the steps (STEP, PATTERN, MOTION, SONG, TRACKS).
 - MUTE: NEXT BAR works while following a clock (CLK USB, TRS or BLE): the waiting mutes now flip on the bar line
   instead of never. The bar is found from the clock's real advance in the block (read after the block's Clock), not
   the block's length; a muted COMP source (GHOST KEEP / HIDE) starts its 5 ms fade on the bar's last Clock pulse, so

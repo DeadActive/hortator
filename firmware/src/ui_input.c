@@ -240,25 +240,27 @@ static int32_t accel(uint32_t role, int32_t s, int32_t range)
     return s * (int32_t)m;
 }
 
-/* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH. The first turn of a hold undoes the press's on / off: the
- * step is as before the press, and on (pressed with OCT+: as the accent left it). A held key outside LEN takes the
- * turn and does nothing. */
+/* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH, from the first detent (the press changed nothing). An edit
+ * is no tap: the keys down let go toggle nothing. An off step's first edit turns it on (no use editing a step that
+ * does not play; no accent, as a tap's new step). A held key outside LEN takes the turn and does nothing. */
 static int step_edit(uint32_t knob, int32_t steps)
 {
-    uint32_t k = ui.held;
+    uint32_t k = ui.held, i;
     step_t *s;
     if (knob > 1u || k >= 16u || !ui.step_t0[k])
         return 0;
+    for (i = 0; i < 16u; i++)                         /* edited: no key down is a tap any more */
+        if (ui.step_t0[i])
+            ui.step_t0[i] |= 2u;
     if (ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))   /* outside LEN, or a Grids track */
         return 1;
     s = &TSEL->step[ui.step_si[k]];
     if (!(ui.step_t0[k] & 4u)) {
-        *s = ui.step_prev[k];
+        if (!s->on)
+            s->nt = new_step_nt(TSEL);
         s->on = 1;
         s->tie = 0;
-        if (!ui.step_prev[k].on)
-            s->nt = new_step_nt(TSEL);
-        ui.step_t0[k] |= 6u;                          /* edited: the press undone once */
+        ui.step_t0[k] |= 4u;                          /* (once a hold) */
     }
     if (knob == 0u)
         s->cond = (uint8_t)cond_store((uint32_t)clamp((int32_t)cond_pos(s->cond) + accel(EN_K1, steps, COND_MAX), 0,
@@ -1039,20 +1041,26 @@ static void ui_input(void)
     if (ui.srec) {
         srec_keys(notes);
     } else if (step_keys()) {
-        for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a press */
-            uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off; with OCT+ held, its accent */
+        for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a short press */
+            uint32_t *t0 = &ui.step_t0[k];               /* toggles the step on its release, a hold edits it (owner
+                                                         * 2026-10-23); with OCT+ held, its accent at the press */
+            uint32_t held_long = *t0 && now - (*t0 & ~7u) >= STEP_HOLD_MS * 1000u * FM1_TICKS_PER_US;
             if ((notes >> STEP_KEY[k]) & 1u) {
                 if (acc_oct) {
                     step_accent(k);
                     acc_oct = 2;
-                    *t0 = (now | 1u | 4u) & ~2u;        /* (as it is now: a knob turned while held edits it) */
+                    *t0 = now | 1u | 2u | 4u;           /* (as it is now: a knob turned while held edits it) */
                 } else {
-                    step_press(k);
+                    step_grab(k);
                     *t0 = (now | 1u) & ~6u;
                 }
                 ui.held = (uint8_t)k;
-            } else if (!((fm1_in.notes >> STEP_KEY[k]) & 1u)) {
+            } else if (*t0 && !((fm1_in.notes >> STEP_KEY[k]) & 1u)) {
+                if (!(*t0 & 2u) && !held_long)
+                    step_tap(k);                        /* a short press: the step on / off */
                 *t0 = 0;
+            } else if (held_long) {
+                *t0 |= 2u;                              /* a hold: no tap; the STEP n PROB RATCH line */
             }
         }
     } else if (comp_mode()) {
