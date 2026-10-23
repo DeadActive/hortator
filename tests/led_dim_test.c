@@ -24,6 +24,7 @@ static volatile uint32_t host_gpio[8][8];          /* port, register / 4 */
 #define FM1_PR(p, r) host_gpio[(p)][(r) >> 2]
 #define FM1_INPUT_NOW() host_now
 #include "../firmware/hal/fm1_input.h"
+#include "../firmware/src/enc.c"                   /* (led_dim_tick runs its decoder once a frame) */
 #include "../firmware/src/led_dim.c"
 
 static int fails;

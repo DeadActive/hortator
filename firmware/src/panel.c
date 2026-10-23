@@ -58,7 +58,7 @@ static void panel_led(uint32_t label, int on) { fm1_led_key(panel.btn[label], on
 /* steps of a role, + = clockwise */
 static int32_t panel_enc(uint32_t role)
 {
-    return fm1_enc_take(panel.enc[role]) * panel.dir[role];
+    return enc_take(panel.enc[role]) * panel.dir[role];   /* (enc.c: not the HAL's fm1_enc_take, #126) */
 }
 
 /* user settings that survive a reset (mutebar: TRACKS mutes wait for the next bar). 32 B as in drum-v0.15.0: .noinit's

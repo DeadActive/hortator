@@ -19,6 +19,8 @@ cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wn
 "$OUT/metro_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ifirmware/src -o "$OUT/led_dim_test" tests/led_dim_test.c   # (the key backlight on the real scan)
 "$OUT/led_dim_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ifirmware/src -o "$OUT/enc_test" tests/enc_test.c   # (the knobs on the real scan, #126)
+"$OUT/enc_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/perform_test" tests/perform_test.c -lm
 "$OUT/perform_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/motion_test" tests/motion_test.c -lm

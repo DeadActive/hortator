@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Knobs: a quick turn no longer skips clicks. The frozen input HAL (upstream Felucca 1.0) took a contact state only
+  when two scan frames in a row saw it, so a knob snapping through its clicks lost them from ~40 clicks/s (a flick
+  counted next to nothing). The knobs are now decoded by upstream Felucca 1.1.5's decoder (276f72a, issue #126: every
+  frame counts, a jump carries on the way of the last click) in the drum firmware's own code (firmware/src/enc.c, run
+  by the scan's hook once a frame; the frozen files are untouched): every click counted up to ~300 clicks/s, still one
+  step a click, bounce and a still knob's chatter ignored (tests/enc_test.c).
+
 ## 0.23.2 - 2026-10-23
 
 - REC: on TRACKS a REC tap arms / disarms the selected track, saying so (`T3 REC ARMED` / `T3 REC OFF`). On every
