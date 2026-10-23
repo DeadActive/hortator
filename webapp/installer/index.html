@@ -278,7 +278,7 @@ class Updater {
     const outs = [...this.access.outputs.values()];
     for (const input of this.access.inputs.values()) {
       if (input.state === "disconnected") continue;
-      if (!/fm-1|felucca|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
+      if (!/fm-1|hortator|felucca|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
       const output = outs.find((o) => o.name === input.name && o.state !== "disconnected");
       if (!output) continue;
       try { await input.open(); await output.open(); } catch (_) { continue; }
@@ -504,7 +504,7 @@ const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textCont
 const say = (txt) => { lastKey = null; $("status").textContent = txt; };
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
-const meta = {"version": "drum-0.23.2+05d97a5", "product": "FM-1_900", "pkg": "../../firmware/felucca-drum-0.23.2-05d97a5.fwsc", "variants": [{"id": "std", "version": "drum-0.23.2+05d97a5", "pkg": "../../firmware/felucca-drum-0.23.2-05d97a5.fwsc"}, {"id": "ble", "version": "drum-0.23.2+05d97a5+ble", "pkg": "../../firmware/felucca-drum-0.23.2-05d97a5-ble.fwsc"}]};
+const meta = {"version": "drum-0.23.3+2d7a0b1", "product": "FM-1_900", "pkg": "../../firmware/felucca-drum-0.23.3-2d7a0b1.fwsc", "variants": [{"id": "std", "version": "drum-0.23.3+2d7a0b1", "pkg": "../../firmware/felucca-drum-0.23.3-2d7a0b1.fwsc"}, {"id": "ble", "version": "drum-0.23.3+2d7a0b1+ble", "pkg": "../../firmware/felucca-drum-0.23.3-2d7a0b1-ble.fwsc"}]};
 
 let writing = false;
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });

@@ -1,19 +1,39 @@
 {
- "version": "0.23.2",
- "commit": "05d97a5",
+ "version": "0.23.3",
+ "commit": "2d7a0b1",
  "date": "2026-10-23",
  "since": [],
  "release": {
-  "version": "0.23.2",
+  "version": "0.23.3",
   "date": "2026-10-23",
   "notes": [
    {
-    "title": "REC",
-    "text": "REC: on TRACKS a REC tap arms / disarms the selected track, saying so (T3 REC ARMED / T3 REC OFF). On every other page a REC tap is REC ALL: every track armed (REC ALL, the REC LED and the SMC-Mixer's REC 1-8 lit), so each white track key plays and records its own track wherever the keys play tracks (HOME, SOUND, FX, TRACKS ...): finger-drum a whole kit live. KEYS, step record and knob motion stay the selected track's. A REC tap off TRACKS ends it and arms again the tracks armed before (T3 REC ARMED / REC OFF); on TRACKS it ends it with the selected track armed. Step record on STEP, REC held and STOP TO EDIT while a song plays are unchanged; a learned REC and the SMC-Mixer's REC act as the button on the page shown; the SMC-Mixer's REC n during REC ALL ends it and disarms track n (the others stay armed). Not saved in projects, as the arm state."
+    "title": "Knobs crank faster",
+    "text": "Knobs crank faster: MENU > ACCEL ON (the default) now speeds a turn up from about 12 clicks a second, in fractions of a step (x2 at 20 clicks/s, x4 at 40, up to x8 on a wide value: upstream Felucca 1.1.5's caps, 276f72a), so a 0..127 value takes ~65 clicks at 20/s and ~24 at 60/s (before, and upstream Felucca: 127 and 64). A slow turn and single clicks stay one step a click; a reversal's first click is one step. Lists of names (MODEL, TYPE ..) never speed up (as upstream), the PRESETS list at most x4; ACCEL OFF stays one step a click (tests/accel_test.c)."
    },
    {
-    "title": "REC no longer starts play",
-    "text": "REC no longer starts play: a REC tap (and REC ALL, a learned REC, the SMC-Mixer's REC and REC 1-8) only arms / disarms; PLAY starts the transport, and an armed track records once playing. Step record is unchanged."
+    "title": "USB name",
+    "text": "USB name: the FM-1 now shows up as **Hortator** (USB MIDI and audio: in a DAW, AUM, the MIDI port list) instead of Felucca: the app's USB product string (firmware/src/usb_app.c STR2, 18 B \"Hortator\"; user decision 2026-10-23, frozen baseline moved to frozen-base-9 for that one string). While an update is written it still shows up as **Felucca Update** (the update loader, unchanged); the manufacturer string, VID/PID and the loader are unchanged. The web installer, the editor, tools/fm1_install.py and tools/fm1_sample_upload.py find a port named Hortator or Felucca (older firmware), so updating from any earlier build works as before."
+   },
+   {
+    "title": "MENU > COLOR",
+    "text": "MENU > COLOR: every colour now comes in both polarities, BLUE INV (blue on white) and GREEN INV (green on black) join RED INV (red on black); the row shows the theme's name as its value (RED, RED INV, BLUE, BLUE INV, GREEN, GREEN INV, in that order) instead of the boxes. A stored colour loads as the same theme as before (the new inverses take new indexes; an older Hortator shows them as RED)."
+   },
+   {
+    "title": "Step keys",
+    "text": "Step keys: holding a step no longer turns it off. A step toggles only on a short tap (let go within 0.3 s, no knob edit meanwhile), on the release. Held 0.3 s an OFF step turns on there and then (lit, ready to edit); an ON step stays exactly as it was. While a step is held on STEP, KNOB 1 / 2 / 3 set its PROB / RATCH / ACCENT (KNOB 3: a click right ACC on, left off), shown in the knob boxes and the STEP n PROB RATCH n ACC line (once held 0.3 s or edited). OCT+ held + a step key still flips the accent at the press. Every page whose white keys are the steps (STEP, PATTERN, MOTION, SONG, TRACKS)."
+   },
+   {
+    "title": "RESON KEYF",
+    "text": "RESON KEYF (KEYFOLLOW, RESON 2/2 KNOB 4, 0..100 %, 0 % = off, the default): the resonator's pitch follows the note of each hit from C4 (C4 = TUNE): a step's NOTE, a KEYS note, a ratchet's; at 100 % a step at C5 rings an octave above TUNE, at 50 % half an octave (MIDI notes play their track at C4: TUNE). Every model (STRNG, PIPE, CHORD, MODAL). A new note while the ring sounds glides the line there (a semitone a block at most, the line read per sample between lengths: no click). An amount rather than ON / OFF: partial tracking keeps a ring in a narrower range under a wide melody. KEYF 0 renders bit for bit as before. MIDI LEARN (R.KEYF) and MOTION take it. Projects stay \"FDRE\" at 3840 B (the sector is full): KEYF rides in each track's first step's spare byte, which every earlier firmware wrote as 0 and ignores, so older projects load with KEYF off and a project with KEYF loads on 0.23.2 without it."
+   },
+   {
+    "title": "MUTE",
+    "text": "MUTE: NEXT BAR works while following a clock (CLK USB, TRS or BLE): the waiting mutes now flip on the bar line instead of never. The bar is found from the clock's real advance in the block (read after the block's Clock), not the block's length; a muted COMP source (GHOST KEEP / HIDE) starts its 5 ms fade on the bar's last Clock pulse, so the fade ends before the bar's first hit. CLK INT is unchanged."
+   },
+   {
+    "title": "Knobs",
+    "text": "Knobs: a quick turn no longer skips clicks. The frozen input HAL (upstream Felucca 1.0) took a contact state only when two scan frames in a row saw it, so a knob snapping through its clicks lost them from ~40 clicks/s (a flick counted next to nothing). The knobs are now decoded by upstream Felucca 1.1.5's decoder (276f72a, issue #126: every frame counts, a jump carries on the way of the last click) in the drum firmware's own code (firmware/src/enc.c, run by the scan's hook once a frame; the frozen files are untouched): every click counted up to ~300 clicks/s, still one step a click, bounce and a still knob's chatter ignored (tests/enc_test.c)."
    }
   ]
  }
