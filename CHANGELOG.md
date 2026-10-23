@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.23.3 - 2026-10-23
+
 - Knobs crank faster: MENU > ACCEL ON (the default) now speeds a turn up from about 12 clicks a second, in fractions
   of a step (x2 at 20 clicks/s, x4 at 40, up to x8 on a wide value: upstream Felucca 1.1.5's caps, 276f72a), so a
   0..127 value takes ~65 clicks at 20/s and ~24 at 60/s (before, and upstream Felucca: 127 and 64). A slow turn and
