@@ -64,6 +64,8 @@ rm -rf build/ui_shots
 mkdir -p build/ui_shots/engines build/ui_shots/seq build/ui_shots/grids build/ui_shots/comp build/ui_shots/lfo build/ui_shots/reson build/ui_shots/perform build/ui_shots/motion build/ui_shots/song build/ui_shots/name build/ui_shots/phys build/ui_shots/filter build/ui_shots/fm build/ui_shots/ktrx build/ui_shots/trxdrums build/ui_shots/acid build/ui_shots/bt build/ui_shots/fixes build/ui_shots/learn build/ui_shots/presets build/ui_shots/voicegraph build/ui_shots/themes/md-red build/ui_shots/themes/red-on-black build/ui_shots/themes/white-on-blue build/ui_shots/themes/black-on-green build/ui_shots/themes/blue-on-white build/ui_shots/themes/green-on-black
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test" tests/ui_test.c -lm
 "$OUT/ui_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/accel_test" tests/accel_test.c -lm   # (the knob acceleration vs upstream's)
+"$OUT/accel_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/gfx_test" tests/gfx_test.c -lm
 "$OUT/gfx_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -DFELUCCA_BLE=1 -Ibuild/gen -Ifirmware/src -o "$OUT/bt_core_test" tests/bt_core_test.c -lm

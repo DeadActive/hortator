@@ -319,7 +319,7 @@ static void preset_list_input(uint32_t pressed, uint32_t notes, uint32_t home)
     if ((s = panel_enc(EN_PRESET)) != 0)              /* one preset per detent */
         pl_move((int32_t)ui.pr.cur + s);
     if ((s = panel_enc(EN_K1)) != 0)
-        pl_move((int32_t)ui.pr.cur + accel(EN_K1, s, (int32_t)PRE_NID));
+        pl_move((int32_t)ui.pr.cur + accel(EN_K1, s, 64));   /* (a list: at most x4, as before; one a slow click) */
     if ((s = panel_enc(EN_K2)) != 0)
         pl_bank(s);
     if ((s = panel_enc(EN_SELECT)) != 0)

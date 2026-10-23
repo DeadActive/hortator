@@ -189,6 +189,16 @@ on white), **GREEN** (dark on green), **GREEN INV** (green on black): each colou
 row steps back and on, OCT+ steps on; both wrap. A device setting: saved when the menu closes, not part of projects;
 a colour chosen on an older Hortator stays the same.
 
+### Knob acceleration
+
+MENU (hold HOME) **ACCEL** (ON by default): a knob turned on in one direction over a wide value (more than 32
+steps) speeds up with how fast it turns. A click at a time, or a turn of up to about 12 clicks a second, is one step
+a click (fine control); faster, the steps grow with the speed, in fractions of a step: about x2 at 20 clicks a
+second, x4 at 40, up to x8 (x4 on a value of 64 steps or less). A 0..127 value takes about 65 clicks at 20 a second,
+34 at 40, 24 at 60 (upstream Felucca's: 127, 65, 64). The first clicks of a turn and the first click back after a
+reversal are one step. Lists of names (MODEL, TYPE, WAVE ..) are one entry a click at any speed; the PRESETS list at
+most x4. ACCEL OFF: one step a click at any speed.
+
 ### Key backlight
 
 MENU (hold HOME) **BACKLIGHT** (the LED levels of upstream Felucca's MENU > LEDS): OFF (lit or dark, as before),

@@ -1454,8 +1454,9 @@ static void test_no_save_while_playing(void)
     memset(proj_slot, 0, sizeof proj_slot);
 }
 
-/* upstream 1.0 (#23 / #52): knob acceleration only for a turn going on in one direction over a wide range; the
- * first detents, a single quick detent (a bounce) and a reversal are one step each; at most x4; MENU switches it off */
+/* upstream 1.0 / 1.1.5 (#23 / #52): knob acceleration only for a turn going on in one direction over a wide range; the
+ * first detents, a single quick detent (a bounce) and a reversal are one step each; at most x8 (x4 over a range of 64 or
+ * less); MENU switches it off (the curve against upstream's: tests/accel_test.c) */
 static int32_t acc_at(int32_t s, int32_t range, uint32_t gap_ms)
 {
     host_ticks += gap_ms * 1000u * FM1_TICKS_PER_US;
@@ -1474,8 +1475,11 @@ static void test_knob_accel(void)
     for (k = 0; k < 6u; k++)                         /* a new turn (after a pause), fast */
         r[k] = acc_at(1, 127, k ? 8u : 300u);
     printf("     accel, a new fast turn (8 ms a detent): %d %d %d %d %d %d\n", r[0], r[1], r[2], r[3], r[4], r[5]);
-    check("accel: a fast turn speeds up after its first detents, at most x4",
-          r[0] == 1 && r[1] == 1 && r[5] > 1 && r[5] <= 4);
+    check("accel: a fast turn speeds up after its first detents, at most x8",
+          r[0] == 1 && r[1] == 1 && r[5] > 1 && r[5] <= 8);
+    for (k = 0; k < 6u; k++)                         /* the same over a range of 64: at most x4 */
+        r[k] = acc_at(1, 64, k ? 8u : 300u);
+    check("accel: over a range of 64 or less, at most x4", r[0] == 1 && r[5] > 1 && r[5] <= 4);
     check("accel: a reversal is one step", acc_at(-1, 127, 8) == -1);
     check("accel: a single quick detent after a pause (a bounce) is one step", acc_at(1, 127, 300) == 1 && acc_at(1, 127, 8) == 1);
     for (k = 0, ok = 1; k < 6u; k++)

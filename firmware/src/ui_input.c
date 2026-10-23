@@ -215,29 +215,44 @@ static void ui_leds(void)
 }
 
 /* ---------------------------------------------------------- input --- */
-/* knob acceleration (upstream 1.0, #23 / #52): only a turn going on in one direction over a wide value (range > 32)
- * speeds up, by the longer of this read's and the previous read's time per detent (ACC_RATE / ms: x2 .. x4); a slow
- * turn, the first two detents of a turn, a single quick detent (a bounce) and a reversal are one step per detent.
- * MENU > KNOB ACCEL OFF: always one step. ui.enc_t[role]: bits 0..23 the ms of its last read, bit 24 its direction
- * (+1), 25..31 its ms per detent (127 slow) */
-#define ACC_GAP 40u
-#define ACC_RATE 50u
+/* knob acceleration (MENU > KNOB ACCEL ON; after upstream Felucca 1.1.5's, 276f72a, #23 / #52 / #126): a turn going on
+ * in one direction over a wide value (range > 32) speeds up with the time per click, the longer of this read's and the
+ * previous read's: x ACC_RATE / ms, in sixteenths of a step carried through the turn (80 ms x1.25, 50 ms (20 clicks/s)
+ * x2, 25 ms x4, 12.5 ms x8), at most x4, x8 over a range above 64 (upstream's caps). A click slower than ACC_GAP ms
+ * (12.5 clicks/s and slower), the first two reads of a turn, a single quick click (a bounce) and a reversal are one
+ * step a click, and the sign is always the clicks'. Faster than upstream's (x50 / ms from 40 ms: x1 to 25 clicks/s,
+ * x2 .. x3 at 40 .. 60) at a medium turn; the same caps. A list of names (F_ENUM: MODEL, TYPE ..) never speeds up
+ * (knob_turn; upstream's too). OFF: always one step a click. ui.enc_t[role]: bits 0..23 the ms of its last read, bit 24
+ * its direction (+1), 25..31 its ms per click (127 slow); ui.enc_c[role] the carry. tests/accel_test.c: the clicks
+ * to sweep 0..127 against upstream's */
+#define ACC_GAP 80u
+#define ACC_RATE 100u
 static int32_t accel(uint32_t role, int32_t s, int32_t range)
 {
     uint32_t now = (fm1_ticks() / (1000u * FM1_TICKS_PER_US)) & 0xFFFFFFu, st = ui.enc_t[role], up = s > 0, pi = st >> 25;
-    uint32_t a, i, m = 1;
+    uint32_t a, i, m = 16u, cap;
     if (!settings.accel || range <= 32 || !s)
         return s;
     a = (uint32_t)(s < 0 ? -s : s);
-    i = ((now - st) & 0xFFFFFFu) / a;                   /* ms per detent of this read */
-    if (!st || ((st >> 24) & 1u) != up || i >= ACC_GAP)
+    i = ((now - st) & 0xFFFFFFu) / a;                   /* ms per click of this read */
+    if (!st || ((st >> 24) & 1u) != up || i >= ACC_GAP) {
         i = 127u;                                       /* a new turn, or reversed */
-    else if (pi < ACC_GAP) {
-        m = ACC_RATE / (i > pi ? i : pi ? pi : 1u);
-        m = m < 1u ? 1u : m > 4u ? 4u : m;
+        ui.enc_c[role] = 0;
+    } else if (pi < ACC_GAP) {
+        cap = range > 64 ? 8u * 16u : 4u * 16u;
+        m = ACC_RATE * 16u / (i > pi ? i : pi ? pi : 1u);
+        m = m < 16u ? 16u : m > cap ? cap : m;
     }
     ui.enc_t[role] = now | up << 24 | (i ? i : 1u) << 25;
-    return s * (int32_t)m;
+    a = a * m + ui.enc_c[role];                         /* sixteenths: at least one step a click */
+    ui.enc_c[role] = (uint8_t)(a & 15u);
+    return up ? (int32_t)(a >> 4) : -(int32_t)(a >> 4);
+}
+
+/* a knob (role) turned s on the value v of d: the new value; a list of names one entry a click (upstream 1.1.5) */
+static int32_t knob_turn(uint32_t role, const param_desc_t *d, int32_t v, int32_t s)
+{
+    return param_turn(d, v, accel(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
 }
 
 /* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH, KNOB 3: its accent (a detent right ACC on, left off),
@@ -472,7 +487,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         ui_say("CLK ", N_CLOCK[song.g[G_CLOCK]]);
         return;
     }
-    v = param_turn(d, *vp, accel(EN_K1 + slot, steps, d->max - d->min));
+    v = knob_turn(EN_K1 + slot, d, *vp, steps);
     if (pg->scope == SC_TRACK && id == P_RMODEL && v != *vp) {   /* a capped model full: the next one (or why not) */
         int32_t dir = v > *vp ? 1 : -1;
         const char *why = reson_refused(TSEL, *vp, v);
@@ -1122,7 +1137,7 @@ static void ui_input(void)
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
             if (d->max > d->min) {
-                int32_t v = param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
+                int32_t v = knob_turn(EN_K1 + k, d, *vp, s);
                 if (v != *vp)
                     preset_touch(TSEL);                 /* (TUNE DECAY TONE CHAR: the voice edited; not at a limit) */
                 *vp = (int16_t)v;

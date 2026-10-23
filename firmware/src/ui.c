@@ -80,6 +80,7 @@ static struct {
     uint8_t confirm_trk;
     char msg[24];
     uint32_t enc_t[NE];
+    uint8_t enc_c[NE];           /* knob acceleration: the turn's carried sixteenths of a step (ui_input.c accel) */
     char col[4][32];
     char focus_l[8], focus_v[8], focus_u[8];
     uint32_t graph_sig, head_sig, foot_sig, msg_sig, tempo_sig, col_sig, lev_sig, lev_m, frame;

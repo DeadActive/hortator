@@ -5,6 +5,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Knobs crank faster: MENU > ACCEL ON (the default) now speeds a turn up from about 12 clicks a second, in fractions
+  of a step (x2 at 20 clicks/s, x4 at 40, up to x8 on a wide value: upstream Felucca 1.1.5's caps, 276f72a), so a
+  0..127 value takes ~65 clicks at 20/s and ~24 at 60/s (before, and upstream Felucca: 127 and 64). A slow turn and
+  single clicks stay one step a click; a reversal's first click is one step. Lists of names (MODEL, TYPE ..) never
+  speed up (as upstream), the PRESETS list at most x4; ACCEL OFF stays one step a click (tests/accel_test.c).
 - USB name: the FM-1 now shows up as **Hortator** (USB MIDI and audio: in a DAW, AUM, the MIDI port list) instead of
   Felucca: the app's USB product string (firmware/src/usb_app.c STR2, 18 B "Hortator"; user decision 2026-10-23,
   frozen baseline moved to `frozen-base-9` for that one string). While an update is written it still shows up as
