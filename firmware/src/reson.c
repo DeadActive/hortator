@@ -16,6 +16,9 @@
 #define RS_MAXTRK 4u                                  /* RESON on 4 tracks at most (CPU; 2 of them CHORD), by user decision */
 static int16_t rs_buf[NTRK][RS_LEN] __attribute__((section(".pool"), aligned(4)));   /* MODAL: its mode states */
 #define RS_MAXMODAL 2u                                /* MODAL on 2 tracks at most (its 12 modes: CPU) */
+#define RS_KGLIDE 256                                 /* KEYF: a retune under a ring moves a semitone a block at most (an
+                                                         * octave in 12 blocks, 8.7 ms), the lines read per sample between
+                                                         * the blocks' lengths (reson_line_glide): the ring never jumps */
 #define RS_MODAL_IN 6                                 /* MODAL: the track's scale -> the modes' Q22 (<< this) */
 
 static const int8_t RS_CHORD_IV[RS_NCHORD][4] = {   /* semitones above TUNE, one note per line (N_RCHORD) */
@@ -27,6 +30,25 @@ static const int8_t RS_CHORD_IV[RS_NCHORD][4] = {   /* semitones above TUNE, one
 /* p >> sh rounded toward zero: the loop's errors never feed energy one way (a floor's bias, held by a gain just
  * under 1, kept a DC offset or a small cycle alive for ever), so a ring always decays to an all-zero line */
 static inline int32_t rs_mz(int32_t p, int32_t sh) { return (p + ((p >> 31) & ((1 << sh) - 1))) >> sh; }
+
+/* KEYF (P_RKEY): the ring follows the last hit's note (drum_core.c drum_play: rs.knt) from C4, by KEYF (127 = 100 %).
+ * The offset this block plays -> r->kq (1/256 semitone): a silent line takes it at once, a ringing one glides to it
+ * (RS_KGLIDE); 1 = it moved under a ring of lines (STRNG / PIPE / CHORD, not fading): they glide (reson_glide; MODAL's
+ * modes follow block by block). KEYF 0: always 0, nothing else changes */
+static __attribute__((noinline)) uint32_t reson_key(track_t *t)   /* (out of line: reson_block's loops stay as they were,
+                                                                     * tests/target_budget.py) */
+{
+    reson_t *r = &t->rs;
+    int32_t kf = clamp(t->p[P_RKEY], 0, 127), to = kf ? r->knt * kf * 256 / 127 : 0, d = to - r->kq;
+    if (!d)
+        return 0;
+    if (!r->ring) {
+        r->kq = to;
+        return 0;
+    }
+    r->kq += clamp(d, -RS_KGLIDE, RS_KGLIDE);
+    return !r->kill && r->ns && r->model != RS_MODAL;
+}
 
 static uint32_t rs_chord(const track_t *t) { return (uint32_t)clamp(t->p[P_RSTRCT], 0, 127) * RS_NCHORD / 128u; }
 
@@ -75,7 +97,7 @@ static __attribute__((noinline)) uint32_t reson_modal(track_t *t, const int32_t 
     reson_t *r = &t->rs;
     px_modal_t *M = (px_modal_t *)(void *)rs_buf[t - trk];
     px_modal_blk_t K;
-    int32_t x[CTL], y[CTL], base = (clamp(t->p[P_RTUNE], 24, 96) << 8) + t->rfine, ink = r->kill || r->hold ? 0 : -1;
+    int32_t x[CTL], y[CTL], base = (clamp(t->p[P_RTUNE], 24, 96) << 8) + t->rfine + r->kq, ink = r->kill || r->hold ? 0 : -1;
     uint32_t i, peak = 0, f0;
     base = clamp(base, 0, 127 * 256);
     f0 = (uint32_t)(((uint64_t)qnote_inc(base >> 8) * px_exp2(((base & 255) << 16) / (12 * 256))) >> 16);
@@ -119,13 +141,13 @@ static void reson_clear(track_t *t)                   /* silence: the line and t
     r->ring = r->kill = 0;
 }
 
-/* this block's lines for model m: lengths from TUNE (+ the chord, + the fine offset), the gains from DECAY, the
+/* this block's lines for model m: lengths from TUNE (+ the chord, + the fine offset, + KEYF's), the gains from DECAY, the
  * damping from TONE, the stiffness from STRCT, the pickup tap from POS */
-static void reson_setup(track_t *t, uint32_t m)
+static inline __attribute__((always_inline)) void reson_setup(track_t *t, uint32_t m)   /* (in reson_block, as measured) */
 {
     reson_t *r = &t->rs;
     uint32_t s, seg = m == RS_CHORD ? RS_SEG : RS_LEN;
-    int32_t base = (clamp(t->p[P_RTUNE], 24, 96) << 8) + t->rfine, dk = (int32_t)RS_DK[clamp(t->p[P_RDECAY], 0, 127)];
+    int32_t base = (clamp(t->p[P_RTUNE], 24, 96) << 8) + t->rfine + r->kq, dk = (int32_t)RS_DK[clamp(t->p[P_RDECAY], 0, 127)];
     int32_t k = RS_TONE_K[clamp(t->p[P_RTONE], 0, 127)], a, comp;
     if (m == RS_CHORD && base < (48 << 8))
         base = 48 << 8;                               /* CHORD: the lowest string C3 */
@@ -147,13 +169,75 @@ static void reson_setup(track_t *t, uint32_t m)
     }
 }
 
+/* KEYF's glide: line s for this block (as reson_block's loop) with its delay and pickup tap moving per sample from the
+ * last block's (l0, t0, Q8 / samples) to this block's: the read slides, never jumps. Returns the line's peak (OR) */
+static __attribute__((noinline)) uint32_t reson_line_glide(reson_t *r, int16_t *ln, uint32_t s, const int32_t *b, int32_t *ring,
+                                                           uint32_t n, uint32_t l0, uint32_t t0)
+{
+    uint32_t i, w = r->w, seg = r->seg, peak = 0;
+    int32_t dq = (int32_t)l0, dd = ((int32_t)r->len[s] - dq) / (int32_t)n, tq = (int32_t)t0 << 8;
+    int32_t td = (((int32_t)r->tap[s] << 8) - tq) / (int32_t)n;
+    int32_t lp = r->lp[s], lr = r->lr[s], apx = r->apx[s], apy = r->apy[s], g = r->g[s], k = r->k, a = r->a, ink = r->kill || r->hold ? 0 : 1;
+    for (i = 0; i < n; i++) {
+        uint32_t li, rp, tap;
+        int32_t x0, d, y, v;
+        dq += dd;                                     /* (between the two lengths: >= 2 samples, < seg - 1) */
+        tq += td;
+        li = (uint32_t)dq >> 8;
+        rp = w >= li ? w - li : w + seg - li;
+        x0 = ln[rp];
+        d = x0 + rs_mz((ln[rp ? rp - 1u : seg - 1u] - x0) * (dq & 255), 8);
+        {
+            int32_t e = (d - lp) * k + lr, st = e >> 15;
+            lr = e - (st << 15);
+            lp += st;
+        }
+        if (a) {
+            int64_t q = (int64_t)(lp - apy) * a;
+            y = (int32_t)((q + ((q >> 63) & 32767)) >> 15) + apx;
+            apy = y;
+        } else {
+            y = apx;
+        }
+        apx = lp;
+        v = clamp(((b[i] >> 2) & -ink) + rs_mz(rs_mz(y, 1) * g, 14), -32767, 32767);
+        tap = (uint32_t)tq >> 8;
+        ring[i] += tap ? v - ln[w >= tap ? w - tap : w + seg - tap] : v;
+        ln[w] = (int16_t)v;
+        peak |= (uint32_t)(v ^ (v >> 31));
+        if (++w == seg)
+            w = 0;
+    }
+    r->lp[s] = lp;
+    r->lr[s] = lr;
+    r->apx[s] = apx;
+    r->apy[s] = apy;
+    return peak;
+}
+
+/* KEYF moved the pitch under a ring: this block's lines (reson_setup) read gliding from the last block's lengths and
+ * taps; returns their peak (OR) */
+static __attribute__((noinline)) uint32_t reson_glide(track_t *t, int16_t *buf, const int32_t *b, int32_t *ring, uint32_t n)
+{
+    reson_t *r = &t->rs;
+    uint32_t s, peak = 0, l0[4], t0[4];
+    for (s = 0; s < r->ns; s++) {
+        l0[s] = r->len[s];
+        t0[s] = r->tap[s];
+    }
+    reson_setup(t, r->model);
+    for (s = 0; s < r->ns; s++)
+        peak |= reson_line_glide(r, buf + s * r->seg, s, b, ring, n, l0[s], t0[s]);
+    return peak;
+}
+
 /* track t's block b (its rendered sound) through RESON, in place: b = dry + (ring - dry) x MIX. A model change
  * or a cut (kill) fades the old ring out over the block, then clears it. Returns non-zero while it rings. */
 static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, uint32_t n)   /* (measured on its own:
                                                          * tests/target_budget.py) */
 {
     reson_t *r = &t->rs;
-    uint32_t m = (uint32_t)clamp(t->p[P_RMODEL], 0, RS_NMODEL - 1), i, s, peak = 0;
+    uint32_t m = (uint32_t)clamp(t->p[P_RMODEL], 0, RS_NMODEL - 1), i, s, peak = 0, gl;
     int32_t ring[CTL], mix = t->p[P_RMIX] * 258, fade = 32767, fstep;
     int16_t *buf = rs_buf[t - trk];
     if (m != r->model) {
@@ -173,11 +257,14 @@ static __attribute__((noinline)) uint32_t reson_block(track_t *t, int32_t *b, ui
     fstep = r->kill ? 32767 / (int32_t)n + 1 : 0;
     for (i = 0; i < n; i++)
         ring[i] = 0;
+    gl = reson_key(t);                                /* KEYF moved the pitch under a ring: the lines glide */
     if (r->model == RS_MODAL)
         peak = reson_modal(t, b, ring, n);
+    else if (gl)
+        peak = reson_glide(t, buf, b, ring, n);
     else
         reson_setup(t, r->model);
-    for (s = 0; s < r->ns; s++) {
+    for (s = gl ? r->ns : 0u; s < r->ns; s++) {
         int16_t *ln = buf + s * r->seg;
         uint32_t li = r->len[s] >> 8, w = r->w, seg = r->seg, tap = r->tap[s];
         uint32_t rp = w >= li ? w - li : w + seg - li, tp = w >= tap ? w - tap : w + seg - tap;   /* read, pickup tap */

@@ -1443,6 +1443,55 @@ static int fdre_slots_round_trip(void)
            proj_slot[3].magic == 0x45524446u;       /* "FDRE" */
 }
 
+/* RESON KEYF (P_RKEY): FDRE's parameter block is full, so a track's KEYF rides in its first step's spare byte; kept
+ * through a save and a load, the record still 3840 B "FDRE", the live steps' spare bytes 0 */
+static int fdre_keyf_round_trip(void)
+{
+    uint32_t k, i, ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    pattern_kit();
+    trk[2].p[P_RKEY] = 127;
+    trk[5].p[P_RKEY] = 64;
+    trk[7].p[P_RKEY] = 1;
+    project_save(2);
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(2);
+    for (k = 0; k < NTRK; k++) {
+        ok &= trk[k].p[P_RKEY] == (k == 2u ? 127 : k == 5u ? 64 : k == 7u ? 1 : 0);
+        for (i = 0; i < NSTEP; i++)
+            ok &= trk[k].step[i].rsv == 0;
+    }
+    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x45524446u && proj_ok(&proj_slot[2]);
+}
+/* an FDRE record from before KEYF (its steps' spare bytes 0, as every earlier firmware wrote them) loads with KEYF
+ * off on every track, and plays as it did */
+static int fdre_old_keyf_off(void)
+{
+    project_t *p = &proj_slot[1];
+    uint32_t k, i, ok = 1, ref, h;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    pattern_kit();
+    project_save(1);
+    for (k = 0; k < NTRK; k++)                         /* (what 0.23.2 wrote: no byte of it set) */
+        for (i = 0; i < NSTEP; i++)
+            ok &= p->t[k].step[i].rsv == 0;
+    host_init();
+    ref = play_hash(1);
+    host_init();
+    for (k = 0; k < NTRK; k++)
+        trk[k].p[P_RKEY] = 99;                        /* the live KEYF: replaced by the load */
+    h = play_hash(1);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_RKEY] == 0;
+    return (int)ok && h == ref;
+}
+
 /* RAM slots left by 0.16.0 (.noinit, FDRB at 3672 B a slot; FDRC's are 3688 B): never read as projects; every slot
  * comes from flash (FDRB converted, PRIO HIGH), a slot with no flash record is empty */
 static int fdrb_ram_refetched(void)
@@ -1775,6 +1824,9 @@ int main(void)
     check("project: an FDRD record's LFO DEST / DEPTH load as DEST slots 1 / 2 (LFO 1 / 2), 3 / 4 off; it plays as its "
           "FDRE save, motion and presets kept", fdrd_lfo_converts());
     check("project: the DEST slots kept through a save and a load (FDRE, 3840 B: one flash sector)", fdre_slots_round_trip());
+    check("project: RESON KEYF kept through a save and a load (FDRE, still 3840 B: the steps' spare bytes)",
+          fdre_keyf_round_trip());
+    check("project: an FDRE record from before KEYF loads with KEYF off, playing as before", fdre_old_keyf_off());
     check("last project: a flash SAVE remembers its slot; power-on loads it (stopped, LOADED, no IRQ enable)",
           last_project_loads());
     check("last project: an empty slot asks START NEW PROJECT? over the power-on kit; NO asks again, YES forgets",

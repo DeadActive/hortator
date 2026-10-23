@@ -5,6 +5,14 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- RESON KEYF (KEYFOLLOW, RESON 2/2 KNOB 4, 0..100 %, 0 % = off, the default): the resonator's pitch follows the note of
+  each hit from C4 (C4 = TUNE): a step's NOTE, a KEYS note, a ratchet's; at 100 % a step at C5 rings an octave above
+  TUNE, at 50 % half an octave (MIDI notes play their track at C4: TUNE). Every model (STRNG, PIPE, CHORD, MODAL). A
+  new note while the ring sounds glides the line there (a semitone a block at most, the line read per sample between
+  lengths: no click). An amount rather than ON / OFF: partial tracking keeps a ring in a narrower range under a wide
+  melody. KEYF 0 renders bit for bit as before. MIDI LEARN (`R.KEYF`) and MOTION take it. Projects stay "FDRE" at
+  3840 B (the sector is full): KEYF rides in each track's first step's spare byte, which every earlier firmware wrote
+  as 0 and ignores, so older projects load with KEYF off and a project with KEYF loads on 0.23.2 without it.
 - MUTE: NEXT BAR works while following a clock (CLK USB, TRS or BLE): the waiting mutes now flip on the bar line
   instead of never. The bar is found from the clock's real advance in the block (read after the block's Clock), not
   the block's length; a muted COMP source (GHOST KEEP / HIDE) starts its 5 ms fade on the bar's last Clock pulse, so

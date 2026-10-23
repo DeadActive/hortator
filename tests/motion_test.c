@@ -92,7 +92,7 @@ static void test_not_recording(void)
 static void test_recordable_list(void)
 {
     static const uint8_t YES[] = {P_E0, P_E7, P_LEVEL, P_PAN, P_DIST, P_REV, P_SLPAT, P_SLRATE, P_SLDEPTH, P_LLEVEL,
-                                  P_LDEC, P_LFO1 + LF_RATE, P_LFO2 + LF_MORPH, P_LFO2 + LF_DEPTH, P_RTUNE, P_RPOS};
+                                  P_LDEC, P_LFO1 + LF_RATE, P_LFO2 + LF_MORPH, P_LFO2 + LF_DEPTH, P_RTUNE, P_RPOS, P_RKEY};
     static const uint8_t NO[] = {P_MODEL, P_MUTE, P_CHOKE, P_NOTE, P_SLCR, P_SLEN, P_SDIV, P_SSWING, P_LSET, P_LKEY,
                                  P_SRC, P_DUCK, P_LFO1 + LF_WAVE, P_LFO1 + LF_MODE, P_LFO2 + LF_DEST,
                                  P_LFO2 + LF_TRIG, P_LFO1 + LF_PHASE, P_RMODEL};

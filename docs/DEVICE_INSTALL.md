@@ -308,6 +308,12 @@ Report what you saw first; we'll go through it together.
 - CPU: RESON on 4 tracks (2 CHORD) with a dense pattern: GLOBAL -> SYSTEM CPU under 100 %, no crackle (note the
   CPU % you see: the stress case on the host is above the stock reference, by decision).
 - SAVE / power cycle / LOAD: RESON comes back; an older project loads with RESON OFF.
+- KEYF (KEYFOLLOW, RESON 2/2 KNOB 4; the screen: `build/ui_shots/reson/04_keyf.png`): STRNG on the snare, TUNE C3,
+  KEYF 100 %; steps at C4, C5, G4 (STEP: the step's NOTE): the ring plays C3, C4, G3 (the melody of
+  the steps). KEYF 50 %: half the intervals. KEYS on the track: the ring follows the keys. A fast run of notes with a
+  long DECAY: each new note slides into place without a click. KEYF 0 %: the ring stays at TUNE (as before).
+- A project saved before KEYF loads with KEYF 0 % on every track and sounds as before; KEYF set, SAVE, power
+  cycle, LOAD: it comes back. MIDI LEARN on KEYF names it `T1 R.KEYF`.
 
 ### Panel (stage 2 step 1: check on the FM-1)
 

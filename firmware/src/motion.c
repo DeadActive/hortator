@@ -39,7 +39,8 @@ static int motion_param(uint32_t id)
         return id == P_LS3DEPTH || id == P_LS4DEPTH;
     return (id >= P_E0 && id <= P_E7) || id == P_LEVEL || id == P_PAN || (id >= P_DIST && id <= P_REV) ||
            (id >= P_SLPAT && id <= P_SLDEPTH) || (id >= P_LLEVEL && id <= P_LDEC) || (id >= P_RTUNE && id <= P_RPOS) ||
-           (id >= P_FCUT && id <= P_FDEC);   /* the FILTER's knobs, not its TYPE (as RESON's MODEL) */
+           (id >= P_FCUT && id <= P_FDEC) || id == P_RKEY;   /* the FILTER's knobs, not its TYPE (as RESON's MODEL);
+                                                                 * RESON's KEYF */
 }
 static int motion_on(uint32_t k) { return (int)((mo.s.on >> k) & 1u); }
 static uint32_t motion_count(uint32_t k)

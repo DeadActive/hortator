@@ -87,6 +87,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LS3DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0),
     [P_LS4SRC] = PE("SRC", N_LSRC, 1), [P_LS4DEST] = PD("DEST", F_LDEST, 0, 18, 0),
     [P_LS4DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0),
+    [P_RKEY] = PD("KEYF", F_PCT, 0, 127, 0),       /* RESON KEYFOLLOW: 0 off (the ring at TUNE), 127 = 100 % */
 };
 
 static const param_desc_t GP[G_COUNT] = {

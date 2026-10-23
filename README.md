@@ -51,7 +51,10 @@ firmware ([below](#back-to-the-official-firmware)).
   key track muted.
 - **Movement.** Two LFOs per track, ten waves with a morph between them, synced to the tempo.
 - **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM or SPRING reverb
-  and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker.
+  and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker. RESON is tuned in semitones (TUNE);
+  its **KEYF** (KEYFOLLOW, RESON 2/2 KNOB 4, 0 % = off) makes the ring follow the note of each hit from C4: at 100 % a
+  step at C5 (or a KEYS note, a ratchet's note) rings an octave above TUNE, at 50 % half an octave; MIDI notes play
+  their track at C4, so they ring at TUNE. A new note under a ringing tail glides to it in a few ms, without a click.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
