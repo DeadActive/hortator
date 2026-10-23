@@ -58,6 +58,7 @@
 #include "seq.c"
 #include "bench.c"           /* BENCH: the performance cases (console `bench`) */
 #include "audio.c"
+#include "enc.c"           /* the knobs: upstream 1.1.5's decoder (#126) on the scan's frames (led_dim.c hook) */
 #include "panel.c"
 #include "pages.c"
 #include "ui.c"

@@ -9,6 +9,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   instead of never. The bar is found from the clock's real advance in the block (read after the block's Clock), not
   the block's length; a muted COMP source (GHOST KEEP / HIDE) starts its 5 ms fade on the bar's last Clock pulse, so
   the fade ends before the bar's first hit. CLK INT is unchanged.
+- Knobs: a quick turn no longer skips clicks. The frozen input HAL (upstream Felucca 1.0) took a contact state only
+  when two scan frames in a row saw it, so a knob snapping through its clicks lost them from ~40 clicks/s (a flick
+  counted next to nothing). The knobs are now decoded by upstream Felucca 1.1.5's decoder (276f72a, issue #126: every
+  frame counts, a jump carries on the way of the last click) in the drum firmware's own code (firmware/src/enc.c, run
+  by the scan's hook once a frame; the frozen files are untouched): every click counted up to ~300 clicks/s, still one
+  step a click, bounce and a still knob's chatter ignored (tests/enc_test.c).
 
 ## 0.23.2 - 2026-10-23
 

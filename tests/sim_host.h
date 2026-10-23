@@ -46,7 +46,8 @@ static struct { volatile uint32_t notes, buttons, pressed, notes_pressed; } fm1_
 static int32_t sim_enc_acc[7];
 static uint8_t fm1_led[FM1_NCOL];
 static uint8_t fm1__tick_col;                         /* (hal/fm1_input.h: the column the scan lit last; led_dim.c) */
-static int32_t fm1_enc_take(uint32_t e) { int32_t s = sim_enc_acc[e % 7u]; sim_enc_acc[e % 7u] = 0; return s; }
+static int32_t enc_take(uint32_t e) { int32_t s = sim_enc_acc[e % 7u]; sim_enc_acc[e % 7u] = 0; return s; }   /* (enc.c) */
+static void enc_frame(void) {}                         /* (enc.c, left out: the scan's decoder; the page feeds steps) */
 static uint32_t fm1_input_edges(uint32_t *released)
 {
     uint32_t p = fm1_in.pressed;

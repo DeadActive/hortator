@@ -252,6 +252,7 @@ static uint32_t c_includes(const char *path, char names[][32], uint32_t max)
 static void test_drift(void)
 {
     static const char *const LEFT_OUT[] = {"lcd.c", "main.c", "ota.c", "console.c",   /* see sim_host.h */
+                                           "enc.c",   /* the scan's knob decoder: the page feeds detents (enc_take) */
                                            "smc.c", "bt_midi.c", "bt_page.c", "core_ble_api.c"};   /* FELUCCA_BLE only */
     static char fw[64][32], sim[64][32];
     uint32_t nf = c_includes("firmware/src/felucca.c", fw, 64), ns = c_includes("tests/sim_host.h", sim, 64), i, j, ok = 1;

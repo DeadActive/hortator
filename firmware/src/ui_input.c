@@ -1173,14 +1173,14 @@ static void panel_setup(void)
         draw_text_box(0, 80, 240, &FONT_S, "TURN RIGHT", C_INK, 1);
         draw_text_box(0, 100, 240, &FONT_L, E_NAME[i], C_INK, 1);
         for (e = 0; e < 7u; e++)
-            fm1_enc_take(e);
+            enc_take(e);
         t0 = fm1_ms;
         for (;;) {
             fm1_wdt_feed();
             if (fm1_ms - t0 > SETUP_IDLE_MS)
                 goto timeout;
             for (e = 0; e < 7u; e++)
-                if (!((used >> e) & 1u) && (st = fm1_enc_take(e)) != 0)
+                if (!((used >> e) & 1u) && (st = enc_take(e)) != 0)
                     break;
             if (e < 7u)
                 break;
@@ -1189,7 +1189,7 @@ static void panel_setup(void)
         panel.dir[i] = (int8_t)(st > 0 ? 1 : -1);
         used |= 1u << e;
         fm1_delay_ms(300);
-        fm1_enc_take(e);
+        enc_take(e);
     }
     panel.magic = PANEL_MAGIC;
     lcd_fill(0, 0, 240, 240, C_BG);
