@@ -377,7 +377,8 @@ static uint32_t held_step(void)
 }
 
 /* key k of the grid pressed: the step it holds, bank * 16 + k, inside LEN only (a song's lock: none, saying so).
- * The press changes nothing: a short one toggles the step on the release (step_tap), a hold edits it (step_edit) */
+ * The press changes nothing: a short one toggles the step on the release (step_tap); a hold turns an off step on
+ * (step_hold_on) and edits it (step_edit) */
 static void step_grab(uint32_t k)
 {
     uint32_t si = ui.bank * 16u + k;
@@ -387,6 +388,26 @@ static void step_grab(uint32_t k)
     if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
         return;
     ui.step_si[k] = (uint16_t)si;
+}
+
+/* key k's step held for editing (STEP_HOLD_MS down, or a knob edit while down; owner 2026-10-23): an OFF step turns
+ * on there and then (plain, the note a tap's new step gets), lit, its line up and its knobs live; an ON step stays
+ * exactly as it is. Once a press (bit 2) */
+static void step_hold_on(uint32_t k)
+{
+    step_t *s;
+    if (k >= 16u || (ui.step_t0[k] & 4u))
+        return;
+    ui.step_t0[k] |= 4u;
+    if (ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL) || chain_busy())
+        return;
+    s = &TSEL->step[ui.step_si[k]];
+    if (!s->on) {
+        s->nt = new_step_nt(TSEL);                    /* spec §2: ACID's last played / recorded note, a drum's C4 */
+        s->on = 1;
+        s->acc = 0;
+        s->tie = 0;                                   /* a TIE step turned on plays (acid_step reads TIE first) */
+    }
 }
 
 /* key k let go after a short press (down less than STEP_HOLD_MS, no held-step edit, its page and track unchanged):

@@ -16,10 +16,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   GREEN INV, in that order) instead of the boxes. A stored colour loads as the same theme as before (the new
   inverses take new indexes; an older Hortator shows them as RED).
 - Step keys: holding a step no longer turns it off. A step toggles only on a short tap (let go within 0.3 s, no knob
-  edit meanwhile), on the release; a longer press, or KNOB 1 / 2 (PROB / RATCH) turned while held, leaves it as it
-  was, so holding is for editing only (an off step edited turns on). The `STEP n PROB RATCH` line shows once a step
-  is held 0.3 s or edited. OCT+ held + a step key (accent) acts at the press as before. Every page whose white keys
-  are the steps (STEP, PATTERN, MOTION, SONG, TRACKS).
+  edit meanwhile), on the release. Held 0.3 s an OFF step turns on there and then (lit, ready to edit); an ON step
+  stays exactly as it was. While a step is held on STEP, KNOB 1 / 2 / 3 set its PROB / RATCH / ACCENT (KNOB 3: a click
+  right ACC on, left off), shown in the knob boxes and the `STEP n PROB RATCH n ACC` line (once held 0.3 s or edited).
+  OCT+ held + a step key still flips the accent at the press. Every page whose white keys are the steps (STEP,
+  PATTERN, MOTION, SONG, TRACKS).
 - RESON KEYF (KEYFOLLOW, RESON 2/2 KNOB 4, 0..100 %, 0 % = off, the default): the resonator's pitch follows the note of
   each hit from C4 (C4 = TUNE): a step's NOTE, a KEYS note, a ratchet's; at 100 % a step at C5 rings an octave above
   TUNE, at 50 % half an octave (MIDI notes play their track at C4: TUNE). Every model (STRNG, PIPE, CHORD, MODAL). A

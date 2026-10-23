@@ -697,22 +697,36 @@ static void graph_steps(const track_t *t, uint16_t c)
 
 static int srec_ok(void);                               /* ui_input.c: a REC tap starts step record */
 
-/* the STEP page's held step (a grid key held, KEYS off) at graph row y: "STEP n  PROB  RATCH n"; 0: none held */
-static int held_line(const track_t *t, int32_t y)
+/* the held step's line into h (32 B): "STEP n  PROB  RATCH n", + "  ACC" when accented; its index, NSTEP none held
+ * (worst "STEP 64  1-SHOT  RATCH 4  ACC": 29 characters, 236 px) */
+static uint32_t held_text(char *h)
 {
     const step_t *hs;
-    char h[32], cs[8];
+    char cs[8];
     uint32_t si = held_step();                        /* (held STEP_HOLD_MS, or edited: a tap shows nothing) */
+    h[0] = 0;
     if (si >= NSTEP)
-        return 0;
-    hs = &t->step[si];
-    str_cpy(h, "STEP ", sizeof h);
+        return NSTEP;
+    hs = &TSEL->step[si];
+    str_cpy(h, "STEP ", 32);
     fmt_int(h + str_len(h), (int32_t)si + 1);
-    str_cpy(h + str_len(h), "  ", sizeof h - str_len(h));
+    str_cpy(h + str_len(h), "  ", 32 - str_len(h));
     cond_format(hs->cond, cs);
-    str_cpy(h + str_len(h), cs, sizeof h - str_len(h));
-    str_cpy(h + str_len(h), "  RATCH ", sizeof h - str_len(h));
+    str_cpy(h + str_len(h), cs, 32 - str_len(h));
+    str_cpy(h + str_len(h), "  RATCH ", 32 - str_len(h));
     fmt_int(h + str_len(h), (int32_t)hs->rat + 1);
+    if (hs->acc)
+        str_cpy(h + str_len(h), "  ACC", 32 - str_len(h));
+    return si;
+}
+
+/* the STEP page's held step (a grid key held, KEYS off) at graph row y: held_text; 0: none held */
+static int held_line(const track_t *t, int32_t y)
+{
+    char h[32];
+    (void)t;
+    if (held_text(h) >= NSTEP)
+        return 0;
     md_text(4, y, &MD_F3, 2, h, C_INK);
     return 1;
 }
@@ -2596,6 +2610,16 @@ static void draw_columns(void)
         draw_column(1, "NOTE", val, "", HOT(1u), (st->nt - NT_MIN) * 1000 / (NT_MAX - NT_MIN));
         draw_column(2, "TIME", TM[srec_time(st)], "", HOT(2u), -1);
         draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", HOT(3u), -1);
+        return;
+    }
+    if (pg->scope == SC_GRID && held_step() < NSTEP) {  /* a step held: KNOB 1 PROB, 2 RATCH, 3 ACC (step_edit) */
+        const step_t *st = &TSEL->step[held_step()];
+        cond_format(st->cond, val);
+        draw_column(0, "PROB", val, "", HOT(0u), -1);
+        fmt_int(val, (int32_t)st->rat + 1);
+        draw_column(1, "RATCH", val, "", HOT(1u), -1);
+        draw_column(2, "ACC", st->acc ? "ON" : "OFF", "", HOT(2u), -1);
+        draw_column(3, "", "", "", CV_NORM, -1);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */

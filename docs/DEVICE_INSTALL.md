@@ -639,8 +639,9 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
 
 - Accent (item 1; screen `build/ui_shots/fixes/step_oct_accent_hint.png`, the hint `[OCT+] +TAP ACCENT`): on STEP hold
   OCT+ and tap a step key: an on step gets its accent (the tall bar), again: plain; an off step turns on accented.
-  While OCT+ is held the keys show only the accented steps. A step key held 1 s: no accent, the step as it was
-  (Unreleased: a hold never toggles, see "Step keys: tap or hold" below); held + KNOB 1 / KNOB 2: PROB / RATCH. OCT+ tapped alone (32 steps): bank 2 when let go; OCT+ held while
+  While OCT+ is held the keys show only the accented steps. A step key held 1 s: no accent, an on step as it was
+  (Unreleased: a hold never turns a step off, see "Step keys: tap or hold" below); held + KNOB 1 / 2 / 3: PROB /
+  RATCH / accent. OCT+ tapped alone (32 steps): bank 2 when let go; OCT+ held while
   accenting: the bank stays. The same on PATTERN, MOTION, SONG and TRACKS (unarmed). Play: accented steps louder.
 - Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page, DLY / REVERB / CHORUS
   too) and LFO the selected track's white key is lit (track 1: F3, track 2: G3 .. track 8: F4); ALGORITHM moves it, a
@@ -732,16 +733,22 @@ The screens: `build/ui_shots/presets/06_list.png` (the tabs MD MODERN CLASSIC US
 
 ### Step keys: tap or hold (check on the FM-1)
 
-The screen: `build/ui_shots/seq/23_step_held_long.png` (step 5 held: `STEP 5  100%  RATCH 1`, the step still on).
+The screens: `build/ui_shots/seq/23_step_held_long.png` (step 5 held: `STEP 5  100%  RATCH 1`, the step still on),
+`24_step_held_acc.png` (step 6 held: the knob boxes `PROB 95%`, `RATCH 2`, `ACC ON`; the line `STEP 6  95%  RATCH 2
+ACC`).
 
 - STEP, KEYS off: a quick tap on a step key turns the step on / off when the key is let go (it should still feel
   immediate). Tap fast runs of steps, two fingers alternating: every tap counts.
-- Hold an ON step's key (about 0.3 s or more), let go: it stays ON (before: the press turned it off). While held past
-  0.3 s the hint line shows `STEP n  PROB  RATCH n`; a tap shows no line.
-- Hold an on step and turn KNOB 1 (PROB) / KNOB 2 (RATCH), even right after pressing: the edit, the step stays on
-  when let go. Hold an OFF step and turn KNOB 1 / 2: it turns on with the edit and stays on.
-- Hold an OFF step and let go without a knob: it stays off.
-- OCT+ held + a step key: its accent at once, as before (let go: no further change). Hold one step, tap another: the
-  tapped one toggles, the held one not.
-- The same tap / hold on PATTERN, MOTION, SONG and TRACKS (unarmed). KEYS on (SCL): the keys play notes, no step
-  changes; step record (KEYS on, stopped, REC) as before.
+- Hold an ON step's key (about 0.3 s or more), let go: it stays ON, accent / PROB / RATCH unchanged (before: the
+  press turned it off). While held past 0.3 s the hint line shows `STEP n  PROB  RATCH n` and the knob boxes PROB,
+  RATCH, ACC; a tap shows neither.
+- Hold an OFF step's key: at 0.3 s, still held, it turns ON (its key lit, the line and boxes up); let go: it stays on.
+  Hold it short of 0.3 s: nothing until let go (then a tap: on).
+- While a step is held (STEP page): KNOB 1 PROB, KNOB 2 RATCH, KNOB 3 ACCENT (a click right: `ACC ON`, the tall bar,
+  `ACC` at the end of the line; left: `ACC OFF`; more clicks the same way change nothing), even right after pressing;
+  the step stays on when let go. An off step with KNOB 3 turned right at once: on and accented. KNOB 4: nothing.
+- OCT+ held + a step key: its accent flips at once, as before (let go: no further change). Hold one step, tap
+  another: the tapped one toggles, the held one not.
+- The same tap / hold on PATTERN, MOTION, SONG and TRACKS (unarmed); there the knobs stay the page's (PATTERN KNOB 3
+  SWING, not the accent). KEYS on (SCL): the keys play notes, no step changes; step record (KEYS on, stopped, REC) as
+  before.

@@ -162,7 +162,7 @@ static void test_leds(void)
 }
 
 /* owner 2026-10-23: through the page's key calls too, a step key toggles its step on a short press's release; a
- * hold (STEP_HOLD_MS or more) leaves it as it was */
+ * hold (STEP_HOLD_MS or more) turns an off step on, leaves an on one as it was */
 static void test_step_tap_hold(void)
 {
     uint32_t on;
@@ -175,11 +175,18 @@ static void test_step_tap_hold(void)
     sim_key(0, 0);
     run(2048);
     check("TRACKS: let go after ~0.05 s (a tap): step 1 toggled", trk[0].step[0].on == !on);
+    memset(&trk[0].step[0], 0, sizeof trk[0].step[0]);
+    sim_key(0, 1);
+    run(44100u * (STEP_HOLD_MS + 200u) / 1000u);
+    check("TRACKS: an off step held past STEP_HOLD_MS: on while still held", trk[0].step[0].on);
+    sim_key(0, 0);
+    run(2048);
+    check("TRACKS: .. let go: stays on", trk[0].step[0].on);
     sim_key(0, 1);
     run(44100u * (STEP_HOLD_MS + 200u) / 1000u);
     sim_key(0, 0);
     run(2048);
-    check("TRACKS: held past STEP_HOLD_MS and let go: step 1 as it was", trk[0].step[0].on == !on);
+    check("TRACKS: an on step held and let go: still on", trk[0].step[0].on);
 }
 
 static uint32_t dirty_count(void)

@@ -463,10 +463,15 @@ static void step_hold_on_page(const char *what)
     snprintf(b, sizeof b, "%s: a short press on an on step: off", what);
     check(b, !s->on);
     grid_down(WHITE[3]);
-    grid_wait(STEP_HOLD_MS + 100u);
-    grid_up(WHITE[3]);
-    snprintf(b, sizeof b, "%s: an off step held and let go: still off", what);
+    grid_wait(STEP_HOLD_MS - 100u);
+    snprintf(b, sizeof b, "%s: an off step held under STEP_HOLD_MS: still off", what);
     check(b, !s->on);
+    grid_wait(150u);
+    snprintf(b, sizeof b, "%s: .. held past STEP_HOLD_MS: on at once, still held (no accent)", what);
+    check(b, s->on && !s->acc);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: .. let go: stays on", what);
+    check(b, s->on);
 }
 
 static void test_step_hold(void)
@@ -519,7 +524,8 @@ static void test_step_hold(void)
     check("a key tapped while two are held: it toggles (step 11 on)", trk[0].step[10].on);
     grid_up(WHITE[8]);
     grid_up(WHITE[9]);
-    check("the two held long: unchanged (step 9 off, step 10 on)", !trk[0].step[8].on && trk[0].step[9].on);
+    check("the two held long: step 9 (off) on by the hold, step 10 (on) unchanged", trk[0].step[8].on &&
+          trk[0].step[9].on);
     trk[0].step[10].on = 0;
     grid_down(WHITE[10]);                            /* the page changes under a quick press: no tap */
     press(B_SEQ);
@@ -547,6 +553,88 @@ static void test_step_hold(void)
     grid_up(WHITE[3]);
     check("KEYS on: a key tap changes no step", ui.keys && !trk[0].step[3].on);
     tap(B_SCL);
+}
+
+/* owner 2026-10-23, follow-up: an OFF step held STEP_HOLD_MS turns on there and then (lit, its line), KNOB 1 / 2 its
+ * PROB / RATCH; KNOB 3 its accent (right: ACC on, left: off), shown in the held-step line and the knob columns; an
+ * ON step's hold changes nothing; OCT+ + a key still flips the accent */
+static void test_step_hold_on_acc(void)
+{
+    step_t *s = &trk[0].step[5];
+    char b[40];
+    ui_host_init();
+    open_step_page();
+    memset(s, 0, sizeof *s);
+    grid_down(WHITE[5]);
+    grid_wait(STEP_HOLD_MS - 100u);
+    check("off step held under STEP_HOLD_MS: still off, its key dark, no line", !s->on && !led_on(14u + WHITE[5]) &&
+          held_step() == NSTEP);
+    grid_wait(150u);
+    check("off step held past STEP_HOLD_MS: on (no accent, plain) while held, its key lit, its line",
+          s->on && !s->acc && s->cond == 0 && s->rat == 0 && led_on(14u + WHITE[5]) && held_step() == 5u);
+    turn(EN_K1, -1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    turn(EN_K2, 1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held (turned on by the hold): KNOB 1 PROB, KNOB 2 RATCH", s->on && s->cond == cond_store(19) && s->rat == 1);
+    turn(EN_K3, 1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 3 right: ACC on; PROB / RATCH kept", s->on && s->acc && s->cond == cond_store(19) && s->rat == 1);
+    check("held-step line: STEP 6 .. RATCH 2  ACC", held_text(b) == 5u && strstr(b, "STEP 6") && strstr(b, "RATCH 2") &&
+          strstr(b, "ACC"));
+    snap_page("seq/24_step_held_acc");
+    check("the longest held-step line fits the screen (STEP 64  1-SHOT  RATCH 4  ACC)",
+          4 + md_text_w(&MD_F3, 2, "STEP 64  1-SHOT  RATCH 4  ACC") <= 240);
+    turn(EN_K3, 3);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 3 further right: ACC stays on", s->acc);
+    turn(EN_K3, -1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 3 left: ACC off, still on; the line without ACC", s->on && !s->acc && held_text(b) == 5u &&
+          !strstr(b, "ACC"));
+    turn(EN_K4, 2);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 4 does nothing (step, bank unchanged)", s->on && !s->acc && ui.bank == 0u);
+    grid_up(WHITE[5]);
+    check("let go: on, PROB / RATCH kept, no accent", s->on && !s->acc && s->cond == cond_store(19) && s->rat == 1);
+    memset(&trk[0].step[7], 0, sizeof trk[0].step[7]);
+    grid_down(WHITE[7]);                             /* KNOB 3 before STEP_HOLD_MS on an off step: on, accented */
+    turn(EN_K3, 1);
+    ui_frame();
+    check("off step, KNOB 3 right at once: on and accented", trk[0].step[7].on && trk[0].step[7].acc);
+    grid_up(WHITE[7]);
+    check(".. let go quickly: stays on, accented (an edit is no tap)", trk[0].step[7].on && trk[0].step[7].acc);
+    trk[0].step[2].on = 1;                           /* an ON step held: nothing changes (no accent, no plain-again) */
+    trk[0].step[2].acc = 1;
+    trk[0].step[2].rat = 2;
+    grid_down(WHITE[2]);
+    grid_wait(STEP_HOLD_MS + 200u);
+    grid_up(WHITE[2]);
+    check("an on (accented, RATCH 3) step held and let go: unchanged", trk[0].step[2].on && trk[0].step[2].acc &&
+          trk[0].step[2].rat == 2);
+    grid_acc(WHITE[2]);
+    check("OCT+ + the key: the accent off as before (still on)", trk[0].step[2].on && !trk[0].step[2].acc);
+    grid_acc(WHITE[2]);
+    check("OCT+ + the key again: accented", trk[0].step[2].on && trk[0].step[2].acc);
+    seq_open("PATTERN");                             /* elsewhere KNOB 3 is the page's (SWING), not the accent */
+    {
+        int16_t sw = trk[0].p[P_SSWING];
+        trk[0].step[2].acc = 0;
+        grid_down(WHITE[2]);
+        grid_wait(STEP_HOLD_MS + 50u);
+        turn(EN_K3, 2);
+        host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+        grid_up(WHITE[2]);
+        check("PATTERN: a step held + KNOB 3: SWING turns, no accent", trk[0].p[P_SSWING] != sw && !trk[0].step[2].acc &&
+              trk[0].step[2].on);
+    }
 }
 
 static void test_grids_pages(void)
@@ -8567,6 +8655,7 @@ int main(void)
     test_grid_hold_accent();
     test_grid_step_edit();
     test_step_hold();
+    test_step_hold_on_acc();
     test_grid_hold_track_change();
     test_grids_pages();
     test_src_readonly();
