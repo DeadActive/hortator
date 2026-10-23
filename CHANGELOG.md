@@ -11,6 +11,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   **Felucca Update** (the update loader, unchanged); the manufacturer string, VID/PID and the loader are unchanged.
   The web installer, the editor, `tools/fm1_install.py` and `tools/fm1_sample_upload.py` find a port named Hortator
   or Felucca (older firmware), so updating from any earlier build works as before.
+- MENU > COLOR: every colour now comes in both polarities, BLUE INV (blue on white) and GREEN INV (green on black)
+  join RED INV (red on black); the row shows the theme's name as its value (RED, RED INV, BLUE, BLUE INV, GREEN,
+  GREEN INV, in that order) instead of the boxes. A stored colour loads as the same theme as before (the new
+  inverses take new indexes; an older Hortator shows them as RED).
 - MUTE: NEXT BAR works while following a clock (CLK USB, TRS or BLE): the waiting mutes now flip on the bar line
   instead of never. The bar is found from the clock's real advance in the block (read after the block's Clock), not
   the block's length; a muted COMP source (GHOST KEEP / HIDE) starts its 5 ms fade on the bar's last Clock pulse, so

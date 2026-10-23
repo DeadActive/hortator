@@ -178,6 +178,14 @@ GLOBAL 3/3 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own cloc
 quarter note, higher on the bar's first. It comes after the PERFORM effects (they leave it alone) and follows the
 MASTER volume, on the speaker, the headphones and USB audio. A device setting: saved, not part of projects.
 
+### Screen colours
+
+MENU (hold HOME) **COLOR**: the screen's two colours. The row shows the theme's name: **RED** (the default, red
+ground and dark ink, the Machinedrum's look), **RED INV** (red on black), **BLUE** (white on blue), **BLUE INV** (blue
+on white), **GREEN** (dark on green), **GREEN INV** (green on black): each colour, then its inverse. KNOB 1 on the
+row steps back and on, OCT+ steps on; both wrap. A device setting: saved when the menu closes, not part of projects;
+a colour chosen on an older Hortator stays the same.
+
 ### Key backlight
 
 MENU (hold HOME) **BACKLIGHT** (the LED levels of upstream Felucca's MENU > LEDS): OFF (lit or dark, as before),

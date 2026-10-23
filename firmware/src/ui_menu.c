@@ -182,17 +182,9 @@ static void draw_menu(void)
                     v = SPK_EQ[settings.lowcut % 3u];
                 if (i == MI_BACKLIGHT)              /* (item 9: upstream's LEDS levels) */
                     v = BL_NAME[backlight % BL_COUNT];
+                if (i == MI_COLOR)                  /* the theme's name (owner 2026-10-23) */
+                    v = THEMES[theme_index(settings.palette)].name;
                 list_row(10, 225, y, MI_NAME[i], v, sel);
-                if (i == MI_COLOR) {                /* the themes as boxes, the current one solid */
-                    uint32_t k, cur = theme_index(settings.palette);
-                    for (k = 0; k < NTHEMES; k++) {
-                        int32_t x = 170 + (int32_t)k * 14;
-                        if (k == cur)
-                            cv_rect(x, y, 10, 10, sel ? C_BG : C_INK);
-                        else
-                            cv_frame(x, y, 10, 10, sel ? C_BG : C_INK);
-                    }
-                }
             }
             i = (uint32_t)cv_keycap(12, (int32_t)MENU_HY, "OCT+", "OK", C_INK);
             i = (uint32_t)cv_keycap((int32_t)i + 8, (int32_t)MENU_HY, "OCT-", "BACK", C_INK);
@@ -266,7 +258,7 @@ static void menu_input(uint32_t pressed)
     }
     s = panel_enc(EN_K1);
     if (s != 0 && ui.menu == 1 && ui.menu_sel == MI_COLOR) {
-        settings.palette = THEME_TAG | (theme_index(settings.palette) + (s > 0 ? 1u : NTHEMES - 1u)) % NTHEMES;
+        settings.palette = theme_step(settings.palette, s);
         theme_set(settings.palette);
         ui.force = 1;                               /* every region in the new colours */
     }
@@ -296,7 +288,7 @@ static void menu_input(uint32_t pressed)
     if (ok && ui.menu == 1) {
         switch (ui.menu_sel) {
         case MI_COLOR:                                 /* OCT+ steps through the themes too */
-            settings.palette = THEME_TAG | (theme_index(settings.palette) + 1u) % NTHEMES;
+            settings.palette = theme_step(settings.palette, 1);
             theme_set(settings.palette);
             ui.force = 1;
             break;
