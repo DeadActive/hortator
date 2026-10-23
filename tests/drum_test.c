@@ -734,6 +734,8 @@ static void test_stress(void)
 }
 
 static int kit_filter;                               /* kit_cost: the FILTER on all 8 (test_cost) */
+static int kit_keyf;                                 /* kit_cost: RESON KEYF 100 %, its 2 steps 2 octaves apart (every
+                                                      * hit retunes the ringing lines: they glide most of the time) */
 /* the cost of 8 tracks of model mi kept busy (1/32 at 240 BPM, DECAY 127, every FX), with or without layers */
 static double kit_cost(uint32_t mi, int layers, int reson)
 {
@@ -770,6 +772,11 @@ static double kit_cost(uint32_t mi, int layers, int reson)
         memset(t->step, 0, sizeof t->step);
         t->step[0].on = t->step[1].on = 1;
         t->p[P_SLEN] = 2;
+        if (kit_keyf) {
+            t->p[P_RKEY] = 127;
+            t->step[0].nt = 12;
+            t->step[1].nt = -12;
+        }
     }
     song.g[G_BPM] = 240;
     transport_req = 1;
@@ -837,6 +844,14 @@ static void test_cost(void)
     c = kit_cost(wm, (int)wl_, 2);                   /* the same, the other 2 MODAL (PHYS) */
     printf("     extreme kit with RESON on 4 tracks (2 CHORD + 2 MODAL): %.0f (its own limit %.0f)\n", c, rmax);
     check("cost: the extreme kit with RESON at most (2 CHORD + 2 MODAL) within its recorded limit", !i0 || rmax == 0 || c <= rmax);
+    kit_keyf = 1;
+    c = kit_cost(wm, (int)wl_, 1);                   /* RESON's caps with KEYF: every hit glides the lines */
+    printf("     extreme kit with RESON on 4 tracks (2 CHORD), KEYF 100 %%, notes 2 octaves apart: %.0f (limit %.0f)\n", c, rmax);
+    check("cost: .. with KEYF retuning every hit (2 CHORD + 2 STRNG) within RESON's recorded limit", !i0 || rmax == 0 || c <= rmax);
+    c = kit_cost(wm, (int)wl_, 2);
+    printf("     extreme kit with RESON on 4 tracks (2 CHORD + 2 MODAL), KEYF 100 %%: %.0f (limit %.0f)\n", c, rmax);
+    check("cost: .. with KEYF retuning every hit (2 CHORD + 2 MODAL) within RESON's recorded limit", !i0 || rmax == 0 || c <= rmax);
+    kit_keyf = 0;
     kit_filter = 1;
     c = kit_cost(wm, (int)wl_, 0);                   /* the same worst kit, the FILTER on all 8 */
     kit_filter = 0;
@@ -3091,6 +3106,144 @@ static void test_reson_cut_no_reexcite(void)
     }
 }
 
+/* KEYFOLLOW (P_RKEY) at its default 0: every model renders bit for bit as before the knob existed (the hash taken
+ * from the firmware before it): hits at C4, C5, G3, G4 and a ratchet of notes, STRNG / PIPE / CHORD / MODAL, the
+ * drum's own pitch transposed by each note */
+static uint32_t rs_kf_hash(void)
+{
+    static const int8_t NT[6] = {0, 12, -5, 7, 24, -12};
+    uint32_t m, k, h = 0;
+    for (m = RS_STRNG; m < RS_NMODEL; m++) {
+        rs_setup(m, m == RS_CHORD ? 50 : 45);
+        trk[0].p[P_RSTRCT] = m == RS_CHORD ? 70 : 40;
+        trk[0].p[P_RPOS] = 30;
+        trk[0].p[P_RTONE] = 90;
+        for (k = 0; k < 6u; k++) {
+            drum_play(&trk[0], 100u + k, NT[k]);
+            render_mix(wl, 0, SECS(0.12));
+            h = h * 31u + fnv(wl, SECS(0.12));
+        }
+        render_mix(wl, 0, SECS(0.5));
+        h = h * 31u + fnv(wl, SECS(0.5));
+    }
+    return h;
+}
+
+static void test_reson_keyfollow_off(void)
+{
+    uint32_t h = rs_kf_hash();
+    printf("     RESON KEYF 0: render hash %08x\n", h);
+    check("RESON KEYF 0 (default): STRNG / PIPE / CHORD / MODAL bit for bit as before KEYFOLLOW", h == 0x55997335u);
+}
+
+/* KEYFOLLOW on: the ring's pitch follows the hit's note from C4 (C4 = TUNE), KEYF 0..127 = 0..100 % of it */
+static double rs_kf_cents(double f, double note) { return 1200 * log2(f / rs_note_hz(note)); }
+
+static void test_reson_keyfollow(void)
+{
+    static int32_t ref[SECS(0.8)];
+    uint32_t m, i, same = 1;
+    double f, c, want;
+    int32_t before = 0, after = 0, k;
+    check("RESON KEYF: 0..127 (0..100 %), default 0 (off)",
+          TP[P_RKEY].min == 0 && TP[P_RKEY].max == 127 && TP[P_RKEY].def == 0 && TP[P_RKEY].fmt == F_PCT &&
+              str_eq(TP[P_RKEY].label, "KEYF"));
+    /* a sequencer step at C5 (NOTE +12): an octave above TUNE C3 */
+    rs_setup(RS_STRNG, 48);
+    trk[0].p[P_RKEY] = 127;
+    trk[0].step[0].on = 1;
+    trk[0].step[0].nt = 12;
+    seq_start();
+    render_mix(wl, 0, SECS(0.6));
+    song.playing = 0;
+    f = rs_freq(wl + SECS(0.2), 8192, rs_note_hz(60));
+    c = rs_kf_cents(f, 60);
+    printf("     RESON KEYF 100 %%, a step at C5 on TUNE C3: ring %.1f Hz (C4 %.1f Hz, %+.1f cents)\n", f, rs_note_hz(60), c);
+    check("RESON KEYF 100 %: a step at C5 rings an octave above TUNE (C3 -> C4, within 10 cents)", fabs(c) < 10);
+    rs_setup(RS_STRNG, 48);                           /* KEYF 0: the same step rings at TUNE */
+    trk[0].step[0].on = 1;
+    trk[0].step[0].nt = 12;
+    seq_start();
+    render_mix(wl, 0, SECS(0.6));
+    song.playing = 0;
+    f = rs_freq(wl + SECS(0.2), 8192, rs_note_hz(48));
+    check("RESON KEYF 0: a step at C5 rings at TUNE", fabs(rs_kf_cents(f, 48)) < 10);
+    /* KEYS: the selected track pitched from the keys, PIPE an octave down */
+    rs_setup(RS_PIPE, 60);
+    trk[0].p[P_RKEY] = 127;
+    song.sel = 0;
+    song.octave = -1;                                 /* key 7 (F3 + 2 = C4 at octave 0): C3 */
+    keys_on(7u);
+    keys_off();
+    song.octave = 0;
+    render_mix(wl, 0, SECS(0.6));
+    f = rs_freq(wl + SECS(0.2), 8192, rs_note_hz(48));
+    c = rs_kf_cents(f, 48);
+    printf("     RESON KEYF 100 %%, PIPE TUNE C4, KEYS C3: ring %.1f Hz (%+.1f cents from C3)\n", f, c);
+    check("RESON KEYF 100 %: a KEYS note an octave down rings an octave below TUNE (PIPE C4 -> C3)", fabs(c) < 10);
+    /* MIDI: a note plays the track at C4, so the ring is at TUNE (after a keyed hit an octave up) */
+    rs_setup(RS_STRNG, 48);
+    trk[0].p[P_RKEY] = 127;
+    drum_play(&trk[0], 100u, 12);
+    render_mix(wl, 0, SECS(0.1));
+    drum_cut(&trk[0]);
+    render_mix(wl, 0, SECS(0.1));
+    midi_in(0x90, (uint32_t)song.g[G_DRCH] - 1u, (uint32_t)trk[0].p[P_NOTE], 100);
+    render_mix(wl, 0, SECS(0.6));
+    f = rs_freq(wl + SECS(0.2), 8192, rs_note_hz(48));
+    check("RESON KEYF 100 %: a MIDI note (the track at C4) rings at TUNE", fabs(rs_kf_cents(f, 48)) < 10);
+    /* the amount: 50 % (64) of an octave up = 6.05 semitones */
+    rs_setup(RS_STRNG, 48);
+    trk[0].p[P_RKEY] = 64;
+    drum_play(&trk[0], 127u, 12);
+    render_mix(wl, 0, SECS(0.6));
+    want = 48 + 12.0 * 64 / 127;
+    f = rs_freq(wl + SECS(0.2), 8192, rs_note_hz(want));
+    c = rs_kf_cents(f, want);
+    printf("     RESON KEYF 64 (50 %%), a hit at C5: ring %.1f Hz (%+.1f cents from %.2f semitones up)\n", f, c, want - 48);
+    check("RESON KEYF 50 %: a hit at C5 rings half an octave up (within 10 cents)", fabs(c) < 10);
+    /* every model: TUNE C3 + KEYF 100 % at C4 + 12 renders exactly as TUNE C4 (a fresh ring: no glide) */
+    for (m = RS_STRNG; m < RS_NMODEL; m++) {
+        rs_setup(m, 60);
+        drum_play(&trk[0], 127u, 12);
+        render_mix(ref, 0, SECS(0.8));
+        rs_setup(m, 48);
+        trk[0].p[P_RKEY] = 127;
+        drum_play(&trk[0], 127u, 12);
+        render_mix(wl, 0, SECS(0.8));
+        for (i = 0; i < SECS(0.8); i++)
+            same &= wl[i] == ref[i];
+    }
+    check("RESON KEYF 100 %: STRNG / PIPE / CHORD / MODAL at C3 + a hit at C5 = TUNE C4, bit for bit", same);
+    /* a retune of a ringing line glides: no click (KEYF turned up under a ring struck at C5) */
+    rs_setup(RS_STRNG, 48);
+    old_set_model(&trk[0], DM_K909);
+    trk[0].p[P_RDECAY] = 127;
+    drum_play(&trk[0], 127u, 12);
+    render_mix(wl, 0, SECS(0.5));
+    for (k = SECS(0.5) - 2000; k < (int32_t)SECS(0.5); k++)
+        before = abs(wl[k] - wl[k - 1]) > before ? abs(wl[k] - wl[k - 1]) : before;
+    trk[0].p[P_RKEY] = 127;
+    render_mix(wl, 0, SECS(0.3));
+    for (k = 1; k < (int32_t)SECS(0.05); k++)
+        after = abs(wl[k] - wl[k - 1]) > after ? abs(wl[k] - wl[k - 1]) : after;
+    f = rs_freq(wl + SECS(0.1), 8192, rs_note_hz(60));
+    printf("     RESON KEYF retune under a ring (C3 -> C4): largest step %d (ring before %d), then %.1f Hz\n", after, before, f);
+    check("RESON KEYF: retuning a ringing line glides, no click (largest step <= 3 x the ring's)", after <= 3 * before + 64);
+    check("RESON KEYF: .. and arrives (C4 within 10 cents)", fabs(rs_kf_cents(f, 60)) < 10);
+    /* a hit at another note while it rings: the same glide (no click), then the new note */
+    rs_setup(RS_STRNG, 48);
+    old_set_model(&trk[0], DM_K909);
+    trk[0].p[P_RDECAY] = 127;
+    trk[0].p[P_RKEY] = 127;
+    drum_play(&trk[0], 127u, 0);
+    render_mix(wl, 0, SECS(0.5));
+    drum_play(&trk[0], 127u, 7);
+    render_mix(wl, 0, SECS(0.5));
+    f = rs_freq(wl + SECS(0.2), 8192, rs_note_hz(55));
+    check("RESON KEYF: a hit at G4 while C4's ring sounds retunes it to G3 (TUNE C3)", fabs(rs_kf_cents(f, 55)) < 10);
+}
+
 /* upstream issue #31: track swing + global swing (each up to 100) is capped at 100 (1.4 / 0.6 steps), not 200
  * (1.8 / 0.2) */
 static void test_swing_cap(void)
@@ -3569,6 +3722,8 @@ int main(void)
     test_reson_lfo();
     test_reson_ring_ends();
     test_reson_cut_no_reexcite();
+    test_reson_keyfollow_off();
+    test_reson_keyfollow();
     test_percent_display();
     test_q24();
     test_tables();

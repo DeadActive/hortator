@@ -1955,6 +1955,24 @@ static void test_reson_pages(void)
         check("RESON 2/2 on CHORD: the second knob is CHORD", d && str_eq(d->label, "CHORD"));
     }
     snap_page("reson/02_chord_page2");
+    check("RESON 2/2: KNOB 4 is KEYF (KEYFOLLOW), 0 % by default", page_id(cur_page(), 3) == P_RKEY && TSEL->p[P_RKEY] == 0);
+    TSEL->p[P_RMODEL] = RS_STRNG;
+    turn(EN_K4, 200);
+    ui_frame();
+    {
+        char v[12];
+        const char *u = 0;
+        param_format(&TP[P_RKEY], TSEL->p[P_RKEY], v, &u);
+        check("RESON KEYF: the knob runs to 100 %", TSEL->p[P_RKEY] == 127 && str_eq(v, "100"));
+    }
+    keys(1u << KEY_TRK_KEY[0]);                      /* the ring for the picture */
+    ui_frame();
+    keys(0);
+    for (k = 0; k < 10u; k++)
+        ui_frame();
+    snap_page("reson/04_keyf");
+    TSEL->p[P_RKEY] = 0;
+    TSEL->p[P_RMODEL] = RS_CHORD;
     trk[1].p[P_RMODEL] = RS_CHORD;                   /* tracks 1 and 2 CHORD: track 3 cannot */
     trk[2].p[P_RMODEL] = RS_PIPE;
     for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)

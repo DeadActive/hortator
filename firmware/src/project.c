@@ -13,7 +13,9 @@
  * preset, not edited (FDRD: as stored); CHOKE as stored; an LFO's DEST and DEPTH are DEST slots 1 / 2 with sources LFO 1
  * / LFO 2 (the same ids), slots 3 / 4 off). An older image in a RAM slot (FDRA, FDRB: 3672 B a slot, FDRC: 3688 B,
  * FDRD: 3712 B, FDRE's are 3840 B) is never read as one: the slots are filled from flash at boot. FDRE fills a flash
- * sector's payload (3840 B, ST_PAYLOAD_MAX): a larger record needs another layout.
+ * sector's payload (3840 B, ST_PAYLOAD_MAX): a larger record needs another layout. The parameters after its block
+ * (P_NSTORED .., RESON's KEYF) ride in a track's steps' spare byte (step_t.rsv: parameter P_NSTORED + j in step j's,
+ * 0..255; every earlier firmware wrote 0 there and ignores it on load), so an FDRE from before them loads with them at 0.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
 #define PROJ_MAGIC 0x45524446u                 /* "FDRE" (the 14th): + the LFO DEST slots (fixes 2026-10-21 item 3) */
 #define PROJ_MAGIC_VD 0x44524446u              /* "FDRD": each track's preset and edited mark; converted on load */
@@ -30,9 +32,18 @@
 #define PROJ_MAGIC_V2 0x32524446u              /* "FDR2": M2 projects, converted on load */
 #define PROJ_MAGIC_V1 0x31524446u              /* "FDR1": M1 projects, converted on load */
 typedef struct {
-    int16_t p[P_COUNT];
+    int16_t p[P_NSTORED];                       /* the block; P_NSTORED + j: step[j].rsv (proj_xp_*) */
     step_t step[NSTEP];
 } proj_trk_t;
+typedef char proj_xp_fit[P_COUNT - P_NSTORED <= NSTEP && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's block: 69) */
+/* the parameters past the block: into / out of a stored track's steps' spare bytes (0 = their value 0) */
+static void proj_xp_put(proj_trk_t *s, const int16_t *p)
+{
+    uint32_t i;
+    for (i = P_NSTORED; i < P_COUNT; i++)
+        s->step[i - P_NSTORED].rsv = (uint8_t)clamp(p[i], 0, 255);
+}
+static int16_t proj_xp_get(const proj_trk_t *s, uint32_t id) { return (int16_t)s->step[id - P_NSTORED].rsv; }
 typedef struct {
     uint32_t magic, size;
     int16_t g[G_COUNT];
@@ -257,7 +268,7 @@ static void proj_from_old(project_t *q, uint32_t ver)
         memcpy(q->g, o->g, sizeof q->g);
         q->sel = o->sel;
         for (k = 0; k < NTRK; k++) {
-            for (i = 0; i < P_COUNT; i++)
+            for (i = 0; i < P_NSTORED; i++)
                 q->t[k].p[i] = i <= P_PRIO ? o->t[k].p[i] : TP[i].def;
             memcpy(q->t[k].step, o->t[k].step, sizeof q->t[k].step);
         }
@@ -287,7 +298,7 @@ static void proj_from_old(project_t *q, uint32_t ver)
             const int16_t *op = ver == 8u ? proj_old.v8.t[k].p : ver == 9u ? proj_old.v9.t[k].p
                               : ver == 10u ? proj_old.va.t[k].p : proj_old.vb.t[k].p;
             const step_v9_t *os = ver == 10u ? proj_old.va.t[k].step : ver == 9u ? proj_old.v9.t[k].step : proj_old.v8.t[k].step;
-            for (i = 0; i < P_COUNT; i++)
+            for (i = 0; i < P_NSTORED; i++)
                 q->t[k].p[i] = i < np ? op[i] : TP[i].def;
             if (ver == 11u)
                 memcpy(q->t[k].step, proj_old.vb.t[k].step, sizeof q->t[k].step);
@@ -318,7 +329,7 @@ static void proj_from_old(project_t *q, uint32_t ver)
     q->sel = ver == 1u ? proj_old.v1.sel : ver == 2u ? proj_old.v2.sel : ver == 3u ? proj_old.v3.sel
            : ver == 4u ? proj_old.v4.sel : ver == 5u ? proj_old.v5.sel : ver == 6u ? proj_old.v6.sel : proj_old.v7.sel;
     for (k = 0; k < NTRK; k++) {
-        for (i = 0; i < P_COUNT; i++)
+        for (i = 0; i < P_NSTORED; i++)
             q->t[k].p[i] = i >= np ? TP[i].def
                          : ver == 1u ? proj_old.v1.t[k].p[i] : ver == 2u ? proj_old.v2.t[k].p[i]
                          : ver == 3u ? proj_old.v3.t[k].p[i] : ver == 4u ? proj_old.v4.t[k].p[i] : ver == 5u ? proj_old.v5.t[k].p[i] : ver == 6u ? proj_old.v6.t[k].p[i]
@@ -398,8 +409,9 @@ static void project_save(uint32_t slot)
         p->g[i] = song.g[i];
     p->sel = song.sel;
     for (i = 0; i < NTRK; i++) {
-        memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
+        memcpy(p->t[i].p, trk[i].p, sizeof p->t[i].p);
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
+        proj_xp_put(&p->t[i], trk[i].p);               /* KEYF: the steps' spare bytes */
         p->pre[i] = (uint16_t)preset_rec_enc(trk[i].pre);   /* (stable: a uid / a user slot, presets.c) */
         p->pre_ed[i] = trk[i].pre_ed;
     }
@@ -467,7 +479,7 @@ static int proj_load(uint32_t slot, int irq)
         drum_cut(t);
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = i >= P_E0 && i <= P_E7 ? &DMODELS[m].edit[i - P_E0] : &TP[i];
-            t->p[i] = (int16_t)clamp(s->p[i], d->min, d->max);
+            t->p[i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(s, i), d->min, d->max);
         }
         t->p[P_MODEL] = (int16_t)m;
         t->model = (uint8_t)m;
