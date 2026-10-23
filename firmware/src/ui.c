@@ -70,9 +70,9 @@ static struct {
     uint32_t rec_t0;             /* REC press time (btn_hold) */
     uint8_t rec_all, rec_keep;   /* REC ALL (a REC tap off TRACKS, ui_input.c rec_tap): on; the arm mask before it (back
                                   * when it is left). Never stored, as the arm state */
-    uint32_t step_t0[16];        /* STEP grid: a white key's press time (as btn_hold: bit1 = the hold acted) */
+    uint32_t step_t0[16];        /* STEP grid: a white key's press time | 1; bit 1: no tap on its release (held
+                                  * STEP_HOLD_MS, edited, accented or let go of: grid_drop_holds), bit 2: edited */
     uint16_t step_si[16];        /* the step it pressed, 0xFFFF none */
-    step_t step_prev[16];        /* that step before the press (a hold or a knob turn restores it) */
     uint8_t held;                /* the grid key pressed last (valid while step_t0[held] is set) */
     uint8_t confirm;             /* 1 "CLEAR TRACK n?", 2 CLEAR MOTION, 3 DELETE ROW, 4 CLEAR SONG, 5 the last project
                                   * failed to load (START NEW PROJECT?; confirm_trk its slot), 6 CLEAR ALL LEARNED?
@@ -363,20 +363,41 @@ static void bank_fix(void)                             /* LEN shortened (knob, p
  * note; a drum's C4 (its steps transposed only by KEYS record, step record's NOTE or the roll) */
 static int8_t new_step_nt(const track_t *t) { return trk_model(t)->gate ? t->key_nt : 0; }
 
-/* key k of the grid pressed: step bank * 16 + k turns on, or off (then plain again: no accent, PROB 100 %,
- * 1 hit), inside LEN only; the step before the press is kept for a hold / a knob turn */
-static void step_press(uint32_t k)
+/* a step key down this long is a hold, not a tap (owner 2026-10-23: holding a step is for editing it, never toggles
+ * it). 0.3 s: a deliberate tap on these keys is well under it (~0.1 s down), a hold to edit is felt as one past it,
+ * and the STEP n PROB RATCH line comes up without a wait; under GLO / FX's 0.4 s and HOME / REC's 0.7 s holds */
+#define STEP_HOLD_MS 300u
+
+/* the step a grid key holds for editing: held STEP_HOLD_MS, or edited / accented while down (step_t0 bit 1, its
+ * page and track unchanged); NSTEP none. A tap shows nothing (its line would only flash) */
+static uint32_t held_step(void)
+{
+    uint32_t k = ui.held;
+    return k < 16u && (ui.step_t0[k] & 2u) && ui.step_si[k] < NSTEP ? ui.step_si[k] : NSTEP;
+}
+
+/* key k of the grid pressed: the step it holds, bank * 16 + k, inside LEN only (a song's lock: none, saying so).
+ * The press changes nothing: a short one toggles the step on the release (step_tap), a hold edits it (step_edit) */
+static void step_grab(uint32_t k)
 {
     uint32_t si = ui.bank * 16u + k;
-    step_t *s;
     ui.step_si[k] = 0xFFFFu;
     if (song_lock())
         return;
     if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
         return;
-    s = &TSEL->step[si];
     ui.step_si[k] = (uint16_t)si;
-    ui.step_prev[k] = *s;
+}
+
+/* key k let go after a short press (down less than STEP_HOLD_MS, no held-step edit, its page and track unchanged):
+ * its step turns on, or off (then plain again: no accent, PROB 100 %, 1 hit) */
+static void step_tap(uint32_t k)
+{
+    uint32_t si = ui.step_si[k];
+    step_t *s;
+    if (si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL) || chain_busy())
+        return;
+    s = &TSEL->step[si];
     if (s->on) {
         memset(s, 0, sizeof *s);
     } else {
@@ -389,7 +410,7 @@ static void step_press(uint32_t k)
 
 /* key k pressed with OCT+ held (fixes 2026-10-21 item 1: the accent's gesture; a held key is PROB / RATCH's): step
  * bank * 16 + k accented, an off one turned on with it (a TIE: plays), an accented one plain again (still on), inside
- * LEN only; kept as the press's step (a knob turned while the key is held edits it as it is now) */
+ * LEN only, at the press; held, the key's step (a knob turned edits it as it is now; its release toggles nothing) */
 static void step_accent(uint32_t k)
 {
     uint32_t si = ui.bank * 16u + k;
@@ -409,7 +430,6 @@ static void step_accent(uint32_t k)
         s->acc = (uint8_t)!s->acc;
     }
     ui.step_si[k] = (uint16_t)si;
-    ui.step_prev[k] = *s;
 }
 
 static void track_clear(track_t *t)               /* its steps and its motion; its last KEYS note C4 again */

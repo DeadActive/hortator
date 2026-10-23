@@ -309,11 +309,10 @@ static void test_grid_hold_accent(void)
     check("grid: a tap turns step 5 on, no accent", s->on && !s->acc);
     grid_hold(WHITE[4], 0);
     check("grid: a tap on an on step turns it off", !s->on && !s->acc);
-    grid_hold(WHITE[4], 300);
-    check("grid: a 0.3 s press is still a tap (on, no accent)", s->on && !s->acc);
+    grid_hold(WHITE[4], 200);
+    check("grid: a 0.2 s press is still a tap (on, no accent)", s->on && !s->acc);
     grid_hold(WHITE[4], 600);
-    check("grid: a 0.6 s hold is a tap too (off, no accent)", !s->on && !s->acc);
-    grid_hold(WHITE[4], 0);
+    check("grid: a 0.6 s hold is no tap: the step stays on, no accent", s->on && !s->acc);
     grid_acc(WHITE[4]);
     check("grid: OCT+ held + an on step: accented (it stays on), the bank unchanged", s->on && s->acc && ui.bank == 0u);
     grid_acc(WHITE[4]);
@@ -340,15 +339,16 @@ static void test_grid_hold_accent(void)
     trk[0].step[2].on = trk[0].step[2].acc = 0;
     {
         uint32_t ms;
-        keys(1u << WHITE[6]);                        /* a step key held long: nothing more than its tap */
+        keys(1u << WHITE[6]);                        /* a step key held long: no tap, no accent */
         ui_frame();
         for (ms = 0; ms < 800u; ms += 50u) {
             host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
             ui_frame();
         }
-        check("grid: a key held 0.8 s: its tap only (step 7 off), no accent", !trk[0].step[6].on && !trk[0].step[6].acc);
+        check("grid: a key held 0.8 s: step 7 stays on, no accent", trk[0].step[6].on && !trk[0].step[6].acc);
         keys(0);
         ui_frame();
+        check("grid: .. and let go: still on (a hold never toggles)", trk[0].step[6].on && !trk[0].step[6].acc);
     }
     trk[0].step[4].on = 1;
     trk[0].step[4].acc = 1;
@@ -379,7 +379,7 @@ static void test_grid_step_edit(void)
     open_step_page();
     grid_acc(WHITE[4]);                              /* on, accented (OCT+ held) */
     grid_hold_turn(WHITE[4], 0, -5);                 /* 100 % -> 75 % */
-    check("hold + KNOB 1: PROB of the held step (100 % -> 75 %); its accent stays, the press undone (on again)",
+    check("hold + KNOB 1: PROB of the held step (100 % -> 75 %); its accent stays, still on",
           s->on && s->acc && s->cond == cond_store(15) && ui.bank == 0);
     snap_page("seq/20_step_held_prob");
     keys(0);
@@ -422,6 +422,131 @@ static void test_grid_step_edit(void)
     snap_page("seq/21_step_prob_ratch");
     open_step_page();                                /* PATTERN */
     snap_page("seq/22_pattern_prob_ratch");
+}
+
+/* owner 2026-10-23: a step key toggles its step only on a SHORT press, decided on the release (down less than
+ * STEP_HOLD_MS, no held-step edit meanwhile); a long press or a KNOB 1 / 2 edit while held never toggles (holding is
+ * for editing; the STEP n PROB RATCH line once held past STEP_HOLD_MS). Every page whose white keys are the steps. */
+static void grid_down(uint32_t key) { keys(fm1_in.notes | 1u << key); ui_frame(); }
+static void grid_up(uint32_t key) { keys(fm1_in.notes & ~(1u << key)); ui_frame(); }
+static void grid_wait(uint32_t ms)
+{
+    uint32_t t;
+    for (t = 0; t < ms; t += 50u) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+}
+
+static void step_hold_on_page(const char *what)
+{
+    step_t *s = &trk[0].step[3];
+    char b[160];
+    memset(s, 0, sizeof *s);
+    grid_down(WHITE[3]);
+    snprintf(b, sizeof b, "%s: a step key pressed: nothing yet (the step decided on the release)", what);
+    check(b, !s->on);
+    grid_wait(100);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: a short press (0.1 s) let go: the step on", what);
+    check(b, s->on && !s->acc);
+    grid_down(WHITE[3]);
+    grid_wait(STEP_HOLD_MS + 100u);
+    snprintf(b, sizeof b, "%s: an on step held past STEP_HOLD_MS: still on", what);
+    check(b, s->on);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: .. let go: still on (a hold never toggles)", what);
+    check(b, s->on);
+    grid_down(WHITE[3]);
+    grid_wait(50);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: a short press on an on step: off", what);
+    check(b, !s->on);
+    grid_down(WHITE[3]);
+    grid_wait(STEP_HOLD_MS + 100u);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: an off step held and let go: still off", what);
+    check(b, !s->on);
+}
+
+static void test_step_hold(void)
+{
+    step_t *s = &trk[0].step[4];
+    ui_host_init();
+    open_step_page();
+    check("STEP_HOLD_MS is about 0.3 s", STEP_HOLD_MS >= 200u && STEP_HOLD_MS <= 400u);
+    s->on = 1;
+    grid_down(WHITE[4]);
+    check("STEP: an on step pressed stays on (no toggle on the press)", s->on);
+    check("STEP: no held-step line before STEP_HOLD_MS (a tap does not flash it)", held_step() == NSTEP);
+    grid_wait(STEP_HOLD_MS + 50u);
+    check("STEP: held past STEP_HOLD_MS: still on; the held-step line shows step 5", s->on && held_step() == 4u);
+    snap_page("seq/23_step_held_long");
+    grid_up(WHITE[4]);
+    check("STEP: let go after a hold: still on; no held step", s->on && held_step() == NSTEP);
+    grid_down(WHITE[4]);                             /* a quick press + KNOB 1: an edit, no toggle */
+    turn(EN_K1, -1);
+    ui_frame();
+    check("STEP: a quick KNOB 1 turn while pressed edits PROB at once; the line shows", s->on &&
+          s->cond == cond_store(19) && held_step() == 4u);
+    grid_up(WHITE[4]);
+    check("STEP: .. let go within STEP_HOLD_MS: no toggle (edited), PROB kept", s->on && s->cond == cond_store(19));
+    memset(&trk[0].step[6], 0, sizeof trk[0].step[6]);
+    grid_down(WHITE[6]);                             /* an off step + KNOB 2: on (an off step's edit is no use) */
+    turn(EN_K2, 1);
+    ui_frame();
+    check("STEP: an off step held + KNOB 2: on (no accent) with RATCH 2", trk[0].step[6].on && !trk[0].step[6].acc &&
+          trk[0].step[6].rat == 1);
+    grid_up(WHITE[6]);
+    check("STEP: .. let go: stays on (an edit is no tap)", trk[0].step[6].on && trk[0].step[6].rat == 1);
+    s->acc = 0;                                      /* accent: OCT+ held + a key, at the press, as before */
+    press(B_OCTUP);
+    ui_frame();
+    grid_down(WHITE[4]);
+    check("OCT+ held + a step key: the accent at the press (still on)", s->on && s->acc);
+    grid_up(WHITE[4]);
+    release_all();
+    ui_frame();
+    check("OCT+ + key let go quickly: no tap on the release (on, accented); the bank stays",
+          s->on && s->acc && ui.bank == 0u);
+    memset(&trk[0].step[8], 0, sizeof trk[0].step[8]);
+    trk[0].step[9].on = 1;
+    grid_down(WHITE[8]);                             /* two keys: each its own press */
+    grid_down(WHITE[9]);
+    grid_wait(STEP_HOLD_MS + 50u);
+    grid_down(WHITE[10]);
+    grid_up(WHITE[10]);
+    check("a key tapped while two are held: it toggles (step 11 on)", trk[0].step[10].on);
+    grid_up(WHITE[8]);
+    grid_up(WHITE[9]);
+    check("the two held long: unchanged (step 9 off, step 10 on)", !trk[0].step[8].on && trk[0].step[9].on);
+    trk[0].step[10].on = 0;
+    grid_down(WHITE[10]);                            /* the page changes under a quick press: no tap */
+    press(B_SEQ);
+    ui_frame();
+    release_all();
+    grid_up(WHITE[10]);
+    check("a quick press whose page changes before the release: no toggle", !trk[0].step[10].on);
+    ui_host_init();
+    seq_open("STEP");
+    step_hold_on_page("STEP");
+    seq_open("PATTERN");
+    step_hold_on_page("PATTERN");
+    seq_open("MOTION");
+    step_hold_on_page("MOTION");
+    seq_open("SONG");
+    step_hold_on_page("SONG");
+    open_tracks();
+    check("TRACKS open (keys = the steps)", mix_mode() && step_keys());
+    step_hold_on_page("TRACKS");
+    seq_open("STEP");                                /* KEYS: the keys are notes, no step changes */
+    tap(B_SCL);
+    memset(&trk[0].step[3], 0, sizeof trk[0].step[3]);
+    grid_down(WHITE[3]);
+    grid_wait(50);
+    grid_up(WHITE[3]);
+    check("KEYS on: a key tap changes no step", ui.keys && !trk[0].step[3].on);
+    tap(B_SCL);
 }
 
 static void test_grids_pages(void)
@@ -530,9 +655,10 @@ static void test_grid_hold_track_change(void)
     ui_frame();
     keys(0);
     ui_frame();
-    check("a held step key, then another track (ALGO): the new track's steps are untouched (also outside its LEN)",
-          song.sel == 1 && !memcmp(&trk[1].step[20], &before, sizeof before) && trk[0].step[20].cond == 0 &&
-              !trk[0].step[20].on);
+    check("a held step key, then another track (ALGO): the new track's steps are untouched (also outside its LEN), "
+          "the held one too (no tap on the release)",
+          song.sel == 1 && !memcmp(&trk[1].step[20], &before, sizeof before) && trk[0].step[20].cond == 33 &&
+              trk[0].step[20].on);
 }
 
 static void open_comp(int page2)                    /* HOME's second mode, then SELECT until COMP (2/3, or 3/3) */
@@ -6061,8 +6187,17 @@ static void test_foot_note(void)
     t = TSEL;                                        /* track 1, a drum */
     t->key_nt = 1;
     open_step_page();
-    keys(1u << WHITE[1]);
+    keys(1u << WHITE[1]);                            /* a tap: the step on (on the release) */
     ui_frame();
+    check("footer: a step key just pressed (maybe a tap) shows no note", !foot_note(b));
+    keys(0);
+    ui_frame();
+    keys(1u << WHITE[1]);                            /* then held past STEP_HOLD_MS */
+    ui_frame();
+    for (ms = 0; ms < STEP_HOLD_MS; ms += 50u) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
     check("footer: a step held on the grid shows its note (a drum's new step: C4, not the last key note)",
           foot_note(b) && str_eq(b, "C4") && foot_lit() > 0u);
     keys(0);
@@ -6224,7 +6359,9 @@ static void test_roll_held_prob(void)
     y = pr_row_y(62);                                /* step 3: D4 */
     band0 = fb_lit(Y_GRAPH, Y_GRAPH + G_OY);
     lit0 = pr_bar_lit(PR_X0 + 2 * PR_CW + 2, y);
-    keys(1u << STEP_KEY[2]);                         /* step 3 held ... */
+    keys(1u << STEP_KEY[2]);                         /* step 3 held (past STEP_HOLD_MS) ... */
+    ui_frame();
+    host_ticks += (STEP_HOLD_MS + 10u) * 1000u * FM1_TICKS_PER_US;
     ui_frame();
     band1 = fb_lit(Y_GRAPH, Y_GRAPH + G_OY);
     for (k = 0; k < 3u; k++)                         /* ... KNOB 1: its PROB */
@@ -8267,6 +8404,7 @@ int main(void)
     test_key_selects_track();
     test_grid_hold_accent();
     test_grid_step_edit();
+    test_step_hold();
     test_grid_hold_track_change();
     test_grids_pages();
     test_src_readonly();

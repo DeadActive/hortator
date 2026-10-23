@@ -161,6 +161,27 @@ static void test_leds(void)
     check("released: only the selected track's key stays lit", sim_key_leds() == 1u << KEY_TRK_KEY[song.sel]);
 }
 
+/* owner 2026-10-23: through the page's key calls too, a step key toggles its step on a short press's release; a
+ * hold (STEP_HOLD_MS or more) leaves it as it was */
+static void test_step_tap_hold(void)
+{
+    uint32_t on;
+    sim_init(1);
+    run(4096);                                       /* power-on: TRACKS, the white keys track 1's steps */
+    on = trk[0].step[0].on;
+    sim_key(0, 1);                                   /* F3: step 1 */
+    run(2048);
+    check("TRACKS: a step key just pressed changes nothing yet", trk[0].step[0].on == on);
+    sim_key(0, 0);
+    run(2048);
+    check("TRACKS: let go after ~0.05 s (a tap): step 1 toggled", trk[0].step[0].on == !on);
+    sim_key(0, 1);
+    run(44100u * (STEP_HOLD_MS + 200u) / 1000u);
+    sim_key(0, 0);
+    run(2048);
+    check("TRACKS: held past STEP_HOLD_MS and let go: step 1 as it was", trk[0].step[0].on == !on);
+}
+
 static uint32_t dirty_count(void)
 {
     uint32_t i, n = 0;
@@ -337,6 +358,7 @@ int main(void)
     test_boot_and_input();
     test_audio();
     test_leds();
+    test_step_tap_hold();
     test_demos_and_flash();
     test_drift();
     test_calibration_menu();
