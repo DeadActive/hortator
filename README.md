@@ -61,7 +61,9 @@ firmware ([below](#back-to-the-official-firmware)).
 - **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
   REC, next / previous track, or holds a PERFORM effect ([below](#midi-learn)).
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
-  into a DAW over its USB cable. The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
+  into a DAW over its USB cable. On a computer or an iPad it shows up as **Hortator** (USB MIDI and audio, in a DAW
+  or AUM; earlier versions: Felucca); while an update is being written it shows up as **Felucca Update**
+  (the update loader, upstream Felucca's). The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
   keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
 - **Projects.** Four slots, A to D, saved in the FM-1's flash; the last one saved loads at power-on.
 

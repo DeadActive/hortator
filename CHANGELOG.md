@@ -5,6 +5,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- USB name: the FM-1 now shows up as **Hortator** (USB MIDI and audio: in a DAW, AUM, the MIDI port list) instead of
+  Felucca: the app's USB product string (firmware/src/usb_app.c STR2, 18 B "Hortator"; user decision 2026-10-23,
+  frozen baseline moved to `frozen-base-9` for that one string). While an update is written it still shows up as
+  **Felucca Update** (the update loader, unchanged); the manufacturer string, VID/PID and the loader are unchanged.
+  The web installer, the editor, `tools/fm1_install.py` and `tools/fm1_sample_upload.py` find a port named Hortator
+  or Felucca (older firmware), so updating from any earlier build works as before.
 - MUTE: NEXT BAR works while following a clock (CLK USB, TRS or BLE): the waiting mutes now flip on the bar line
   instead of never. The bar is found from the clock's real advance in the block (read after the block's Clock), not
   the block's length; a muted COMP source (GHOST KEEP / HIDE) starts its 5 ms fade on the bar's last Clock pulse, so

@@ -67,8 +67,8 @@ class FakeFM1:
     """a MIDI backend with one FM-1 on it"""
 
     def __init__(self, image, identity="FM-1_015", name="FM-1", unplug_after=None, after_write="FM-1_900",
-                 stall_after=None, bad_addr=None):
-        self.image, self.unplug_after, self.after_write = image, unplug_after, after_write
+                 stall_after=None, bad_addr=None, after_name="Felucca"):
+        self.image, self.unplug_after, self.after_write, self.after_name = image, unplug_after, after_write, after_name
         self.stall_after, self.bad_addr = stall_after, bad_addr
         self.served = self.bad = self.upgrades = 0
         self.sent, self.links, self.gen, self.lock = [], [], 0, threading.Lock()
@@ -125,7 +125,7 @@ class FakeFM1:
             if addr == I.FINISH_CHECK:
                 threading.Timer(0.05, self.boot, ("ota-FM-1_900", "Felucca Update")).start()
             elif addr == I.FINISH_WRITE:
-                threading.Timer(0.05, self.boot, (self.after_write, "Felucca")).start()
+                threading.Timer(0.05, self.boot, (self.after_write, self.after_name)).start()
             else:
                 self.next()
 
@@ -180,6 +180,17 @@ def wire():
     ok(I.product_of(raw) == "FM-1_906" and len(I.logical_image(raw)) == len(raw) - 20, "product_of / logical_image (synthetic)")
 
 
+def port_names():
+    """the default port filter: the FM-1 under each firmware's USB name, as each OS names its MIDI port"""
+    mine = ["Hortator", "Hortator Port 1", "Hortator MIDI 1", "Hortator 1", "Hortator:Hortator MIDI 1 20:0",
+            "HORTATOR", "Felucca", "Felucca Port 1", "Felucca MIDI 1", "Felucca Update", "Felucca Update MIDI 1", "FM-1"]
+    ok(all(I.PORT_RE.search(n) for n in mine), "port filter: Hortator / Felucca / Felucca Update in each OS's naming")
+    ok(not any(I.PORT_RE.search(n) for n in ["IAC Driver Bus 1", "Network Session 1", "Launchpad X"]),
+       "port filter: other gear is never probed")
+    ok(all(I.Updater(FakeFM1(b"", name=n), None).candidates(True) == [n] for n in ("Hortator MIDI 1", "Felucca Update")),
+       "port filter: the installer's candidates include a Hortator port")
+
+
 def installs():
     raw = package()
     image = I.logical_image(raw)
@@ -193,6 +204,12 @@ def installs():
     dev = FakeFM1(image, identity="ota-FM-1_900", name="Felucca Update")
     rc, out, err = cli([p, "--yes"], dev)
     ok(rc == 0 and dev.bad == 0 and dev.upgrades == 1 and "update mode" in out, "install: device already in update mode -> finishes the write")
+
+    # the app's USB name is "Hortator" (older firmware: "Felucca"; the update loader: "Felucca Update")
+    dev = FakeFM1(image, identity="FM-1_900", name="Hortator", after_name="Hortator")
+    rc, out, err = cli([p, "--yes"], dev)
+    ok(rc == 0 and dev.bad == 0 and dev.upgrades == 2 and "done: the FM-1 runs FM-1_900" in out,
+       "install: running Hortator -> loader -> Hortator")
 
     dev = FakeFM1(image)
     rc, out, err = cli([p], dev, answer=False)
@@ -294,6 +311,7 @@ def official():
 
 
 wire()
+port_names()
 installs()
 errors()
 against_js()

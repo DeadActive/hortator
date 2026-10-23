@@ -2,6 +2,8 @@
 # whose frozen files ours equal (tools/check_untouched.py) and whose build is H2's and the stack check's
 # reference (tools/upstream_build.sh), and the commit it must resolve to (a moved or missing tag fails the checks).
 # Moving it, or the loader pin, is the user's decision.
-FROZEN_BASE frozen-base-8 c2b64217e30e603fb7cce9cdf1e7dd39b6d11cc2
+# frozen-base-9 (user decision 2026-10-23): frozen-base-8 + usb_app.c's app product string "Hortator" (was
+# "Felucca"; the update loader's "Felucca Update", VID/PID and every other frozen file unchanged)
+FROZEN_BASE frozen-base-9 b07efe4afa991a9589c07ea08bfdc45ced0bb186
 # the update loader the FM-1 runs (build/loader/ota.bin, 6493 B): it must not change
 LOADER_SHA256 cc98eed224299fa42ca22a546073e0f8b98d8362e26b5f325a9aaeab287bdf5d

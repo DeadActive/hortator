@@ -3,7 +3,8 @@
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 # Drum machine fork: 2026 DEADACTIVE
 """Fail when code the USB update / recovery path depends on differs from the frozen baseline (tools/frozen_base.txt:
-upstream Felucca 1e838e1, or a fork baseline tag = 1e838e1 + cited upstream hunks).
+upstream Felucca 1e838e1, or a fork baseline tag = 1e838e1 + cited upstream hunks, and the user's approved fork lines:
+frozen-base-8 main.c's led_dim_tick(), frozen-base-9 usb_app.c's app product string "Hortator", 2026-10-23).
 
   tools/check_untouched.py [--tree DIR]     DIR: a copy of the repo root (default: the repo)
 

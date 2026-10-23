@@ -180,6 +180,28 @@ def selftest():
     finally:
         globals()["git"] = real
         globals()["worktree_text"] = real_wt
+    # usb_app.c: the recorded USB product string (frozen-base-9) and nothing else
+    ub = ("#ifdef FELUCCA_LOADER\n" + STR2_LOADER + "#else\n" + STR2_OLD + "#endif\n")
+    named = ub.replace(STR2_OLD, STR2_NEW)
+    cases = {"the new name": (named, True),
+             "the new name and another change": (named.replace("#endif", "#endif /* x */"), False),
+             "the loader's string changed": (ub.replace(STR2_LOADER, STR2_LOADER.replace("'F', 0", "'H', 0")), False),
+             "another name": (ub.replace(STR2_OLD, STR2_NEW.replace("'r', 0}", "'R', 0}")), False),
+             "the new name twice": (named.replace("#endif", STR2_NEW + "#endif"), False)}
+    try:
+        for what, (cur, ok) in cases.items():
+            globals()["git"] = lambda *a, b=ub: b if a[0] == "show" else "M\tfirmware/src/usb_app.c\n"
+            globals()["worktree_text"] = lambda path, c=cur: c
+            assert (source_errors("x") == []) == ok, f"usb_app.c, {what}: {'flagged' if ok else 'not caught'}"
+        globals()["git"] = lambda *a: named if a[0] == "show" else "M\tfirmware/src/usb_app.c\n"
+        globals()["worktree_text"] = lambda path: named.replace(STR2_NEW, STR2_OLD)
+        assert source_errors("x"), "a release with the new name: the old name back not caught"
+        globals()["git"] = lambda *a: ub if a[0] == "show" else "M\tfirmware/src/ota.c\n"
+        globals()["worktree_text"] = lambda path: named
+        assert source_errors("x"), "the usb_app.c allowance excused another file"
+    finally:
+        globals()["git"] = real
+        globals()["worktree_text"] = real_wt
     print("check_update_path: selftest ok")
 
 
@@ -197,6 +219,23 @@ NEW_OK = {"firmware/hal/fm1_ble_hal.h", "firmware/hal/fm1_ctx.h", "firmware/hal/
 MAIN_C = "firmware/src/main.c"
 HOOK_AFTER = "    fm1_input_tick();\n"
 HOOK_LINE = "    led_dim_tick();                             /* the dimmed LEDs (led_dim.c): the column the next tick lights */\n"
+
+
+# the one recorded change to usb_app.c a release may not have yet (user decision 2026-10-23, frozen-base-9): the app's
+# USB product string "Felucca" -> "Hortator" (STR2, the line after #else; the FELUCCA_LOADER string above it stays),
+# and nothing else. Once a release has it, usb_app.c must equal that release's again.
+USB_APP_C = "firmware/src/usb_app.c"
+STR2_LOADER = ("static const uint8_t STR2[] = {30, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0, ' ', 0, "
+               "'U', 0, 'p', 0,\n                               'd', 0, 'a', 0, 't', 0, 'e', 0};\n")
+STR2_OLD = "static const uint8_t STR2[] = {16, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0};\n"
+STR2_NEW = "static const uint8_t STR2[] = {18, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't', 0, 'o', 0, 'r', 0};\n"
+
+
+def usb_name_only(base_text, cur_text):
+    """cur_text is base_text with its one app product string line renamed to the recorded one, nothing else"""
+    if STR2_NEW in base_text or base_text.count(STR2_OLD) != 1:
+        return False
+    return cur_text == base_text.replace(STR2_OLD, STR2_NEW)
 
 
 def main_hook_only(base_text, cur_text):
@@ -234,14 +273,17 @@ def source_errors(base):
             continue
         if status == "M" and path == MAIN_C and main_hook_only(git("show", f"{base}:{path}"), worktree_text(path) or ""):
             continue
+        if status == "M" and path == USB_APP_C and usb_name_only(git("show", f"{base}:{path}"), worktree_text(path) or ""):
+            continue
         errors.append(f"update path source {path} differs from {base} ({status})")
     return errors
 
 
 def source_note(base):
     """what gate 2a allowed beyond the release's sources ("" for nothing)"""
-    hooked = MAIN_C in git("diff", "--name-only", base, "--", MAIN_C).split()
-    return " + main.c's recorded backlight hook (frozen-base-8)" if hooked else ""
+    changed = git("diff", "--name-only", base, "--", MAIN_C, USB_APP_C).split()
+    return ((" + main.c's recorded backlight hook (frozen-base-8)" if MAIN_C in changed else "") +
+            (" + usb_app.c's recorded USB name Hortator (frozen-base-9)" if USB_APP_C in changed else ""))
 
 
 def main(argv):

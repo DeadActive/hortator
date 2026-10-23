@@ -40,6 +40,9 @@ Both directions now work on your FM-1, with firmware many people run.
 3. Connect the FM-1 (powered on, stock or Felucca) and run:
    `~/fm1-venv/bin/python tools/fm1_install.py build/felucca-UNTESTED.fwsc`
    Expected: it finds the FM-1, asks to confirm, writes, and the FM-1 restarts.
+   (The FM-1's USB name: **Hortator** while the drum firmware runs, in a DAW / AUM / the MIDI port list; older
+   drum builds and upstream Felucca: Felucca; while the update is written: **Felucca Update**. The installers and
+   the editor find each of them.)
 
    Or with the web installer: every `DRUM_PACKAGE=1 ./build.sh` also rebuilds a local copy of the site in
    `build/site` with that same package, labelled `drum-<version>+<commit>` (docs/VERSIONING.md; `-dirty` when the source had uncommitted
