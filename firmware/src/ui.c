@@ -100,6 +100,10 @@ static struct {
     uint8_t mute;                /* the MUTE screen shows (GLO held, spec §5) */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
+    uint8_t env;                 /* ENV (spec 2026-10-24 parameter locks): 1 STEPS (the white keys the selected track's
+                                  * steps on every page), 0 TRACKS (as before); off at power-on, never stored */
+    uint32_t env_t0;             /* ENV's press time | 1; bit 1: used (ENV + OCT+-, or pressed under a dialog): its
+                                  * release toggles nothing */
     uint8_t srec, sr_cur, sr_key;   /* step record (spec §6): on; its cursor; the key whose note is on it + 1 */
     struct {                     /* MIDI LEARN (ui_learn.c; GLO + G4): never stored */
         uint8_t on;              /* LEARN is on */
@@ -165,11 +169,15 @@ static int keys_mode(void)
 }
 /* the white keys are the selected track's steps (the bank's 16): every SEQ page while KEYS is off, and TRACKS while
  * nothing is armed (user, 2026-10-08) */
-static int step_keys(void)
+static int seq_keys(void)
 {
     return !ui.home && !ui.menu &&
            ((cur_page()->fam == FAM_SEQ && !keys_mode()) || (cur_page()->scope == SC_MIX && !song.rec));
 }
+/* ENV's STEPS mode (spec 2026-10-24 parameter locks): the white keys the selected track's steps on every page (HOME,
+ * TRACKS armed, SOUND, FX, LFO, COMP ...); not in the menu or NAME */
+static int env_steps(void) { return ui.env && !ui.menu && !name_on(); }
+static int step_keys(void) { return seq_keys() || env_steps(); }
 /* seq.c keyboard_block: whose the keys' presses are: 0 the drum keys (hits, MIDI), 1 the UI's (the STEP grid, COMP,
  * TRACKS, NAME), 2 TRACKS armed (hits and recording, as 0), 3 KEYS */
 static uint8_t seq_mode_now(void)
@@ -205,7 +213,19 @@ static void page_entered(void)
 static void keys_toggle(void)
 {
     ui.keys ^= 1u;
+    if (ui.keys)
+        ui.env = 0;                                    /* one key role at a time: STEPS off */
     grid_drop_holds();                                 /* a grid key held edits nothing more */
+    song.seq_mode = seq_mode_now();
+    ui.force = 1;
+}
+/* ENV (its release): STEPS <-> TRACKS (KEYS off for STEPS: one key role at a time); a held key lets go of its step */
+static void env_toggle(void)
+{
+    ui.env ^= 1u;
+    if (ui.env)
+        ui.keys = 0;
+    grid_drop_holds();
     song.seq_mode = seq_mode_now();
     ui.force = 1;
 }

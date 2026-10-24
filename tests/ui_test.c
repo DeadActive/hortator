@@ -72,7 +72,7 @@ static void test_families(void)
     press(B_SCL);
     ui_frame();
     release_all();
-    check("ENV does nothing (free); SCL toggles KEYS, the page stays", !ui.home && cur_page()->fam == FAM_LFO && ui.keys);
+    check("ENV (STEPS, 2026-10-24) then SCL: KEYS on (STEPS off), the page stays", !ui.home && cur_page()->fam == FAM_LFO && ui.keys);
     press(B_SCL);                                    /* KEYS off again */
     ui_frame();
     release_all();
@@ -8675,6 +8675,209 @@ static void test_fk_led_levels(void)
     ui_frame();
 }
 
+/* ---- ENV: the white keys as the selected track's steps on every page (STEPS), or as today (TRACKS) (spec
+ * 2026-10-24 parameter locks) */
+static void btn_up(uint32_t label) { fm1_in.buttons &= ~(1u << panel.btn[label]); }
+static void env_tap(void) { tap(B_ENV); }
+static void key_tap(uint32_t key) { grid_down(key); grid_wait(50); grid_up(key); }
+static void test_env_toggle(void)
+{
+    uint32_t ok;
+    ui_host_init();
+    tap(B_EDIT);                                     /* SOUND */
+    song.sel = 0;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    memset(trk[2].step, 0, sizeof trk[2].step);
+    env_tap();
+    ok = ui.env == 1u && led_lit(panel.btn[B_ENV]) && song.seq_mode == 1u;
+    key_tap(WHITE[2]);
+    ok &= trk[0].step[2].on && song.sel == 0u && !trk[2].step[2].on && str_eq(cur_page()->title, "SOUND");
+    check("ENV: STEPS mode (LED lit): on SOUND a white key toggles the selected track's step, selects no track, plays "
+          "nothing", ok);
+    env_tap();
+    ok = ui.env == 0u && !led_lit(panel.btn[B_ENV]) && song.seq_mode == 0u;
+    key_tap(WHITE[2]);
+    check("ENV again: TRACKS mode: the key selects its track as before", ok && song.sel == 2u && trk[0].step[2].on);
+}
+static void test_env_tracks_unchanged(void)
+{
+    static const uint32_t FAMS[5] = {FAM_SND, FAM_FX, FAM_LFO, FAM_SEQ, FAM_MIX};
+    uint32_t f, ok = 1, seqm, sel;
+    for (f = 0; f < 5u; f++) {
+        uint32_t lv[2];
+        ui_host_init();
+        open_family(FAMS[f]);
+        ui_frame();
+        seqm = song.seq_mode;
+        lv[0] = led_lit(panel.btn[B_OCTUP]) | led_lit(14u + WHITE[0]) << 1 | led_lit(14u + WHITE[3]) << 2;
+        env_tap();
+        env_tap();
+        lv[1] = led_lit(panel.btn[B_OCTUP]) | led_lit(14u + WHITE[0]) << 1 | led_lit(14u + WHITE[3]) << 2;
+        ok &= ui.env == 0u && song.seq_mode == seqm && lv[0] == lv[1];
+        sel = song.sel;
+        key_tap(WHITE[3]);
+        ok &= FAMS[f] == FAM_SEQ || FAMS[f] == FAM_MIX ? trk[sel].step[3].on : song.sel == 3u;
+    }
+    check("ENV toggled twice: every family's keys, LEDs and key mode as before", ok);
+}
+static void test_env_banks(void)
+{
+    uint32_t ok;
+    ui_host_init();
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 64;
+    env_tap();
+    press(B_ENV);                                    /* ENV held + OCT+: the next bank */
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    btn_up(B_OCTUP);
+    ui_frame();
+    ok = ui.bank == 1u && str_eq(cur_page()->title, "SOUND");
+    btn_up(B_ENV);
+    ui_frame();
+    ok &= ui.env == 1u;
+    press(B_ENV);
+    ui_frame();
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= ui.bank == 0u && ui.env == 1u;
+    check("ENV held + OCT+ / OCT-: the next / previous bank; ENV let go after them: still STEPS", ok);
+    env_tap();
+    press(B_ENV);
+    ui_frame();
+    btn_up(B_ENV);
+    ui_frame();
+    check("(ENV tapped back to STEPS)", ui.env == 1u);
+    env_tap();
+    tap(B_OCTUP);
+    check("ENV off on SOUND: OCT+ is the page's (LAYER), no bank", ui.bank == 0u && str_eq(cur_page()->title, "LAYER"));
+}
+static void test_env_oct_jobs(void)
+{
+    uint32_t ok;
+    int16_t m;
+    ui_host_init();
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 32;
+    env_tap();
+    press(B_OCTUP);
+    ui_frame();
+    ok = str_eq(cur_page()->title, "SOUND") && led_lit(panel.btn[B_OCTUP]);
+    release_all();
+    ui_frame();
+    ok &= str_eq(cur_page()->title, "LAYER") && ui.bank == 0u;
+    check("STEPS on SOUND: OCT+ alone goes to LAYER on its release (not the press)", ok);
+    tap(B_OCTDN);
+    check("STEPS on LAYER: OCT- back to SOUND", str_eq(cur_page()->title, "SOUND"));
+    TSEL->step[5].acc = 0;
+    TSEL->step[5].on = 1;
+    press(B_OCTUP);
+    ui_frame();
+    grid_down(WHITE[5]);
+    btn_up(B_OCTUP);
+    ui_frame();
+    grid_up(WHITE[5]);
+    check("STEPS: OCT+ held + a step key: its accent, OCT+'s release no LAYER",
+          TSEL->step[5].acc && TSEL->step[5].on && str_eq(cur_page()->title, "SOUND"));
+    tap(B_LFO);
+    ui.lfo_l = 0;
+    m = TSEL->p[P_LFO1 + LF_MODE];
+    tap(B_OCTUP);
+    check("STEPS on an LFO page: OCT+ alone cycles the RATE MODE", TSEL->p[P_LFO1 + LF_MODE] == (m + 1) % 3);
+    open_step_page();
+    ui_frame();
+    tap(B_OCTUP);
+    check("STEPS on SEQ STEP: OCT+ alone is the next bank, as today", ui.bank == 1u && ui.env == 1u);
+}
+static void test_env_keys_exclusive(void)
+{
+    ui_host_init();
+    tap(B_EDIT);
+    tap(B_SCL);
+    check("(KEYS on)", ui.keys == 1u);
+    env_tap();
+    check("ENV with KEYS on: KEYS off, STEPS on", ui.keys == 0u && ui.env == 1u && song.seq_mode == 1u);
+    tap(B_SCL);
+    check("SCL in STEPS: STEPS off, KEYS on", ui.keys == 1u && ui.env == 0u && song.seq_mode == 3u);
+}
+static void test_env_not_saved(void)
+{
+    static uint8_t a[sizeof settings];
+    ui_host_init();
+    memcpy(a, &settings, sizeof a);
+    env_tap();
+    check("ENV: not in the settings (not saved), off at power-on",
+          ui.env == 1u && !memcmp(a, &settings, sizeof a) && (ui_host_init(), ui.env == 0u));
+}
+static void test_env_home_and_tracks(void)
+{
+    uint32_t ok, k;
+    ui_host_init();                                  /* the HOME screen */
+    song.sel = 1;
+    for (k = 0; k < NTRK; k++)
+        memset(trk[k].step, 0, sizeof trk[k].step);
+    env_tap();
+    key_tap(WHITE[6]);
+    ok = ui.home && trk[1].step[6].on && song.sel == 1u;
+    home_tracks();
+    song.rec = 1u << 1;                              /* TRACKS, track 2 armed */
+    ui_frame();
+    key_tap(WHITE[7]);
+    ok &= trk[1].step[7].on && song.seq_mode == 1u;
+    check("STEPS: the HOME screen and TRACKS (armed) keys are the selected track's steps", ok);
+    song.rec = 0;
+    tap(B_EDIT);
+    transport_req = 1;
+    ui_frame();
+    tap(B_REC);                                      /* off TRACKS: REC ALL */
+    ok = ui.rec_all && song.playing;
+    key_tap(WHITE[9]);
+    key_tap(WHITE[10]);
+    for (k = 0; k < NTRK; k++)
+        if (k != 1u)
+            ok &= !trk[k].step[0].on && !trk[k].step[4].on && !trk[k].step[8].on && !trk[k].step[12].on;
+    ok &= trk[1].step[9].on && trk[1].step[10].on;
+    transport_req = 2;
+    ui_frame();
+    check("STEPS + REC ALL playing: the keys toggle steps, record no hits", ok);
+    rec_all_drop();
+    song.rec = 0;
+}
+/* Review Focus 5: ENV while a step key is held: the hold drops, its release toggles nothing, no lock after */
+static void test_env_while_step_held(void)
+{
+    uint32_t ok;
+    int16_t v;
+    const page_t *pg;
+    int16_t *vp;
+    ui_host_init();
+    tap(B_EDIT);
+    song.sel = 0;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    env_tap();
+    grid_down(WHITE[4]);
+    grid_wait(400);
+    ok = trk[0].step[4].on;                          /* an off step held 0.3 s: on */
+    press(B_ENV);
+    ui_frame();
+    btn_up(B_ENV);
+    ui_frame();
+    ok &= ui.env == 0u;
+    grid_up(WHITE[4]);
+    ok &= trk[0].step[4].on;
+    pg = cur_page();
+    page_desc(pg, 1, &vp);
+    v = *vp;
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    turn(EN_K2, 1);
+    ui_frame();
+    ok &= *vp == v + 1 && lock_count(0) == 0u && mo.b.count == 0u;
+    check("ENV while a step key is held: TRACKS mode, the release leaves the step on, a turn edits the knob (no lock)", ok);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -8883,6 +9086,14 @@ int main(void)
     test_fk_track_keys();
     test_fk_oct_breath();
     test_fk_led_levels();
+    test_env_toggle();                               /* parameter locks (2026-10-24): ENV */
+    test_env_tracks_unchanged();
+    test_env_banks();
+    test_env_oct_jobs();
+    test_env_keys_exclusive();
+    test_env_not_saved();
+    test_env_home_and_tracks();
+    test_env_while_step_held();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

@@ -94,16 +94,21 @@ static uint32_t oct_leds(void)
         return OCT_LIT_DN | OCT_BR_UP;
     if (keys_mode())
         return (song.octave < 0 ? OCT_LIT_DN : 0u) | (song.octave > 0 ? OCT_LIT_UP : 0u);
-    if (step_keys())
+    if (seq_keys())
         return (ui.bank > 0u ? OCT_BR_DN : 0u) |
                (acc_oct ? OCT_LIT_UP : ui.bank + 1u < bank_count() ? OCT_BR_UP : 0u);
-    if (!ui.home && cur_fam() == FAM_SND)
-        return OCT_BR_UP;
-    if (!ui.home && cur_fam() == FAM_LAY)
-        return OCT_LIT_DN;
-    if (!ui.home && cur_fam() == FAM_LFO)             /* LFO: OCT+ the RATE MODE of the LFO turned last (item 3); */
-        return OCT_BR_UP;                             /* OCT- does nothing there */
-    return 0;
+    {
+        uint32_t r = 0;
+        if (!ui.home && cur_fam() == FAM_SND)
+            r = OCT_BR_UP;
+        else if (!ui.home && cur_fam() == FAM_LAY)
+            r = OCT_LIT_DN;
+        else if (!ui.home && cur_fam() == FAM_LFO)    /* LFO: OCT+ the RATE MODE of the LFO turned last (item 3); */
+            r = OCT_BR_UP;                            /* OCT- does nothing there */
+        if (env_steps() && acc_oct)                   /* STEPS: OCT+ held (its accent) lit, as on the SEQ pages */
+            r = (r & ~OCT_BR_UP) | OCT_LIT_UP;
+        return r;
+    }
 }
 
 /* fixes 2026-10-21 item 9 (upstream Felucca's LEDS levels; MENU BACKLIGHT, panel.c BL_*): the picture nl (lit), nb
@@ -175,6 +180,7 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ui.srec);
     led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
+    led_put(nl, panel.btn[B_ENV], ui.env);            /* STEPS (spec 2026-10-24) */
     if (ui.mute) {                                    /* MUTE screen: the tracks' keys lit while audible, blinking
                                                        * while a mute waits for the bar; top C# (NOW) / D# (NEXT BAR) */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
@@ -855,13 +861,51 @@ static void srec_knob(uint32_t k, int32_t s)
 /* fixes 2026-10-21 item 1: OCT+ let go where it was pressed on the steps: alone (no step key accented with it), and the
  * keys still the steps, the next bank; anything else (an accent, another page, the menu, a dialog, the MUTE screen or
  * PERFORM up while it was held: acc_oct 2, ui_input) nothing */
+/* OCT+'s page job (SOUND: LAYER 1/2; an LFO page: the RATE MODE of the LFO turned last); OCT-'s (LAYER: back to its
+ * SOUND page) */
+static void oct_up_job(void)
+{
+    if (!ui.home && cur_fam() == FAM_SND) {
+        ui.fam_last[FAM_LAY] = 0;                       /* LAYER 1/2 */
+        open_family(FAM_LAY);
+    } else if (!ui.home && cur_fam() == FAM_LFO) {      /* the LFO turned last (DEST: the slot's source): SYNC -> Hz
+                                                         * -> TIME */
+        uint32_t l = cur_page()->graph == GR_LDEST ? (TSEL->p[LS_ID[song.lslot & 3u][LS_SRC]] ? 1u : 0u)
+                                                   : ui.lfo_l & 1u;
+        int16_t *mp = &TSEL->p[(l ? P_LFO2 : P_LFO1) + LF_MODE];
+        *mp = (int16_t)((clamp(*mp, 0, 2) + 1) % 3);
+        ui.force = 1;
+    }
+}
+static void oct_dn_job(void)
+{
+    if (!ui.home && cur_fam() == FAM_LAY)
+        open_family(FAM_SND);                           /* the SOUND page it came from */
+}
 static void acc_oct_poll(void)
 {
     if (!acc_oct || ((fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u))
         return;
-    if (acc_oct == 1u && step_keys() && !ui.confirm && !name_on() && !pl_on() && !ui.mute && !ui.layer && !fx_knobs)
-        bank_set((int32_t)ui.bank + 1);
+    if (acc_oct == 1u && step_keys() && !ui.confirm && !name_on() && !pl_on() && !ui.mute && !ui.layer && !fx_knobs) {
+        if (seq_keys())
+            bank_set((int32_t)ui.bank + 1);
+        else
+            oct_up_job();                               /* STEPS elsewhere: OCT+ let go alone is the page's */
+    }
     acc_oct = 0;
+}
+/* ENV (spec 2026-10-24): a tap toggles STEPS / TRACKS on its release, unless OCT+- changed the bank while it was held
+ * or it was pressed under the menu, NAME, the PRESETS list, the MUTE screen, PERFORM or a dialog */
+static void env_poll(uint32_t now, uint32_t pressed)
+{
+    int busy = ui.menu || name_on() || pl_on() || ui.mute || ui.layer || fx_knobs || ui.confirm;
+    if ((pressed >> panel.btn[B_ENV]) & 1u)
+        ui.env_t0 = (now | 1u) | (busy ? 2u : 0u);
+    if (ui.env_t0 && !((fm1_in.buttons >> panel.btn[B_ENV]) & 1u)) {
+        if (!(ui.env_t0 & 2u) && !busy)
+            env_toggle();
+        ui.env_t0 = 0;
+    }
 }
 
 static void ui_input(void)
@@ -873,6 +917,7 @@ static void ui_input(void)
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
     acc_oct_poll();                                     /* OCT+ let go on the steps: the next bank (item 1) */
+    env_poll(now, pressed);                             /* ENV: STEPS / TRACKS */
     pre_frame(now);                                     /* PRESETS: EDIT's hold, the popup's time (ui_preset.c) */
 #if FELUCCA_BLE
     bt_autostart();                                     /* AUTOSTART: BLUETOOTH ON once, 5 s after power-on (the
@@ -1038,24 +1083,25 @@ static void ui_input(void)
                 ml_oct(b == B_OCTUP);
             } else if (keys_mode()) {
                 keys_octave(b == B_OCTUP ? 1 : -1);
-            } else if (step_keys()) {                   /* OCT+: held + a step key its accent, let go alone the
+            } else if (ui.env_t0) {                     /* ENV held: the bank (STEPS' banks; no toggle on its release) */
+                bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
+                ui.env_t0 |= 2u;
+            } else if (seq_keys()) {                    /* OCT+: held + a step key its accent, let go alone the
                                                          * next bank (acc_oct_poll); OCT-: the bank before */
                 if (b == B_OCTUP)
                     acc_oct = 1;
                 else
                     bank_set((int32_t)ui.bank - 1);
-            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_SND) {
-                ui.fam_last[FAM_LAY] = 0;               /* LAYER 1/2 */
-                open_family(FAM_LAY);
-            } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LAY) {
-                open_family(FAM_SND);                   /* the SOUND page it came from */
-            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_LFO) {   /* the LFO turned last (DEST: the slot's
-                                                                               * source): SYNC -> Hz -> TIME */
-                uint32_t l = cur_page()->graph == GR_LDEST ? (TSEL->p[LS_ID[song.lslot & 3u][LS_SRC]] ? 1u : 0u)
-                                                           : ui.lfo_l & 1u;
-                int16_t *mp = &TSEL->p[(l ? P_LFO2 : P_LFO1) + LF_MODE];
-                *mp = (int16_t)((clamp(*mp, 0, 2) + 1) % 3);
-                ui.force = 1;
+            } else if (env_steps()) {                   /* STEPS elsewhere: OCT+ held + a step key its accent, let go
+                                                         * alone the page's job; OCT- the page's at once */
+                if (b == B_OCTUP)
+                    acc_oct = 1;
+                else
+                    oct_dn_job();
+            } else if (b == B_OCTUP) {
+                oct_up_job();
+            } else {
+                oct_dn_job();
             }
             break;
         default: {

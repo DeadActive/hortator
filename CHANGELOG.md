@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- ENV: the white keys as the selected track's steps on every page. ENV (unused before) toggles STEPS / TRACKS on its
+  release, its LED lit in STEPS; the mode is global, not saved (off at power-on). In STEPS the keys tap / hold steps
+  as on SEQ on HOME, TRACKS (armed too), SOUND, LAYER, FX, LFO and COMP, and play no drum (REC ALL records no hits
+  then); ENV held + OCT+ / OCT- changes the bank; OCT+ held + a step its accent, OCT+ alone and OCT- keep their page's
+  job (SOUND to LAYER on OCT+'s release, LAYER back, the LFO's RATE MODE). ENV turns KEYS off and SCL STEPS off. ENV
+  off (TRACKS) is the keys exactly as before.
+
 - Parameter locks play (motion.c): a lock sets its knob for its own step only, on top of what the knob holds there
   (its value, or motion's held value; an LFO on it modulates round the locked value), and the knob snaps back on the
   next step. A step that is off keeps its locks dormant. Locks play whatever MOTION's PLAY says; MOTION CLEAR leaves

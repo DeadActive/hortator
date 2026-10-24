@@ -760,3 +760,12 @@ ACC`).
   USR3 48 KiB or less (or empty), nothing is shown.
 - A project saved by 0.23.3 (FDRE) with MOTION loads (`LOADED`) and its motion plays as before. Save it, power off
   and on, load it: the same. MOTION's EVENT count can now pass 128 (record a long sweep on several tracks).
+- ENV tap (let go): its LED lights (STEPS). On SOUND the white keys now tap the selected track's steps (a short tap
+  on / off on the release, a 0.3 s hold turns an off step on), they select no track and play no drum; the key LEDs
+  show the bank's steps. ENV again: LED off, the keys select / play tracks as before. Same on HOME, FX, LFO, COMP and
+  TRACKS with a track armed.
+- STEPS with LEN 64: hold ENV, press OCT+: the next bank (the key LEDs move on); OCT-: back; letting ENV go after that
+  keeps STEPS. OCT+ alone on SOUND: LAYER when OCT+ is let go; OCT+ held + a step key: its accent, no LAYER. On LAYER
+  OCT-: back to SOUND. On an LFO page OCT+: the RATE MODE cycles. On SEQ STEP OCT+ / OCT- are the bank as before.
+- KEYS (SCL) on, ENV: KEYS goes off, STEPS on; SCL again: STEPS off, KEYS on. Power off and on: STEPS off.
+- Hold a step key in STEPS, tap ENV while holding it: TRACKS; letting the key go changes nothing.
