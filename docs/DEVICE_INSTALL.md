@@ -757,8 +757,10 @@ ACC`).
 
 - USR3 at 48 KiB: with an 80 KiB sample in USR3 (uploaded under upstream Felucca before), the first power-on shows
   `USR3 SHORTENED TO 48K` once; SAMPLE's USR3 still plays (its first 48 KiB). The next power-on says nothing. With
-  USR3 48 KiB or less (or empty), nothing is shown.
-- A project saved by 0.23.3 (FDRE) with MOTION loads (`LOADED`) and its motion plays as before. Save it, power off
+  USR3 48 KiB or less (or empty), nothing is shown. (If the FM-1 ever says `USR3 CLAMP FAILED` at power-on, SAVE
+  says it too and writes nothing to flash that boot: power off and on.)
+- A project saved by 0.23.3 (FDRE) with MOTION loads (`LOADED`) and its motion plays as before. RENAME it (NAME)
+  before any SAVE, power off and on, load it: still its motion (not `LOCKS LOST`). Save it, power off
   and on, load it: the same. MOTION's count (SEQ > MOTION, KNOB 2) can now pass 128 (record a long sweep on several tracks).
 - ENV tap (let go): its LED lights (STEPS). On SOUND the white keys now tap the selected track's steps (a short tap
   on / off on the release, a 0.3 s hold turns an off step on), they select no track and play no drum; the key LEDs

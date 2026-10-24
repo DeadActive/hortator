@@ -86,6 +86,11 @@ typedef char project_ve_size[sizeof(project_ve_t) == 3840u &&
 /* each slot's lock bank (lockbank.c): the one its record links (persist_boot, a LOAD's fetch, a SAVE); .bss (the
  * slots' records are .noinit: a reset finds them, the banks come from flash again). A SONG row plays its slot's */
 static lk_bank_t lk_slot[4];
+static uint8_t lk_dirty;                            /* bit per slot: its RAM bank is not in flash (an older record converted
+                                                     * at boot, or its SAVE failed): a record written alone (RENAME) writes
+                                                     * it first, so the record never links a bank flash lacks */
+static uint8_t lk_blocked;                          /* this boot's USR3 clamp failed (USR3 still longer than 48 KiB in
+                                                     * flash): no lock-bank write (an older Hortator would play them) */
 static uint32_t proj_hash(const void *p, uint32_t n);
 static uint32_t proj_link(const lk_bank_t *b) { return proj_hash(b, sizeof *b) | 1u; }   /* (never 0) */
 static void lk_empty(uint32_t slot)
@@ -282,6 +287,7 @@ static void proj_old_bank(project_t *q, lk_bank_t *b, const motion_store_t *m)
     uint32_t slot = (uint32_t)(b - lk_slot);
     if (!m || !lk_from_motion(b, slot, m))
         lk_empty(slot);
+    lk_dirty |= (uint8_t)(1u << (slot & 3u));       /* (converted in RAM: not in flash until a save) */
     q->lk_link = proj_link(b);
     q->lk_n = b->count;
 }
@@ -412,6 +418,7 @@ static int proj_bank_fetch(uint32_t slot)
     const project_t *q = &proj_slot[slot & 3u];
     lk_bank_t *b = &lk_slot[slot & 3u];
     uint32_t c;
+    lk_dirty &= (uint8_t)~(1u << (slot & 3u));      /* (the bank flash has, or none) */
     if (!q->lk_n) {
         lk_empty(slot & 3u);
         return 0;
@@ -435,6 +442,7 @@ static int proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
+    lk_dirty &= (uint8_t)~(1u << (slot & 3u));
     if (n > 8 && n <= (int)sizeof proj_old && !proj_ok(q)) {   /* an old record: its marker names it */
         static const uint32_t MAGIC[15] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
                                            PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA, PROJ_MAGIC_VB,
@@ -512,11 +520,17 @@ static void project_save(uint32_t slot)
     chain.from = (uint8_t)((slot & 3u) + 1u);
 #if FELUCCA_FLASH
     if (flash_ok) {                                     /* the bank, then the record (the pair's commit) */
+        lk_dirty |= (uint8_t)(1u << (slot & 3u));       /* (until both are written) */
+        if (lk_blocked) {                               /* USR3 not shortened: no bank write (RAM keeps the save) */
+            ui_message("USR3 CLAMP FAILED");
+            return;
+        }
         if (st_save(OBJ_LOCKS0 + (slot & 3u), &lk_slot[slot & 3u], sizeof lk_slot[0]) ||
             st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p)) {
             ui_message("SAVE ERROR");
             return;
         }
+        lk_dirty &= (uint8_t)~(1u << (slot & 3u));
         lastp.set = 1;                                  /* the last project: power-on loads it (spec 2026-10-11 §6) */
         lastp.slot = (uint8_t)(slot & 3u);
         settings_save();                                /* (stopped: now; unchanged: nothing written) */
@@ -919,8 +933,17 @@ static void persist_boot(void)                    /* before settings_init / pane
     if (!flash_ok)
         return;
     fl_plain_window_init();
-    if (smp_usr3_clamp() > 0)                         /* USR3 at 48 KiB: before any lock-bank write */
-        persist_note |= PN_USR3;
+    lk_dirty = 0;
+    lk_blocked = 0;
+    {
+        int c = smp_usr3_clamp();                     /* USR3 at 48 KiB: before any lock-bank write */
+        if (c > 0)
+            persist_note |= PN_USR3;
+        else if (c < 0) {                             /* failed: USR3 still past 48 KiB in flash, no bank write now */
+            lk_blocked = 1;
+            persist_note |= PN_USR3F;
+        }
+    }
     {
         uint32_t k;
         for (k = 0; k < SMP_USER_SLOTS; k++)
@@ -997,6 +1020,17 @@ static void project_rename(uint32_t slot, const char *name)   /* only the name; 
         name_set(chain.name, n);
 #if FELUCCA_FLASH
     if (flash_ok) {
+        if (lk_blocked) {                               /* (USR3 not shortened: the pair is not written) */
+            ui_message("USR3 CLAMP FAILED");
+            return;
+        }
+        if ((lk_dirty >> (slot & 3u)) & 1u) {           /* its bank only in RAM: written first (the record links it) */
+            if (st_save(OBJ_LOCKS0 + (slot & 3u), &lk_slot[slot & 3u], sizeof lk_slot[0])) {
+                ui_message("SAVE ERROR");
+                return;
+            }
+            lk_dirty &= (uint8_t)~(1u << (slot & 3u));
+        }
         ui_message(st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p) ? "SAVE ERROR" : "RENAMED");
         return;
     }

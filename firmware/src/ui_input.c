@@ -38,6 +38,7 @@ static uint8_t acc_oct;
  * lock bank lost (spec 2026-10-24 parameter locks) */
 #define PN_USR3 1u
 #define PN_LOCKS 2u
+#define PN_USR3F 4u                                 /* the USR3 clamp failed: no lock-bank writes this boot */
 static uint8_t persist_note;
 static uint8_t lk_lost;                             /* project.c: slots whose lock bank was lost (LOCKS LOST, once) */
 static void persist_note_show(void)                 /* every frame: with no message up, the lowest note's, once */
@@ -47,11 +48,14 @@ static void persist_note_show(void)                 /* every frame: with no mess
     if (persist_note & PN_USR3) {
         persist_note &= (uint8_t)~PN_USR3;
         ui_message("USR3 SHORTENED TO 48K");
-    } else {                                        /* (said once: not again at those slots' LOAD) */
+    } else if (persist_note & PN_LOCKS) {           /* (said once: not again at those slots' LOAD) */
         persist_note &= (uint8_t)~PN_LOCKS;
         if (lk_lost)
             ui_message("LOCKS LOST");
         lk_lost = 0;
+    } else {
+        persist_note &= (uint8_t)~PN_USR3F;
+        ui_message("USR3 CLAMP FAILED");
     }
 }
 /* fixes 2026-10-21 item 2: the keys show the selected track (its white key lit, as the keys select it there) on the

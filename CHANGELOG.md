@@ -38,7 +38,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     2026-10-24, frozen baseline moved to `frozen-base-10` for that object-table change). They take the last 32 KiB of
     user sample slot 3: **USR3 now holds up to 48 KiB** (USR1 / USR2 80 KiB as before). A longer USR3 is shortened in
     flash once at power-on, before anything writes the banks (`USR3 SHORTENED TO 48K`; zones past 48 KiB dropped, one
-    across it cut, its CRC new; a power cut during that one rewrite empties USR3, nothing else).
+    across it cut, its CRC new; a power cut during that one rewrite empties USR3, nothing else). If that rewrite fails
+    (a flash error), nothing writes the lock banks that boot (`USR3 CLAMP FAILED`; SAVE and RENAME say so and keep the
+    project in RAM), so an older Hortator never plays them as USR3's sound. A RENAME of a project whose bank is only in
+    RAM (an older project converted at power-on, or after a SAVE ERROR) writes the bank before the record.
 
 ## 0.23.3 - 2026-10-23
 

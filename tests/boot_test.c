@@ -2174,6 +2174,77 @@ static int writes_stay_in_map(void)
     return host_nflog > 60u && all_writes_in_map() && str_eq(ui.msg, "RENAMED");
 }
 
+/* review fix 1: a record written alone (RENAME is the only path) after its bank changed in RAM only (an FDRE converted
+ * at boot, a SAVE ERROR) writes the bank first: the pair stays whole */
+static int fdre_rename_keeps_motion(void)
+{
+    char b[NAME_LEN + 1u];
+    if (!fdre_migrates())                            /* FDRE in flash, converted in RAM (its bank never in flash) */
+        return 0;
+    project_rename(1, "RENAMED");
+    wipe_ram();
+    host_init();
+    persist_boot();
+    project_load(1);
+    return mo.b.count == 3u && mo.b.on == 5u && lk_find(&mo.b, lk_key(6, 63, P_RKEY), 0) >= 0 &&
+           str_eq(ui.msg, "LOADED") && proj_slot[1].magic == PROJ_MAGIC && project_name(1, b) && str_eq(b, "RENAMED") &&
+           !lk_lost && !(persist_note & PN_LOCKS);
+}
+static int save_error_rename_writes_bank(void)
+{
+    int i;
+    char b[NAME_LEN + 1u];
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    lk_put(&mo.b, lk_key(0, 4, P_E1), 100, 1);
+    project_save(1);                                 /* pair A in flash */
+    lk_put(&mo.b, lk_key(0, 4, P_E1), 50, 1);
+    host_fail_at = 0;                                /* B: the bank's erase fails, nothing written */
+    project_save(1);
+    host_fail_at = -1;
+    if (!str_eq(ui.msg, "SAVE ERROR"))
+        return 0;
+    project_rename(1, "AFTER ERR");                  /* RAM's B, renamed: its bank first */
+    wipe_ram();
+    host_init();
+    persist_boot();
+    project_load(1);
+    i = lk_find(&mo.b, lk_key(0, 4, P_E1), 1);
+    return i >= 0 && mo.b.val[i] == 50 && str_eq(ui.msg, "LOADED") && project_name(1, b) && str_eq(b, "AFTER ERR");
+}
+/* review fix 2: the USR3 clamp failed (USR3 still longer than 48 KiB in flash): no lock-bank write that boot (an older
+ * Hortator would play them as USR3's sound), said once; SAVE and RENAME refuse to write */
+static int usr3_clamp_fail_blocks_banks(void)
+{
+    uint32_t i, f, ok = 1, said = 0, bank_writes = 0;
+    memset(hflash, 0xFF, sizeof hflash);
+    rs = 82;
+    usr3_image(0x13E00u);
+    persist_note = 0;
+    host_fail_at = 0;                                /* the clamp's erase fails */
+    power_on(0);
+    host_fail_at = -1;
+    for (f = 0; f < 60u; f++) {
+        ui_frame();
+        said |= str_eq(ui.msg, "USR3 CLAMP FAILED") && ui.msg_t;
+    }
+    ok &= said >= 1u && rd32(U3 + 16u) == 0x13E00u && usr_nz[2] == 0;
+    host_nflog = 0;
+    lk_put(&mo.b, lk_key(0, 4, P_E1), 100, 1);
+    project_save(0);
+    ok &= str_eq(ui.msg, "USR3 CLAMP FAILED");
+    project_rename(0, "NOPE");
+    for (i = 0; i < host_nflog && i < HOST_NFLOG; i++)
+        bank_writes += host_flog[i].off >= 0xC9000u && host_flog[i].off < 0xDC000u;
+    ok &= bank_writes == 0u;
+    if (!ok)
+        printf("     clamp failed: said %u len %x usr_nz %u bank writes %u msg %s\n", said, rd32(U3 + 16u), usr_nz[2],
+               bank_writes, ui.msg);
+    return (int)ok;
+}
+
 int main(void)
 {
     char what[96];
@@ -2257,6 +2328,12 @@ int main(void)
     check("FDRF: a bank wrong inside (magic, slot, order, count, not the linked one) loads empty, LOCKS LOST",
           bad_bank_never_misread());
     check("FDRF: boot, four saves of 1024 events and a rename write only inside the flash map", writes_stay_in_map());
+    check("FDRF: a migrated FDRE renamed before any save keeps its motion (the bank written before the record)",
+          fdre_rename_keeps_motion());
+    check("FDRF: a RENAME after a SAVE ERROR writes RAM's bank before the record: the pair loads whole",
+          save_error_rename_writes_bank());
+    check("USR3: a failed clamp: no lock-bank write that boot (SAVE / RENAME refuse), USR3 CLAMP FAILED said",
+          usr3_clamp_fail_blocks_banks());
     check("USR3: an 80 KiB sample is shortened to 48 KiB once (zones past cut, CRC new, the data kept)", usr3_clamped_once());
     check("USR3: a 48 KiB sample is not touched", usr3_short_untouched());
     check("USR3: a failed clamp leaves USR3 unusable (never read past 0xD3FFF), USR1 / USR2 as they were", usr3_clamp_fails_safe());
