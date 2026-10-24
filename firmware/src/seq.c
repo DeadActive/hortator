@@ -513,6 +513,7 @@ static void midi_block(void)
     }
 }
 
+#include "lockbank.c"               /* the lock bank: motion events and parameter locks, sorted (spec 2026-10-24) */
 #include "motion.c"                 /* knob moves per step (upstream 1.0's motion recording) */
 static void seq_stop(void);
 #include "song.c"                   /* SONG: rows of the four slots (upstream 1.0's song chain) */

@@ -11,12 +11,7 @@
  * value it returns to in t->lsave (lfo.c): motion reads and writes the latter (motion_slot).
  * Store: 128 events shared by the 8 tracks (upstream: 64 for 4), saved with the project (FDR8). The main loop writes
  * with the audio IRQ off; the ISR reads. */
-#define MOTION_MAX 128u
-typedef struct { uint8_t trk, step, param; int8_t value; } motion_event_t;   /* every recordable range: -64..127 */
-typedef struct { uint8_t count, on, rsv[2]; motion_event_t ev[MOTION_MAX]; } motion_store_t;   /* on: PLAY bits */
-typedef char motion_store_size[sizeof(motion_store_t) == 516u ? 1 : -1];
-#define MO_W ((P_COUNT + 31u) / 32u)            /* words of a track's moved-knob bits */
-typedef char motion_ids_fit[P_COUNT <= 96 && MO_W == 3u ? 1 : -1];
+/* (the store's types, MOTION_MAX and MO_W: lockbank.c) */
 
 static struct {
     motion_store_t s;                /* the events and PLAY bits (saved with the project) */
