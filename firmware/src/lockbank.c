@@ -70,10 +70,11 @@ static int lk_put(lk_bank_t *b, uint32_t key, int32_t v, int lock)
     }
     if (b->count >= LK_MAX)
         return -1;
-    memmove(&b->key[i + 1u], &b->key[i], (b->count - i) * sizeof b->key[0]);
-    memmove(&b->val[i + 1u], &b->val[i], (b->count - i) * sizeof b->val[0]);
-    for (j = b->count; j > i; j--)
+    for (j = b->count; j > i; j--) {                /* (no memmove in the firmware's libc) */
+        b->key[j] = b->key[j - 1u];
+        b->val[j] = b->val[j - 1u];
         lk_set_lock(b, j, lk_is_lock(b, j - 1u));
+    }
     b->key[i] = (uint16_t)key;
     b->val[i] = (int8_t)v;
     lk_set_lock(b, i, lock);
@@ -85,10 +86,11 @@ static void lk_del(lk_bank_t *b, uint32_t i)    /* event i out (the tail stays z
     uint32_t j;
     if (i >= b->count)
         return;
-    memmove(&b->key[i], &b->key[i + 1u], (b->count - i - 1u) * sizeof b->key[0]);
-    memmove(&b->val[i], &b->val[i + 1u], (b->count - i - 1u) * sizeof b->val[0]);
-    for (j = i; j + 1u < b->count; j++)
+    for (j = i; j + 1u < b->count; j++) {
+        b->key[j] = b->key[j + 1u];
+        b->val[j] = b->val[j + 1u];
         lk_set_lock(b, j, lk_is_lock(b, j + 1u));
+    }
     b->count--;
     b->key[b->count] = 0;
     b->val[b->count] = 0;
