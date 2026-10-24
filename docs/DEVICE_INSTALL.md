@@ -759,7 +759,7 @@ ACC`).
   `USR3 SHORTENED TO 48K` once; SAMPLE's USR3 still plays (its first 48 KiB). The next power-on says nothing. With
   USR3 48 KiB or less (or empty), nothing is shown.
 - A project saved by 0.23.3 (FDRE) with MOTION loads (`LOADED`) and its motion plays as before. Save it, power off
-  and on, load it: the same. MOTION's EVENT count can now pass 128 (record a long sweep on several tracks).
+  and on, load it: the same. MOTION's count (SEQ > MOTION, KNOB 2) can now pass 128 (record a long sweep on several tracks).
 - ENV tap (let go): its LED lights (STEPS). On SOUND the white keys now tap the selected track's steps (a short tap
   on / off on the release, a 0.3 s hold turns an off step on), they select no track and play no drum; the key LEDs
   show the bank's steps. ENV again: LED off, the keys select / play tracks as before. Same on HOME, FX, LFO, COMP and
@@ -779,5 +779,12 @@ ACC`).
 - Hold the step, tap OCT-: `STEP 5 LOCKS CLEARED`, this page's locks gone (another page's kept). Hold the step, hold
   OCT- 0.6 s: `STEP 5 ALL CLEARED`. OCT- with no step held: LAYER back to SOUND as usual.
 - With the project full (1024 events), a lock turn says `LOCKS FULL`.
+- Locks on two tracks and a few pages, SAVE the project (stopped), power off and on, LOAD it: every lock plays as
+  before; `LOADED` (not `LOCKS LOST`).
+- A song of two rows, slot A (with locks) and slot B (without): PLAY on SONG: A's rows play their locks, B's rows play
+  the knobs' own values, and nothing of A's locks is left on in B.
+- Optional (downgrade is not supported): on an older Hortator (0.23.x) a project saved now reads as an empty slot
+  (`EMPTY SLOT` on LOAD; `LOAD FAILED` at power-on if it was the last one saved); nothing else breaks; back on this
+  build it loads.
 - STEPS: a locked step has a short line under its box in the footer's step strip (another bank: ENV + OCT+ shows its
   own); ENV off: no lines. SEQ > MOTION: KNOB 2 `MOTION` and KNOB 3 `LOCKS` count the selected track's.

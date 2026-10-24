@@ -5,44 +5,40 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
-- Locks shown: in STEPS the footer's step strip underlines each locked step of the bank shown (a song's row: its
-  slot's); SEQ > MOTION's KNOB 2 / 3 show the selected track's MOTION (recorded events, was EVENT) and LOCKS counts.
-  Screens: `build/ui_shots/locks/` (sound_held, foot_bank1, motion_counts).
-
-- Parameter locks: in STEPS (ENV), hold a step and turn any knob MOTION can record, on HOME, TRACKS (LEVEL, PAN),
-  SOUND, LAYER, FX, SLICER, RESON, FILTER, LFO and LFO DEST: that step gets its own value for that knob (`LOCK STEP 5`
-  on top, the cells show the step's values, a locked one inverted; the knob itself and its base untouched; a turn
-  right after the press works, the release then toggles nothing). Knobs MOTION can't record do nothing while a step is
-  held. Step held + OCT- tap: that step's locks on this page's knobs cleared (`STEP 5 LOCKS CLEARED`); OCT- held
-  0.6 s: all its locks (`STEP 5 ALL CLEARED`); OCT- with no step held keeps its job. `LOCKS FULL` at 1024 events. SEQ
-  STEP keeps PROB / RATCH / ACC on a held step; a song's rows are not edited.
-
-- ENV: the white keys as the selected track's steps on every page. ENV (unused before) toggles STEPS / TRACKS on its
-  release, its LED lit in STEPS; the mode is global, not saved (off at power-on). In STEPS the keys tap / hold steps
-  as on SEQ on HOME, TRACKS (armed too), SOUND, LAYER, FX, LFO and COMP, and play no drum (REC ALL records no hits
-  then); ENV held + OCT+ / OCT- changes the bank; OCT+ held + a step its accent, OCT+ alone and OCT- keep their page's
-  job (SOUND to LAYER on OCT+'s release, LAYER back, the LFO's RATE MODE). ENV turns KEYS off and SCL STEPS off. ENV
-  off (TRACKS) is the keys exactly as before.
-
-- Parameter locks play (motion.c): a lock sets its knob for its own step only, on top of what the knob holds there
-  (its value, or motion's held value; an LFO on it modulates round the locked value), and the knob snaps back on the
-  next step. A step that is off keeps its locks dormant. Locks play whatever MOTION's PLAY says; MOTION CLEAR leaves
-  them; CLEAR TRACK, TOOLS CLR* and INIT* remove them. A SONG row plays its own slot's locks and none leaks into the
-  next row; STOP, a model change and a preset SAVE see the knob's own value, never a lock's. A/B renders:
-  `build/drum_renders/locks_off.wav`, `locks_on.wav` (DECAY and CUT locked on steps 4 8 12 16).
-
-- MOTION: 1024 events per project (was 128), kept in the project's lock bank (its own flash object, saved just before
-  the project record, which links it: a save cut by a power loss keeps the last whole pair). Projects are now "FDRF";
-  FDRE and every older format load with their motion as before. 0.23.x shows `LOAD FAILED` for a project saved now
-  (downgrade safe, not supported). A bank that can't be read (wrong inside, another slot's, not the one the record
-  links) loads empty and the FM-1 says `LOCKS LOST` once; it is never misread. A step's events are found by a binary
-  search in the audio ISR (no scan of every event).
-
-- Lock banks: four new flash objects (OBJ_LOCKS0..3, two sectors each at 0xD4000..0xDBFFF, storage.c; user decision
-  2026-10-24, frozen baseline moved to `frozen-base-10` for that object-table change) for the parameter locks. They
-  take the last 32 KiB of user sample slot 3: **USR3 now holds up to 48 KiB** (USR1 / USR2 80 KiB as before). A longer
-  USR3 is shortened in flash once at power-on, before anything writes the banks (`USR3 SHORTENED TO 48K`; zones past
-  48 KiB dropped, one across it cut, its CRC new; a power cut during that one rewrite empties USR3, nothing else).
+- **Parameter locks** (Elektron style; spec docs/superpowers/specs/2026-10-24-parameter-locks-design.md):
+  - ENV: the white keys as the selected track's steps on every page. ENV (unused before) toggles STEPS / TRACKS on
+    its release, its LED lit in STEPS; the mode is global, not saved (off at power-on). In STEPS the keys tap / hold
+    steps as on SEQ on HOME, TRACKS (armed too), SOUND, LAYER, FX, LFO and COMP, and play no drum (REC ALL records no
+    hits then); ENV held + OCT+ / OCT- changes the bank; OCT+ held + a step its accent, OCT+ alone and OCT- keep their
+    page's job (SOUND to LAYER on OCT+'s release, LAYER back, the LFO's RATE MODE). ENV turns KEYS off and SCL STEPS
+    off. ENV off (TRACKS) is the keys exactly as before.
+  - Locks: in STEPS, hold a step and turn any knob MOTION can record, on HOME, TRACKS (LEVEL, PAN), SOUND, LAYER, FX,
+    SLICER, RESON, FILTER, LFO and LFO DEST: that step gets its own value for that knob (`LOCK STEP 5` on top, the
+    cells show the step's values, a locked one inverted; the knob itself and its base untouched; a turn right after
+    the press works, the release then toggles nothing). Knobs MOTION can't record do nothing while a step is held.
+    Step held + OCT- tap: that step's locks on this page's knobs cleared (`STEP 5 LOCKS CLEARED`); OCT- held 0.6 s: all
+    its locks (`STEP 5 ALL CLEARED`); OCT- with no step held keeps its job. `LOCKS FULL` at 1024 events. SEQ STEP
+    keeps PROB / RATCH / ACC on a held step; a song's rows are not edited.
+  - Playback (motion.c): a lock sets its knob for its own step only, on top of what the knob holds there (its value,
+    or motion's held value; an LFO on it modulates round the locked value), and the knob snaps back on the next step.
+    A step that is off keeps its locks dormant. Locks play whatever MOTION's PLAY says; MOTION CLEAR leaves them; CLEAR
+    TRACK, TOOLS CLR* and INIT* remove them. A SONG row plays its own slot's locks and none leaks into the next row;
+    STOP, a model change, a MIDI LEARN CC and a preset SAVE see the knob's own value, never a lock's. A/B renders:
+    `build/drum_renders/locks_off.wav`, `locks_on.wav` (DECAY and CUT locked on steps 4 8 12 16).
+  - Shown: in STEPS the footer's step strip underlines each locked step of the bank shown (a song's row: its slot's);
+    SEQ > MOTION's KNOB 2 / 3 show the selected track's MOTION (recorded events, was EVENT) and LOCKS counts. Screens:
+    `build/ui_shots/locks/` (sound_held, foot_bank1, motion_counts).
+  - MOTION: 1024 events per project (was 128), shared with the locks, kept in the project's lock bank (its own flash
+    object, saved just before the project record, which links it: a save cut by a power loss keeps the last whole
+    pair). Projects are now "FDRF"; FDRE and every older format load with their motion as before. 0.23.x reads a
+    project saved now as an empty slot (`LOAD FAILED` at power-on; downgrade safe, not supported). A bank that can't be
+    read (wrong inside, another slot's, not the one the record links) loads empty and the FM-1 says `LOCKS LOST`; it
+    is never misread. A step's events are found by a binary search in the audio ISR (no scan of every event).
+  - Lock banks: four new flash objects (OBJ_LOCKS0..3, two sectors each at 0xD4000..0xDBFFF, storage.c; user decision
+    2026-10-24, frozen baseline moved to `frozen-base-10` for that object-table change). They take the last 32 KiB of
+    user sample slot 3: **USR3 now holds up to 48 KiB** (USR1 / USR2 80 KiB as before). A longer USR3 is shortened in
+    flash once at power-on, before anything writes the banks (`USR3 SHORTENED TO 48K`; zones past 48 KiB dropped, one
+    across it cut, its CRC new; a power cut during that one rewrite empties USR3, nothing else).
 
 ## 0.23.3 - 2026-10-23
 

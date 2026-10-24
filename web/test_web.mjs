@@ -710,6 +710,17 @@ async function counter() {
   ok(/^loadPageCounter\(\);$/m.test(inst), "installer: its visits counted (count.js, guarded)");
 }
 
+/* ------------------------------------------------- the simulator: parameter locks (2026-10-24) --- */
+async function simLocks() {
+  const { BTN } = await import("./sim/controls.js");
+  const env = BTN.find((b) => b.c === "B_ENV");
+  ok(env && /STEPS \/ TRACKS/.test(env.tip || "") && /lock/.test(env.tip || ""), "sim: ENV has a tip (STEPS / TRACKS, locks)");
+  const page = readFileSync(join(HERE, "sim/index.html"), "utf8");
+  const seq = page.slice(page.indexOf('id="f-seq"'), page.indexOf('data-piece="seq"'));
+  ok(/parameter lock/i.test(seq) && /<b>ENV<\/b>/.test(seq), "sim: the features' steps chapter names parameter locks and ENV");
+}
+
+await simLocks();
 await editorMock();
 await editorLibrarian();
 await editorLive();

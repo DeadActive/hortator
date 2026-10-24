@@ -177,7 +177,7 @@ both carry on with the power-on kit. A safe start (SEQ held at power-on) loads n
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
 Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
-`LOAD FAILED` on 0.23.x and older (downgrading is safe, not supported: nothing breaks, the projects stay for this
+an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is safe, not supported: nothing breaks, the projects stay for this
 build); every older project loads with its motion. If a project's lock bank can't be read (an upload to USR3 under
 upstream Felucca overwrote it), the project still loads, without its motion, and the FM-1 says `LOCKS LOST` once.
 

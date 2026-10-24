@@ -5,7 +5,7 @@
 // tip: what the control does (the page shows it on hover), as the firmware has it
 export const BTN = [
   { c: 'B_FX', label: 'FX', tip: 'FX pages; hold for PERFORM' }, { c: 'B_SCL', label: 'SEL', tip: 'KEYS: the keys play the selected track' },
-  { c: 'B_ENV', label: 'ENV' }, { c: 'B_LFO', label: 'LFO', tip: 'the track\'s two LFOs' },
+  { c: 'B_ENV', label: 'ENV', tip: 'STEPS / TRACKS: the keys as the track\'s steps; hold a step + turn = a lock' }, { c: 'B_LFO', label: 'LFO', tip: 'the track\'s two LFOs' },
   { c: 'B_EDIT', label: 'EDIT', tip: 'the selected track\'s sound' }, { c: 'B_GLO', label: 'GLO', tip: 'tap: GLOBAL; hold: the MUTE screen' },
   { c: 'B_HOME', label: 'HOME', tip: 'TRACKS / HOME (a tap switches); hold for the menu' },
   { c: 'B_SAVE', label: 'SAVE', tip: 'projects and tools' }, { c: 'B_ARP', label: 'ARP', tip: 'Grids' },
