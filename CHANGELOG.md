@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Parameter locks play (motion.c): a lock sets its knob for its own step only, on top of what the knob holds there
+  (its value, or motion's held value; an LFO on it modulates round the locked value), and the knob snaps back on the
+  next step. A step that is off keeps its locks dormant. Locks play whatever MOTION's PLAY says; MOTION CLEAR leaves
+  them; CLEAR TRACK, TOOLS CLR* and INIT* remove them. A SONG row plays its own slot's locks and none leaks into the
+  next row; STOP, a model change and a preset SAVE see the knob's own value, never a lock's. A/B renders:
+  `build/drum_renders/locks_off.wav`, `locks_on.wav` (DECAY and CUT locked on steps 4 8 12 16).
+
 - MOTION: 1024 events per project (was 128), kept in the project's lock bank (its own flash object, saved just before
   the project record, which links it: a save cut by a power loss keeps the last whole pair). Projects are now "FDRF";
   FDRE and every older format load with their motion as before. 0.23.x shows `LOAD FAILED` for a project saved now

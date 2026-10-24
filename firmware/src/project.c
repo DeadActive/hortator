@@ -767,10 +767,13 @@ static void upr_write(void)                         /* the bank to flash: now wh
  * is not changed (the caller points its reference at PRE_NFACT + slot) */
 static int preset_user_save(uint32_t slot, const track_t *t)
 {
-    uint32_t k = (uint32_t)(t - trk);
+    static int16_t kv[P_COUNT];                     /* (static: off the main path's deepest stack) */
+    uint32_t k = (uint32_t)(t - trk), id;
     if (slot >= PRE_NUSER)
         return -1;
-    upr_set(slot, (uint32_t)t->p[P_MODEL], k < NTRK && ((mo.base_ok >> k) & 1u) ? mo.base[k] : t->p);
+    for (id = 0; id < P_COUNT; id++)                /* motion's base, a lock's value under it (motion.c) */
+        kv[id] = k < NTRK ? motion_rest(k, id) : t->p[id];
+    upr_set(slot, (uint32_t)t->p[P_MODEL], kv);
     upr_write();
     return 0;
 }

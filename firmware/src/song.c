@@ -92,7 +92,8 @@ static void chain_apply(uint32_t x)                /* row chain.row starts x sam
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         uint32_t n, d;
-        motion_restore(k);                         /* the last row's motion off (motion.c) */
+        lock_release(k);                           /* the last row's locks and motion off (motion.c) */
+        motion_restore(k);
         for (j = 0; j < 4u; j++)
             t->p[CHAIN_TIMING[j]] = s->timing[k][j];
         t->seq_idx = (uint16_t)(t->p[P_SLEN] - 1);

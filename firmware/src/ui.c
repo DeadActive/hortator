@@ -454,11 +454,12 @@ static void step_accent(uint32_t k)
     ui.step_si[k] = (uint16_t)si;
 }
 
-static void track_clear(track_t *t)               /* its steps and its motion; its last KEYS note C4 again */
+static void track_clear(track_t *t)               /* its steps, its motion and its locks; its last KEYS note C4 again */
 {
     memset(t->step, 0, sizeof t->step);
     t->key_nt = 0;
     motion_clear((uint32_t)(t - trk));
+    lock_clear_track((uint32_t)(t - trk));
 }
 
 /* TOOLS CLR*: every track's pattern cleared and its pattern settings (LEN DIV SWG SRC) at default; sounds, FX,

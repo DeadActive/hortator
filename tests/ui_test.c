@@ -4567,6 +4567,29 @@ static void test_motion_model_change(void)
     check("INIT ALL: no motion left", mo.b.count == 0u);
 }
 
+/* parameter locks (2026-10-24): CLEAR TRACK and TOOLS CLR* remove a track's locks with its motion; MOTION CLEAR
+ * keeps them; INIT ALL leaves an empty bank; other tracks' locks are kept */
+static void test_clears_and_locks(void)
+{
+    uint32_t ok;
+    ui_host_init();
+    lock_set(2, 4, P_E1, 100);
+    lock_set(5, 6, P_FCUT, 20);
+    motion_add(2, 1, P_E2, 3);
+    motion_add(5, 1, P_E2, 3);
+    track_clear(&trk[2]);                             /* CLEAR TRACK 3 (REC held on SEQ, YES) */
+    ok = lock_count(2) == 0u && motion_count(2) == 0u && lock_count(5) == 1u && motion_count(5) == 1u;
+    check("CLEAR TRACK: the track's locks and motion gone, the other tracks' kept", ok);
+    motion_clear(5);                                  /* MOTION's CLEAR */
+    check("MOTION CLEAR: the track's motion gone, its locks kept", motion_count(5) == 0u && lock_count(5) == 1u);
+    lock_set(1, 0, P_E3, 9);
+    seq_clear_all();                                  /* TOOLS CLR* */
+    check("TOOLS CLR*: every track's locks gone", mo.b.count == 0u);
+    lock_set(1, 0, P_E3, 9);
+    init_all();                                       /* TOOLS INIT* */
+    check("INIT ALL: an empty bank", mo.b.count == 0u && lock_count(1) == 0u);
+}
+
 /* the MOTION page: PLAY, EVENTS, CLEAR with its dialog; screens */
 static void test_motion_page(void)
 {
@@ -8718,6 +8741,7 @@ int main(void)
     test_perform_dead_hold();
     test_motion_recording();
     test_motion_model_change();
+    test_clears_and_locks();
     test_motion_page();
     test_song_page();
     test_song_play_ui();

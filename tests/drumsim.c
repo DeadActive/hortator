@@ -358,6 +358,27 @@ static void write_motion(const char *dir)
     memset(&mo, 0, sizeof mo);
 }
 
+/* parameter locks A/B (120 BPM, 4 bars): the 808 kit, the kick on every 1/8 and on steps 3 7 11 15, through the LP
+ * FILTER; locks_on.wav: those four steps lock its DECAY (E1) long and the CUT low, snapping back after each;
+ * locks_off.wav: the same pattern without them */
+static void locks_bar(uint32_t b) { (void)b; }
+static void write_locks(const char *dir, int on)
+{
+    uint32_t k;
+    sp_kit();
+    for (k = 0; k < 16u; k++)
+        trk[0].step[k].on = (k & 1u) == 0u || (k & 3u) == 3u;
+    trk[0].p[P_FTYPE] = FT_LP;
+    trk[0].p[P_FCUT] = 100;
+    trk[0].p[P_E1] = 30;
+    for (k = 3; on && k < 16u; k += 4u) {
+        lock_set(0, k, P_E1, 120);
+        lock_set(0, k, P_FCUT, 25);
+    }
+    write_demo(dir, on ? "locks_on.wav" : "locks_off.wav", 4, locks_bar);
+    memset(&mo, 0, sizeof mo);
+}
+
 /* SONG: A (four on the floor + hats) x2, B (a broken kick + snare) x1, LOOP ON: 6 bars, the rows change on the bar */
 static step_t song_st[2][NTRK][NSTEP];
 static void song_bar(uint32_t b) { (void)b; }
@@ -919,6 +940,8 @@ int main(int argc, char **argv)
     write_sound_pack(dir);
     write_perform(dir);
     write_motion(dir);
+    write_locks(dir, 0);
+    write_locks(dir, 1);
     write_song(dir);
     write_phys(dir);
     write_filter(dir);

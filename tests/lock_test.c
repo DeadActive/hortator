@@ -236,6 +236,237 @@ static void lk_seal_deterministic(void)
           !memcmp(&B, &C, sizeof B) && lk_valid(&B, 1));
 }
 
+/* ---- playback (motion.c): T1 a kick on every 1/4, E1's base 64 (as motion_test's fresh) */
+#define STEP16 (22050u / 4u)
+static void fresh(void)
+{
+    uint32_t k;
+    host_init();
+    song.g[G_BPM] = 120;
+    for (k = 0; k < 16u; k += 4u)
+        trk[0].step[k].on = 1;
+    trk[0].p[P_E1] = 64;
+    song.sel = 0;
+}
+static void play(void) { transport_req = 1; render_mix(0, 0, CTL); }
+static void stop(void) { transport_req = 2; render_mix(0, 0, CTL); }
+static void to_step(uint32_t s, uint32_t into)
+{
+    uint32_t guard = 0;
+    while ((trk[0].seq_idx != s || trk[0].seq_pos < into) && guard++ < 200000u)
+        render_mix(0, 0, CTL);
+}
+static void bar(void) { to_step(15, 100); to_step(0, 100); }
+
+static void lock_snaps_back(void)
+{
+    int ok;
+    fresh();
+    lock_set(0, 4, P_E1, 100);
+    play();
+    to_step(4, 100);
+    ok = trk[0].p[P_E1] == 100;
+    to_step(5, 100);
+    ok &= trk[0].p[P_E1] == 64;
+    to_step(0, 100);
+    ok &= trk[0].p[P_E1] == 64;
+    to_step(4, 2000);
+    ok &= trk[0].p[P_E1] == 100;
+    stop();
+    check("lock: step 4's value plays on step 4 only, the knob's own value again from step 5 (snap back)",
+          ok && trk[0].p[P_E1] == 64);
+}
+static void lock_plays_motion_off(void)
+{
+    int ok;
+    fresh();
+    lock_set(0, 4, P_E1, 100);
+    motion_add(0, 9, P_E2, 3);
+    motion_set_play(0, 0);
+    play();
+    to_step(4, 100);
+    ok = trk[0].p[P_E1] == 100 && !motion_on(0);
+    stop();
+    motion_clear(0);
+    check("lock: plays with MOTION PLAY off; MOTION CLEAR keeps the locks",
+          ok && lock_count(0) == 1u && motion_count(0) == 0u);
+}
+static void lock_over_motion(void)
+{
+    int ok;
+    fresh();
+    motion_add(0, 2, P_E1, 90);
+    lock_set(0, 4, P_E1, 110);
+    play();
+    to_step(3, 100);
+    ok = trk[0].p[P_E1] == 90;
+    to_step(4, 100);
+    ok &= trk[0].p[P_E1] == 110;
+    to_step(5, 100);
+    ok &= trk[0].p[P_E1] == 90;
+    bar();
+    ok &= trk[0].p[P_E1] == 64;
+    stop();
+    check("lock over motion: motion's 90 holds, the lock's 110 on its step, back to 90, the base at step 0", ok);
+}
+/* Review Focus 3: LFO 1 on E1, motion and a lock on E1 at step 4 */
+static void lock_lfo_motion_same_knob(void)
+{
+    int ok, lo = 999, hi = -999;
+    int32_t v;
+    uint32_t b;
+    fresh();
+    trk[0].p[P_LFO1 + LF_DEST] = 2;                   /* (lfo.c lfo_dest_param: 2 = P_E1) */
+    trk[0].p[P_LFO1 + LF_DEPTH] = 10;                 /* (+-20 on E1's 0..127) */
+    trk[0].p[P_LFO1 + LF_TRIG] = LT_FREE;
+    trk[0].p[P_LFO1 + LF_MODE] = LM_HZ;
+    trk[0].p[P_LFO1 + LF_RATE] = 127;                 /* (fast: it swings within the step) */
+    motion_add(0, 4, P_E1, 30);
+    lock_set(0, 4, P_E1, 100);
+    play();
+    to_step(4, 100);
+    ok = trk[0].p[P_E1] == 100;
+    for (b = 0; b < 40u && trk[0].seq_idx == 4u; b++) {
+        render_mix(0, 0, CTL);
+        if (lfo_live(&trk[0], P_E1, &v)) {
+            lo = v < lo ? (int)v : lo;
+            hi = v > hi ? (int)v : hi;
+        }
+        ok &= trk[0].seq_idx != 4u || trk[0].p[P_E1] == 100;
+    }
+    ok &= lo < 100 && hi > 100 && lo >= 100 - 22 && hi <= 100 + 22;
+    to_step(5, 100);
+    ok &= trk[0].p[P_E1] == 30;
+    stop();
+    ok &= trk[0].p[P_E1] == 64;
+    if (!ok)
+        printf("     LFO on a lock: live %d..%d, E1 %d\n", lo, hi, trk[0].p[P_E1]);
+    check("lock + motion + LFO on one knob: the LFO round the lock's 100 on its step, motion's 30 after, STOP the base", ok);
+}
+static void lock_dormant_off_step(void)
+{
+    int ok;
+    fresh();
+    lock_set(0, 4, P_E1, 100);
+    trk[0].step[4].on = 0;
+    play();
+    to_step(4, 100);
+    ok = trk[0].p[P_E1] == 64 && lock_count(0) == 1u;
+    trk[0].step[4].on = 1;
+    bar();
+    to_step(4, 100);
+    ok &= trk[0].p[P_E1] == 100 && lock_count(0) == 1u;
+    stop();
+    check("lock: dormant on a step turned off (kept), plays when it is on again", ok);
+}
+/* Review Focus 4: song rows of two slots, a lock in slot A's bank only */
+static step_t ST[2][NTRK][NSTEP];
+static lk_bank_t SB[2];
+static void lock_song_row_change(void)
+{
+    static const uint32_t RS[2] = {0, 1};
+    uint32_t s, k, r, b, ok = 1, seen[2] = {0, 0};
+    fresh();
+    memset(ST, 0, sizeof ST);
+    memset(SB, 0, sizeof SB);
+    for (s = 0; s < 2u; s++) {
+        lk_seal(&SB[s], s);
+        chain.src[s].m = &SB[s];
+        for (k = 0; k < NTRK; k++) {
+            chain.src[s].step[k] = ST[s][k];
+            chain.src[s].timing[k][0] = 16;
+            chain.src[s].timing[k][1] = 2;
+            chain.src[s].model[k] = (uint8_t)trk[k].p[P_MODEL];
+        }
+        for (k = 0; k < 16u; k++)
+            ST[s][0][k].on = 1;
+    }
+    chain.src[0].timing[0][0] = 5;                    /* slot A: T1 LEN 5, T2 (the ref) 16 */
+    lk_put(&SB[0], lk_key(0, 4, P_E1), 100, 1);
+    chain.cfg.count = 2;
+    chain.cfg.loop = 1;
+    for (r = 0; r < 2u; r++)
+        chain.cfg.row[r] = (chain_row_t){(uint8_t)RS[r], 1};
+    chain.armed = 1;
+    play();
+    for (b = 0; b < 3000u; b++) {                     /* two passes of both rows */
+        render_mix(0, 0, CTL);
+        if (chain.running && trk[0].seq_pos > 300u && trk[0].seq_pos < 5000u) {
+            int want = chain.slot == 0u && trk[0].seq_idx == 4u ? 100 : 64;
+            ok &= trk[0].p[P_E1] == want;
+            seen[want == 100] += chain.slot == 1u || want == 100;
+        }
+    }
+    stop();
+    ok &= trk[0].p[P_E1] == 64 && mo.b.count == 0u && SB[1].count == 0u && seen[0] && seen[1];
+    check("lock in a song: each row plays its slot's locks; none leaks into the next row; the working bank untouched", ok);
+    memset(&chain, 0, sizeof chain);
+}
+static void lock_turn_while_held(void)
+{
+    int ok;
+    fresh();
+    lock_set(0, 4, P_E1, 100);
+    play();
+    to_step(4, 100);
+    trk[0].p[P_E1] = 80;                              /* a turn (unarmed) during the locked step */
+    motion_capture(&trk[0], P_E1);
+    to_step(5, 100);
+    ok = trk[0].p[P_E1] == 80;
+    stop();
+    check("lock: a turn during the locked step is the knob's value after it (80, not 64)", ok && trk[0].p[P_E1] == 80);
+}
+static void lock_stop_releases(void)
+{
+    fresh();
+    lock_set(0, 4, P_E1, 100);
+    play();
+    to_step(4, 100);
+    stop();
+    check("lock: STOP during the locked step puts the knob's value back", trk[0].p[P_E1] == 64);
+}
+static void lock_model_change(void)
+{
+    int ok = 1, i;
+    fresh();
+    lock_set(0, 4, P_E1, 100);
+    play();
+    to_step(4, 100);
+    fm1_irq_off();
+    drum_set_model(&trk[0], (uint32_t)(trk[0].p[P_MODEL] + 1) % NMODELS);
+    motion_rebase(0);
+    fm1_irq_on();
+    i = trk[0].p[P_E1];
+    to_step(5, 100);
+    ok = trk[0].p[P_E1] == i && i != 100;
+    to_step(4, 100);                                   /* (the lock's model is gone: E events skipped? no, locks follow
+                                                        * the track's own model: still the lock's value) */
+    stop();
+    check("lock: a model change during the locked step: the new model's own values, no 100 in its base", ok &&
+          mo.base[0][P_E1] != 100);
+}
+static void lock_preset_rest(void)                  /* (what project.c preset_user_save stores: tests/preset_test.c) */
+{
+    int ok;
+    fresh();
+    motion_add(0, 2, P_E2, 5);                         /* (motion plays too: its base taken) */
+    lock_set(0, 4, P_E1, 100);
+    play();
+    to_step(4, 100);
+    ok = trk[0].p[P_E1] == 100 && motion_rest(0, P_E1) == 64;
+    if (!ok)
+        printf("     rest with motion: E1 %d rest %d base_ok %u\n", trk[0].p[P_E1], motion_rest(0, P_E1), mo.base_ok);
+    motion_set_play(0, 0);                             /* (PLAY off) */
+    stop();
+    play();
+    to_step(4, 100);
+    ok &= trk[0].p[P_E1] == 100 && motion_rest(0, P_E1) == 64;
+    if (!ok)
+        printf("     rest without motion: E1 %d rest %d base_ok %u\n", trk[0].p[P_E1], motion_rest(0, P_E1), mo.base_ok);
+    stop();
+    check("lock: a knob's rest value during its locked step is its own (64), with or without motion", ok);
+}
+
 int main(void)
 {
     lk_size();
@@ -251,6 +482,16 @@ int main(void)
     lk_from_motion_ok();
     lk_from_motion_broken();
     lk_seal_deterministic();
+    lock_snaps_back();
+    lock_plays_motion_off();
+    lock_over_motion();
+    lock_lfo_motion_same_knob();
+    lock_dormant_off_step();
+    lock_song_row_change();
+    lock_turn_while_held();
+    lock_stop_releases();
+    lock_model_change();
+    lock_preset_rest();
     printf(fails ? "lock_test: %d FAILED\n" : "lock_test: all passed\n", fails);
     return fails ? 1 : 0;
 }
