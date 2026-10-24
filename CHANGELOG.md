@@ -5,6 +5,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Locks shown: in STEPS the footer's step strip underlines each locked step of the bank shown (a song's row: its
+  slot's); SEQ > MOTION's KNOB 2 / 3 show the selected track's MOTION (recorded events, was EVENT) and LOCKS counts.
+  Screens: `build/ui_shots/locks/` (sound_held, foot_bank1, motion_counts).
+
 - Parameter locks: in STEPS (ENV), hold a step and turn any knob MOTION can record, on HOME, TRACKS (LEVEL, PAN),
   SOUND, LAYER, FX, SLICER, RESON, FILTER, LFO and LFO DEST: that step gets its own value for that knob (`LOCK STEP 5`
   on top, the cells show the step's values, a locked one inverted; the knob itself and its base untouched; a turn

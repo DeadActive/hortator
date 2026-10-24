@@ -412,6 +412,16 @@ static void cv_trigs(int32_t x0, int32_t y, uint32_t n, uint32_t on16, uint32_t 
     }
 }
 
+/* parameter locks (spec 2026-10-24): under each of the first n trigs whose bit is set in mask16, a 10 x 1 px
+ * underline at y + 12 (under the box, rows y..y+9, and the playhead's outline, to y+11; over the beat dot, y+14) */
+static void cv_lock_marks(int32_t x0, int32_t y, uint32_t n, uint32_t mask16, uint16_t ink)
+{
+    int32_t i;
+    for (i = 0; i < (int32_t)n && i < 16; i++)
+        if ((mask16 >> i) & 1u)
+            cv_rect(x0 + i * 14 + (i / 4) * 2, y + 12, 10, 1, ink);
+}
+
 /* the logo (spec 2026-10-19-md-ui §9a; the user's pick, C3-4 "VU"): 8 bars mirrored round a dotted centre line, every
  * fourth solid, the rest dithered, moving like a level meter. 144 x 120 at ox, oy (half: 72 x 60). Frame f (15 fps):
  * the downbeat bars full every 8th frame, the others a pseudo-random 30..90 % (a new value every 2 frames); a 2 px

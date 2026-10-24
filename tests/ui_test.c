@@ -9115,6 +9115,69 @@ static void test_lock_song_busy(void)
           lock_step() == NSTEP);
 }
 
+/* ---- locks shown (spec 2026-10-24): the footer's underline under a locked step in STEPS; MOTION's counts */
+static uint32_t trig_x(uint32_t i) { return 6u + i * 14u + i / 4u * 2u; }   /* (draw_foot: cv_trigs at x 6, y 5) */
+static int lock_mark(uint32_t i)                     /* the underline under trig box i (bank-relative) */
+{
+    uint16_t ink = fb[(Y_TRIG + 5u) * 240u + trig_x(i)];   /* (the box's top-left: ink) */
+    uint32_t x, n = 0;
+    for (x = 0; x < 10u; x++)
+        n += fb[(Y_TRIG + 17u) * 240u + trig_x(i) + x] == ink;
+    return n == 10u;
+}
+static void test_foot_lock_marks(void)
+{
+    uint32_t i, ok = 1;
+    lock_fresh();
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 32;
+    lock_set(0, 3, P_E1, 100);
+    lock_set(0, 18, P_FCUT, 10);
+    motion_add(0, 7, P_E1, 5);                       /* (motion: no mark) */
+    ui_frame();
+    ui_frame();
+    for (i = 0; i < 16u; i++)
+        ok &= lock_mark(i) == (i == 3u);
+    check("locks: STEPS, bank 1: a mark under step 4's box only (not under motion's step 8)", ok);
+    press(B_ENV);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ui_frame();
+    for (i = 0, ok = ui.bank == 1u && ui.env == 1u; i < 16u; i++)
+        ok &= lock_mark(i) == (i == 2u);
+    check("locks: bank 2: the mark under step 19's box (the bank's 3rd)", ok);
+    snap_page("locks/foot_bank1");
+    env_tap();
+    ui_frame();
+    for (i = 0, ok = ui.env == 0u; i < 16u; i++)
+        ok &= !lock_mark(i);
+    check("locks: ENV off (TRACKS): no marks", ok);
+}
+static void test_motion_page_counts(void)
+{
+    uint32_t i;
+    char m[24], l[24];
+    ui_host_init();
+    song.sel = 0;
+    memset(&mo.b, 0, sizeof mo.b);
+    for (i = 0; i < 40u; i++)
+        motion_add(0, i, P_E2, 3);
+    for (i = 0; i < 212u; i++)
+        lock_set(0, i % 64u, P_E0 + i / 64u, 9);
+    lock_set(1, 0, P_E0, 9);                         /* (another track's) */
+    seq_open("MOTION");
+    ui_frame();
+    snprintf(m, sizeof m, "MOTION|40");
+    snprintf(l, sizeof l, "LOCKS|212");
+    check("MOTION page: KNOB 2 MOTION 40, KNOB 3 LOCKS 212 (the selected track's)",
+          strstr(ui.col[1], m) == ui.col[1] && strstr(ui.col[2], l) == ui.col[2]);
+    snap_page("locks/motion_counts");
+    memset(&mo.b, 0, sizeof mo.b);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -9340,6 +9403,8 @@ int main(void)
     test_lock_oct_dn_alone();
     test_lock_step_page();
     test_lock_song_busy();
+    test_foot_lock_marks();                          /* .. shown */
+    test_motion_page_counts();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

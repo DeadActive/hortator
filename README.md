@@ -197,6 +197,8 @@ DEST, SRC) do nothing while a step is held. Hold the step and tap OCT- to clear 
 (`STEP 5 LOCKS CLEARED`); hold OCT- 0.6 s to clear all of that step's locks (`STEP 5 ALL CLEARED`). A step turned off
 keeps its locks for when it is on again. Locks and recorded MOTION share 1024 events per project (`LOCKS FULL`); locks
 always play (MOTION's PLAY and CLEAR are for recorded motion only). On SEQ STEP a held step keeps PROB / RATCH / ACC.
+In STEPS the footer's step strip underlines each locked step of the bank; SEQ > MOTION shows the selected track's
+MOTION (recorded events) and LOCKS counts.
 
 ### Metronome
 

@@ -1868,15 +1868,17 @@ static void graph_motion(void)
         cv_blit(0, Y_GRAPH);
     }
 }
-/* MOTION: KNOB 1 PLAY, 2 EVENT (the count), 4 CLEAR */
+/* MOTION: KNOB 1 PLAY, 2 MOTION and 3 LOCKS (the selected track's recorded motion events and parameter locks), 4
+ * CLEAR (the motion) */
 static void motion_columns(void)
 {
     char val[12];
     uint32_t k = song.sel;
     draw_column(0, "PLAY", motion_on(k) ? "ON" : "OFF", "", HOT(0u), -1);
     fmt_int(val, (int32_t)motion_count(k));
-    draw_column(1, "EVENT", val, "", CV_NORM, -1);
-    draw_column(2, "", "", "", CV_NORM, -1);
+    draw_column(1, "MOTION", val, "", CV_NORM, -1);
+    fmt_int(val, (int32_t)lock_count(k));
+    draw_column(2, "LOCKS", val, "", CV_NORM, -1);
     draw_column(3, "CLEAR", "", "", CV_NORM, -1);
 }
 
@@ -2170,6 +2172,7 @@ static int foot_note(char *b)
  * right; a held / cursor step's note at x 120 (the number then hidden); MIDI LEARN's line across it */
 static struct {
     uint32_t trig_sig;           /* the trig strip's steps shown: on | acc << 16 (exact, no hash) */
+    uint32_t lock_sig;           /* .. its lock marks (STEPS: the bank's locked steps) */
     uint8_t trig_n;              /* .. and their count */
     uint8_t ph;                  /* its playhead shown (16+: none) */
     int16_t x0, x1;              /* the breadcrumb's text span shown */
@@ -2180,7 +2183,7 @@ static void draw_foot(void)
     const track_t *t = TSEL;
     const page_t *pg = cur_page();
     const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];
-    uint32_t sig, i, on = 0, acc = 0, n = 0, len = view_len(t), ph = 99u;
+    uint32_t sig, i, on = 0, acc = 0, n = 0, len = view_len(t), ph = 99u, lmask;
     int32_t x0, x1;
     int note = foot_note(fn);                        /* the held / cursor step's note */
     right[0] = 0;
@@ -2245,11 +2248,16 @@ static void draw_foot(void)
     }
     if (song.playing && view_idx(t) / 16u == ui.bank)
         ph = view_idx(t) % 16u;
+    {                                                 /* STEPS: the bank's locked steps marked (a song's row: its
+                                                       * slot's bank) */
+        const lk_bank_t *lb = chain.running && chain.src[chain.slot].m ? chain.src[chain.slot].m : &mo.b;
+        lmask = env_steps() && !view_src(t) ? lk_step_mask(lb, song.sel, ui.bank * 16u) : 0u;
+    }
     sig = on | acc << 16;                             /* the trig strip (all it shows: on, acc, n; the playhead):
                                                        * whole when the steps change, else the playhead's old box and
                                                        * its new */
     rg_region(0, Y_TRIG, 240, H_TRIG);
-    if (ui.force || sig != ft.trig_sig || n != ft.trig_n)
+    if (ui.force || sig != ft.trig_sig || n != ft.trig_n || lmask != ft.lock_sig)
         rg_whole();
     else if (ph != ft.ph) {
         if (ft.ph < 16u)
@@ -2258,6 +2266,7 @@ static void draw_foot(void)
             rg_add(4 + (int32_t)ph * 14 + (int32_t)ph / 4 * 2, 3, 14, 14);
     }
     ft.trig_sig = sig;
+    ft.lock_sig = lmask;
     ft.trig_n = (uint8_t)n;
     ft.ph = (uint8_t)ph;
     for (i = 0; i < rg.n; i++) {
@@ -2266,6 +2275,7 @@ static void draw_foot(void)
         cv_rect(239, 0, 1, H_TRIG, C_INK);
         cv_hdot(1, 238, 0, C_INK);
         cv_trigs(6, 5, n, on, acc, ph, C_INK);
+        cv_lock_marks(6, 5, n, lmask, C_INK);
         cv_blit(0, Y_TRIG);
     }
     sig = str_hash(str_hash(str_hash(str_hash(0x9E3779B9u, left), right), fn), ml) + (uint32_t)note * 31u;

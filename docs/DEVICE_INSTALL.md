@@ -252,7 +252,7 @@ Report what you saw first; we'll go through it together.
 ### MOTION (check on the FM-1)
 - Select a track and arm it (a REC tap); play; open SOUND and sweep DECAY over a bar: the sweep comes back every
   bar. STOP: the knob back where it was before.
-- SEQ > MOTION: KNOB 1 PLAY OFF (the sweep stops, the events kept) / ON; EVENT shows how many; KNOB 4 CLEAR asks
+- SEQ > MOTION: KNOB 1 PLAY OFF (the sweep stops, the events kept) / ON; MOTION shows how many; KNOB 4 CLEAR asks
   (OCT- keeps, OCT+ clears).
 - Turn DECAY without REC while it plays: that is the new value the loop comes back to.
 - Save the project (stopped), power off and on, load it: the motion plays again.
@@ -779,3 +779,5 @@ ACC`).
 - Hold the step, tap OCT-: `STEP 5 LOCKS CLEARED`, this page's locks gone (another page's kept). Hold the step, hold
   OCT- 0.6 s: `STEP 5 ALL CLEARED`. OCT- with no step held: LAYER back to SOUND as usual.
 - With the project full (1024 events), a lock turn says `LOCKS FULL`.
+- STEPS: a locked step has a short line under its box in the footer's step strip (another bank: ENV + OCT+ shows its
+  own); ENV off: no lines. SEQ > MOTION: KNOB 2 `MOTION` and KNOB 3 `LOCKS` count the selected track's.
