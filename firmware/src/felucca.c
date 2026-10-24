@@ -95,7 +95,9 @@ static void audio_silence(void)                 /* IRQs off: the DMA would loop 
     for (i = 0; i < sizeof abuf / sizeof abuf[0]; i++)
         abuf[i] = 0;
 }
-static int st_erase(uint32_t off)
+/* always inlined: st_save keeps it inline as upstream's (H2, check_erase_order) now that project.c's USR3 clamp calls
+ * it too */
+__attribute__((always_inline)) static inline int st_erase(uint32_t off)
 {
     uint32_t took, f;
     int rc;
