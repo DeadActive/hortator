@@ -190,7 +190,13 @@ static int32_t batt_shown(void)
  * ("KEYS F3"); 0 (b "") when neither */
 static int head_mode(char *b)
 {
+    uint32_t ls = lock_view_step();
     b[0] = 0;
+    if (ls < NSTEP) {                                 /* a step held in STEPS: its locks on the knobs */
+        str_cpy(b, "LOCK STEP ", 16);
+        fmt_int(b + 10, (int32_t)ls + 1);
+        return 1;
+    }
     if (ui.srec) {
         str_cpy(b, "STEP REC ", 16);
         b[9] = (char)('0' + (ui.sr_cur + 1u) / 10u);
@@ -233,7 +239,8 @@ static void draw_head(void)
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + song.sel * 13131u + (uint32_t)song.g[G_BPM] * 101u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
-                   (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u;
+                   (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u +
+                   (lock_view_step() + 1u) * 92821u;
     sig += cpu * 50021u + blink * 27u;
     if (!ui.force && sig == ui.head_sig)
         return;
@@ -2454,13 +2461,14 @@ static void draw_home_strip(void)
     char l[4][8], v[4][8], ab[8], m[16], nm[NAME_LEN + 1u], pj[8];
     int32_t r[4], md[4], lx1;
     uint32_t c, i, sig, cur = home_bar();
-    uint32_t hot = ui.hot_t ? ui.hot_col : 9u, lev = 0;
+    uint32_t hot = ui.hot_t ? ui.hot_col : 9u, lev = 0, inv = 0;   /* inv: bit c, cell c's value inverted */
     for (c = 0; c < 4u; c++) {
-        int16_t *vp;
+        int16_t *vp, sv;
         const param_desc_t *d = home_param(c, &vp);
         char val[12];
         const char *unit = "";
         int32_t mv;
+        int lk;
         l[c][0] = v[c][0] = 0;
         r[c] = md[c] = -1;
         if (!d->label || d->label[0] == '-') {
@@ -2468,11 +2476,13 @@ static void draw_home_strip(void)
                 ui.focus_l[0] = 0;
             continue;
         }
-        param_format(d, *vp, val, &unit);
+        sv = lock_shown(lock_id(c), *vp, &lk);        /* (a step held in STEPS: the macro's lock there) */
+        inv |= (uint32_t)(lk || c == hot) << c;
+        param_format(d, sv, val, &unit);
         md_fit(l[c], abbr4(d->label, ab), sizeof l[c], 36);
         md_fit(v[c], val, 5, 36);
         if (d->fmt != F_ENUM)
-            r[c] = RATIO(d, *vp);
+            r[c] = RATIO(d, sv);
         if (lfo_live(TSEL, P_E0 + c, &mv))
             md[c] = RATIO(d, mv);
         if (c == ui.hot_col) {                        /* the breadcrumb's whole value while touched */
@@ -2508,7 +2518,7 @@ static void draw_home_strip(void)
     hs.lx1 = (int16_t)lx1;
     for (c = 0; c < 4u; c++) {                        /* a cell: its label, ring, value (touched: inverted) */
         int32_t cx = HS_CX(c), x0 = cx - 21 < 87 ? 87 : cx - 21, x1 = cx + 22 > 240 ? 240 : cx + 22;
-        sig = str_hash(str_hash(0x811C9DC5u, l[c]), v[c]) + (uint32_t)(r[c] + 1) * 7u + (c == hot) * 7919u;
+        sig = str_hash(str_hash(0x811C9DC5u, l[c]), v[c]) + (uint32_t)(r[c] + 1) * 7u + ((inv >> c) & 1u) * 7919u;
         if (ui.force) {
         } else if (sig != hs.cell[c])
             rg_add(x0, 0, x1 - x0, 51);
@@ -2546,7 +2556,7 @@ static void draw_home_strip(void)
             md_text(cx - md_text_w(&MD_F3, 2, l[c]) / 2, 2, &MD_F3, 2, l[c], C_INK);
             if (r[c] >= 0)
                 cv_knob(cx, 24, 7, r[c], md[c], C_INK);
-            if (c == hot) {                           /* touched: the value inverted */
+            if ((inv >> c) & 1u) {                    /* touched, or a step's lock: the value inverted */
                 cv_rect(cx - vw / 2 - 2, vy - 2, vw + 4, 13, C_INK);
                 md_text(cx - vw / 2, vy, &MD_F3, 2, v[c], C_BG);
             } else {
@@ -2586,17 +2596,23 @@ static void draw_columns(void)
         uint32_t lvl = (uint32_t)t->p[P_LEVEL];
         fmt_int(val, (int32_t)song.sel + 1);
         draw_column(0, "TRACK", val, "/8", HOT(0u), (int32_t)song.sel * 1000 / (NTRK - 1));
-        if (!lvl || t->p[P_MUTE]) {
+        int lk;
+        lvl = (uint32_t)lock_shown(P_LEVEL, (int16_t)lvl, &lk);   /* (a step held in STEPS: LEVEL's lock) */
+        if (!lk && (!lvl || t->p[P_MUTE])) {
             str_cpy(val, "MUTE", 12);
             unit = "";
         } else {
             param_format(&TP[P_LEVEL], (int32_t)lvl, val, &unit);
         }
-        draw_column(1, "LEVEL", val, unit, lvl && !trk_silent(t) ? HOT(1u) : CV_DIM, (int32_t)lvl * 1000 / 127);
+        draw_column(1, "LEVEL", val, unit, lk ? CV_HOT : lvl && !trk_silent(t) ? HOT(1u) : CV_DIM, (int32_t)lvl * 1000 / 127);
         param_format(&TP[P_SLEN], t->p[P_SLEN], val, &unit);
         draw_column(2, "LEN", val, unit, HOT(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]));
-        param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);
-        draw_column(3, "PAN", val, unit, HOT(3u), RATIO(&TP[P_PAN], t->p[P_PAN]));
+        {                                               /* (a step held in STEPS: PAN's lock) */
+            int lp;
+            int16_t pv = lock_shown(P_PAN, t->p[P_PAN], &lp);
+            param_format(&TP[P_PAN], pv, val, &unit);
+            draw_column(3, "PAN", val, unit, lp ? CV_HOT : HOT(3u), RATIO(&TP[P_PAN], pv));
+        }
         return;
     }
     if (pg->scope == SC_GRID && ui.srec) {             /* step record: STEP NOTE TIME FLAG of the cursor step */
@@ -2654,17 +2670,21 @@ static void draw_columns(void)
             draw_column(c, "NAME", "EDIT", "", CV_NORM, -1);
             continue;
         }
+        int lk = 0;
+        int16_t sv = pg->scope == SC_TRACK ? lock_shown(lock_id(c), *vp, &lk) : *vp;   /* (a step held in STEPS: the
+                                                                                          * knob's lock there) */
         if (pg->id[c] == G_INFO && pg->scope == SC_GLOBAL) {
             fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
             unit = "%";
         } else {
-            param_format(d, *vp, val, &unit);
+            param_format(d, sv, val, &unit);
         }
         {
             int32_t mv, mod = -1;
             if (pg->scope == SC_TRACK && lfo_live(TSEL, page_id(pg, c), &mv))
                 mod = RATIO(d, mv);
-            draw_column_m(c, d->label, val, unit, HOT(c), d->fmt == F_ENUM || d->fmt == F_LDEST ? -1 : RATIO(d, *vp), mod);
+            draw_column_m(c, d->label, val, unit, lk ? CV_HOT : HOT(c),
+                          d->fmt == F_ENUM || d->fmt == F_LDEST ? -1 : RATIO(d, sv), mod);
         }
     }
 }

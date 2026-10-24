@@ -8878,6 +8878,243 @@ static void test_env_while_step_held(void)
     check("ENV while a step key is held: TRACKS mode, the release leaves the step on, a turn edits the knob (no lock)", ok);
 }
 
+/* ---- parameter locks: hold a step in STEPS and turn a knob (spec 2026-10-24) */
+static void lock_fresh(void)                         /* STEPS on, track 1, its steps off, an empty bank */
+{
+    ui_host_init();
+    song.sel = 0;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    memset(&mo.b, 0, sizeof mo.b);
+    env_tap();
+}
+static void open_page_at(uint32_t i)
+{
+    ui.page = (uint8_t)i;
+    ui.home = 0;
+    page_entered();
+    ui_frame();
+}
+/* step 5 held 0.35 s, KNOB c+1 one detent right, let go; the knob's id here (P_COUNT none) */
+static uint32_t held_turn(uint32_t c, int32_t dir)
+{
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    turn(EN_K1 + c, dir);
+    ui_frame();
+    return lock_id(c);
+}
+static int lock_page_ok(const char *what)            /* every knob of this screen, step 5 held */
+{
+    uint32_t c, ok = 1;
+    for (c = 0; c < 4u; c++) {
+        static int16_t before[P_COUNT], base[P_COUNT];
+        uint32_t id, nlocks;
+        int16_t lv = 0, want;
+        int16_t *vp = 0;
+        const param_desc_t *d;
+        if (ui.home)
+            d = home_param(c, &vp);
+        else if (cur_page()->scope == SC_MIX)
+            d = c == 1u ? &TP[P_LEVEL] : c == 3u ? &TP[P_PAN] : 0, vp = c == 1u ? &TSEL->p[P_LEVEL] : c == 3u ? &TSEL->p[P_PAN] : 0;
+        else
+            d = page_desc(cur_page(), c, &vp);
+        memcpy(before, trk[0].p, sizeof before);
+        memcpy(base, mo.base[0], sizeof base);
+        nlocks = mo.b.count;
+        id = held_turn(c, 1);
+        grid_up(WHITE[4]);
+        if (id < P_COUNT) {
+            want = (int16_t)(vp && *vp < d->max ? *vp + 1 : vp ? *vp : 0);
+            ok &= lock_get(0, 4, id, &lv) && lv == want && mo.b.count == nlocks + 1u &&
+                  !memcmp(before, trk[0].p, sizeof before) && motion_param(id) && trk[0].step[4].on;
+            if (!(lock_get(0, 4, id, &lv) && lv == want))
+                printf("     %s KNOB %u (id %u): lock %d, want %d\n", what, c + 1u, id, lock_get(0, 4, id, &lv) ? lv : -999, want);
+        } else {
+            ok &= mo.b.count == nlocks && !memcmp(before, trk[0].p, sizeof before) &&
+                  !(vp && vp >= TSEL->p && vp < TSEL->p + P_COUNT && motion_param((uint32_t)(vp - TSEL->p)) && d &&
+                    d->label && d->label[0] != '-' && d->max > d->min);
+            if (mo.b.count != nlocks || memcmp(before, trk[0].p, sizeof before))
+                printf("     %s KNOB %u: not lockable, but changed\n", what, c + 1u);
+        }
+        (void)base;
+        memset(&mo.b, 0, sizeof mo.b);
+        memset(trk[0].step, 0, sizeof trk[0].step);
+    }
+    return (int)ok;
+}
+static void test_lock_entry_every_page(void)
+{
+    uint32_t i, l, ok = 1, pages = 0;
+    char b[96];
+    lock_fresh();
+    for (i = 0; i < NPAGES; i++) {
+        uint32_t f = PAGES[i].fam;
+        if (PAGES[i].scope != SC_TRACK || (f != FAM_SND && f != FAM_LAY && f != FAM_FX && f != FAM_LFO) ||
+            page_hidden(i))
+            continue;
+        for (l = 0; l < (PAGES[i].graph == GR_LDEST ? 4u : 1u); l++) {
+            song.lslot = (uint8_t)l;
+            open_page_at(i);
+            snprintf(b, sizeof b, "%s %u (slot %u)", PAGES[i].title, i, l);
+            ok &= (uint32_t)lock_page_ok(b);
+            pages++;
+        }
+    }
+    song.lslot = 0;
+    home_screen();
+    ui_frame();
+    ok &= (uint32_t)lock_page_ok("HOME");
+    home_tracks();
+    ui_frame();
+    ok &= (uint32_t)lock_page_ok("TRACKS");
+    check("locks: on every SOUND, LAYER, FX, SLICER, RESON, FILTER, LFO, LFO DEST page, HOME and TRACKS a held step + "
+          "a recordable knob writes a lock (its own value + 1), the knob and the base untouched; MODEL, TYPE, WAVE, "
+          "DEST, SRC and the rest change nothing", ok && pages > 12u);
+}
+static void test_lock_before_hold(void)
+{
+    int16_t v = 0;
+    uint32_t ok;
+    lock_fresh();
+    tap(B_EDIT);
+    grid_down(WHITE[4]);
+    grid_wait(100);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    turn(EN_K2, 1);
+    ui_frame();
+    ok = lock_get(0, 4, lock_id(1), &v) && trk[0].step[4].on;
+    grid_up(WHITE[4]);
+    check("locks: a turn 0.1 s after the press writes the lock, turns the off step on; the release toggles nothing",
+          ok && trk[0].step[4].on);
+}
+static void test_lock_cells(void)
+{
+    char want[16], val[12], m[16];
+    const char *unit;
+    uint32_t ok, id;
+    int16_t lv = 0;
+    lock_fresh();
+    tap(B_EDIT);
+    id = held_turn(1, 1);                            /* KNOB 2 locked on step 5 */
+    ok = lock_get(0, 4, id, &lv);
+    grid_up(WHITE[4]);
+    grid_wait(2200);                                 /* (the touched mark gone) */
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    param_format(track_desc(TSEL, id), lv, val, &unit);
+    snprintf(want, sizeof want, "|%sB", val);
+    ok &= strstr(ui.col[1], want) != 0;
+    param_format(track_desc(TSEL, lock_id(2)), TSEL->p[lock_id(2)], val, &unit);
+    snprintf(want, sizeof want, "|%sA", val);
+    ok &= strstr(ui.col[2], want) != 0;
+    ok &= head_mode(m) && str_eq(m, "LOCK STEP 5");
+    snap_page("locks/sound_held");
+    grid_up(WHITE[4]);
+    param_format(track_desc(TSEL, id), TSEL->p[id], val, &unit);
+    snprintf(want, sizeof want, "|%sA", val);
+    ok &= strstr(ui.col[1], want) != 0 && !head_mode(m);
+    check("locks: step held: a locked cell shows the lock inverted, the others their value; LOCK STEP 5; let go: the "
+          "knobs' values", ok);
+}
+static void test_lock_full(void)
+{
+    uint32_t i;
+    lock_fresh();
+    tap(B_EDIT);
+    for (i = 0; mo.b.count < LK_MAX; i++)
+        motion_add(1u + i / 512u, i % 64u, P_E0 + (i / 64u) % 8u, 1);
+    held_turn(1, 1);
+    grid_up(WHITE[4]);
+    check("locks: a held turn with 1024 events: LOCKS FULL, nothing added", str_eq(ui.msg, "LOCKS FULL") &&
+          mo.b.count == LK_MAX && lock_count(0) == 0u);
+}
+static void oct_dn_for(uint32_t ms)                  /* OCT- held ms, let go (the step key stays down) */
+{
+    press(B_OCTDN);
+    ui_frame();
+    grid_wait(ms);
+    btn_up(B_OCTDN);
+    ui_frame();
+}
+static void two_locks(void)                          /* E1 (SOUND 1) and CUT (FILTER) locked at step 5, motion E1 too */
+{
+    lock_set(0, 4, P_E1, 100);
+    lock_set(0, 4, P_FCUT, 20);
+    lock_set(0, 5, P_E1, 90);
+    motion_add(0, 4, P_E1, 33);
+}
+static void test_lock_clear_page(void)
+{
+    uint32_t ok;
+    int16_t v;
+    lock_fresh();
+    tap(B_EDIT);
+    two_locks();
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    oct_dn_for(100);
+    ok = !lock_get(0, 4, P_E1, &v) && lock_get(0, 4, P_FCUT, &v) && lock_get(0, 5, P_E1, &v) && motion_count(0) == 1u;
+    ok &= str_eq(ui.msg, "STEP 5 LOCKS CLEARED") && str_eq(cur_page()->title, "SOUND");
+    grid_up(WHITE[4]);
+    check("locks: step held + OCT- tap on SOUND clears that step's SOUND locks only (FILTER's, the next step's and "
+          "motion kept)", ok && trk[0].step[4].on);
+}
+static void test_lock_clear_all(void)
+{
+    uint32_t ok;
+    int16_t v;
+    lock_fresh();
+    tap(B_EDIT);
+    tap(B_OCTUP);                                    /* (STEPS: OCT+ alone, LAYER on its release) */
+    check("(LAYER)", str_eq(cur_page()->title, "LAYER"));
+    two_locks();
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    press(B_OCTDN);
+    ui_frame();
+    grid_wait(700);
+    ok = !lock_get(0, 4, P_E1, &v) && !lock_get(0, 4, P_FCUT, &v) && lock_get(0, 5, P_E1, &v) && motion_count(0) == 1u &&
+         str_eq(ui.msg, "STEP 5 ALL CLEARED");
+    btn_up(B_OCTDN);
+    ui_frame();
+    grid_up(WHITE[4]);
+    check("locks: step held + OCT- held 0.6 s clears all its locks; the release after does nothing (still LAYER)",
+          ok && str_eq(cur_page()->title, "LAYER"));
+}
+static void test_lock_oct_dn_alone(void)
+{
+    lock_fresh();
+    tap(B_EDIT);
+    tap(B_OCTUP);
+    tap(B_OCTDN);
+    check("locks: OCT- with no step held on LAYER: back to SOUND", str_eq(cur_page()->title, "SOUND"));
+}
+static void test_lock_step_page(void)
+{
+    step_t *s = &trk[0].step[4];
+    lock_fresh();
+    open_step_page();
+    ui_frame();
+    held_turn(0, -1);
+    held_turn(1, 1);
+    held_turn(2, 1);
+    grid_up(WHITE[4]);
+    check("locks: SEQ STEP in STEPS: held + KNOB 1 / 2 / 3 are PROB / RATCH / ACC, no lock",
+          s->on && s->cond == cond_store(19) && s->rat == 1u && s->acc && mo.b.count == 0u);
+}
+static void test_lock_song_busy(void)
+{
+    lock_fresh();
+    tap(B_EDIT);
+    chain.armed = 1;
+    held_turn(1, 1);
+    grid_up(WHITE[4]);
+    chain.armed = 0;
+    check("locks: while a song plays (or is armed) a held key gives no lock step: no lock", mo.b.count == 0u &&
+          lock_step() == NSTEP);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -9094,6 +9331,15 @@ int main(void)
     test_env_not_saved();
     test_env_home_and_tracks();
     test_env_while_step_held();
+    test_lock_entry_every_page();                    /* parameter locks: entry and clearing */
+    test_lock_before_hold();
+    test_lock_cells();
+    test_lock_full();
+    test_lock_clear_page();
+    test_lock_clear_all();
+    test_lock_oct_dn_alone();
+    test_lock_step_page();
+    test_lock_song_busy();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

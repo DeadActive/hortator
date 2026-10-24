@@ -5,6 +5,14 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Parameter locks: in STEPS (ENV), hold a step and turn any knob MOTION can record, on HOME, TRACKS (LEVEL, PAN),
+  SOUND, LAYER, FX, SLICER, RESON, FILTER, LFO and LFO DEST: that step gets its own value for that knob (`LOCK STEP 5`
+  on top, the cells show the step's values, a locked one inverted; the knob itself and its base untouched; a turn
+  right after the press works, the release then toggles nothing). Knobs MOTION can't record do nothing while a step is
+  held. Step held + OCT- tap: that step's locks on this page's knobs cleared (`STEP 5 LOCKS CLEARED`); OCT- held
+  0.6 s: all its locks (`STEP 5 ALL CLEARED`); OCT- with no step held keeps its job. `LOCKS FULL` at 1024 events. SEQ
+  STEP keeps PROB / RATCH / ACC on a held step; a song's rows are not edited.
+
 - ENV: the white keys as the selected track's steps on every page. ENV (unused before) toggles STEPS / TRACKS on its
   release, its LED lit in STEPS; the mode is global, not saved (off at power-on). In STEPS the keys tap / hold steps
   as on SEQ on HOME, TRACKS (armed too), SOUND, LAYER, FX, LFO and COMP, and play no drum (REC ALL records no hits

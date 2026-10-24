@@ -894,6 +894,57 @@ static void acc_oct_poll(void)
     }
     acc_oct = 0;
 }
+/* locks (spec 2026-10-24): a held step + a knob: its lock, from the knob's value there (the lock's, else the knob's own),
+ * as a held step's edit (no tap on the release, an off step on); the knob, the base and motion untouched. A knob MOTION
+ * cannot record does nothing while a step is held (the held step is its own context) */
+static void lock_knob(uint32_t c, int32_t s)
+{
+    uint32_t id = lock_id(c), st = lock_step(), i;
+    int16_t cur;
+    if (id >= P_COUNT || st >= NSTEP)
+        return;
+    for (i = 0; i < 16u; i++)                         /* edited: no key down is a tap any more */
+        if (ui.step_t0[i])
+            ui.step_t0[i] |= 2u;
+    step_hold_on(ui.held);
+    if (!lock_get(song.sel, st, id, &cur))
+        cur = motion_rest(song.sel, id);
+    lock_set(song.sel, st, id, knob_turn(EN_K1 + c, track_desc(TSEL, id), cur, s));
+    ui.hot_col = (uint8_t)c;
+    ui.hot_t = 40;
+}
+/* OCT- pressed with a step held (ui.ocd_t0): let go before LOCK_CLR_MS, that step's locks on this page's knobs go;
+ * held LOCK_CLR_MS, all its locks at once (its release then nothing) */
+static void lock_clear_say(const char *what)
+{
+    char m[24];
+    str_cpy(m, "STEP ", sizeof m);
+    fmt_int(m + 5, (int32_t)ui.ocd_si + 1);
+    str_cpy(m + str_len(m), what, sizeof m - str_len(m));
+    ui_message(m);
+}
+static void ocd_poll(uint32_t now)
+{
+    if (!ui.ocd_t0)
+        return;
+    if ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u) {
+        if (!(ui.ocd_t0 & 2u) && now - (ui.ocd_t0 & ~3u) >= LOCK_CLR_MS * 1000u * FM1_TICKS_PER_US) {
+            lock_clear_step(song.sel, ui.ocd_si, 0);
+            lock_clear_say(" ALL CLEARED");
+            ui.ocd_t0 |= 2u;
+        }
+        return;
+    }
+    if (!(ui.ocd_t0 & 2u)) {
+        uint32_t ids[MO_W] = {0}, c, id;
+        for (c = 0; c < 4u; c++)
+            if ((id = lock_id(c)) < P_COUNT)
+                ids[id >> 5] |= 1u << (id & 31u);
+        lock_clear_step(song.sel, ui.ocd_si, ids);
+        lock_clear_say(" LOCKS CLEARED");
+    }
+    ui.ocd_t0 = 0;
+}
 /* ENV (spec 2026-10-24): a tap toggles STEPS / TRACKS on its release, unless OCT+- changed the bank while it was held
  * or it was pressed under the menu, NAME, the PRESETS list, the MUTE screen, PERFORM or a dialog */
 static void env_poll(uint32_t now, uint32_t pressed)
@@ -1086,6 +1137,14 @@ static void ui_input(void)
             } else if (ui.env_t0) {                     /* ENV held: the bank (STEPS' banks; no toggle on its release) */
                 bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
                 ui.env_t0 |= 2u;
+            } else if (b == B_OCTDN && lock_step() < NSTEP) {   /* a step held: OCT- clears its locks (ocd_poll), no
+                                                                 * page job */
+                uint32_t i;
+                ui.ocd_t0 = now | 1u;
+                ui.ocd_si = (uint8_t)lock_step();
+                for (i = 0; i < 16u; i++)               /* (the keys down: no tap) */
+                    if (ui.step_t0[i])
+                        ui.step_t0[i] |= 2u;
             } else if (seq_keys()) {                    /* OCT+: held + a step key its accent, let go alone the
                                                          * next bank (acc_oct_poll); OCT-: the bank before */
                 if (b == B_OCTUP)
@@ -1113,6 +1172,7 @@ static void ui_input(void)
         }
         }
     }
+    ocd_poll(now);                                      /* locks: OCT- with a step held */
     edit_hold(now);                                     /* EDIT held: the PRESETS list */
     if (pl_on())
         return;
@@ -1195,6 +1255,10 @@ static void ui_input(void)
         }
         if (grid_mode() && step_edit(k, s))
             continue;
+        if (lock_step() < NSTEP) {                      /* STEPS, a step held: a lock (or nothing) */
+            lock_knob(k, s);
+            continue;
+        }
         if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || pg->graph == GR_SONG || pg->graph == GR_LDEST ||
             page_desc(pg, k, &hv)) {
             ui.hot_col = (uint8_t)k;
@@ -1220,6 +1284,10 @@ static void ui_input(void)
     if (mo.full) {                                      /* motion.c: a turn found no free place */
         mo.full = 0;
         ui_message("MOTION FULL");
+    }
+    if (mo.lfull) {                                     /* motion.c: a lock found the bank full */
+        mo.lfull = 0;
+        ui_message("LOCKS FULL");
     }
 }
 

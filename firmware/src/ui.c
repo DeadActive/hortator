@@ -104,6 +104,8 @@ static struct {
                                   * steps on every page), 0 TRACKS (as before); off at power-on, never stored */
     uint32_t env_t0;             /* ENV's press time | 1; bit 1: used (ENV + OCT+-, or pressed under a dialog): its
                                   * release toggles nothing */
+    uint32_t ocd_t0;             /* locks: OCT- pressed with a step held: its time | 1; bit 1: the 0.6 s clear done */
+    uint8_t ocd_si;              /* .. the step held then */
     uint8_t srec, sr_cur, sr_key;   /* step record (spec §6): on; its cursor; the key whose note is on it + 1 */
     struct {                     /* MIDI LEARN (ui_learn.c; GLO + G4): never stored */
         uint8_t on;              /* LEARN is on */
@@ -642,4 +644,61 @@ static const param_desc_t *home_param(uint32_t k, int16_t **vp)
 {
     *vp = &TSEL->p[P_E0 + (k & 3u)];
     return track_desc(TSEL, P_E0 + (k & 3u));
+}
+
+/* ---- parameter locks (spec 2026-10-24): in STEPS, off the SEQ pages, a held step + a recordable knob locks it */
+#define LOCK_CLR_MS 600u                               /* step held + OCT- held this long: all its locks cleared */
+static int lock_page(void) { return env_steps() && (ui.home || cur_page()->fam != FAM_SEQ); }   /* HOME TRACKS SOUND
+                                                                                                * LAYER FX LFO COMP */
+/* the step of the last-pressed key still down (from the press: a turn right after it locks), NSTEP none (not a lock
+ * page, no key, outside LEN, a Grids track, a song's lock: step_grab) */
+static uint32_t lock_step(void)
+{
+    uint32_t k = ui.held;
+    if (!lock_page() || k >= 16u || !ui.step_t0[k] || !((fm1_in.notes >> STEP_KEY[k]) & 1u) || ui.step_si[k] >= NSTEP)
+        return NSTEP;
+    return ui.step_si[k];
+}
+/* .. shown (cells, LOCK STEP n): once held STEP_HOLD_MS or turned (a tap shows nothing, as held_step) */
+static uint32_t lock_view_step(void)
+{
+    uint32_t s = lock_step();
+    return s < NSTEP && (ui.step_t0[ui.held] & 2u) ? s : NSTEP;
+}
+/* the P_* id KNOB slot + 1 edits here when MOTION can record it (motion.c motion_param): a track page's, HOME's macros,
+ * TRACKS' LEVEL and PAN; P_COUNT none (the model, TYPE, WAVE, DEST, SRC, the timing, a global page ...) */
+static uint32_t lock_id(uint32_t slot)
+{
+    const page_t *pg = cur_page();
+    const param_desc_t *d;
+    int16_t *vp = 0;
+    uint32_t id;
+    if (slot > 3u)
+        return P_COUNT;
+    if (ui.home)
+        d = home_param(slot, &vp);
+    else if (pg->scope == SC_MIX)
+        return slot == 1u ? (uint32_t)P_LEVEL : slot == 3u ? (uint32_t)P_PAN : (uint32_t)P_COUNT;
+    else if (pg->scope == SC_TRACK)
+        d = page_desc(pg, slot, &vp);
+    else
+        return P_COUNT;
+    if (!d || !vp || vp < TSEL->p || vp >= TSEL->p + P_COUNT || !d->label || d->label[0] == '-' || d->max <= d->min)
+        return P_COUNT;
+    id = (uint32_t)(vp - TSEL->p);
+    return motion_param(id) ? id : P_COUNT;
+}
+/* what a cell of knob id shows: with a step held, its lock there (*locked 1) or the knob's own value; else live */
+static int16_t lock_shown(uint32_t id, int16_t live, int *locked)
+{
+    uint32_t s = lock_view_step();
+    int16_t v;
+    *locked = 0;
+    if (s >= NSTEP || id >= P_COUNT)
+        return live;
+    if (lock_get(song.sel, s, id, &v)) {
+        *locked = 1;
+        return v;
+    }
+    return motion_rest(song.sel, id);
 }

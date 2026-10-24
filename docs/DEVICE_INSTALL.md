@@ -769,3 +769,13 @@ ACC`).
   OCT-: back to SOUND. On an LFO page OCT+: the RATE MODE cycles. On SEQ STEP OCT+ / OCT- are the bank as before.
 - KEYS (SCL) on, ENV: KEYS goes off, STEPS on; SCL again: STEPS off, KEYS on. Power off and on: STEPS off.
 - Hold a step key in STEPS, tap ENV while holding it: TRACKS; letting the key go changes nothing.
+- STEPS on SOUND, play a 4-on-the-floor kick: hold step 5's key, turn DECAY up a lot: the top bar says
+  `LOCK STEP 5`, the DECAY cell shows the new value inverted; let go: the cell shows the knob's own value again. Step
+  5's kick is long, the others as before (snap back). Repeat a lock on each family: LAYER (LEVEL), FX (DIST, REV),
+  SLICER, RESON (TUNE, MIX), FILTER (CUT), LFO (RATE, DEPTH), LFO DEST slot 3 DEPTH, HOME (a macro), TRACKS (LEVEL,
+  PAN): each plays on its step only. MODEL, FILTER TYPE, RESON MODEL, an LFO's WAVE / DEST / SRC: nothing happens while
+  a step is held.
+- An LFO on DECAY plus a lock on DECAY: on the locked step the wobble is round the locked value.
+- Hold the step, tap OCT-: `STEP 5 LOCKS CLEARED`, this page's locks gone (another page's kept). Hold the step, hold
+  OCT- 0.6 s: `STEP 5 ALL CLEARED`. OCT- with no step held: LAYER back to SOUND as usual.
+- With the project full (1024 events), a lock turn says `LOCKS FULL`.
