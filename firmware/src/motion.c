@@ -9,16 +9,17 @@
  * (clamped to the knob's range); a value holds until that knob's next event; step 0, STOP and PLAY off put the base
  * back (every knob as set, taken at PLAY). In a block an LFO on a knob holds its modulated copy in t->p and the
  * value it returns to in t->lsave (lfo.c): motion reads and writes the latter (motion_slot).
- * Store: 128 events shared by the 8 tracks (upstream: 64 for 4), saved with the project (FDR8). The main loop writes
- * with the audio IRQ off; the ISR reads. */
+ * Store: the lock bank (lockbank.c): 1024 events (motion and parameter locks) shared by the 8 tracks (upstream: 64
+ * for 4; FDR8..FDRE: 128), sorted, saved as the project's lock bank (FDRF, project.c). The main loop writes with the
+ * audio IRQ off; the ISR reads. */
 /* (the store's types, MOTION_MAX and MO_W: lockbank.c) */
 
 static struct {
-    motion_store_t s;                /* the events and PLAY bits (saved with the project) */
+    lk_bank_t b;                     /* the events and PLAY bits (saved as the project's lock bank) */
     int16_t base[NTRK][P_COUNT];     /* every knob as set, while motion plays */
     uint32_t act[NTRK][MO_W];        /* the knobs motion moved off the base (bit = id) */
     uint8_t base_ok, full;           /* tracks whose base is taken; a turn found no free place (the UI says so) */
-    const motion_store_t *src;       /* a song's row: its slot's motion (song.c), 0 = mo.s */
+    const lk_bank_t *src;            /* a song's row: its slot's bank (song.c), 0 = mo.b */
     const uint8_t *model;            /* .. its slot's models: a track's model now another one skips its P_E events */
 } mo;
 
@@ -37,14 +38,8 @@ static int motion_param(uint32_t id)
            (id >= P_FCUT && id <= P_FDEC) || id == P_RKEY;   /* the FILTER's knobs, not its TYPE (as RESON's MODEL);
                                                                  * RESON's KEYF */
 }
-static int motion_on(uint32_t k) { return (int)((mo.s.on >> k) & 1u); }
-static uint32_t motion_count(uint32_t k)
-{
-    uint32_t i, n = 0;
-    for (i = 0; i < mo.s.count; i++)
-        n += mo.s.ev[i].trk == k;
-    return n;
-}
+static int motion_on(uint32_t k) { return (int)((mo.b.on >> k) & 1u); }
+static uint32_t motion_count(uint32_t k) { return lk_count(&mo.b, k, LK_MOTION); }   /* track k's motion events */
 static int motion_moved(uint32_t k, uint32_t id) { return (int)((mo.act[k][id >> 5] >> (id & 31u)) & 1u); }
 static void motion_mark(uint32_t k, uint32_t id) { mo.act[k][id >> 5] |= 1u << (id & 31u); }
 
@@ -95,8 +90,8 @@ static void motion_end(void)                      /* seq_stop: the patch back */
 /* t enters step s: at step 0 the base back, then the knobs its events at s name */
 static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
 {
-    uint32_t k = (uint32_t)(t - trk), i, moved = 0;
-    const motion_store_t *m = mo.src ? mo.src : &mo.s;
+    uint32_t k = (uint32_t)(t - trk), i, at = k << 6 | s, moved = 0;
+    const lk_bank_t *m = mo.src ? mo.src : &mo.b;
     if (!((m->on >> k) & 1u))
         return;
     if (!((mo.base_ok >> k) & 1u))
@@ -105,13 +100,12 @@ static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
         moved = mo.act[k][0] | mo.act[k][1] | mo.act[k][2];
         motion_restore(k);
     }
-    for (i = 0; i < m->count; i++) {
-        const motion_event_t *e = &m->ev[i];
-        if (e->trk == k && e->step == s &&
-            !(mo.model && mo.model[k] != t->p[P_MODEL] && e->param >= P_E0 && e->param <= P_E7)) {
-            const param_desc_t *d = track_desc(t, e->param);
-            *motion_slot(t, e->param) = (int16_t)clamp(e->value, d->min, d->max);
-            motion_mark(k, e->param);
+    for (i = lk_seek(m, k, s); i < m->count && (uint32_t)(m->key[i] >> 7) == at; i++) {   /* the step's events */
+        uint32_t id = m->key[i] & 127u;
+        if (!lk_is_lock(m, i) && !(mo.model && mo.model[k] != t->p[P_MODEL] && id >= P_E0 && id <= P_E7)) {
+            const param_desc_t *d = track_desc(t, id);
+            *motion_slot(t, id) = (int16_t)clamp(m->val[i], d->min, d->max);
+            motion_mark(k, id);
             moved = 1;
         }
     }
@@ -124,21 +118,11 @@ static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
 /* ---- the IRQ off (callers) */
 static void motion_add(uint32_t k, uint32_t s, uint32_t id, int32_t v)   /* replaces the same place; full: refused */
 {
-    uint32_t i;
-    for (i = 0; i < mo.s.count; i++)
-        if (mo.s.ev[i].trk == k && mo.s.ev[i].step == s && mo.s.ev[i].param == id)
-            break;
-    if (i == MOTION_MAX) {
+    if (lk_put(&mo.b, lk_key(k, s, id), v, 0) < 0) {   /* (the bank's 1024 shared with the locks) */
         mo.full = 1;
         return;
     }
-    mo.s.ev[i].trk = (uint8_t)k;
-    mo.s.ev[i].step = (uint8_t)s;
-    mo.s.ev[i].param = (uint8_t)id;
-    mo.s.ev[i].value = (int8_t)v;
-    if (i == mo.s.count)
-        mo.s.count++;
-    mo.s.on |= (uint8_t)(1u << k);
+    mo.b.on |= (uint8_t)(1u << k);
 }
 static void motion_forget(void)                   /* new knobs (a project load, INIT ALL): nothing to put back */
 {
@@ -155,21 +139,6 @@ static void motion_rebase(uint32_t k)             /* track k's sound replaced (a
         if (motion_moved(k, id) && (id < P_E0 || id > P_E7))   /* their recorded value would become the patch */
             *motion_slot(&trk[k], id) = mo.base[k][id];
     motion_take_base(k);
-}
-static int motion_valid(const motion_store_t *m)  /* a saved store: places in range, recordable, no place twice */
-{
-    uint32_t i, j;
-    if (m->count > MOTION_MAX)
-        return 0;
-    for (i = 0; i < m->count; i++) {
-        const motion_event_t *e = &m->ev[i];
-        if (e->trk >= NTRK || e->step >= NSTEP || !motion_param(e->param) || e->value < -64)
-            return 0;
-        for (j = 0; j < i; j++)
-            if (m->ev[j].trk == e->trk && m->ev[j].step == e->step && m->ev[j].param == e->param)
-                return 0;
-    }
-    return 1;
 }
 
 /* ---- the main loop (they take the IRQ guard) */
@@ -202,24 +171,19 @@ static void motion_set_play(uint32_t k, int on)   /* the MOTION page's PLAY */
 {
     fm1_irq_off();
     if (on) {
-        mo.s.on |= (uint8_t)(1u << k);
+        mo.b.on |= (uint8_t)(1u << k);
     } else {
-        mo.s.on &= (uint8_t)~(1u << k);
+        mo.b.on &= (uint8_t)~(1u << k);
         motion_restore(k);
     }
     fm1_irq_on();
 }
-static void motion_clear(uint32_t k)              /* track k's events gone, its knobs back */
+static void motion_clear(uint32_t k)              /* track k's motion events gone (its locks kept), its knobs back */
 {
-    uint32_t i, n = 0;
     fm1_irq_off();
     motion_restore(k);
-    for (i = 0; i < mo.s.count; i++)
-        if (mo.s.ev[i].trk != k)
-            mo.s.ev[n++] = mo.s.ev[i];
-    memset(&mo.s.ev[n], 0, (MOTION_MAX - n) * sizeof mo.s.ev[0]);
-    mo.s.count = (uint8_t)n;
-    mo.s.on &= (uint8_t)~(1u << k);
+    lk_clear_track(&mo.b, k, LK_MOTION);
+    mo.b.on &= (uint8_t)~(1u << k);
     mo.full = 0;
     fm1_irq_on();
 }

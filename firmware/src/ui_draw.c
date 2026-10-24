@@ -1833,10 +1833,11 @@ static void graph_motion(void)
 {
     const track_t *t = TSEL;
     uint32_t k = song.sel, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i, sig, n = 0, nw, wi;
-    uint32_t has[2] = {0, 0}, ph = song.playing ? t->seq_idx % len : 0xFFu;
-    for (i = 0; i < mo.s.count; i++)
-        if (mo.s.ev[i].trk == k) {
-            has[mo.s.ev[i].step >> 5] |= 1u << (mo.s.ev[i].step & 31u);
+    uint32_t has[2] = {0, 0}, ph = song.playing ? t->seq_idx % len : 0xFFu, z = lk_seek(&mo.b, k + 1u, 0);
+    for (i = lk_seek(&mo.b, k, 0); i < z; i++)          /* the track's motion events (not its locks) */
+        if (!lk_is_lock(&mo.b, i)) {
+            uint32_t st = ((uint32_t)mo.b.key[i] >> 7) & 63u;
+            has[st >> 5] |= 1u << (st & 31u);
             n++;
         }
     sig = has[0] * 31u + has[1] * 131u + len * 7u + ph * 1009u + k * 65537u + n * 3u + (uint32_t)motion_on(k);

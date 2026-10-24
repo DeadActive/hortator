@@ -4528,8 +4528,8 @@ static void test_motion_recording(void)
     turn(EN_K2, 3);                                   /* TRACKS: LEVEL */
     ui_frame();
     check("MOTION: TRACKS' LEVEL records", motion_count(0) >= 3u);
-    for (i = 0; mo.s.count < MOTION_MAX; i++)
-        motion_add(1, i % 64u, P_E0 + i / 64u, 1);    /* the store full with track 2's */
+    for (i = 0; mo.b.count < LK_MAX; i++)             /* the store full with tracks 2 and 3's */
+        motion_add(1u + i / 512u, i % 64u, P_E0 + (i / 64u) % 8u, 1);
     tap(B_EDIT);
     turn(EN_K4, -4);                                  /* the model's 3rd knob: a new place (E1's is taken) */
     ui_frame();
@@ -4564,7 +4564,7 @@ static void test_motion_model_change(void)
     check("MOTION: STOP after a model change puts the other knobs' patch values back (LEVEL 104, not 20)",
           trk[0].p[P_LEVEL] == 104);
     init_all();
-    check("INIT ALL: no motion left", mo.s.count == 0u);
+    check("INIT ALL: no motion left", mo.b.count == 0u);
 }
 
 /* the MOTION page: PLAY, EVENTS, CLEAR with its dialog; screens */

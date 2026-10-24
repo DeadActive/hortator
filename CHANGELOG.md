@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- MOTION: 1024 events per project (was 128), kept in the project's lock bank (its own flash object, saved just before
+  the project record, which links it: a save cut by a power loss keeps the last whole pair). Projects are now "FDRF";
+  FDRE and every older format load with their motion as before. 0.23.x shows `LOAD FAILED` for a project saved now
+  (downgrade safe, not supported). A bank that can't be read (wrong inside, another slot's, not the one the record
+  links) loads empty and the FM-1 says `LOCKS LOST` once; it is never misread. A step's events are found by a binary
+  search in the audio ISR (no scan of every event).
+
 - Lock banks: four new flash objects (OBJ_LOCKS0..3, two sectors each at 0xD4000..0xDBFFF, storage.c; user decision
   2026-10-24, frozen baseline moved to `frozen-base-10` for that object-table change) for the parameter locks. They
   take the last 32 KiB of user sample slot 3: **USR3 now holds up to 48 KiB** (USR1 / USR2 80 KiB as before). A longer

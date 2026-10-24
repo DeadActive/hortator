@@ -345,7 +345,7 @@ static void write_perform(const char *dir)
 
 /* MOTION demo (120 BPM): the 808 kit, the kick's DECAY recorded as a sweep over a bar (step k: 10 + 7 k); bar 1
  * PLAY OFF (the patch), bars 2..4 PLAY ON: motion_decay.wav */
-static void motion_bar(uint32_t b) { mo.s.on = b ? 1u : 0u; }
+static void motion_bar(uint32_t b) { mo.b.on = b ? 1u : 0u; }
 static void write_motion(const char *dir)
 {
     uint32_t k;
@@ -369,7 +369,7 @@ static void write_song(const char *dir)
     sp_kit();
     memset(song_st, 0, sizeof song_st);
     for (s = 0; s < 2u; s++) {
-        chain.src[s].m = &MOTION_NONE;
+        chain.src[s].m = &LK_NONE;
         for (k = 0; k < NTRK; k++) {
             chain.src[s].step[k] = song_st[s][k];
             chain.src[s].timing[k][0] = 16;

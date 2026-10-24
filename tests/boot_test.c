@@ -27,6 +27,30 @@ static void rfill(void *p, uint32_t n)
         *b++ = (uint8_t)(rnd() >> 24);
 }
 
+/* the live motion events as an old project's store (FDR8..FDRE records built from the live state) */
+static motion_store_t mo_legacy(void)
+{
+    motion_store_t m;
+    uint32_t i;
+    memset(&m, 0, sizeof m);
+    for (i = 0; i < mo.b.count && m.count < MOTION_MAX; i++)
+        if (!lk_is_lock(&mo.b, i))
+            m.ev[m.count++] = (motion_event_t){(uint8_t)(mo.b.key[i] >> 13), (uint8_t)((mo.b.key[i] >> 7) & 63u),
+                                               (uint8_t)(mo.b.key[i] & 127u), mo.b.val[i]};
+    m.on = mo.b.on;
+    return m;
+}
+static int bank_events_eq(const lk_bank_t *a, const lk_bank_t *b)   /* the same events, kinds and PLAY bits */
+{
+    uint32_t i;
+    if (a->count != b->count || a->on != b->on)
+        return 0;
+    for (i = 0; i < a->count; i++)
+        if (a->key[i] != b->key[i] || a->val[i] != b->val[i] || lk_is_lock(a, i) != lk_is_lock(b, i))
+            return 0;
+    return 1;
+}
+
 /* a sample slot k with a valid header and random (or plausible) zones */
 static void slot_header(uint32_t k, int plausible)
 {
@@ -783,20 +807,20 @@ static int fdr7_round_trip(void)
 /* FDR8: the motion goes through a save and a load (flash) */
 static int fdr8_motion_round_trip(void)
 {
-    motion_store_t want;
+    static lk_bank_t want;
     memset(hflash, 0xFF, sizeof hflash);
     host_init();
     persist_boot();
     motion_add(0, 4, P_E1, 100);
     motion_add(5, 63, P_PAN, -64);
     motion_add(7, 0, P_LFO2 + LF_DEPTH, 127);
-    mo.s.on = 0xA1u;
-    want = mo.s;
+    mo.b.on = 0xA1u;
+    want = mo.b;
     project_save(2);
     memset(&mo, 0, sizeof mo);
     memset(proj_slot, 0, sizeof proj_slot);
     project_load(2);
-    return !memcmp(&mo.s, &want, sizeof want);
+    return bank_events_eq(&mo.b, &want);
 }
 /* an FDR7 record (3028 B, no motion) loads: its values, no motion */
 static int fdr7_converts(void)
@@ -821,7 +845,7 @@ static int fdr7_converts(void)
     persist_boot();
     motion_add(0, 1, P_E1, 5);                       /* motion in RAM before: the load replaces it */
     project_load(1);
-    return song.g[G_RTYPE] == 1 && trk[2].step[9].on && mo.s.count == 0u && sizeof v == 3028u;
+    return song.g[G_RTYPE] == 1 && trk[2].step[9].on && mo.b.count == 0u && sizeof v == 3028u;
 }
 /* a broken motion block: the project loads, the motion dropped */
 static int fdr8_bad_motion_dropped(void)
@@ -833,12 +857,12 @@ static int fdr8_bad_motion_dropped(void)
     trk[3].step[5].on = 1;
     motion_add(0, 4, P_E1, 100);
     project_save(0);
-    p->motion.ev[0].trk = 9;                         /* out of range */
-    p->sum = proj_sum(p);
+    (void)p;
+    lk_slot[0].key[0] = (uint16_t)lk_key(3, 3, P_MODEL);   /* broken: not a recordable knob */
     memset(&mo, 0, sizeof mo);
     trk[3].step[5].on = 0;
     project_load(0);
-    return trk[3].step[5].on && mo.s.count == 0u;
+    return trk[3].step[5].on && mo.b.count == 0u;
 }
 /* Review Focus 3: a load while motion plays: the stop after it puts nothing of the old project back */
 static int fdr8_load_while_playing(void)
@@ -908,7 +932,7 @@ static int fdr9_converts(void)
     persist_boot();
     trk[0].p[P_FTYPE] = FT_LP;                       /* before: the load sets the filter OFF */
     project_load(1);
-    return sizeof v == 3592u && trk[1].p[P_E1] == 99 && trk[2].step[9].on && mo.s.count == 1u &&
+    return sizeof v == 3592u && trk[1].p[P_E1] == 99 && trk[2].step[9].on && mo.b.count == 1u &&
            chain.cfg.count == 1u && chain.cfg.row[0].slot == 2u && str_eq(chain.name, "OLD ONE") &&
            trk[0].p[P_FTYPE] == FT_OFF && trk[0].p[P_FCUT] == 127 && trk[0].p[P_FDEC] == 40;
 }
@@ -1084,7 +1108,7 @@ static int fdr8_converts(void)
     chain.cfg.count = 3;                             /* a song and a name in RAM before: the load replaces them */
     name_set(chain.name, "OLD");
     project_load(1);
-    return trk[2].step[9].on && mo.s.count == 1u && mo.s.ev[0].value == 77 && chain.cfg.count == 0u &&
+    return trk[2].step[9].on && mo.b.count == 1u && mo.b.val[0] == 77 && chain.cfg.count == 0u &&
            !chain.name[0] && sizeof v == 3544u;
 }
 /* a broken song or name: the project loads, they are dropped */
@@ -1123,15 +1147,15 @@ static int song_garbage_slot(void)
     memset(p->t[0].step, 0xFF, sizeof p->t[0].step);  /* cond 255, rat 255, on 255 */
     p->t[0].p[P_SLEN] = 999;
     p->t[0].p[P_SDIV] = -7;
-    p->motion.count = 200;                           /* broken */
     p->sum = proj_sum(p);
+    lk_slot[1].count = 1025;                         /* its bank broken */
     rc = chain_prepare();
     for (b = 0; b < 400u; b++)
         render_mix(L, R, CTL);
     transport_req = 2;
     render_mix(L, R, CTL);
     return rc_empty == 4u && rc == 0u && chain.src[1].timing[0][0] == NSTEP && chain.src[1].timing[0][1] == 0 &&
-           chain.src[1].m == &MOTION_NONE && !song.playing;
+           chain.src[1].m == &LK_NONE && !song.playing;
 }
 /* LOAD while a song plays: refused */
 static int song_blocks_load(void)
@@ -1184,7 +1208,7 @@ static void fdrb_of_live(project_vb_t *v)
             v->t[k].p[i] = trk[k].p[i];
         memcpy(v->t[k].step, trk[k].step, sizeof v->t[k].step);
     }
-    v->motion = mo.s;
+    v->motion = mo_legacy();
     v->song = chain.cfg;
     memcpy(v->name, chain.name, NAME_LEN);
     v->sum = proj_hash(v, sizeof *v - 4u);
@@ -1235,7 +1259,7 @@ static int fdrb_converts(void)
     project_load(2);
     return sizeof v == 3672u && trk[2].step[4].on && trk[2].step[4].slide && trk[2].step[4].nt == -12 &&
            trk[2].step[5].tie && trk[5].p[P_FCUT] == 21 && trk[5].p[P_FDEC] == 99 && song.g[G_BPM] == 91 &&
-           song.sel == 5 && mo.s.count == 1u && mo.s.ev[0].value == 50 && chain.cfg.count == 1u &&
+           song.sel == 5 && mo.b.count == 1u && mo.b.val[0] == 50 && chain.cfg.count == 1u &&
            str_eq(chain.name, "FDRB ONE") && all_prio_is(0) && str_eq(ui.msg, "LOADED");
 }
 
@@ -1253,7 +1277,7 @@ static int fdrc_round_trip(void)
     persist_boot();
     project_load(0);
     return trk[1].p[P_PRIO] == 1 && trk[6].p[P_PRIO] == 1 && trk[0].p[P_PRIO] == 0 && sizeof(project_t) == 3840u &&
-           proj_slot[0].magic == 0x45524446u;       /* "FDRE" */
+           proj_slot[0].magic == 0x46524446u;       /* "FDRF" (2026-10-24: the lock banks) */
 }
 
 /* one pattern played 2 s from a loaded slot: a hash of the mix */
@@ -1370,7 +1394,7 @@ static void fdrd_of_live(project_vd_t *v)
         v->pre[k] = (uint16_t)preset_rec_enc(trk[k].pre);
         v->pre_ed[k] = trk[k].pre_ed;
     }
-    v->motion = mo.s;
+    v->motion = mo_legacy();
     v->song = chain.cfg;
     memcpy(v->name, chain.name, NAME_LEN);
     v->sum = proj_hash(v, sizeof *v - 4u);
@@ -1412,7 +1436,7 @@ static int fdrd_lfo_converts(void)
               trk[k].p[P_LS4DEST] == 0 && trk[k].p[P_LS4DEPTH] == 0;
     ok &= trk[0].p[P_LFO1 + LF_DEST] == 3 && trk[0].p[P_LFO1 + LF_DEPTH] == 40 && trk[0].p[P_LFO2 + LF_DEST] == 9 &&
           trk[0].p[P_LFO2 + LF_DEPTH] == -30 && trk[3].p[P_LFO2 + LF_DEST] == 10 && trk[3].p[P_LFO2 + LF_DEPTH] == 64;
-    ok &= pre != PRE_NONE && trk[2].pre == pre && trk[2].pre_ed == 1u && mo.s.count == 1u && mo.s.ev[0].param == P_LFO1 + LF_DEPTH &&
+    ok &= pre != PRE_NONE && trk[2].pre == pre && trk[2].pre_ed == 1u && mo.b.count == 1u && (mo.b.key[0] & 127u) == P_LFO1 + LF_DEPTH &&
           str_eq(chain.name, "LFO OLD");
     if (h != ref || !ok)
         printf("     FDRD -> FDRE: play %08x (FDRE save %08x), fields %u\n", h, ref, ok);
@@ -1440,7 +1464,7 @@ static int fdre_slots_round_trip(void)
     return trk[5].p[P_LSRC1] == 1 && trk[5].p[P_LSRC2] == 0 && trk[5].p[P_LS3SRC] == 1 && trk[5].p[P_LS3DEST] == 17 &&
            trk[5].p[P_LS3DEPTH] == -64 && trk[5].p[P_LS4SRC] == 0 && trk[5].p[P_LS4DEST] == 2 &&
            trk[5].p[P_LS4DEPTH] == 33 && sizeof(project_t) == 3840u && sizeof(project_t) <= ST_PAYLOAD_MAX &&
-           proj_slot[3].magic == 0x45524446u;       /* "FDRE" */
+           proj_slot[3].magic == 0x46524446u;       /* "FDRF" (2026-10-24: the lock banks) */
 }
 
 /* RESON KEYF (P_RKEY): FDRE's parameter block is full, so a track's KEYF rides in its first step's spare byte; kept
@@ -1465,7 +1489,7 @@ static int fdre_keyf_round_trip(void)
         for (i = 0; i < NSTEP; i++)
             ok &= trk[k].step[i].rsv == 0;
     }
-    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x45524446u && proj_ok(&proj_slot[2]);
+    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x46524446u && proj_ok(&proj_slot[2]);
 }
 /* an FDRE record from before KEYF (its steps' spare bytes 0, as every earlier firmware wrote them) loads with KEYF
  * off on every track, and plays as it did */
@@ -1884,6 +1908,272 @@ static int usr3_note_shown(void)
     return !strcmp(ui.msg, "USR3 SHORTENED TO 48K") && ui.msg_t && persist_note == 0;
 }
 
+/* ---- FDRF: the motion and the locks in per-slot lock banks (spec 2026-10-24 parameter locks) */
+static void wipe_ram(void)                            /* a power cycle's RAM: .noinit slots gone, .bss banks zero */
+{
+    memset(&mo, 0, sizeof mo);
+    memset(proj_slot, 0, sizeof proj_slot);
+    memset(lk_slot, 0, sizeof lk_slot);
+    lk_lost = 0;
+    persist_note = 0;
+}
+static int fdrf_round_trip(void)
+{
+    static lk_bank_t want;
+    uint32_t i, ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    motion_add(0, 4, P_E1, 100);
+    motion_add(3, 10, P_PAN, -64);
+    motion_add(7, 63, P_LFO2 + LF_DEPTH, 127);
+    lk_put(&mo.b, lk_key(0, 4, P_E1), 30, 1);         /* a lock on motion's knob and step */
+    lk_put(&mo.b, lk_key(5, 2, P_FCUT), -10, 1);
+    mo.b.on = 0xA1u;
+    want = mo.b;
+    project_save(2);
+    wipe_ram();
+    persist_boot();
+    project_load(2);
+    for (i = 0; i < sizeof proj_slot[2].rsv_mo; i++)
+        ok &= proj_slot[2].rsv_mo[i] == 0;
+    return (int)ok && bank_events_eq(&mo.b, &want) && proj_slot[2].magic == PROJ_MAGIC && proj_slot[2].lk_n == 5u &&
+           sizeof(project_t) == 3840u && str_eq(ui.msg, "LOADED");
+}
+static void fdre_of_live(project_ve_t *v)            /* the live state as 0.23.3 saved it ("FDRE") */
+{
+    uint32_t i;
+    memset(v, 0, sizeof *v);
+    v->magic = PROJ_MAGIC_VE;
+    v->size = sizeof *v;
+    for (i = 0; i < G_COUNT; i++)
+        v->g[i] = song.g[i];
+    v->sel = song.sel;
+    for (i = 0; i < NTRK; i++) {
+        memcpy(v->t[i].p, trk[i].p, sizeof v->t[i].p);
+        memcpy(v->t[i].step, trk[i].step, sizeof trk[i].step);
+        proj_xp_put(&v->t[i], trk[i].p);
+        v->pre[i] = (uint16_t)preset_rec_enc(trk[i].pre);
+        v->pre_ed[i] = trk[i].pre_ed;
+    }
+    v->motion = mo_legacy();
+    v->song = chain.cfg;
+    memcpy(v->name, chain.name, NAME_LEN);
+    v->sum = proj_hash(v, sizeof *v - 4u);
+}
+static int fdre_migrates(void)
+{
+    static project_ve_t v;
+    static track_t want[NTRK];
+    uint32_t k, ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    pattern_kit();
+    trk[2].p[P_E1] = 17;
+    trk[6].p[P_RKEY] = 99;
+    motion_add(0, 4, P_E1, 100);
+    motion_add(2, 9, P_LEVEL, 3);
+    motion_add(6, 63, P_RKEY, 120);
+    mo.b.on = 0x05;
+    name_set(chain.name, "OLD FDRE");
+    fdre_of_live(&v);
+    memcpy(want, trk, sizeof trk);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    wipe_ram();
+    host_init();
+    persist_boot();
+    project_load(1);
+    for (k = 0; k < NTRK; k++)
+        ok &= !memcmp(trk[k].p, want[k].p, sizeof want[k].p) && !memcmp(trk[k].step, want[k].step, sizeof want[k].step);
+    ok &= mo.b.count == 3u && lk_count(&mo.b, 0, LK_LOCK) + lk_count(&mo.b, 2, LK_LOCK) + lk_count(&mo.b, 6, LK_LOCK) == 0u;
+    ok &= lk_find(&mo.b, lk_key(6, 63, P_RKEY), 0) >= 0 && mo.b.on == 5u && !lk_lost && !(persist_note & PN_LOCKS);
+    return (int)ok && sizeof v == 3840u && proj_slot[1].magic == PROJ_MAGIC && str_eq(ui.msg, "LOADED") &&
+           str_eq(chain.name, "OLD FDRE");
+}
+static int fdre_ram_refetched(void)                  /* after fdre_migrates: unsaved, a reset (RAM slot kept) */
+{
+    memset(lk_slot, 0, sizeof lk_slot);
+    memset(&mo, 0, sizeof mo);
+    persist_note = 0;
+    host_init();
+    persist_boot();
+    project_load(1);
+    return mo.b.count == 3u && mo.b.on == 5u && lk_find(&mo.b, lk_key(2, 9, P_LEVEL), 0) >= 0 && !lk_lost &&
+           !(persist_note & PN_LOCKS) && str_eq(ui.msg, "LOADED");
+}
+static void fill_bank(int lock)                      /* mo.b: 1024 events */
+{
+    uint32_t i;
+    for (i = 0; mo.b.count < LK_MAX; i++)
+        lk_put(&mo.b, lk_key(i / 128u, i % 64u, P_E0 + (i / 64u) % 2u), (int32_t)(i % 100u), lock && (i & 1u));
+}
+static int bank_scan_offset_erased(void)
+{
+    uint32_t s, c, i, ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    fill_bank(1);
+    project_save(0);
+    project_save(0);
+    project_save(3);
+    for (s = 0; s < 4u; s++)
+        for (c = 0; c < 2u; c++)
+            for (i = 0xF00u; i < 0xF50u; i++)
+                ok &= hflash[st_sector(OBJ_LOCKS0 + s, c) + i] == 0xFFu;
+    ok &= hflash[st_sector(OBJ_LOCKS0 + 3u, 0)] != 0xFFu && hflash[st_sector(OBJ_LOCKS0, 1)] != 0xFFu;   /* (written) */
+    return (int)ok;
+}
+/* Review Focus 1: a save torn by a power cut (the project record's first page, the bank's commit record, the bank's
+ * payload): the previous project and its bank load together */
+static int bank_torn_keeps_pair(void)
+{
+    static const int AT[3] = {16, 14, 6};            /* ops: bank erase 0, payload 1..13, header 14; project erase 15,
+                                                      * its first page 16 */
+    uint32_t c, ok = 1;
+    for (c = 0; c < 3u; c++) {
+        int i;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        wipe_ram();
+        persist_boot();
+        trk[0].p[P_E1] = 11;
+        lk_put(&mo.b, lk_key(0, 4, P_E1), 100, 1);
+        project_save(1);                             /* pair A */
+        trk[0].p[P_E1] = 22;
+        lk_put(&mo.b, lk_key(0, 4, P_E1), 50, 1);
+        host_nflog = 0;
+        host_fail_at = AT[c];
+        project_save(1);                             /* pair B, torn */
+        host_fail_at = -1;
+        ok &= str_eq(ui.msg, "SAVE ERROR") && host_nflog == (uint32_t)AT[c] + 1u;
+        wipe_ram();
+        host_init();
+        persist_boot();
+        project_load(1);
+        i = lk_find(&mo.b, lk_key(0, 4, P_E1), 1);
+        ok &= trk[0].p[P_E1] == 11 && i >= 0 && mo.b.val[i] == 100 && mo.b.count == 1u && !lk_lost &&
+              !(persist_note & PN_LOCKS) && str_eq(ui.msg, "LOADED");
+        if (!ok)
+            printf("     torn at op %d: E1 %d, lock %d, count %u\n", AT[c], trk[0].p[P_E1], i >= 0 ? mo.b.val[i] : -1,
+                   mo.b.count);
+    }
+    return (int)ok;
+}
+static int all_writes_in_map(void)
+{
+    uint32_t i, ok = host_nflog <= HOST_NFLOG;
+    for (i = 0; ok && i < host_nflog; i++)
+        ok &= host_fl_in_map(host_flog[i].off, host_flog[i].n);
+    return (int)ok;
+}
+/* Review Focus 2: an 80 KiB USR3 uploaded (upstream Felucca) over the banks: USR3 shortened, every project loads with
+ * an empty bank, LOCKS LOST said once after the USR3 note, later loads say LOADED */
+static int usr3_upload_over_banks(void)
+{
+    uint32_t s, f, ok = 1, n_usr3 = 0, n_lost = 0, order = 1;
+    char last[32] = "";
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    for (s = 0; s < 4u; s++) {
+        memset(&mo.b, 0, sizeof mo.b);
+        lk_put(&mo.b, lk_key(s, 4, P_E1), (int32_t)(10u + s), 1);
+        motion_add(s, 5, P_E2, 7);
+        project_save(s);
+    }
+    rs = 81;
+    usr3_image(0x13E00u);                            /* over 0xC8000..0xDBFFF: the banks too */
+    host_nflog = 0;
+    power_on(0);                                     /* (the last project, D, loads: LOADED) */
+    ok &= rd32(U3 + 16u) == 0xBE00u && usr_nz[2] == 2 && (persist_note & PN_LOCKS) && lk_lost == 0x0Fu &&
+          mo.b.count == 0u && str_eq(ui.msg, "LOADED") && all_writes_in_map();
+    if (!ok)
+        printf("     usr3 over banks at boot: len %x nz %u note %u lost %x count %u msg %s map %d\n", rd32(U3 + 16u),
+               usr_nz[2], persist_note, lk_lost, mo.b.count, ui.msg, all_writes_in_map());
+    for (f = 0; f < 200u; f++) {
+        ui_frame();
+        if (ui.msg_t && !str_eq(ui.msg, last)) {
+            snprintf(last, sizeof last, "%s", ui.msg);
+            if (str_eq(ui.msg, "USR3 SHORTENED TO 48K"))
+                n_usr3++;
+            if (str_eq(ui.msg, "LOCKS LOST")) {
+                n_lost++;
+                order &= n_usr3 == 1u;
+            }
+        }
+    }
+    ok &= n_usr3 == 1u && n_lost == 1u && order && persist_note == 0 && lk_lost == 0;
+    for (s = 0; s < 4u; s++) {
+        project_load(s);
+        ok &= mo.b.count == 0u && str_eq(ui.msg, "LOADED") && project_used(s);
+    }
+    if (!ok)
+        printf("     usr3 over banks: notes usr3 %u lost %u order %u\n", n_usr3, n_lost, order);
+    return (int)ok && all_writes_in_map();
+}
+/* a bank with a valid storage record but wrong inside (both copies) loads empty: LOCKS LOST, never misread */
+static int bad_bank_never_misread(void)
+{
+    static lk_bank_t bad;
+    uint32_t c, ok = 1;
+    for (c = 0; c < 5u; c++) {
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        wipe_ram();
+        persist_boot();
+        lk_put(&mo.b, lk_key(1, 4, P_E1), 100, 1);
+        lk_put(&mo.b, lk_key(1, 5, P_E1), 90, 1);
+        motion_add(1, 6, P_E2, 7);
+        project_save(1);
+        bad = lk_slot[1];
+        if (c == 0u)
+            bad.magic ^= 0x100u;                     /* (a) the inner magic */
+        else if (c == 1u)
+            lk_seal(&bad, 2);                        /* (b) slot 2's bank */
+        else if (c == 2u) {                          /* (c) unsorted */
+            uint16_t x = bad.key[0];
+            bad.key[0] = bad.key[1];
+            bad.key[1] = x;
+        } else if (c == 3u)
+            bad.count = 1025;                        /* (d) */
+        else
+            bad.val[0] = 101;                        /* (e) valid, but not the bank the project links */
+        st_save(OBJ_LOCKS0 + 1u, &bad, sizeof bad);
+        st_save(OBJ_LOCKS0 + 1u, &bad, sizeof bad);
+        wipe_ram();
+        host_init();
+        persist_boot();
+        ok &= (persist_note & PN_LOCKS) && lk_lost == 2u;
+        project_load(1);
+        ok &= mo.b.count == 0u && str_eq(ui.msg, "LOCKS LOST") && lk_lost == 0u && project_used(1);
+        project_load(1);
+        ok &= str_eq(ui.msg, "LOADED");
+        if (!ok)
+            printf("     bad bank case %u: count %u msg %s\n", c, mo.b.count, ui.msg);
+    }
+    return (int)ok;
+}
+static int writes_stay_in_map(void)
+{
+    uint32_t s;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    host_nflog = 0;
+    persist_boot();
+    fill_bank(1);
+    for (s = 0; s < 4u; s++)
+        project_save(s);
+    project_rename(2, "MAPPED");
+    return host_nflog > 60u && all_writes_in_map() && str_eq(ui.msg, "RENAMED");
+}
+
 int main(void)
 {
     char what[96];
@@ -1954,6 +2244,19 @@ int main(void)
     check("last project: an older record boots the power-on kit; a RAM-only save remembers nothing",
           last_project_old_record_no_flash());
     check("last project: lowcut's bits keep SPEAKER EQ, the slot and the Bluetooth bytes", last_project_bits());
+    check("FDRF: motion, locks and PLAY bits through a save and a load (the project record 3840 B, 510 B reserved 0)",
+          fdrf_round_trip());
+    check("FDRF: an FDRE record (0.23.3) migrates: its motion as motion events, PLAY bits, every knob and step",
+          fdre_migrates());
+    check("FDRF: an FDRE converted in RAM, unsaved, converts again after a reset (no LOCKS LOST)", fdre_ram_refetched());
+    check("FDRF: 1024 events: every bank sector's +0xF00..+0xF4F stays erased (the loader's scan)", bank_scan_offset_erased());
+    check("FDRF: a save torn in the project record, the bank's commit or its payload: the old pair loads together",
+          bank_torn_keeps_pair());
+    check("FDRF: an 80 KiB USR3 over the banks: shortened, banks empty, LOCKS LOST once after the USR3 note",
+          usr3_upload_over_banks());
+    check("FDRF: a bank wrong inside (magic, slot, order, count, not the linked one) loads empty, LOCKS LOST",
+          bad_bank_never_misread());
+    check("FDRF: boot, four saves of 1024 events and a rename write only inside the flash map", writes_stay_in_map());
     check("USR3: an 80 KiB sample is shortened to 48 KiB once (zones past cut, CRC new, the data kept)", usr3_clamped_once());
     check("USR3: a 48 KiB sample is not touched", usr3_short_untouched());
     check("USR3: a failed clamp leaves USR3 unusable (never read past 0xD3FFF), USR1 / USR2 as they were", usr3_clamp_fails_safe());

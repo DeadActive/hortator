@@ -505,7 +505,7 @@ static void test_row_change(void)
     for (s = 0; s < 2u; s++)
         for (k = 0; k < NTRK; k++) {
             chain.src[s].step[k] = k ? NONE : ROW[s];   /* track 0 only */
-            chain.src[s].m = &MOTION_NONE;
+            chain.src[s].m = &LK_NONE;
             chain.src[s].timing[k][0] = 16;
             chain.src[s].timing[k][1] = 2;
             chain.src[s].model[k] = (uint8_t)trk[k].p[P_MODEL];

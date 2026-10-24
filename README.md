@@ -43,7 +43,8 @@ firmware ([below](#back-to-the-official-firmware)).
   drum. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
   is cut (a safety limit). A loaded project keeps ACID on its first two ACID tracks; the others come back as their
   power-on kit drum.
-- **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.
+- **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern: up to 1024 events
+  per project (shared by the 8 tracks).
 - **SONG and names.** Chain up to 16 rows of projects with repeats; name projects on the device.
 - **Grids.** Mutable Instruments' pattern generator: a map of drum patterns, chaos, or Euclidean rhythms. Any track
   can follow one of its three channels.
@@ -174,6 +175,10 @@ PROJECT's SLOT points at it). If it can't be loaded (the slot is empty or unread
 both carry on with the power-on kit. A safe start (SEQ held at power-on) loads nothing.
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
+Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
+`LOAD FAILED` on 0.23.x and older (downgrading is safe, not supported: nothing breaks, the projects stay for this
+build); every older project loads with its motion. If a project's lock bank can't be read (an upload to USR3 under
+upstream Felucca overwrote it), the project still loads, without its motion, and the FM-1 says `LOCKS LOST` once.
 
 **User sample slot 3 (USR3) holds up to 48 KiB** (USR1 and USR2: 80 KiB, as before): the rest of its flash holds the
 projects' lock banks. A longer USR3 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the

@@ -3,7 +3,11 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDRE" (the 14th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
+ * Format "FDRF" (the 15th, 2026-10-24 parameter locks): as "FDRE", but its motion block is gone: the motion and the
+ * parameter locks are the slot's lock bank (lockbank.c), its own flash object (storage.c OBJ_LOCKS0 + slot), saved
+ * just before the record; the record links it (lk_link: a hash of the bank, lk_n: its count), so a save torn by a
+ * power cut keeps the last whole pair (the record is the pair's commit). An FDRE or older record's motion converts
+ * into the bank as motion events. "FDRE" (the 14th): the globals (with the COMP's GHOST and the reverb TYPE), the selected track, per track every
  * parameter and its 64 steps (with PROB / RATCH, each step's note offset, SLIDE and TIE (ACID), DUCK, the COMP settings,
  * the LFOs and their 4 DEST slots, RESON, the FILTER, PRIO), the motion
  * (motion.c, 128 events), the song and the project's name (song.c), each track's preset id and edited mark (presets.c).
@@ -17,7 +21,8 @@
  * (P_NSTORED .., RESON's KEYF) ride in a track's steps' spare byte (step_t.rsv: parameter P_NSTORED + j in step j's,
  * 0..255; every earlier firmware wrote 0 there and ignores it on load), so an FDRE from before them loads with them at 0.
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x45524446u                 /* "FDRE" (the 14th): + the LFO DEST slots (fixes 2026-10-21 item 3) */
+#define PROJ_MAGIC 0x46524446u                 /* "FDRF" (the 15th): the lock bank (spec 2026-10-24 parameter locks) */
+#define PROJ_MAGIC_VE 0x45524446u              /* "FDRE": + the LFO DEST slots (fixes 2026-10-21 item 3); converted on load */
 #define PROJ_MAGIC_VD 0x44524446u              /* "FDRD": each track's preset and edited mark; converted on load */
 #define PROJ_MAGIC_VC 0x43524446u              /* "FDRC": PRIO per track, no presets; converted on load */
 #define PROJ_MAGIC_VB 0x42524446u              /* "FDRB": the step's note, SLIDE and TIE (ACID); converted on load */
@@ -49,7 +54,10 @@ typedef struct {
     int16_t g[G_COUNT];
     uint8_t sel, rsv[3];
     proj_trk_t t[NTRK];
-    motion_store_t motion;                      /* FDR8: the motion (motion.c) */
+    uint16_t lk_n;                              /* FDRF: its lock bank's count (0: no bank needed); FDR8..FDRE: the
+                                                 * motion here */
+    uint32_t lk_link;                           /* FDRF: .. its proj_link */
+    uint8_t rsv_mo[510];                        /* FDRF: reserved, 0 */
     chain_config_t song;                        /* FDR9: the song (song.c) */
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint16_t pre[NTRK];                         /* FDRD: each track's preset: a factory one's uid, 0x8000 | a user
@@ -59,6 +67,32 @@ typedef struct {
 } project_t;
 typedef char project_size[sizeof(project_t) == 3840u ? 1 : -1];
 project_t proj_slot[4] __attribute__((section(".noinit")));
+/* FDRE (0.23.x): FDRF's layout with the motion (128 events) where FDRF has its bank link */
+typedef struct {
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_t t[NTRK];
+    motion_store_t motion;
+    chain_config_t song;
+    char name[NAME_LEN];
+    uint16_t pre[NTRK];
+    uint8_t pre_ed[NTRK];
+    uint32_t sum;
+} project_ve_t;
+typedef char project_ve_size[sizeof(project_ve_t) == 3840u &&
+                             __builtin_offsetof(project_ve_t, motion) == __builtin_offsetof(project_t, lk_n) &&
+                             __builtin_offsetof(project_ve_t, song) == __builtin_offsetof(project_t, song) ? 1 : -1];
+/* each slot's lock bank (lockbank.c): the one its record links (persist_boot, a LOAD's fetch, a SAVE); .bss (the
+ * slots' records are .noinit: a reset finds them, the banks come from flash again). A SONG row plays its slot's */
+static lk_bank_t lk_slot[4];
+static uint32_t proj_hash(const void *p, uint32_t n);
+static uint32_t proj_link(const lk_bank_t *b) { return proj_hash(b, sizeof *b) | 1u; }   /* (never 0) */
+static void lk_empty(uint32_t slot)
+{
+    memset(&lk_slot[slot], 0, sizeof lk_slot[slot]);
+    lk_seal(&lk_slot[slot], slot);
+}
 
 static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 {
@@ -238,8 +272,19 @@ typedef struct {
 static union {
     project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
     project_v8_t v8; project_v9_t v9; project_va_t va; project_vb_t vb; project_vc_t vc; project_vd_t vd;
+    project_ve_t ve;
 } proj_old;
 
+/* a converted record's bank (b: its slot's): the old motion (none: m 0, or a broken one: dropped) as motion events,
+ * the record linking it */
+static void proj_old_bank(project_t *q, lk_bank_t *b, const motion_store_t *m)
+{
+    uint32_t slot = (uint32_t)(b - lk_slot);
+    if (!m || !lk_from_motion(b, slot, m))
+        lk_empty(slot);
+    q->lk_link = proj_link(b);
+    q->lk_n = b->count;
+}
 static void proj_old_done(project_t *q)            /* a converted record: no presets, not edited; its sum */
 {
     uint32_t k;
@@ -255,10 +300,18 @@ static void proj_old_done(project_t *q)            /* a converted record: no pre
  * v1..v6: reverb TYPE ROOM; v1..v7: no motion; v1..v8: no song, no name; v1..v9: the FILTER OFF; v1..v10: the steps
  * at NOTE C4, no SLIDE / TIE; v1..v11: PRIO HIGH; v1..v12: no preset, not edited; all: CHOKE as stored, an LFO's DEST
  * and DEPTH DEST slot 1 / 2 (sources LFO 1 / 2: their defaults), slots 3 / 4 off) */
-static void proj_from_old(project_t *q, uint32_t ver)
+static void proj_from_old(project_t *q, lk_bank_t *b, uint32_t ver)
 {
     uint32_t i, k;
     uint32_t ng, np;
+    if (ver == 14u) {                                /* FDRE: everything as stored, its motion into the bank */
+        memcpy(q, &proj_old.ve, sizeof *q);
+        q->magic = PROJ_MAGIC;
+        memset(&q->lk_n, 0, sizeof proj_old.ve.motion);
+        proj_old_bank(q, b, &proj_old.ve.motion);
+        q->sum = proj_sum(q);
+        return;
+    }
     if (ver >= 12u) {                                /* FDRC / FDRD (FDRC: FDRD's fields up to the name): the
                                                       * parameters up to PRIO, the slots' new ones at their defaults */
         const project_vd_t *o = &proj_old.vd;
@@ -272,7 +325,7 @@ static void proj_from_old(project_t *q, uint32_t ver)
                 q->t[k].p[i] = i <= P_PRIO ? o->t[k].p[i] : TP[i].def;
             memcpy(q->t[k].step, o->t[k].step, sizeof q->t[k].step);
         }
-        q->motion = o->motion;
+        proj_old_bank(q, b, &o->motion);
         q->song = o->song;
         memcpy(q->name, o->name, NAME_LEN);
         if (ver == 12u) {
@@ -306,8 +359,8 @@ static void proj_from_old(project_t *q, uint32_t ver)
                 for (i = 0; i < NSTEP; i++)
                     q->t[k].step[i] = step_up(&os[i]);
         }
-        q->motion = ver == 8u ? proj_old.v8.motion : ver == 9u ? proj_old.v9.motion : ver == 10u ? proj_old.va.motion
-                  : proj_old.vb.motion;
+        proj_old_bank(q, b, ver == 8u ? &proj_old.v8.motion : ver == 9u ? &proj_old.v9.motion
+                          : ver == 10u ? &proj_old.va.motion : &proj_old.vb.motion);
         if (ver >= 9u) {
             q->song = ver == 9u ? proj_old.v9.song : ver == 10u ? proj_old.va.song : proj_old.vb.song;
             memcpy(q->name, ver == 9u ? proj_old.v9.name : ver == 10u ? proj_old.va.name : proj_old.vb.name, NAME_LEN);
@@ -346,34 +399,67 @@ static void proj_from_old(project_t *q, uint32_t ver)
             }
         }
     }
+    proj_old_bank(q, b, 0);                          /* (no motion before FDR8) */
     proj_old_done(q);
 }
 
-static void proj_fetch(uint32_t slot)
+/* slot's bank from flash, the one its record (proj_slot, valid) links: 1 found; 0 none needed (lk_n 0): empty; -1
+ * lost (neither copy a valid bank of this slot with the record's link: an upload over it, a damaged sector, a torn
+ * save's leftover): empty, its lk_lost bit set. Either copy may hold it (a save torn after its bank was written leaves
+ * the new bank current and the old record's in the other copy) */
+static int proj_bank_fetch(uint32_t slot)
+{
+    const project_t *q = &proj_slot[slot & 3u];
+    lk_bank_t *b = &lk_slot[slot & 3u];
+    uint32_t c;
+    if (!q->lk_n) {
+        lk_empty(slot & 3u);
+        return 0;
+    }
+    for (c = 0; c < 2u; c++) {
+        st_hdr_t h;
+        if (st_head(OBJ_LOCKS0 + (slot & 3u), c, &h) == 0 && h.len == sizeof *b &&
+            st_body(OBJ_LOCKS0 + (slot & 3u), c, &h) == 0) {
+            memcpy(b, st_buf, sizeof *b);
+            if (lk_valid(b, slot & 3u) && b->count == q->lk_n && proj_link(b) == q->lk_link)
+                return 1;
+        }
+    }
+    lk_empty(slot & 3u);
+    lk_lost |= (uint8_t)(1u << (slot & 3u));
+    return -1;
+}
+/* slot's record (and its bank) from flash: as proj_bank_fetch, -2 no record (an empty slot); an old record converts
+ * (its motion into the bank: 0 or 1) */
+static int proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
     if (n > 8 && n <= (int)sizeof proj_old && !proj_ok(q)) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[14] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
+        static const uint32_t MAGIC[15] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
                                            PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA, PROJ_MAGIC_VB,
-                                           PROJ_MAGIC_VC, PROJ_MAGIC_VD};
-        static const uint32_t SIZE[14] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+                                           PROJ_MAGIC_VC, PROJ_MAGIC_VD, PROJ_MAGIC_VE};
+        static const uint32_t SIZE[15] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
                                           sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
                                           sizeof proj_old.v8, sizeof proj_old.v9, sizeof proj_old.va, sizeof proj_old.vb,
-                                          sizeof proj_old.vc, sizeof proj_old.vd};
+                                          sizeof proj_old.vc, sizeof proj_old.vd, sizeof proj_old.ve};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 14u; ver++)
+        for (ver = 1; ver < 15u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
-                proj_from_old(q, ver);
-                return;
+                proj_from_old(q, &lk_slot[slot & 3u], ver);
+                return lk_slot[slot & 3u].count ? 1 : 0;
             }
     }
-    if (n != (int)sizeof *q || !proj_ok(q))
+    if (n != (int)sizeof *q || !proj_ok(q)) {
         q->magic = 0;
+        lk_empty(slot & 3u);
+        return -2;
+    }
+    return proj_bank_fetch(slot);
 }
 #endif
 
@@ -415,14 +501,19 @@ static void project_save(uint32_t slot)
         p->pre[i] = (uint16_t)preset_rec_enc(trk[i].pre);   /* (stable: a uid / a user slot, presets.c) */
         p->pre_ed[i] = trk[i].pre_ed;
     }
-    p->motion = mo.s;                                  /* (stopped: the base is in the knobs) */
+    lk_slot[slot & 3u] = mo.b;                         /* the bank: the motion and the locks (stopped: the base is
+                                                        * in the knobs) */
+    lk_seal(&lk_slot[slot & 3u], slot & 3u);
+    p->lk_link = proj_link(&lk_slot[slot & 3u]);
+    p->lk_n = lk_slot[slot & 3u].count;
     p->song = chain.cfg;
     memcpy(p->name, chain.name, NAME_LEN);
     p->sum = proj_sum(p);
     chain.from = (uint8_t)((slot & 3u) + 1u);
 #if FELUCCA_FLASH
-    if (flash_ok) {
-        if (st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p)) {
+    if (flash_ok) {                                     /* the bank, then the record (the pair's commit) */
+        if (st_save(OBJ_LOCKS0 + (slot & 3u), &lk_slot[slot & 3u], sizeof lk_slot[0]) ||
+            st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p)) {
             ui_message("SAVE ERROR");
             return;
         }
@@ -514,10 +605,11 @@ static int proj_load(uint32_t slot, int irq)
     for (k = 0, i = 0; k < NTRK; k++)                   /* MODAL on 2 of them at most: the first two keep it */
         if (trk[k].p[P_RMODEL] == RS_MODAL && ++i > RS_MAXMODAL)
             trk[k].p[P_RMODEL] = RS_STRNG;
-    if (motion_valid(&p->motion))                       /* the motion: a broken block is dropped, the rest loads */
-        mo.s = p->motion;
+    if (lk_valid(&lk_slot[slot & 3u], slot & 3u))       /* the motion and the locks: a broken bank is dropped, the
+                                                         * rest loads */
+        mo.b = lk_slot[slot & 3u];
     else
-        memset(&mo.s, 0, sizeof mo.s);
+        memset(&mo.b, 0, sizeof mo.b);
     motion_forget();                                    /* the new knobs are the base: the stop puts nothing back */
     if (chain_valid(&p->song))                          /* the song and the name: broken ones dropped */
         chain.cfg = p->song;
@@ -529,7 +621,9 @@ static int proj_load(uint32_t slot, int irq)
     if (irq)
         fm1_irq_on();
     ui.force = 1;
-    ui_message("LOADED");
+    ui_message(irq && ((lk_lost >> (slot & 3u)) & 1u) ? "LOCKS LOST" : "LOADED");   /* (power-on: the boot's note) */
+    if (irq)
+        lk_lost &= (uint8_t)~(1u << (slot & 3u));
     return 1;
 }
 static void project_load(uint32_t slot) { (void)proj_load(slot, 1); }
@@ -854,11 +948,19 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     learn_load();                                     /* MIDI LEARN's map (its own object) */
     preset_user_boot();                               /* the user presets (theirs) */
-    {
+    {   /* the slots and their banks (after the USR3 clamp): a RAM slot kept over a reset fetches its bank; lost there
+         * (an FDRE converted in RAM, never saved, has none), the record from flash again */
         uint32_t i;
-        for (i = 0; i < 4u; i++)
-            if (!proj_ok(&proj_slot[i]))
-                proj_fetch(i);
+        lk_lost = 0;
+        for (i = 0; i < 4u; i++) {
+            int r = proj_ok(&proj_slot[i]) ? proj_bank_fetch(i) : -1;
+            if (r == -1) {
+                lk_lost &= (uint8_t)~(1u << i);
+                r = proj_fetch(i);
+            }
+            if (r == -1)
+                persist_note |= PN_LOCKS;
+        }
     }
 #endif
 }
@@ -919,7 +1021,7 @@ static uint32_t chain_prepare(void)
         if ((used >> i) & 1u) {
             const project_t *p = &proj_slot[i];
             chain_src_t *d = &chain.src[i];
-            d->m = motion_valid(&p->motion) ? &p->motion : &MOTION_NONE;
+            d->m = lk_valid(&lk_slot[i], i) ? &lk_slot[i] : &LK_NONE;
             for (k = 0; k < NTRK; k++) {
                 d->step[k] = p->t[k].step;
                 d->model[k] = (uint8_t)p->t[k].p[P_MODEL];

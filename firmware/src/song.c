@@ -18,12 +18,12 @@ typedef struct { uint8_t count, loop, rsv[2]; chain_row_t row[CHAIN_ROWS]; } cha
 typedef char chain_config_size[sizeof(chain_config_t) == 36u ? 1 : -1];
 typedef struct {                           /* a slot as its rows play it */
     const step_t *step[NTRK];
-    const motion_store_t *m;               /* its motion (MOTION_NONE: none, or a broken one) */
+    const lk_bank_t *m;                    /* its lock bank: motion and locks (LK_NONE: none, or a broken one) */
     int16_t timing[NTRK][4];               /* CHAIN_TIMING, inside their ranges */
     uint8_t model[NTRK];                   /* its models: another model now = its P_E events skipped (motion.c) */
 } chain_src_t;
 static const uint8_t CHAIN_TIMING[4] = {P_SLEN, P_SDIV, P_SSWING, P_SRC};
-static const motion_store_t MOTION_NONE;
+static const lk_bank_t LK_NONE;
 static const char NAME_SET[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/#+";
 static struct {
     chain_config_t cfg;                    /* the song (the project's) */
@@ -87,7 +87,7 @@ static void chain_apply(uint32_t x)                /* row chain.row starts x sam
     chain.slot = chain.cfg.row[chain.row].slot;
     chain.left = chain.cfg.row[chain.row].repeat;
     s = &chain.src[chain.slot];
-    mo.src = s->m ? s->m : &MOTION_NONE;
+    mo.src = s->m ? s->m : &LK_NONE;
     mo.model = s->model;
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];

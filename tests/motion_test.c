@@ -38,11 +38,8 @@ static void turn_to(uint32_t id, int16_t v)      /* what ui_input does after a k
 }
 static int has_event(uint32_t k, uint32_t s, uint32_t id, int v)
 {
-    uint32_t i;
-    for (i = 0; i < mo.s.count; i++)
-        if (mo.s.ev[i].trk == k && mo.s.ev[i].step == s && mo.s.ev[i].param == id && mo.s.ev[i].value == v)
-            return 1;
-    return 0;
+    int i = lk_find(&mo.b, lk_key(k, s, id), 0);
+    return i >= 0 && mo.b.val[i] == v;
 }
 
 static void test_record_nearest(void)
@@ -70,23 +67,23 @@ static void test_not_recording(void)
     play();
     to_step(2, 100);
     turn_to(P_E1, 33);                                /* not armed */
-    check("not armed: no event, the turn is the new base", !mo.s.count && mo.base[0][P_E1] == 33);
+    check("not armed: no event, the turn is the new base", !mo.b.count && mo.base[0][P_E1] == 33);
     song.rec = 1u;
     song.sel = 1;                                     /* armed track 1, but track 2 selected */
     trk[1].p[P_E1] = 40;
     motion_capture(&trk[1], P_E1);
     song.sel = 0;
-    check("another track's knob: not recorded", !mo.s.count);
+    check("another track's knob: not recorded", !mo.b.count);
     turn_to(P_MODEL, 3);
     turn_to(P_SLEN, 8);
     turn_to(P_LFO1 + LF_WAVE, 2);
-    n = mo.s.count;
+    n = mo.b.count;
     check("MODEL, LEN and an LFO's WAVE are never recorded", n == 0u);
     trk[0].p[P_MODEL] = TP[P_MODEL].def;
     trk[0].p[P_SLEN] = 16;
     stop();
     turn_to(P_E1, 20);
-    check("stopped: no event", !mo.s.count);
+    check("stopped: no event", !mo.b.count);
 }
 
 static void test_recordable_list(void)
@@ -111,16 +108,13 @@ static void test_full(void)
 {
     uint32_t s, id = P_E0;
     fresh();
-    for (s = 0; mo.s.count < MOTION_MAX; s++) {       /* 128 events: steps 0..63 x E0, E1 */
-        motion_add(0, s % 64u, id, 10);
-        if (s == 63u)
-            id = P_E1;
-    }
+    for (s = 0; mo.b.count < LK_MAX; s++)             /* 1024 events: the 8 tracks' steps 0..63 x E0, E1 */
+        motion_add(s / 128u, s % 64u, id + (s / 64u) % 2u, 10);
     song.rec = 1u;
     play();
     to_step(3, 100);
     turn_to(P_E2, 99);                                /* a new place */
-    check("128 events: the next is refused, flagged full", mo.s.count == MOTION_MAX && mo.full && !has_event(0, 3, P_E2, 99));
+    check("1024 events: the next is refused, flagged full", mo.b.count == LK_MAX && mo.full && !has_event(0, 3, P_E2, 99));
     turn_to(P_E0, 77);                                /* an existing place: replaced, not full */
     check("full: a place already used is still replaced", has_event(0, 3, P_E0, 77));
     stop();
@@ -132,7 +126,7 @@ static void test_playback(void)
     trk[0].p[P_SLEN] = 8;
     trk[0].p[P_E1] = 64;                              /* the base */
     motion_add(0, 4, P_E1, 100);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     play();
     to_step(3, 100);
     check("playback: before its step, the base", trk[0].p[P_E1] == 64);
@@ -144,7 +138,7 @@ static void test_playback(void)
     check("playback: the loop start puts the base back", trk[0].p[P_E1] == 64);
     to_step(5, 100);
     motion_set_play(0, 0);
-    check("PLAY OFF: the base back, the events kept", trk[0].p[P_E1] == 64 && mo.s.count == 1u);
+    check("PLAY OFF: the base back, the events kept", trk[0].p[P_E1] == 64 && mo.b.count == 1u);
     to_step(4, 100);
     check("PLAY OFF: the events do not play", trk[0].p[P_E1] == 64);
     motion_set_play(0, 1);
@@ -176,7 +170,7 @@ static void test_lfo_and_motion(void)
     trk[0].p[P_LFO1 + LF_DEST] = 2;                   /* LFO 1 on the model's 2nd knob (lfo.c lfo_dest_param: 2 = P_E1) */
     trk[0].p[P_LFO1 + LF_DEPTH] = 60;
     motion_add(0, 2, P_E1, 100);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     play();
     to_step(2, 64);
     check("LFO + motion: after the block the knob rests on motion's value", trk[0].p[P_E1] == 100);
@@ -192,7 +186,7 @@ static void test_lfo_slot_depth_motion(void)
     trk[0].p[P_LS4DEST] = 9;
     trk[0].p[P_LS4DEPTH] = 10;
     motion_add(0, 2, P_LS4DEPTH, 50);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     play();
     to_step(2, 64);
     check("motion on slot 4's DEPTH: played at its step", trk[0].p[P_LS4DEPTH] == 50);
@@ -208,7 +202,7 @@ static void test_len_shortened(void)
     trk[0].p[P_E1] = 64;
     motion_add(0, 12, P_E1, 100);
     motion_add(0, 1, P_E2, 9);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     trk[0].p[P_SLEN] = 8;
     play();
     to_step(7, 100);
@@ -228,7 +222,7 @@ static void test_clamp(void)
                 fresh();
                 drum_set_model(&trk[0], m);
                 motion_add(0, 1, P_E0 + j, 127);
-                mo.s.on = 1u;
+                mo.b.on = 1u;
                 play();
                 to_step(1, 100);
                 found = 1;
@@ -245,7 +239,7 @@ static void test_grids_track(void)
     trk[0].p[P_SRC] = 1;                              /* track 1 plays Grids' kick */
     trk[0].p[P_E1] = 64;
     motion_add(0, 3, P_E1, 111);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     play();
     to_step(3, 100);
     check("a Grids track: its step clock plays its motion", trk[0].p[P_E1] == 111);
@@ -265,7 +259,7 @@ static void test_midi_clock(void)
     fresh();
     trk[0].p[P_E1] = 64;
     motion_add(0, 2, P_E1, 101);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     song.g[G_CLOCK] = 1;
     render_mix(0, 0, CTL);
     clk_send(0xFAu, 0.0);
@@ -290,7 +284,7 @@ static void test_clear(void)
     trk[0].p[P_E1] = 64;
     motion_add(0, 1, P_E1, 100);
     motion_add(1, 1, P_E1, 100);
-    mo.s.on = 3u;
+    mo.b.on = 3u;
     play();
     to_step(2, 100);
     motion_clear(0);

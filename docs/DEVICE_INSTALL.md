@@ -758,3 +758,5 @@ ACC`).
 - USR3 at 48 KiB: with an 80 KiB sample in USR3 (uploaded under upstream Felucca before), the first power-on shows
   `USR3 SHORTENED TO 48K` once; SAMPLE's USR3 still plays (its first 48 KiB). The next power-on says nothing. With
   USR3 48 KiB or less (or empty), nothing is shown.
+- A project saved by 0.23.3 (FDRE) with MOTION loads (`LOADED`) and its motion plays as before. Save it, power off
+  and on, load it: the same. MOTION's EVENT count can now pass 128 (record a long sweep on several tracks).

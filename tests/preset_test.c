@@ -503,7 +503,7 @@ static void test_save_while_motion_plays(void)
     t->p[P_E1] = 40;
     t->p[P_E2] = 50;
     motion_add(0, 0, P_E1, 100);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     transport_req = 1;
     render_mix(0, 0, CTL * 8);
     check("(playing, motion moved DECAY off its base)", song.playing && (mo.base_ok & 1u) && t->p[P_E1] == 100 &&
@@ -513,7 +513,7 @@ static void test_save_while_motion_plays(void)
           preset_get(user_id(5), &p) && p.k[1] == 40 && p.k[2] == 50 && p.model == (uint32_t)t->p[P_MODEL]);
     transport_req = 2;
     render_mix(0, 0, CTL * 4);
-    memset(&mo.s, 0, sizeof mo.s);
+    memset(&mo.b, 0, sizeof mo.b);
 }
 
 static void test_edit_marks(void)
