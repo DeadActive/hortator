@@ -175,6 +175,11 @@ both carry on with the power-on kit. A safe start (SEQ held at power-on) loads n
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
 
+**User sample slot 3 (USR3) holds up to 48 KiB** (USR1 and USR2: 80 KiB, as before): the rest of its flash holds the
+projects' lock banks. A longer USR3 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the
+next power-on (`USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Hortator has no sample upload:
+an 80 KiB upload to USR3 under upstream Felucca afterwards overwrites the lock banks.
+
 ### Metronome
 
 GLOBAL 3/3 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every

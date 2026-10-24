@@ -752,3 +752,9 @@ ACC`).
 - The same tap / hold on PATTERN, MOTION, SONG and TRACKS (unarmed); there the knobs stay the page's (PATTERN KNOB 3
   SWING, not the accent). KEYS on (SCL): the keys play notes, no step changes; step record (KEYS on, stopped, REC) as
   before.
+
+### Parameter locks (check on the FM-1)
+
+- USR3 at 48 KiB: with an 80 KiB sample in USR3 (uploaded under upstream Felucca before), the first power-on shows
+  `USR3 SHORTENED TO 48K` once; SAMPLE's USR3 still plays (its first 48 KiB). The next power-on says nothing. With
+  USR3 48 KiB or less (or empty), nothing is shown.

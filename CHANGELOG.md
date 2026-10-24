@@ -5,6 +5,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Lock banks: four new flash objects (OBJ_LOCKS0..3, two sectors each at 0xD4000..0xDBFFF, storage.c; user decision
+  2026-10-24, frozen baseline moved to `frozen-base-10` for that object-table change) for the parameter locks. They
+  take the last 32 KiB of user sample slot 3: **USR3 now holds up to 48 KiB** (USR1 / USR2 80 KiB as before). A longer
+  USR3 is shortened in flash once at power-on, before anything writes the banks (`USR3 SHORTENED TO 48K`; zones past
+  48 KiB dropped, one across it cut, its CRC new; a power cut during that one rewrite empties USR3, nothing else).
+
 ## 0.23.3 - 2026-10-23
 
 - Knobs crank faster: MENU > ACCEL ON (the default) now speeds a turn up from about 12 clicks a second, in fractions

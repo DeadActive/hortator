@@ -202,6 +202,33 @@ def selftest():
     finally:
         globals()["git"] = real
         globals()["worktree_text"] = real_wt
+    # storage.c: the recorded lock-bank objects (frozen-base-10) and nothing else
+    sb = ("/* SPDX */\n" + ST_MAP_OLD + ST_ENUM_OLD + "\nstatic uint32_t st_sector(uint32_t obj, uint32_t copy)\n{\n"
+          + ST_SECTOR_OLD + "    return 0;\n}\n")
+    locked = sb.replace(ST_MAP_OLD, ST_MAP_NEW).replace(ST_ENUM_OLD, ST_ENUM_NEW).replace(ST_SECTOR_OLD, ST_SECTOR_NEW)
+    cases = {"the lock banks": (locked, True),
+             "the lock banks and another change": (locked.replace("return 0;", "return 1;"), False),
+             "only the enum hunk": (sb.replace(ST_ENUM_OLD, ST_ENUM_NEW), False),
+             "another address": (locked.replace("0xD4000u +", "0xD5000u +"), False),
+             "the lock banks twice": (locked.replace(ST_SECTOR_NEW, ST_SECTOR_NEW + ST_SECTOR_NEW.replace(ST_SECTOR_OLD, "")),
+                                      False)}
+    try:
+        for what, (cur, ok) in cases.items():
+            globals()["git"] = lambda *a, b=sb: b if a[0] == "show" else "M\tfirmware/src/storage.c\n"
+            globals()["worktree_text"] = lambda path, c=cur: c
+            assert (source_errors("x") == []) == ok, f"storage.c, {what}: {'flagged' if ok else 'not caught'}"
+        globals()["git"] = lambda *a: locked if a[0] == "show" else ""
+        globals()["worktree_text"] = lambda path: locked
+        assert source_errors("x") == [], "a release with the lock banks, storage.c equal: flagged"
+        globals()["git"] = lambda *a: locked if a[0] == "show" else "M\tfirmware/src/storage.c\n"
+        globals()["worktree_text"] = lambda path: sb
+        assert source_errors("x"), "a release with the lock banks: the old text back not caught"
+        globals()["git"] = lambda *a: sb if a[0] == "show" else "M\tfirmware/src/ota.c\n"
+        globals()["worktree_text"] = lambda path: locked
+        assert source_errors("x"), "the storage.c allowance excused another file"
+    finally:
+        globals()["git"] = real
+        globals()["worktree_text"] = real_wt
     print("check_update_path: selftest ok")
 
 
@@ -229,6 +256,35 @@ STR2_LOADER = ("static const uint8_t STR2[] = {30, 3, 'F', 0, 'e', 0, 'l', 0, 'u
                "'U', 0, 'p', 0,\n                               'd', 0, 'a', 0, 't', 0, 'e', 0};\n")
 STR2_OLD = "static const uint8_t STR2[] = {16, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0};\n"
 STR2_NEW = "static const uint8_t STR2[] = {18, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't', 0, 'o', 0, 'r', 0};\n"
+
+
+# the one recorded change to storage.c a release may not have yet (user decision 2026-10-24, frozen-base-10, option D of
+# docs/superpowers/specs/2026-10-24-parameter-locks-design.md): the lock-bank objects OBJ_LOCKS0..3 at 0xD4000..0xDBFFF
+# (the map comment, the object enum and st_sector's first test), and nothing else. Once a release has it, storage.c
+# must equal that release's again.
+STORAGE_C = "firmware/src/storage.c"
+ST_MAP_OLD = ("/* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000, projects 0x97000..0x9EFFF,\n"
+              " * user sample slots 0xA0000..0xDBFFF (eng_sample.c), user preset banks 0xDC000..0xDFFFF (upreset.c) */\n")
+ST_MAP_NEW = ("/* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000, projects 0x97000..0x9EFFF,\n"
+              " * user sample slots 0xA0000..0xD3FFF (eng_sample.c), lock banks 0xD4000..0xDBFFF (project.c),\n"
+              " * user preset banks 0xDC000..0xDFFFF (upreset.c) */\n")
+ST_ENUM_OLD = "enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_COUNT = OBJ_UPRESET0 + 2 };\n"
+ST_ENUM_NEW = ("enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_LOCKS0 = OBJ_UPRESET0 + 2,\n"
+               "       OBJ_COUNT = OBJ_LOCKS0 + 4 };\n")
+ST_SECTOR_OLD = "    if (obj >= OBJ_UPRESET0)\n"
+ST_SECTOR_NEW = ("    if (obj >= OBJ_LOCKS0)\n"
+                 "        return 0xD4000u + (obj - OBJ_LOCKS0) * 2u * ST_SECTOR + copy * ST_SECTOR;\n" + ST_SECTOR_OLD)
+ST_HUNKS = ((ST_MAP_OLD, ST_MAP_NEW), (ST_ENUM_OLD, ST_ENUM_NEW), (ST_SECTOR_OLD, ST_SECTOR_NEW))
+
+
+def storage_locks_only(base_text, cur_text):
+    """cur_text is base_text with each recorded storage.c hunk replaced once by its lock-bank text, nothing else"""
+    if "OBJ_LOCKS0" in base_text or any(base_text.count(old) != 1 for old, _ in ST_HUNKS):
+        return False
+    want = base_text
+    for old, new in ST_HUNKS:
+        want = want.replace(old, new)
+    return cur_text == want
 
 
 def usb_name_only(base_text, cur_text):
@@ -275,15 +331,19 @@ def source_errors(base):
             continue
         if status == "M" and path == USB_APP_C and usb_name_only(git("show", f"{base}:{path}"), worktree_text(path) or ""):
             continue
+        if status == "M" and path == STORAGE_C and storage_locks_only(git("show", f"{base}:{path}"),
+                                                                       worktree_text(path) or ""):
+            continue
         errors.append(f"update path source {path} differs from {base} ({status})")
     return errors
 
 
 def source_note(base):
     """what gate 2a allowed beyond the release's sources ("" for nothing)"""
-    changed = git("diff", "--name-only", base, "--", MAIN_C, USB_APP_C).split()
+    changed = git("diff", "--name-only", base, "--", MAIN_C, USB_APP_C, STORAGE_C).split()
     return ((" + main.c's recorded backlight hook (frozen-base-8)" if MAIN_C in changed else "") +
-            (" + usb_app.c's recorded USB name Hortator (frozen-base-9)" if USB_APP_C in changed else ""))
+            (" + usb_app.c's recorded USB name Hortator (frozen-base-9)" if USB_APP_C in changed else "") +
+            (" + storage.c's recorded lock-bank objects (frozen-base-10)" if STORAGE_C in changed else ""))
 
 
 def main(argv):

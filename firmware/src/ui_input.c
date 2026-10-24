@@ -34,6 +34,23 @@ static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 /* fixes 2026-10-21 item 1: OCT+ where the keys are steps: 1 pressed (let go alone: the next bank), 2 a step key
  * accented with it (let go: nothing); 0 not held there (ui_input acc_oct_poll) */
 static uint8_t acc_oct;
+/* things the boot found that the first frames say, once each (project.c persist_boot): USR3 shortened to 48 KiB, a
+ * lock bank lost (spec 2026-10-24 parameter locks) */
+#define PN_USR3 1u
+#define PN_LOCKS 2u
+static uint8_t persist_note;
+static void persist_note_show(void)                 /* every frame: with no message up, the lowest note's, once */
+{
+    if (!persist_note || ui.msg_t)
+        return;
+    if (persist_note & PN_USR3) {
+        persist_note &= (uint8_t)~PN_USR3;
+        ui_message("USR3 SHORTENED TO 48K");
+    } else {
+        persist_note &= (uint8_t)~PN_LOCKS;
+        ui_message("LOCKS LOST");
+    }
+}
 /* fixes 2026-10-21 item 2: the keys show the selected track (its white key lit, as the keys select it there) on the
  * HOME screen and every page of the EDIT (SOUND, LAYER), FX and LFO families; not under KEYS (the keyboard's), the
  * menu, NAME, the PRESETS list, the MUTE screen or PERFORM (ui_leds tests those first) */
@@ -981,6 +998,7 @@ static void ui_input(void)
     if (home == BT_TAP)
         home_tap();                                     /* HOME: TRACKS <-> HOME; elsewhere HOME as last shown */
     settings_poll();
+    persist_note_show();                                /* USR3 SHORTENED TO 48K, LOCKS LOST (persist_boot) */
     song.act[2] = (int16_t)settings.mutebar;
     song.act[3] = (int16_t)fx_metro;
     bank_fix();                                         /* LEN may have changed (knob, load) */
