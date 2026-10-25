@@ -9178,6 +9178,96 @@ static void test_motion_page_counts(void)
     memset(&mo.b, 0, sizeof mo.b);
 }
 
+/* device test 2026-10-25 ("ENV acts only from the second push"): the FM-1's tick counter has any low bits at a press
+ * (the host's advance in steps of 24000: bit 1 always 0); ENV, and OCT- clearing a held step's locks, act on one
+ * press at every phase of the clock */
+static void test_env_any_tick_phase(void)
+{
+    uint32_t ph, ok = 1, n = 0;
+    int16_t v;
+    ui_host_init();
+    tap(B_EDIT);
+    for (ph = 0; ph < 8u; ph++) {
+        uint32_t was = ui.env;
+        host_ticks = (host_ticks & ~7u) + ph;
+        env_tap();
+        ok &= ui.env == (was ^ 1u);
+        n += ui.env != was;
+    }
+    check("ENV: one press toggles STEPS at every phase of the tick counter (8 presses, 8 toggles)", ok && n == 8u);
+    for (ph = 0; ph < 8u; ph++) {                    /* in STEPS: hold step 5, OCT- tap clears its SOUND locks */
+        if (!ui.env)
+            env_tap();
+        lock_set(0, 4, P_E1, 100);
+        grid_down(WHITE[4]);
+        grid_wait(350);
+        host_ticks = (host_ticks & ~7u) + ph;
+        press(B_OCTDN);
+        ui_frame();
+        grid_wait(100);
+        btn_up(B_OCTDN);
+        ui_frame();
+        grid_up(WHITE[4]);
+        ok &= !lock_get(0, 4, P_E1, &v);
+    }
+    check("locks: step held + OCT- tap clears at every phase of the tick counter", ok);
+    memset(&mo.b, 0, sizeof mo.b);
+}
+/* .. one press after: a bank change with ENV held, a held step, a page change, the menu, power-on */
+static int env_one_press(void)
+{
+    uint32_t was = ui.env;
+    host_ticks = (host_ticks & ~7u) + 6u;
+    env_tap();
+    if (ui.env == was)
+        printf("     ENV press did not toggle (env %u, page %s, fx_knobs %u, menu %u)\n", ui.env, cur_page()->title, fx_knobs, ui.menu);
+    return ui.env == (was ^ 1u);
+}
+static void test_env_one_press_after_states(void)
+{
+    uint32_t ok;
+    ui_host_init();                                  /* (power-on) */
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 64;
+    ok = env_one_press();                            /* on */
+    press(B_ENV);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= ui.bank == 1u && ui.env == 1u && env_one_press();   /* after ENV + OCT+: off */
+    ok &= env_one_press();                           /* on */
+    grid_down(WHITE[2]);
+    grid_wait(400);
+    grid_up(WHITE[2]);
+    ok &= env_one_press();                           /* after a held step: off */
+    tap(B_FX);
+    grid_wait(100);                                  /* (a hand's gap: FX's release frame is PERFORM's) */
+    ok &= env_one_press();                           /* after a page change: on */
+    hold(B_HOME);
+    hold(B_HOME);                                    /* the menu, closed */
+    ok &= !ui.menu && env_one_press();               /* after the menu: off */
+    check("ENV: one press toggles after ENV + OCT+, a held step, a page change, the menu, power-on", ok);
+}
+/* .. and lock entry after one ENV press, through the panel's own path (ENV, a step key, KNOB 2) */
+static void test_env_one_press_then_lock(void)
+{
+    int16_t v = 0;
+    uint32_t id;
+    ui_host_init();
+    tap(B_EDIT);
+    song.sel = 0;
+    memset(&mo.b, 0, sizeof mo.b);
+    host_ticks = (host_ticks & ~7u) + 2u;
+    env_tap();
+    id = held_turn(1, 2);
+    grid_up(WHITE[4]);
+    check("one ENV press (tick bit 1 set), step 5 held + KNOB 2: a lock on step 5", ui.env == 1u && id < P_COUNT &&
+          lock_get(0, 4, id, &v) && lock_count(0) == 1u);
+    memset(&mo.b, 0, sizeof mo.b);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -9405,6 +9495,9 @@ int main(void)
     test_lock_song_busy();
     test_foot_lock_marks();                          /* .. shown */
     test_motion_page_counts();
+    test_env_any_tick_phase();                       /* device test 2026-10-25 */
+    test_env_one_press_then_lock();
+    test_env_one_press_after_states();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

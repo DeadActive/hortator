@@ -11,7 +11,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     steps as on SEQ on HOME, TRACKS (armed too), SOUND, LAYER, FX, LFO and COMP, and play no drum (REC ALL records no
     hits then); ENV held + OCT+ / OCT- changes the bank; OCT+ held + a step its accent, OCT+ alone and OCT- keep their
     page's job (SOUND to LAYER on OCT+'s release, LAYER back, the LFO's RATE MODE). ENV turns KEYS off and SCL STEPS
-    off. ENV off (TRACKS) is the keys exactly as before.
+    off. ENV off (TRACKS) is the keys exactly as before. (Device test 2026-10-25: ENV, and OCT- clearing a held
+    step's locks, sometimes needed a second press: the press time kept the clock's own bit 1, the "used" flag.)
   - Locks: in STEPS, hold a step and turn any knob MOTION can record, on HOME, TRACKS (LEVEL, PAN), SOUND, LAYER, FX,
     SLICER, RESON, FILTER, LFO and LFO DEST: that step gets its own value for that knob (`LOCK STEP 5` on top, the
     cells show the step's values, a locked one inverted; the knob itself and its base untouched; a turn right after

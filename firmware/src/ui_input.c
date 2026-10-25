@@ -955,7 +955,7 @@ static void env_poll(uint32_t now, uint32_t pressed)
 {
     int busy = ui.menu || name_on() || pl_on() || ui.mute || ui.layer || fx_knobs || ui.confirm;
     if ((pressed >> panel.btn[B_ENV]) & 1u)
-        ui.env_t0 = (now | 1u) | (busy ? 2u : 0u);
+        ui.env_t0 = ((now | 1u) & ~2u) | (busy ? 2u : 0u);   /* (the clock's own bit 1 cleared: it is the flag) */
     if (ui.env_t0 && !((fm1_in.buttons >> panel.btn[B_ENV]) & 1u)) {
         if (!(ui.env_t0 & 2u) && !busy)
             env_toggle();
@@ -1144,7 +1144,7 @@ static void ui_input(void)
             } else if (b == B_OCTDN && lock_step() < NSTEP) {   /* a step held: OCT- clears its locks (ocd_poll), no
                                                                  * page job */
                 uint32_t i;
-                ui.ocd_t0 = now | 1u;
+                ui.ocd_t0 = (now | 1u) & ~2u;           /* (the clock's own bit 1 cleared: the flag) */
                 ui.ocd_si = (uint8_t)lock_step();
                 for (i = 0; i < 16u; i++)               /* (the keys down: no tap) */
                     if (ui.step_t0[i])
