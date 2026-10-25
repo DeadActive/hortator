@@ -225,6 +225,60 @@ static int usb_level_persists(void)
     return ok;
 }
 
+/* MENU > USB AUDIO: 10 CH survives a power cycle in bit 12 of the stored palette word, beside the palette, AUTOSTART
+ * and BACKLIGHT's level (bits 0..11, unchanged by it); a record without it (every older one) reads 2 CH; an older
+ * Hortator reading the new record: bits 0..7, 8, 9..11 as before (it ignores bit 12) */
+static int usb_audio_persists(void)
+{
+    int ok = 1;
+    uint32_t u, low = 0;
+    for (u = 0; u < 2u; u++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = THEME_TAG | 2u;
+        settings.lowcut = 1;
+        settings.usbfix = 1;
+        btset.bt_auto = 1;
+        backlight = BL_DIM_HI;
+        usbaud = u;
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= ((p.palette >> 12) & 1u) == u && p.palette >> 13 == 0u;
+        if (!u)
+            low = p.palette & 0xFFFu;
+        else
+            ok &= (p.palette & 0xFFFu) == low;     /* bits 0..11 as a 2 CH save writes them */
+        rfill(&settings, sizeof settings);           /* power off */
+        usbaud = 7;                                  /* (.bss: the load sets it) */
+        persist_boot();
+        settings_init();
+        ok &= usbaud == u && settings.palette == (THEME_TAG | 2u) && settings.lowcut == 1u && settings.usbfix == 1u &&
+              btset.bt_auto == 1u && backlight == BL_DIM_HI;
+    }
+    {   /* an older record: 2 CH */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.palette = 2u | 1u << 8 | (uint32_t)BL_DIM_LO << 9;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        usbaud = 1;
+        persist_boot();
+        ok &= usbaud == 0u;
+        memset(hflash, 0xFF, sizeof hflash);         /* no record at all: 2 CH */
+        usbaud = 1;
+        persist_boot();
+        ok &= usbaud == 0u;
+    }
+    return ok;
+}
+
 /* a settings record longer than ours (another firmware's, same marker): the defaults, not a half-read record */
 static int settings_oversize_refused(void)
 {
@@ -2280,6 +2334,8 @@ int main(void)
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());
+    check("settings: USB AUDIO 10 CH survives a power cycle (palette bit 12); older records, none: 2 CH",
+          usb_audio_persists());
     check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());
     check("settings: an older record (no Bluetooth bits) loads as before (SPEAKER EQ BASS+ stays, no device)",
           settings_old_record());

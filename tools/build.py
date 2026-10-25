@@ -198,7 +198,7 @@ def build_app():
     if core_ref and not ble:
         flags.append("-DFELUCCA_BLE=1")
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
-                 "FELUCCA_SLICE", "FELUCCA_UAC", "FELUCCA_UAC_TONE", "FELUCCA_BLE", "FELUCCA_USB8"):
+                 "FELUCCA_SLICE", "FELUCCA_UAC", "FELUCCA_UAC_TONE", "FELUCCA_BLE"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and not (flag == "FELUCCA_BLE" and core_ref and not ble):
             flags.append(f"-D{flag}={v}")
@@ -463,11 +463,6 @@ def main():
         name = f"felucca-{a.release}.fwsc"
     if ble:                         # a gated BLE build (gates 1-5) may be packaged, named as one
         name = name.replace("felucca", "felucca-ble", 1)
-    usb8 = os.environ.get("FELUCCA_USB8") == "1"    # EXPERIMENT (branch usb8): 10-channel USB audio, never released
-    if usb8:
-        if ble or os.environ.get("DRUM_BUNDLE") == "1":
-            raise SystemExit("build: FELUCCA_USB8=1 is a plain experimental build (no FELUCCA_BLE, no DRUM_BUNDLE)")
-        name = name.replace("felucca", "felucca-usb8", 1)
     ble_pkg = None
     if os.environ.get("DRUM_BUNDLE") == "1" and os.environ.get("DRUM_PACKAGE") == "1":
         # one release, two versions (2026-10-09): the Bluetooth package first, in its own run (every BLE check and
@@ -534,19 +529,6 @@ def main():
     if os.environ.get("DRUM_SITE") == "0":        # (DRUM_BUNDLE's Bluetooth run: the default run makes the site)
         return 0
     label = (VERSION or drum_label()) + ("+ble" if ble else "")    # the installer shows which build it ships
-    if usb8:                        # its own site (build/site-usb8), the package felucca-drum-X-usb8-<commit>.fwsc
-        label = label.replace("+", "-usb8+", 1) if "+" in label else label + "-usb8"
-        make_site.main(OUT / name, label, OUT / "site-usb8")
-        inst = OUT / "site-usb8" / "webapp" / "installer" / "index.html"
-        html = inst.read_text(encoding="utf-8")
-        if html.count("<main>") != 1:
-            raise SystemExit("build: FELUCCA_USB8: index_pkg.html must contain <main> once")
-        inst.write_text(html.replace("<main>", (
-            '<main>\n<p style="background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:10px 12px;'
-            'margin:16px 0 0"><b>EXPERIMENTAL: 8-track USB audio test build</b> (' + label + '). Not a release. '
-            'USB audio: 10 channels (Master L, Master R, T1..T8). The way back: SAFE START (hold SEQ at power-on) '
-            'shows the normal Hortator USB device; install a normal Hortator from there.</p>'), 1), encoding="utf-8")
-        return 0
     make_site.main(OUT / name, label, OUT / "site", ble_pkg)   # the local web installer: this package (+ BLE's)
     return 0
 

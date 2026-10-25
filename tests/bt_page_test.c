@@ -150,8 +150,8 @@ static uint32_t rec_bt(uint32_t *lo, uint32_t *hi)   /* the flash record's MODE 
 static void test_menu_row(void)
 {
     fresh();
-    check("menu: BLUETOOTH is the row before ABOUT; eleven rows (BACKLIGHT, spec 2026-10-11-fixes §12)",
-          str_eq(MI_NAME[MI_BT], "BLUETOOTH") && MI_BT + 1 == MI_ABOUT && MI_COUNT == 11 &&
+    check("menu: BLUETOOTH is the row before ABOUT; twelve rows (BACKLIGHT §12, USB AUDIO)",
+          str_eq(MI_NAME[MI_BT], "BLUETOOTH") && MI_BT + 1 == MI_ABOUT && MI_COUNT == 12 &&
           str_eq(MI_NAME[MI_BACKLIGHT], "BACKLIGHT"));
     {
         uint32_t k;
@@ -162,9 +162,9 @@ static void test_menu_row(void)
         snap("00_menu");
         shot("build/ui_shots/fixes/menu_backlight_ble.ppm");   /* (the Bluetooth build's menu, with BACKLIGHT) */
     }
-    check("menu: the eleven rows end above the hints (BACK's row drawn, the hints apart)",
-          ink_in(MENU_Y0 + 10u * MENU_DY, MENU_Y0 + 10u * MENU_DY + 10u) > 50 &&
-          ink_in(MENU_Y0 + 10u * MENU_DY + 12u, MENU_HY) == 0 && ink_in(MENU_HY, MENU_HY + 14u) > 50);
+    check("menu: the twelve rows end above the hints (BACK's row drawn, the hints apart)",
+          ink_in(MENU_Y0 + 11u * MENU_DY, MENU_Y0 + 11u * MENU_DY + 10u) > 50 &&
+          ink_in(MENU_Y0 + 11u * MENU_DY + 12u, MENU_HY) == 0 && ink_in(MENU_HY, MENU_HY + 14u) > 50);
     tap(B_OCTUP);
     check("menu: OCT+ on BLUETOOTH opens the page", ui.menu == 3 && btp.sel == 0);
     check("the page opened: nothing started, nothing asked of the stack",

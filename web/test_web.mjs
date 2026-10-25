@@ -40,7 +40,8 @@ async function editorMock() {
   {
     /* the app's USB name: "Hortator" (older firmware: "Felucca"; "Felucca Update" in update mode) */
     const port = (name, state = "connected") => ({ name, state });
-    ok(["Hortator", "Hortator MIDI 1", "Hortator Port 1", "Felucca", "Felucca MIDI 1"].every((n) => E.isDevicePort(port(n)))
+    ok(["Hortator", "Hortator MIDI 1", "Hortator Port 1", "Felucca", "Felucca MIDI 1", "Hortator 8ch", "Hortator 8ch MIDI 1",
+      "Hortator 8ch Port 1"].every((n) => E.isDevicePort(port(n)))
       && !E.isDevicePort(port("Hortator", "disconnected")) && !["IAC Driver Bus 1", "Launchpad X", ""].some((n) => E.isDevicePort(port(n)))
       && [...m.access.inputs.values(), ...m.access.outputs.values()].every((p) => p.name === "Hortator" && E.isDevicePort(p)),
       "editor: connects to a port named Hortator or Felucca (the mock: Hortator)");
@@ -602,6 +603,12 @@ async function updater() {
   const devH = new FakeFM1(image, { identity: "FM-1_900", name: "Hortator", after: "FM-1_901", afterName: "Hortator" });
   const gotH = await new Updater(devH.access).install(image, "FM-1_901").then((r) => r, (x) => x);
   ok(gotH === "FM-1_901" && devH.bad === 0, "fm1ota.js: install: running Hortator -> loader -> Hortator");
+  // MENU > USB AUDIO 10 CH: the app's USB name is "Hortator 8ch" (and comes back as "Hortator" from a 2 CH build)
+  for (const [nm, back] of [["Hortator 8ch", "Hortator 8ch"], ["Hortator 8ch MIDI 1", "Hortator"], ["Hortator 8ch Port 1", "Hortator"]]) {
+    const dev8 = new FakeFM1(image, { identity: "FM-1_900", name: nm, after: "FM-1_901", afterName: back });
+    const got8 = await new Updater(dev8.access).install(image, "FM-1_901").then((r) => r, (x) => x);
+    ok(got8 === "FM-1_901" && dev8.bad === 0, `fm1ota.js: install: running ${nm} (USB AUDIO 10 CH) -> loader -> ${back}`);
+  }
 
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
   dev2.boot("ota-FM-1_900", "Felucca Update");

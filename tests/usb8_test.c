@@ -1,21 +1,21 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE (EXPERIMENT, branch usb8) */
-/* Host test of the 10-channel USB audio experiment (FELUCCA_USB8=1: usb_app8.c, fx.c usb8_tap):
- *   descriptors  the 10-channel configuration parsed as a host does (lengths, wTotalLength, interfaces, the UAC1
- *                chain, 10 channels, 16 bit, 44.1 kHz, EP4 920 B <= 1023); byte for byte usb_app.c's except the
- *                channel count, the channel names, wMaxPacketSize and bcdDevice; the strings
- *   safe start   every descriptor request answered exactly as the frozen usb_app.c answers it (tests/usb8_ref.c)
+/* Host test of MENU > USB AUDIO's driver (usb_app8.c; fx.c usb8_track_tap; audio.c):
+ *   descriptors  10 CH's configuration parsed as a host does (lengths, wTotalLength, interfaces, the UAC1 chain, 10
+ *                channels, 16 bit, 44.1 kHz, EP4 920 B <= 1023); byte for byte usb_app.c's except the channel count,
+ *                the channel names, wMaxPacketSize and bcdDevice; the strings
+ *   2 CH         every descriptor request answered exactly as the frozen usb_app.c answers it, and the same packets
+ *                from the same audio (tests/usb8_ref.c: usb_app.c in a unit of its own)
  *   ring         renders at the I2S rate against one packet per 1 ms frame: 43..46 frames, <= 920 B, 44.1 on
- *                average, every frame of every channel delivered once, in order, in its place; underrun /
- *                overrun / restart; SAFE START's 2-channel packets
- *   mix          the tracks' channels add up to the master bus (pans centred, no sends, COMP off), follow MASTER,
- *                a muted track is silent; the ring carries the master and the tracks of audio_block
- *   cost         host instructions of the added work (emulated: the clear, mix_part's added line, the ring)
- *                against the whole audio block
- * The SIE is never touched (uac_service and usb_poll are not called). */
+ *                average, every frame of every channel delivered once, in order, in its place; underrun / overrun /
+ *                restart; 2 CH's packets
+ *   mix          the tracks' channels add up to the master bus (pans centred, no sends, COMP off), follow MASTER, a
+ *                muted track is silent; the ring carries the master and the tracks of audio_block; 2 CH: no tap
+ *   bus          EP4's one packet buffer against the wire time and the poll rate (the 2 kHz fault, the 10 kHz fix)
+ *   cost         host instructions of an audio block in 10 CH against 2 CH
+ * The SIE is never touched (uac_service, uac8_service and usb_poll are not called). */
 #define FELUCCA_UAC 1
 #define FELUCCA_CDC 1
-#define FELUCCA_USB8 1
 #include "drum_host.h"
 #define FM1_AUDIO_HALF 0x80u
 #define FM1_TICKS_PER_US 24u
@@ -29,6 +29,11 @@ void isr_alnk0(void) {}
 #include "../firmware/src/audio.c"
 
 int ref_get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l);   /* usb8_ref.c: the frozen usb_app.c */
+void ref_stream(uint32_t alt);
+void ref_flowing(void);
+void ref_render_start(void);
+void ref_tap(const int32_t *out, uint32_t n);
+uint32_t ref_packet(uint32_t *d);
 
 static int fails;
 static int check(const char *what, int ok)
@@ -37,6 +42,23 @@ static int check(const char *what, int ok)
     if (!ok)
         fails++;
     return ok;
+}
+
+/* the stream of the mode set (usb10): usb_app.c's (2 CH) or the 10-channel one */
+#define M10 (usb10 != 0)
+#define UA(f) (*(M10 ? &uac8.f : &uac.f))
+#define RW (*(M10 ? &ua8_w : &ua_w))
+#define RR (*(M10 ? &ua8_r : &ua_r))
+#define FW (M10 ? UA8_W : 1u)
+static void m_start(void) { if (M10) uac8_render_start(); else uac_render_start(); }
+static void m_tap(const int32_t *o, uint32_t n) { if (M10) uac8_tap(o, n); else uac_tap(o, n); }
+static uint32_t m_packet(uint32_t *d) { return M10 ? uac8_packet(d) : uac_packet(d); }
+static void m_stream(uint32_t a) { if (M10) uac8_stream(a); else uac_stream(a); }
+static void m_reset(void)
+{
+    memset(&uac, 0, sizeof uac);
+    memset(&uac8, 0, sizeof uac8);
+    ua_w = ua_r = ua8_w = ua8_r = 0;
 }
 
 static uint32_t le16(const uint8_t *p) { return p[0] | (uint32_t)p[1] << 8; }
@@ -64,8 +86,7 @@ static void test_descriptors(void)
     uint32_t it_at = 0, fmt_at = 0, ep_at = 0;
     char s[120];
 
-    safe_start = 0;
-    check("10-channel mode outside SAFE START", usb8_mode() == 1);
+    usb10 = 1;                                          /* 10 CH */
     get_desc(0x0200, &c, &n);
     check("configuration: type 2, wTotalLength = the bytes sent", c[1] == 2 && le16(c + 2) == n && n == sizeof CFG8_DESC);
     for (off = 0; off < n;) {
@@ -97,7 +118,7 @@ static void test_descriptors(void)
             got_eps++;
             if (d[2] == 0x84) {
                 ep_at = off;
-                iso_ok = d[0] == 9 && d[3] == 0x05 && le16(d + 4) == UA_MAXF * 2u * UA_NCH && le16(d + 4) <= 1023u &&
+                iso_ok = d[0] == 9 && d[3] == 0x05 && le16(d + 4) == UA_MAXF * 2u * UA8_NCH && le16(d + 4) <= 1023u &&
                          d[6] == 1 && if_sub[cur_if] == 2;
             }
             if ((d[2] == 0x01 || d[2] == 0x81) && d[3] == 2 && if_sub[cur_if] == 3)
@@ -111,13 +132,13 @@ static void test_descriptors(void)
                     ac_left -= d[0];
                 } else if (d[2] == 2) {
                     it_at = off;
-                    it_ok = d[0] == 12 && d[7] == UA_NCH && le16(d + 8) == 0 && d[10] == USB8_STR_CH;
+                    it_ok = d[0] == 12 && d[7] == UA8_NCH && le16(d + 8) == 0 && d[10] == USB8_STR_CH;
                 } else if (d[2] == 3) {
                     ot_ok = d[0] == 9 && le16(d + 4) == 0x0101u && d[7] == 1;
                 }
             } else if (cur_if >= 0 && if_class[cur_if] == 1 && if_sub[cur_if] == 2 && d[2] == 2) {
                 fmt_at = off;
-                fmt_ok = d[0] == 11 && d[3] == 1 && d[4] == UA_NCH && d[5] == 2 && d[6] == 16 && d[7] == 1 &&
+                fmt_ok = d[0] == 11 && d[3] == 1 && d[4] == UA8_NCH && d[5] == 2 && d[6] == 16 && d[7] == 1 &&
                          (d[8] | d[9] << 8 | d[10] << 16) == 44100;
             }
             break;
@@ -133,9 +154,9 @@ static void test_descriptors(void)
     check("input terminal: 10 channels, no spatial positions, names from string 4", it_ok);
     check("output terminal: USB streaming, from the input terminal", ot_ok);
     check("type I format: 10 ch, 2-byte subframe, 16 bit, 44100 Hz only", fmt_ok);
-    snprintf(s, sizeof s, "EP 0x84: isochronous async, %u B (46 frames x 20 B) <= 1023, every frame", UAC_MAXP);
+    snprintf(s, sizeof s, "EP 0x84: isochronous async, %u B (46 frames x 20 B) <= 1023, every frame", UAC8_MAXP);
     check(s, iso_ok);
-    check("ep4tx holds the largest packet", sizeof ep4tx >= UAC_MAXP);
+    check("ep4tx8 holds the largest packet", sizeof ep4tx8 >= UAC8_MAXP);
     check("MIDI bulk endpoints 0x01 / 0x81, two IADs", midi_ok == 2 && iad_n == 2);
 
     ref_get_desc(0x0200, &r, &rn);
@@ -158,20 +179,20 @@ static void test_descriptors(void)
     get_desc(0x0302, &d, &l);
     check("product string \"Hortator 8ch\" (the installers match \"hortator\")", str_is(d, l, "Hortator 8ch"));
     {
-        static const char *NAMES[UA_NCH] = {"Master L", "Master R", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
+        static const char *NAMES[UA8_NCH] = {"Master L", "Master R", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
         int ok = 1;
-        for (i = 0; i < UA_NCH; i++)
+        for (i = 0; i < UA8_NCH; i++)
             ok &= get_desc(0x0300 + USB8_STR_CH + i, &d, &l) && str_is(d, l, NAMES[i]);
         check("channel names, strings 4..13: Master L, Master R, T1..T8", ok);
     }
-    check("string 14 and 3: none (stall)", !get_desc(0x0300 + USB8_STR_CH + UA_NCH, &d, &l) && !get_desc(0x0303, &d, &l));
+    check("string 14 and 3: none (stall)", !get_desc(0x0300 + USB8_STR_CH + UA8_NCH, &d, &l) && !get_desc(0x0303, &d, &l));
 }
 
-static void test_safe_start(void)
+static void test_two_ch(void)
 {
-    uint32_t t, i, same = 1, asked = 0;
-    safe_start = 1;
-    check("SAFE START: 2-channel mode", usb8_mode() == 0);
+    static int32_t o[2 * CTL];
+    uint32_t t, i, same = 1, asked = 0, h, k, pk = 0, fr = 0, lcg2 = 777;
+    usb10 = 0;                                          /* 2 CH */
     for (t = 0; t < 0x100u; t++)
         for (i = 0; i < 24u; i++) {
             uint32_t w = t << 8 | i;
@@ -182,8 +203,38 @@ static void test_safe_start(void)
             if (ra != rb || (ra && (la != lb || memcmp(a, b, la))))
                 same = 0;
         }
-    check("SAFE START: every GET_DESCRIPTOR answered as usb_app.c answers it", same && asked == 256u * 24u);
-    safe_start = 0;
+    check("2 CH: every GET_DESCRIPTOR answered as usb_app.c answers it", same && asked == 256u * 24u);
+    usb.config = 1;
+    m_reset();
+    m_stream(1);
+    UA(flowing) = 1;
+    ref_stream(1);
+    ref_flowing();
+    for (h = 0, same = 1; h < 2000u; h++) {             /* 11.6 s: halves of 8 blocks, 6 packets a half */
+        ref_render_start();
+        m_start();
+        for (k = 0; k < HALF_FRAMES / CTL; k++) {
+            uint32_t j;
+            for (j = 0; j < 2u * CTL; j++) {
+                lcg2 = lcg2 * 1103515245u + 12345u;
+                o[j] = (int32_t)(lcg2 >> 12) - (1 << 19);   /* past 16 bits too: the clamp */
+            }
+            ref_tap(o, CTL);
+            m_tap(o, CTL);
+            if (k % 4u != 2u && k % 4u != 1u + (h & 1u)) {
+                uint32_t a[UA_MAXF + 2], b[UA_MAXF + 2], na = m_packet(a), nb = ref_packet(b);
+                same &= na == nb && !memcmp(a, b, na * 4u);
+                pk++;
+                fr += na;
+            }
+        }
+    }
+    {
+        char s[120];
+        snprintf(s, sizeof s, "2 CH: the same packets as usb_app.c from the same audio (%u packets, %u frames)", pk, fr);
+        check(s, same && pk == 10000u && !uac8.alt && ua8_w == 0);
+    }
+    m_stream(0);
 }
 
 /* --------------------------------------------------------------------- the ring --- */
@@ -202,24 +253,24 @@ static void render_block(void)
         for (k = 0; k < NTRK; k++)
             usb8_tap[k][i] = (int16_t)code(prod_n, k + 2u);
     }
-    uac_tap(rblk, CTL);
+    m_tap(rblk, CTL);
 }
 
 static void check_frames(const uint32_t *d, uint32_t n)   /* n frames as the host gets them */
 {
-    uint32_t i, ch, fw = usb8_mode() ? UA_W : 1u;
+    uint32_t i, ch, fw = FW;
     sizes[n]++;
     npk++;
     if (n * fw * 4u > max_bytes)
         max_bytes = n * fw * 4u;
     for (i = 0; i < n; i++) {
-        uint16_t h[2 * UA_W];                               /* the channels as the host reads them (little-endian) */
+        uint16_t h[2 * UA8_W];                               /* the channels as the host reads them (little-endian) */
         for (ch = 0; ch < 2u * fw; ch++)
             h[ch] = (uint16_t)(d[i * fw + ch / 2u] >> (16u * (ch & 1u)));
         uint32_t f = h[0], ok = 1, zero = 1;
         for (ch = 0; ch < 2u * fw; ch++)
             zero &= h[ch] == 0;
-        if (zero && (!uac.go || !cons_n)) {
+        if (zero && (!UA(go) || !cons_n)) {
             cons_zero++;
             continue;
         }
@@ -244,7 +295,7 @@ static void check_frames(const uint32_t *d, uint32_t n)   /* n frames as the hos
 
 static void take_packet(void)
 {
-    uint32_t d[UA_MAXF * UA_W + 8], n = uac_packet(d);
+    uint32_t d[UA_MAXF * UA8_W + 8], n = m_packet(d);
     check_frames(d, n);
 }
 
@@ -272,7 +323,7 @@ static void run(uint32_t ms, uint64_t rend_ns, int produce, int consume)
             if (produce) {
                 lcg = lcg * 1103515245u + 12345u;
                 rend_len = rend_ns ? rend_ns : REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
-                uac_render_start();
+                m_start();
                 blocks_left = HALF_FRAMES / CTL;
                 next_block = now_ns + rend_len / blocks_left;
             }
@@ -293,35 +344,35 @@ static void test_ring(void)
 {
     uint32_t i, sum, base_n, base_p;
     char s[120];
-    safe_start = 0;
+    usb10 = 1;
     usb.config = 1;
-    memset(&uac, 0, sizeof uac);
-    ua_w = ua_r = 0;
-    uac_stream(1);
+    m_reset();
+    RW = RR = 0;
+    m_stream(1);
     now_ns = 0;
     next_half = 300000;
     next_pkt = 1000000;
     run(3, 0, 1, 1);
-    check("not fed before the host reads", uac.overruns == 0 && ua_w == 0);
-    uac.flowing = 1;
+    check("not fed before the host reads", UA(overruns) == 0 && RW == 0);
+    UA(flowing) = 1;
     run(2000, 0, 1, 1);
     memset(sizes, 0, sizeof sizes);
     npk = max_bytes = 0;
     base_n = cons_n;
-    base_p = uac.underruns + uac.overruns;
+    base_p = UA(underruns) + UA(overruns);
     run(10000, 0, 1, 1);
     for (i = sum = 0; i < 64u; i++)
         sum += sizes[i] * i;
     snprintf(s, sizeof s, "10 s, random renders: 43..46 frames (44:%u 45:%u 46:%u 43:%u), <= %u B", sizes[44], sizes[45],
              sizes[46], sizes[43], max_bytes);
-    check(s, sizes[44] + sizes[45] + sizes[46] + sizes[43] == npk && max_bytes <= UAC_MAXP);
+    check(s, sizes[44] + sizes[45] + sizes[46] + sizes[43] == npk && max_bytes <= UAC8_MAXP);
     snprintf(s, sizeof s, "  mean packet %.4f frames (I2S %.1f Hz), %.1f B/ms", (double)sum / npk, FS_DEV,
              (double)sum / npk * 20.0);
     check(s, (double)sum / npk > 44.05 && (double)sum / npk < 44.2);
     check("  every frame once, in order, all 10 channels in place; no underrun / overrun",
-          cons_bad == 0 && cons_rep == 0 && uac.underruns + uac.overruns == base_p && cons_n - base_n == sum);
-    snprintf(s, sizeof s, "  fill at render start %u..%u (band %u..%u)", uac.fill_lo, uac.fill_hi, UA_LO, UA_HI);
-    check(s, uac.fill_lo >= 46u && uac.fill_hi + HALF_FRAMES <= UA_N);
+          cons_bad == 0 && cons_rep == 0 && UA(underruns) + UA(overruns) == base_p && cons_n - base_n == sum);
+    snprintf(s, sizeof s, "  fill at render start %u..%u (band %u..%u)", UA(fill_lo), UA(fill_hi), UA_LO, UA_HI);
+    check(s, UA(fill_lo) >= 46u && UA(fill_hi) + HALF_FRAMES <= UA_N);
     memset(sizes, 0, sizeof sizes);
     npk = 0;
     for (i = 0; i < 1000u; i++)
@@ -330,35 +381,35 @@ static void test_ring(void)
         sum += sizes[i] * i;
     snprintf(s, sizeof s, "1000 packets, %.1f ms renders (85 %%): mean %.3f, no glitch", REND_MAX / 1e6, (double)sum / npk);
     check(s, (double)sum / npk > 44.0 && (double)sum / npk < 44.25 && cons_bad == 0 && cons_rep == 0 &&
-          uac.underruns + uac.overruns == base_p);
-    base_p = uac.underruns;
+          UA(underruns) + UA(overruns) == base_p);
+    base_p = UA(underruns);
     run(30, 0, 0, 1);
-    check("producer stopped 30 ms: underruns counted, the last frame repeated (10 ch)", uac.underruns > base_p &&
+    check("producer stopped 30 ms: underruns counted, the last frame repeated (10 ch)", UA(underruns) > base_p &&
           cons_bad == 0 && cons_rep > 0);
-    base_p = uac.overruns;
+    base_p = UA(overruns);
     run(40, 0, 1, 0);
-    check("consumer stopped 40 ms: overruns counted, the ring never overfills", uac.overruns > base_p && ua_w - ua_r <= UA_N);
-    uac_stream(1);
-    uac.flowing = 1;
+    check("consumer stopped 40 ms: overruns counted, the ring never overfills", UA(overruns) > base_p && RW - RR <= UA_N);
+    m_stream(1);
+    UA(flowing) = 1;
     cons_n = cons_bad = cons_rep = 0;
-    base_p = uac.underruns + uac.overruns;
+    base_p = UA(underruns) + UA(overruns);
     run(3000, 0, 1, 1);
     check("restart: primed again, in order, no glitch", cons_n > 3000u * 44u && cons_bad == 0 && cons_rep == 0 &&
-          uac.underruns + uac.overruns == base_p);
+          UA(underruns) + UA(overruns) == base_p);
 
-    safe_start = 1;                                     /* SAFE START: usb_app.c's 2-channel packets from the ring */
-    uac_stream(1);
-    uac.flowing = 1;
+    usb10 = 0;                                          /* 2 CH: usb_app.c's 2-channel packets from its ring */
+    m_stream(1);
+    UA(flowing) = 1;
     cons_n = cons_bad = cons_rep = 0;
     memset(sizes, 0, sizeof sizes);
     npk = max_bytes = 0;
-    base_p = uac.underruns + uac.overruns;
+    base_p = UA(underruns) + UA(overruns);
     run(3000, 0, 1, 1);
     snprintf(s, sizeof s, "SAFE START: 2-channel packets <= %u B, every frame in order", max_bytes);
     check(s, max_bytes <= UA_MAXF * 4u && cons_n > 3000u * 44u && cons_bad == 0 && cons_rep == 0 &&
-          uac.underruns + uac.overruns == base_p);
-    safe_start = 0;
-    uac_stream(0);
+          UA(underruns) + UA(overruns) == base_p);
+    usb10 = 1;
+    m_stream(0);
 }
 
 /* ---------------------------------------------------------------------- the mix --- */
@@ -391,6 +442,15 @@ static void test_mix(void)
     char s[140];
     int ok;
 
+    usb10 = 0;                                          /* 2 CH: the tracks' block is never written */
+    memset(usb8_tap, 0x55, sizeof usb8_tap);
+    kit_dry(4096, 100);
+    for (b = 0, ok = 1; b < 40u; b++) {
+        mix_block(o, CTL);
+        ok &= usb8_tap[0][0] == 0x5555 && usb8_tap[7][CTL - 1] == 0x5555;
+    }
+    check("2 CH: no track tap (the mix as before)", ok);
+    usb10 = 1;                                          /* 10 CH */
     kit_dry(4096, 100);                                 /* the knob's top, all 8 hit together */
     for (b = 0; b < 400u; b++) {                        /* 290 ms */
         mix_block(o, CTL);
@@ -469,113 +529,93 @@ static void test_mix(void)
         static int32_t out[2u * CTL];
         uint32_t good = 1;
         kit_dry(4096, 100);
-        ua_w = ua_r = 0;
+        RW = RR = 0;
         usb.config = 1;
-        uac.alt = uac.flowing = 1;
-        uac.go = 0;
-        uac_render_start();
-        w0 = ua_w;
+        UA(alt) = UA(flowing) = 1;
+        UA(go) = 0;
+        m_start();
+        w0 = RW;
         audio_block(out, CTL);
-        good = ua_w == w0 + CTL;
+        good = RW == w0 + CTL;
         for (i = 0; i < CTL; i++) {
-            const uint32_t *f = &ua_ring[((w0 + i) & (UA_N - 1u)) * UA_W];
+            const uint32_t *f = &ua8_ring[((w0 + i) & (UA_N - 1u)) * UA8_W];
             good &= (int16_t)(f[0] & 0xFFFF) * (1 << OUT_SHIFT) == out[2 * i] &&
                     (int16_t)(f[0] >> 16) * (1 << OUT_SHIFT) == out[2 * i + 1];
             for (k = 0; k < NTRK; k++)
                 good &= (int16_t)(k & 1u ? f[1 + k / 2] >> 16 : f[1 + k / 2] & 0xFFFF) == usb8_tap[k][i];
         }
         check("audio_block: ring frame = master L R (the DAC's block) + T1..T8", good);
-        uac_stream(0);
+        m_stream(0);
     }
 }
 
 /* ---------------------------------------------------------------------- the cost --- */
-static void test_cost(void)
+static uint64_t cost_run(uint32_t ten, uint32_t N)  /* host instructions of N audio blocks, all 8 tracks sounding */
 {
-    static int32_t out[2u * CTL], b[CTL];
-    uint64_t i0, all, extra, two;
+    static int32_t out[2u * CTL];
+    uint64_t i0;
     uint32_t blk, k;
-    const uint32_t N = 4000;                            /* 2.9 s of audio */
-    char s[160];
+    usb10 = (uint8_t)ten;
     kit_dry(4096, 100);
     usb.config = 1;
-    uac.alt = uac.flowing = 1;
-    uac.go = 0;
+    m_reset();
+    m_stream(1);
+    UA(flowing) = 1;
     i0 = instr_now();
     for (blk = 0; blk < N; blk++) {
         if (blk % 8u == 0)
-            uac_render_start(), ua_r = ua_w;            /* a reader that keeps up */
+            m_start(), RR = RW;                         /* a reader that keeps up */
         if (blk % 200u == 0)
             for (k = 0; k < NTRK; k++)
                 drum_hit(&trk[k], 100);
         audio_block(out, CTL);
     }
-    all = instr_now() - i0;
-    for (k = 0; k < CTL; k++)
-        b[k] = (int32_t)(k * 999u) - 16000;
-    i0 = instr_now();
-    for (blk = 0; blk < N; blk++) {                     /* what USB8 adds: the clear, 8 taps, the 10-channel ring */
-        uint32_t t, i;
-        for (t = 0; t < NTRK; t++)
-            for (i = 0; i < CTL; i++)
-                usb8_tap[t][i] = 0;
-        for (t = 0; t < NTRK; t++)
-            for (i = 0; i < CTL; i++)
-                usb8_tap[t][i] = usb8_s16(b[i], (int32_t)song.master_q12);   /* mix_part's added line */
-        if (blk % 8u == 0)
-            ua_r = ua_w;
-        uac_tap(out, CTL);
-    }
-    extra = instr_now() - i0;
-    i0 = instr_now();
-    for (blk = 0; blk < N; blk++) {                     /* usb_app.c's tap writes a word a frame: the 10-ch ring, 1/5 */
-        if (blk % 8u == 0)
-            ua_r = ua_w;
-        uac_tap(out, CTL);
-    }
-    two = (instr_now() - i0) / 5u;
-    if (!all) {
+    m_stream(0);
+    return instr_now() - i0;
+}
+
+static void test_cost(void)
+{
+    const uint32_t N = 4000;                            /* 2.9 s of audio */
+    uint64_t two = cost_run(0, N), ten = cost_run(1, N);
+    char s[160];
+    usb10 = 1;
+    if (!two) {
         printf("cost: no instruction counter on this host (skipped)\n");
         return;
     }
-    snprintf(s, sizeof s, "cost: audio block %.1f instr/sample (8 tracks), USB8 adds %.1f (%.1f %% of it), all 8 sounding",
-             (double)all / (N * CTL), (double)(extra - two) / (N * CTL), 100.0 * (double)(extra - two) / (double)all);
-    check(s, (double)(extra - two) / (double)all < 0.05);
+    snprintf(s, sizeof s, "cost: audio block 2 CH %.1f, 10 CH %.1f instr/sample (8 tracks sounding): +%.1f %%",
+             (double)two / (N * CTL), (double)ten / (N * CTL), 100.0 * ((double)ten / (double)two - 1.0));
+    check(s, (double)ten / (double)two < 1.05);
 }
 
 /* ------------------------------------------------------------- the bus timing --- */
 /* EP4 as the SIE runs it: one packet buffer. uac_service queues a packet (TxPktRdy) when the last one has gone; the
  * host's IN token, once per 1 ms frame, sends a queued packet, which keeps TxPktRdy set until its last byte is on the
- * wire (12 Mbit/s); a token that finds nothing queued gets a zero-length packet (UnderRun, uac.missed). The device
- * polls at its own clock (TIMER5, 30 ppm off the host's), at USB8_POLL_HZ plus usb_poll's 2 kHz call. The ring and
+ * wire (12 Mbit/s); a token that finds nothing queued gets a zero-length packet (UnderRun, UA(missed)). The device
+ * polls at its own clock (TIMER5, 30 ppm off the host's), at UAC8_POLL_HZ plus usb_poll's 2 kHz call. The ring and
  * the packets are usb_app8.c's (uac_render_start, uac_tap, uac_packet); the polls mirror uac_service. */
-#ifndef USB8_POLL_HZ
-#define USB8_POLL_HZ 2000u                              /* (before the fix: usb_poll's 2 kHz only) */
-#endif
-#ifndef UAC_STALL_POLLS
-#define UAC_STALL_POLLS 40u
-#endif
-static struct { uint32_t rdy, underrun, bytes, zlp, delivered; uint64_t busy_end; uint32_t d[UA_MAXF * UA_W]; } ep;
+static struct { uint32_t rdy, underrun, bytes, zlp, delivered; uint64_t busy_end; uint32_t d[UA_MAXF * UA8_W]; } ep;
 
 static void svc(void)                                   /* = uac_service, the SIE replaced by ep */
 {
     uint32_t n;
     if (ep.rdy) {
-        if (uac.wait < 255u && ++uac.wait == UAC_STALL_POLLS && uac.flowing) {
-            uac.flowing = 0;
-            uac.stalls++;
+        if (UA(wait) < 255u && ++UA(wait) == (M10 ? UAC8_STALL_POLLS : 40u) && UA(flowing)) {
+            UA(flowing) = 0;
+            UA(stalls)++;
         }
         return;
     }
-    if (uac.queued) {
+    if (UA(queued)) {
         if (ep.underrun)
-            uac.missed++;
-        uac.flowing = 1;
+            UA(missed)++;
+        UA(flowing) = 1;
     }
-    uac.queued = 1;
-    uac.wait = 0;
-    n = uac_packet(ep.d);
-    ep.bytes = n * (usb8_mode() ? 2u * UA_NCH : 4u);
+    UA(queued) = 1;
+    UA(wait) = 0;
+    n = m_packet(ep.d);
+    ep.bytes = n * (M10 ? 2u * UA8_NCH : 4u);
     ep.rdy = 1;
     ep.underrun = 0;
 }
@@ -614,7 +654,7 @@ static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, uint32_t pha
             next_half += (uint64_t)((double)HALF_FRAMES / FS_DEV * 1e9);
             lcg = lcg * 1103515245u + 12345u;
             rend_len = REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
-            uac_render_start();
+            m_start();
             blocks_left = HALF_FRAMES / CTL;
             next_block = now_ns + rend_len / blocks_left;
         } else if (blocks_left && now_ns == next_block) {
@@ -626,8 +666,8 @@ static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, uint32_t pha
             next_tok = (now_ns / 1000000u + 1u) * 1000000u + 20000u + (jit_ns ? (lcg >> 8) % jit_ns : 0u);
             if (ep.rdy && !ep.busy_end) {
                 ep.busy_end = now_ns + wire_ns(ep.bytes);
-                check_frames(ep.d, ep.bytes / (usb8_mode() ? 2u * UA_NCH : 4u));
-                ep.delivered += ep.bytes / (usb8_mode() ? 2u * UA_NCH : 4u);
+                check_frames(ep.d, ep.bytes / (M10 ? 2u * UA8_NCH : 4u));
+                ep.delivered += ep.bytes / (M10 ? 2u * UA8_NCH : 4u);
             } else {
                 ep.underrun = 1;
                 ep.zlp++;
@@ -637,7 +677,7 @@ static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, uint32_t pha
             if (sub % 5u == 0)
                 svc();                                  /* usb_poll's (2 kHz) */
             if (every && sub % every == 0)
-                svc();                                  /* the extra cadence (USB8_POLL_HZ) */
+                svc();                                  /* the extra cadence (UAC8_POLL_HZ) */
             if (++sub == 10u)
                 sub = 0;
         }
@@ -650,29 +690,29 @@ static void bus_case(const char *what, uint32_t two, uint32_t poll_hz, uint32_t 
     char s[200];
     for (ph = 0; ph < 10u; ph++) {                      /* the device's poll phase against the host's frames */
         uint32_t d0, o0;
-        safe_start = (uint8_t)two;                      /* SAFE START: usb_app.c's 2-channel stream */
+        usb10 = (uint8_t)!two;                          /* two: 2 CH, usb_app.c's stream */
         usb.config = 1;
-        memset(&uac, 0, sizeof uac);
+        m_reset();
         memset(&ep, 0, sizeof ep);
-        ua_w = ua_r = 0;
-        uac_stream(1);
+        RW = RR = 0;
+        m_stream(1);
         cons_n = cons_bad = cons_rep = 0;
         now_ns = 0;
         next_half = 300000;
         blocks_left = 0;
         run_bus(500, poll_hz, jit_ns, ph * 10000u);     /* (the stream starts; flowing after the first packet) */
         d0 = ep.delivered;
-        o0 = uac.overruns;
+        o0 = UA(overruns);
         cons_bad = cons_rep = 0;
         run_bus(4000, poll_hz, jit_ns, 0);
         if ((ep.delivered - d0) / 4u < rate_min)
             rate_min = (ep.delivered - d0) / 4u;
         sum += (ep.delivered - d0) / 4u;
         bad += cons_bad + cons_rep;
-        ovr += uac.overruns - o0;
+        ovr += UA(overruns) - o0;
         zlp += ep.zlp;
     }
-    safe_start = 0;
+    usb10 = 1;
     snprintf(s, sizeof s, "%s: %u frames/s (worst phase %u), %u glitches, %u overruns, %u empty", what, sum / 10u,
              rate_min, bad, ovr, zlp);
     if (expect_ok)
@@ -683,22 +723,22 @@ static void bus_case(const char *what, uint32_t two, uint32_t poll_hz, uint32_t 
 
 static void test_bus(void)
 {
-    uint64_t w = wire_ns(UAC_MAXP);
+    uint64_t w = wire_ns(UAC8_MAXP);
     char s[120];
     snprintf(s, sizeof s, "920 B on the wire: %.2f ms of the 1 ms frame (184 B: %.2f ms)", w / 1e6, wire_ns(184) / 1e6);
     check(s, w > 600000u && w < 700000u);
     bus_case("model check: 2 ch (184 B), 2 kHz (usb_app.c, works on the FM-1)", 1, 0, 100000u, 1);
     bus_case("before the fix: 10 ch (920 B), 2 kHz", 0, 0, 100000u, 0);
-    bus_case("10 ch, + USB8_POLL_HZ, token jitter 0.1 ms", 0, USB8_POLL_HZ, 100000u, 1);
-    bus_case("10 ch, + USB8_POLL_HZ, token jitter 0.25 ms", 0, USB8_POLL_HZ, 250000u, 1);
-    bus_case("SAFE START 2 ch, + USB8_POLL_HZ", 1, USB8_POLL_HZ, 250000u, 1);
+    bus_case("10 ch, + UAC8_POLL_HZ, token jitter 0.1 ms", 0, UAC8_POLL_HZ, 100000u, 1);
+    bus_case("10 ch, + UAC8_POLL_HZ, token jitter 0.25 ms", 0, UAC8_POLL_HZ, 250000u, 1);
+    
 }
 
 int main(void)
 {
-    printf("-- USB8: 10-channel USB audio (EXPERIMENT)\n");
+    printf("-- USB AUDIO 2 CH / 10 CH (usb_app8.c)\n");
     test_descriptors();
-    test_safe_start();
+    test_two_ch();
     test_ring();
     test_mix();
     test_bus();

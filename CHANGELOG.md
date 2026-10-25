@@ -5,6 +5,16 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- **USB AUDIO 2 CH / 10 CH** (MENU, hold HOME; the owner's 8-track test build of 2026-10-26, "that works"): 10 CH sends
+  the master L R and the eight tracks T1..T8 (mono, each before PAN, the sends and the master's effects) to the
+  computer as a 10-channel USB audio input ("Hortator 8ch", 16-bit 44.1 kHz, 920 B packets); 2 CH (the default) is
+  the stereo master as before, byte for byte the same USB device. The change applies when the menu closes: the FM-1
+  leaves USB for 1 s and comes back as the other device, the sequencer and the sound playing on (CLK USB: the steps
+  wait for the clock up to 2 s after it). Saved in the settings record (the palette word's bit 12; older records: 2
+  CH). SAFE START is always 2 CH. The app's USB driver is usb_app8.c: the frozen usb_app.c plus marked insertions
+  only (tools/check_usb_fork.py); in 10 CH its 920 B packet is queued from every TIMER5 tick (10 kHz): at 2 kHz the
+  test build lost ~10 % of the frames (tears).
+
 ## 0.24.0 - 2026-10-25
 
 - **Parameter locks** (Elektron style; spec docs/superpowers/specs/2026-10-24-parameter-locks-design.md):

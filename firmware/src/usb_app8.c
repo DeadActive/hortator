@@ -1,18 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * Drum machine fork: 2026 DEADACTIVE (EXPERIMENT, branch usb8: a copy of usb_app.c, never released) */
-/* EXPERIMENT FELUCCA_USB8=1 (felucca.c includes this file instead of the frozen usb_app.c, which stays untouched;
- * the default build never compiles this file). The USB audio input carries 10 channels instead of 2:
- *   1-2 the master L R (as usb_app.c's stream), 3-10 the tracks T1..T8, mono: each track as the mix hears it
- *   (inserts, DIST, SLICER, mutes, COMP duck, LEVEL; fx.c mix_part, usb8_tap) before PAN, the sends, the buses and
- *   the master's limiter, at the master's level (the MASTER knob, or full with USB LEVEL FIXED).
- * 16-bit, 44.1 kHz: 44 / 45 frames of 20 B per 1 ms frame, 920 B in the largest packet (46 frames), under the
- * 1023 B a full-speed isochronous endpoint may carry. Channel names (UAC1 iChannelNames, strings 4..13):
- * "Master L", "Master R", "T1".."T8"; the product "Hortator 8ch", bcdDevice 3.81 (hosts cache per version).
- * SAFE START (SEQ held at power-on) serves usb_app.c's descriptors byte for byte (2 channels, "Hortator",
- * bcdDevice 3.11) and a 2-channel stream: the way to the web installer does not depend on the 10-channel
- * descriptors. Everything else (EP0, MIDI, SysEx, OTA, CDC) is usb_app.c's code unchanged.
- * usb_app.c's own text follows. */
+ * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+/* USB8 { */
+/* Drum machine fork: 2026 DEADACTIVE. usb_app8.c is the frozen usb_app.c plus the blocks marked USB8, insertions only:
+ * without them it is usb_app.c byte for byte (tools/check_usb_fork.py). The app compiles this file; the update loader
+ * keeps usb.c. MENU > USB AUDIO (ui_menu.c) picks the audio input the next enumeration presents (usb10, fx.c):
+ *   2 CH   usb_app.c's descriptors and stream, byte for byte (uac_*, unchanged code): the master, 16-bit stereo
+ *   10 CH  ten channels: 1-2 the master L R, 3-10 the tracks T1..T8 mono (fx.c usb8_track_tap: each track as the dry
+ *          mix gets it, before PAN, the sends and the master FX, at the master's level); 16-bit, 44.1 kHz, 920 B in
+ *          the largest packet (under a full-speed isochronous endpoint's 1023 B); "Hortator 8ch", bcdDevice 3.81,
+ *          channel names Master L, Master R, T1..T8 (strings 4..13). Its own ring and packets (uac8_*), EP4 polled
+ *          at 10 kHz (felucca.c fm1_timer5_irq): one packet buffer, and 920 B take 0.64 ms of the 1 ms frame.
+ * SAFE START presents 2 CH whatever the setting (ui.c drum_boot_init). */
+/* } USB8 */
 /* USB full-speed device on USB0: a
  * class-compliant USB-MIDI interface. All SIE traffic happens in one place,
  * usb_poll(), called from the TIMER5 ISR at 2 kHz, so INDEX is never shared
@@ -73,34 +72,17 @@ static struct {
  * band: ~5.8 ms). Measured under load (65 % CPU): a 64..112 band started renders at
  * 48..119 with no glitch; one render was once seen 29 frames under the floor: a packet (46) must
  * still be in hand then. */
-#define UA_N 512u                /* ring, frames (UA_W words each); a power of two */
+#define UA_N 512u                /* ring, frames (16-bit L | R << 16); a power of two */
 #define UA_PRIME 104u            /* silence ahead of the first rendered frame */
 #define UA_LO 80u                /* a render may start late: keep a packet and more in hand */
 #define UA_HI 128u
 #define UA_MAXF 46u              /* frames in the largest packet */
-#define UA_NCH 10u               /* USB8: master L R + T1..T8 */
-#define UA_NTRK 8u
-#define UA_W (UA_NCH / 2u)       /* words per ring frame: L | R << 16, T1 | T2 << 16, .. T7 | T8 << 16 */
-#define UAC_MAXP (UA_MAXF * 2u * UA_NCH)
-#define UAC_MAXP2 (UA_MAXF * 4u) /* SAFE START: usb_app.c's 2-channel stream */
+#define UAC_MAXP (UA_MAXF * 4u)
 #define UAC_RATE 44100u
-/* EP4 has one packet buffer: TxPktRdy stays set until the packet's last byte is on the wire, and the next packet must
- * be queued before the next frame's IN token, else the host gets an empty frame and the ring overflows (dropped
- * blocks: tears, ~10 % fewer frames a second; tests/usb8_test.c test_bus). 920 B take 0.64 ms of the 1 ms frame:
- * the 2 kHz poll (one every 0.5 ms) misses the 0.36 ms left about a third of the time (184 B: 0.13 ms, never).
- * USB8 polls EP4 on every TIMER5 tick (felucca.c usb8_t5_tick, 10 kHz) as well as in usb_poll. */
-#define USB8_POLL_HZ 10000u
-#define UAC_STALL_POLLS 240u     /* polls a queued packet may wait (12 k polls/s: 20 ms) before "not flowing" */
 _Static_assert(UA_HI + HALF_FRAMES + UA_MAXF < UA_N, "the ring holds the band, a render and a packet");
-_Static_assert(UAC_MAXP <= 1023u, "a full-speed isochronous packet is 1023 B at most");
-static uint32_t ua_ring[UA_N * UA_W] __attribute__((section(".pool")));   /* 10 KiB: zeroed at boot (crt) */
+static uint32_t ua_ring[UA_N];
 static volatile uint32_t ua_w, ua_r;
-static uint32_t ep4tx[UA_MAXF * UA_W] __attribute__((aligned(4)));
-/* the tracks' block (fx.c writes it in mix_part, before audio.c's uac_tap reads it); host tests define it */
-#ifndef USB8_TAP_DEFINED
-static int16_t usb8_tap[UA_NTRK][CTL];
-#endif
-static uint8_t usb8_mode(void);  /* 1: 10 channels; 0: SAFE START, usb_app.c's 2 (below the descriptors) */
+static uint32_t ep4tx[UA_MAXF] __attribute__((aligned(4)));
 static struct {
     volatile uint8_t alt;        /* streaming interface setting: 1 = the host records */
     volatile uint8_t go;         /* the ring is primed: the consumer reads it (0: silence packets) */
@@ -111,7 +93,7 @@ static struct {
     uint8_t e0_rx;               /* SET_CUR sampling frequency: data stage pending */
     volatile uint32_t fill_min;  /* ring fill when the last render started */
     uint32_t acc;                /* 44.1 frames per ms: 0.1 frame steps */
-    uint32_t last[UA_W];         /* the last frame sent, repeated on an underrun */
+    uint32_t last;               /* the last frame sent, repeated on an underrun */
     uint32_t starts, pkts, frames;               /* frames in packets sent from the ring */
     uint32_t underruns, overruns, missed;        /* glitches: ring empty (repeat), ring full (drop), no packet ready */
     uint32_t stalls;                             /* the host stopped reading for > 20 ms (alt still 1) */
@@ -119,6 +101,40 @@ static struct {
     uint32_t fill_lo, fill_hi;                   /* range of fill_min since the stream started */
 } uac;
 #endif
+/* USB8 { */
+#if FELUCCA_UAC && FELUCCA_CDC                         /* 10 CH: the default layout only (else always 2 CH) */
+#define USB8_OK 1
+#else
+#define USB8_OK 0
+#endif
+#ifndef USB8_TAP_DEFINED                                /* (fx.c defines them; parser-only host tests do not) */
+static volatile uint8_t usb10;
+static int16_t usb8_tap[8][CTL];
+#endif
+static void usb8_quiesce(void);                         /* the mode switch (ui_menu.c): nothing streams, MIDI out dropped */
+#if USB8_OK
+#define UA8_NCH 10u                                     /* master L R + T1..T8 */
+#define UA8_W (UA8_NCH / 2u)                            /* words a ring frame: L | R << 16, T1 | T2 << 16, .. */
+#define UAC8_MAXP (UA_MAXF * 2u * UA8_NCH)              /* 920 */
+#define UAC8_POLL_HZ 10000u                             /* uac8_service: every TIMER5 tick */
+#define UAC8_STALL_POLLS 200u                           /* 20 ms of polls */
+_Static_assert(UAC8_MAXP <= 1023u, "a full-speed isochronous packet is 1023 B at most");
+#if FELUCCA_BLE                                         /* the Bluetooth build's pool keeps its 8 KiB headroom only */
+static uint32_t ua8_ring[UA_N * UA8_W];                 /* without it: 10 KiB of .bss there */
+#else
+static uint32_t ua8_ring[UA_N * UA8_W] __attribute__((section(".pool")));   /* 10 KiB, zeroed at boot */
+#endif
+static volatile uint32_t ua8_w, ua8_r;
+static uint32_t ep4tx8[UA_MAXF * UA8_W] __attribute__((aligned(4)));
+static struct {                                        /* as uac, for the 10-channel stream */
+    volatile uint8_t alt, go, flowing;
+    uint8_t queued, feed, wait;
+    volatile uint32_t fill_min;
+    uint32_t acc, last[UA8_W];
+    uint32_t starts, pkts, frames, underruns, overruns, missed, stalls, adj_up, adj_down, fill_lo, fill_hi;
+} uac8;
+#endif
+/* } USB8 */
 
 static struct {
     uint8_t up, config, pend_addr, has_pend_addr, e0_tx, e0_zlp;
@@ -232,7 +248,7 @@ static const uint8_t CFG_DESC[] = {
     7, 0x24, 1, 2, 1, 0x01, 0x00,                       /* AS general: terminal 2, delay 1, PCM */
     11, 0x24, 2, 1, 2, 2, 16, 1, UAC_RATE & 0xFF, (UAC_RATE >> 8) & 0xFF, UAC_RATE >> 16,
                                                         /* type I: 2 ch, 16 bit, one rate */
-    9, 5, 0x84, 0x05, UAC_MAXP2 & 0xFF, UAC_MAXP2 >> 8, 1, 0, 0,   /* EP4 IN isochronous async, 1 ms */
+    9, 5, 0x84, 0x05, UAC_MAXP & 0xFF, UAC_MAXP >> 8, 1, 0, 0,   /* EP4 IN isochronous async, 1 ms */
     7, 0x25, 1, 0x01, 0, 0, 0,                          /* CS endpoint: sampling frequency control */
 #endif
 #if FELUCCA_CDC
@@ -249,23 +265,26 @@ static const uint8_t CFG_DESC[] = {
 #endif
 };
 typedef char cfg_len_ok[sizeof CFG_DESC == CFG_LEN ? 1 : -1];
-/* USB8: usb_app.c's DEV_DESC / CFG_DESC above serve SAFE START byte for byte (the stock 2-channel stream: UAC_MAXP2
- * is usb_app.c's UAC_MAXP); the 10-channel set below serves every other start. The same interfaces, endpoints and
- * lengths (the default build's CDC + UAC layout only); what differs: bcdDevice 3.81, the input terminal's and the
- * format's channel count (10), the terminal's channel names (no spatial positions: strings 4..13 name all ten),
- * EP4's wMaxPacketSize (920). */
-#if !FELUCCA_CDC || !FELUCCA_UAC
-#error "FELUCCA_USB8: the 10-channel descriptors are for the default layout (FELUCCA_CDC=1, FELUCCA_UAC=1)"
+static const uint8_t STR0[4] = {4, 3, 0x09, 0x04};
+static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, 't', 0, 'o', 0, 'n', 0, ' ', 0, 'I', 0,
+                               'n', 0, 's', 0, 't', 0, 'r', 0, 'u', 0, 'm', 0, 'e', 0, 'n', 0, 't', 0, 's', 0};
+#ifdef FELUCCA_LOADER
+static const uint8_t STR2[] = {30, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0, ' ', 0, 'U', 0, 'p', 0,
+                               'd', 0, 'a', 0, 't', 0, 'e', 0};
+#else
+static const uint8_t STR2[] = {18, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't', 0, 'o', 0, 'r', 0};
 #endif
-#define USB8_STR_CH 4u           /* string index of channel 1's name */
+/* USB8 { */
+#if USB8_OK
+#define USB8_STR_CH 4u                                  /* string index of channel 1's name */
 static const uint8_t DEV8_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00,
                                       0x81, 0x03, 1, 2, 0, 1};                /* misc/IAD, bcdDevice 3.81 */
-static const uint8_t CFG8_DESC[] = {
+static const uint8_t CFG8_DESC[] = {                   /* CFG_DESC, but 10 channels, named; wMaxPacketSize 920 */
     9, 2, CFG_LEN & 0xFF, CFG_LEN >> 8, USB_NIF, 1, 0, 0x80, 50,
     8, 0x0B, 0, 3, 1, 1, 0, 0,                          /* IAD: audio + MIDI (IF 0-2) */
     9, 4, 0, 0, 0, 1, 1, 0, 0,
     10, 0x24, 1, 0x00, 0x01, 31, 0, 2, 1, UAC_AS_IF,    /* AC header 1.00: MIDI + audio streaming */
-    12, 0x24, 2, 1, 0x03, 0x06, 0, UA_NCH, 0x00, 0x00, USB8_STR_CH, 0,
+    12, 0x24, 2, 1, 0x03, 0x06, 0, UA8_NCH, 0x00, 0x00, USB8_STR_CH, 0,
                                                         /* input terminal 1: line, 10 ch, named (strings 4..13) */
     9, 0x24, 3, 2, 0x01, 0x01, 0, 1, 0,                 /* output terminal 2: USB streaming, from 1 */
     9, 4, 1, 0, 2, 1, 3, 0, 0,
@@ -281,9 +300,9 @@ static const uint8_t CFG8_DESC[] = {
     9, 4, UAC_AS_IF, 0, 0, 1, 2, 0, 0,                  /* IF2 audio streaming, alt 0: no bandwidth */
     9, 4, UAC_AS_IF, 1, 1, 1, 2, 0, 0,                  /* alt 1: the stream */
     7, 0x24, 1, 2, 1, 0x01, 0x00,                       /* AS general: terminal 2, delay 1, PCM */
-    11, 0x24, 2, 1, UA_NCH, 2, 16, 1, UAC_RATE & 0xFF, (UAC_RATE >> 8) & 0xFF, UAC_RATE >> 16,
+    11, 0x24, 2, 1, UA8_NCH, 2, 16, 1, UAC_RATE & 0xFF, (UAC_RATE >> 8) & 0xFF, UAC_RATE >> 16,
                                                         /* type I: 10 ch, 16 bit, one rate */
-    9, 5, 0x84, 0x05, UAC_MAXP & 0xFF, UAC_MAXP >> 8, 1, 0, 0,   /* EP4 IN isochronous async, 1 ms, 920 B */
+    9, 5, 0x84, 0x05, UAC8_MAXP & 0xFF, UAC8_MAXP >> 8, 1, 0, 0,   /* EP4 IN isochronous async, 1 ms, 920 B */
     7, 0x25, 1, 0x01, 0, 0, 0,                          /* CS endpoint: sampling frequency control */
     8, 0x0B, CDC_IF, 2, 2, 2, 1, 0,                     /* IAD: CDC ACM (IF 3-4) */
     9, 4, CDC_IF, 0, 1, 2, 2, 1, 0,                     /* communication */
@@ -296,54 +315,62 @@ static const uint8_t CFG8_DESC[] = {
     7, 5, 0x03, 2, 64, 0, 0,                            /* EP3 OUT bulk */
     7, 5, 0x83, 2, 64, 0, 0,                            /* EP3 IN bulk */
 };
-typedef char cfg8_len_ok[sizeof CFG8_DESC == CFG_LEN ? 1 : -1];
-static const uint8_t STR0[4] = {4, 3, 0x09, 0x04};
-static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, 't', 0, 'o', 0, 'n', 0, ' ', 0, 'I', 0,
-                               'n', 0, 's', 0, 't', 0, 'r', 0, 'u', 0, 'm', 0, 'e', 0, 'n', 0, 't', 0, 's', 0};
-#ifdef FELUCCA_LOADER
-static const uint8_t STR2[] = {30, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0, ' ', 0, 'U', 0, 'p', 0,
-                               'd', 0, 'a', 0, 't', 0, 'e', 0};
-#else
-static const uint8_t STR2[] = {18, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't', 0, 'o', 0, 'r', 0};
-#endif
+typedef char cfg8_len_ok[sizeof CFG8_DESC == CFG_LEN && sizeof CFG8_DESC == sizeof CFG_DESC ? 1 : -1];
 static const uint8_t STR8_2[] = {26, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't', 0, 'o', 0, 'r', 0, ' ', 0,
                                  '8', 0, 'c', 0, 'h', 0};                     /* "Hortator 8ch" */
 static const uint8_t STR8_ML[] = {18, 3, 'M', 0, 'a', 0, 's', 0, 't', 0, 'e', 0, 'r', 0, ' ', 0, 'L', 0};
 static const uint8_t STR8_MR[] = {18, 3, 'M', 0, 'a', 0, 's', 0, 't', 0, 'e', 0, 'r', 0, ' ', 0, 'R', 0};
-static uint8_t str8_trk[6] = {6, 3, 'T', 0, '1', 0};   /* "T1".."T8": the digit set per request (EP0, one at a time) */
-
-static uint8_t usb8_mode(void) { return !safe_start; }  /* drum_core.c: SEQ held at power-on (before usb_start) */
+static uint8_t str8_trk[6] = {6, 3, 'T', 0, '1', 0};   /* "T1".."T8": the digit set per request (EP0: one at a time) */
+#endif
+/* 10 CH's descriptors (device, configuration, the product, the channel names); 0: usb_app.c's answer (2 CH) */
+static int usb8_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
+{
+#if USB8_OK
+    uint32_t t = wvalue >> 8, i = wvalue & 0xFFu;
+    if (!usb10)
+        return 0;
+    if (t == 1u || t == 2u) {
+        *d = t == 1u ? DEV8_DESC : CFG8_DESC;
+        *l = t == 1u ? sizeof DEV8_DESC : sizeof CFG8_DESC;
+        return 1;
+    }
+    if (t == 3u && i == 2u) {
+        *d = STR8_2;
+        *l = sizeof STR8_2;
+        return 1;
+    }
+    if (t == 3u && i >= USB8_STR_CH && i < USB8_STR_CH + UA8_NCH) {
+        i -= USB8_STR_CH;
+        if (i < 2u) {
+            *d = i ? STR8_MR : STR8_ML;
+            *l = sizeof STR8_ML;
+        } else {
+            str8_trk[4] = (uint8_t)('1' + i - 2u);
+            *d = str8_trk;
+            *l = sizeof str8_trk;
+        }
+        return 1;
+    }
+#else
+    (void)wvalue, (void)d, (void)l;
+#endif
+    return 0;
+}
+/* } USB8 */
 
 static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
 {
-    uint32_t i8 = usb8_mode();
+    /* USB8 { */ if (usb8_desc(wvalue, d, l)) return 1; /* } USB8 */
     switch (wvalue >> 8) {
     case 1:
-        *d = i8 ? DEV8_DESC : DEV_DESC;
+        *d = DEV_DESC;
         *l = sizeof DEV_DESC;
         return 1;
     case 2:
-        *d = i8 ? CFG8_DESC : CFG_DESC;
+        *d = CFG_DESC;
         *l = sizeof CFG_DESC;
         return 1;
     case 3:
-        if (i8 && (wvalue & 0xFFu) == 2u) {
-            *d = STR8_2;
-            *l = sizeof STR8_2;
-            return 1;
-        }
-        if (i8 && (wvalue & 0xFFu) >= USB8_STR_CH && (wvalue & 0xFFu) < USB8_STR_CH + UA_NCH) {
-            uint32_t ch = (wvalue & 0xFFu) - USB8_STR_CH;
-            if (ch < 2u) {
-                *d = ch ? STR8_MR : STR8_ML;
-                *l = sizeof STR8_ML;
-            } else {
-                str8_trk[4] = (uint8_t)('1' + ch - 2u);
-                *d = str8_trk;
-                *l = sizeof str8_trk;
-            }
-            return 1;
-        }
         switch (wvalue & 0xFFu) {
         case 0:
             *d = STR0;
@@ -415,17 +442,35 @@ static void uac_stream(uint32_t alt)                    /* SET_INTERFACE, config
     RING_PUBLISH();
     uac.alt = (uint8_t)alt;
     uac.acc = 0;
-    {
-        uint32_t k;
-        for (k = 0; k < UA_W; k++)
-            uac.last[k] = 0;
-    }
+    uac.last = 0;
     if (alt) {                                          /* (the fill range of the last stream stays readable) */
         uac.starts++;
         uac.fill_lo = 0xFFFFFFFFu;
         uac.fill_hi = 0;
     }
 }
+/* USB8 { */
+#if USB8_OK
+static void uac8_stream(uint32_t alt)                   /* uac_stream for the 10-channel stream */
+{
+    uint32_t k;
+    uac8.go = 0;
+    uac8.flowing = 0;
+    uac8.queued = 0;
+    uac8.wait = 0;
+    RING_PUBLISH();
+    uac8.alt = (uint8_t)alt;
+    uac8.acc = 0;
+    for (k = 0; k < UA8_W; k++)
+        uac8.last[k] = 0;
+    if (alt) {
+        uac8.starts++;
+        uac8.fill_lo = 0xFFFFFFFFu;
+        uac8.fill_hi = 0;
+    }
+}
+#endif
+/* } USB8 */
 #endif
 
 static void ep1_config(void)
@@ -467,6 +512,11 @@ static void ep1_config(void)
     uac_ep4_reset();
     fm1_usb_ep_enable(1u << 4);
     uac_stream(0);
+    /* USB8 { */
+#if USB8_OK
+    uac8_stream(0);
+#endif
+    /* } USB8 */
 #endif
 }
 
@@ -589,6 +639,12 @@ static void ep0_service(void)
 #if FELUCCA_UAC
         if (usb.config != 1u)
             uac_stream(0);
+    /* USB8 { */
+#if USB8_OK
+        if (usb.config != 1u)
+            uac8_stream(0);
+#endif
+    /* } USB8 */
 #endif
         goto ack;
     case 0x8008:
@@ -600,6 +656,15 @@ static void ep0_service(void)
         e0_send(zero2, 2, wlength);
         return;
     case 0x010B:                                        /* SET_INTERFACE: alt 0 (alt 1 for the audio stream) */
+    /* USB8 { */
+#if USB8_OK
+        if (usb10 && s[4] == UAC_AS_IF && wvalue <= 1u && usb.config) {
+            uac_ep4_reset();
+            uac8_stream(wvalue);
+            goto ack;
+        }
+#endif
+    /* } USB8 */
 #if FELUCCA_UAC
         if (s[4] == UAC_AS_IF && wvalue <= 1u && usb.config) {
             uac_ep4_reset();
@@ -611,6 +676,16 @@ static void ep0_service(void)
             goto ack;
         goto stall;
     case 0x810A:
+    /* USB8 { */
+#if USB8_OK
+        if (usb10 && s[4] == UAC_AS_IF) {
+            static uint8_t alt8;
+            alt8 = uac8.alt;
+            e0_send(&alt8, 1, wlength);
+            return;
+        }
+#endif
+    /* } USB8 */
 #if FELUCCA_UAC
         if (s[4] == UAC_AS_IF) {
             static uint8_t alt;
@@ -963,8 +1038,8 @@ static __attribute__((noinline)) void uac_render_start(void)   /* audio ISR, bef
     }
     if (!uac.go) {                                      /* (re)start: silence ahead, then this render */
         uint32_t r = ua_r, i;
-        for (i = 0; i < UA_PRIME * UA_W; i++)
-            ua_ring[((r + i / UA_W) & (UA_N - 1u)) * UA_W + i % UA_W] = 0;
+        for (i = 0; i < UA_PRIME; i++)
+            ua_ring[(r + i) & (UA_N - 1u)] = 0;
         RING_PUBLISH();
         ua_w = r + UA_PRIME;
         uac.fill_min = UA_PRIME;
@@ -985,8 +1060,7 @@ static inline int32_t uac_s16(int32_t v)
     return v > 32767 ? 32767 : v < -32768 ? -32768 : v;
 }
 
-/* audio ISR: one block. out: the master (Q15 stereo, audio.c), usb8_tap: the tracks' block (fx.c, 16 bit) */
-static __attribute__((noinline)) void uac_tap(const int32_t *out, uint32_t n)
+static __attribute__((noinline)) void uac_tap(const int32_t *out, uint32_t n)   /* audio ISR: one block (Q15) */
 {
     uint32_t w = ua_w, i;
     if (!uac.feed)
@@ -995,42 +1069,38 @@ static __attribute__((noinline)) void uac_tap(const int32_t *out, uint32_t n)
         uac.overruns++;
         return;
     }
-    for (i = 0; i < n; i++) {
-        uint32_t *f = &ua_ring[((w + i) & (UA_N - 1u)) * UA_W], k;
 #if FELUCCA_UAC_TONE
-        /* bench: triangles of period 100 frames instead of the music (L, R in antiphase; the tracks as L): every
+    {   /* bench: triangles of period 100 frames instead of the music (L, R in antiphase): every
          * recorded frame must follow the one before, so a lost or repeated frame shows exactly */
         static uint32_t ph;
-        uint32_t q = ph < 50u ? ph : 100u - ph, q2 = ph < 50u ? 50u - ph : ph - 50u;
-        uint32_t a = (uint16_t)(int16_t)((int32_t)q * 1000 - 25000), b = (uint16_t)(int16_t)((int32_t)q2 * 1000 - 25000);
-        ph = ph == 99u ? 0u : ph + 1u;
-        f[0] = a | b << 16;
-        for (k = 1; k < UA_W; k++)
-            f[k] = a | a << 16;
+        for (i = 0; i < n; i++, ph = ph == 99u ? 0u : ph + 1u) {
+            uint32_t q = ph < 50u ? ph : 100u - ph, q2 = ph < 50u ? 50u - ph : ph - 50u;
+            ua_ring[(w + i) & (UA_N - 1u)] = (uint32_t)(uint16_t)(int16_t)((int32_t)q * 1000 - 25000) |
+                                             (uint32_t)(uint16_t)(int16_t)((int32_t)q2 * 1000 - 25000) << 16;
+        }
         (void)out;
-#else
-        f[0] = (uint32_t)(uint16_t)uac_s16(out[2u * i]) | (uint32_t)(uint16_t)uac_s16(out[2u * i + 1u]) << 16;
-        for (k = 1; k < UA_W; k++)
-            f[k] = (uint32_t)(uint16_t)usb8_tap[2u * k - 2u][i] | (uint32_t)(uint16_t)usb8_tap[2u * k - 1u][i] << 16;
-#endif
     }
+#else
+    for (i = 0; i < n; i++)
+        ua_ring[(w + i) & (UA_N - 1u)] = (uint32_t)(uint16_t)uac_s16(out[2u * i]) |
+                                         (uint32_t)(uint16_t)uac_s16(out[2u * i + 1u]) << 16;
+#endif
     RING_PUBLISH();
     ua_w = w + n;
 }
 
 /* the next packet into d: 44 / 45 frames (+-1 to hold the ring's fill), from the ring or, until it is
- * primed, silence. An empty ring repeats the last frame. Returns the frame count. USB8: a frame is UA_W words
- * (10 channels); in SAFE START (usb8_mode 0) only its first word, the master L R (usb_app.c's 2-channel packet). */
+ * primed, silence. An empty ring repeats the last frame. Returns the frame count. */
 static uint32_t uac_packet(uint32_t *d)
 {
-    uint32_t n = 44u, r, fill, k, i, j, fw = usb8_mode() ? UA_W : 1u;
+    uint32_t n = 44u, r, fill, k, i;
     uac.acc += UAC_RATE % 1000u;
     if (uac.acc >= 1000u) {
         uac.acc -= 1000u;
         n++;
     }
     if (!uac.go) {
-        for (i = 0; i < n * fw; i++)
+        for (i = 0; i < n; i++)
             d[i] = 0;
         return n;
     }
@@ -1045,19 +1115,15 @@ static uint32_t uac_packet(uint32_t *d)
     fill = ua_w - r;
     RING_PUBLISH();                                     /* the slots after the index */
     k = fill < n ? fill : n;
-    for (i = 0; i < k; i++) {
-        const uint32_t *f = &ua_ring[((r + i) & (UA_N - 1u)) * UA_W];
-        for (j = 0; j < fw; j++)
-            d[i * fw + j] = f[j];
-    }
+    for (i = 0; i < k; i++)
+        d[i] = ua_ring[(r + i) & (UA_N - 1u)];
     if (k < n) {
+        uint32_t last = k ? d[k - 1u] : uac.last;
         uac.underruns++;
         for (; i < n; i++)
-            for (j = 0; j < fw; j++)
-                d[i * fw + j] = k ? d[(k - 1u) * fw + j] : uac.last[j];
+            d[i] = last;
     }
-    for (j = 0; j < fw; j++)
-        uac.last[j] = d[(n - 1u) * fw + j];
+    uac.last = d[n - 1u];
     RING_PUBLISH();
     ua_r = r + k;
     uac.pkts++;
@@ -1069,7 +1135,7 @@ static uint32_t uac_packet(uint32_t *d)
  * next one as soon as the last has gone (TxPktRdy clear). Not paced on SOF-pending (see usb_poll).
  * The ring is fed only while the host reads: it often selects alt 1 long before its first IN token,
  * and a recorder may stop reading without going back to alt 0 (a packet waiting > 20 ms). */
-static void uac_service(void)    /* (USB8: also every TIMER5 tick, felucca.c usb8_t5_tick; never nested in usb_poll) */
+static void uac_service(void)
 {
     uint32_t csr, n;
     if (!usb.up || !usb.config || !uac.alt)
@@ -1077,7 +1143,7 @@ static void uac_service(void)    /* (USB8: also every TIMER5 tick, felucca.c usb
     sie_wr(S_INDEX, 4);
     csr = sie_rd(S_TXCSR1);
     if (csr & 0x01u) {                                  /* still queued */
-        if (uac.wait < 255u && ++uac.wait == UAC_STALL_POLLS && uac.flowing) {
+        if (uac.wait < 255u && ++uac.wait == 40u && uac.flowing) {
             uac.flowing = 0;
             uac.stalls++;
         }
@@ -1091,10 +1157,151 @@ static void uac_service(void)    /* (USB8: also every TIMER5 tick, felucca.c usb
     uac.queued = 1;
     uac.wait = 0;
     n = uac_packet(ep4tx);
-    fm1_usb_ep4_send(ep4tx, n * (usb8_mode() ? 2u * UA_NCH : 4u));   /* 20 B a frame (SAFE START: 4) */
+    fm1_usb_ep4_send(ep4tx, n * 4u);
     sie_wr(S_TXCSR1, 0x01);                             /* TxPktRdy (and UnderRun cleared) */
 }
 #endif
+/* USB8 { */
+#if USB8_OK
+/* ---- 10 CH: audio.c produces (uac8_render_start, uac8_tap), TIMER5 consumes (uac8_service); as uac_*, a frame being
+ * UA8_W words ---- */
+static __attribute__((noinline)) void uac8_render_start(void)   /* audio ISR, before a half buffer renders */
+{
+    uint32_t fill;
+    uac8.feed = uac8.alt && usb.config && uac8.flowing;
+    if (!uac8.feed) {
+        uac8.go = 0;
+        return;
+    }
+    if (!uac8.go) {                                     /* (re)start: silence ahead, then this render */
+        uint32_t r = ua8_r, i;
+        for (i = 0; i < UA_PRIME * UA8_W; i++)
+            ua8_ring[((r + i / UA8_W) & (UA_N - 1u)) * UA8_W + i % UA8_W] = 0;
+        RING_PUBLISH();
+        ua8_w = r + UA_PRIME;
+        uac8.fill_min = UA_PRIME;
+        RING_PUBLISH();
+        uac8.go = 1;
+        return;
+    }
+    fill = ua8_w - ua8_r;
+    uac8.fill_min = fill;
+    if (fill < uac8.fill_lo)
+        uac8.fill_lo = fill;
+    if (fill > uac8.fill_hi)
+        uac8.fill_hi = fill;
+}
+
+/* audio ISR: one block. out: the master (Q15 stereo, audio.c), usb8_tap: the tracks' block (fx.c, 16 bit) */
+static __attribute__((noinline)) void uac8_tap(const int32_t *out, uint32_t n)
+{
+    uint32_t w = ua8_w, i, k;
+    if (!uac8.feed)
+        return;
+    if (UA_N - (w - ua8_r) < n) {                       /* nobody reads: drop the block */
+        uac8.overruns++;
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        uint32_t *f = &ua8_ring[((w + i) & (UA_N - 1u)) * UA8_W];
+        f[0] = (uint32_t)(uint16_t)uac_s16(out[2u * i]) | (uint32_t)(uint16_t)uac_s16(out[2u * i + 1u]) << 16;
+        for (k = 1; k < UA8_W; k++)
+            f[k] = (uint32_t)(uint16_t)usb8_tap[2u * k - 2u][i] | (uint32_t)(uint16_t)usb8_tap[2u * k - 1u][i] << 16;
+    }
+    RING_PUBLISH();
+    ua8_w = w + n;
+}
+
+/* the next packet into d (n frames of UA8_W words): uac_packet's pacing, fill band and underrun repeat */
+static uint32_t uac8_packet(uint32_t *d)
+{
+    uint32_t n = 44u, r, fill, k, i, j;
+    uac8.acc += UAC_RATE % 1000u;
+    if (uac8.acc >= 1000u) {
+        uac8.acc -= 1000u;
+        n++;
+    }
+    if (!uac8.go) {
+        for (i = 0; i < n * UA8_W; i++)
+            d[i] = 0;
+        return n;
+    }
+    if (uac8.fill_min > UA_HI) {
+        n++;
+        uac8.adj_up++;
+    } else if (uac8.fill_min < UA_LO) {
+        n--;
+        uac8.adj_down++;
+    }
+    r = ua8_r;
+    fill = ua8_w - r;
+    RING_PUBLISH();
+    k = fill < n ? fill : n;
+    for (i = 0; i < k; i++) {
+        const uint32_t *f = &ua8_ring[((r + i) & (UA_N - 1u)) * UA8_W];
+        for (j = 0; j < UA8_W; j++)
+            d[i * UA8_W + j] = f[j];
+    }
+    if (k < n) {
+        uac8.underruns++;
+        for (; i < n; i++)
+            for (j = 0; j < UA8_W; j++)
+                d[i * UA8_W + j] = k ? d[(k - 1u) * UA8_W + j] : uac8.last[j];
+    }
+    for (j = 0; j < UA8_W; j++)
+        uac8.last[j] = d[(n - 1u) * UA8_W + j];
+    RING_PUBLISH();
+    ua8_r = r + k;
+    uac8.pkts++;
+    uac8.frames += n;
+    return n;
+}
+
+/* TIMER5, every tick (10 kHz, felucca.c), also nested in the render: as uac_service. EP4 has one packet buffer and
+ * TxPktRdy stays set while 920 B are on the wire (0.64 ms): the next packet must be queued in the 0.36 ms left
+ * before the next frame's IN token, which a 2 kHz poll misses about a third of the time (tests/usb8_test.c) */
+static void uac8_service(void)
+{
+    uint32_t csr, n;
+    if (!usb.up || !usb.config || !uac8.alt)
+        return;
+    sie_wr(S_INDEX, 4);
+    csr = sie_rd(S_TXCSR1);
+    if (csr & 0x01u) {                                  /* still queued */
+        if (uac8.wait < 255u && ++uac8.wait == UAC8_STALL_POLLS && uac8.flowing) {
+            uac8.flowing = 0;
+            uac8.stalls++;
+        }
+        return;
+    }
+    if (uac8.queued) {
+        if (csr & 0x04u)
+            uac8.missed++;                              /* UnderRun: an IN token found nothing queued */
+        uac8.flowing = 1;
+    }
+    uac8.queued = 1;
+    uac8.wait = 0;
+    n = uac8_packet(ep4tx8);
+    fm1_usb_ep4_send(ep4tx8, n * 2u * UA8_NCH);
+    sie_wr(S_TXCSR1, 0x01);                             /* TxPktRdy (and UnderRun cleared) */
+}
+#endif
+/* the mode switch (ui_menu.c, main loop, after usb_detach: usb.up is 0, so no poll runs): the next host starts from
+ * nothing, as after a bus reset */
+static void usb8_quiesce(void)
+{
+    usb.config = 0;
+    usb.suspended = 0;
+    mo_r = mo_w;
+    usb.sx_on = 0;
+#if FELUCCA_UAC
+    uac_stream(0);
+#endif
+#if USB8_OK
+    uac8_stream(0);
+#endif
+}
+/* } USB8 */
 
 static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
 {
@@ -1160,6 +1367,11 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
 #if FELUCCA_UAC
         uac.e0_rx = 0;
         uac_stream(0);
+    /* USB8 { */
+#if USB8_OK
+        uac8_stream(0);
+#endif
+    /* } USB8 */
 #endif
         fm1_usb_ep0_buf(ep0buf);
         sie_wr(S_INTRUSBE, 0x07);

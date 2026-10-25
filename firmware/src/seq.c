@@ -667,8 +667,9 @@ static void events_block(uint32_t n)
         seq_n = song.playing ? 0u : n;               /* of this block are read, as upstream: a tempo change rescales */
         if (song.playing) {                          /* first, then this block's advance is in the new units) */
             uint32_t last = midi_clock.have_pulse ? midi_clock.last_ms : midi_clock.start_ms;
-            if (fm1_ms - last > 500u) {
-                seq_stop();                          /* the clock lost (a cable out): stop, nothing left running */
+            if (fm1_ms - last > 500u && (clock_mode != 1u || (int32_t)(fm1_ms - usb_hold_until) >= 0)) {
+                seq_stop();                          /* the clock lost (a cable out): stop, nothing left running (CLK
+                                                      * USB: not while MENU > USB AUDIO reconnects, ui_menu.c) */
                 midi_clock.tempo_valid = 0;
             } else {
                 seq_n = midi_clock_advance(fm1_ms);

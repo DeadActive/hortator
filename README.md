@@ -65,7 +65,8 @@ firmware ([below](#back-to-the-official-firmware)).
 - **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
   REC, next / previous track, or holds a PERFORM effect ([below](#midi-learn)).
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
-  into a DAW over its USB cable. On a computer or an iPad it shows up as **Hortator** (USB MIDI and audio, in a DAW
+  into a DAW over its USB cable, the master or, with MENU USB AUDIO 10 CH, the eight tracks on their own too
+  ([below](#usb-audio-2-or-10-channels)). On a computer or an iPad it shows up as **Hortator** (USB MIDI and audio, in a DAW
   or AUM; earlier versions: Felucca); while an update is being written it shows up as **Felucca Update**
   (the update loader, upstream Felucca's). The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
   keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
@@ -239,6 +240,31 @@ YES in a dialog, OK in the menu, NAME's RENAME, MIDI LEARN's DONE, the PRESETS l
 way back (NO, CANCEL, BACK, LAYER's OCT-) is lit; KEYS' octave shift lit as before. KNOB 1 on the row steps through the
 levels, OCT+ steps on and wraps. A device setting: saved when the menu closes, not part of projects; OFF until it is
 set. A safe start keeps every LED dark, as before.
+
+### USB audio: 2 or 10 channels
+
+The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI Setup records it over the cable,
+16-bit, 44.1 kHz. MENU (hold HOME) **USB AUDIO** picks what it sends:
+
+- **2 CH** (the default): the master, stereo, exactly as before. The device is **Hortator**.
+- **10 CH**: channels 1-2 the master L R (with every effect, as in 2 CH), channels 3-10 the tracks **T1..T8**, one
+  mono channel each: the track as the mix gets it (its RESON, FILTER, DIST, SLICER, mute, COMP duck and LEVEL), before
+  PAN, the CHOR / DLY / REV sends and the master's effects and limiter, at the MASTER level (or full level with USB
+  LEVEL FIXED). The device is **Hortator 8ch**; hosts that read channel names show Master L, Master R, T1 .. T8. Record
+  the eight tracks on their own and mix them in the DAW; with the pans in the middle and no sends, T1 .. T8 add up
+  to the master.
+
+KNOB 1 on the row: right 10 CH, left 2 CH; OCT+ toggles. The change reaches the computer when the menu closes: the
+FM-1 leaves USB for a second (`USB RECONNECT: 10 CH` in the top bar) and comes back as the other device. The
+sequencer and the sound play on; MIDI in and out work again once the computer has found the device (a DAW may list
+Hortator and Hortator 8ch as two devices: choose the one shown). Following **CLK USB**, the clock pauses with the
+cable (`CLK USB PAUSED`): the steps wait up to 2 s after the reconnect for the clock to come back, then stop as when
+the cable is pulled. A device setting: saved, not part of projects. A **safe start** (SEQ held at power-on) is always
+2 CH, and the installers and the editor find the FM-1 under both names.
+
+Computers: macOS and iPadOS take the 10 channels (class-compliant USB audio 1.0). Linux takes them. **Windows may not
+accept 10 CH** (its USB audio 1.0 driver and the channel layout): use 2 CH there. 10 CH uses about 920 bytes of every
+1 ms USB frame (2 CH: 184): plug the FM-1 straight into the computer or a hub with little else on it.
 
 ### CPU and PRIO
 

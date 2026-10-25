@@ -222,6 +222,24 @@ Report what you saw first; we'll go through it together.
   the speaker / headphones follow the knob.
 - With nothing recording (DAW closed or another input chosen), the CPU meter is as without USB audio.
 
+### USB AUDIO 10 CH (check on the FM-1)
+
+- MENU > USB AUDIO shows 2 CH after the install (an older settings record reads 2 CH); Audio MIDI Setup lists
+  **Hortator**, 2 channels, as before.
+- Set 10 CH and close the menu (OCT-) while a pattern plays: `USB RECONNECT: 10 CH`; the sound and the steps go on;
+  about a second later Audio MIDI Setup lists **Hortator 8ch**, 10 channels, 44.1 kHz.
+- In a DAW / AUM: 10 inputs (named Master L, Master R, T1 .. T8 where the host shows names). Record T1 .. T8 on eight
+  mono tracks and the master on a stereo one for 5 minutes of a heavy kit: no tears or dropouts; each track on its
+  own channel, nothing of the others in it; with the pans centred and no sends, the eight summed sound like the master.
+  Optional: console `status`: `usb_audio_10ch 1`, `uac8_underruns 0`, `uac8_missed 0` (or a few), `uac8_rate_hz`
+  near 44100.
+- MIDI from the DAW plays after the reconnect (choose the Hortator 8ch port if the DAW lists it as new). CLK USB: the
+  steps pause with the reconnect and go on with the DAW's clock; without it they stop 2 s after.
+- Power off and on: 10 CH is kept (Hortator 8ch). SAFE START (SEQ held): **Hortator**, 2 channels, and the installer
+  finds it there. The installer and the editor also find Hortator 8ch.
+- Back to 2 CH, close the menu: Hortator again; the CPU meter as before 10 CH. Windows: note whether it accepts 10
+  CH (it may not).
+
 ### MIDI clock (check on the FM-1)
 
 - GLOBAL > CLK USB, a DAW sending MIDI clock to the FM-1: the DAW's Start / Stop / Continue start, stop and resume

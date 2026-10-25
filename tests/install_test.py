@@ -183,11 +183,13 @@ def wire():
 def port_names():
     """the default port filter: the FM-1 under each firmware's USB name, as each OS names its MIDI port"""
     mine = ["Hortator", "Hortator Port 1", "Hortator MIDI 1", "Hortator 1", "Hortator:Hortator MIDI 1 20:0",
-            "HORTATOR", "Felucca", "Felucca Port 1", "Felucca MIDI 1", "Felucca Update", "Felucca Update MIDI 1", "FM-1"]
+            "HORTATOR", "Felucca", "Felucca Port 1", "Felucca MIDI 1", "Felucca Update", "Felucca Update MIDI 1", "FM-1",
+            "Hortator 8ch", "Hortator 8ch MIDI 1", "Hortator 8ch Port 1", "Hortator 8ch:Hortator 8ch MIDI 1 20:0"]   # USB AUDIO 10 CH
     ok(all(I.PORT_RE.search(n) for n in mine), "port filter: Hortator / Felucca / Felucca Update in each OS's naming")
     ok(not any(I.PORT_RE.search(n) for n in ["IAC Driver Bus 1", "Network Session 1", "Launchpad X"]),
        "port filter: other gear is never probed")
-    ok(all(I.Updater(FakeFM1(b"", name=n), None).candidates(True) == [n] for n in ("Hortator MIDI 1", "Felucca Update")),
+    ok(all(I.Updater(FakeFM1(b"", name=n), None).candidates(True) == [n] for n in ("Hortator MIDI 1", "Felucca Update",
+                                                                                "Hortator 8ch MIDI 1")),
        "port filter: the installer's candidates include a Hortator port")
 
 

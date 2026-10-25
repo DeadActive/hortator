@@ -36,11 +36,7 @@ static void fm1_irq_on(void) { host_irq_on++; }
 #include "../firmware/src/slicer.c"
 #include "../firmware/src/fx.c"
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
-#if defined(FELUCCA_USB8) && FELUCCA_USB8
-#include "../firmware/src/usb_app8.c"                /* EXPERIMENT (branch usb8): tests/usb8_test.c */
-#else
-#include "../firmware/src/usb_app.c"
-#endif
+#include "../firmware/src/usb_app8.c"                /* the app's driver: usb_app.c + USB AUDIO 10 CH */
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"

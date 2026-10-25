@@ -591,6 +591,7 @@ static void safe_start_check(void)
 static void drum_boot_init(void)
 {
     safe_start_check();
+    usb10 = (uint8_t)(USB8_OK && (usbaud & 1u) && !safe_start);   /* MENU > USB AUDIO (usb_start follows; SAFE START: 2 CH) */
     drum_tracks_init();
     home_tracks();                                     /* HOME's TRACKS mode (spec §3) */
     ui.force = 1;

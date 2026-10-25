@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #define __attribute__(x)
+#define SIM_HOST 1                                    /* (firmware: no USB hardware, ui_menu.c) */
 #define memset felucca_memset
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
@@ -134,7 +135,7 @@ static void sim_mark(uint32_t off, uint32_t n)
 #include "../firmware/src/drum_core.c"
 #include "../firmware/src/slicer.c"
 #include "../firmware/src/fx.c"
-#include "../firmware/src/usb_app.c"
+#include "../firmware/src/usb_app8.c"
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
