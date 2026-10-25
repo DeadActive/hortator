@@ -9307,6 +9307,86 @@ static void test_head_lock_icon(void)
     check("STEPS: a padlock in the top bar on every page (SOUND, FX, LFO, SEQ, HOME); TRACKS: none", ok);
 }
 
+/* release check 2026-10-25: the held step's "LOCK STEP n" line drawn whole (no glyph cut by a neighbour's paint), on
+ * the top bar of every page where a step can be held in STEPS, and in HOME's strip */
+static uint16_t ref_px[16 * 240];
+static int text_whole(const char *t, uint32_t y0, uint32_t y1, uint16_t fg, uint16_t bg)   /* t somewhere in rows y0..y1 */
+{
+    uint32_t w = (uint32_t)md_text_w(&MD_F3, 2, t), h = 10u, x, y, i, j, good;
+    cv_begin(w, h, bg);
+    md_text(0, 0, &MD_F3, 2, t, fg);
+    for (i = 0; i < w * h; i++)
+        ref_px[i] = (uint16_t)((cv_px[i] >> 8) | (cv_px[i] << 8));
+    for (y = y0; y + h <= y1 + 1u; y++)
+        for (x = 0; x + w <= 240u; x++) {
+            for (j = 0, good = 1; good && j < h; j++)
+                for (i = 0; good && i < w; i++)
+                    good = fb[(y + j) * 240u + x + i] == ref_px[j * w + i];
+            if (good)
+                return 1;
+        }
+    return 0;
+}
+static int lock_line_whole_now(const char *where);
+static int lock_line_whole(const char *where)    /* as the frames left it, and after a full repaint */
+{
+    int ok = lock_line_whole_now(where);
+    ui.force = 1;
+    ui_frame();
+    return ok && lock_line_whole_now(where);
+}
+static int lock_line_whole_now(const char *where)
+{
+    char t[16];
+    int ok;
+    snprintf(t, sizeof t, "LOCK STEP %u", (unsigned)lock_view_step() + 1u);
+    ok = lock_view_step() < NSTEP && text_whole(t, 0, 15, C_BG, C_INK);   /* the top bar: BG on the ink bar */
+    if (ok && ui.home) {                                                  /* HOME's strip: its mode line, whole */
+        char sh[12];                                                      /* (its 58 px: "LOCK 5") */
+        snprintf(sh, sizeof sh, "LOCK %u", (unsigned)lock_view_step() + 1u);
+        ok = (text_whole(t, Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG) || text_whole(sh, Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG)) &&
+             !text_whole("LOCK ST", Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG);   /* (never cut: "LOCK ST..") */
+        ok = ok || (md_text_w(&MD_F3, 2, t) <= 57 && text_whole(t, Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG));
+    }
+    if (!ok)
+        printf("     LOCK STEP line not whole: %s\n", where);
+    return ok;
+}
+static void test_lock_line_whole_every_page(void)
+{
+    uint32_t i, ok = 1, n = 0;
+    lock_fresh();
+    for (i = 0; i < NPAGES; i++) {
+        uint32_t f = PAGES[i].fam;
+        if (f == FAM_SEQ || page_hidden(i))
+            continue;
+        open_page_at(i);
+        grid_down(WHITE[4]);
+        grid_wait(400);
+        if (lock_page()) {
+            ok &= (uint32_t)lock_line_whole(PAGES[i].title);
+            n++;
+        }
+        grid_up(WHITE[4]);
+        grid_wait(100);
+    }
+    home_screen();
+    ui_frame();
+    grid_down(WHITE[4]);
+    grid_wait(400);
+    ok &= (uint32_t)lock_line_whole("HOME");
+    snap_page("locks/home_held");
+    grid_up(WHITE[4]);
+    home_tracks();
+    ui_frame();
+    grid_down(WHITE[4]);
+    grid_wait(400);
+    ok &= (uint32_t)lock_line_whole("TRACKS");
+    grid_up(WHITE[4]);
+    check("locks: the LOCK STEP 5 line whole on every page a step can be held in STEPS (top bar; HOME's strip too)",
+          ok && n > 15u);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -9538,6 +9618,7 @@ int main(void)
     test_env_one_press_then_lock();
     test_env_one_press_after_states();
     test_head_lock_icon();
+    test_lock_line_whole_every_page();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

@@ -2515,6 +2515,11 @@ static void draw_home_strip(void)
         str_cpy(m, "SONG ", sizeof m);
         fmt_int(m + 5, (int32_t)chain.row + 1);
     }
+    if (lock_view_step() < NSTEP && 4 + md_text_w(&MD_F3, 2, m) > 61) {   /* the left block's 58 px (LEV's column
+                                                       * paints over more): "LOCK 5" (the top bar has LOCK STEP 5) */
+        str_cpy(m, "LOCK ", sizeof m);
+        fmt_int(m + 5, (int32_t)lock_view_step() + 1);
+    }
     pj[0] = 'P', pj[1] = 'R', pj[2] = 'O', pj[3] = 'J', pj[4] = ' ';
     pj[5] = (char)('A' + (uint32_t)(song.g[G_SLOT] > 0 ? song.g[G_SLOT] - 1 : 0) % 4u);
     pj[6] = 0;
