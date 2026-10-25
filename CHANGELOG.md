@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.24.0 - 2026-10-25
+
 - **Parameter locks** (Elektron style; spec docs/superpowers/specs/2026-10-24-parameter-locks-design.md):
   - ENV: the white keys as the selected track's steps on every page. ENV (unused before) toggles STEPS / TRACKS on
     its release, its LED lit and a padlock in the top bar (left of the battery, every page) in STEPS; the mode is global, not saved (off at power-on). In STEPS the keys tap / hold
