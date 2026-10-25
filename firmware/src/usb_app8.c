@@ -84,6 +84,13 @@ static struct {
 #define UAC_MAXP (UA_MAXF * 2u * UA_NCH)
 #define UAC_MAXP2 (UA_MAXF * 4u) /* SAFE START: usb_app.c's 2-channel stream */
 #define UAC_RATE 44100u
+/* EP4 has one packet buffer: TxPktRdy stays set until the packet's last byte is on the wire, and the next packet must
+ * be queued before the next frame's IN token, else the host gets an empty frame and the ring overflows (dropped
+ * blocks: tears, ~10 % fewer frames a second; tests/usb8_test.c test_bus). 920 B take 0.64 ms of the 1 ms frame:
+ * the 2 kHz poll (one every 0.5 ms) misses the 0.36 ms left about a third of the time (184 B: 0.13 ms, never).
+ * USB8 polls EP4 on every TIMER5 tick (felucca.c usb8_t5_tick, 10 kHz) as well as in usb_poll. */
+#define USB8_POLL_HZ 10000u
+#define UAC_STALL_POLLS 240u     /* polls a queued packet may wait (12 k polls/s: 20 ms) before "not flowing" */
 _Static_assert(UA_HI + HALF_FRAMES + UA_MAXF < UA_N, "the ring holds the band, a render and a packet");
 _Static_assert(UAC_MAXP <= 1023u, "a full-speed isochronous packet is 1023 B at most");
 static uint32_t ua_ring[UA_N * UA_W] __attribute__((section(".pool")));   /* 10 KiB: zeroed at boot (crt) */
@@ -1062,7 +1069,7 @@ static uint32_t uac_packet(uint32_t *d)
  * next one as soon as the last has gone (TxPktRdy clear). Not paced on SOF-pending (see usb_poll).
  * The ring is fed only while the host reads: it often selects alt 1 long before its first IN token,
  * and a recorder may stop reading without going back to alt 0 (a packet waiting > 20 ms). */
-static void uac_service(void)
+static void uac_service(void)    /* (USB8: also every TIMER5 tick, felucca.c usb8_t5_tick; never nested in usb_poll) */
 {
     uint32_t csr, n;
     if (!usb.up || !usb.config || !uac.alt)
@@ -1070,7 +1077,7 @@ static void uac_service(void)
     sie_wr(S_INDEX, 4);
     csr = sie_rd(S_TXCSR1);
     if (csr & 0x01u) {                                  /* still queued */
-        if (uac.wait < 255u && ++uac.wait == 40u && uac.flowing) {
+        if (uac.wait < 255u && ++uac.wait == UAC_STALL_POLLS && uac.flowing) {
             uac.flowing = 0;
             uac.stalls++;
         }

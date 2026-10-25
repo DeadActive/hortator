@@ -205,9 +205,9 @@ static void render_block(void)
     uac_tap(rblk, CTL);
 }
 
-static void take_packet(void)
+static void check_frames(const uint32_t *d, uint32_t n)   /* n frames as the host gets them */
 {
-    uint32_t d[UA_MAXF * UA_W + 8], n = uac_packet(d), i, ch, fw = usb8_mode() ? UA_W : 1u;
+    uint32_t i, ch, fw = usb8_mode() ? UA_W : 1u;
     sizes[n]++;
     npk++;
     if (n * fw * 4u > max_bytes)
@@ -240,6 +240,12 @@ static void take_packet(void)
         last_frame = f;
         cons_n++;
     }
+}
+
+static void take_packet(void)
+{
+    uint32_t d[UA_MAXF * UA_W + 8], n = uac_packet(d);
+    check_frames(d, n);
 }
 
 static uint64_t now_ns, next_half, next_pkt, next_block, rend_len;
@@ -537,6 +543,157 @@ static void test_cost(void)
     check(s, (double)(extra - two) / (double)all < 0.05);
 }
 
+/* ------------------------------------------------------------- the bus timing --- */
+/* EP4 as the SIE runs it: one packet buffer. uac_service queues a packet (TxPktRdy) when the last one has gone; the
+ * host's IN token, once per 1 ms frame, sends a queued packet, which keeps TxPktRdy set until its last byte is on the
+ * wire (12 Mbit/s); a token that finds nothing queued gets a zero-length packet (UnderRun, uac.missed). The device
+ * polls at its own clock (TIMER5, 30 ppm off the host's), at USB8_POLL_HZ plus usb_poll's 2 kHz call. The ring and
+ * the packets are usb_app8.c's (uac_render_start, uac_tap, uac_packet); the polls mirror uac_service. */
+#ifndef USB8_POLL_HZ
+#define USB8_POLL_HZ 2000u                              /* (before the fix: usb_poll's 2 kHz only) */
+#endif
+#ifndef UAC_STALL_POLLS
+#define UAC_STALL_POLLS 40u
+#endif
+static struct { uint32_t rdy, underrun, bytes, zlp, delivered; uint64_t busy_end; uint32_t d[UA_MAXF * UA_W]; } ep;
+
+static void svc(void)                                   /* = uac_service, the SIE replaced by ep */
+{
+    uint32_t n;
+    if (ep.rdy) {
+        if (uac.wait < 255u && ++uac.wait == UAC_STALL_POLLS && uac.flowing) {
+            uac.flowing = 0;
+            uac.stalls++;
+        }
+        return;
+    }
+    if (uac.queued) {
+        if (ep.underrun)
+            uac.missed++;
+        uac.flowing = 1;
+    }
+    uac.queued = 1;
+    uac.wait = 0;
+    n = uac_packet(ep.d);
+    ep.bytes = n * (usb8_mode() ? 2u * UA_NCH : 4u);
+    ep.rdy = 1;
+    ep.underrun = 0;
+}
+
+static uint64_t wire_ns(uint32_t bytes)                 /* token + data packet (SYNC PID CRC EOP, ~3 % stuffing) */
+{
+    return (uint64_t)((4.0 + bytes + 4.0) * 8.0 * 1.03 / 12e6 * 1e9) + 1500u;   /* + the turnaround */
+}
+
+/* ms of bus time; poll_hz: the device's extra uac_service cadence; jit_ns: the token's place in its frame varies by
+ * up to this (the host schedules it) */
+static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, uint32_t phase_ns)
+{
+    uint64_t end = now_ns + (uint64_t)ms * 1000000u, next_tok = (now_ns / 1000000u + 1u) * 1000000u + 20000u;
+    double tick = 1e9 / 10000.0 * (1.0 + 30e-6), next_tick = (double)now_ns + phase_ns;
+    uint32_t sub = 0, every = 10000u / poll_hz;
+    while (now_ns < end) {
+        uint64_t t = end, tk = (uint64_t)next_tick;
+        if (next_half < t)
+            t = next_half;
+        if (blocks_left && next_block < t)
+            t = next_block;
+        if (next_tok < t)
+            t = next_tok;
+        if (tk < t)
+            t = tk;
+        if (ep.rdy && ep.busy_end && ep.busy_end < t)
+            t = ep.busy_end;
+        now_ns = t;
+        if (now_ns >= end)
+            break;
+        if (ep.rdy && ep.busy_end && now_ns == ep.busy_end) {   /* the last byte went: TxPktRdy clears */
+            ep.rdy = 0;
+            ep.busy_end = 0;
+        } else if (now_ns == next_half) {
+            next_half += (uint64_t)((double)HALF_FRAMES / FS_DEV * 1e9);
+            lcg = lcg * 1103515245u + 12345u;
+            rend_len = REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
+            uac_render_start();
+            blocks_left = HALF_FRAMES / CTL;
+            next_block = now_ns + rend_len / blocks_left;
+        } else if (blocks_left && now_ns == next_block) {
+            render_block();
+            blocks_left--;
+            next_block += rend_len / (HALF_FRAMES / CTL);
+        } else if (now_ns == next_tok) {                /* the host's IN token */
+            lcg = lcg * 1103515245u + 12345u;
+            next_tok = (now_ns / 1000000u + 1u) * 1000000u + 20000u + (jit_ns ? (lcg >> 8) % jit_ns : 0u);
+            if (ep.rdy && !ep.busy_end) {
+                ep.busy_end = now_ns + wire_ns(ep.bytes);
+                check_frames(ep.d, ep.bytes / (usb8_mode() ? 2u * UA_NCH : 4u));
+                ep.delivered += ep.bytes / (usb8_mode() ? 2u * UA_NCH : 4u);
+            } else {
+                ep.underrun = 1;
+                ep.zlp++;
+            }
+        } else if (now_ns == tk) {                      /* TIMER5 */
+            next_tick += tick;
+            if (sub % 5u == 0)
+                svc();                                  /* usb_poll's (2 kHz) */
+            if (every && sub % every == 0)
+                svc();                                  /* the extra cadence (USB8_POLL_HZ) */
+            if (++sub == 10u)
+                sub = 0;
+        }
+    }
+}
+
+static void bus_case(const char *what, uint32_t two, uint32_t poll_hz, uint32_t jit_ns, int expect_ok)
+{
+    uint32_t ph, rate_min = 1u << 31, bad = 0, ovr = 0, zlp = 0, sum = 0;
+    char s[200];
+    for (ph = 0; ph < 10u; ph++) {                      /* the device's poll phase against the host's frames */
+        uint32_t d0, o0;
+        safe_start = (uint8_t)two;                      /* SAFE START: usb_app.c's 2-channel stream */
+        usb.config = 1;
+        memset(&uac, 0, sizeof uac);
+        memset(&ep, 0, sizeof ep);
+        ua_w = ua_r = 0;
+        uac_stream(1);
+        cons_n = cons_bad = cons_rep = 0;
+        now_ns = 0;
+        next_half = 300000;
+        blocks_left = 0;
+        run_bus(500, poll_hz, jit_ns, ph * 10000u);     /* (the stream starts; flowing after the first packet) */
+        d0 = ep.delivered;
+        o0 = uac.overruns;
+        cons_bad = cons_rep = 0;
+        run_bus(4000, poll_hz, jit_ns, 0);
+        if ((ep.delivered - d0) / 4u < rate_min)
+            rate_min = (ep.delivered - d0) / 4u;
+        sum += (ep.delivered - d0) / 4u;
+        bad += cons_bad + cons_rep;
+        ovr += uac.overruns - o0;
+        zlp += ep.zlp;
+    }
+    safe_start = 0;
+    snprintf(s, sizeof s, "%s: %u frames/s (worst phase %u), %u glitches, %u overruns, %u empty", what, sum / 10u,
+             rate_min, bad, ovr, zlp);
+    if (expect_ok)
+        check(s, rate_min > 44050u && rate_min < 44200u && bad == 0 && ovr == 0);
+    else
+        check(s, rate_min < 43000u || bad || ovr);   /* the fault reproduced (the recording: ~39.7 k frames/s, tears) */
+}
+
+static void test_bus(void)
+{
+    uint64_t w = wire_ns(UAC_MAXP);
+    char s[120];
+    snprintf(s, sizeof s, "920 B on the wire: %.2f ms of the 1 ms frame (184 B: %.2f ms)", w / 1e6, wire_ns(184) / 1e6);
+    check(s, w > 600000u && w < 700000u);
+    bus_case("model check: 2 ch (184 B), 2 kHz (usb_app.c, works on the FM-1)", 1, 0, 100000u, 1);
+    bus_case("before the fix: 10 ch (920 B), 2 kHz", 0, 0, 100000u, 0);
+    bus_case("10 ch, + USB8_POLL_HZ, token jitter 0.1 ms", 0, USB8_POLL_HZ, 100000u, 1);
+    bus_case("10 ch, + USB8_POLL_HZ, token jitter 0.25 ms", 0, USB8_POLL_HZ, 250000u, 1);
+    bus_case("SAFE START 2 ch, + USB8_POLL_HZ", 1, USB8_POLL_HZ, 250000u, 1);
+}
+
 int main(void)
 {
     printf("-- USB8: 10-channel USB audio (EXPERIMENT)\n");
@@ -544,6 +701,7 @@ int main(void)
     test_safe_start();
     test_ring();
     test_mix();
+    test_bus();
     test_cost();
     printf(fails ? "USB8 TEST FAILED (%d)\n" : "usb8: all ok\n", fails);
     return fails != 0;

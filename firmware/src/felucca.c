@@ -205,4 +205,22 @@ static void ed_service(void)
 #if FELUCCA_BLE
 #include "core_ble_api.c"            /* the BLE unit calls these */
 #endif
+#if FELUCCA_USB8
+#define fm1_timer5_irq fm1_timer5_irq_main   /* EXPERIMENT: main.c (frozen) unchanged; its TIMER5 handler wrapped */
+#endif
 #include "main.c"
+#if FELUCCA_USB8
+#undef fm1_timer5_irq
+/* EXPERIMENT usb8: EP4 polled on every TIMER5 tick (10 kHz), after main.c's handler (usb_app8.c USB8_POLL_HZ): the
+ * 920 B packet leaves 0.36 ms of the frame to queue the next one. Same context as usb_poll / the nested uac_service
+ * (TIMER5 never nests into itself), so INDEX is never shared; the time spent nested is the render's no more. */
+void fm1_timer5_irq(void)
+{
+    uint32_t t0;
+    fm1_timer5_irq_main();
+    t0 = fm1_ticks();
+    uac_service();
+    if (felucca_dbg.in_audio)
+        t5_nested_ticks += fm1_ticks() - t0;
+}
+#endif
