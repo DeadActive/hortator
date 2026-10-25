@@ -17,6 +17,9 @@
 #include "lcd.c"
 #include "gfx.c"
 #include "core.h"
+#ifndef FELUCCA_USB8
+#define FELUCCA_USB8 0           /* EXPERIMENT (branch usb8): 10-channel USB audio, usb_app8.c instead of usb_app.c */
+#endif
 #include "dsp.c"
 #include "comp.c"           /* Streams compressor (M3) */
 #include "eng_sample.c"      /* ADPCM decoder + user sample slots */
@@ -44,7 +47,11 @@
 #ifndef FELUCCA_UAC
 #define FELUCCA_UAC 1            /* USB audio input: the master output, 16-bit stereo 44.1 kHz (usb_app.c) */
 #endif
+#if FELUCCA_USB8
+#include "usb_app8.c"        /* EXPERIMENT: usb_app.c's copy with 10 audio channels (never in a release) */
+#else
 #include "usb_app.c"         /* upstream 1.0's USB driver (the update loader keeps usb.c) */
+#endif
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 (upstream 1.0: on, RX verified on hardware) */
 #endif

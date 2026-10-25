@@ -343,6 +343,20 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
 static void events_block(uint32_t n);                    /* seq.c */
 static void midi_drop(void);                             /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL];
+#if FELUCCA_USB8
+/* EXPERIMENT (branch usb8, usb_app8.c): each track's block for USB channels 3..10. The track as the dry mix gets it
+ * (mix_part's x: after the inserts, DIST, SLICER, the mutes, the COMP duck and LEVEL) before PAN, the sends and the
+ * master FX, scaled as the master scales the mix (MASTER, or full with USB LEVEL FIXED): with the pans centred and
+ * no sends, the tracks add up to the master bus before its limiter (mix_l / mix_r), to rounding. Written in
+ * mix_part's loop (this build only; the default build's loop is unchanged). A track that does not reach the mix this
+ * block stays 0 (mix_block clears the block first). */
+#define USB8_TAP_DEFINED 1
+static int16_t usb8_tap[NTRK][CTL];
+static inline int16_t usb8_s16(int32_t x, int32_t mg)  /* x: mix_part's track sample; mg: the master's level, Q12 */
+{
+    return (int16_t)clamp(((x >> 2) * mg) >> 10, -32768, 32767);   /* as mix_block scales the bus (fits: |x| < 2^19) */
+}
+#endif
 
 /* one track into the dry mix and the sends; a track with no voice sounding costs the LFO tick and a cleared
  * buffer only (after the DIST tail has run out). src: the COMP source (NTRK = off). The source's block (after
@@ -371,6 +385,10 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
         int32_t xmax = c > d ? c : d;
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
+#if FELUCCA_USB8
+        int16_t *tap = usb8_tap[t - trk];
+        int32_t tmg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (mix_block's mg) */
+#endif
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         if ((pf.mute >> (t - trk)) & 1u)
@@ -408,6 +426,9 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
                 send_r[i] += mulq15(xs, r);
             mix_l[i] += (x * gl) >> 12;
             mix_r[i] += (x * gr) >> 12;
+#if FELUCCA_USB8
+            tap[i] = usb8_s16(x, tmg);
+#endif
         }
         t->peak = pk;
     }
@@ -462,6 +483,14 @@ static void mix_block(int32_t *out, uint32_t n)
     }
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
+#if FELUCCA_USB8
+    {
+        uint32_t k;
+        for (k = 0; k < NTRK; k++)
+            for (i = 0; i < n; i++)
+                usb8_tap[k][i] = 0;
+    }
+#endif
     lfo_apply(n);                                       /* LFOs: the modulated knobs for this block (lfo.c) */
     events_block(n);
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
