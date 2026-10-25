@@ -412,6 +412,24 @@ static void lock_turn_partial(void)
     settle(30);
 }
 
+/* the top bar's padlock (STEPS): an ENV tap repaints the top bar only, not the screen */
+static void lock_icon_partial(void)
+{
+    st_t e;
+    ui_host_init();
+    pattern();
+    home_tracks();
+    settle(60);
+    memset(&e, 0, sizeof e);
+    press(B_ENV);
+    add(&e, frame());
+    release_all();
+    add(&e, frame());
+    add(&e, frame());
+    report("TRACKS: ENV tapped (STEPS: the padlock)", &e);
+    check("the padlock: an ENV tap sends no full repaint (the top bar, the keys' strip)", ui.env == 1u && e.full == 0u);
+}
+
 int main(void)
 {
     st_t s;
@@ -419,6 +437,7 @@ int main(void)
     fr_t f;
 
     lock_turn_partial();
+    lock_icon_partial();
 
     /* a full repaint (a page change): at most the screen once, plus the 1 px rules (nothing drawn twice) */
     ui_host_init();

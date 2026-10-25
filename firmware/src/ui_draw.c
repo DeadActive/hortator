@@ -240,7 +240,7 @@ static void draw_head(void)
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
                    (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u +
-                   (lock_view_step() + 1u) * 92821u;
+                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u;
     sig += cpu * 50021u + blink * 27u;
     if (!ui.force && sig == ui.head_sig)
         return;
@@ -278,6 +278,15 @@ static void draw_head(void)
     }
     if (usb.config && !usb.suspended)
         md_text(196, 3, &MD_ICON, 2, "u", C_BG);
+    if (ui.env) {                                     /* STEPS (parameter locks): a padlock, the icons' 5 x 5 at 2x,
+                                                       * between USB and the battery */
+        static const uint8_t PADLOCK[5] = {0x0E, 0x11, 0x1F, 0x1B, 0x1F};   /* .###. #...# ##### ##.## ##### */
+        uint32_t r, c;
+        for (r = 0; r < 5u; r++)
+            for (c = 0; c < 5u; c++)
+                if ((PADLOCK[r] >> (4u - c)) & 1u)
+                    cv_rect(207 + (int32_t)c * 2, 3 + (int32_t)r * 2, 2, 2, C_BG);
+    }
     lvl = batt_shown();                               /* the battery: outline, nub, up to 3 cells */
     cv_frame(220, 4, 14, 8, C_BG);
     cv_rect(234, 6, 2, 4, C_BG);

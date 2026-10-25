@@ -762,7 +762,8 @@ ACC`).
 - A project saved by 0.23.3 (FDRE) with MOTION loads (`LOADED`) and its motion plays as before. RENAME it (NAME)
   before any SAVE, power off and on, load it: still its motion (not `LOCKS LOST`). Save it, power off
   and on, load it: the same. MOTION's count (SEQ > MOTION, KNOB 2) can now pass 128 (record a long sweep on several tracks).
-- ENV tap (let go): its LED lights (STEPS). On SOUND the white keys now tap the selected track's steps (a short tap
+- ENV tap (let go): its LED lights and a padlock shows in the top bar, left of the battery (STEPS), at the first
+  press, every time (tap it 10 times: 10 toggles). On SOUND the white keys now tap the selected track's steps (a short tap
   on / off on the release, a 0.3 s hold turns an off step on), they select no track and play no drum; the key LEDs
   show the bank's steps. ENV again: LED off, the keys select / play tracks as before. Same on HOME, FX, LFO, COMP and
   TRACKS with a track armed.

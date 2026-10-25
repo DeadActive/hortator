@@ -7,7 +7,7 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 - **Parameter locks** (Elektron style; spec docs/superpowers/specs/2026-10-24-parameter-locks-design.md):
   - ENV: the white keys as the selected track's steps on every page. ENV (unused before) toggles STEPS / TRACKS on
-    its release, its LED lit in STEPS; the mode is global, not saved (off at power-on). In STEPS the keys tap / hold
+    its release, its LED lit and a padlock in the top bar (left of the battery, every page) in STEPS; the mode is global, not saved (off at power-on). In STEPS the keys tap / hold
     steps as on SEQ on HOME, TRACKS (armed too), SOUND, LAYER, FX, LFO and COMP, and play no drum (REC ALL records no
     hits then); ENV held + OCT+ / OCT- changes the bank; OCT+ held + a step its accent, OCT+ alone and OCT- keep their
     page's job (SOUND to LAYER on OCT+'s release, LAYER back, the LFO's RATE MODE). ENV turns KEYS off and SCL STEPS

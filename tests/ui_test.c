@@ -9268,6 +9268,45 @@ static void test_env_one_press_then_lock(void)
     memset(&mo.b, 0, sizeof mo.b);
 }
 
+/* device test 2026-10-25: STEPS shows a padlock in the top bar (x 207..216, rows 3..12, the icons' 5 x 5 at 2x), on
+ * every page; TRACKS none */
+static uint32_t head_lock_px(void)                   /* the padlock's square: pixels not the bar's ink */
+{
+    uint16_t ink = fb[(Y_HEAD + 1u) * 240u + 206u];
+    uint32_t x, y, n = 0;
+    for (y = 3; y < 13u; y++)
+        for (x = 207; x < 217u; x++)
+            n += fb[(Y_HEAD + y) * 240u + x] != ink;
+    return n;
+}
+static void test_head_lock_icon(void)
+{
+    static const uint32_t FAMS[4] = {FAM_SND, FAM_FX, FAM_LFO, FAM_SEQ};
+    uint32_t f, ok;
+    ui_host_init();
+    tap(B_EDIT);
+    ui_frame();
+    ok = head_lock_px() == 0u;
+    env_tap();
+    ui_frame();
+    ok &= head_lock_px() == 76u;
+    snap_page("locks/head_sound");
+    for (f = 0; f < 4u; f++) {
+        open_family(FAMS[f]);
+        ui_frame();
+        ok &= head_lock_px() == 76u;
+    }
+    snap_page("locks/head_seq");
+    home_screen();
+    ui_frame();
+    ok &= head_lock_px() == 76u;
+    snap_page("locks/head_home");
+    env_tap();
+    ui_frame();
+    ok &= head_lock_px() == 0u;
+    check("STEPS: a padlock in the top bar on every page (SOUND, FX, LFO, SEQ, HOME); TRACKS: none", ok);
+}
+
 int main(void)
 {
     test_safe_start();
@@ -9498,6 +9537,7 @@ int main(void)
     test_env_any_tick_phase();                       /* device test 2026-10-25 */
     test_env_one_press_then_lock();
     test_env_one_press_after_states();
+    test_head_lock_icon();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

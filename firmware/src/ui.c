@@ -229,7 +229,7 @@ static void env_toggle(void)
         ui.keys = 0;
     grid_drop_holds();
     song.seq_mode = seq_mode_now();
-    ui.force = 1;
+    /* (no full repaint: the top bar's padlock, its KEYS line and the strip's marks are in their signatures) */
 }
 /* OCT- / OCT+ while KEYS has the keys: the keyboard an octave down / up, -2..+2 (seq.c keys_nt) */
 static void keys_octave(int32_t d) { song.octave = (int8_t)clamp(song.octave + d, -2, 2); }
