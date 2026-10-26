@@ -30,6 +30,9 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-re
 "$OUT/lock_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/song_test" tests/song_test.c -lm
 "$OUT/song_test"
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
+    -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/var_test" tests/var_test.c -lm   # (variations: ASan + UBSan)
+"$OUT/var_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/phys_test" tests/phys_test.c -lm
 "$OUT/phys_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/filter_test" tests/filter_test.c -lm   # (UBSan: an overflow in the mix aborts: the master limiter hides it otherwise)
