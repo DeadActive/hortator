@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, BACKLIGHT (OFF DIM LO DIM HI INV INV LO INV HI), HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
+/* Felucca menu (HOME held): COLOR, SPEAKER EQ (FLAT LOWCUT BASS+), USB LEVEL (MASTER FIXED), USB AUDIO (2 CH 10 CH; not in the BLE build), PERFORM (HOLD PAGE), ZOOM, KNOB ACCEL, BACKLIGHT (OFF DIM LO DIM HI INV INV LO INV HI), HARDWARE CALIBRATION, (BLE build: BLUETOOTH,) ABOUT. */
 /* ------------------------------------------------------------ menu --- */
 #if FELUCCA_BLE                                     /* the Bluetooth page's row (bt_page.c) before ABOUT */
+/* (no USB AUDIO row: 10 CH is the standard build's only, fx.c USB10_BUILD) */
 enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
                                               "BACKLIGHT", "HARDWARE CALIBRATION", "BLUETOOTH", "ABOUT", "BACK"};
@@ -14,11 +15,12 @@ static void bt_page_draw(void);
 static void bt_page_input(uint32_t pressed);
 static void bt_autostart(void);                     /* AUTOSTART: once, 5 s after power-on (ui_input only, gate 3) */
 #else
-enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
-                                              "BACKLIGHT", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
-#define MENU_DY 15u                                 /* ten rows above the hints (screen y) */
-#define MENU_HY 192u
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_USBAUD, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_ABOUT, MI_BACK,
+       MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "USB AUDIO", "PERFORM", "ZOOM",
+                                              "ACCEL", "BACKLIGHT", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+#define MENU_DY 14u                                 /* eleven rows above the hints (screen y) */
+#define MENU_HY 196u
 #endif
 #define MENU_Y0 40u                                 /* the first row (screen y), inside the MENU window */
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
@@ -27,6 +29,58 @@ static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting,
     return i == MI_USB ? &settings.usbfix : i == MI_PERF ? &settings.perfpage : i == MI_ZOOM ? &settings.zoom :
            i == MI_ACCEL ? &settings.accel : 0;
 }
+#if USB8_OK
+
+/* MENU > USB AUDIO: the change reaches the computer when the menu closes (not on each turn: one reconnect, however
+ * often the row is stepped, none when it is stepped back; and no USB drop while the menu is still being read).
+ * usb_mode_service (ui_input, the main loop) then: USB off (usb_detach: D+ pull-up off, the host sees the FM-1 leave;
+ * nothing streams, MIDI out dropped: usb8_quiesce), USBM_WAIT_MS later on again (usb_start) with the other descriptor
+ * set; the host enumerates it afresh (bcdDevice 3.11 / 3.81, "Hortator" / "Hortator 8ch"). The sequencer, the audio
+ * and the UI run on throughout (the ISRs); MIDI in and out come back with the host's configuration. Following CLK USB,
+ * the clock pauses with the cable: the steps wait for its pulses (the top bar says so), and the lost-clock stop (seq.c,
+ * 0.5 s without a pulse) waits till USBM_GRACE_MS after the reconnect; a clock that has not come back by then stops
+ * the sequencer as a pulled cable does (a DAW may see "Hortator 8ch" as another port and need it chosen again).
+ * Inside 10 CH, MIX <-> FX (channels 1-2: the master or the send effects) needs no reconnect: usb_fxpair at once.
+ * SAFE START, an unfinished update and the update loader never switch: they present 2 CH (usb_app.c's set). The
+ * Bluetooth build has none of it (fx.c USB10_BUILD): no row, 2 CH always, a stored 10 CH ignored. */
+#define USBM_WAIT_MS 1000u
+#define USBM_GRACE_MS 2000u                            /* CLK USB: after the reconnect, this long for the clock to return */
+static struct { uint8_t state; uint32_t t; } usbm;
+#if defined(DRUM_HOST) || defined(SIM_HOST)
+static uint32_t host_usb_offs, host_usb_ons;          /* the host tests: no USB hardware */
+static void usbm_hw_off(void) { host_usb_offs++; usb.up = 0; }
+static void usbm_hw_on(void) { host_usb_ons++; }
+#else
+static void usbm_hw_off(void) { usb_detach(); }
+static void usbm_hw_on(void)
+{
+    usb.detached = 0;                                  /* (usb_retry tries again each second if no host answers) */
+    usb_start();
+}
+#endif
+static void usb_mode_service(void)
+{
+    if (!USB8_OK || safe_start)
+        return;
+    usb_fxpair = (uint8_t)(usbaud == UA_10FX);         /* MIX <-> FX: at once, same descriptors (fx.c usb8_main fades) */
+    if (usbm.state == 0) {
+        if (ui.menu || (usbaud != UA_2CH) == usb10 || usb.detached)
+            return;                                    /* (usb.detached: UBOOT is on its way) */
+        usbm_hw_off();
+        usb8_quiesce();
+        usb_hold_until = fm1_ms + USBM_WAIT_MS + USBM_GRACE_MS;   /* (seq.c: no lost-clock stop till then) */
+        ui_say(song.g[G_CLOCK] == 1 ? "CLK USB PAUSED: " : "USB RECONNECT: ", usbaud != UA_2CH ? "10 CH" : "2 CH");
+        usbm.state = 1;
+        usbm.t = fm1_ms;
+        return;
+    }
+    if (fm1_ms - usbm.t < USBM_WAIT_MS)
+        return;
+    usb10 = (uint8_t)(usbaud != UA_2CH);              /* the set the next enumeration gets (usb_app8.c usb8_desc) */
+    usbm.state = 0;
+    usbm_hw_on();
+}
+#endif
 
 /* ABOUT (owner 2026-10-22): the credits under the fixed logo, one string a credit, wrapped at its spaces to the text's
  * width (a credit's further lines indented); SELECT scrolls them a row a detent (ui.about_top), clamped at both ends;
@@ -123,6 +177,12 @@ static void draw_about(void)                         /* the credits' rows and th
     cv_rect(AB_BX, ty, 3, th, C_INK);
 }
 
+#if USB10_BUILD
+static const char *const USBAUD_NAME[UA_COUNT] = {"2 CH", "10 CH MIX", "10 CH FX"};
+#define USBAUD_SIG (usbaud * 2654435761u)
+#else
+#define USBAUD_SIG 0u
+#endif
 static void draw_menu(void)
 {
     static int16_t pk[8];                           /* ABOUT: the logo's peak dots */
@@ -130,7 +190,7 @@ static void draw_menu(void)
     uint32_t i, pass, fr = fm1_ms / 66u,
                       sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u + settings.accel * 15485863u + settings.usbfix * 32452843u +
-                            settings.perfpage * 49979687u + backlight * 67867967u +
+                            settings.perfpage * 49979687u + backlight * 67867967u + USBAUD_SIG +
                             ui.about_top * 86028121u;
 #if FELUCCA_BLE
     if (ui.menu == 3u) {                            /* the Bluetooth page: its own drawing and signature */
@@ -178,6 +238,10 @@ static void draw_menu(void)
                 if (menu_onoff(i))
                     v = i == MI_USB ? (*menu_onoff(i) ? "FIXED" : "MASTER") : i == MI_PERF ? (*menu_onoff(i) ? "PAGE" : "HOLD") :
                         *menu_onoff(i) ? "ON" : "OFF";
+#if USB10_BUILD
+                if (i == MI_USBAUD)
+                    v = USBAUD_NAME[usbaud % UA_COUNT];
+#endif
                 if (i == MI_SPKEQ)
                     v = SPK_EQ[settings.lowcut % 3u];
                 if (i == MI_BACKLIGHT)              /* (item 9: upstream's LEDS levels) */
@@ -270,6 +334,16 @@ static void menu_input(uint32_t pressed)
         ok = 0;
         s = 0;
     }
+#if USB10_BUILD
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_USBAUD) {
+        /* USB AUDIO: KNOB 1 steps 2 CH, 10 CH MIX, 10 CH FX and stops at the ends; OCT+ steps and wraps (as SPEAKER EQ).
+         * 2 CH <-> 10 CH reconnects when the menu closes; MIX <-> FX does not (usb_mode_service) */
+        usbaud = s > 0 ? (usbaud + 1u < UA_COUNT ? usbaud + 1u : UA_COUNT - 1u)
+               : s < 0 ? (usbaud ? usbaud - 1u : 0u) : (usbaud + 1u) % UA_COUNT;
+        ok = 0;
+        s = 0;
+    }
+#endif
     if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_BACKLIGHT) {
         /* BACKLIGHT (item 9): KNOB 1 steps OFF DIM LO DIM HI INV INV LO INV HI and stops at the ends; OCT+ steps and
          * wraps (as SPEAKER EQ) */

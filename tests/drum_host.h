@@ -36,7 +36,7 @@ static void fm1_irq_on(void) { host_irq_on++; }
 #include "../firmware/src/slicer.c"
 #include "../firmware/src/fx.c"
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
-#include "../firmware/src/usb_app.c"
+#include "../firmware/src/usb_app8.c"                /* the app's driver: usb_app.c + USB AUDIO 10 CH */
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"

@@ -4311,6 +4311,36 @@ static void test_div_order(void)
     settings.accel = 1;
 }
 
+/* MENU > USB AUDIO: the row under USB LEVEL, 2 CH / 10 CH (KNOB 1 right / left, OCT+ toggles); the reconnect is
+ * tests/usbmode_test.c's. The menu with 10 CH for the user's eye */
+static void test_usb_audio(void)
+{
+    uint32_t ok = 1;
+    ui_host_init();
+    usbaud = 0;
+    ui.menu = 1;
+    ui.menu_sel = MI_USBAUD;
+    ui.force = 1;
+    ok &= str_eq(MI_NAME[MI_USBAUD], "USB AUDIO") && MI_USBAUD == MI_USB + 1;
+    turn(EN_K1, 1);
+    ui_frame();
+    ok &= usbaud == 1;
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= usbaud == 0;
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= usbaud == 1;
+    check("USB AUDIO: KNOB 1 right 10 CH MIX / left 2 CH, OCT+ steps", ok);
+    ui.force = 1;
+    snap_page("menu_usb_audio");
+    usbaud = 0;
+    ui.menu = 0;
+    ui.force = 1;
+}
+
 /* MENU > USB LEVEL (USB audio): KNOB 1 right FIXED / left MASTER, OCT+ toggles; the mix follows (fx_usb_fixed); the
  * menu's eight rows for the user's eye */
 static void test_usb_level(void)
@@ -9677,6 +9707,7 @@ int main(void)
     test_reverb_pages();
     test_div_order();
     test_usb_level();
+    test_usb_audio();
     test_clock_screens();
     test_perform_gesture();
     test_perform_keys();

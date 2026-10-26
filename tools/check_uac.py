@@ -18,6 +18,8 @@ def check(build):
     names = {s[2] for s in elf_syms.Elf(str(build / "felucca.elf")).syms}
     errors = [f"{build / 'felucca.elf'}: no {n} (USB audio not compiled in: FELUCCA_UAC off?)"
               for n in ("ua_ring", "uac") if n not in names]
+    errors += [f"{build / 'felucca.elf'}: no {n} (MENU > USB AUDIO 10 CH not compiled in)"
+               for n in ("ua8_ring", "uac8", "uac8_tap", "usbaud") if n not in names]
     if b"uac_pkts\0" not in (build / "felucca.bin").read_bytes():
         errors.append(f"{build / 'felucca.bin'}: no 'uac_pkts' (the console's USB audio lines)")
     return errors
@@ -31,7 +33,7 @@ def main(argv):
     for e in errors:
         print("  FAIL", e)
     if not errors:
-        print("  ok   USB audio compiled in (ua_ring, uac; console uac_* lines)")
+        print("  ok   USB audio compiled in (ua_ring, uac; console uac_* lines; 10 CH: ua8_ring, uac8)")
     return 1 if errors else 0
 
 

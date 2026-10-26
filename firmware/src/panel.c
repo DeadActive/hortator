@@ -82,6 +82,13 @@ static struct { uint8_t set, slot; } lastp;
 enum { BL_OFF, BL_DIM_LO, BL_DIM_HI, BL_INV, BL_INV_LO, BL_INV_HI, BL_COUNT };
 static const char *const BL_NAME[BL_COUNT] = {"OFF", "DIM LO", "DIM HI", "INV", "INV LO", "INV HI"};
 static uint32_t backlight;
+/* MENU > USB AUDIO: 0 2 CH (the master, as before), 1 10 CH (the master + T1..T8; usb_app8.c). As btset: only from the
+ * flash record (the palette word's bit 12; older records: 2 CH), else 2 CH. What the host sees is usb10 (fx.c): set
+ * at power-on (ui.c drum_boot_init; SAFE START: 2 CH) and by the reconnect when the menu closes (ui_menu.c) */
+#if USB10_BUILD
+enum { UA_2CH, UA_10MIX, UA_10FX, UA_COUNT };   /* MENU > USB AUDIO's values (10 CH MIX: an older Hortator's 10 CH) */
+static uint32_t usbaud;                       /* (the Bluetooth build: none, always 2 CH; fx.c USB10_BUILD) */
+#endif
 
 static void settings_save(void);
 static void settings_poll(void);              /* project.c */              /* project.c: flash copy (FELUCCA_FLASH) */

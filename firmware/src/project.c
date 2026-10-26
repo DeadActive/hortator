@@ -1700,6 +1700,9 @@ static void persist_boot(void)                    /* before settings_init / pane
     memset(&lastp, 0, sizeof lastp);                  /* no last project, unless the flash record has one */
     fx_metro = 0;                                     /* METRO OFF, as well */
     backlight = 0;                                    /* BACKLIGHT OFF, as well */
+#if USB10_BUILD
+    usbaud = 0;                                       /* USB AUDIO 2 CH, as well */
+#endif
     memset(ml_map, 0, sizeof ml_map);                 /* MIDI LEARN: nothing learned, as well */
     memset(&upr, 0, sizeof upr);                      /* no user preset, as well (presets.c) */
     upr_pending = 0;
@@ -1749,6 +1752,13 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.magic = SETTINGS_MAGIC;
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
         btset.bt_auto = (p.palette >> 8) & 1u;
+#if USB10_BUILD
+        usbaud = (p.palette >> 12) & 3u;            /* bits 12..13 = USB AUDIO: 0 2 CH (older records), 1 10 CH MIX
+                                                     * (e586073's 10 CH), 2 10 CH FX, 3 none: 2 CH (the Bluetooth
+                                                     * build ignores them, and writes them clear) */
+        if (usbaud >= UA_COUNT)
+            usbaud = UA_2CH;
+#endif
         lc_unpack(p.lowcut);
         if (((p.palette >> 9) & 7u) - 1u < BL_COUNT - 1u && backlight)   /* BACKLIGHT's level, bits 9..11 (item 9; 0:
                                                      * an older record, its ON = DIM LO) */
@@ -1915,10 +1925,12 @@ static void settings_save(void)                    /* asked for while playing: w
         return;
     memset(&p, 0, sizeof p);
     p.magic = PERSIST_MAGIC;
-    p.palette = (settings.palette & 0xFFu) | (btset.bt_auto & 1u) << 8 | (backlight & 7u) << 9;   /* an older
-                                                     * Hortator reads a palette out of range from bit 8: its display
-                                                     * settings reset; 9..11 BACKLIGHT's level (item 9: an older one reads
-                                                     * lowcut's bit 7, ON) */
+    p.palette = (settings.palette & 0xFFu) | (btset.bt_auto & 1u) << 8 | (backlight & 7u) << 9;
+#if USB10_BUILD
+    p.palette |= (usbaud & 3u) << 12;
+#endif
+    /* an older Hortator reads a palette out of range from bit 8: its display settings reset; 9..11 BACKLIGHT's level
+     * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it) */
     p.lowcut = lc_pack() | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
              (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;
