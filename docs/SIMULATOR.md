@@ -43,7 +43,8 @@ Everything the script writes goes under `build/sim/`:
 ## The site: landing page and installer
 
 `web/sim/index.html` is the project's landing page: the name and one sentence, the simulator as the hero, the
-features as eight interactive pieces on the firmware's own DSP (the features lab, below), how to install, credits and
+manual (a panel map: a small FM-1, `web/sim/mini.js`, lit by `web/sim/manual.js` from the list of every control;
+then ten short guides, the README keeping the full manual), the features as eight interactive pieces on the firmware's own DSP (the features lab, below), how to install, credits and
 the source link.
 
 `web/index_pkg.html` is the installer page, restyled to match, in English only and named Hortator (the firmware's name since 2026-10-07). This was a
@@ -187,8 +188,8 @@ Autorepeat and shortcuts with Cmd / Ctrl / Alt are ignored. Leaving the tab rele
   909 kick low, a closed hat high), a string tuned to A3 ringing on 220 Hz's harmonics, GHOST MUTE / KEEP, an LFO on
   DECAY, the 8-bar dice (1/2, 1-SHOT, RATCH 4, the same after PLAY), tracks following Grids playing exactly its lanes,
   every PERFORM key and chain stage changing the output.
-- `tests/sim_site.mjs` checks the page: the eight chapters, each with its plate and a panel hint that names real
-  controls.
+- `tests/sim_site.mjs` checks the page: the manual before the features, its map listing every knob and button, ten
+  guides; the eight chapters, each with its plate; every panel hint (guides and chapters) naming real controls.
 
 ## Requests for the firmware session
 

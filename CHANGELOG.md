@@ -5,6 +5,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- Web site only: the landing page has a manual before the engines: a map of the panel (point at a control on a small
+  FM-1, or at its line, to see what it does) and ten short guides (find your way, make a beat, shape a sound, play
+  and record live, mute, perform, lock a step, save and chain, MIDI and LEARN, settings). Manual in the top bar and
+  the footer; More below leads to it.
+
 ## 0.24.0 - 2026-10-25
 
 - **Parameter locks** (Elektron style; spec docs/superpowers/specs/2026-10-24-parameter-locks-design.md):

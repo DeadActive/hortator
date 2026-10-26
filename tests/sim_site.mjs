@@ -87,7 +87,9 @@ test('installer: a version choice (with or without Bluetooth), hidden unless the
 const LANDING = readFileSync('web/sim/index.html', 'utf8');
 
 test('landing: hero (with the device and the #play end), features, install; install goes to the installer; the source is linked', () => {
-  for (const id of ['hero', 'features', 'install']) assert.match(LANDING, new RegExp(`<section[^>]*id="${id}"`), id);
+  const at = ['hero', 'manual', 'features', 'install'].map(id => LANDING.search(new RegExp(`<section[^>]*id="${id}"`)));
+  assert.ok(at.every(a => a >= 0), 'every section');
+  assert.deepEqual([...at].sort((a, b) => a - b), at, 'in this order: the manual before the engines');
   const hero = LANDING.slice(LANDING.indexOf('id="hero"'), LANDING.indexOf('id="features"'));
   assert.match(hero, /id="device"/, 'the device lives in the hero');
   assert.match(hero, /id="play"/, 'the end of the hero track is #play');
@@ -162,6 +164,35 @@ test('features: eight chapters with a plate each; every panel hint names real co
     for (const k of keys) assert.ok(labels.has(k), `${id}: ${k} is not on the panel`);
   }
   assert.doesNotMatch(LANDING, /manual-screen|id="locator"/, 'the old sticky screen is gone');
+});
+
+// ---- the manual: a map of the panel (every control, manual.js lights it on a small FM-1), then ten guides, each telling
+// where it is on the panel
+test('manual: the panel map lists every knob and button, with the keys; every guide names real controls', () => {
+  const sec = LANDING.slice(LANDING.indexOf('id="manual"'), LANDING.indexOf('id="features"'));
+  const labels = new Set([...BTN.map(b => b.label), ...ENC.map(e => e.label), 'MASTER']);
+  assert.match(sec, /<div class="map-device" id="manual-mini" aria-hidden="true">/, 'the small FM-1, a picture');
+  assert.match(sec, /id="map-caption"/);
+  const list = sec.slice(sec.indexOf('id="map-list"'), sec.indexOf('class="guides"'));
+  const mapped = [...list.matchAll(/<li data-ctl="([^"]+)">/g)].flatMap(m => m[1].split(' '));
+  for (const l of labels) assert.ok(mapped.includes(l), `${l} is in the map`);
+  for (const c of mapped) assert.ok(labels.has(c) || c === 'white' || c === 'black', `${c} is not on the panel`);
+  for (const [, k] of list.matchAll(/<b>([^<]+)<\/b>/g)) assert.ok(labels.has(k), `map: ${k} is not on the panel`);
+  const guides = [...sec.matchAll(/<li class="guide" id="m-(\w+)">([\s\S]*?)<\/li>/g)];
+  assert.equal(guides.length, 10, 'ten guides');
+  for (const [, id, g] of guides) {
+    assert.match(g, /<h3>[^<]+<\/h3>/, `${id}: its title`);
+    const where = g.match(/<p class="where">([\s\S]*?)<\/p>/)?.[1];
+    assert.ok(where, `${id}: where it is on the panel`);
+    const keys = [...where.matchAll(/<b>([^<]+)<\/b>/g)].map(m => m[1]);
+    assert.ok(keys.length, `${id}: names a control`);
+    for (const k of keys) assert.ok(labels.has(k), `${id}: ${k} is not on the panel`);
+  }
+  assert.match(sec, /href="https:\/\/github\.com\/DeadActive\/hortator#readme"/, 'the whole manual: the README');
+  assert.match(LANDING.slice(0, LANDING.indexOf('id="scene"')), /href="#manual"/, 'the nav leads to it');
+  const foot = LANDING.slice(LANDING.indexOf('<footer'), LANDING.indexOf('</footer>'));
+  assert.ok(foot.includes('href="#manual"'), 'and the footer');
+  assert.match(readFileSync('web/sim/app.js', 'utf8'), /^initManual\(\);/m);
 });
 
 test('install: the version and what is new, the connection diagram, the installer, the way back and the recovery', () => {
@@ -268,9 +299,9 @@ test('the power switch is page UI over the stage, a leader line to where the FM-
   assert.match(css, /@keyframes nudge/, 'the knob nudges toward on to draw the eye');
 });
 
-test('while the simulator is on screen, a cue says the page goes on', () => {
+test('while the simulator is on screen, a cue says the page goes on (to the manual, the next section)', () => {
   const stage = LANDING.slice(LANDING.indexOf('id="stage"'), LANDING.indexOf('id="play"'));
-  assert.match(stage, /<a [^>]*class="more-cue"[^>]*href="#features"|<a [^>]*href="#features"[^>]*class="more-cue"/);
+  assert.match(stage, /<a [^>]*class="more-cue"[^>]*href="#manual"|<a [^>]*href="#manual"[^>]*class="more-cue"/);
 });
 
 test('Controls opens beside the device on wide screens: the stage gives the panel its width and the device moves left', () => {
