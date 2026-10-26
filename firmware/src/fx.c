@@ -348,6 +348,12 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_
  * and the master FX, scaled as the master scales the mix (MASTER, or full with USB LEVEL FIXED): with the pans centred
  * and no sends, the tracks add up to the master bus before its limiter (mix_l / mix_r), to rounding. Out of line, after
  * mix_part's loop, and only in 10 CH: 2 CH's mix is as before. A track that does not reach the mix this block stays 0. */
+#if defined(FELUCCA_BLE) && FELUCCA_BLE
+#define USB10_BUILD 0                           /* 10 CH: the standard build only (the Bluetooth build's RAM is full) */
+#else
+#define USB10_BUILD 1
+#endif
+#if USB10_BUILD
 #define USB8_TAP_DEFINED 1
 static volatile uint8_t usb10;                  /* the audio input the host enumerated: 0 2 CH, 1 10 CH (ui_menu.c) */
 static volatile uint32_t usb_hold_until;        /* the reconnect (ui_menu.c): CLK USB's lost-clock stop waits till then */
@@ -369,6 +375,7 @@ static __attribute__((noinline)) void usb8_tap_clear(uint32_t n)
         for (i = 0; i < n; i++)
             usb8_tap[k][i] = 0;
 }
+#endif
 
 /* one track into the dry mix and the sends; a track with no voice sounding costs the LFO tick and a cleared
  * buffer only (after the DIST tail has run out). src: the COMP source (NTRK = off). The source's block (after
@@ -436,8 +443,10 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
             mix_r[i] += (x * gr) >> 12;
         }
         t->peak = pk;
+#if USB10_BUILD
         if (usb10)
             usb8_track_tap((uint32_t)(t - trk), b, lvl, n);   /* MENU > USB AUDIO 10 CH */
+#endif
     }
 }
 
@@ -490,8 +499,10 @@ static void mix_block(int32_t *out, uint32_t n)
     }
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
+#if USB10_BUILD
     if (usb10)
         usb8_tap_clear(n);                              /* MENU > USB AUDIO 10 CH: the tracks' block */
+#endif
     lfo_apply(n);                                       /* LFOs: the modulated knobs for this block (lfo.c) */
     events_block(n);
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */

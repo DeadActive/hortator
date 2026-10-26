@@ -102,17 +102,20 @@ static struct {
 } uac;
 #endif
 /* USB8 { */
-#if FELUCCA_UAC && FELUCCA_CDC                         /* 10 CH: the default layout only (else always 2 CH) */
+#ifndef USB10_BUILD                                     /* (fx.c: 0 in the Bluetooth build) */
+#define USB10_BUILD 1
+#endif
+#if FELUCCA_UAC && FELUCCA_CDC && USB10_BUILD          /* 10 CH: the default layout of the standard build only */
 #define USB8_OK 1
 #else
 #define USB8_OK 0
 #endif
+#if USB8_OK
 #ifndef USB8_TAP_DEFINED                                /* (fx.c defines them; parser-only host tests do not) */
 static volatile uint8_t usb10;
 static int16_t usb8_tap[8][CTL];
 #endif
 static void usb8_quiesce(void);                         /* the mode switch (ui_menu.c): nothing streams, MIDI out dropped */
-#if USB8_OK
 #define UA8_NCH 10u                                     /* master L R + T1..T8 */
 #define UA8_W (UA8_NCH / 2u)                            /* words a ring frame: L | R << 16, T1 | T2 << 16, .. */
 #define UAC8_MAXP (UA_MAXF * 2u * UA8_NCH)              /* 920 */
@@ -1285,7 +1288,6 @@ static void uac8_service(void)
     fm1_usb_ep4_send(ep4tx8, n * 2u * UA8_NCH);
     sie_wr(S_TXCSR1, 0x01);                             /* TxPktRdy (and UnderRun cleared) */
 }
-#endif
 /* the mode switch (ui_menu.c, main loop, after usb_detach: usb.up is 0, so no poll runs): the next host starts from
  * nothing, as after a bus reset */
 static void usb8_quiesce(void)
@@ -1294,13 +1296,10 @@ static void usb8_quiesce(void)
     usb.suspended = 0;
     mo_r = mo_w;
     usb.sx_on = 0;
-#if FELUCCA_UAC
     uac_stream(0);
-#endif
-#if USB8_OK
     uac8_stream(0);
-#endif
 }
+#endif
 /* } USB8 */
 
 static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */

@@ -971,7 +971,9 @@ static void ui_input(void)
     int32_t s, dt;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+#if USB8_OK
     usb_mode_service();                                 /* MENU > USB AUDIO: the reconnect, once the menu closed */
+#endif
     acc_oct_poll();                                     /* OCT+ let go on the steps: the next bank (item 1) */
     env_poll(now, pressed);                             /* ENV: STEPS / TRACKS */
     pre_frame(now);                                     /* PRESETS: EDIT's hold, the popup's time (ui_preset.c) */

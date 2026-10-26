@@ -199,8 +199,11 @@ static void ed_service(void)
 #if FELUCCA_BLE
 #include "core_ble_api.c"            /* the BLE unit calls these */
 #endif
+#if USB8_OK
 #define fm1_timer5_irq fm1_timer5_irq_main   /* main.c (frozen) unchanged: its TIMER5 handler wrapped */
+#endif
 #include "main.c"
+#if USB8_OK
 #undef fm1_timer5_irq
 /* MENU > USB AUDIO 10 CH: EP4 polled on every TIMER5 tick (10 kHz), after main.c's handler (usb_app8.c uac8_service:
  * the 920 B packet leaves 0.36 ms of the frame to queue the next one). Same context as usb_poll and the nested
@@ -209,12 +212,11 @@ static void ed_service(void)
 void fm1_timer5_irq(void)
 {
     fm1_timer5_irq_main();
-#if USB8_OK
     if (usb10) {
         uint32_t t0 = fm1_ticks();
         uac8_service();
         if (felucca_dbg.in_audio)
             t5_nested_ticks += fm1_ticks() - t0;
     }
-#endif
 }
+#endif

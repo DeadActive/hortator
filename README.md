@@ -262,6 +262,9 @@ cable (`CLK USB PAUSED`): the steps wait up to 2 s after the reconnect for the c
 the cable is pulled. A device setting: saved, not part of projects. A **safe start** (SEQ held at power-on) is always
 2 CH, and the installers and the editor find the FM-1 under both names.
 
+**10 CH needs the standard, non-Bluetooth build**: the Bluetooth version has no USB AUDIO row and is always 2 CH (its
+memory is full; a 10 CH setting saved by the standard build is not read there, and a settings save there clears it).
+
 Computers: macOS and iPadOS take the 10 channels (class-compliant USB audio 1.0). Linux takes them. **Windows may not
 accept 10 CH** (its USB audio 1.0 driver and the channel layout): use 2 CH there. 10 CH uses about 920 bytes of every
 1 ms USB frame (2 CH: 184): plug the FM-1 straight into the computer or a hub with little else on it.
