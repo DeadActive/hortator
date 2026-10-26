@@ -14,6 +14,9 @@ static int project_used(uint32_t slot);
 static uint32_t chain_prepare(void);
 static int project_name(uint32_t slot, char *b);
 static void project_rename(uint32_t slot, const char *name);
+static int slot_dirty(uint32_t s);         /* project.c: slot s has unsaved edits (spec 2026-10-26) */
+static void project_discard(uint32_t s);   /* .. its RAM image back to its flash version */
+static void proj_load_from(uint32_t slot); /* .. LOAD without the DISCARD EDITS? question */
 static int transport_busy(void);
 static int name_on(void);                  /* ui_name.c (NAME) */
 static void draw_name(void);
@@ -27,6 +30,7 @@ static void draw_plist(void);
 static int preset_user_save(uint32_t slot, const track_t *t);   /* project.c: the user presets' flash record */
 static void preset_user_delete(uint32_t slot);
 
+#define CONFIRM_DISCARD 7u             /* ui.confirm: DISCARD EDITS? (LOAD of a slot with unsaved edits) */
 enum { CV_NORM, CV_HOT, CV_DIM };              /* a knob cell's value: plain, touched (inverted), inactive (dithered) */
 #define HOT(c) ((c) == ui.hot_col && ui.hot_t ? CV_HOT : CV_NORM)
 #define RATIO(d, v) ((d)->max > (d)->min ? (enum_rank((d), (int32_t)(v)) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
@@ -76,7 +80,8 @@ static struct {
     uint8_t held;                /* the grid key pressed last (valid while step_t0[held] is set) */
     uint8_t confirm;             /* 1 "CLEAR TRACK n?", 2 CLEAR MOTION, 3 DELETE ROW, 4 CLEAR SONG, 5 the last project
                                   * failed to load (START NEW PROJECT?; confirm_trk its slot), 6 CLEAR ALL LEARNED?
-                                  * (MIDI LEARN: ui_learn.c) */
+                                  * (MIDI LEARN: ui_learn.c), 7 DISCARD EDITS? (a LOAD of slot confirm_trk with unsaved
+                                  * edits: CONFIRM_DISCARD) */
     uint8_t confirm_trk;
     char msg[24];
     uint32_t enc_t[NE];

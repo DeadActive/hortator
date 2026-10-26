@@ -175,6 +175,13 @@ PROJECT's SLOT points at it). If it can't be loaded (the slot is empty or unread
 `LOAD FAILED: SLOT B` / `START NEW PROJECT?`: OCT+ (YES) forgets it, OCT- (NO) tries it again at the next power-on;
 both carry on with the power-on kit. A safe start (SEQ held at power-on) loads nothing.
 
+**Edits live in RAM until SAVE.** A reset or a power cut brings every slot back as it was last saved. Loading (or
+cueing) another slot keeps the loaded one's edits in RAM, so going back finds them; a slot with unsaved edits shows
+`*` after its letter in the PROJECTS list. LOAD of a slot with unsaved edits asks `DISCARD EDITS?` (OCT+ YES: its
+saved version loads; OCT- NO: nothing changes). SAVE to another slot ("save as") stores the live state there; the
+slot it came from goes back to its saved version. RENAME of a slot with unsaved edits renames it in RAM only
+(`RENAMED (SAVE TO KEEP)`): SAVE keeps both.
+
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
 Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
 an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is safe, not supported: nothing breaks, the projects stay for this

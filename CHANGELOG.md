@@ -15,8 +15,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     length; 0 = none, as every 0.24.0 record). SAVE writes the variations (when any is used and they changed), then the
     lock bank, then the record: a power cut at any point loads the old or the new triple whole. Unreadable variations
     load empty, `VARIATIONS LOST` said once. 0.24.0 loads a project saved now, without its variations.
-  - Flash is the truth: after a reset or a power cut every slot is its saved flash version again (RAM edits are not
-    kept over a reset any more).
+  - Flash is the truth: edits live in RAM until SAVE; after a reset or a power cut every slot is its saved flash
+    version again (RAM edits are not kept over a reset any more). LOAD of another slot keeps the loaded one's edits in
+    RAM (its unsaved variations in a park buffer: `SAVE C FIRST` when that holds another slot's); a slot with unsaved
+    edits shows `*` in the PROJECTS list; LOAD of it asks `DISCARD EDITS?`. SAVE to another slot moves the edits there
+    (the old slot is its saved version again). RENAME of an edited slot renames it in RAM only
+    (`RENAMED (SAVE TO KEEP)`).
 
 ## 0.24.0 - 2026-10-25
 

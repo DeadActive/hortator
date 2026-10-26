@@ -797,3 +797,8 @@ ACC`).
 - USR2 at 48 KiB: with an 80 KiB sample in USR2 (uploaded under upstream Felucca before), the first power-on shows
   `USR2 SHORTENED TO 48K` once (before `USR3 SHORTENED TO 48K` if USR3 is long too); SAMPLE's USR2 still plays (its
   first 48 KiB). The next power-on says nothing. With USR2 48 KiB or less (or empty), nothing is shown.
+- Edits in RAM: load A, change a knob and a step: PROJECTS shows `A*`. LOAD B: B loads at once (no question); PROJECTS
+  shows `A*`. LOAD A: `DISCARD EDITS?` / `LOAD SLOT A SAVED`; OCT- (NO): nothing changes; LOAD A again, OCT+ (YES): A
+  as saved (the knob and the step back), `A` without `*`. Edit A, power off and on, load A: as saved.
+- SAVE to another slot: load A, edit it, set SLOT B, SAVE: `SAVED`; B now holds the edited A, A is as saved (no `*`).
+  RENAME an edited slot (`*`): `RENAMED (SAVE TO KEEP)`; power off and on: the old name; RENAME a saved one: `RENAMED`.

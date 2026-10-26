@@ -361,6 +361,223 @@ static void var_blocked_refuses(void)
     check("variations: a failed USR2 clamp: SAVE says USR2 CLAMP FAILED and writes nothing that boot", (int)ok);
 }
 
+/* ---- Task 4: the RAM model (write-back, unsaved marks, park, LOAD / SAVE-as / RENAME) */
+static void four_slots(void)                          /* A..D saved, each its own LEVEL and a step; A loaded */
+{
+    uint32_t s;
+    fresh();
+    for (s = 0; s < 4u; s++) {
+        trk[0].p[P_LEVEL] = (int16_t)(10 + 10 * (int32_t)s);
+        memset(trk[1].step, 0, sizeof trk[1].step);
+        trk[1].step[s].on = 1;
+        chain.name[0] = (char)('A' + s);
+        chain.name[1] = 0;
+        project_save(s);
+    }
+    project_load(0);
+    host_nflog = 0;
+}
+static int image_is_flash(uint32_t s)                 /* RAM image = the flash record, byte for byte */
+{
+    static project_t f;
+    return st_load(OBJ_PROJECT0 + s, &f, sizeof f) == (int)sizeof f && !memcmp(&f, &proj_slot[s], sizeof f);
+}
+static void writeback_keeps_edits(void)
+{
+    uint32_t ok;
+    four_slots();
+    trk[3].step[7].on = 1;
+    trk[2].p[P_LEVEL] = 77;
+    ok = slot_dirty(0) && !(proj_dirty & 1u);
+    ok &= proj_writeback() == 0;
+    ok &= proj_slot[0].t[3].step[7].on == 1u && proj_slot[0].t[2].p[P_LEVEL] == 77 && proj_ok(&proj_slot[0]);
+    ok &= (proj_dirty & 1u) && slot_dirty(0) && host_nflog == 0u && !image_is_flash(0);
+    check("RAM model: a write-back puts the live edits (a step, a knob) into the loaded slot's image, marks it, no "
+          "flash op", (int)ok);
+}
+static void writeback_rest_values(void)
+{
+    static track_t tk[NTRK];
+    int16_t e0, e1;
+    uint32_t ok, i;
+    four_slots();
+    trk[0].step[0].on = 1;
+    trk[0].p[P_E0] = 40;
+    trk[0].p[P_E1] = 41;
+    motion_add(0, 0, P_E0, 100);                      /* motion moves E0 at step 0 */
+    motion_set_play(0, 1);
+    lock_set(0, 0, P_E1, 50);                         /* a lock on step 0 */
+    transport_req = 1;
+    for (i = 0; i < 4u; i++)
+        render_mix(0, 0, CTL);
+    ok = song.playing && trk[0].p[P_E0] != 40 && trk[0].p[P_E1] == 50;   /* both held now */
+    memcpy(tk, trk, sizeof tk);
+    {                                                 /* what STOP leaves, on a copy */
+        static typeof(mo) mk;
+        mk = mo;
+        motion_end();
+        e0 = trk[0].p[P_E0];
+        e1 = trk[0].p[P_E1];
+        mo = mk;
+        memcpy(trk, tk, sizeof tk);
+    }
+    ok &= proj_writeback() == 0 && proj_slot[0].t[0].p[P_E0] == e0 && proj_slot[0].t[0].p[P_E1] == e1 && e0 == 40 &&
+          e1 == 41 && trk[0].p[P_E0] != 40;
+    if (!ok)
+        printf("     rest: playing %u E0 %d E1 %d stop-left %d %d image %d %d\n", song.playing, trk[0].p[P_E0],
+               trk[0].p[P_E1], e0, e1, proj_slot[0].t[0].p[P_E0], proj_slot[0].t[0].p[P_E1]);
+    transport_req = 2;
+    render_mix(0, 0, CTL);
+    check("RAM model: a write-back while playing stores the knobs at rest (motion's base, a held lock's value under "
+          "it), not what they play now", (int)ok);
+}
+static void writeback_var_not_record(void)
+{
+    static step_t want1[NTRK][NSTEP];
+    uint32_t ok, k;
+    four_slots();
+    for (k = 0; k < NTRK; k++)
+        memcpy(want1[k], proj_slot[0].t[k].step, sizeof want1[k]);
+    var_cur = 2;                                      /* playing variation 3: the live steps are its own */
+    memset(trk[4].step, 0, sizeof trk[4].step);
+    trk[4].step[9].on = 1;
+    trk[4].p[P_SLEN] = 12;
+    ok = proj_writeback() == 0;
+    for (k = 0; k < NTRK; k++)
+        ok &= !memcmp(want1[k], proj_slot[0].t[k].step, sizeof want1[k]);
+    ok &= proj_slot[0].t[4].p[P_SLEN] == 16 && var_get(live_bank(), 2, VRP, VTR) == 1 && VR[4][9].on == 1u &&
+          VTR[4][0] == 12 && (var_dirty & 1u);
+    var_cur = 0;
+    check("RAM model: playing variation 3, a write-back packs the live steps and LEN into variation 3, the record "
+          "keeps variation 1's", (int)ok);
+}
+static void load_dirty_asks(void)
+{
+    static project_t want;
+    uint32_t ok;
+    four_slots();
+    project_load(1);
+    trk[5].step[3].on = 1;                            /* B edited */
+    project_load(0);                                  /* (B written back: dirty) */
+    ok = slot_dirty(1) && !ui.confirm && trk[0].p[P_LEVEL] == 10;
+    ui.msg[0] = 0;
+    project_load(1);
+    ok &= ui.confirm == CONFIRM_DISCARD && ui.confirm_trk == 1u && trk[0].p[P_LEVEL] == 10 && !str_eq(ui.msg, "LOADED");
+    release_all();
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= !ui.confirm && trk[0].p[P_LEVEL] == 10 && slot_dirty(1);
+    project_load(1);
+    ok &= ui.confirm == CONFIRM_DISCARD;
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    st_load(OBJ_PROJECT0 + 1u, &want, sizeof want);
+    ok &= !ui.confirm && !memcmp(&want, &proj_slot[1], sizeof want) && trk[0].p[P_LEVEL] == 20 &&
+          !trk[5].step[3].on && str_eq(ui.msg, "LOADED") && !slot_dirty(1);
+    if (!ok)
+        printf("     discard: confirm %u level %d step %u msg %s dirty %d same %d\n", ui.confirm, trk[0].p[P_LEVEL],
+               trk[5].step[3].on, ui.msg, slot_dirty(1), !memcmp(&want, &proj_slot[1], sizeof want));
+    check("RAM model: LOAD of an edited slot asks DISCARD EDITS? (NO: nothing; YES: its flash version loads)", (int)ok);
+}
+static void load_other_writes_back(void)
+{
+    uint32_t ok;
+    four_slots();
+    trk[6].step[11].on = 1;
+    project_load(1);
+    ok = !ui.confirm && str_eq(ui.msg, "LOADED") && trk[0].p[P_LEVEL] == 20 && proj_slot[0].t[6].step[11].on &&
+         slot_dirty(0) && !slot_dirty(1) && host_nflog == 0u;
+    project_load(0);
+    ok &= ui.confirm == CONFIRM_DISCARD;
+    ui.confirm = 0;
+    check("RAM model: LOAD of another slot writes the loaded one's edits back first (no question); LOAD of it then asks",
+          (int)ok);
+}
+static void load_park_full_refused(void)
+{
+    uint32_t ok;
+    four_slots();
+    project_load(2);                                  /* C: an edit in variation 2 */
+    var_cur = 1;
+    trk[2].step[2].on = 1;
+    project_load(0);                                  /* (C's variations parked, unsaved) */
+    ok = str_eq(ui.msg, "LOADED") && var_cur == 0u && (var_dirty & 4u) && var_who[var_play ^ 1u] == 3u;
+    var_cur = 1;                                      /* A: an edit in variation 2 */
+    trk[3].step[3].on = 1;
+    project_load(1);
+    ok &= str_eq(ui.msg, "SAVE C FIRST") && trk[0].p[P_LEVEL] == 10 && var_cur == 1u && trk[3].step[3].on &&
+          var_who[var_play] == 1u && var_who[var_play ^ 1u] == 3u;
+    var_cur = 0;
+    check("RAM model: leaving a slot with unsaved variations while the park holds another's: SAVE C FIRST, nothing "
+          "loads", (int)ok);
+}
+static void save_as_moves_edits(void)
+{
+    static project_t f;
+    const var_bank_t *fb;
+    uint32_t ok;
+    four_slots();
+    trk[2].p[P_LEVEL] = 99;                           /* A: a knob, and variation 2 */
+    var_cur = 1;
+    memset(trk[7].step, 0, sizeof trk[7].step);
+    trk[7].step[15].on = 1;
+    project_save(1);                                  /* SAVE to B: "save as" */
+    st_load(OBJ_PROJECT0 + 1u, &f, sizeof f);
+    fb = flash_bank(1);
+    ok = str_eq(ui.msg, "SAVED") && f.t[2].p[P_LEVEL] == 99 && f.t[0].p[P_LEVEL] == 10 && f.t[1].step[0].on &&
+         !f.t[7].step[15].on && fb && var_get(fb, 1, VRP, VTR) == 1 && VR[7][15].on == 1u && f.var_len;
+    ok &= image_is_flash(0) && !slot_dirty(0) && !slot_dirty(1) && chain.from == 2u && var_who[var_play] == 2u;
+    var_cur = 0;
+    check("RAM model: SAVE to another slot stores the live state and variations there; the old slot is its flash "
+          "version again", (int)ok);
+}
+static void rename_dirty_ram_only(void)
+{
+    char b[NAME_LEN + 1u];
+    uint32_t ok;
+    four_slots();
+    project_load(1);
+    trk[5].step[5].on = 1;
+    project_load(0);                                  /* B dirty (written back) */
+    host_nflog = 0;
+    project_rename(1, "NEWB");
+    ok = host_nflog == 0u && str_eq(ui.msg, "RENAMED (SAVE TO KEEP)") && project_name(1, b) && str_eq(b, "NEWB");
+    project_rename(2, "NEWC");
+    ok &= host_nflog > 0u && str_eq(ui.msg, "RENAMED") && image_is_flash(2);
+    check("RAM model: RENAME of an edited slot renames it in RAM only (RENAMED (SAVE TO KEEP)); a clean one is written",
+          (int)ok);
+}
+static void slot_dirty_marks(void)
+{
+    uint32_t ok;
+    four_slots();
+    ok = !slot_dirty(0) && !slot_dirty(1);
+    trk[0].p[P_PAN] = 33;
+    ok &= slot_dirty(0);                              /* a live edit */
+    project_load(1);
+    ok &= slot_dirty(0) && !slot_dirty(1);            /* written back */
+    var_cur = 1;
+    trk[1].step[40].on = 1;
+    project_load(3);
+    ok &= slot_dirty(1) && var_who[var_play ^ 1u] == 2u;   /* parked */
+    project_load(1);                                  /* (asks) */
+    ui.confirm = 0;
+    project_discard(1);
+    ok &= !slot_dirty(1) && image_is_flash(1) && var_who[var_play ^ 1u] != 2u;
+    trk[2].p[P_PAN] = 5;
+    ok &= slot_dirty(3);
+    project_save(3);
+    ok &= !slot_dirty(3) && slot_dirty(0);
+    project_discard(0);
+    ok &= !slot_dirty(0) && image_is_flash(0);
+    var_cur = 0;
+    check("RAM model: the unsaved mark: a live edit, a written-back slot, a parked one; gone after SAVE and DISCARD",
+          (int)ok);
+}
+
 int main(void)
 {
     vptrs();
@@ -371,6 +588,15 @@ int main(void)
     flash_is_truth_after_reset();
     var_writes_in_map();
     var_blocked_refuses();
+    writeback_keeps_edits();
+    writeback_rest_values();
+    writeback_var_not_record();
+    load_dirty_asks();
+    load_other_writes_back();
+    load_park_full_refused();
+    save_as_moves_edits();
+    rename_dirty_ram_only();
+    slot_dirty_marks();
     check("flash: no erase or program in any test outside the map", host_fl_stray == 0);
     printf(fails ? "cue_test: %d FAILED\n" : "cue_test: all passed\n", fails);
     return fails ? 1 : 0;

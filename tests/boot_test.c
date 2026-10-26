@@ -581,15 +581,15 @@ static int clock_beyond_range_is_int(void)
     p->g[G_CLOCK] = 3;
     p->sum = proj_sum(p);
     song.g[G_CLOCK] = 1;
-    project_load(0);
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     ok = GP[G_CLOCK].max == 2 && song.g[G_CLOCK] == 0;
     p->g[G_CLOCK] = 2;
     p->sum = proj_sum(p);
-    project_load(0);
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     ok &= song.g[G_CLOCK] == 2;
     p->g[G_CLOCK] = -1;
     p->sum = proj_sum(p);
-    project_load(0);
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     return (int)(ok & (song.g[G_CLOCK] == 0));
 }
 
@@ -861,7 +861,7 @@ static int fdr8_bad_motion_dropped(void)
     lk_slot[0].key[0] = (uint16_t)lk_key(3, 3, P_MODEL);   /* broken: not a recordable knob */
     memset(&mo, 0, sizeof mo);
     trk[3].step[5].on = 0;
-    project_load(0);
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     return trk[3].step[5].on && mo.b.count == 0u;
 }
 /* Review Focus 3: a load while motion plays: the stop after it puts nothing of the old project back */
@@ -878,7 +878,7 @@ static int fdr8_load_while_playing(void)
     transport_req = 1;
     for (b = 0; b < 8u; b++)
         render_mix(L, R, CTL);                       /* motion plays: E1 100, the base 64 */
-    project_load(1);
+    (void)proj_load(1, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     for (b = 0; b < 8u; b++)
         render_mix(L, R, CTL);                       /* the stop the load asked for */
     return !song.playing && trk[0].p[P_E1] == 11;
@@ -967,7 +967,7 @@ static int fdra_clamps(void)
     p->t[4].p[P_FCUT] = 300;
     p->t[4].p[P_FENV] = -200;
     p->sum = proj_sum(p);
-    project_load(0);
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     return trk[4].p[P_FTYPE] == FT_N - 1 && trk[4].p[P_FCUT] == 127 && trk[4].p[P_FENV] == -64;
 }
 /* FDRB (ACID): the step's bytes: byte 0 = on | acc << 1 | slide << 2 | tie << 3 | rat << 4, byte 1 cond, byte 2 nt */
@@ -1077,7 +1077,7 @@ static int fdrb_clamps(void)
     p->t[4].step[3].nt = 100;                        /* past NT_MAX (C4 + 67 = G9) */
     p->t[4].step[5].nt = -100;
     p->sum = proj_sum(p);
-    project_load(0);
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     return trk[4].step[2].on && trk[4].step[2].acc && trk[4].step[2].slide && trk[4].step[2].tie &&
            trk[4].step[2].rat == 3u && ((const uint8_t *)&trk[4].step[2])[0] == 0x3Fu &&
            ((const uint8_t *)&trk[4].step[2])[3] == 0u && trk[4].step[3].nt == NT_MAX && trk[4].step[5].nt == NT_MIN;
@@ -1128,7 +1128,7 @@ static int fdr9_bad_song_name_dropped(void)
     p->sum = proj_sum(p);
     memset(&chain, 0, sizeof chain);
     trk[3].step[5].on = 0;
-    project_load(0);
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     return trk[3].step[5].on && chain.cfg.count == 0u && !chain.name[0];
 }
 /* chain_prepare: rows need used slots; the slots' garbage (cond, rat, timing, motion) is made safe */
@@ -1284,7 +1284,7 @@ static int fdrc_round_trip(void)
 static uint32_t play_hash(uint32_t slot)
 {
     uint32_t b, i, h = 2166136261u;
-    project_load(slot);
+    (void)proj_load(slot, 1);                        /* (whatever the live state: as DISCARD EDITS? YES) */
     transport_req = 1;
     for (b = 0; b < 2u * FS / CTL; b++) {
         render_mix(L, R, CTL);
@@ -2307,13 +2307,17 @@ static int save_error_rename_writes_bank(void)
     host_fail_at = -1;
     if (!str_eq(ui.msg, "SAVE ERROR"))
         return 0;
-    project_rename(1, "AFTER ERR");                  /* RAM's B, renamed: its bank first */
+    host_nflog = 0;
+    project_rename(1, "AFTER ERR");                  /* RAM's B (unsaved since the error): renamed in RAM only
+                                                      * (spec 2026-10-26: flash keeps its version whole) */
+    if (host_nflog || !str_eq(ui.msg, "RENAMED (SAVE TO KEEP)"))
+        return 0;
     wipe_ram();
     host_init();
     persist_boot();
     project_load(1);
     i = lk_find(&mo.b, lk_key(0, 4, P_E1), 1);
-    return i >= 0 && mo.b.val[i] == 50 && str_eq(ui.msg, "LOADED") && project_name(1, b) && str_eq(b, "AFTER ERR");
+    return i >= 0 && mo.b.val[i] == 100 && str_eq(ui.msg, "LOADED") && project_name(1, b) && str_eq(b, "");
 }
 /* review fix 2: the USR3 clamp failed (USR3 still longer than 48 KiB in flash): no lock-bank write that boot (an older
  * Hortator would play them as USR3's sound), said once; SAVE and RENAME refuse to write */
@@ -2431,7 +2435,7 @@ int main(void)
     check("FDRF: boot, four saves of 1024 events and a rename write only inside the flash map", writes_stay_in_map());
     check("FDRF: a migrated FDRE renamed before any save keeps its motion (the bank written before the record)",
           fdre_rename_keeps_motion());
-    check("FDRF: a RENAME after a SAVE ERROR writes RAM's bank before the record: the pair loads whole",
+    check("FDRF: a RENAME after a SAVE ERROR is RAM's only (unsaved edits); flash's pair loads whole after a reset",
           save_error_rename_writes_bank());
     check("USR3: a failed clamp: no lock-bank write that boot (SAVE / RENAME refuse), USR3 CLAMP FAILED said",
           usr3_clamp_fail_blocks_banks());

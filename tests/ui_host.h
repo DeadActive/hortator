@@ -110,6 +110,17 @@ static void ui_host_init(void)
     ui.home = 1;                                     /* HOME's second mode (the HOME screen; power-on: TRACKS) */
     ui.hmode = 1;
     ui.force = 1;
+#if !FELUCCA_FLASH && !defined(UI_NO_PROJECT)
+    {                                                /* the RAM model at power-on (no flash: the RAM slots are the
+                                                      * versions kept; nothing loaded) */
+        uint32_t i;
+        var_who[0] = var_who[1] = 0;
+        var_cur = 0;
+        proj_dirty = var_dirty = 0;
+        for (i = 0; i < 4u; i++)
+            proj_fsum[i] = proj_slot[i].sum;
+    }
+#endif
 }
 
 static void press(uint32_t label)                   /* one press edge + held for this frame */

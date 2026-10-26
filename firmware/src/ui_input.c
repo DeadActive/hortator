@@ -1091,6 +1091,10 @@ static void ui_input(void)
                 memset(&chain.cfg, 0, sizeof chain.cfg);
                 ui.song_row = 0;
                 ui_message("SONG CLEARED");
+            } else if (ui.confirm == CONFIRM_DISCARD) { /* LOAD: the slot's unsaved edits dropped, its saved one */
+                ui.confirm = 0;
+                project_discard(ui.confirm_trk & 3u);
+                proj_load_from(ui.confirm_trk & 3u);
             } else if (ui.confirm == 5u) {              /* the last project failed to load: forget it (saved) */
                 lastp.set = 0;
                 settings_save();

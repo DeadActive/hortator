@@ -3845,7 +3845,7 @@ static void test_project_rejects(void)
     proj_slot[0].t[3].p[P_RTUNE] = 500;
     proj_slot[0].t[3].p[P_RDECAY] = -9;
     proj_slot[0].sum = proj_sum(&proj_slot[0]);
-    project_load(0);
+    (void)proj_load(0, 1);                           /* (the edited slot: as DISCARD EDITS? YES) */
     check("project: out-of-range values are clamped on load",
           trk[3].p[P_MODEL] < NMODELS && trk[3].p[P_E1] <= DMODELS[trk[3].p[P_MODEL]].edit[1].max &&
               trk[3].step[0].on == 1 && trk[3].step[1].cond == COND_MAX && trk[3].step[1].rat == 3 &&

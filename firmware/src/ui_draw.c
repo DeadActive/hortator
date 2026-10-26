@@ -1151,16 +1151,23 @@ static void list_row(int32_t x0, int32_t x1, int32_t y, const char *l, const cha
         md_text(x1 - 4 - md_text_w(&MD_F3, 2, r), y, &MD_F3, 2, r, pen);
 }
 
+static uint32_t slots_dirty(void)                   /* bit per slot: unsaved edits (project.c slot_dirty) */
+{
+    uint32_t i, m = 0;
+    for (i = 0; i < 4u; i++)
+        m |= (uint32_t)slot_dirty(i) << i;
+    return m;
+}
 static void graph_slots(void)
 {
-    uint32_t i;
+    uint32_t i, dirty = slots_dirty();
     char nb[NAME_LEN + 1u], f[NAME_LEN + 1u], row[NAME_LEN + 5u];
     cv_tab(2, 2, "PROJECTS", C_INK, C_BG);
     for (i = 0; i < 4u; i++) {
         int sel = (int32_t)i + 1 == song.g[G_SLOT], used = project_name(i, nb);
         md_fit(f, used ? (nb[0] ? nb : "USED") : "EMPTY", sizeof f, 180);
         row[0] = (char)('A' + i);
-        row[1] = ' ';
+        row[1] = (char)((dirty >> i) & 1u ? '*' : ' ');   /* unsaved edits (spec 2026-10-26) */
         row[2] = ' ';
         str_cpy(row + 3, f, sizeof row - 3);
         list_row(2, 237, 22 + (int32_t)i * 16, row, 0, sel);
@@ -1643,6 +1650,7 @@ static uint32_t graph_signature(void)
             h ^= (uint32_t)project_name(i, nb) << (20u + i);
             h = str_hash(h, nb);
         }
+        h ^= slots_dirty() * 0x9E3779B1u;
         h = str_hash(h, chain.name);
     }
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
@@ -2752,6 +2760,8 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             } else if (ui.confirm == 5u) {              /* the power-on load failed (project.c project_boot) */
                 str_cpy(b, "LOAD FAILED: SLOT A", sizeof b);
                 b[18] = (char)('A' + ui.confirm_trk % 4u);
+            } else if (ui.confirm == CONFIRM_DISCARD) { /* LOAD of a slot with unsaved edits (project.c) */
+                str_cpy(b, "DISCARD EDITS?", sizeof b);
             } else {
                 b[12] = (char)('1' + ui.confirm_trk);
             }
@@ -2761,7 +2771,11 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             draw_columns();
             draw_graph();
             draw_foot();
-            draw_confirm(b, ui.confirm == 5u ? "START NEW PROJECT?" : 0);
+            {
+                char q2[20] = "LOAD SLOT A SAVED";
+                q2[10] = (char)('A' + ui.confirm_trk % 4u);
+                draw_confirm(b, ui.confirm == 5u ? "START NEW PROJECT?" : ui.confirm == CONFIRM_DISCARD ? q2 : 0);
+            }
             ui.force = 0;
         }
         return;
