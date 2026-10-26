@@ -285,6 +285,24 @@ static void rev_clear(void)
 }
 
 static int32_t part_buf[CTL];                            /* a part's block (mix_part); the fade of a model change */
+static int32_t mix_fade = 32767;                         /* every track's gain at this block's start, Q15 (cue.c: a
+                                                          * slot switch's 5 ms fade out) */
+static int32_t mix_fade_d;                               /* .. a sample's step (0: still) */
+static uint32_t mix_fade_at = CTL;                       /* .. full gain from this sample of the block on (the switch) */
+/* a track's block times the cue's fade (cue.c), before its level and sends; noinline: mix_part's loops stay as
+ * they were (target_budget.py) */
+static __attribute__((noinline)) void mix_fade_block(int32_t *b, uint32_t n)
+{
+    int32_t g = mix_fade;
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        if (i >= mix_fade_at)
+            g = 32767;
+        else
+            g = clamp(g + mix_fade_d, 0, 32767);
+        b[i] = (int32_t)(((int64_t)b[i] * g) >> 15);
+    }
+}
 
 /* process the three buses for one block; sends in, wet stereo-equal out */
 static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet,
@@ -394,6 +412,8 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
             for (i = 0; i < n; i++)
                 b[i] = clamp((int32_t)(((int64_t)b[i] * comp.gain[i]) >> 16), -(1 << 19), 1 << 19);
         }
+        if (mix_fade != 32767 || mix_fade_d)
+            mix_fade_block(b, n);                       /* cue.c: a slot switch's fade */
         for (i = 0; i < n; i++) {
             int32_t x = clamp(((b[i] >> 2) * lvl) >> 10, -524287, 524287), a = x < 0 ? -x : x;   /* pre-shift: 8 loud
                                                          * voices; the clamp: x * gl (Q12) fits (COMP makeup) */

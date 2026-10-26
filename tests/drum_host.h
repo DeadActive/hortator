@@ -41,6 +41,10 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
 #include "../firmware/src/bench.c"
+#ifndef HOST_PROJECT                                  /* (without project.c: the cue never switches) */
+static int proj_cue_out(void) { return CUE_E_NOSLOT; }
+static void proj_cue_in(void) {}
+#endif
 #include "old_defs.h"                                 /* the knob defaults up to drum 0.20.0 (the tests' "default") */
 
 static void host_reset_fx(void)                     /* FX buses, master, slicer, metal: as at power-on */

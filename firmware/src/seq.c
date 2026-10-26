@@ -518,6 +518,7 @@ static void midi_block(void)
 #include "motion.c"                 /* knob moves per step (upstream 1.0's motion recording) */
 static void seq_stop(void);
 #include "song.c"                   /* SONG: rows of the four slots (upstream 1.0's song chain) */
+#include "cue.c"                    /* the live cue of slots and variations (spec 2026-10-26) */
 #include "midi_learn.c"             /* MIDI LEARN: a learned CC sets its parameter, a CC / note its action (upstream
                                      * 1.5's, adapted) */
 
@@ -545,6 +546,7 @@ static void seq_start(void)
     song.playing = 1;
     slicer_start();
     motion_begin();
+    cue_start();                                    /* cue.c: the grid's time from PLAY */
     chain_start();                                  /* song.c: an armed song from row 1 */
 }
 
@@ -554,6 +556,7 @@ static void seq_stop(void)
     acid_gates_close();                             /* ACID: no note drones on */
     motion_end();                                   /* motion.c: the patch back */
     chain_stop();                                   /* song.c: the timing and REC back */
+    cue_stop();                                     /* cue.c: a queued cue dropped */
 }
 
 static void seq_tick(track_t *t, uint32_t n)
@@ -683,9 +686,12 @@ static void events_block(uint32_t n)
     }
     run = !clock_mode || midi_clock.have_pulse || !song.playing;   /* following: step 0 / the resumed step on the first
                                                      * pulse; stopped, seq_tick counts ACID's gates in real time */
+    cue_fade_tick(n);                                /* cue.c: this block's mix gain (a slot switch's fade) */
     if (run) {
         if (chain.running)
             chain_tick(seq_n);                       /* song.c: a row ends in this block -> the next one */
+        else                                         /* cue.c: a queued switch's boundary in this block -> the switch */
+            cue_tick(n, seq_n, clock_mode && midi_clock.pulse_samples > CUE_LEAD ? midi_clock.pulse_samples : CUE_LEAD);
         for (i = 0; i < NTRK; i++)
             seq_tick(&trk[i], seq_n);
         grids_tick(seq_n);

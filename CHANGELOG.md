@@ -21,6 +21,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     edits shows `*` in the PROJECTS list; LOAD of it asks `DISCARD EDITS?`. SAVE to another slot moves the edits there
     (the old slot is its saved version again). RENAME of an edited slot renames it in RAM only
     (`RENAMED (SAVE TO KEEP)`).
+  - The cue engine (firmware/src/cue.c, the ISR's part; project.c the rest): a queued slot or variation switches
+    where the longest track's pattern ends, every track from step 0 on the grid since PLAY (song.c seq_restart, shared
+    with SONG rows); again = at the next step; stopped: at once; STOP drops a queued cue. A slot switch keeps the
+    globals, mutes and selected track, and fades the old voices over 5 ms before the boundary (fx.c); a variation
+    switch keeps the voices ringing. A never-used variation starts as a copy of the playing one (owner) and is used
+    from then on (`VARIATIONS FULL` when it does not fit). Following a clock the switch is on the boundary's pulse.
 
 ## 0.24.0 - 2026-10-25
 

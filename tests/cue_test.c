@@ -12,14 +12,20 @@ static uint8_t hflash[0x100000];
 #include "ui_host.h"
 
 static int fails;
+static int fail_line;
 static int check(const char *what, int ok)
 {
     printf("%s  %s\n", ok ? "ok  " : "FAIL", what);
-    if (!ok)
+    if (!ok) {
         fails++;
+        if (fail_line)
+            printf("     (first failed at line %d)\n", fail_line);
+    }
+    fail_line = 0;
     return ok;
 }
 
+#define OK(e) do { uint32_t ok_ = (e) ? 1u : 0u; if (!ok_ && !fail_line) fail_line = __LINE__; ok &= ok_; } while (0)
 static uint32_t rs = 1;
 static uint32_t rnd(void) { return rs = rs * 1664525u + 1013904223u; }
 static void rfill(void *p, uint32_t n)
@@ -578,6 +584,598 @@ static void slot_dirty_marks(void)
           (int)ok);
 }
 
+/* ---- Task 5: the cue engine (queue, boundary, switch, declick) */
+static uint32_t now_s;                                /* samples rendered since play() */
+static int32_t OL[CTL], OR_[CTL];
+static void run_blk(void)
+{
+    render_mix(OL, OR_, CTL);
+    now_s += CTL;
+}
+static void play(void)
+{
+    transport_req = 1;
+    now_s = 0;
+    run_blk();
+}
+static void stop(void)
+{
+    transport_req = 2;
+    run_blk();
+}
+static void pattern_slot(uint32_t len, uint32_t div)  /* A: track 0 LEN len, step 0 on; track 1 one step shorter, step 0
+                                                       * on; the rest off; saved; variation 2: track 0 step 1, track 1
+                                                       * step 0; A loaded */
+{
+    uint32_t k;
+    four_slots();
+    for (k = 0; k < NTRK; k++) {
+        memset(trk[k].step, 0, sizeof trk[k].step);
+        trk[k].p[P_SLEN] = (int16_t)len;
+        trk[k].p[P_SDIV] = (int16_t)div;
+        trk[k].p[P_SSWING] = 0;
+        trk[k].p[P_SRC] = 0;
+    }
+    trk[1].p[P_SLEN] = (int16_t)(len > 1u ? len - 1u : 1u);
+    trk[0].step[0].on = 1;
+    trk[1].step[0].on = 1;
+    project_save(0);
+    memset(VS, 0, sizeof VS);
+    for (k = 0; k < NTRK; k++) {
+        VTM[k][0] = trk[k].p[P_SLEN];
+        VTM[k][1] = (int16_t)div;
+        VTM[k][2] = 0;
+        VTM[k][3] = 0;
+    }
+    VS[0][1].on = 1;
+    VS[1][0].on = 1;
+    var_put(live_bank(), 1, VSP, VTM);
+    project_save(0);
+    host_nflog = 0;
+}
+typedef struct { uint32_t pos, idx, cnt, rem, par; } seqst_t;
+static seqst_t seqst(uint32_t k)
+{
+    seqst_t q;
+    q.pos = trk[k].seq_pos;
+    q.idx = trk[k].seq_idx;
+    q.cnt = trk[k].seq_cnt % (uint32_t)trk[k].p[P_SLEN];
+    q.rem = trk[k].seq_rem;
+    q.par = (trk[k].seq_cnt ^ trk[k].seq_par) & 1u;
+    return q;
+}
+static int seq_same(seqst_t a, seqst_t b) { return a.pos == b.pos && a.idx == b.idx && a.cnt == b.cnt && a.rem == b.rem && a.par == b.par; }
+static int cue_boundary_case(uint32_t len, uint32_t div)
+{
+    uint32_t wrap_at = 0, sw_at = 0, t_end, a0, hits0 = 0, hit_bound = 0, hit_next = 0, ok = 1;
+    seqst_t r0, r1;
+    pattern_slot(len, div);
+    play();                                           /* the plain loop: where its second pattern starts */
+    while (!wrap_at && now_s < 40u * FS) {
+        run_blk();
+        if (trk[0].seq_cnt == len)
+            wrap_at = now_s;                          /* (the block ending at now_s holds the boundary) */
+    }
+    t_end = wrap_at + 3u * div_samples(div) + 777u;
+    while (now_s < t_end)
+        run_blk();
+    r0 = seqst(0);
+    r1 = seqst(1);
+    stop();
+    play();
+    a0 = hit_age(&trk[0]);
+    while (now_s < wrap_at / 2u)
+        run_blk();
+    OK(cue_var(1) == 0 && cue.q_var == 2u && var_cur == 0u);   /* mid pattern */
+    while (now_s < t_end) {
+        uint32_t was = var_cur;
+        run_blk();
+        cue_poll();
+        if (hit_age(&trk[0]) != a0) {
+            a0 = hit_age(&trk[0]);
+            if (!was && var_cur)
+                hit_bound++;                          /* a hit in the switch block */
+            else if (var_cur)
+                hit_next++;
+            else
+                hits0++;
+        }
+        if (!was && var_cur)
+            sw_at = now_s;
+    }
+    OK(sw_at == wrap_at && var_cur == 1u && seq_same(seqst(0), r0) && trk[1].seq_cnt == trk[0].seq_cnt &&
+          trk[1].seq_rem == trk[0].seq_rem);           /* (every track from its step 0 at the boundary, together) */
+    OK(hits0 == 0u && hit_bound == 0u && hit_next == 1u);   /* (variation 1's step 0 was PLAY's block) none on the
+                                                       * boundary (variation 2's step 0 is off), its step 1 after */
+    (void)r1;
+    stop();
+    if (!ok)
+        printf("     LEN %u DIV %u: switch at %u (boundary block %u), var %u, hits %u / %u / %u, same %d %d\n", len, div,
+               sw_at, wrap_at, var_cur, hits0, hit_bound, hit_next, seq_same(seqst(0), r0), seq_same(seqst(1), r1));
+    return (int)ok;
+}
+static void cue_boundary_lens(void)
+{
+    uint32_t ok = 1;
+    OK((uint32_t)cue_boundary_case(16, 2));
+    OK((uint32_t)cue_boundary_case(12, 2));
+    OK((uint32_t)cue_boundary_case(7, 4));
+    OK((uint32_t)cue_boundary_case(64, 3));
+    OK((uint32_t)cue_boundary_case(3, 0));
+    check("cue: a queued variation switches exactly at the end of the longest track's pattern (LEN / DIV 16 1/16, 12 "
+          "1/16, 7 8T, 64 1/32, 3 1/4; a shorter second track), on the plain loop's grid", (int)ok);
+}
+static void cue_grid_kept(void)
+{
+    uint32_t ok = 1, t_end, k;
+    seqst_t r[NTRK];
+    pattern_slot(16, 2);
+    trk[0].p[P_SSWING] = 60;
+    trk[1].p[P_SLEN] = 16;
+    song.g[G_SWING] = 20;
+    project_save(0);
+    VTM[0][2] = 60;                                   /* variation 2: the same timing */
+    VTM[1][0] = 16;
+    t_end = 5u * 4u * 22050u + 999u;                 /* 4 bars after the first boundary (120 BPM) */
+    play();
+    while (now_s < t_end)
+        run_blk();
+    for (k = 0; k < 2u; k++)
+        r[k] = seqst(k);
+    stop();
+    var_put(live_bank(), 1, VSP, VTM);                /* (variation 2: the same timing, SWG 0 on track 0) */
+    play();
+    while (now_s < 4u * 22050u)
+        run_blk();
+    cue_var(1);
+    while (now_s < t_end) {
+        run_blk();
+        cue_poll();
+    }
+    for (k = 0; k < 2u; k++)
+        OK(seq_same(seqst(k), r[k]));
+    OK(var_cur == 1u);
+    stop();
+    song.g[G_SWING] = 0;
+    check("cue: 4 bars after a switch (SWING 60 / 20, 1/16) every step sits where a never-switched loop's does", (int)ok);
+}
+static void cue_again_now(void)
+{
+    uint32_t ok = 1, step = div_samples(2), at, sw_at = 0, nb;
+    pattern_slot(16, 2);
+    play();
+    while (now_s < 5u * step + step / 2u)            /* mid step 6 */
+        run_blk();
+    OK(cue_slot(1) == 0 && cue.q_slot == 2u);
+    OK(cue_slot(1) == 0 && cue.now);                /* B again: at the next step */
+    nb = 6u * step;                                   /* the next step of any track (all 1/16) */
+    at = now_s;
+    while (now_s < at + 2u * step) {
+        uint32_t was = cue.q_slot;
+        run_blk();
+        cue_poll();
+        if (was && !cue.q_slot && !sw_at)
+            sw_at = now_s;
+    }
+    OK(sw_at && sw_at - CTL < nb + CTL && sw_at >= nb && trk[0].p[P_LEVEL] == 20 && proj_loaded() == 1);
+    OK(trk[0].seq_cnt < 3u);                        /* a new pattern from its step 0 */
+    stop();
+    if (!ok)
+        printf("     now: switch block end %u, next step %u, level %d, loaded %d\n", sw_at, nb, trk[0].p[P_LEVEL],
+               proj_loaded());
+    check("cue: the same slot key again while queued switches at the next step", (int)ok);
+}
+static void cue_stopped_immediate(void)
+{
+    uint32_t ok;
+    four_slots();
+    cue.last[1] = 0;
+    ok = cue_slot(1) == 0 && proj_loaded() == 1 && trk[0].p[P_LEVEL] == 20 && !cue.q_slot && var_cur == 0u;
+    OK(cue_slot(0) == 0 && proj_loaded() == 0 && trk[0].p[P_LEVEL] == 10);
+    check("cue: stopped, a cue switches at once (the slot's last variation)", (int)ok);
+}
+static void cue_globals_kept(void)
+{
+    static int16_t g[G_COUNT];
+    uint32_t ok = 1, k, f;
+    int16_t mute[NTRK];
+    four_slots();
+    song.g[G_BPM] = 133;
+    song.g[G_SWING] = 7;
+    song.g[G_DTIME] = 5;
+    song.g[G_RSIZE] = 99;
+    song.g[G_GX] = 17;
+    trk[3].p[P_MUTE] = 1;
+    song.sel = 5;
+    play();
+    for (f = 0; f < 50u; f++)
+        run_blk();
+    memcpy(g, song.g, sizeof g);
+    for (k = 0; k < NTRK; k++)
+        mute[k] = trk[k].p[P_MUTE];
+    cue_slot(2);
+    for (f = 0; f < 4u * 22050u / CTL; f++) {
+        run_blk();
+        cue_poll();
+    }
+    OK(proj_loaded() == 2 && trk[0].p[P_LEVEL] == 30 && !memcmp(g, song.g, sizeof g) && song.sel == 5u);
+    for (k = 0; k < NTRK; k++)
+        OK(trk[k].p[P_MUTE] == mute[k]);
+    stop();
+    check("cue: a slot switch keeps the globals (BPM, SWING, delay, reverb, Grids), the mutes and the selected track",
+          (int)ok);
+}
+static void cue_round_trip_edits(void)
+{
+    uint32_t ok = 1;
+    pattern_slot(16, 2);
+    OK(cue_var(2) == 0 && var_cur == 2u);           /* stopped: at once; variation 3 (never used: a copy of 1) */
+    trk[6].step[13].on = 1;                           /* an edit of variation 3 */
+    trk[2].p[P_PAN] = 21;
+    OK(cue_slot(1) == 0 && proj_loaded() == 1 && !trk[6].step[13].on);
+    OK(cue_slot(0) == 0 && proj_loaded() == 0 && var_cur == 2u && trk[6].step[13].on && trk[2].p[P_PAN] == 21);
+    OK(slot_dirty(0) && !slot_dirty(1));
+    check("cue: A on variation 3 with an edit, cue B, cue A: back on variation 3 with the edit (and the knob)", (int)ok);
+}
+static void cue_empty_copies(void)                    /* owner 2026-10-26: a never-used variation starts as a copy */
+{
+    uint32_t ok = 1, k;
+    pattern_slot(16, 2);
+    OK(!(var_mask(live_bank()) & (1u << 4)));
+    trk[5].step[9].on = 1;                            /* variation 1, edited */
+    trk[5].p[P_SLEN] = 9;
+    OK(cue_var(4) == 0 && var_cur == 4u && trk[5].step[9].on && trk[5].p[P_SLEN] == 9 && trk[0].step[0].on);
+    OK((var_mask(live_bank()) >> 4) & 1u);          /* used now */
+    OK(cue_var(1) == 0 && var_cur == 1u && !trk[0].step[0].on && trk[0].step[1].on);   /* variation 2 as stored */
+    OK(cue_var(4) == 0 && trk[5].step[9].on && trk[0].step[0].on);   /* variation 5: the copy kept */
+    for (k = 2; k <= 3u; k++) {                       /* fill the bank: dense variations 3, 4 */
+        var_make(70 + k, 1000);
+        var_put(live_bank(), k, VSP, VTM);
+    }
+    {                                                 /* variation 7 (never used) does not fit: VARIATIONS FULL */
+        static step_t keep[NTRK][NSTEP];
+        uint32_t used = live_bank()->used;
+        for (k = 0; k < NTRK; k++)
+            memcpy(keep[k], trk[k].step, sizeof keep[k]);
+        var_make(80, 1000);                           /* (the live variation 5 made dense: its copy is 1634 B) */
+        for (k = 0; k < NTRK; k++)
+            memcpy(trk[k].step, VS[k], sizeof VS[k]);
+        OK(live_bank()->used + 1634u - (used - 0u) > 0u);
+        OK(cue_var(6) == CUE_E_FULL && var_cur == 4u && !((var_mask(live_bank()) >> 6) & 1u));
+        for (k = 0; k < NTRK; k++)
+            OK(!memcmp(trk[k].step, VS[k], sizeof VS[k]));
+    }
+    check("cue: a never-used variation starts as a copy of the playing one (steps, timing), then counts as used; a "
+          "copy that does not fit: VARIATIONS FULL, the playing one plays on", (int)ok);
+}
+static void cue_var_edits_while_queued(void)      /* Review Focus 5 */
+{
+    uint32_t ok = 1, f;
+    pattern_slot(16, 2);
+    cue_var(1);                                       /* stopped: variation 2 plays */
+    play();
+    for (f = 0; f < 100u; f++)
+        run_blk();
+    OK(cue_var(2) == 0 && cue.q_var == 3u);
+    trk[7].step[3].on = 1;                            /* an edit of variation 2 before the boundary */
+    for (f = 0; f < 4u * 44100u / CTL && cue.q_var; f++) {
+        run_blk();
+        cue_poll();
+    }
+    OK(var_cur == 2u && trk[7].step[3].on && var_get(live_bank(), 1, VRP, VTR) == 1 && VR[7][3].on == 1u &&
+       ((var_mask(live_bank()) >> 2) & 1u));         /* (variation 3, never used: a copy of 2 with the edit) */
+    trk[7].step[3].on = 0;                            /* variation 3 edited apart */
+    cue_var(1);
+    for (f = 0; f < 4u * 44100u / CTL && cue.q_var; f++) {
+        run_blk();
+        cue_poll();
+    }
+    OK(var_cur == 1u && trk[7].step[3].on);
+    stop();
+    check("cue: variation 2 edited while variation 3 is queued: the edit packed at the switch (3, never used, starts "
+          "as its copy), there when 2 comes back", (int)ok);
+}
+static void cue_var_full(void)
+{
+    uint32_t ok = 1, f, k;
+    pattern_slot(16, 2);
+    cue_var(1);                                       /* variation 2 plays */
+    for (k = 2; k <= 3u; k++) {                       /* variations 3, 4 dense: the bank nearly full */
+        var_make(90 + k, 1000);
+        var_put(live_bank(), k, VSP, VTM);
+    }
+    play();
+    for (f = 0; f < 50u; f++)
+        run_blk();
+    OK(cue_var(2) == 0);                            /* variation 3 queued */
+    var_make(99, 1000);                               /* live variation 2 made dense: it no longer fits */
+    for (k = 0; k < NTRK; k++)
+        memcpy(trk[k].step, VS[k], sizeof VS[k]);
+    ui.msg[0] = 0;
+    for (f = 0; f < 4u * 44100u / CTL; f++) {
+        run_blk();
+        cue_poll();
+    }
+    OK(var_cur == 1u && !cue.q_var && str_eq(ui.msg, "VARIATIONS FULL"));
+    for (k = 0; k < NTRK; k++)
+        OK(!memcmp(trk[k].step, VS[k], sizeof VS[k]));
+    stop();
+    check("cue: the playing variation's edits do not fit: at the boundary no switch, it plays on with its edits, "
+          "VARIATIONS FULL", (int)ok);
+}
+static void cue_park_refused(void)                    /* Review Focus 5 */
+{
+    uint32_t ok = 1, f;
+    pattern_slot(16, 2);
+    OK(cue_slot(2) == 0 && proj_loaded() == 2);     /* (stopped) C, its variation 2 edited */
+    cue_var(1);
+    trk[4].step[4].on = 1;
+    OK(cue_slot(0) == 0 && proj_loaded() == 0 && var_who[var_play ^ 1u] == 3u && (var_dirty & 4u));   /* C parked */
+    cue_var(1);                                       /* A's variation 2 edited too */
+    trk[4].step[6].on = 1;
+    OK(cue_slot(1) == CUE_E_PARK + 2 && proj_loaded() == 0 && !cue.q_slot && str_eq(ui.msg, "SAVE C FIRST"));
+    cue_var(0);                                       /* back to variation 1: A's variations still unsaved */
+    project_discard(0);
+    proj_load_from(0);                                /* A clean */
+    OK(!slot_dirty(0));
+    play();
+    for (f = 0; f < 50u; f++)
+        run_blk();
+    OK(cue_slot(1) == 0 && cue.q_slot == 2u);       /* accepted */
+    cue_var(1);                                       /* (B's variation 2 queued too) */
+    OK(cue.q_var == 2u);
+    ui.msg[0] = 0;
+    var_cur = 0;
+    for (f = 0; f < 4u * 22050u / CTL && (cue.q_slot || cue.q_var); f++) {
+        if (f == 10u) {                               /* A's variations edited after the cue was accepted */
+            var_cur = 1;
+            trk[2].step[2].on = 1;
+        }
+        run_blk();
+        cue_poll();
+    }
+    OK(proj_loaded() == 0 && str_eq(ui.msg, "SAVE C FIRST") && trk[2].step[2].on && var_cur == 1u);
+    stop();
+    var_cur = 0;
+    check("cue: the park holds C's unsaved variations, A's are unsaved: cue B refused (SAVE C FIRST); A clean: accepted; "
+          "A's variations edited before the boundary: refused there, A's edit kept", (int)ok);
+}
+static void cue_song_refused(void)
+{
+    uint32_t ok;
+    four_slots();
+    chain.running = 1;
+    ok = cue_slot(1) == CUE_E_SONG && cue_var(1) == CUE_E_SONG && !cue.q_slot && !cue.q_var &&
+         str_eq(ui.msg, "STOP SONG TO CUE");
+    chain.running = 0;
+    OK(cue_slot(1) == 0);
+    check("cue: SONG playing: STOP SONG TO CUE, nothing queued", (int)ok);
+}
+static void cue_never_writes_flash(void)           /* Review Focus 1 */
+{
+    uint32_t ok = 1, i, f;
+    pattern_slot(16, 2);
+    host_nflog = 0;
+    for (i = 0; i < 20u; i++) {
+        if (i == 10u)
+            play();
+        if (i & 1u)
+            cue_slot(i % 4u);
+        else
+            cue_var(i % 8u);
+        if (i % 5u == 4u)
+            cue_var(i % 8u);                         /* again = now */
+        for (f = 0; f < (song.playing ? 3000u : 1u); f++) {
+            run_blk();
+            cue_poll();
+        }
+    }
+    stop();
+    ok = host_nflog == 0u;
+    check("cue: 20 cues (slots and variations, playing and stopped, again = now) write no flash", (int)ok);
+}
+static int32_t peak(const int32_t *b, uint32_t n)
+{
+    int32_t p = 0;
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        p = b[i] > p ? b[i] : -b[i] > p ? -b[i] : p;
+    return p;
+}
+static int32_t REC[8u * 22050u + CTL];
+static void cue_fade(void)
+{
+    uint32_t ok = 1, wrap = 4u * 22050u, i, n;
+    int32_t pk20, pkend;
+    four_slots();
+    for (i = 0; i < NTRK; i++)
+        memset(trk[i].step, 0, sizeof trk[i].step);
+    trk[0].step[15].on = 1;                           /* A: an ACID note held through its step, into the boundary */
+    old_set_model(&trk[0], DM_ACID);
+    trk[0].p[P_E0 + 7] = 127;                         /* (GATE 100 %) */
+    trk[0].p[P_LEVEL] = 100;
+    for (i = 0; i < NTRK; i++)
+        trk[i].p[P_REV] = trk[i].p[P_DLY] = trk[i].p[P_CHOR] = 0;
+    project_save(0);
+    play();
+    n = 0;
+    while (now_s < 3u * 22050u) {
+        run_blk();
+        memcpy(REC + n, OL, sizeof OL);
+        n += CTL;
+    }
+    cue_slot(1);
+    while (now_s < wrap + 4u * CTL) {
+        run_blk();
+        cue_poll();
+        memcpy(REC + n, OL, sizeof OL);
+        n += CTL;
+    }
+    pk20 = peak(REC + wrap - 882u - 64u, 64u);       /* 20 ms before the boundary */
+    pkend = peak(REC + wrap - 64u, 64u);              /* the last 64 samples before it */
+    OK(proj_loaded() == 1 && pk20 > 0 && pkend * 8 < pk20 && mix_fade == 32767);
+    stop();
+    if (!ok)
+        printf("     fade: peak 20 ms before %d, last 64 %d, loaded %d\n", pk20, pkend, proj_loaded());
+    {                                                 /* a variation switch: up to the boundary the same as no switch */
+        static int32_t a[4u * 22050u + CTL];
+        pattern_slot(16, 2);
+        for (i = 0; i < NTRK; i++)
+            trk[i].p[P_REV] = trk[i].p[P_DLY] = 0;
+        play();
+        for (n = 0; n < 4u * 22050u; n += CTL) {
+            run_blk();
+            memcpy(a + n, OL, sizeof OL);
+        }
+        stop();
+        pattern_slot(16, 2);                          /* the same start */
+        for (i = 0; i < NTRK; i++)
+            trk[i].p[P_REV] = trk[i].p[P_DLY] = 0;
+        play();
+        cue_var(1);
+        for (n = 0, i = 1; n < 4u * 22050u - CTL; n += CTL) {
+            run_blk();
+            i &= !memcmp(a + n, OL, sizeof OL);
+        }
+        OK(i);
+        stop();
+    }
+    check("cue: a slot switch fades the old voices out over 5 ms before the boundary (the last 64 samples under 1/8 of "
+          "20 ms before); a variation switch changes nothing up to the boundary", (int)ok);
+}
+static void song_plays_var1(void)
+{
+    uint32_t ok = 1, f, a;
+    pattern_slot(16, 2);
+    cue_var(1);                                       /* A on variation 2 (track 0 step 1) */
+    proj_writeback();
+    chain.cfg.count = 1;
+    chain.cfg.loop = 1;
+    chain.cfg.row[0].slot = 0;
+    chain.cfg.row[0].repeat = 1;
+    OK(chain_prepare() == 0);
+    now_s = 0;
+    run_blk();
+    a = hit_age(&trk[0]);
+    OK(chain.running && chain.src[0].step[0][0].on && !chain.src[0].step[0][1].on && a != 0u);   /* variation 1 */
+    for (f = 0; f < 10u; f++)
+        run_blk();
+    stop();
+    OK(!chain.running && var_cur == 1u && trk[0].step[1].on && !trk[0].step[0].on);
+    check("cue: a SONG row plays its slot's variation 1; STOP returns to the live variation", (int)ok);
+}
+
+/* Review Focus 2: cueing while following an external clock (CLK USB / TRS): the switch comes from the clock's real
+ * advance, in the block whose pulse ends the pattern (where a plain loop's next step 0 is), never late, never missed;
+ * a slot switch's fade starts on the boundary's last pulse. (Here, not in midi_clock_test.c: the cue needs project.c) */
+static uint64_t ck_now;
+static double ck_next, ck_arr = -1.0;
+static uint32_t ck_pulses, ck_rng = 7;
+static void ck_send(uint32_t status, uint32_t src, double at)
+{
+    fm1_ms = (uint32_t)(at * 1000.0 / FS);
+    if (src == 2u)
+        um_byte(status);
+    else
+        midi_enqueue(0x0Fu | status << 8, src);
+}
+static double ck_late(void)
+{
+    ck_rng = ck_rng * 1664525u + 1013904223u;
+    return (double)((ck_rng >> 29) % 5u) * FS / 1000.0;
+}
+static void ck_block(double bpm, uint32_t src)       /* one block, the pulses that arrive in it first */
+{
+    for (;;) {
+        if (ck_arr < 0.0)
+            ck_arr = ck_next + ck_late();
+        if (ck_arr >= (double)(ck_now + CTL))
+            break;
+        ck_send(0xF8u, src, ck_arr);
+        ck_pulses++;
+        ck_next += FS * 60.0 / bpm / 24.0;
+        ck_arr = -1.0;
+    }
+    fm1_ms = (uint32_t)((ck_now + CTL) * 1000u / FS);
+    render_mix(OL, OR_, CTL);
+    ck_now += CTL;
+}
+static void ck_setup(uint32_t src)
+{
+    pattern_slot(16, 2);
+    song.g[G_CLOCK] = (int16_t)src;
+    render_mix(OL, OR_, CTL);                        /* (the mode change settles) */
+    ck_now = 0;
+    ck_pulses = 0;
+    ck_rng = 7;
+    ck_next = 100.0;
+    ck_arr = -1.0;
+    mi_r = mi_w;
+}
+static int cue_follow(double bpm, uint32_t src, int slot)
+{
+    uint32_t b, wrap_blk = 0, sw_blk = 0, fade_blk = 0, fade_pulse = 0, ok = 1, end;
+    seqst_t r0;
+    ck_setup(src);
+    ck_send(0xFAu, src, (double)ck_now);
+    for (b = 0; b < 200000u && !wrap_blk; b++) {      /* the plain loop: the block its second pattern starts in */
+        ck_block(bpm, src);
+        if (song.playing && trk[0].seq_cnt == 16u)
+            wrap_blk = b;
+    }
+    end = wrap_blk + 400u;
+    for (; b <= end; b++)
+        ck_block(bpm, src);
+    r0 = seqst(0);
+    ck_send(0xFCu, src, (double)ck_now);
+    ck_block(bpm, src);
+    ck_setup(src);
+    ck_send(0xFAu, src, (double)ck_now);
+    for (b = 0; b <= end; b++) {
+        uint32_t was = slot ? cue.q_slot : cue.q_var;
+        if (b == wrap_blk / 2u)
+            OK((slot ? cue_slot(1) : cue_var(1)) == 0);
+        ck_block(bpm, src);
+        cue_poll();
+        if (slot && !fade_blk && cue.fade == 1u) {
+            fade_blk = b;
+            fade_pulse = ck_pulses;
+        }
+        if (was && !(slot ? cue.q_slot : cue.q_var))
+            sw_blk = b;
+    }
+    OK(sw_blk == wrap_blk && (slot ? proj_loaded() == 1 : var_cur == 1u));
+    if (!slot) {                                      /* (the step remainder from the grid's time: a measured
+                                                       * tempo's fraction may put it one sample off the plain loop's,
+                                                       * as a SONG row's; the next pulse re-anchors it) */
+        seqst_t q = seqst(0);
+        OK(q.idx == r0.idx && q.cnt == r0.cnt && q.par == r0.par && q.pos + 1u >= r0.pos && q.pos <= r0.pos + 1u);
+    }
+    else                                              /* the fade from the boundary's last pulse (96 = 16 x 6) */
+        OK(fade_blk && fade_blk < sw_blk && fade_pulse >= 95u && fade_pulse <= 96u);
+    ck_send(0xFCu, src, (double)ck_now);
+    ck_block(bpm, src);
+    song.g[G_CLOCK] = 0;
+    render_mix(OL, OR_, CTL);
+    if (!ok)
+        printf("     follow %.1f BPM src %u %s: switch block %u, plain wrap %u, fade at block %u pulse %u\n", bpm, src,
+               slot ? "slot" : "variation", sw_blk, wrap_blk, fade_blk, fade_pulse);
+    return (int)ok;
+}
+static void cue_follow_all(void)
+{
+    static const double BPMS[3] = {90.0, 120.0, 174.6};
+    uint32_t b, s, ok = 1;
+    for (s = 1; s <= 2u; s++)
+        for (b = 0; b < 3u; b++) {
+            ok &= (uint32_t)cue_follow(BPMS[b], s, 0);
+            ok &= (uint32_t)cue_follow(BPMS[b], s, 1);
+        }
+    check("cue following CLK USB / TRS at 90, 120, 174.6 BPM: a variation's or a slot's switch in the block whose pulse "
+          "ends the pattern (a plain loop's next step 0), on its grid; a slot's fade from the boundary's last pulse",
+          (int)ok);
+}
+
 int main(void)
 {
     vptrs();
@@ -597,6 +1195,21 @@ int main(void)
     save_as_moves_edits();
     rename_dirty_ram_only();
     slot_dirty_marks();
+    cue_boundary_lens();
+    cue_grid_kept();
+    cue_again_now();
+    cue_stopped_immediate();
+    cue_globals_kept();
+    cue_round_trip_edits();
+    cue_empty_copies();
+    cue_var_edits_while_queued();
+    cue_var_full();
+    cue_park_refused();
+    cue_song_refused();
+    cue_never_writes_flash();
+    cue_fade();
+    song_plays_var1();
+    cue_follow_all();
     check("flash: no erase or program in any test outside the map", host_fl_stray == 0);
     printf(fails ? "cue_test: %d FAILED\n" : "cue_test: all passed\n", fails);
     return fails ? 1 : 0;

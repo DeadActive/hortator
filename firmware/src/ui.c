@@ -17,6 +17,7 @@ static void project_rename(uint32_t slot, const char *name);
 static int slot_dirty(uint32_t s);         /* project.c: slot s has unsaved edits (spec 2026-10-26) */
 static void project_discard(uint32_t s);   /* .. its RAM image back to its flash version */
 static void proj_load_from(uint32_t slot); /* .. LOAD without the DISCARD EDITS? question */
+static void cue_poll(void);                /* .. a cue's switch finished (the ISR's: cue.c) */
 static int transport_busy(void);
 static int name_on(void);                  /* ui_name.c (NAME) */
 static void draw_name(void);

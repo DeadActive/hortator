@@ -80,29 +80,23 @@ static uint32_t chain_beats(const track_t *t, uint32_t *den)   /* t's pattern: n
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP);
     return len * div_num_den((uint32_t)t->p[P_SDIV], den);
 }
-static void chain_apply(uint32_t x)                /* row chain.row starts x samples into this block (PLAY: 0) */
+/* every track at its step 0, x samples into this block (seq_tick: chain.cut keeps the block's rest), on the grid a
+ * plain loop would be on: each track's step remainder and swing pair phase from b24 (1/24 beats since PLAY: every
+ * division's step is a whole number of them). Returns the reference: the longest track (LEN x DIV; ties: the lowest).
+ * A song's row (chain_apply) and a cue (cue.c) */
+static uint32_t seq_restart(uint32_t x, uint32_t b24)
 {
-    const chain_src_t *s;
-    uint32_t k, j, best = 0, bn = 0, bd = 1;
-    chain.slot = chain.cfg.row[chain.row].slot;
-    chain.left = chain.cfg.row[chain.row].repeat;
-    s = &chain.src[chain.slot];
-    mo.src = s->m ? s->m : &LK_NONE;
-    mo.model = s->model;
+    uint32_t k, best = 0, bn = 0, bd = 1;
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         uint32_t n, d;
-        lock_release(k);                           /* the last row's locks and motion off (motion.c) */
-        motion_restore(k);
-        for (j = 0; j < 4u; j++)
-            t->p[CHAIN_TIMING[j]] = s->timing[k][j];
         t->seq_idx = (uint16_t)(t->p[P_SLEN] - 1);
         t->seq_pos = 0x7FFFFFFFu - x;              /* step 0, x samples into the block (seq_tick, chain.cut) */
         t->seq_cnt = 0xFFFFFFFFu;
         {                                          /* the grid since PLAY: its remainder, its swing pair phase */
             uint32_t den, s24 = step24((uint32_t)t->p[P_SDIV], &den);
-            t->seq_par = (uint8_t)((chain.b24 / s24) & 1u);
-            t->seq_rem = (uint8_t)((uint32_t)chain.b24 * beat_samples() % 24u * den / 24u);
+            t->seq_par = (uint8_t)((b24 / s24) & 1u);
+            t->seq_rem = (uint8_t)(b24 * beat_samples() % 24u * den / 24u);
         }
         t->rskip = 0;
         t->rat_n = 0;
@@ -113,7 +107,24 @@ static void chain_apply(uint32_t x)                /* row chain.row starts x sam
             bd = d;
         }
     }
-    chain.ref = (uint8_t)best;
+    return best;
+}
+static void chain_apply(uint32_t x)                /* row chain.row starts x samples into this block (PLAY: 0) */
+{
+    const chain_src_t *s;
+    uint32_t k, j;
+    chain.slot = chain.cfg.row[chain.row].slot;
+    chain.left = chain.cfg.row[chain.row].repeat;
+    s = &chain.src[chain.slot];
+    mo.src = s->m ? s->m : &LK_NONE;
+    mo.model = s->model;
+    for (k = 0; k < NTRK; k++) {
+        lock_release(k);                           /* the last row's locks and motion off (motion.c) */
+        motion_restore(k);
+        for (j = 0; j < 4u; j++)
+            trk[k].p[CHAIN_TIMING[j]] = s->timing[k][j];
+    }
+    chain.ref = (uint8_t)seq_restart(x, chain.b24);
 }
 static void chain_start(void)                      /* seq_start: an armed song from row 1 (a Start during one: again) */
 {

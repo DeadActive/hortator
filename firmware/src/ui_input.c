@@ -994,6 +994,7 @@ static void ui_input(void)
                                                          * main loop's UI only: gate 3 CALLERS) */
 #endif
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
+    cue_poll();                                         /* project.c: a cue's switch finished (spec 2026-10-26) */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
     if (acc_oct && (ui.mute || ui.layer || fx_knobs))
         acc_oct = 2;                                    /* OCT+ held under MUTE / PERFORM: no bank on its release, there

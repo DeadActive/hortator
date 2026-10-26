@@ -182,6 +182,25 @@ saved version loads; OCT- NO: nothing changes). SAVE to another slot ("save as")
 slot it came from goes back to its saved version. RENAME of a slot with unsaved edits renames it in RAM only
 (`RENAMED (SAVE TO KEEP)`): SAVE keeps both.
 
+### Live cue and variations
+
+Each project slot has **8 variations**: variation 1 is the slot's own steps; variations 2–8 each hold their own steps
+and timing (LEN, DIV, SWG, SRC per track) and share the slot's sounds and its locks (a lock plays on its step in every
+variation where that step plays). While a slot plays, the next slot (A–D) or another variation can be **queued**: it
+comes in exactly where the pattern ends (the longest track's LEN × DIV, as a SONG row ends), every track then from its
+step 0 on the same grid as before (swing and odd lengths keep their place). The same key again while queued switches
+at the next step; stopped, a cue switches at once. A slot switch changes everything of the slot (sounds, steps,
+timing, locks) but keeps the tempo, SWING, clock / MIDI / sync, the master FX, Grids, the mutes and the selected
+track; the old slot's voices fade out over the last 5 ms before the boundary. A variation switch changes only the
+steps and the timing; the voices ring on. A variation never used before starts as a **copy of the variation playing**
+(steps and timing) the first time it is cued, and is a used variation from then on; when the slot's variations are
+full (about 7 typical ones fit; a dense one takes 1.6 KB) the cue says `VARIATIONS FULL` and the playing one plays
+on. A slot comes back on the variation it played last (after power-on: variation 1). Edits go to the playing
+variation and are kept when you cue away and back. While SONG plays a cue is refused (`STOP SONG TO CUE`); a SONG row
+plays its slot's variation 1. Following an external clock (CLK USB / TRS) the switch comes on the pulse that ends
+the pattern. Unsaved variations of a slot you leave wait in RAM (one other slot's at a time: `SAVE C FIRST` when
+another slot's unsaved variations are still waiting).
+
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
 Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
 an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is safe, not supported: nothing breaks, the projects stay for this
