@@ -358,6 +358,36 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_
 static volatile uint8_t usb10;                  /* the audio input the host enumerated: 0 2 CH, 1 10 CH (ui_menu.c) */
 static volatile uint32_t usb_hold_until;        /* the reconnect (ui_menu.c): CLK USB's lost-clock stop waits till then */
 static int16_t usb8_tap[NTRK][CTL];
+/* 10 CH FX (MENU > USB AUDIO, ui_menu.c): channels 1-2 carry the send effects' return instead of the master: the
+ * chorus, delay and reverb buses' output (fx_buses' wet, mono: the same on both; THROW's share in it), at the master's
+ * level as the tracks are, before PERFORM's master effects, METRO and master_out (DC block, SPEAKER EQ, limiter, soft
+ * clip). T1..T8 panned as on the FM-1 plus this pair add up to the master bus before those (mix_l / mix_r), to
+ * rounding. MIX <-> FX cross-fades over 256 samples (5.8 ms; usb8_main). */
+static volatile uint8_t usb_fxpair;             /* 1: 10 CH FX, 0: 10 CH MIX (the master on 1-2) */
+static int16_t usb8_wet[CTL];
+static int32_t usb8_pair[2 * CTL], usb8_g;       /* channels 1-2 for uac8_tap; the cross-fade, 0 MIX .. 32768 FX */
+static __attribute__((noinline)) void usb8_wet_tap(const int32_t *w, uint32_t n)
+{
+    int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (mix_block's mg) */
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        usb8_wet[i] = (int16_t)clamp(((clamp(w[i], -2097151, 2097151) >> 2) * mg) >> 10, -32768, 32767);
+}
+/* audio ISR, after mix_block: channels 1-2 of the 10 CH stream (out: the master, Q15 stereo); MIX: out itself */
+static __attribute__((noinline)) const int32_t *usb8_main(const int32_t *out, uint32_t n)
+{
+    int32_t to = usb_fxpair ? 32768 : 0, g = usb8_g;
+    uint32_t i;
+    if (!g && !to)
+        return out;
+    for (i = 0; i < n; i++) {
+        g += clamp(to - g, -128, 128);
+        usb8_pair[2u * i] = out[2u * i] + (((usb8_wet[i] - out[2u * i]) * (g >> 1)) >> 14);
+        usb8_pair[2u * i + 1u] = out[2u * i + 1u] + (((usb8_wet[i] - out[2u * i + 1u]) * (g >> 1)) >> 14);
+    }
+    usb8_g = g;
+    return usb8_pair;
+}
 static __attribute__((noinline)) void usb8_track_tap(uint32_t k, const int32_t *b, int32_t lvl, uint32_t n)
 {
     int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (mix_block's mg) */
@@ -524,6 +554,10 @@ static void mix_block(int32_t *out, uint32_t n)
     if (perf)
         perf_pre(mix_l, mix_r, send_d, send_r, n);  /* THROW */
     fx_buses(send_c, send_d, send_r, wet, n);
+#if USB10_BUILD
+    if (usb10)
+        usb8_wet_tap(wet, n);                           /* MENU > USB AUDIO 10 CH FX: the send effects' return */
+#endif
     for (i = 0; i < n; i++) {                           /* the master level */
         mix_l[i] = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
         mix_r[i] = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */

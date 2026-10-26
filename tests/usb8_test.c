@@ -174,16 +174,16 @@ static void test_descriptors(void)
     ref_get_desc(0x0100, &r, &rn);
     for (i = 0, ndiff = 0; i < 18u; i++)
         ndiff += d[i] != r[i];
-    check("device descriptor = usb_app.c's but bcdDevice 3.81 (was 3.11)", l == 18 && rn == 18 && ndiff == 1 &&
-          d[12] == 0x81 && r[12] == 0x11 && d[13] == 3);
+    check("device descriptor = usb_app.c's but bcdDevice 3.82 (was 3.11)", l == 18 && rn == 18 && ndiff == 1 &&
+          d[12] == 0x82 && r[12] == 0x11 && d[13] == 3);
     get_desc(0x0302, &d, &l);
     check("product string \"Hortator 8ch\" (the installers match \"hortator\")", str_is(d, l, "Hortator 8ch"));
     {
-        static const char *NAMES[UA8_NCH] = {"Master L", "Master R", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
+        static const char *NAMES[UA8_NCH] = {"Main L", "Main R", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
         int ok = 1;
         for (i = 0; i < UA8_NCH; i++)
             ok &= get_desc(0x0300 + USB8_STR_CH + i, &d, &l) && str_is(d, l, NAMES[i]);
-        check("channel names, strings 4..13: Master L, Master R, T1..T8", ok);
+        check("channel names, strings 4..13: Main L, Main R, T1..T8 (MIX and FX alike)", ok);
     }
     check("string 14 and 3: none (stall)", !get_desc(0x0300 + USB8_STR_CH + UA8_NCH, &d, &l) && !get_desc(0x0303, &d, &l));
 }
@@ -574,6 +574,102 @@ static uint64_t cost_run(uint32_t ten, uint32_t N)  /* host instructions of N au
     return instr_now() - i0;
 }
 
+/* 10 CH FX: channels 1-2 the send effects' return; T1..T8 panned as the FM-1 pans + the pair = the master bus before
+ * PERFORM's master effects, METRO and master_out; no sends: the pair silent; MIX: the master itself; MIX <-> FX fades */
+static void test_fx_pair(void)
+{
+    static int32_t o[2 * CTL];
+    static const int8_t PAN[NTRK] = {0, -40, 25, -64, 63, 10, -17, 50};
+    uint32_t b, i, k, silent = 1, same = 1, mono = 1;
+    int32_t maxe = 0, maxm = 0, maxw = 0;
+    double se = 0, sm = 0;
+    char s[160];
+    const int32_t *p;
+
+    usb10 = 1;
+    usb_fxpair = 1;
+    usb8_g = 32768;
+    kit_dry(4096, 100);                                 /* no sends: the pair silent */
+    for (b = 0; b < 400u; b++) {
+        mix_block(o, CTL);
+        p = usb8_main(o, CTL);
+        for (i = 0; i < CTL; i++)
+            silent &= p[2 * i] == 0 && p[2 * i + 1] == 0;
+    }
+    check("10 CH FX, every send 0: channels 1-2 silent", silent);
+
+    kit_dry(4096, 100);                                 /* sends, pans: the sum */
+    for (k = 0; k < NTRK; k++) {
+        trk[k].p[P_PAN] = PAN[k];
+        trk[k].p[P_CHOR] = (int16_t)(k * 9u);
+        trk[k].p[P_DLY] = (int16_t)(60 - k * 7u);
+        trk[k].p[P_REV] = (int16_t)(20 + k * 8u);
+    }
+    for (k = 0; k < NTRK; k++)
+        drum_hit(&trk[k], 100);
+    for (b = 0; b < 1200u; b++) {                       /* 0.87 s: the echoes and the tail too */
+        if (b == 300u)
+            for (k = 0; k < NTRK; k += 2u)
+                drum_hit(&trk[k], 90);
+        mix_block(o, CTL);
+        p = usb8_main(o, CTL);
+        for (i = 0; i < CTL; i++) {
+            int32_t l = p[2 * i], r = p[2 * i + 1], e;
+            mono &= l == r && l == usb8_wet[i];
+            maxw = abs(l) > maxw ? abs(l) : maxw;
+            for (k = 0; k < NTRK; k++) {
+                int32_t pan = PAN[k], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
+                l += (usb8_tap[k][i] * gl) >> 12;       /* the DAW's pan, with the FM-1's law */
+                r += (usb8_tap[k][i] * gr) >> 12;
+            }
+            e = abs(l - mix_l[i]) > abs(r - mix_r[i]) ? l - mix_l[i] : r - mix_r[i];
+            maxe = abs(e) > maxe ? abs(e) : maxe;
+            maxm = abs(mix_l[i]) > maxm ? abs(mix_l[i]) : maxm;
+            se += (double)e * e;
+            sm += (double)mix_l[i] * mix_l[i];
+        }
+    }
+    check("10 CH FX: channels 1-2 the buses' return, mono (L = R), at the master's level", mono && maxw > 300);
+    snprintf(s, sizeof s, "T1..T8 panned + FX = the master bus before its chain: max %d LSB (peak %d), %.1f dB", maxe,
+             maxm, 10.0 * log10(se / sm));
+    check(s, maxe <= 48 && se / sm < 1e-5);           /* floors: 9 x (>> 2) x MASTER/1024 + the >> 10s and pans */
+
+    usb_fxpair = 0;                                     /* MIX: the master itself, once the fade has run */
+    for (b = 0; b < 10u; b++) {
+        mix_block(o, CTL);
+        p = usb8_main(o, CTL);
+    }
+    same = usb8_g == 0 && usb8_main(o, CTL) == o;
+    check("10 CH MIX: channels 1-2 are the master block itself (as e586073)", same);
+
+    {   /* MIX -> FX -> MIX: a 256-sample fade, no jump */
+        static int32_t m[2 * CTL];
+        int32_t last = 20000, step = 0, n = 0;
+        for (i = 0; i < CTL; i++) {
+            m[2 * i] = m[2 * i + 1] = 20000;
+            usb8_wet[i] = -20000;
+        }
+        usb_fxpair = 1;
+        for (b = 0; b < 12u; b++) {
+            p = usb8_main(m, CTL);
+            for (i = 0; i < CTL; i++, n++) {
+                step = abs(p[2 * i] - last) > step ? abs(p[2 * i] - last) : step;
+                last = p[2 * i];
+            }
+        }
+        usb_fxpair = 0;
+        for (b = 0; b < 12u; b++) {
+            p = usb8_main(m, CTL);
+            for (i = 0; i < CTL; i++) {
+                step = abs(p[2 * i] - last) > step ? abs(p[2 * i] - last) : step;
+                last = p[2 * i];
+            }
+        }
+        snprintf(s, sizeof s, "MIX <-> FX: a 5.8 ms cross-fade each way (largest step %d of a 40000 swing)", step);
+        check(s, step <= 160 && last == 20000 && usb8_g == 0);
+    }
+}
+
 static void test_cost(void)
 {
     const uint32_t N = 4000;                            /* 2.9 s of audio */
@@ -741,6 +837,7 @@ int main(void)
     test_two_ch();
     test_ring();
     test_mix();
+    test_fx_pair();
     test_bus();
     test_cost();
     printf(fails ? "USB8 TEST FAILED (%d)\n" : "usb8: all ok\n", fails);

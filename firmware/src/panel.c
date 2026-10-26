@@ -86,6 +86,7 @@ static uint32_t backlight;
  * flash record (the palette word's bit 12; older records: 2 CH), else 2 CH. What the host sees is usb10 (fx.c): set
  * at power-on (ui.c drum_boot_init; SAFE START: 2 CH) and by the reconnect when the menu closes (ui_menu.c) */
 #if USB10_BUILD
+enum { UA_2CH, UA_10MIX, UA_10FX, UA_COUNT };   /* MENU > USB AUDIO's values (10 CH MIX: an older Hortator's 10 CH) */
 static uint32_t usbaud;                       /* (the Bluetooth build: none, always 2 CH; fx.c USB10_BUILD) */
 #endif
 

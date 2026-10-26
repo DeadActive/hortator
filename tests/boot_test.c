@@ -232,7 +232,7 @@ static int usb_audio_persists(void)
 {
     int ok = 1;
     uint32_t u, low = 0;
-    for (u = 0; u < 2u; u++) {
+    for (u = 0; u < UA_COUNT; u++) {                 /* 2 CH, 10 CH MIX, 10 CH FX */
         persist_t p;
         memset(hflash, 0xFF, sizeof hflash);
         host_init();
@@ -246,7 +246,7 @@ static int usb_audio_persists(void)
         usbaud = u;
         settings_save();
         st_load(OBJ_SETTINGS, &p, sizeof p);
-        ok &= ((p.palette >> 12) & 1u) == u && p.palette >> 13 == 0u;
+        ok &= ((p.palette >> 12) & 3u) == u && p.palette >> 14 == 0u;
         if (!u)
             low = p.palette & 0xFFFu;
         else
@@ -271,6 +271,14 @@ static int usb_audio_persists(void)
         usbaud = 1;
         persist_boot();
         ok &= usbaud == 0u;
+        p.palette |= 1u << 12;                       /* e586073's 10 CH (bit 12): 10 CH MIX */
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        persist_boot();
+        ok &= usbaud == UA_10MIX;
+        p.palette |= 3u << 12;                       /* 3: no value: 2 CH */
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        persist_boot();
+        ok &= usbaud == UA_2CH;
         memset(hflash, 0xFF, sizeof hflash);         /* no record at all: 2 CH */
         usbaud = 1;
         persist_boot();
@@ -2334,7 +2342,8 @@ int main(void)
     check("RESON at every extreme: inside its lines (ASan), bounded", reson_extremes());
     check("settings: MUTE NEXT BAR, ZOOM and KNOB ACCEL survive a power cycle (Felucca's settings format)", mutebar_persists());
     check("settings: USB LEVEL FIXED survives a power cycle; a save without it reads MASTER", usb_level_persists());
-    check("settings: USB AUDIO 10 CH survives a power cycle (palette bit 12); older records, none: 2 CH",
+    check("settings: USB AUDIO 2 CH / 10 CH MIX / 10 CH FX survive a power cycle (palette bits 12..13); older records,"
+          " none: 2 CH; e586073's 10 CH: MIX",
           usb_audio_persists());
     check("settings: a record longer than ours loads the defaults (not truncated)", settings_oversize_refused());
     check("settings: an older record (no Bluetooth bits) loads as before (SPEAKER EQ BASS+ stays, no device)",

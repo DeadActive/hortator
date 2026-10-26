@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- **USB AUDIO 10 CH FX** (owner 2026-10-26: "8 mono + stereo FX give full mix control"): MENU > USB AUDIO is 2 CH /
+  10 CH MIX (channels 1-2 the master, the 10 CH before) / 10 CH FX (channels 1-2 the chorus, delay and reverb
+  buses' return, mono on both, at the MASTER level, before PERFORM's master effects, METRO and the master chain).
+  T1..T8 panned + the FX pair = the master bus before its chain (18 LSB in the test). MIX <-> FX: no reconnect, a
+  5.8 ms cross-fade. Saved in the palette word's bits 12..13 (e586073's 10 CH reads as MIX). The 10 CH device's
+  channels 1-2 are named Main L / R now (bcdDevice 3.82). Standard build only.
+
 - **USB AUDIO 2 CH / 10 CH** (MENU, hold HOME; the owner's 8-track test build of 2026-10-26, "that works"): 10 CH sends
   the master L R and the eight tracks T1..T8 (mono, each before PAN, the sends and the master's effects) to the
   computer as a 10-channel USB audio input ("Hortator 8ch", 16-bit 44.1 kHz, 920 B packets); 2 CH (the default) is

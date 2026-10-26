@@ -26,10 +26,6 @@ static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL"
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
 {
-#if USB10_BUILD
-    if (i == MI_USBAUD)
-        return &usbaud;
-#endif
     return i == MI_USB ? &settings.usbfix : i == MI_PERF ? &settings.perfpage : i == MI_ZOOM ? &settings.zoom :
            i == MI_ACCEL ? &settings.accel : 0;
 }
@@ -44,6 +40,7 @@ static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting,
  * the clock pauses with the cable: the steps wait for its pulses (the top bar says so), and the lost-clock stop (seq.c,
  * 0.5 s without a pulse) waits till USBM_GRACE_MS after the reconnect; a clock that has not come back by then stops
  * the sequencer as a pulled cable does (a DAW may see "Hortator 8ch" as another port and need it chosen again).
+ * Inside 10 CH, MIX <-> FX (channels 1-2: the master or the send effects) needs no reconnect: usb_fxpair at once.
  * SAFE START, an unfinished update and the update loader never switch: they present 2 CH (usb_app.c's set). The
  * Bluetooth build has none of it (fx.c USB10_BUILD): no row, 2 CH always, a stored 10 CH ignored. */
 #define USBM_WAIT_MS 1000u
@@ -65,20 +62,21 @@ static void usb_mode_service(void)
 {
     if (!USB8_OK || safe_start)
         return;
+    usb_fxpair = (uint8_t)(usbaud == UA_10FX);         /* MIX <-> FX: at once, same descriptors (fx.c usb8_main fades) */
     if (usbm.state == 0) {
-        if (ui.menu || (usbaud & 1u) == usb10 || usb.detached)
+        if (ui.menu || (usbaud != UA_2CH) == usb10 || usb.detached)
             return;                                    /* (usb.detached: UBOOT is on its way) */
         usbm_hw_off();
         usb8_quiesce();
         usb_hold_until = fm1_ms + USBM_WAIT_MS + USBM_GRACE_MS;   /* (seq.c: no lost-clock stop till then) */
-        ui_say(song.g[G_CLOCK] == 1 ? "CLK USB PAUSED: " : "USB RECONNECT: ", usbaud ? "10 CH" : "2 CH");
+        ui_say(song.g[G_CLOCK] == 1 ? "CLK USB PAUSED: " : "USB RECONNECT: ", usbaud != UA_2CH ? "10 CH" : "2 CH");
         usbm.state = 1;
         usbm.t = fm1_ms;
         return;
     }
     if (fm1_ms - usbm.t < USBM_WAIT_MS)
         return;
-    usb10 = (uint8_t)(usbaud & 1u);                   /* the set the next enumeration gets (usb_app8.c usb8_desc) */
+    usb10 = (uint8_t)(usbaud != UA_2CH);              /* the set the next enumeration gets (usb_app8.c usb8_desc) */
     usbm.state = 0;
     usbm_hw_on();
 }
@@ -180,6 +178,7 @@ static void draw_about(void)                         /* the credits' rows and th
 }
 
 #if USB10_BUILD
+static const char *const USBAUD_NAME[UA_COUNT] = {"2 CH", "10 CH MIX", "10 CH FX"};
 #define USBAUD_SIG (usbaud * 2654435761u)
 #else
 #define USBAUD_SIG 0u
@@ -241,7 +240,7 @@ static void draw_menu(void)
                         *menu_onoff(i) ? "ON" : "OFF";
 #if USB10_BUILD
                 if (i == MI_USBAUD)
-                    v = usbaud ? "10 CH" : "2 CH";
+                    v = USBAUD_NAME[usbaud % UA_COUNT];
 #endif
                 if (i == MI_SPKEQ)
                     v = SPK_EQ[settings.lowcut % 3u];
@@ -335,6 +334,16 @@ static void menu_input(uint32_t pressed)
         ok = 0;
         s = 0;
     }
+#if USB10_BUILD
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_USBAUD) {
+        /* USB AUDIO: KNOB 1 steps 2 CH, 10 CH MIX, 10 CH FX and stops at the ends; OCT+ steps and wraps (as SPEAKER EQ).
+         * 2 CH <-> 10 CH reconnects when the menu closes; MIX <-> FX does not (usb_mode_service) */
+        usbaud = s > 0 ? (usbaud + 1u < UA_COUNT ? usbaud + 1u : UA_COUNT - 1u)
+               : s < 0 ? (usbaud ? usbaud - 1u : 0u) : (usbaud + 1u) % UA_COUNT;
+        ok = 0;
+        s = 0;
+    }
+#endif
     if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_BACKLIGHT) {
         /* BACKLIGHT (item 9): KNOB 1 steps OFF DIM LO DIM HI INV INV LO INV HI and stops at the ends; OCT+ steps and
          * wraps (as SPEAKER EQ) */

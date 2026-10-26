@@ -30,7 +30,8 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #if FELUCCA_UAC
 #if USB8_OK
     if (usb10)
-        uac8_tap(out, n);                               /* MENU > USB AUDIO 10 CH: the master + the tracks (fx.c) */
+        uac8_tap(usb8_main(out, n), n);                 /* MENU > USB AUDIO 10 CH: the master (MIX) or the send
+                                                         * effects (FX) + the tracks (fx.c) */
     else
 #endif
         uac_tap(out, n);                                /* the USB audio input: the same master output */

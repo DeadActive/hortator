@@ -957,8 +957,11 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
         btset.bt_auto = (p.palette >> 8) & 1u;
 #if USB10_BUILD
-        usbaud = (p.palette >> 12) & 1u;            /* bit 12 = USB AUDIO 10 CH: older records read 2 CH (the
-                                                     * Bluetooth build ignores it, and writes it clear) */
+        usbaud = (p.palette >> 12) & 3u;            /* bits 12..13 = USB AUDIO: 0 2 CH (older records), 1 10 CH MIX
+                                                     * (e586073's 10 CH), 2 10 CH FX, 3 none: 2 CH (the Bluetooth
+                                                     * build ignores them, and writes them clear) */
+        if (usbaud >= UA_COUNT)
+            usbaud = UA_2CH;
 #endif
         lc_unpack(p.lowcut);
         if (((p.palette >> 9) & 7u) - 1u < BL_COUNT - 1u && backlight)   /* BACKLIGHT's level, bits 9..11 (item 9; 0:
@@ -1096,7 +1099,7 @@ static void settings_save(void)                    /* asked for while playing: w
     p.magic = PERSIST_MAGIC;
     p.palette = (settings.palette & 0xFFu) | (btset.bt_auto & 1u) << 8 | (backlight & 7u) << 9;
 #if USB10_BUILD
-    p.palette |= (usbaud & 1u) << 12;
+    p.palette |= (usbaud & 3u) << 12;
 #endif
     /* an older Hortator reads a palette out of range from bit 8: its display settings reset; 9..11 BACKLIGHT's level
      * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it) */

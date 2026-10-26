@@ -5,10 +5,12 @@
  * without them it is usb_app.c byte for byte (tools/check_usb_fork.py). The app compiles this file; the update loader
  * keeps usb.c. MENU > USB AUDIO (ui_menu.c) picks the audio input the next enumeration presents (usb10, fx.c):
  *   2 CH   usb_app.c's descriptors and stream, byte for byte (uac_*, unchanged code): the master, 16-bit stereo
- *   10 CH  ten channels: 1-2 the master L R, 3-10 the tracks T1..T8 mono (fx.c usb8_track_tap: each track as the dry
+ *   10 CH  ten channels: 1-2 the master L R (MIX) or the send effects' return (FX; fx.c usb8_main: the same
+ *          descriptors, so MIX <-> FX needs no reconnect), 3-10 the tracks T1..T8 mono (fx.c usb8_track_tap: each track as the dry
  *          mix gets it, before PAN, the sends and the master FX, at the master's level); 16-bit, 44.1 kHz, 920 B in
- *          the largest packet (under a full-speed isochronous endpoint's 1023 B); "Hortator 8ch", bcdDevice 3.81,
- *          channel names Master L, Master R, T1..T8 (strings 4..13). Its own ring and packets (uac8_*), EP4 polled
+ *          the largest packet (under a full-speed isochronous endpoint's 1023 B); "Hortator 8ch", bcdDevice 3.82,
+ *          channel names Main L, Main R, T1..T8 (strings 4..13: "Main", true of MIX and FX alike; a string cannot
+ *          change while attached; 3.81 named them Master L / R). Its own ring and packets (uac8_*), EP4 polled
  *          at 10 kHz (felucca.c fm1_timer5_irq): one packet buffer, and 920 B take 0.64 ms of the 1 ms frame.
  * SAFE START presents 2 CH whatever the setting (ui.c drum_boot_init). */
 /* } USB8 */
@@ -281,7 +283,7 @@ static const uint8_t STR2[] = {18, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't
 #if USB8_OK
 #define USB8_STR_CH 4u                                  /* string index of channel 1's name */
 static const uint8_t DEV8_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00,
-                                      0x81, 0x03, 1, 2, 0, 1};                /* misc/IAD, bcdDevice 3.81 */
+                                      0x82, 0x03, 1, 2, 0, 1};                /* misc/IAD, bcdDevice 3.82 */
 static const uint8_t CFG8_DESC[] = {                   /* CFG_DESC, but 10 channels, named; wMaxPacketSize 920 */
     9, 2, CFG_LEN & 0xFF, CFG_LEN >> 8, USB_NIF, 1, 0, 0x80, 50,
     8, 0x0B, 0, 3, 1, 1, 0, 0,                          /* IAD: audio + MIDI (IF 0-2) */
@@ -321,8 +323,8 @@ static const uint8_t CFG8_DESC[] = {                   /* CFG_DESC, but 10 chann
 typedef char cfg8_len_ok[sizeof CFG8_DESC == CFG_LEN && sizeof CFG8_DESC == sizeof CFG_DESC ? 1 : -1];
 static const uint8_t STR8_2[] = {26, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't', 0, 'o', 0, 'r', 0, ' ', 0,
                                  '8', 0, 'c', 0, 'h', 0};                     /* "Hortator 8ch" */
-static const uint8_t STR8_ML[] = {18, 3, 'M', 0, 'a', 0, 's', 0, 't', 0, 'e', 0, 'r', 0, ' ', 0, 'L', 0};
-static const uint8_t STR8_MR[] = {18, 3, 'M', 0, 'a', 0, 's', 0, 't', 0, 'e', 0, 'r', 0, ' ', 0, 'R', 0};
+static const uint8_t STR8_ML[] = {14, 3, 'M', 0, 'a', 0, 'i', 0, 'n', 0, ' ', 0, 'L', 0};
+static const uint8_t STR8_MR[] = {14, 3, 'M', 0, 'a', 0, 'i', 0, 'n', 0, ' ', 0, 'R', 0};
 static uint8_t str8_trk[6] = {6, 3, 'T', 0, '1', 0};   /* "T1".."T8": the digit set per request (EP0: one at a time) */
 #endif
 /* 10 CH's descriptors (device, configuration, the product, the channel names); 0: usb_app.c's answer (2 CH) */

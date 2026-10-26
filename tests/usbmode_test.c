@@ -105,8 +105,28 @@ static void test_row(void)
     release_all();
     ui_frame();
     ok &= usbaud == 1u;
+    turn(EN_K1, 1);                                     /* 10 CH MIX -> 10 CH FX, then stops there */
+    ui_frame();
+    ok &= usbaud == 2u;
+    turn(EN_K1, 3);
+    ui_frame();
+    ok &= usbaud == 2u;
+    press(B_OCTUP);                                     /* OCT+ wraps: FX -> 2 CH */
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= usbaud == 0u;
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= usbaud == 0u;
+    turn(EN_K1, 1);                                     /* a detent a step */
+    ui_frame();
+    turn(EN_K1, 1);
+    ui_frame();
+    ok &= usbaud == 2u && str_eq(USBAUD_NAME[0], "2 CH") && str_eq(USBAUD_NAME[1], "10 CH MIX") &&
+          str_eq(USBAUD_NAME[2], "10 CH FX");
     frames(200, 15);                                    /* 3 s in the menu */
-    check("USB AUDIO: KNOB 1 right 10 CH / left 2 CH, OCT+ toggles", ok);
+    check("USB AUDIO: KNOB 1 steps 2 CH, 10 CH MIX, 10 CH FX (stops at the ends), OCT+ steps and wraps", ok);
     check("  nothing reaches USB while the menu is open (3 s)", host_usb_offs == 0 && host_usb_ons == 0 && usb10 == 0);
 }
 
@@ -169,6 +189,43 @@ static void test_reconnect(void)
     render_mix(0, 0, CTL);
 }
 
+/* inside 10 CH, MIX <-> FX: the same descriptors, no reconnect; the routing at once (fx.c fades it) */
+static void test_mix_fx(void)
+{
+    int ok = 1;
+    setup();
+    usbaud = UA_10MIX;
+    usb10 = 1;
+    usb_fxpair = 0;
+    open_row();
+    turn(EN_K1, 1);                                     /* MIX -> FX */
+    ui_frame();
+    ui_frame();
+    ok &= usbaud == UA_10FX && usb_fxpair == 1;          /* at once, in the menu too */
+    close_menu();
+    frames(100, 15);
+    ok &= host_usb_offs == 0 && host_usb_ons == 0 && usb10 == 1 && usb_fxpair == 1;
+    open_row();
+    turn(EN_K1, -1);                                    /* FX -> MIX */
+    ui_frame();
+    close_menu();
+    frames(100, 15);
+    ok &= host_usb_offs == 0 && host_usb_ons == 0 && usb10 == 1 && usb_fxpair == 0;
+    check("10 CH MIX <-> 10 CH FX: no reconnect (same descriptors), the routing at once", ok);
+    open_row();                                         /* FX -> 2 CH: a reconnect */
+    turn(EN_K1, 1);
+    ui_frame();
+    turn(EN_K1, -1);
+    ui_frame();
+    turn(EN_K1, -1);
+    ui_frame();
+    close_menu();
+    frames(100, 15);
+    check("10 CH FX -> 2 CH: reconnects, as 10 CH MIX -> 2 CH", host_usb_offs == 1 && host_usb_ons == 1 && usb10 == 0 &&
+          same_as_frozen());
+    usb_fxpair = 0;
+}
+
 static void test_clock(void)
 {
     uint32_t i;
@@ -225,7 +282,12 @@ static void test_power_on(void)
     usbaud = 1;                                         /* saved 10 CH */
     fm1_in.buttons = 0;
     drum_boot_init();
-    check("power-on with 10 CH saved: enumerates as 10 CH", usb10 == 1 && product_is("Hortator 8ch"));
+    check("power-on with 10 CH saved: enumerates as 10 CH", usb10 == 1 && usb_fxpair == 0 && product_is("Hortator 8ch"));
+    setup();
+    usbaud = UA_10FX;
+    drum_boot_init();
+    check("power-on with 10 CH FX saved: 10 CH, channels 1-2 the send effects", usb10 == 1 && usb_fxpair == 1);
+    usb_fxpair = 0;
     setup();
     usbaud = 1;
     fm1_in.buttons = 1u << panel.btn[B_SEQ];            /* SEQ held: SAFE START */
@@ -244,6 +306,7 @@ int main(void)
     printf("-- MENU > USB AUDIO\n");
     test_row();
     test_reconnect();
+    test_mix_fx();
     test_clock();
     test_no_switch();
     test_power_on();

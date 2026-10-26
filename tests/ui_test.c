@@ -4104,7 +4104,7 @@ static void test_usb_audio(void)
     release_all();
     ui_frame();
     ok &= usbaud == 1;
-    check("USB AUDIO: KNOB 1 right 10 CH / left 2 CH, OCT+ toggles", ok);
+    check("USB AUDIO: KNOB 1 right 10 CH MIX / left 2 CH, OCT+ steps", ok);
     ui.force = 1;
     snap_page("menu_usb_audio");
     usbaud = 0;
