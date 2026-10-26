@@ -8,9 +8,9 @@ export const BTN = [
   { c: 'B_ENV', label: 'ENV', tip: 'STEPS / TRACKS: the keys as the track\'s steps; hold a step + turn = a lock' }, { c: 'B_LFO', label: 'LFO', tip: 'the track\'s two LFOs' },
   { c: 'B_EDIT', label: 'EDIT', tip: 'the selected track\'s sound' }, { c: 'B_GLO', label: 'GLO', tip: 'tap: GLOBAL; hold: the MUTE screen' },
   { c: 'B_HOME', label: 'HOME', tip: 'TRACKS / HOME (a tap switches); hold for the menu' },
-  { c: 'B_SAVE', label: 'SAVE', tip: 'projects and tools' }, { c: 'B_ARP', label: 'ARP', tip: 'Grids' },
+  { c: 'B_SAVE', label: 'SAVE', tip: 'tap: projects and tools; hold: the cue map (keys 1-4 slots, 5-12 variations)' }, { c: 'B_ARP', label: 'ARP', tip: 'Grids' },
   { c: 'B_SEQ', label: 'SEQ', tip: 'steps, PATTERN, MOTION, SONG' },
-  { c: 'B_PLAY', label: 'PLAY', tip: 'play / stop' }, { c: 'B_REC', label: 'REC', tip: 'arm the selected track to record, on any page' },
+  { c: 'B_PLAY', label: 'PLAY', tip: 'play / stop' }, { c: 'B_REC', label: 'REC', tip: 'arm the selected track to record, on any page; hold off SEQ: FILL' },
   { c: 'B_OCTDN', label: 'OCT-' }, { c: 'B_OCTUP', label: 'OCT+' },
 ];
 export const B = Object.fromEntries(BTN.map((b, i) => [b.label, i]));

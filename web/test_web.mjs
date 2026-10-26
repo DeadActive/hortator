@@ -720,7 +720,20 @@ async function simLocks() {
   ok(/parameter lock/i.test(seq) && /<b>ENV<\/b>/.test(seq), "sim: the features' steps chapter names parameter locks and ENV");
 }
 
+/* ------------------------------------------------- the simulator: live cue, variations, FILL, COPY (2026-10-26) --- */
+async function simCue() {
+  const { BTN } = await import("./sim/controls.js");
+  const save = BTN.find((b) => b.c === "B_SAVE"), rec = BTN.find((b) => b.c === "B_REC");
+  ok(save && /cue/i.test(save.tip || "") && /project/i.test(save.tip || ""), "sim: SAVE's tip names the cue map and the projects page");
+  ok(rec && /FILL/.test(rec.tip || ""), "sim: REC's tip names FILL");
+  const page = readFileSync(join(HERE, "sim/index.html"), "utf8");
+  const seq = page.slice(page.indexOf('id="f-seq"'), page.indexOf('data-piece="seq"'));
+  ok(/variation/i.test(seq) && /FILL/.test(seq) && /COPY/.test(seq) && /PASTE/.test(seq),
+    "sim: the features' steps chapter names variations, FILL and COPY / PASTE");
+}
+
 await simLocks();
+await simCue();
 await editorMock();
 await editorLibrarian();
 await editorLive();
