@@ -1,8 +1,13 @@
 {
  "version": "0.24.0",
- "commit": "2690e74",
- "date": "2026-10-25",
- "since": [],
+ "commit": "1c6627a",
+ "date": "2026-10-26",
+ "since": [
+  {
+   "title": "Web site only",
+   "text": "Web site only: the landing page has a manual before the engines: a map of the panel (point at a control on a small FM-1, or at its line, to see what it does) and ten short guides (find your way, make a beat, shape a sound, play and record live, mute, perform, lock a step, save and chain, MIDI and LEARN, settings). Manual in the top bar and the footer; More below leads to it."
+  }
+ ],
  "release": {
   "version": "0.24.0",
   "date": "2026-10-25",

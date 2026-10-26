@@ -3,7 +3,7 @@
 // The panel's geometry (no DOM): the FM-1's own landscape layout and the stacked portrait one phones play on,
 // the morph between them, and the hero's choreography (scroll progress -> pose). app.js applies them; node tests
 // them (tests/sim_site.mjs).
-import { B, KEYS } from './controls.js?v=41aaba6441';
+import { B, KEYS } from './controls.js?v=53f9d0fd26';
 
 // ---- layouts: design-size boxes [x, y, w, h]; the device is scaled to fit the window
 const WHITE = KEYS.filter(k => !k.black), BLACK = KEYS.filter(k => k.black);

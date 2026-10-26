@@ -3,7 +3,7 @@
 /* The page as the FM-1's screen: its MONO palette (firmware/src/gfx.c: five steps of one colour plus white, in the
  * firmware's own roles), its typeface (Terminus 8 x 16, tests/sim_font.mjs, on its 16 px grid: 16, 32, 48, 64, 80),
  * blends dithered (dither.js), headings that glitch as they arrive. Only the device keeps its hardware greys. */
-@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=41aaba6441") format("woff"); font-display: swap; }
+@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=53f9d0fd26") format("woff"); font-display: swap; }
 :root {
   --k: #000000;                                    /* the screen */
   --c1: #282828;                                   /* rules, separators */
@@ -77,6 +77,7 @@ html { scroll-snap-type: y proximity; }
   position: absolute; top: 0; left: 0; right: 0; z-index: 5; display: flex; justify-content: space-between;
   align-items: center; padding: 16px max(16px, 4vw); color: var(--hero-ink);
 }
+.hero-nav .nav-links { display: flex; gap: 16px; }
 .hero-nav a { color: var(--w); text-decoration: none; padding: 0 8px; border: 2px solid var(--w); }
 .hero-nav a:hover { background: var(--w); color: var(--k); }
 .scene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -207,6 +208,43 @@ html { scroll-behavior: smooth; }
   50% { clip-path: inset(80% 0 4% 0); transform: translateX(6px); }
   75% { clip-path: inset(30% 0 50% 0); transform: translateX(12px); }
   100% { clip-path: inset(100% 0 0 0); transform: none; } }
+
+/* ---- the manual: the panel map (a small FM-1 beside the list of its controls, manual.js lights both), then ten
+   guides, numbered as the install steps are */
+.manual { width: 100%; color: var(--c5); padding: 96px max(16px, 5vw) 0; background: var(--k); }
+.manual-head, .panel-map, .guides { max-width: 1180px; margin-left: auto; margin-right: auto; }
+.manual-head { margin-bottom: 48px; }
+.manual-head h2 { font: 48px/48px var(--mono); margin: 0; max-width: 24ch; color: var(--w); text-transform: uppercase; }
+.manual-head p { color: var(--c4); max-width: 60ch; margin: 16px 0 0; }
+.manual a { color: var(--w); }
+.panel-map { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+.map-stage { position: sticky; top: 10vh; }
+.map-device { position: relative; aspect-ratio: 1000 / 620; }
+.map-device .hit { cursor: pointer; }
+.mini .m-btn.on, .mini .m-key.on { background: var(--w); }
+.mini .m-enc.on { background: var(--c5); box-shadow: 0 0 0 6px var(--w); }
+.map-caption { min-height: 72px; margin: 24px 0 0; padding: 12px 16px; border: 2px solid var(--c2); color: var(--c4); }
+.map-list h3 { font: 16px/24px var(--mono); margin: 24px 0 8px; color: var(--c3); text-transform: uppercase; }
+.map-list h3:first-child { margin-top: 0; }
+.map-list ul { list-style: none; margin: 0; padding: 0; }
+.map-list li { padding: 8px 8px; border-top: 2px solid var(--c1); color: var(--c4); cursor: default; }
+.map-list li.on { background: var(--c1); color: var(--c5); }
+.map-list li:focus-visible { outline: 2px dashed var(--focus); outline-offset: -2px; }
+.map-list li.on b, .map-stage .map-caption b { background: var(--w); border-color: var(--w); color: var(--k); }
+.guides { list-style: none; counter-reset: guide; padding: 0; margin-top: 96px; margin-bottom: 0; display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 56px; }
+.guide { counter-increment: guide; padding-top: 16px; border-top: 2px solid var(--c1); }
+.guide h3 { display: flex; align-items: center; gap: 16px; font: 16px/32px var(--mono); margin: 0 0 16px; color: var(--w);
+  text-transform: uppercase; }
+.guide h3::before { content: counter(guide, decimal-leading-zero); padding: 0 6px; color: var(--k); background: var(--w); }
+.guide p { margin: 0 0 8px; color: var(--c4); }
+.guide p.where { margin-top: 16px; color: var(--c5); }
+@media (max-width: 860px) {                       /* phones: the FM-1 on top, the list under it */
+  .manual { padding-top: 64px; }
+  .panel-map { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .map-stage { position: static; }
+  .guides { margin-top: 64px; grid-template-columns: minmax(0, 1fr); }
+}
 
 /* ---- the features: eight chapters, each a piece computed by the firmware's own sound code (features.js), on a
    plate drawn as the screen draws its pages: black, rules in the darkest tone, values bright */
@@ -412,7 +450,7 @@ html { scroll-behavior: smooth; }
 .mini .m-btn { background: var(--c2); border-radius: 9px; }
 .mini .m-key { background: var(--c2); border-radius: 999px; }
 .mini .m-enc { background: var(--k); border-radius: 50%; box-shadow: 0 0 0 6px var(--c3); }
-.where b { font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.04em; padding: 3px 6px 2px;
+.where b, .map-list b, .map-caption b { font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.04em; padding: 3px 6px 2px;
   border: 2px solid var(--c3); color: var(--c5); vertical-align: 1px; }
 
 .beta { max-width: 640px; margin: 0 0 20px; padding: 10px 14px; color: var(--c4); border: 2px dashed var(--c3); }
@@ -607,7 +645,7 @@ canvas.lcd { image-rendering: pixelated; image-rendering: crisp-edges; border-ra
 @media (max-width: 1000px) { .hero-copy h1 { font-size: 48px; line-height: 48px; } }
 @media (max-width: 560px) {
   .hero-copy h1 { font-size: 32px; line-height: 32px; }
-  .features-head h2, .install-head h2 { font-size: 32px; line-height: 32px; }
+  .features-head h2, .install-head h2, .manual-head h2 { font-size: 32px; line-height: 32px; }
   .hero-copy { bottom: 64px; }
 }
 @media (max-height: 520px) {                          /* phones held sideways: smaller copy */

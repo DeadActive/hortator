@@ -3,14 +3,16 @@
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
 // frames it sends back, and keeps the flash it writes in IndexedDB (store.js).
-import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=41aaba6441';
-import { FlashStore, openFlashDb } from './store.js?v=41aaba6441';
-import { needsResume, playbackSession } from './audio.js?v=41aaba6441';
-import { parseReel } from './reel.js?v=41aaba6441';
-import { initFeatures } from './features.js?v=41aaba6441';
-import { installCount, loadPageCounter } from './counter.js?v=41aaba6441';
-import { ditherBackground, initGlitch } from './dither.js?v=41aaba6441';
-import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=41aaba6441';
+import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=53f9d0fd26';
+import { FlashStore, openFlashDb } from './store.js?v=53f9d0fd26';
+import { needsResume, playbackSession } from './audio.js?v=53f9d0fd26';
+import { parseReel } from './reel.js?v=53f9d0fd26';
+import { initFeatures } from './features.js?v=53f9d0fd26';
+import { initManual } from './manual.js?v=53f9d0fd26';
+import { buildMini } from './mini.js?v=53f9d0fd26';
+import { installCount, loadPageCounter } from './counter.js?v=53f9d0fd26';
+import { ditherBackground, initGlitch } from './dither.js?v=53f9d0fd26';
+import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=53f9d0fd26';
 
 // ---- the panel's elements (built once, placed per layout)
 const device = document.getElementById('device');
@@ -297,7 +299,7 @@ function wake() {                                 // a tap or a key brings a sto
 }
 
 // ---- power on
-const wasmBytes = fetch('fm1sim.wasm?v=41aaba6441').then(r => {
+const wasmBytes = fetch('fm1sim.wasm?v=53f9d0fd26').then(r => {
   if (!r.ok) throw new Error(`fm1sim.wasm: HTTP ${r.status}`);
   return r.arrayBuffer();
 });
@@ -324,7 +326,7 @@ async function powerOn() {
     playbackSession(navigator);
     ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                         // inside the tap: browsers allow sound from here on
-    await ctx.audioWorklet.addModule('worklet.js?v=41aaba6441');
+    await ctx.audioWorklet.addModule('worklet.js?v=53f9d0fd26');
     const [wasm, sectors] = await Promise.all([wasmBytes, store.load()]);
     node = new AudioWorkletNode(ctx, 'fm1', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm, sectors } });
     node.port.onmessage = e => {
@@ -394,7 +396,7 @@ function bindPage() {
 let reel = null, reelPos = -1, reelT0 = 0;
 const reelFb = new Uint16Array(240 * 240);
 if (window.DecompressionStream)
-  fetch('reel.bin.gz?v=41aaba6441')
+  fetch('reel.bin.gz?v=53f9d0fd26')
     .then(r => r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : Promise.reject())
     .then(b => { reel = parseReel(b); reelT0 = performance.now(); })
     .catch(() => { /* no reel: the screen stays dark until Switch on */ });
@@ -460,30 +462,6 @@ function placePower() {
 }
 function queueHero() { if (!heroQueued) { heroQueued = true; requestAnimationFrame(heroFrame); } }
 
-// ---- a small FM-1 from the layout table (the install diagram)
-function buildMini(host) {                         // a small FM-1 from the layout table, scaled to its host
-  const parts = {};
-  if (!host) return parts;
-  const L = LAYOUTS.landscape, inner = document.createElement('div');
-  inner.className = 'mini';
-  const part = (cls, b, key) => {
-    const d = document.createElement('div');
-    d.className = cls;
-    d.style.cssText = `left:${b[0]}px;top:${b[1]}px;width:${b[2]}px;height:${b[3]}px`;
-    inner.append(d);
-    if (key) parts[key] = d;
-  };
-  for (const [name, b] of Object.entries(L.deco)) part(`m-${name}`, b);
-  part('m-lcd', L.lcd);
-  for (const [k, b] of Object.entries(L.ctl)) part(k.startsWith('key') ? 'm-key' : 'm-btn', b, k);
-  for (const [id, b] of Object.entries(L.enc)) part('m-enc', b, id === 'master' ? 'MASTER' : ENC[id].label);
-  host.append(inner);
-  const fitMini = () => { inner.style.transform = `scale(${host.clientWidth / L.W})`; };
-  new ResizeObserver(fitMini).observe(host);
-  fitMini();
-  return parts;
-}
-
 // ---- install: the firmware this site ships and what is new in it (version.json, written by the build)
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
   'November', 'December'];
@@ -503,7 +481,7 @@ installCount().then(n => {
   el.replaceChildren('Installed ', b, n === 1 ? ' time' : ' times');
   el.hidden = false;
 });
-fetch('version.json?v=41aaba6441').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
+fetch('version.json?v=53f9d0fd26').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
   const [y, m, d] = v.date.split('-').map(Number);
   const newer = v.since.length ? ` and ${v.since.length} newer change${v.since.length > 1 ? 's' : ''}` : '';
   document.getElementById('fw-version').textContent =
@@ -520,6 +498,7 @@ fetch('version.json?v=41aaba6441').then(r => r.ok ? r.json() : Promise.reject())
 build();
 relayout();
 buildMini(document.getElementById('install-mini'));
+initManual();
 device.classList.add('waiting');
 heroFrame();
 window.addEventListener('scroll', queueHero, { passive: true });
