@@ -1176,6 +1176,105 @@ static void cue_follow_all(void)
           (int)ok);
 }
 
+/* ---- Task 6: the cue map (SAVE held) */
+static void two_slots(void)                           /* A and B saved, A loaded (variation 4 of A used) */
+{
+    fresh();
+    trk[0].p[P_LEVEL] = 10;
+    project_save(0);
+    trk[0].p[P_LEVEL] = 20;
+    project_save(1);
+    project_load(0);
+    var_make(5, 100);
+    var_put(live_bank(), 2, VSP, VTM);                /* variation 3 of A */
+    project_save(0);
+}
+static void cue_map_leds(void)
+{
+    uint32_t ok = 1, n;
+    two_slots();
+    play();
+    OK(cue_slot(1) == 0);                             /* B queued */
+    OK(cue_led(1) == CM_WINK && cue_led(2) == CM_BLINK && cue_led(3) == CM_OFF && cue_led(4) == CM_OFF);
+    OK(cue_led(5) == CM_ON);                          /* variation 1 of B (the queued slot's): not empty */
+    stop();
+    cue.q_slot = 0;
+    play();
+    OK(cue_led(5) == CM_WINK && cue_led(7) == CM_ON && cue_led(6) == CM_OFF);
+    for (n = 8; n <= 12u; n++)
+        OK(cue_led(n) == CM_OFF);
+    trk[3].step[3].on ^= 1;                           /* an edit of A */
+    OK(cue_led(1) == CM_BREATHE);
+    trk[3].step[3].on ^= 1;
+    stop();
+    check("cue map LEDs: slots lit used / wink playing / blink queued / breathe edited; variations of the playing (or "
+          "queued) slot lit used, wink playing", (int)ok);
+}
+static void cue_top_line(void)
+{
+    uint32_t ok = 1;
+    char b[24];
+    two_slots();
+    play();
+    ui.cue_map = 1;
+    head_mode(b);
+    OK(str_eq(b, "CUE A1"));
+    cue_slot(1);
+    cue_var(2);
+    head_mode(b);
+    OK(str_eq(b, "CUE>B3"));
+    cue_slot(0);                                      /* the playing slot's key: cancel */
+    head_mode(b);
+    OK(str_eq(b, "CUE A1"));
+    cue_var(2);
+    head_mode(b);
+    OK(str_eq(b, "CUE>A3"));
+    cue_var(0);
+    cue_slot(1);
+    head_mode(b);
+    OK(str_eq(b, "CUE>B"));
+    cue_slot(0);
+    trk[2].step[9].on ^= 1;
+    head_mode(b);
+    OK(str_eq(b, "CUE A1*"));
+    trk[2].step[9].on ^= 1;
+    ui.cue_map = 0;
+    head_mode(b);
+    OK(!str_eq(b, "CUE A1"));
+    stop();
+    check("cue map's top line: CUE A1 (A1* edited), queued CUE>B3 / CUE>A3 / CUE>B", (int)ok);
+}
+static void cue_keys_queue(void)
+{
+    uint32_t ok = 1, pg, home;
+    two_slots();
+    play();
+    release_all();
+    pg = ui.page;
+    home = ui.home;
+    press(B_SAVE);
+    keys(1u << STEP_KEY[1]);                          /* SAVE + key 2: slot B */
+    ui_frame();
+    fm1_in.buttons |= 1u << panel.btn[B_SAVE];
+    ui_frame();
+    keys((1u << STEP_KEY[1]) | (1u << STEP_KEY[6]));  /* + key 7: variation 3 */
+    ui_frame();
+    ui_frame();
+    OK(ui.cue_map && cue.q_slot == 2u && cue.q_var == 3u && !cue.now);
+    keys(0);
+    ui_frame();
+    keys(1u << STEP_KEY[1]);                          /* key 2 again: at the next step */
+    ui_frame();
+    ui_frame();
+    OK(cue.now == 1u || (!cue.q_slot && proj_loaded() == 1));
+    keys(0);
+    release_all();
+    ui_frame();
+    OK(!ui.cue_map && ui.home == home && ui.page == pg);   /* (no projects page: the map was used) */
+    stop();
+    check("SAVE + key 2 then key 7: B and its variation 3 queued; key 2 again: at the next step", (int)ok);
+}
+
 int main(void)
 {
     vptrs();
@@ -1210,6 +1309,9 @@ int main(void)
     cue_fade();
     song_plays_var1();
     cue_follow_all();
+    cue_map_leds();
+    cue_top_line();
+    cue_keys_queue();
     check("flash: no erase or program in any test outside the map", host_fl_stray == 0);
     printf(fails ? "cue_test: %d FAILED\n" : "cue_test: all passed\n", fails);
     return fails ? 1 : 0;

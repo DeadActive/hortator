@@ -9,8 +9,9 @@
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 static volatile uint8_t panic_req;       /* bit per track: cut its voices */
 static uint32_t kb_prev;
-static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen may take keys (ui_input.c glo_input), 0 =
-                                       * none; armed before GLO is pressed (a key struck with it is the screen's) */
+static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen may take keys (ui_input.c glo_input), SAVE's
+                                       * while the cue map may (cue_input), 0 = none; armed before the button is pressed
+                                       * (a key struck with it is the screen's) */
 static volatile uint32_t kb_mute;     /* ISR: the keys held that are the MUTE screen's (pressed with GLO) */
 static volatile uint32_t kb_mute_hit; /* ISR -> main: those presses, until the UI takes them */
 static volatile uint8_t ml_keys;      /* main: MIDI LEARN is on (ui_learn.c): a PERFORM layer key picks its effect */

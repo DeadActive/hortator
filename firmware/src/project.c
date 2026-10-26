@@ -1175,6 +1175,39 @@ static void cue_poll(void)
         cue_say(e);
     }
 }
+/* the variations of slot s used (bit v: variation v + 1; variation 1 always): its RAM bank, else flash's */
+static uint32_t slot_var_mask(uint32_t s)
+{
+    const var_bank_t *b = var_who[var_play] == s + 1u ? &var_buf[var_play]
+                        : var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u] : proj_var_flash(s);
+    return 1u | (b ? var_mask(b) : 0u);
+}
+/* the cue map's white key n (1..12, ui_leds): slots A..D lit used, winking playing, blinking queued, breathing with
+ * unsaved edits; variations 1..8 of the playing slot (of the queued one, if one is) lit used, winking playing, blinking
+ * queued */
+static int cue_led(uint32_t n)
+{
+    int32_t ld = proj_loaded();
+    if (n >= 1u && n <= 4u) {
+        uint32_t s = n - 1u;
+        if ((int32_t)s != ld && !project_used(s))
+            return CM_OFF;
+        if (cue.q_slot == s + 1u)
+            return CM_BLINK;
+        if (slot_dirty(s))
+            return CM_BREATHE;
+        return (int32_t)s == ld ? CM_WINK : CM_ON;
+    }
+    if (n >= 5u && n <= 12u && (cue.q_slot || ld >= 0)) {
+        uint32_t v = n - 5u, s = cue.q_slot ? cue.q_slot - 1u : (uint32_t)ld;
+        if (cue.q_var == v + 1u)
+            return CM_BLINK;
+        if (!cue.q_slot && v == var_cur)
+            return CM_WINK;
+        return (slot_var_mask(s) >> v) & 1u ? CM_ON : CM_OFF;
+    }
+    return CM_OFF;
+}
 /* the switch at once (stopped: the main loop, the IRQ off) */
 static int cue_at_once(void)
 {

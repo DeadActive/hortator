@@ -937,9 +937,7 @@ static void test_tools_all(void)
     song.g[G_GX] = 99;
     song.g[G_CSRC] = 3;
     for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "TOOLS")); k++) {
-        press(B_SAVE);
-        ui_frame();
-        release_all();
+        tap(B_SAVE);                                 /* (SAVE opens its pages on the release: 2026-10-26) */
     }
     turn(EN_K1 + 2, 1);
     ui_frame();
@@ -1744,6 +1742,106 @@ static void test_mute_screen_keys(void)
 }
 
 /* spec §5: not in the menu, NAME, a confirm or the PERFORM layer */
+
+/* ---- the cue map on SAVE held (spec 2026-10-26): SAVE's tap opens the projects page on its release; held (or with a
+ * key) the white keys are the cue's: no note, no MIDI, nothing recorded */
+static uint32_t save_bit(void) { return 1u << panel.btn[B_SAVE]; }
+static void test_save_tap_opens_projects(void)
+{
+    uint32_t pg;
+    ui_host_init();
+    press(B_SAVE);
+    ui_frame();
+    check("SAVE pressed: no page yet (it may be held for the cue map)", ui.home && !ui.cue_map);
+    release_all();
+    ui_frame();
+    check("SAVE let go within 0.4 s: the projects page", !ui.home && cur_fam() == FAM_SAVE &&
+          str_eq(cur_page()->title, "PROJECT"));
+    tap(B_SAVE);
+    check("a second SAVE tap: TOOLS", !ui.home && str_eq(cur_page()->title, "TOOLS"));
+    pg = ui.page;
+    press(B_SAVE);
+    ui_frame();
+    host_ticks += 500u * 1000u * FM1_TICKS_PER_US;
+    fm1_in.buttons |= save_bit();
+    ui_frame();
+    check("SAVE held 0.5 s: the cue map (top line CUE)", ui.cue_map);
+    release_all();
+    ui_frame();
+    check("SAVE let go after the map: no page change, the map gone", !ui.cue_map && ui.page == pg && !ui.home);
+}
+static void test_cue_keys_no_notes(void)
+{
+    uint32_t a, k, mw, on = 0;
+    ui_host_init();
+    song.rec = 0xFFu;                                /* REC ALL: every track armed */
+    transport_req = 1;
+    ui_frame();
+    a = hit_age(&trk[0]);
+    mw = mo_w;
+    press(B_SAVE);
+    keys(1u << STEP_KEY[0]);                         /* SAVE and white key 1 in the same frame */
+    ui_frame();
+    fm1_in.buttons |= save_bit();
+    ui_frame();
+    keys(0);
+    ui_frame();
+    for (k = 0; k < NSTEP; k++)
+        on |= trk[0].step[k].on;
+    check("SAVE held + white key 1: the cue map's, no hit on track 1, no MIDI note out, nothing recorded",
+          ui.cue_map && hit_age(&trk[0]) == a && mo_w == mw && !on);
+    release_all();
+    ui_frame();
+    transport_req = 2;
+    ui_frame();
+    song.rec = 0;
+}
+static void test_save_dead(void)
+{
+    uint32_t a;
+    ui_host_init();
+    ui.confirm = 1;                                  /* a dialog: SAVE is dead, the keys play as before */
+    ui.confirm_trk = 0;
+    ui.force = 1;
+    ui_frame();
+    a = hit_age(&trk[1]);
+    press(B_SAVE);
+    keys(1u << KEY_TRK_KEY[1]);
+    ui_frame();
+    fm1_in.buttons |= save_bit();
+    host_ticks += 500u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("SAVE in a dialog: dead (no map); a key plays its track as before", !ui.cue_map && hit_age(&trk[1]) != a &&
+          ui.confirm == 1u);
+    keys(0);
+    release_all();
+    ui_frame();
+    ui.confirm = 0;
+    ui.force = 1;
+    ui_frame();
+    check("SAVE let go in the dialog: no page", ui.home);
+    ui.menu = 1;
+    press(B_SAVE);
+    ui_frame();
+    host_ticks += 500u * 1000u * FM1_TICKS_PER_US;
+    fm1_in.buttons |= save_bit();
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("SAVE in the menu: no map, no page", !ui.cue_map && ui.menu);
+    ui.menu = 0;
+    ui.force = 1;
+    ui_frame();
+    settings.mutebar = 0;
+    press(B_GLO);
+    keys(1u << KEY_TRK_KEY[4]);
+    glo_hold_frames(2);
+    check("GLO held: the MUTE screen's keys still toggle mutes", ui.mute && trk[4].p[P_MUTE] == 1);
+    keys(0);
+    release_all();
+    ui_frame();
+    trk[4].p[P_MUTE] = 0;
+}
 static void test_mute_screen_refused(void)
 {
     uint32_t i;
@@ -5036,9 +5134,7 @@ static void test_initsnd_filter(void)
     model_step(1);
     check("a model change keeps the FILTER", TSEL->p[P_FTYPE] == FT_HP && TSEL->p[P_FCUT] == 40);
     for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, "TOOLS")); k++) {
-        press(B_SAVE);
-        ui_frame();
-        release_all();
+        tap(B_SAVE);                                 /* (SAVE opens its pages on the release: 2026-10-26) */
     }
     turn(EN_K1 + 1, 1);                              /* INIT SOUND: one detent arms, */
     ui_frame();
@@ -9413,6 +9509,9 @@ int main(void)
     test_mute_screen();
     test_mute_screen_keys();
     test_mute_screen_refused();
+    test_save_tap_opens_projects();
+    test_cue_keys_no_notes();
+    test_save_dead();
     test_no_save_while_playing();
     test_knob_accel();
     test_home_keys_and_lfo();

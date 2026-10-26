@@ -27,6 +27,9 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     globals, mutes and selected track, and fades the old voices over 5 ms before the boundary (fx.c); a variation
     switch keeps the voices ringing. A never-used variation starts as a copy of the playing one (owner) and is used
     from then on (`VARIATIONS FULL` when it does not fit). Following a clock the switch is on the boundary's pulse.
+  - SAVE held (0.4 s, or with a white key): the cue map. White keys 1–4 slots A–D, 5–12 variations 1–8 (LEDs: used
+    lit, playing winking, queued blinking, an edited slot breathing); top line `CUE A3*` / `CUE>B3`. Its keys play
+    no note, send no MIDI, record nothing. A SAVE tap opens the projects page on the release now (was the press).
 
 ## 0.24.0 - 2026-10-25
 

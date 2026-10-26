@@ -200,7 +200,16 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ui.srec);
     led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
     led_put(nl, panel.btn[B_ENV], ui.env);            /* STEPS (spec 2026-10-24) */
-    if (ui.mute) {                                    /* MUTE screen: the tracks' keys lit while audible, blinking
+    if (ui.cue_map) {                                 /* SAVE held: the cue map (project.c cue_led) */
+        uint32_t ms = fm1_ticks() / (1000u * FM1_TICKS_PER_US);
+        int blink = (int)((ms / 250u) & 1u), wink = (ms % 1000u) >= 125u;
+        for (k = 0; k < 12u; k++) {
+            int c = cue_led(k + 1u);
+            led_put(nl, 14u + STEP_KEY[k], c == CM_ON || (c == CM_WINK && wink) || (c == CM_BLINK && blink));
+            led_put(nb, 14u + STEP_KEY[k], c == CM_BREATHE);
+        }
+        led_put(nl, panel.btn[B_SAVE], 1);
+    } else if (ui.mute) {                             /* MUTE screen: the tracks' keys lit while audible, blinking
                                                        * while a mute waits for the bar; top C# (NOW) / D# (NEXT BAR) */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
         for (k = 0; k < NTRK; k++)
@@ -735,10 +744,11 @@ static void mute_keys(uint32_t hits)                   /* the keys the ISR gave 
     if ((hits >> KEY_LEARN) & 1u)                      /* G4: MIDI LEARN on / off (ui_learn.c) */
         ml_toggle();
 }
+static int cue_owns_keys(void);
 static void glo_input(uint32_t now, uint32_t notes)
 {
     uint32_t bit = 1u << panel.btn[B_GLO], *t0 = &ui.glo_t0, hits = 0;
-    if (kb_mute_hit) {
+    if (kb_mute_hit && !cue_owns_keys()) {             /* (SAVE held: the cue map's, cue_input) */
         fm1_irq_off();
         hits = kb_mute_hit;
         kb_mute_hit = 0;
@@ -769,8 +779,75 @@ static void glo_input(uint32_t now, uint32_t notes)
     }
     if (hits && !glo_dead())
         mute_keys(hits);
-    mute_mask = (*t0 & GLO_OPEN) || (!(*t0 & (GLO_DEAD | GLO_PLAIN)) && !glo_dead() && !ui.layer && !ui.fx_t0) ? bit
-                                                                                                              : 0u;
+    mute_mask = (mute_mask & ~bit) |                   /* (SAVE's bit: cue_input's) */
+                ((*t0 & GLO_OPEN) || (!(*t0 & (GLO_DEAD | GLO_PLAIN)) && !glo_dead() && !ui.layer && !ui.fx_t0) ? bit
+                                                                                                                : 0u);
+}
+
+/* SAVE (spec 2026-10-26, the live cue): a tap opens the projects page on its release (as FX / GLO); held 0.4 s, or
+ * pressed with a white key, the cue map: white keys 1..4 queue slots A..D, 5..12 variations 1..8 (project.c cue_slot /
+ * cue_var), the top line CUE A1 / CUE>B3; its release then does nothing else. Every key pressed with SAVE is the
+ * map's until let go (seq.c keyboard_block, mute_mask: no note, no MIDI, nothing recorded). Pressed in the menu, a
+ * confirm, NAME, the PRESETS list or the MUTE screen: dead until let go; with the PERFORM layer up or FX held: a plain
+ * button (the release opens the projects page) */
+#define CUE_HOLD_MS 400u
+#define CUE_DOWN 1u
+#define CUE_OPEN 2u
+#define CUE_DEAD 4u
+#define CUE_PLAIN 8u
+static int cue_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on() || ui.mute; }
+static int cue_owns_keys(void)                         /* SAVE held (GLO not): the keys pressed now are the map's */
+{
+    return ((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u) && !((fm1_in.buttons >> panel.btn[B_GLO]) & 1u) &&
+           !(ui.cue_t0 & (CUE_DEAD | CUE_PLAIN)) && !cue_dead() && !ui.layer && !ui.fx_t0;
+}
+static void cue_keys(uint32_t hits)                    /* white key n: STEP_KEY[n - 1] */
+{
+    uint32_t n;
+    for (n = 0; n < 12u; n++)
+        if ((hits >> STEP_KEY[n]) & 1u) {
+            if (n < 4u)
+                (void)cue_slot(n);
+            else
+                (void)cue_var(n - 4u);
+        }
+}
+static void cue_input(uint32_t now, uint32_t notes)
+{
+    uint32_t bit = 1u << panel.btn[B_SAVE], *t0 = &ui.cue_t0, hits = 0;
+    if (kb_mute_hit && cue_owns_keys()) {
+        fm1_irq_off();
+        hits = kb_mute_hit;
+        kb_mute_hit = 0;
+        fm1_irq_on();
+    }
+    if (fm1_in.buttons & bit) {
+        if (!*t0)
+            *t0 = (now & ~15u) | CUE_DOWN;
+        if (!(*t0 & CUE_OPEN) && cue_dead())
+            *t0 |= CUE_DEAD;
+        else if (!(*t0 & CUE_OPEN) && (ui.layer || ui.fx_t0))
+            *t0 |= CUE_PLAIN;
+        if (!(*t0 & (CUE_OPEN | CUE_DEAD | CUE_PLAIN)) &&
+            (notes || hits || now - (*t0 & ~15u) >= CUE_HOLD_MS * 1000u * FM1_TICKS_PER_US)) {
+            *t0 |= CUE_OPEN;                            /* the cue map */
+            ui.cue_map = 1;
+            ui.force = 1;
+            grid_drop_holds();                          /* a grid key held edits nothing under it */
+        }
+    } else if (*t0) {
+        if (!(*t0 & (CUE_OPEN | CUE_DEAD)) && !cue_dead())
+            open_family(FAM_SAVE);                      /* a tap: the projects page (then TOOLS, COPY) */
+        *t0 = 0;
+        if (ui.cue_map) {
+            ui.cue_map = 0;                             /* let go: the screen before */
+            ui.force = 1;
+        }
+    }
+    if (hits && (*t0 & CUE_OPEN))
+        cue_keys(hits);
+    mute_mask = (mute_mask & ~bit) |
+                (!(*t0 & (CUE_DEAD | CUE_PLAIN)) && !cue_dead() && !ui.layer && !ui.fx_t0 ? bit : 0u);
 }
 
 /* PLAY: start / stop (SONG: the song; PLAY / STOP during one stops it); step record ends */
@@ -995,6 +1072,9 @@ static void ui_input(void)
 #endif
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     cue_poll();                                         /* project.c: a cue's switch finished (spec 2026-10-26) */
+    cue_input(now, notes);                              /* SAVE: tap / hold, the cue map */
+    if (cue_owns_keys())
+        notes = 0;                                      /* (the map's keys: no step, no select, no record) */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
     if (acc_oct && (ui.mute || ui.layer || fx_knobs))
         acc_oct = 2;                                    /* OCT+ held under MUTE / PERFORM: no bank on its release, there
@@ -1190,7 +1270,8 @@ static void ui_input(void)
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX && b != B_GLO)   /* (FX, GLO: on the release) */
+                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX && b != B_GLO && b != B_SAVE)   /* (FX, GLO,
+                                                         * SAVE: on the release) */
                     open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }

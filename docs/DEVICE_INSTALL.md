@@ -802,3 +802,19 @@ ACC`).
   as saved (the knob and the step back), `A` without `*`. Edit A, power off and on, load A: as saved.
 - SAVE to another slot: load A, edit it, set SLOT B, SAVE: `SAVED`; B now holds the edited A, A is as saved (no `*`).
   RENAME an edited slot (`*`): `RENAMED (SAVE TO KEEP)`; power off and on: the old name; RENAME a saved one: `RENAMED`.
+- Cue map: hold SAVE: the top line `CUE A1` (the slot loaded, variation 1), white keys 1–4 show the used slots
+  (A winking), 5 winks (variation 1), 6–12 dark (no variation used yet). Let go: no page change. A SAVE tap (short)
+  opens PROJECT on the release; again: TOOLS. SAVE held in the menu, a dialog, NAME or the MUTE screen: nothing.
+- Cue a slot while playing: hold SAVE, press key 2 (B): `CUE>B`, key 2 blinks; let SAVE go. B comes in exactly at
+  the end of A's pattern (the longest track's): no flam, no gap; tempo, swing, the master FX and the mutes stay; the
+  old sounds fade quickly (no click). Hold SAVE, key 1 (A), then key 1 again before the end: A at the next step.
+  While queued, SAVE + the playing slot's key cancels.
+- Variations: on A, hold SAVE, press key 6 (variation 2): at the pattern's end it plays variation 2, a copy of
+  variation 1 (key 6 now lit). Edit some steps, LEN of a track. SAVE + key 5: back to variation 1 at the boundary
+  (the edits stay in variation 2: SAVE + key 6 brings them back). Fill several variations with dense patterns until
+  `VARIATIONS FULL` shows (the playing one plays on). SAVE + key 2 then key 8: `CUE>B4`. Stopped, a cue switches at
+  once. During SONG: `STOP SONG TO CUE`.
+- Edited slots: edit A, cue B, cue A: the edit is still there; the PROJECTS list shows `A*`; SAVE A: the `*` goes.
+  With A's and C's variations both edited and unsaved, cueing a third slot from one of them says `SAVE C FIRST`.
+- Following CLK USB (a DAW at 120 BPM): queue variation 2 and slot B: each comes in on the bar's pulse, in time.
+- The keys pressed with SAVE held never sound, never send MIDI, never record (REC ALL on, playing).

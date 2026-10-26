@@ -192,6 +192,25 @@ static int head_mode(char *b)
 {
     uint32_t ls = lock_view_step();
     b[0] = 0;
+    if (ui.cue_map) {                                 /* SAVE held (spec 2026-10-26): CUE A1 (* edited), CUE>B3 queued */
+        int32_t ld = proj_loaded();
+        if (cue.q_slot || cue.q_var) {
+            uint32_t s = cue.q_slot ? cue.q_slot - 1u : (uint32_t)(ld < 0 ? 0 : ld);
+            str_cpy(b, "CUE>", 16);
+            b[4] = (char)('A' + s);
+            b[5] = cue.q_var ? (char)('0' + cue.q_var) : 0;
+            b[6] = 0;
+        } else if (ld < 0) {
+            str_cpy(b, "CUE -", 16);
+        } else {
+            str_cpy(b, "CUE ", 16);
+            b[4] = (char)('A' + ld);
+            b[5] = (char)('1' + var_cur);
+            b[6] = slot_dirty((uint32_t)ld) ? '*' : 0;
+            b[7] = 0;
+        }
+        return 1;
+    }
     if (ls < NSTEP) {                                 /* a step held in STEPS: its locks on the knobs */
         str_cpy(b, "LOCK STEP ", 16);
         fmt_int(b + 10, (int32_t)ls + 1);
@@ -240,7 +259,11 @@ static void draw_head(void)
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
                    (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u +
-                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u;
+                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u +
+                   (ui.cue_map ? (1u + cue.q_slot + cue.q_var * 7u + var_cur * 61u +
+                                  (uint32_t)(proj_loaded() + 1) * 503u +
+                                  (proj_loaded() >= 0 && slot_dirty((uint32_t)proj_loaded())) * 4099u) * 2654435761u
+                               : 0u);
     sig += cpu * 50021u + blink * 27u;
     if (!ui.force && sig == ui.head_sig)
         return;

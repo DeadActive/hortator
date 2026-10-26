@@ -18,6 +18,11 @@ static int slot_dirty(uint32_t s);         /* project.c: slot s has unsaved edit
 static void project_discard(uint32_t s);   /* .. its RAM image back to its flash version */
 static void proj_load_from(uint32_t slot); /* .. LOAD without the DISCARD EDITS? question */
 static void cue_poll(void);                /* .. a cue's switch finished (the ISR's: cue.c) */
+static int cue_slot(uint32_t s);           /* .. queue slot s / variation v (SAVE held + a white key) */
+static int cue_var(uint32_t v);
+static int cue_led(uint32_t n);            /* .. the cue map's white key n (1..12): CM_* */
+static int32_t proj_loaded(void);          /* .. the slot loaded, -1 none */
+enum { CM_OFF, CM_ON, CM_WINK, CM_BLINK, CM_BREATHE };   /* a cue map key: dark, lit, winking, blinking, breathing */
 static int transport_busy(void);
 static int name_on(void);                  /* ui_name.c (NAME) */
 static void draw_name(void);
@@ -103,6 +108,8 @@ static struct {
     uint8_t layer;               /* PERFORM: the layer's map shows (FX held open, or a layer key still held) */
     uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
     uint32_t glo_t0;             /* GLO's press time | GLO_DOWN OPEN DEAD PLAIN (ui_input.c glo_input) */
+    uint32_t cue_t0;             /* SAVE's press time | CUE_DOWN OPEN DEAD PLAIN (ui_input.c cue_input) */
+    uint8_t cue_map;             /* SAVE held: the cue map (the white keys the slots and variations, spec 2026-10-26) */
     uint8_t mute;                /* the MUTE screen shows (GLO held, spec §5) */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */

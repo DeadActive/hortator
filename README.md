@@ -83,7 +83,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
 | **REC** | on TRACKS: arms / disarms the selected track for recording (`T3 REC ARMED` / `T3 REC OFF`; during REC ALL: REC ALL ends, the selected track armed). On every other screen: REC ALL on / off (every track armed, each white key records its own track; off: the arm state from before back). It never starts play: PLAY does. On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
 | **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
-| **SAVE** | projects (save, load, name) and tools |
+| **SAVE** | tap (on the release): projects (save, load, name) and tools; held: the cue map (live cue) |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
 | **ENV** | STEPS / TRACKS (and [parameter locks](#parameter-locks)) (a tap, on its release; its LED lit and a padlock in the top bar, left of the battery, in STEPS). **STEPS**: the white keys are the selected track's steps on every page (HOME, EDIT, FX, LFO, COMP, TRACKS armed ...), tapped and held as on SEQ; hold ENV and press OCT+ / OCT- for the next / previous bank; OCT+ held + a step: its accent; OCT+ alone and OCT- keep their page's job (LAYER, back to SOUND, the LFO's RATE MODE). Finger drumming needs TRACKS (ENV off: the keys as before). ENV turns KEYS off, SCL turns STEPS off. Off at power-on |
 
@@ -198,7 +198,15 @@ full (about 7 typical ones fit; a dense one takes 1.6 KB) the cue says `VARIATIO
 on. A slot comes back on the variation it played last (after power-on: variation 1). Edits go to the playing
 variation and are kept when you cue away and back. While SONG plays a cue is refused (`STOP SONG TO CUE`); a SONG row
 plays its slot's variation 1. Following an external clock (CLK USB / TRS) the switch comes on the pulse that ends
-the pattern. Unsaved variations of a slot you leave wait in RAM (one other slot's at a time: `SAVE C FIRST` when
+the pattern.
+
+**The cue map: hold SAVE** (0.4 s, or press a white key with it). White keys 1–4 queue slots A–D (lit: used,
+winking: playing, blinking: queued, breathing: unsaved edits), white keys 5–12 queue variations 1–8 of the playing
+slot, or of the queued one (lit: used, winking: playing, blinking: queued). A slot key then a variation key (B, then
+3) queues both. The top line reads `CUE A3` (`CUE A3*` with unsaved edits) or what is queued (`CUE>B`, `CUE>B3`,
+`CUE>A5`). The keys pressed with SAVE play no note, send no MIDI and record nothing. A SAVE tap still opens the
+projects page, now on its release; SAVE does nothing in the menu, a dialog, NAME, the PRESETS list or the MUTE
+screen. Unsaved variations of a slot you leave wait in RAM (one other slot's at a time: `SAVE C FIRST` when
 another slot's unsaved variations are still waiting).
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
