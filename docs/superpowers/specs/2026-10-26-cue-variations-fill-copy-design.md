@@ -78,6 +78,13 @@ As every recent change:
     park buffer already holds another slot's unsaved edits, the cue is refused with "SAVE A FIRST" (A = the parked
     slot; saving is done while stopped, as today). No silent loss.
   - SONG rows play a slot's variation 1.
+  - **USB AUDIO 10 CH (owner, 2026-10-26):** the parallel branch usbmode (MENU > USB AUDIO 2 CH / 10 CH) will be
+    merged with this one. 10 CH exists only in the build without Bluetooth: the BLE build's RAM stays as main's
+    (85868 of 98304 B, about 12 KB free); the plain build gets 10 CH (+1.5 KB RAM, +10 KiB pool; usbmode 417f79d's
+    build: 74720 of 98304 B, pool 317556 of 344064 B). The variations' ~7.2 KB (playing + park buffer) must fit both:
+    the BLE build without 10 CH (~93.2 KB, ~5 KB spare) and the plain build with it (~82 KB, ~16 KB spare). The
+    buffers live in .bss, not the pool. Settings bits: this work adds none; usbmode owns the palette word's bit 12
+    (a later need takes bit 13 or above).
 - Old projects have no variation object: variations 2–8 are empty.
 - Downgrade is safe, not supported (as 0.24.0).
 
