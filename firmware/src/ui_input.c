@@ -34,18 +34,26 @@ static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 /* fixes 2026-10-21 item 1: OCT+ where the keys are steps: 1 pressed (let go alone: the next bank), 2 a step key
  * accented with it (let go: nothing); 0 not held there (ui_input acc_oct_poll) */
 static uint8_t acc_oct;
-/* things the boot found that the first frames say, once each (project.c persist_boot): USR3 shortened to 48 KiB, a
- * lock bank lost (spec 2026-10-24 parameter locks) */
+/* things the boot found that the first frames say, once each (project.c persist_boot): USR2 / USR3 shortened to 48 KiB,
+ * a lock bank lost (spec 2026-10-24 parameter locks), the variations' (spec 2026-10-26) */
 #define PN_USR3 1u
 #define PN_LOCKS 2u
 #define PN_USR3F 4u                                 /* the USR3 clamp failed: no lock-bank writes this boot */
+#define PN_USR2 8u                                  /* USR2 shortened to 48 KiB (spec 2026-10-26 cue / variations) */
+#define PN_USR2F 16u                                /* the USR2 clamp failed: no variation writes this boot */
 static uint8_t persist_note;
 static uint8_t lk_lost;                             /* project.c: slots whose lock bank was lost (LOCKS LOST, once) */
 static void persist_note_show(void)                 /* every frame: with no message up, the lowest note's, once */
 {
     if (!persist_note || ui.msg_t)
         return;
-    if (persist_note & PN_USR3) {
+    if (persist_note & PN_USR2) {                   /* (USR2 before USR3: the order the boot shortened them) */
+        persist_note &= (uint8_t)~PN_USR2;
+        ui_message("USR2 SHORTENED TO 48K");
+    } else if (persist_note & PN_USR2F) {
+        persist_note &= (uint8_t)~PN_USR2F;
+        ui_message("USR2 CLAMP FAILED");
+    } else if (persist_note & PN_USR3) {
         persist_note &= (uint8_t)~PN_USR3;
         ui_message("USR3 SHORTENED TO 48K");
     } else if (persist_note & PN_LOCKS) {           /* (said once: not again at those slots' LOAD) */

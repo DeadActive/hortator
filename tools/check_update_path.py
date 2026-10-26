@@ -229,6 +229,33 @@ def selftest():
     finally:
         globals()["git"] = real
         globals()["worktree_text"] = real_wt
+    # storage.c: the recorded variation objects (frozen-base-11) and nothing else, over 0.24.0's text (the lock banks)
+    vb = ("/* SPDX */\n" + SV_MAP_OLD + SV_ENUM_OLD + "\nstatic uint32_t st_sector(uint32_t obj, uint32_t copy)\n{\n"
+          + SV_SECTOR_OLD + "        return 0xD4000u;\n    return 0;\n}\n")
+    varied = vb.replace(SV_MAP_OLD, SV_MAP_NEW).replace(SV_ENUM_OLD, SV_ENUM_NEW).replace(SV_SECTOR_OLD, SV_SECTOR_NEW)
+    cases = {"the variations": (varied, True),
+             "the variations and another change": (varied.replace("return 0;", "return 1;"), False),
+             "only the enum hunk": (vb.replace(SV_ENUM_OLD, SV_ENUM_NEW), False),
+             "another address": (varied.replace("0xC0000u +", "0xC1000u +"), False),
+             "the variations twice": (varied.replace(SV_SECTOR_NEW, SV_SECTOR_NEW + SV_SECTOR_NEW.replace(SV_SECTOR_OLD, "")),
+                                      False)}
+    try:
+        for what, (cur, ok) in cases.items():
+            globals()["git"] = lambda *a, b=vb: b if a[0] == "show" else "M\tfirmware/src/storage.c\n"
+            globals()["worktree_text"] = lambda path, c=cur: c
+            assert (source_errors("x") == []) == ok, f"storage.c, {what}: {'flagged' if ok else 'not caught'}"
+        globals()["git"] = lambda *a: varied if a[0] == "show" else ""
+        globals()["worktree_text"] = lambda path: varied
+        assert source_errors("x") == [], "a release with the variations, storage.c equal: flagged"
+        globals()["git"] = lambda *a: varied if a[0] == "show" else "M\tfirmware/src/storage.c\n"
+        globals()["worktree_text"] = lambda path: vb
+        assert source_errors("x"), "a release with the variations: the old text back not caught"
+        globals()["git"] = lambda *a: vb if a[0] == "show" else "M\tfirmware/src/ota.c\n"
+        globals()["worktree_text"] = lambda path: varied
+        assert source_errors("x"), "the storage.c variations allowance excused another file"
+    finally:
+        globals()["git"] = real
+        globals()["worktree_text"] = real_wt
     print("check_update_path: selftest ok")
 
 
@@ -287,6 +314,32 @@ def storage_locks_only(base_text, cur_text):
     return cur_text == want
 
 
+# the one recorded change to storage.c past 0.24.0 a release may not have yet (owner decision 2026-10-26, frozen-base-11,
+# docs/superpowers/specs/2026-10-26-cue-variations-fill-copy-design.md): the variation objects OBJ_VAR0..3 at
+# 0xC0000..0xC7FFF, cut from USR2 (the map comment, the object enum and st_sector's first test), and nothing else.
+SV_MAP_OLD = ST_MAP_NEW
+SV_MAP_NEW = ("/* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000, projects 0x97000..0x9EFFF,\n"
+              " * user sample slots 0xA0000..0xD3FFF (eng_sample.c) but 0xC0000..0xC7FFF the variations (project.c),\n"
+              " * lock banks 0xD4000..0xDBFFF (project.c), user preset banks 0xDC000..0xDFFFF (upreset.c) */\n")
+SV_ENUM_OLD = ST_ENUM_NEW
+SV_ENUM_NEW = ("enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_LOCKS0 = OBJ_UPRESET0 + 2,\n"
+               "       OBJ_VAR0 = OBJ_LOCKS0 + 4, OBJ_COUNT = OBJ_VAR0 + 4 };\n")
+SV_SECTOR_OLD = "    if (obj >= OBJ_LOCKS0)\n"
+SV_SECTOR_NEW = ("    if (obj >= OBJ_VAR0)\n"
+                 "        return 0xC0000u + (obj - OBJ_VAR0) * 2u * ST_SECTOR + copy * ST_SECTOR;\n" + SV_SECTOR_OLD)
+SV_HUNKS = ((SV_MAP_OLD, SV_MAP_NEW), (SV_ENUM_OLD, SV_ENUM_NEW), (SV_SECTOR_OLD, SV_SECTOR_NEW))
+
+
+def storage_vars_only(base_text, cur_text):
+    """cur_text is base_text (with the lock banks) with each recorded hunk replaced once by its variations text"""
+    if "OBJ_VAR0" in base_text or any(base_text.count(old) != 1 for old, _ in SV_HUNKS):
+        return False
+    want = base_text
+    for old, new in SV_HUNKS:
+        want = want.replace(old, new)
+    return cur_text == want
+
+
 def usb_name_only(base_text, cur_text):
     """cur_text is base_text with its one app product string line renamed to the recorded one, nothing else"""
     if STR2_NEW in base_text or base_text.count(STR2_OLD) != 1:
@@ -334,6 +387,9 @@ def source_errors(base):
         if status == "M" and path == STORAGE_C and storage_locks_only(git("show", f"{base}:{path}"),
                                                                        worktree_text(path) or ""):
             continue
+        if status == "M" and path == STORAGE_C and storage_vars_only(git("show", f"{base}:{path}"),
+                                                                      worktree_text(path) or ""):
+            continue
         errors.append(f"update path source {path} differs from {base} ({status})")
     return errors
 
@@ -343,7 +399,10 @@ def source_note(base):
     changed = git("diff", "--name-only", base, "--", MAIN_C, USB_APP_C, STORAGE_C).split()
     return ((" + main.c's recorded backlight hook (frozen-base-8)" if MAIN_C in changed else "") +
             (" + usb_app.c's recorded USB name Hortator (frozen-base-9)" if USB_APP_C in changed else "") +
-            (" + storage.c's recorded lock-bank objects (frozen-base-10)" if STORAGE_C in changed else ""))
+            (" + storage.c's recorded lock-bank objects (frozen-base-10)" if STORAGE_C in changed and
+             "OBJ_LOCKS0" not in git("show", f"{base}:{STORAGE_C}") else "") +
+            (" + storage.c's recorded variation objects (frozen-base-11)" if STORAGE_C in changed and
+             "OBJ_LOCKS0" in git("show", f"{base}:{STORAGE_C}") else ""))
 
 
 def main(argv):

@@ -23,14 +23,16 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 static struct { uint8_t erase; uint32_t off, n; } host_flog[HOST_NFLOG];
 static uint32_t host_nflog, host_fl_stray;
 static int host_fail_at = -1;
-/* the map (spec 2026-10-24 parameter locks): projects 0x97000..0x9EFFF, USR3's header sector 0xC8000 (its one-time
- * clamp), the lock banks 0xD4000..0xDBFFF, the user objects 0xDC000..0xDFFFF, the settings 0xFC000..0xFDFFF */
+/* the map (spec 2026-10-24 parameter locks, 2026-10-26 cue / variations): projects 0x97000..0x9EFFF, USR2's header
+ * sector 0xB4000 (its one-time clamp), the variations 0xC0000..0xC7FFF, USR3's header sector 0xC8000 (its clamp), the
+ * lock banks 0xD4000..0xDBFFF, the user objects 0xDC000..0xDFFFF, the settings 0xFC000..0xFDFFF */
 static int host_fl_in_map(uint32_t off, uint32_t n)
 {
-    static const uint32_t R[5][2] = {{0x97000u, 0x9F000u}, {0xC8000u, 0xC9000u}, {0xD4000u, 0xDC000u},
-                                     {0xDC000u, 0xE0000u}, {0xFC000u, 0xFE000u}};
+    static const uint32_t R[7][2] = {{0x97000u, 0x9F000u}, {0xB4000u, 0xB5000u}, {0xC0000u, 0xC8000u},
+                                     {0xC8000u, 0xC9000u}, {0xD4000u, 0xDC000u}, {0xDC000u, 0xE0000u},
+                                     {0xFC000u, 0xFE000u}};
     uint32_t i;
-    for (i = 0; i < 5u; i++)
+    for (i = 0; i < 7u; i++)
         if (off >= R[i][0] && n <= R[i][1] - off)
             return 1;
     return 0;

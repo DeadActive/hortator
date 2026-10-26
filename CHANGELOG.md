@@ -5,6 +5,13 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+- **Live cue, variations, FILL, slot COPY / PASTE** (spec docs/superpowers/specs/2026-10-26-cue-variations-fill-copy-design.md;
+  the behaviour after mono2k by Iñigo Hernández, GPL-3.0-only):
+  - User sample slot 2: **USR2 now holds up to 48 KiB** (as USR3 since 0.24.0); its last 32 KiB of flash hold the
+    projects' variations (frozen-base-11: storage.c's objects OBJ_VAR0..3 at 0xC0000..0xC7FFF). A longer USR2 is
+    shortened in flash once at power-on, before anything writes the variations (`USR2 SHORTENED TO 48K`, as USR3's;
+    a failed clamp says `USR2 CLAMP FAILED` and no variation is written that boot).
+
 ## 0.24.0 - 2026-10-25
 
 - **Parameter locks** (Elektron style; spec docs/superpowers/specs/2026-10-24-parameter-locks-design.md):

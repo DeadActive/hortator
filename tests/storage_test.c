@@ -199,18 +199,37 @@ int main(void)
                 uint32_t a = st_sector(o, c);
                 ok &= (a & 0xFFFu) == 0u;
                 ok &= (a >= 0x97000u && a + 0x1000u <= 0xE0000u) || (a >= 0xFC000u && a + 0x1000u <= 0xFF000u);
-                ok &= !(a + 0x1000u > 0xA0000u && a < 0xD4000u) && !(a + 0x1000u > 0xE0000u && a < 0xE5000u);
+                ok &= !(a + 0x1000u > 0xA0000u && a < 0xC0000u) && !(a + 0x1000u > 0xC8000u && a < 0xD4000u) &&
+                      !(a + 0x1000u > 0xE0000u && a < 0xE5000u);   /* (0xC0000..0xC7FFF: the variations) */
                 ok &= a != 0x9F000u && a != 0xFE000u;
                 for (o2 = 0; o2 < OBJ_COUNT; o2++)
                     for (c2 = 0; c2 < 2u; c2++)
                         ok &= (o2 == o && c2 == c) || st_sector(o2, c2) != a;
             }
-        bad += check("every object's sectors distinct, aligned, inside the map", ok && OBJ_COUNT == 11u);
+        bad += check("every object's sectors distinct, aligned, inside the map", ok && OBJ_COUNT == 15u);
         memset(nor, 0xFF, sizeof nor);
         for (s = 0; s < sizeof big; s++)
             big[s] = (uint8_t)(s * 7u + 3u);
         n = st_save(OBJ_LOCKS0 + 3u, big, sizeof big) == 0 ? st_load(OBJ_LOCKS0 + 3u, back, sizeof back) : -1;
         bad += check("a 3208-B lock bank round-trips (OBJ_LOCKS0 + 3)", n == (int)sizeof big && !memcmp(big, back, sizeof big));
+    }
+    {   /* the variations (spec 2026-10-26 cue / variations): OBJ_VAR0..3 at 0xC0000 + slot * 2 sectors + copy, cut from
+         * USR2; a 3584-B payload (the largest) leaves its sector's +0xF00..+0xFFF erased (the loader's erase scan) */
+        static uint8_t big[3584], back[3584];
+        uint32_t c, s, ok = 1;
+        for (s = 0; s < 4u; s++)
+            for (c = 0; c < 2u; c++)
+                ok &= st_sector(OBJ_VAR0 + s, c) == 0xC0000u + s * 0x2000u + c * 0x1000u;
+        bad += check("variations at 0xC0000 + slot * 0x2000 + copy * 0x1000", ok && OBJ_VAR0 == 11u);
+        memset(nor, 0xFF, sizeof nor);
+        for (s = 0; s < sizeof big; s++)
+            big[s] = (uint8_t)(s * 5u + 1u);
+        n = st_save(OBJ_VAR0 + 3u, big, sizeof big) == 0 ? st_load(OBJ_VAR0 + 3u, back, sizeof back) : -1;
+        for (c = 0, ok = 1; c < 2u; c++)
+            for (s = 0xF00u; s < 0x1000u; s++)
+                ok &= nor[st_sector(OBJ_VAR0 + 3u, c) + s] == 0xFFu;
+        bad += check("a 3584-B variation object round-trips (OBJ_VAR0 + 3); +0xF00.. of its sectors stays erased",
+                     n == (int)sizeof big && !memcmp(big, back, sizeof big) && ok);
     }
     printf("%s\n", bad ? "STORAGE TEST FAILED" : "storage test passed");
     return bad != 0;

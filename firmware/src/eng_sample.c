@@ -35,13 +35,16 @@ static uint32_t pow2_q16(int32_t d16)
 /* ---- user sample slots (loaded from the web editor into flash, see web/EDITOR_PROTOCOL.md)
  * 3 slots of 80 KiB at flash 0xA0000.. (Felucca data region), read through the plain XIP
  * window; USR3 holds 48 KiB (0xC8000..0xD3FFF): its last 32 KiB are the lock banks (storage.c OBJ_LOCKS0..3,
- * spec 2026-10-24 parameter locks; project.c smp_usr3_clamp shortens a longer one once). Slot = header (magic, count, name, data length, CRC32) + up to 16 zones in the
+ * spec 2026-10-24 parameter locks); USR2 holds 48 KiB (0xB4000..0xBFFFF): its last 32 KiB are the variations
+ * (storage.c OBJ_VAR0..3, spec 2026-10-26 cue / variations); project.c smp_usr_clamp shortens a longer one once.
+ * Slot = header (magic, count, name, data length, CRC32) + up to 16 zones in the
  * smp_zone_t layout (off relative to the slot's data at +512) + IMA ADPCM data. */
 #include "../hal/fm1_xip.h"   /* relative: hostsim includes this file too */
 #define SMP_USER_SLOTS 3
 #define SMP_USER_BASE 0xA0000u
 #define SMP_USER_SIZE 0x14000u
 #define SMP_USER_DATA 512u
+#define SMP_USR2_SIZE 0xC000u                       /* USR2: 48 KiB, the variations after it */
 #define SMP_USR3_SIZE 0xC000u                       /* USR3: 48 KiB, the lock banks after it */
 #define SMP_USER_MAGIC 0x504D5346u                  /* "FSMP" */
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
@@ -61,7 +64,10 @@ static const char *const SMP_ALL_NAMES[SMP_NALL] = {SMP_SET_NAMES_INIT, "USR1", 
 #define SMP_USER_XIP(k) fm1_xip_ptr(SMP_USER_BASE + (k) * SMP_USER_SIZE)
 #endif
 static const uint8_t *smp_user_xip(uint32_t k) { return SMP_USER_XIP(k); }
-static uint32_t smp_user_size(uint32_t k) { return k == 2u ? SMP_USR3_SIZE : SMP_USER_SIZE; }   /* slot k's room */
+static uint32_t smp_user_size(uint32_t k)          /* slot k's room */
+{
+    return k == 2u ? SMP_USR3_SIZE : k == 1u ? SMP_USR2_SIZE : SMP_USER_SIZE;
+}
 #if FELUCCA_SLICE
 static void slc_user_scan(uint32_t k, int valid);   /* eng_slice.c: SLICE's slice table of the slot */
 #else

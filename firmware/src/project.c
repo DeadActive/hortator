@@ -91,6 +91,8 @@ static uint8_t lk_dirty;                            /* bit per slot: its RAM ban
                                                      * it first, so the record never links a bank flash lacks */
 static uint8_t lk_blocked;                          /* this boot's USR3 clamp failed (USR3 still longer than 48 KiB in
                                                      * flash): no lock-bank write (an older Hortator would play them) */
+static uint8_t var_blocked;                         /* this boot's USR2 clamp failed (USR2 still longer than 48 KiB in
+                                                     * flash): no variation write (spec 2026-10-26 cue / variations) */
 static uint32_t proj_hash(const void *p, uint32_t n);
 static uint32_t proj_link(const lk_bank_t *b) { return proj_hash(b, sizeof *b) | 1u; }   /* (never 0) */
 static void lk_empty(uint32_t slot)
@@ -846,70 +848,72 @@ static void lc_unpack(uint32_t lc)
 }
 
 #if FELUCCA_FLASH
-/* USR3 at 48 KiB (spec 2026-10-24 parameter locks): an upstream Felucca upload longer than that (its slot was 80 KiB)
- * is shortened in flash once, before anything writes the lock banks behind it, so no Hortator (this one or an older
- * one) plays lock data as sound: zones starting at or past the cut are dropped (the later ones move down), one across
- * it is cut there (its loop end inside it, the loop off when its start was cut), the length and the CRC (over the
- * kept data) new. Its header sector is rewritten (NOR cannot raise bits): the payload part first, the header bytes
- * 0..255 last (a power cut before them: USR3 empty, nothing else touched). 1 rewritten, 0 nothing to do, < 0 a flash
- * error (USR3 then scans as unusable: its length is past 48 KiB) */
-#define SMP_USR3_OFF (SMP_USER_BASE + 2u * SMP_USER_SIZE)
-#define SMP_USR3_CUT (SMP_USR3_SIZE - SMP_USER_DATA)       /* 0xBE00 data bytes */
-static uint8_t usr3_head[256] __attribute__((aligned(4)));
-static uint8_t *usr3_at(uint32_t o) { return o < 256u ? &usr3_head[o] : &st_buf[o - 256u]; }   /* sector byte o */
-static uint32_t usr3_rd(uint32_t o)
+/* USR3 and USR2 at 48 KiB (specs 2026-10-24 parameter locks, 2026-10-26 cue / variations): an upstream Felucca upload
+ * longer than that (its slot was 80 KiB) is shortened in flash once, before anything writes the lock banks (USR3's
+ * last 32 KiB) or the variations (USR2's) behind it, so no Hortator (this one or an older one) plays them as sound:
+ * zones starting at or past the cut are dropped (the later ones move down), one across it is cut there (its loop end
+ * inside it, the loop off when its start was cut), the length and the CRC (over the kept data) new. Its header sector
+ * is rewritten (NOR cannot raise bits): the payload part first, the header bytes 0..255 last (a power cut before them:
+ * the slot empty, nothing else touched). k: 1 USR2, 2 USR3. 1 rewritten, 0 nothing to do, < 0 a flash error (the slot
+ * then scans as unusable: its length is past 48 KiB) */
+#define SMP_USR_CUT 0xBE00u                                 /* data bytes kept: 48 KiB - the header's 512 */
+typedef char smp_usr_cut_ok[SMP_USR_CUT == SMP_USR2_SIZE - SMP_USER_DATA && SMP_USR_CUT == SMP_USR3_SIZE - SMP_USER_DATA
+                            ? 1 : -1];
+static uint8_t usr_head[256] __attribute__((aligned(4)));
+static uint8_t *usr_at(uint32_t o) { return o < 256u ? &usr_head[o] : &st_buf[o - 256u]; }   /* sector byte o */
+static uint32_t usr_rd(uint32_t o)
 {
-    const uint8_t *b = usr3_at(o);
+    const uint8_t *b = usr_at(o);
     return (uint32_t)b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24;
 }
-static void usr3_wr(uint32_t o, uint32_t v)
+static void usr_wr(uint32_t o, uint32_t v)
 {
-    uint8_t *b = usr3_at(o);
+    uint8_t *b = usr_at(o);
     b[0] = (uint8_t)v;
     b[1] = (uint8_t)(v >> 8);
     b[2] = (uint8_t)(v >> 16);
     b[3] = (uint8_t)(v >> 24);
 }
-static int smp_usr3_clamp(void)
+static int smp_usr_clamp(uint32_t k)
 {
-    uint32_t nz, i, j, o;
-    if (st_read(SMP_USR3_OFF, usr3_head, sizeof usr3_head) || st_read(SMP_USR3_OFF + 256u, st_buf, ST_PAYLOAD_MAX))
+    uint32_t nz, i, j, o, at = SMP_USER_BASE + k * SMP_USER_SIZE;
+    if (st_read(at, usr_head, sizeof usr_head) || st_read(at + 256u, st_buf, ST_PAYLOAD_MAX))
         return -1;
-    nz = *usr3_at(6);
-    if (usr3_rd(0) != SMP_USER_MAGIC || (usr3_rd(4) & 0xFFFFu) != 1u || nz < 1u || nz > 16u ||
-        usr3_rd(16) <= SMP_USR3_CUT)
+    nz = *usr_at(6);
+    if (usr_rd(0) != SMP_USER_MAGIC || (usr_rd(4) & 0xFFFFu) != 1u || nz < 1u || nz > 16u ||
+        usr_rd(16) <= SMP_USR_CUT)
         return 0;
     for (i = 0, j = 0; i < nz; i++) {
-        uint32_t zi = 32u + 28u * i, zo = 32u + 28u * j, off = usr3_rd(zi), n = usr3_rd(zi + 4u);
-        if (off >= SMP_USR3_CUT)
+        uint32_t zi = 32u + 28u * i, zo = 32u + 28u * j, off = usr_rd(zi), n = usr_rd(zi + 4u);
+        if (off >= SMP_USR_CUT)
             continue;                                   /* past the cut: dropped */
         if (zi != zo)
             for (o = 0; o < 28u; o++)
-                *usr3_at(zo + o) = *usr3_at(zi + o);
-        if (n > 2u * (SMP_USR3_CUT - off)) {            /* across the cut (its last byte past it): cut there */
-            uint32_t ls = usr3_rd(zo + 8u), le = usr3_rd(zo + 12u);
-            n = 2u * (SMP_USR3_CUT - off);
-            usr3_wr(zo + 4u, n);
+                *usr_at(zo + o) = *usr_at(zi + o);
+        if (n > 2u * (SMP_USR_CUT - off)) {             /* across the cut (its last byte past it): cut there */
+            uint32_t ls = usr_rd(zo + 8u), le = usr_rd(zo + 12u);
+            n = 2u * (SMP_USR_CUT - off);
+            usr_wr(zo + 4u, n);
             if (le > n - 1u)
                 le = n - 1u;
             if (ls > le) {
                 ls = le;
-                *usr3_at(zo + 27u) = 0;                 /* the loop's start cut: no loop */
+                *usr_at(zo + 27u) = 0;                  /* the loop's start cut: no loop */
             }
-            usr3_wr(zo + 8u, ls);
-            usr3_wr(zo + 12u, le);
+            usr_wr(zo + 8u, ls);
+            usr_wr(zo + 12u, le);
         }
         j++;
     }
-    *usr3_at(6) = (uint8_t)j;
-    usr3_wr(16, SMP_USR3_CUT);
-    usr3_wr(20, st_crc32(smp_user_xip(2) + SMP_USER_DATA, SMP_USR3_CUT));   /* (the data, before the erase) */
-    if (st_erase(SMP_USR3_OFF))
+    *usr_at(6) = (uint8_t)j;
+    usr_wr(16, SMP_USR_CUT);
+    usr_wr(20, st_crc32(smp_user_xip(k) + SMP_USER_DATA, SMP_USR_CUT));   /* (the data, before the erase) */
+    if (st_erase(at))
         return -2;
     for (o = 0; o < ST_PAYLOAD_MAX; o += 256u)
-        if (st_prog(SMP_USR3_OFF + 256u + o, st_buf + o, 256u))
+        if (st_prog(at + 256u + o, st_buf + o, 256u))
             return -3;
-    if (st_prog(SMP_USR3_OFF, usr3_head, sizeof usr3_head))   /* the header, last */
+    if (st_prog(at, usr_head, sizeof usr_head))     /* the header, last */
         return -4;
     return 1;
 }
@@ -935,8 +939,16 @@ static void persist_boot(void)                    /* before settings_init / pane
     fl_plain_window_init();
     lk_dirty = 0;
     lk_blocked = 0;
+    var_blocked = 0;
     {
-        int c = smp_usr3_clamp();                     /* USR3 at 48 KiB: before any lock-bank write */
+        int c = smp_usr_clamp(1);                     /* USR2 at 48 KiB: before any variation write */
+        if (c > 0)
+            persist_note |= PN_USR2;
+        else if (c < 0) {                             /* failed: USR2 still past 48 KiB in flash, no variation write now */
+            var_blocked = 1;
+            persist_note |= PN_USR2F;
+        }
+        c = smp_usr_clamp(2);                         /* USR3 at 48 KiB: before any lock-bank write */
         if (c > 0)
             persist_note |= PN_USR3;
         else if (c < 0) {                             /* failed: USR3 still past 48 KiB in flash, no bank write now */

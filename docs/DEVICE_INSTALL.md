@@ -791,3 +791,9 @@ ACC`).
   build it loads.
 - STEPS: a locked step has a short line under its box in the footer's step strip (another bank: ENV + OCT+ shows its
   own); ENV off: no lines. SEQ > MOTION: KNOB 2 `MOTION` and KNOB 3 `LOCKS` count the selected track's.
+
+### Live cue, variations, FILL, COPY / PASTE (check on the FM-1)
+
+- USR2 at 48 KiB: with an 80 KiB sample in USR2 (uploaded under upstream Felucca before), the first power-on shows
+  `USR2 SHORTENED TO 48K` once (before `USR3 SHORTENED TO 48K` if USR3 is long too); SAMPLE's USR2 still plays (its
+  first 48 KiB). The next power-on says nothing. With USR2 48 KiB or less (or empty), nothing is shown.

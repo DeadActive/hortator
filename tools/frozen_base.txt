@@ -6,6 +6,8 @@
 # "Felucca"; the update loader's "Felucca Update", VID/PID and every other frozen file unchanged)
 # frozen-base-10 (user decision 2026-10-24, option D of the parameter-locks spec): frozen-base-9 + storage.c's lock-bank
 # objects OBJ_LOCKS0..3 at 0xD4000..0xDBFFF (the map comment, the object enum, st_sector; nothing else)
-FROZEN_BASE frozen-base-10 731386008fae060ae885f44b4765d172ecfae4b3
+# frozen-base-11 (user decision 2026-10-26, USR2 -> 48 KiB, spec 2026-10-26 cue / variations): frozen-base-10 +
+# storage.c's variation objects OBJ_VAR0..3 at 0xC0000..0xC7FFF (the map comment, the object enum, st_sector; nothing else)
+FROZEN_BASE frozen-base-11 33ef0f3f2e2461d9092fb2394896aa48352f2294
 # the update loader the FM-1 runs (build/loader/ota.bin, 6493 B): it must not change
 LOADER_SHA256 cc98eed224299fa42ca22a546073e0f8b98d8362e26b5f325a9aaeab287bdf5d

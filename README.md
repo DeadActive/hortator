@@ -181,10 +181,11 @@ an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is saf
 build); every older project loads with its motion. If a project's lock bank can't be read (an upload to USR3 under
 upstream Felucca overwrote it), the project still loads, without its motion, and the FM-1 says `LOCKS LOST` once.
 
-**User sample slot 3 (USR3) holds up to 48 KiB** (USR1 and USR2: 80 KiB, as before): the rest of its flash holds the
-projects' lock banks. A longer USR3 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the
-next power-on (`USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Hortator has no sample upload:
-an 80 KiB upload to USR3 under upstream Felucca afterwards overwrites the lock banks.
+**User sample slots 2 and 3 (USR2, USR3) hold up to 48 KiB each** (USR1: 80 KiB, as before): the rest of USR3's
+flash holds the projects' lock banks, the rest of USR2's the projects' variations. A longer USR2 or USR3 (uploaded
+under upstream Felucca) is shortened to its first 48 KiB once, at the next power-on (`USR2 SHORTENED TO 48K`,
+`USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Hortator has no sample upload: an 80 KiB
+upload to USR2 or USR3 under upstream Felucca afterwards overwrites the variations or the lock banks.
 
 ### Parameter locks
 

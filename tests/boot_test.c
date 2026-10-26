@@ -1793,8 +1793,9 @@ static int reson_extremes(void)
 /* ---- USR3 at 48 KiB (spec 2026-10-24 parameter locks: the lock banks take its last 32 KiB) */
 #define U3 0xC8000u
 static uint32_t rd32(uint32_t off) { uint32_t v; memcpy(&v, hflash + off, 4); return v; }
-static void usr3_image(uint32_t data_len)             /* an upstream-style USR3: 3 zones A (inside 48 KiB), B (across
-                                                       * 0xBE00, its loop start past the cut), C (past it); random data */
+static void usr_image(uint32_t at, uint32_t data_len) /* an upstream-style USR2 / USR3 at at: 3 zones A (inside 48 KiB),
+                                                       * B (across 0xBE00, its loop start past the cut), C (past it);
+                                                       * random data */
 {
     smp_user_hdr_t h;
     smp_zone_t *z;
@@ -1822,9 +1823,10 @@ static void usr3_image(uint32_t data_len)             /* an upstream-style USR3:
         h.zone[1].ls = 0x800u;
         h.zone[1].le = 0xFFFu;
     }
-    rfill(hflash + U3 + 512u, 0x14000u - 512u);
-    memcpy(hflash + U3, &h, sizeof h);
+    rfill(hflash + at + 512u, 0x14000u - 512u);
+    memcpy(hflash + at, &h, sizeof h);
 }
+static void usr3_image(uint32_t data_len) { usr_image(U3, data_len); }
 static void usr3_boot(void)
 {
     host_init();
@@ -1906,6 +1908,104 @@ static int usr3_note_shown(void)
     for (i = 0; i < 3u; i++)
         ui_frame();
     return !strcmp(ui.msg, "USR3 SHORTENED TO 48K") && ui.msg_t && persist_note == 0;
+}
+
+/* ---- USR2 at 48 KiB (spec 2026-10-26 cue / variations: the variations take its last 32 KiB, 0xC0000..0xC7FFF) */
+#define U2 0xB4000u
+static int flog_only_header(uint32_t at, uint32_t from, uint32_t erases_want)   /* writes from..: inside at's sector */
+{
+    uint32_t i, erases = 0, ok = host_nflog <= HOST_NFLOG;
+    for (i = from; ok && i < host_nflog; i++) {
+        ok &= host_flog[i].off >= at && host_flog[i].off + host_flog[i].n <= at + 0x1000u;
+        erases += host_flog[i].erase;
+        ok &= !host_flog[i].erase || host_flog[i].off == at;
+    }
+    return ok && erases == erases_want;
+}
+static int usr2_clamped_once(void)
+{
+    static uint8_t orig[0x1000];
+    smp_user_hdr_t h;
+    uint32_t ok;
+    memset(hflash, 0xFF, sizeof hflash);
+    rs = 177;
+    usr_image(U2, 0x13E00u);
+    memcpy(orig, hflash + U2, sizeof orig);
+    usr3_boot();
+    memcpy(&h, hflash + U2, sizeof h);
+    ok = h.magic == SMP_USER_MAGIC && h.version == 1 && h.data_len == 0xBE00u && h.nz == 2;
+    ok &= h.zone[0].off == 0x100u && h.zone[0].n == 0x2000u && h.zone[0].looped == 1;   /* A as it was */
+    ok &= h.zone[1].n == (0xBE00u - 0xB000u) * 2u && h.zone[1].le < h.zone[1].n && h.zone[1].ls <= h.zone[1].le &&
+          h.zone[1].looped == 0;                                                        /* B cut, its loop off */
+    ok &= h.crc == st_crc32(hflash + U2 + 512u, 0xBE00u);
+    ok &= !memcmp(hflash + U2 + 512u, orig + 512u, 0x1000u - 512u);
+    ok &= !memcmp(h.name, "BIGLOOP", 7);
+    ok &= usr_nz[1] == 2 && (persist_note & PN_USR2) && !(persist_note & PN_USR3) && flog_only_header(U2, 0, 1u) &&
+          !var_blocked;
+    usr3_boot();                                       /* the next boot: nothing to do */
+    ok &= host_nflog == 0 && persist_note == 0 && usr_nz[1] == 2 && rd32(U2 + 16u) == 0xBE00u;
+    return (int)ok;
+}
+static int usr2_short_untouched(void)
+{
+    static uint8_t orig[0x14000];
+    memset(hflash, 0xFF, sizeof hflash);
+    rs = 178;
+    usr_image(U2, 0xBE00u);
+    memcpy(orig, hflash + U2, sizeof orig);
+    usr3_boot();
+    return host_nflog == 0 && persist_note == 0 && usr_nz[1] == 2 && !memcmp(orig, hflash + U2, sizeof orig);
+}
+static int usr2_clamp_fails_safe(void)
+{
+    static uint8_t usr13[0x14000];
+    uint32_t ok, i;
+    memset(hflash, 0xFF, sizeof hflash);
+    rs = 179;
+    slot_header(0, 1);
+    usr_image(U2, 0x13E00u);
+    memcpy(usr13, hflash + 0xA0000u, sizeof usr13);
+    host_fail_at = 0;                                  /* the clamp's erase fails */
+    usr3_boot();
+    ok = usr_nz[1] == 0 && usr_nz[0] && !memcmp(usr13, hflash + 0xA0000u, sizeof usr13);
+    ok &= rd32(U2 + 16u) == 0x13E00u && !(persist_note & PN_USR2) && (persist_note & PN_USR2F) && var_blocked;
+    for (i = 0; i < host_nflog && i < HOST_NFLOG; i++)
+        ok &= host_flog[i].off >= U2 && host_flog[i].off + host_flog[i].n <= U2 + 0x1000u;
+    host_fail_at = -1;
+    return (int)ok;
+}
+static int usr2_usr3_both(void)
+{
+    uint32_t ok, f, n2 = 0, n3 = 0, order = 1;
+    char last[32] = "";
+    memset(hflash, 0xFF, sizeof hflash);
+    rs = 180;
+    usr_image(U2, 0x13E00u);
+    usr_image(U3, 0x13E00u);
+    persist_note = 0;
+    host_nflog = 0;
+    power_on(0);
+    ok = rd32(U2 + 16u) == 0xBE00u && rd32(U3 + 16u) == 0xBE00u && usr_nz[1] == 2 && usr_nz[2] == 2;
+    ok &= host_nflog >= 2u && host_flog[0].erase && host_flog[0].off == U2;   /* USR2 first */
+    for (f = 0; f < 200u; f++) {
+        ui_frame();
+        if (ui.msg_t && !str_eq(ui.msg, last)) {
+            snprintf(last, sizeof last, "%s", ui.msg);
+            if (str_eq(ui.msg, "USR2 SHORTENED TO 48K"))
+                n2++;
+            if (str_eq(ui.msg, "USR3 SHORTENED TO 48K")) {
+                n3++;
+                order &= n2 == 1u;
+            }
+        }
+    }
+    ok &= n2 == 1u && n3 == 1u && order && persist_note == 0;
+    usr3_boot();                                       /* a second boot writes nothing */
+    ok &= host_nflog == 0 && persist_note == 0;
+    if (!ok)
+        printf("     usr2+usr3: len %x %x nz %u %u notes %u %u order %u nflog %u\n", rd32(U2 + 16u), rd32(U3 + 16u),
+               usr_nz[1], usr_nz[2], n2, n3, order, host_nflog);
+    return (int)ok;
 }
 
 /* ---- FDRF: the motion and the locks in per-slot lock banks (spec 2026-10-24 parameter locks) */
@@ -2338,14 +2438,19 @@ int main(void)
     check("USR3: a 48 KiB sample is not touched", usr3_short_untouched());
     check("USR3: a failed clamp leaves USR3 unusable (never read past 0xD3FFF), USR1 / USR2 as they were", usr3_clamp_fails_safe());
     check("USR3: the boot says USR3 SHORTENED TO 48K once", usr3_note_shown());
+    check("USR2: an 80 KiB sample is shortened to 48 KiB once (zones past cut, CRC new, the data kept)", usr2_clamped_once());
+    check("USR2: a 48 KiB sample is not touched", usr2_short_untouched());
+    check("USR2: a failed clamp leaves USR2 unusable, no variation write that boot, USR1 as it was", usr2_clamp_fails_safe());
+    check("USR2 and USR3 both long: one boot shortens both (USR2 SHORTENED first, then USR3's), the next writes nothing",
+          usr2_usr3_both());
     for (k = 0; k < F_KINDS; k++)
         for (s = 0; s < (k == F_RANDOM || k == F_HEADERS ? 8 : 1); s++)
             for (seq = 0; seq < 2; seq++) {
                 snprintf(what, sizeof what, "boot: %s #%d (%s)", KIND[k], s, seq ? "safe" : "normal");
                 check(what, boot(k, (uint32_t)s + 1u, seq));
             }
-    check("flash: no erase or program in any test outside the map (projects, USR3's header, lock banks, user objects, "
-          "settings)", host_fl_stray == 0);
+    check("flash: no erase or program in any test outside the map (projects, USR2's header, the variations, USR3's "
+          "header, lock banks, user objects, settings)", host_fl_stray == 0);
     printf(fails ? "boot_test: %d FAILED\n" : "boot_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

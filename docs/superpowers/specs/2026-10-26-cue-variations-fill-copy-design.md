@@ -23,6 +23,10 @@ come in at the pattern's end, play fills on demand, and copy whole slots, withou
   - A variation holds steps and timing only, and shares the slot's kit and the slot's lock bank (locks apply per step
     in every variation where that step plays).
   - Room comes from user sample slot 2, which shrinks from 80 KiB to 48 KiB, as USR3 did in 0.24.0.
+  - **A never-used (empty) variation (owner, 2026-10-26, after the plan):** the first time it is cued or edited it
+    starts as a COPY of the variation playing in that slot (steps and timing; Elektron-style), not empty. From then on
+    it is a used variation: it counts toward the slot's capacity, and when the copy cannot be stored the cue says
+    "VARIATIONS FULL" and the playing variation plays on.
 - **FILL:** REC held (on pages where REC held does nothing today, i.e. off the SEQ and SONG pages) plays a fill while
   held. Steps set to FILL play only during a fill; steps set to !FILL play only outside one.
 - **Copy / paste:** of a whole slot (A–D).
@@ -85,7 +89,8 @@ As every recent change:
     the BLE build without 10 CH (~93.2 KB, ~5 KB spare) and the plain build with it (~82 KB, ~16 KB spare). The
     buffers live in .bss, not the pool. Settings bits: this work adds none; usbmode owns the palette word's bit 12
     (a later need takes bit 13 or above).
-- Old projects have no variation object: variations 2–8 are empty.
+- Old projects have no variation object: variations 2–8 are empty (each starts as a copy of the playing one when first
+  cued, as above).
 - Downgrade is safe, not supported (as 0.24.0).
 
 ## Behaviour
@@ -115,7 +120,8 @@ As every recent change:
 - **Queueing both (owner):** holding SAVE, a slot key then a variation key (e.g. B then 3) queues both, shown as
   "CUE → B3". The queue holds one slot target plus one variation target. A variation key alone queues a variation of
   the playing slot (or of the queued slot, if a slot is queued).
-- **A queued variation switch:** at the boundary the tracks' steps and timing become that variation's. Sounds and locks
+- **A queued variation switch:** at the boundary the tracks' steps and timing become that variation's (an empty one:
+  a copy of the outgoing variation's, then stored as used). Sounds and locks
   are unchanged. The outgoing variation's edits are packed back into RAM (VARIATIONS FULL keeps the unpacked edits and
   says so).
 - **Editing while playing a cued slot or variation is allowed** (my call; SONG still forbids it). Edits go to the
