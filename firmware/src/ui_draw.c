@@ -1195,7 +1195,7 @@ static void graph_slots(void)
         md_fit(f, used ? (nb[0] ? nb : "USED") : "EMPTY", sizeof f, 180);
         row[0] = (char)('A' + i);
         row[1] = (char)((dirty >> i) & 1u ? '*' : ' ');   /* unsaved edits (spec 2026-10-26) */
-        row[2] = ' ';
+        row[2] = (char)(copy_src == i + 1u ? '#' : ' ');  /* the slot COPY took */
         str_cpy(row + 3, f, sizeof row - 3);
         list_row(2, 237, 22 + (int32_t)i * 16, row, 0, sel);
     }
@@ -1677,7 +1677,7 @@ static uint32_t graph_signature(void)
             h ^= (uint32_t)project_name(i, nb) << (20u + i);
             h = str_hash(h, nb);
         }
-        h ^= slots_dirty() * 0x9E3779B1u;
+        h ^= slots_dirty() * 0x9E3779B1u + copy_src * 0x85EBCA6Bu;
         h = str_hash(h, chain.name);
     }
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)

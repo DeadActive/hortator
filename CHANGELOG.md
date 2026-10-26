@@ -34,6 +34,11 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     while held (top bar `FILL`): FILL steps play, !FILL steps rest. A shorter REC press is the tap as before (on the
     release); REC held on SEQ / SONG is their confirm as before; learned / SMC REC: taps only. A long REC hold off SEQ
     was REC ALL on its release before: it is the fill now.
+  - COPY / PASTE of a slot: a third SAVE page, COPY (SLOT, COPY, PASTE; no existing page moved). COPY remembers the
+    slot (`COPIED A`, `#` in the list); PASTE (two detents) makes SLOT's slot a copy of it (kit, steps, locks,
+    variations, song; name + ` COPY`) in RAM, marked unsaved; again on the same slot before its SAVE: undone (its
+    flash version back, `PASTE UNDONE`). Refused while playing (`STOP TO PASTE`), onto itself (`SAME SLOT`), with
+    nothing copied (`COPY A SLOT FIRST`), or when the park holds another slot's unsaved variations (`SAVE C FIRST`).
 
 ## 0.24.0 - 2026-10-25
 
@@ -544,3 +549,7 @@ The first numbered version: everything on `main` so far.
   hold REC: after about 0.4 s `FILL` shows on top, the FILL steps play and the !FILL ones rest; let go: back to normal,
   REC's arm state unchanged. A quick REC tap on FX: REC ALL as before (on the release). On STEP, REC held 0.7 s: CLEAR
   TRACK? as before, no fill.
+- COPY / PASTE: SAVE tapped three times: COPY (SLOT, COPY, PASTE). SLOT A, turn COPY: `COPIED A`, `A #` in the list.
+  SLOT B, turn PASTE once (`AGAIN: PASTE`), again: `PASTED A TO B`, `B*`; load B (DISCARD EDITS? NO): nothing; cue B
+  with SAVE + key 2: it plays A's pattern, kit and variations. PASTE on B again: `PASTE UNDONE`, B as saved. Paste
+  while playing: `STOP TO PASTE`. Paste B, SAVE B, power off and on: B is the copy (name `... COPY`).

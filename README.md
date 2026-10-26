@@ -182,6 +182,12 @@ saved version loads; OCT- NO: nothing changes). SAVE to another slot ("save as")
 slot it came from goes back to its saved version. RENAME of a slot with unsaved edits renames it in RAM only
 (`RENAMED (SAVE TO KEEP)`): SAVE keeps both.
 
+**COPY / PASTE a slot:** SAVE's third page, COPY (SAVE tapped three times): KNOB 1 SLOT, KNOB 2 COPY (remembers
+that slot: `COPIED A`, `#` after its letter), KNOB 3 PASTE (two detents: `AGAIN: PASTE`) onto SLOT's slot: its kit,
+steps, locks, variations and song become the copied slot's (the name gets ` COPY`), in RAM until SAVE (`B*`),
+including the copied slot's unsaved edits. PASTE again on the same slot before saving it undoes it (`PASTE UNDONE`).
+PASTE needs the transport stopped (`STOP TO PASTE`); onto the loaded slot the tempo and the other globals stay.
+
 ### Live cue and variations
 
 Each project slot has **8 variations**: variation 1 is the slot's own steps; variations 2–8 each hold their own steps

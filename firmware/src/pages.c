@@ -45,6 +45,7 @@ static const page_t PAGES[] = {
                                                                                 * fx_metro) */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_NAME, G_LOAD, G_SAVE}},   /* NAME: rename (ui_name.c) */
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_CLRALL, G_INITALL}},   /* track; all */
+    {"COPY", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_COPY, G_PASTE, 0xFF}},   /* a slot's COPY / PASTE (project.c) */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GFILL1, G_GFILL2, G_GFILL3, 0xFF}},
     /* LFO: both LFOs on every page, LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4; then DEST, the track's 4 slots: KNOB 1 the
@@ -104,9 +105,9 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     *valp = 0;
     if (id == 0xFFu || pg->scope == SC_GRID || pg->scope == SC_MIX)
         return 0;
-    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE, METRO */
-        id = id - G_COUNT < 4u ? id - G_COUNT : 0u;
-        *valp = &song.act[id];
+    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE, METRO, COPY / PASTE */
+        id = id - G_COUNT < 6u ? id - G_COUNT : 0u;
+        *valp = &song.act[id < 4u ? id : id - 4u];   /* (COPY / PASTE: GO buttons, 0 at rest: CLR* / INIT*'s act) */
         return &GP_ACT[id];
     }
     if (pg->scope == SC_GLOBAL) {

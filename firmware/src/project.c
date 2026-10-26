@@ -715,9 +715,12 @@ static void var_leave(uint32_t out, uint32_t in)   /* (var_room said 0) the bank
 }
 /* slot s's RAM image back to its flash version (record, lock bank, variations; a park of it dropped), its marks
  * cleared. The live state is not changed (the caller loads) */
+static uint8_t paste_undo;                          /* the last PASTE's target + 1, until its SAVE or a paste elsewhere */
 static void project_discard(uint32_t s)
 {
     s &= 3u;
+    if (paste_undo == s + 1u)
+        paste_undo = 0;                             /* (its flash version back: nothing to undo) */
 #if FELUCCA_FLASH
     if (flash_ok)
         proj_fetch(s);
@@ -798,6 +801,8 @@ static void project_save(uint32_t slot)
         var_dirty &= (uint8_t)~(1u << slot);
         proj_dirty &= (uint8_t)~(1u << slot);
         proj_fsum[slot] = p->sum;
+        if (paste_undo == slot + 1u)
+            paste_undo = 0;                             /* (saved: a PASTE on it pastes again) */
         lastp.set = 1;                                  /* the last project: power-on loads it (spec 2026-10-11 §6) */
         lastp.slot = (uint8_t)slot;
         settings_save();                                /* (stopped: now; unchanged: nothing written) */
@@ -1208,6 +1213,126 @@ static int cue_led(uint32_t n)
     }
     return CM_OFF;
 }
+/* ---- COPY / PASTE of a slot (spec 2026-10-26; the COPY page) */
+/* the live state from slot s's image, the globals kept (a PASTE onto the loaded slot or its undo; stopped) */
+static void proj_live_from(uint32_t s)
+{
+    fm1_irq_off();
+    proj_tracks_in(&proj_slot[s], 1);
+    if (lk_valid(&lk_slot[s], s))
+        mo.b = lk_slot[s];
+    else
+        memset(&mo.b, 0, sizeof mo.b);
+    motion_forget();
+    var_cur = 0;
+    cue.last[s] = 0;
+    fm1_irq_on();
+    if (chain_valid(&proj_slot[s].song))
+        chain.cfg = proj_slot[s].song;
+    else
+        memset(&chain.cfg, 0, sizeof chain.cfg);
+    proj_name_get(chain.name, proj_slot[s].name);
+    live_sum0 = live_sum();
+    ui.force = 1;
+}
+static void project_copy(uint32_t s)              /* COPY: slot s remembered (all slots are in RAM: no copy now) */
+{
+    char m[] = "COPIED A";
+    s &= 3u;
+    if (!project_used(s) && proj_loaded() != (int32_t)s) {
+        ui_message("EMPTY SLOT");
+        return;
+    }
+    copy_src = (uint8_t)(s + 1u);
+    m[7] = (char)('A' + s);
+    ui_message(m);
+}
+/* PASTE onto slot t: its image, lock bank, song and variations become the copied slot's (the loaded source's live
+ * edits written back first; the name + " COPY"), in RAM only (flash at SAVE), t marked; t loaded: the live tracks too
+ * (the globals kept); t not loaded: its variations in the park (SAVE C FIRST when that holds another slot's unsaved
+ * ones). Again on the same target before its SAVE: undone (t's flash version back). Stopped only */
+static void project_paste(uint32_t t)
+{
+    int32_t ld = proj_loaded();
+    uint32_t src, pk = var_play ^ 1u, dst;
+    const var_bank_t *sb;
+    t &= 3u;
+    if (transport_busy() || chain_busy()) {
+        ui_message("STOP TO PASTE");
+        return;
+    }
+    if (paste_undo == t + 1u) {                       /* undo */
+        project_discard(t);
+        if ((int32_t)t == ld)
+            proj_live_from(t);
+        ui_message("PASTE UNDONE");
+        return;
+    }
+    if (!copy_src) {
+        ui_message("COPY A SLOT FIRST");
+        return;
+    }
+    src = copy_src - 1u;
+    if (src == t) {
+        ui_message("SAME SLOT");
+        return;
+    }
+    if (ld == (int32_t)src && proj_writeback()) {     /* the source's live edits first */
+        ui_message("VARIATIONS FULL");
+        return;
+    }
+    if (!proj_ok(&proj_slot[src])) {
+        ui_message("EMPTY SLOT");
+        return;
+    }
+    if ((int32_t)t == ld) {
+        dst = var_play;
+    } else {                                          /* the park: free, clean, or t's own */
+        uint32_t c = var_who[pk];
+        if (c && c != t + 1u && ((var_dirty >> (c - 1u)) & 1u)) {
+            char m[] = "SAVE A FIRST";
+            m[5] = (char)('A' + c - 1u);
+            ui_message(m);
+            return;
+        }
+        dst = pk;
+    }
+    sb = var_who[var_play] == src + 1u ? &var_buf[var_play] : var_who[pk] == src + 1u ? &var_buf[pk] : proj_var_flash(src);
+    proj_slot[t] = proj_slot[src];
+    {                                                 /* the name: + " COPY" if it fits, "COPY" with none */
+        char n[NAME_LEN + 1u];
+        uint32_t l;
+        proj_name_get(n, proj_slot[src].name);
+        l = str_len(n);
+        if (!l)
+            name_set(n, "COPY");
+        else if (l + 5u <= NAME_LEN)
+            str_cpy(n + l, " COPY", NAME_LEN + 1u - l);
+        memset(proj_slot[t].name, 0, NAME_LEN);
+        memcpy(proj_slot[t].name, n, str_len(n));
+    }
+    lk_slot[t] = lk_slot[src];
+    lk_dirty |= (uint8_t)(1u << t);
+    if (&var_buf[dst] != sb) {
+        var_empty(&var_buf[dst], t);
+        if (sb)
+            memcpy(&var_buf[dst], sb, 8u + sb->used);
+    }
+    var_buf[dst].slot = (uint8_t)t;
+    var_who[dst] = (uint8_t)(t + 1u);
+    var_dirty |= (uint8_t)(1u << t);
+    proj_seal(t);
+    if ((int32_t)t == ld)
+        proj_live_from(t);
+    paste_undo = (uint8_t)(t + 1u);
+    {
+        char m[] = "PASTED A TO B";
+        m[7] = (char)('A' + src);
+        m[12] = (char)('A' + t);
+        ui_message(m);
+    }
+}
+
 /* the switch at once (stopped: the main loop, the IRQ off) */
 static int cue_at_once(void)
 {

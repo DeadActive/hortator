@@ -1298,6 +1298,175 @@ static void fill_steps_saved(void)
     check("FILL / !FILL steps survive a SAVE and a LOAD (record and variation)", (int)ok);
 }
 
+/* ---- Task 8: COPY / PASTE / undo of a slot */
+static void beat_slot_a(void)                         /* A: a kit, steps, a lock, variation 2, a song, name BEAT; B, C,
+                                                       * D saved plain; A loaded */
+{
+    four_slots();
+    trk[4].p[P_E1] = 33;
+    trk[4].step[8].on = 1;
+    lk_put(&mo.b, lk_key(4, 8, P_E1), 90, 1);
+    chain.cfg.count = 1;
+    chain.cfg.row[0].slot = 0;
+    chain.cfg.row[0].repeat = 2;
+    name_set(chain.name, "BEAT");
+    var_make(111, 150);
+    var_put(live_bank(), 1, VSP, VTM);
+    project_save(0);
+    host_nflog = 0;
+}
+static int image_like(uint32_t t, uint32_t s)         /* t's record = s's but the name and the sum */
+{
+    static project_t a, b;
+    a = proj_slot[t];
+    b = proj_slot[s];
+    memset(a.name, 0, sizeof a.name);
+    memset(b.name, 0, sizeof b.name);
+    a.sum = b.sum = 0;
+    a.lk_link = b.lk_link = 0;                        /* (the bank's link: its slot byte differs) */
+    a.var_link = b.var_link = 0;
+    return !memcmp(&a, &b, sizeof a);
+}
+static const var_bank_t *bank_of(uint32_t s)         /* slot s's variations in RAM (play or park), 0 none */
+{
+    return var_who[var_play] == s + 1u ? &var_buf[var_play] : var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u] : 0;
+}
+static void paste_copies_all(void)
+{
+    uint32_t ok = 1;
+    char b[NAME_LEN + 1u];
+    const var_bank_t *vb;
+    beat_slot_a();
+    project_copy(0);
+    OK(str_eq(ui.msg, "COPIED A") && copy_src == 1u);
+    project_paste(1);
+    OK(str_eq(ui.msg, "PASTED A TO B") && image_like(1, 0) && project_name(1, b) && str_eq(b, "BEAT COPY"));
+    OK(lk_slot[1].count == lk_slot[0].count && lk_slot[1].slot == 1u && !memcmp(lk_slot[1].key, lk_slot[0].key, sizeof lk_slot[0].key));
+    vb = bank_of(1);
+    OK(vb && vb->slot == 1u && var_is(vb, 1));
+    OK(host_nflog == 0u && slot_dirty(1) && proj_loaded() == 0 && paste_undo == 2u);
+    check("PASTE: B becomes A (kit, steps, locks, variations, song; name BEAT COPY), in RAM only, B marked", (int)ok);
+}
+static void paste_refused_playing(void)
+{
+    uint32_t ok = 1;
+    static project_t keep;
+    beat_slot_a();
+    project_copy(0);
+    keep = proj_slot[2];
+    play();
+    project_paste(2);
+    OK(str_eq(ui.msg, "STOP TO PASTE") && !memcmp(&keep, &proj_slot[2], sizeof keep) && !paste_undo);
+    stop();
+    project_paste(2);
+    OK(str_eq(ui.msg, "PASTED A TO C"));
+    project_copy(3);
+    project_paste(3);
+    OK(str_eq(ui.msg, "SAME SLOT"));
+    copy_src = 0;
+    project_paste(1);
+    OK(str_eq(ui.msg, "COPY A SLOT FIRST"));
+    check("PASTE: refused while playing (STOP TO PASTE), onto its source (SAME SLOT), with nothing copied", (int)ok);
+}
+static void paste_undo_test(void)
+{
+    uint32_t ok = 1;
+    beat_slot_a();
+    project_copy(0);
+    project_paste(1);
+    project_paste(1);                                 /* again on the same target: undone */
+    OK(str_eq(ui.msg, "PASTE UNDONE") && image_is_flash(1) && !slot_dirty(1) && !bank_of(1) && !paste_undo);
+    project_paste(1);
+    project_load(1);                                  /* (asks) */
+    OK(ui.confirm == CONFIRM_DISCARD);
+    ui.confirm = 0;
+    project_copy(3);
+    project_paste(0);                                 /* a paste elsewhere (D onto the loaded A): B's undo gone */
+    OK(paste_undo == 1u && str_eq(ui.msg, "PASTED D TO A"));
+    project_copy(0);
+    project_paste(1);
+    OK(str_eq(ui.msg, "PASTED A TO B"));
+    project_load(1);
+    ui.confirm = 0;
+    project_discard(1);
+    proj_load_from(1);
+    project_save(1);                                  /* SAVE B: a paste on B pastes again */
+    project_copy(0);
+    project_paste(1);
+    OK(str_eq(ui.msg, "PASTED A TO B"));
+    check("PASTE again on the same target: undone (its flash version back, not marked); after a paste elsewhere or a "
+          "SAVE it pastes again", (int)ok);
+}
+static void paste_onto_loaded(void)
+{
+    uint32_t ok = 1;
+    static int16_t g[G_COUNT];
+    beat_slot_a();
+    proj_load_from(2);                                /* C loaded */
+    song.g[G_BPM] = 141;
+    memcpy(g, song.g, sizeof g);
+    project_copy(0);
+    project_paste(2);
+    OK(proj_loaded() == 2 && trk[4].p[P_E1] == 33 && trk[4].step[8].on && trk[0].p[P_LEVEL] == 10);
+    OK(!memcmp(g, song.g, sizeof g) && var_is(live_bank(), 1) && live_bank()->slot == 2u && var_cur == 0u);
+    OK(mo.b.count == lk_slot[0].count);
+    check("PASTE onto the loaded slot: the live tracks become the source's, the globals stay, its variations in "
+          "play", (int)ok);
+}
+static void paste_park_full(void)
+{
+    uint32_t ok = 1;
+    beat_slot_a();
+    cue_slot(2);                                      /* C, its variation 2 edited, left unsaved (parked) */
+    cue_var(1);
+    trk[4].step[4].on ^= 1;
+    cue_slot(0);
+    OK(var_who[var_play ^ 1u] == 3u && (var_dirty & 4u));
+    project_copy(0);
+    project_paste(3);                                 /* D not loaded: its variations need the park */
+    OK(str_eq(ui.msg, "SAVE C FIRST") && !paste_undo && !slot_dirty(3));
+    check("PASTE onto a slot not loaded while the park holds C's unsaved variations: SAVE C FIRST", (int)ok);
+}
+static void paste_from_live(void)
+{
+    uint32_t ok = 1;
+    beat_slot_a();
+    trk[6].step[22].on = 1;                           /* A's live edit, unsaved */
+    project_copy(0);
+    project_paste(3);
+    OK(proj_slot[3].t[6].step[22].on && proj_slot[0].t[6].step[22].on);
+    check("PASTE from the loaded slot: its unsaved live edits go with it", (int)ok);
+}
+static void paste_then_load(void)                     /* Review Focus 4 */
+{
+    uint32_t ok = 1;
+    static project_t pasted, flash;
+    beat_slot_a();
+    project_copy(0);
+    project_paste(1);
+    pasted = proj_slot[1];
+    project_load(1);
+    OK(ui.confirm == CONFIRM_DISCARD);
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    OK(!ui.confirm && !memcmp(&pasted, &proj_slot[1], sizeof pasted) && paste_undo == 2u && proj_loaded() == 0);
+    project_load(1);
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    st_load(OBJ_PROJECT0 + 1u, &flash, sizeof flash);
+    OK(proj_loaded() == 1 && !memcmp(&flash, &proj_slot[1], sizeof flash) && !paste_undo && trk[0].p[P_LEVEL] == 20);
+    proj_load_from(0);
+    project_copy(0);
+    project_paste(1);
+    cue_slot(1);                                      /* stopped: at once */
+    OK(proj_loaded() == 1 && trk[4].p[P_E1] == 33 && trk[4].step[8].on);
+    check("PASTE B, LOAD B: DISCARD EDITS? NO keeps the paste, YES loads B as saved (no undo left); a cue of the "
+          "pasted B plays the paste", (int)ok);
+}
+
 int main(void)
 {
     vptrs();
@@ -1336,6 +1505,13 @@ int main(void)
     cue_top_line();
     cue_keys_queue();
     fill_steps_saved();
+    paste_copies_all();
+    paste_refused_playing();
+    paste_undo_test();
+    paste_onto_loaded();
+    paste_park_full();
+    paste_from_live();
+    paste_then_load();
     check("flash: no erase or program in any test outside the map", host_fl_stray == 0);
     printf(fails ? "cue_test: %d FAILED\n" : "cue_test: all passed\n", fails);
     return fails ? 1 : 0;

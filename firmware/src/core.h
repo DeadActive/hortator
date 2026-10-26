@@ -82,8 +82,9 @@ enum {                          /* global parameters */
     G_COUNT
 };
 enum { CG_MUTE, CG_KEEP, CG_HIDE };                 /* GHOST: muted = muted; muted still keys; never heard, keys */
-enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO };   /* TOOLS actions, the MUTE and METRO settings: shown
-                                                     * like globals, not stored in projects */
+enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE };   /* TOOLS actions, the MUTE and METRO
+                                                     * settings, COPY / PASTE of a slot (spec 2026-10-26): shown like
+                                                     * globals, not stored in projects */
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {                 /* sample playback state (eng_sample.c sample_next, dm_sample.c) */

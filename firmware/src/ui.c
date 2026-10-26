@@ -22,6 +22,9 @@ static int cue_slot(uint32_t s);           /* .. queue slot s / variation v (SAV
 static int cue_var(uint32_t v);
 static int cue_led(uint32_t n);            /* .. the cue map's white key n (1..12): CM_* */
 static int32_t proj_loaded(void);          /* .. the slot loaded, -1 none */
+static void project_copy(uint32_t s);      /* .. COPY / PASTE of a slot (the COPY page) */
+static void project_paste(uint32_t t);
+static uint8_t copy_src;                   /* .. the slot COPY took + 1, 0 none (graph_slots marks it) */
 enum { CM_OFF, CM_ON, CM_WINK, CM_BLINK, CM_BREATHE };   /* a cue map key: dark, lit, winking, blinking, breathing */
 static int transport_busy(void);
 static int name_on(void);                  /* ui_name.c (NAME) */

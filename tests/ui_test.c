@@ -2096,6 +2096,30 @@ static void test_rec_learned_short(void)
     }
     check("a learned REC is a tap, never FILL (as the SMC's REC: rec_tap)", (int)ok);
 }
+
+static void test_copy_page(void)
+{
+    uint32_t ok = 1;
+    int16_t *v;
+    const param_desc_t *d;
+    ui_host_init();
+    tap(B_SAVE);
+    OK0(str_eq(cur_page()->title, "PROJECT"));
+    tap(B_SAVE);
+    OK0(str_eq(cur_page()->title, "TOOLS"));
+    tap(B_SAVE);
+    OK0(str_eq(cur_page()->title, "COPY") && cur_page()->graph == GR_SLOTS);
+    d = page_desc(cur_page(), 0, &v);
+    OK0(d && str_eq(d->label, "SLOT"));
+    d = page_desc(cur_page(), 1, &v);
+    OK0(d && str_eq(d->label, "COPY") && v && *v == 0);
+    d = page_desc(cur_page(), 2, &v);
+    OK0(d && str_eq(d->label, "PASTE") && v && *v == 0);
+    snap_page("fixes/save_copy_page");
+    tap(B_SAVE);
+    OK0(str_eq(cur_page()->title, "PROJECT"));
+    check("SAVE taps: PROJECT, TOOLS, COPY (SLOT, COPY, PASTE), PROJECT again", (int)ok);
+}
 static void test_rec_all(void)
 {
     uint32_t i, ok;
@@ -9628,6 +9652,7 @@ int main(void)
     test_rec_hold_vs_rec_all();
     test_rec_seq_unchanged();
     test_rec_learned_short();
+    test_copy_page();
     test_reson_pages();
     test_acid_cap();
     test_select_pages();

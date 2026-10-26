@@ -577,8 +577,8 @@ static void edit_param(uint32_t slot, int32_t steps)
         *vp = 0;
         return;
     }
-    if ((id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_CLRALL || id == G_INITALL) &&
-        ui.arm != id) {
+    if ((id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_CLRALL || id == G_INITALL ||
+         id == G_PASTE) && ui.arm != id) {
         *vp = 0;                                      /* one detent arms, a second one within ~1.5 s acts */
         ui.arm = (uint8_t)id;
         ui.arm_t = 90;
@@ -594,6 +594,14 @@ static void edit_param(uint32_t slot, int32_t steps)
     case G_SAVE:                                      /* (with the current name; NAME renames: ui_name.c) */
         *vp = 0;
         project_save((uint32_t)song.g[G_SLOT] - 1u);
+        break;
+    case G_COPY:                                      /* the COPY page (spec 2026-10-26): SLOT's slot remembered */
+        *vp = 0;
+        project_copy((uint32_t)song.g[G_SLOT] - 1u);
+        break;
+    case G_PASTE:                                     /* .. pasted onto SLOT's (again on it: undone) */
+        *vp = 0;
+        project_paste((uint32_t)song.g[G_SLOT] - 1u);
         break;
     case G_CLRSEQ:
         *vp = 0;
