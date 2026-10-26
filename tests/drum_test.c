@@ -3285,7 +3285,7 @@ static void test_cond_codes(void)
             ok &= ga == a && gb == b;
             n++;
         }
-    check("PROB: codes 22..56 are 1/2, 2/2, 1/3 .. 8/8 in order", ok && n == 35u && 21u + n == COND_MAX);
+    check("PROB: codes 22..56 are 1/2, 2/2, 1/3 .. 8/8 in order", ok && n == 35u && 21u + n == COND_AB_MAX);
     cond_format(0, s);
     ok = !strcmp(s, "100%");
     cond_format(cond_store(15), s);
@@ -3297,6 +3297,51 @@ static void test_cond_codes(void)
     cond_format(33, s);                              /* 22 + 2 + 3 + 4 + 2: the third of B = 5 */
     ok &= !strcmp(s, "3/5");
     check("PROB: shown as 100% / 75% / 0% / 1-SHOT / 3/5", ok);
+}
+
+/* FILL / !FILL (spec 2026-10-26): codes 57 / 58 after 8/8; a FILL step plays only while a fill is held (fill_on), a
+ * !FILL step only outside one */
+static uint32_t fill_hits(uint32_t cond, int fill)
+{
+    uint32_t a, b, n = 0;
+    host_init();
+    trk[0].step[0].on = 1;
+    trk[0].step[0].cond = (uint8_t)cond;
+    trk[0].p[P_SLEN] = 1;
+    fill_on = (uint8_t)fill;
+    transport_req = 1;
+    a = hit_age(&trk[0]);
+    for (b = 0; b < 4u * 22050u / CTL; b++) {        /* 2 s: 8 steps of 1/16 at LEN 1 */
+        render_mix(0, 0, CTL);
+        if (hit_age(&trk[0]) != a) {
+            a = hit_age(&trk[0]);
+            n++;
+        }
+    }
+    transport_req = 2;
+    render_mix(0, 0, CTL);
+    fill_on = 0;
+    return n;
+}
+static void test_fill_conditions(void)
+{
+    uint32_t pos, ok;
+    char s[8];
+    check("FILL: plays every step while the fill is held, none without", fill_hits(COND_FILL, 1) >= 8u &&
+          fill_hits(COND_FILL, 0) == 0u);
+    check("!FILL: plays every step without a fill, none during one", fill_hits(COND_NFILL, 0) >= 8u &&
+          fill_hits(COND_NFILL, 1) == 0u);
+    ok = COND_AB_MAX == 56u && COND_FILL == 57u && COND_NFILL == 58u && COND_MAX == 58u;
+    for (pos = COND_AB_MAX; pos <= COND_MAX; pos++)
+        ok &= cond_pos(cond_store(pos)) == pos && cond_store(pos) == pos;
+    ok &= cond_pos(200) == COND_MAX;
+    cond_format(COND_FILL, s);
+    ok &= !strcmp(s, "FILL");
+    cond_format(COND_NFILL, s);
+    ok &= !strcmp(s, "!FILL");
+    cond_format(COND_AB_MAX, s);
+    ok &= !strcmp(s, "8/8");
+    check("PROB: after 8/8 the knob gives FILL then !FILL and stops there; shown FILL / !FILL", (int)ok);
 }
 
 /* sound pack: the slow divisions (ids 6..9: 1/2 1/1 2BAR 4BAR) */
@@ -3681,6 +3726,7 @@ static void test_lfo_dest_slots(void)
 int main(void)
 {
     test_cond_codes();
+    test_fill_conditions();
     test_comp_engine();
     test_comp_formats();
     test_comp_db_text();

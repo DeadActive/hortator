@@ -7,6 +7,7 @@
  * before each block (events_block). Grids (grids.c) runs on its own 1/32 clock and plays the tracks whose SRC
  * is one of its channels. KEYS (seq_mode 3): the keys play the selected track chromatically (keys_on). */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
+static volatile uint8_t fill_on;         /* REC held off SEQ (ui_input.c rec_fill): FILL steps play, !FILL ones not */
 static volatile uint8_t panic_req;       /* bit per track: cut its voices */
 static uint32_t kb_prev;
 static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen may take keys (ui_input.c glo_input), SAVE's
@@ -120,7 +121,8 @@ static uint32_t seq_16th(void)
 }
 
 /* PROB of step s coming up on track t (LEN len): 100 % plays; a percentage plays when the track's next random
- * number is below it; A/B when loop mod B = A - 1 and 1-SHOT on loop 0, loop = steps since PLAY / LEN */
+ * number is below it; A/B when loop mod B = A - 1 and 1-SHOT on loop 0, loop = steps since PLAY / LEN; FILL while a
+ * fill is held, !FILL while none is */
 static int step_plays(track_t *t, const step_t *s, uint32_t len)
 {
     uint32_t c = s->cond, loop = t->seq_cnt / (len ? len : 1u), a, b;
@@ -132,6 +134,8 @@ static int step_plays(track_t *t, const step_t *s, uint32_t len)
     }
     if (c == COND_1SHOT)
         return loop == 0u;
+    if (c == COND_FILL || c == COND_NFILL)            /* (spec 2026-10-26) */
+        return (c == COND_FILL) == (fill_on != 0u);
     cond_ab(c, &a, &b);
     return loop % b == a - 1u;
 }

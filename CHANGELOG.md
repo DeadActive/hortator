@@ -30,6 +30,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   - SAVE held (0.4 s, or with a white key): the cue map. White keys 1–4 slots A–D, 5–12 variations 1–8 (LEDs: used
     lit, playing winking, queued blinking, an edited slot breathing); top line `CUE A3*` / `CUE>B3`. Its keys play
     no note, send no MIDI, record nothing. A SAVE tap opens the projects page on the release now (was the press).
+  - FILL: PROB's list goes on past 8/8 with FILL (57) and !FILL (58). REC held 0.4 s off SEQ / SONG plays a fill
+    while held (top bar `FILL`): FILL steps play, !FILL steps rest. A shorter REC press is the tap as before (on the
+    release); REC held on SEQ / SONG is their confirm as before; learned / SMC REC: taps only. A long REC hold off SEQ
+    was REC ALL on its release before: it is the fill now.
 
 ## 0.24.0 - 2026-10-25
 
@@ -535,3 +539,8 @@ The first numbered version: everything on `main` so far.
   resume); key debounce and encoder fix (#23); TIMER5 nesting; USB-MIDI driver; storage hardening (sequence wrap,
   slot check, no truncated loads, full header read-back) and the erase order that keeps a save silent.
 - Project format FDR6; older projects are converted on load.
+- FILL: on STEP, hold a step, turn KNOB 1 (PROB) right past 8/8: `FILL`, then `!FILL`, then it stops. Make a
+  pattern with some FILL steps (a snare roll) and a !FILL step (a crash). On HOME (or SOUND, FX, LFO, TRACKS), playing,
+  hold REC: after about 0.4 s `FILL` shows on top, the FILL steps play and the !FILL ones rest; let go: back to normal,
+  REC's arm state unchanged. A quick REC tap on FX: REC ALL as before (on the release). On STEP, REC held 0.7 s: CLEAR
+  TRACK? as before, no fill.

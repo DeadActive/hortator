@@ -211,6 +211,10 @@ static int head_mode(char *b)
         }
         return 1;
     }
+    if (fill_on) {                                    /* REC held off SEQ: a fill (spec 2026-10-26) */
+        str_cpy(b, "FILL", 16);
+        return 1;
+    }
     if (ls < NSTEP) {                                 /* a step held in STEPS: its locks on the knobs */
         str_cpy(b, "LOCK STEP ", 16);
         fmt_int(b + 10, (int32_t)ls + 1);
@@ -259,7 +263,7 @@ static void draw_head(void)
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
                    (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u +
-                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u +
+                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u + fill_on * 7907u +
                    (ui.cue_map ? (1u + cue.q_slot + cue.q_var * 7u + var_cur * 61u +
                                   (uint32_t)(proj_loaded() + 1) * 503u +
                                   (proj_loaded() >= 0 && slot_dirty((uint32_t)proj_loaded())) * 4099u) * 2654435761u

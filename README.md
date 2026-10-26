@@ -204,7 +204,13 @@ the pattern.
 winking: playing, blinking: queued, breathing: unsaved edits), white keys 5–12 queue variations 1–8 of the playing
 slot, or of the queued one (lit: used, winking: playing, blinking: queued). A slot key then a variation key (B, then
 3) queues both. The top line reads `CUE A3` (`CUE A3*` with unsaved edits) or what is queued (`CUE>B`, `CUE>B3`,
-`CUE>A5`). The keys pressed with SAVE play no note, send no MIDI and record nothing. A SAVE tap still opens the
+`CUE>A5`). The keys pressed with SAVE play no note, send no MIDI and record nothing.
+
+**FILL.** A step's PROB goes on past 8/8 to `FILL` and `!FILL`: a FILL step plays only while a fill is held, a !FILL
+step only when none is. **Hold REC** (0.4 s) on any page but SEQ's (STEP, PATTERN, MOTION, SONG: there REC held is
+their CLEAR / DELETE ROW as before) to play a fill for as long as you hold it (`FILL` in the top bar). A shorter REC
+press is the tap as before (TRACKS: arm the track; elsewhere REC ALL), on the release. A learned REC and the
+SMC-Mixer's REC are always taps. (An older firmware plays FILL / !FILL steps as 8/8.) A SAVE tap still opens the
 projects page, now on its release; SAVE does nothing in the menu, a dialog, NAME, the PRESETS list or the MUTE
 screen. Unsaved variations of a slot you leave wait in RAM (one other slot's at a time: `SAVE C FIRST` when
 another slot's unsaved variations are still waiting).

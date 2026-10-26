@@ -18,6 +18,7 @@ static uint32_t fb_lit(uint32_t y0, uint32_t y1);
 static uint32_t foot_lit(void);
 static uint32_t fb_count(uint32_t x0, uint32_t y0, uint32_t w, uint32_t h, uint16_t c);
 static void tap(uint32_t b);
+#define OK0(e) do { if (!(e)) { printf("     (line %d)\n", __LINE__); ok = 0; } } while (0)
 static void hold(uint32_t label);
 static void safe_boot(int seq_held);
 static void kit_session(void);
@@ -1402,8 +1403,8 @@ static void test_rec_everywhere(void)
     tap(B_EDIT);
     pg = ui.page;
     hold(B_REC);
-    check("REC held long off the SEQ pages: no dialog; the release is a tap (REC ALL)", !ui.confirm &&
-          song.rec == 0xFFu && ui.rec_all && ui.page == pg);
+    check("REC held long off the SEQ pages: no dialog; a fill while held, no tap on the release (spec 2026-10-26: was "
+          "REC ALL)", !ui.confirm && song.rec == 0u && !ui.rec_all && !fill_on && ui.page == pg);
     transport_req = 2;
     ui_frame();
     ui_host_init();
@@ -1988,6 +1989,112 @@ static int only_steps(uint32_t mask)                 /* exactly one recorded ste
     for (i = 0; i < NTRK; i++)
         ok &= steps_on(i) == ((mask >> i) & 1u);
     return (int)ok;
+}
+
+/* ---- FILL (spec 2026-10-26): REC held 0.4 s off SEQ and SONG plays a fill while held; a shorter press is the tap as
+ * before (arm on TRACKS, REC ALL elsewhere, on the release); on SEQ / SONG REC held is the confirm as before */
+static void rec_hold_ms(uint32_t ms)                 /* REC down for ms (frames of 10 ms), not let go */
+{
+    uint32_t t;
+    press(B_REC);
+    ui_frame();
+    for (t = 10; t < ms; t += 10) {
+        host_ticks += 10u * 1000u * FM1_TICKS_PER_US;
+        fm1_in.buttons |= 1u << panel.btn[B_REC];
+        ui_frame();
+    }
+}
+static void test_rec_fill_hold(void)
+{
+    static const struct { const char *what; uint32_t btn, n; } S[] = {
+        {"HOME", B_HOME, 0}, {"SOUND", B_EDIT, 1}, {"FX", B_FX, 1}, {"LFO", B_LFO, 1}, {"TRACKS", B_HOME, 1},
+    };
+    uint32_t i, j, ok = 1;
+    char hm[24];
+    for (i = 0; i < sizeof S / sizeof S[0]; i++) {
+        uint8_t rec;
+        ui_host_init();
+        for (j = 0; j < S[i].n; j++)
+            tap(S[i].btn);
+        rec = song.rec;
+        rec_hold_ms(300);
+        ok &= !fill_on;
+        rec_hold_ms(450);
+        head_mode(hm);
+        ok &= fill_on && str_eq(hm, "FILL");
+        release_all();
+        ui_frame();
+        ok &= !fill_on && song.rec == rec && !ui.rec_all;
+        if (!ok) {
+            printf("     fill on %s: fill %u rec %u\n", S[i].what, fill_on, song.rec);
+            break;
+        }
+    }
+    check("REC held 0.4 s on HOME, SOUND, FX, LFO, TRACKS: FILL while held (top line FILL), off on the release, the "
+          "arm state and REC ALL untouched", (int)ok);
+}
+static void test_rec_hold_vs_rec_all(void)       /* Review Focus 3 */
+{
+    uint32_t ok = 1;
+    ui_host_init();
+    tap(B_FX);
+    rec_hold_ms(300);
+    OK0(!ui.rec_all);
+    release_all();
+    ui_frame();
+    OK0(ui.rec_all && song.rec == 0xFFu && !fill_on);  /* a 0.3 s press: REC ALL on the release */
+    rec_hold_ms(500);
+    OK0(fill_on && ui.rec_all);
+    release_all();
+    ui_frame();
+    OK0(!fill_on && ui.rec_all && song.rec == 0xFFu);  /* a 0.5 s hold: the fill, REC ALL still on */
+    tap(B_REC);                                      /* (REC ALL off) */
+    open_tracks();
+    track_select(2);
+    ui_frame();
+    rec_hold_ms(300);
+    release_all();
+    ui_frame();
+    OK0(song.rec == 4u && !fill_on);                  /* TRACKS: a 0.3 s press arms the selected track */
+    check("REC: a 0.3 s press off SEQ is the tap (REC ALL, TRACKS' arm) on the release; a 0.5 s hold is FILL and "
+          "leaves REC ALL on", (int)ok);
+}
+static void test_rec_seq_unchanged(void)
+{
+    static const char *const PG[] = {"STEP", "PATTERN", "MOTION", "SONG"};
+    uint32_t i, k, ok = 1;
+    for (i = 0; i < 4u; i++) {
+        ui_host_init();
+        for (k = 0; k < NPAGES && (ui.home || !str_eq(cur_page()->title, PG[i])); k++)
+            tap(B_SEQ);
+        if (!str_eq(cur_page()->title, PG[i])) {
+            ok = 0;
+            break;
+        }
+        trk[0].step[0].on = 1;
+        rec_hold_ms(750);
+        OK0(!fill_on && (i >= 2u || ui.confirm == 1u));   /* never a fill; STEP / PATTERN: CLEAR TRACK? as before */
+        release_all();
+        ui_frame();
+        ui.confirm = 0;
+        ui.force = 1;
+        ui_frame();
+    }
+    check("REC held 0.7 s on STEP, PATTERN, MOTION, SONG: the confirm as before, never FILL", (int)ok);
+}
+static void test_rec_learned_short(void)
+{
+    uint32_t ok = 1, f;
+    ui_host_init();
+    tap(B_FX);
+    for (f = 0; f < 60u; f++) {                       /* a learned REC (as ml_drain gives it), every frame for 0.6 s */
+        ml_q[ml_qw % ML_QN] = ML_A_REC;
+        ml_qw++;
+        host_ticks += 10u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+        OK0(!fill_on);
+    }
+    check("a learned REC is a tap, never FILL (as the SMC's REC: rec_tap)", (int)ok);
 }
 static void test_rec_all(void)
 {
@@ -9517,6 +9624,10 @@ int main(void)
     test_home_keys_and_lfo();
     test_tracks_rec_keys();
     test_rec_all();
+    test_rec_fill_hold();
+    test_rec_hold_vs_rec_all();
+    test_rec_seq_unchanged();
+    test_rec_learned_short();
     test_reson_pages();
     test_acid_cap();
     test_select_pages();

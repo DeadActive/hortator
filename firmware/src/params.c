@@ -363,11 +363,15 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
 }
 
 /* PROB of a step (step_t.cond). The knob runs 0 %, 5 % .. 100 % (positions 0..20), 1-SHOT (21), then A/B
- * (22..56: 1/2, 2/2, 1/3 .. 8/8, "plays on loop A of every B"). Stored so that 0 is 100 % (a zeroed step is
- * plain): 0 = 100 %, 1..20 = 0 .. 95 %, 21.. as the knob. */
+ * (22..56: 1/2, 2/2, 1/3 .. 8/8, "plays on loop A of every B"), then FILL (57: plays only while a fill is held, REC
+ * held off SEQ) and !FILL (58: only outside one; spec 2026-10-26). Stored so that 0 is 100 % (a zeroed step is
+ * plain): 0 = 100 %, 1..20 = 0 .. 95 %, 21.. as the knob. (An older firmware clamps 57 / 58 to 8/8) */
 #define COND_POS_100 20u
 #define COND_1SHOT 21u
-#define COND_MAX 56u
+#define COND_AB_MAX 56u                    /* the last A/B code (8/8) */
+#define COND_FILL 57u
+#define COND_NFILL 58u
+#define COND_MAX 58u
 static uint32_t cond_pos(uint32_t c) { return !c ? COND_POS_100 : c <= COND_POS_100 ? c - 1u : c < COND_MAX ? c : COND_MAX; }
 static uint32_t cond_store(uint32_t pos)
 {
@@ -376,7 +380,7 @@ static uint32_t cond_store(uint32_t pos)
 
 static void cond_ab(uint32_t c, uint32_t *a, uint32_t *b)   /* an A/B code (22..56): A of every B */
 {
-    uint32_t i = c > 22u ? (c < COND_MAX ? c : COND_MAX) - 22u : 0u, n = 2u;
+    uint32_t i = c > 22u ? (c < COND_AB_MAX ? c : COND_AB_MAX) - 22u : 0u, n = 2u;
     while (i >= n) {
         i -= n;
         n++;
@@ -385,10 +389,12 @@ static void cond_ab(uint32_t c, uint32_t *a, uint32_t *b)   /* an A/B code (22..
     *b = n;
 }
 
-static void cond_format(uint32_t c, char *s)      /* "100%", "35%", "1-SHOT", "3/5"; s holds 8 bytes */
+static void cond_format(uint32_t c, char *s)      /* "100%", "35%", "1-SHOT", "3/5", "FILL", "!FILL"; 8 bytes */
 {
     uint32_t a, b;
-    if (c < COND_1SHOT) {
+    if (c == COND_FILL || c == COND_NFILL) {
+        str_cpy(s, c == COND_FILL ? "FILL" : "!FILL", 8);
+    } else if (c < COND_1SHOT) {
         fmt_int(s, !c ? 100 : (int32_t)(c - 1u) * 5);
         str_cpy(s + str_len(s), "%", 2);
     } else if (c == COND_1SHOT) {

@@ -790,6 +790,26 @@ static void glo_input(uint32_t now, uint32_t notes)
  * map's until let go (seq.c keyboard_block, mute_mask: no note, no MIDI, nothing recorded). Pressed in the menu, a
  * confirm, NAME, the PRESETS list or the MUTE screen: dead until let go; with the PERFORM layer up or FX held: a plain
  * button (the release opens the projects page) */
+/* FILL (spec 2026-10-26): REC held FILL_HOLD_MS on any page but SEQ's (STEP, PATTERN, MOTION, SONG: there REC held is
+ * their confirm) plays a fill while held (seq.c fill_on: FILL steps play, !FILL ones not), the top line FILL; its
+ * release then is no tap (rec_t0's bit 1: btn_hold). A shorter press is the tap, on the release, as before. Not in the
+ * menu, a confirm, NAME, the PRESETS list, the MUTE screen or MIDI LEARN. A learned REC and the SMC's REC are taps */
+#define FILL_HOLD_MS 400u
+static void rec_fill(uint32_t now)
+{
+    int held = (fm1_in.buttons >> panel.btn[B_REC]) & 1u;
+    if (!held) {
+        fill_on = 0;
+        return;
+    }
+    if (!fill_on && ui.rec_t0 && !(ui.rec_t0 & 2u) && cur_fam() != FAM_SEQ && !ui.menu && !ui.confirm &&
+        !name_on() && !pl_on() && !ui.mute && !ui.ml.on &&
+        now - (ui.rec_t0 & ~3u) >= FILL_HOLD_MS * 1000u * FM1_TICKS_PER_US) {
+        fill_on = 1;
+        ui.rec_t0 |= 2u;                                /* (no tap on the release) */
+    }
+}
+
 #define CUE_HOLD_MS 400u
 #define CUE_DOWN 1u
 #define CUE_OPEN 2u
@@ -1075,6 +1095,7 @@ static void ui_input(void)
     cue_input(now, notes);                              /* SAVE: tap / hold, the cue map */
     if (cue_owns_keys())
         notes = 0;                                      /* (the map's keys: no step, no select, no record) */
+    rec_fill(now);                                      /* REC held off SEQ: FILL */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
     if (acc_oct && (ui.mute || ui.layer || fx_knobs))
         acc_oct = 2;                                    /* OCT+ held under MUTE / PERFORM: no bank on its release, there

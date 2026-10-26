@@ -1275,6 +1275,29 @@ static void cue_keys_queue(void)
     check("SAVE + key 2 then key 7: B and its variation 3 queued; key 2 again: at the next step", (int)ok);
 }
 
+/* ---- Task 7: FILL / !FILL steps through a project save and load (and a variation) */
+static void fill_steps_saved(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    trk[2].step[5].on = 1;
+    trk[2].step[5].cond = COND_FILL;
+    trk[2].step[6].on = 1;
+    trk[2].step[6].cond = COND_NFILL;
+    project_save(0);
+    memset(VS, 0, sizeof VS);
+    VS[3][1].on = 1;
+    VS[3][1].cond = COND_NFILL;
+    var_put(live_bank(), 1, VSP, VTM);
+    project_save(0);
+    wipe_ram();
+    persist_boot();
+    project_load(0);
+    OK(trk[2].step[5].cond == COND_FILL && trk[2].step[6].cond == COND_NFILL);
+    OK(var_get(live_bank(), 1, VRP, VTR) == 1 && VR[3][1].cond == COND_NFILL);
+    check("FILL / !FILL steps survive a SAVE and a LOAD (record and variation)", (int)ok);
+}
+
 int main(void)
 {
     vptrs();
@@ -1312,6 +1335,7 @@ int main(void)
     cue_map_leds();
     cue_top_line();
     cue_keys_queue();
+    fill_steps_saved();
     check("flash: no erase or program in any test outside the map", host_fl_stray == 0);
     printf(fails ? "cue_test: %d FAILED\n" : "cue_test: all passed\n", fails);
     return fails ? 1 : 0;
