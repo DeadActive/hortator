@@ -100,7 +100,8 @@ static void cue_fade_tick(uint32_t n)
 /* before the block's seq_ticks (events_block), playing, no song: the queued switch's boundary in this block -> the
  * switch. adv: the sequencer's advance this block (following a clock: the clock's), lead: how far ahead a slot
  * switch's fade starts (own clock CUE_LEAD; following, a pulse at least: the boundary's last pulse), n: the block */
-static void cue_tick(uint32_t n, uint32_t adv, uint32_t lead)
+static __attribute__((noinline)) void cue_tick(uint32_t n, uint32_t adv, uint32_t lead)   /* (noinline: the
+                                                   * audio ISR's loops stay as they were: target_budget.py) */
 {
     uint32_t k, best = NTRK, dist = 0xFFFFFFFFu;
     if (!cue.q_slot && !cue.q_var)
