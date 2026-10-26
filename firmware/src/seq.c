@@ -643,6 +643,16 @@ static __attribute__((noinline)) uint32_t mute_bar(uint32_t adv, uint32_t lead)
     return pr;
 }
 
+/* cue.c (spec 2026-10-26), every block before the steps: the mix gain of a slot switch's fade; playing (run), no
+ * song: a queued switch's boundary in this block -> the switch (its fade's lead: CUE_LEAD, following a clock a pulse at
+ * least). noinline: the audio ISR's loops stay as they were (target_budget.py) */
+static __attribute__((noinline)) void cue_block(uint32_t n, uint32_t adv, uint32_t run)
+{
+    cue_fade_tick(n);
+    if (run && !chain.running)
+        cue_tick(n, adv, song.g[G_CLOCK] && midi_clock.pulse_samples > CUE_LEAD ? midi_clock.pulse_samples : CUE_LEAD);
+}
+
 /* everything that happens between two rendered blocks */
 static void events_block(uint32_t n)
 {
@@ -696,12 +706,10 @@ static void events_block(uint32_t n)
     }
     run = !clock_mode || midi_clock.have_pulse || !song.playing;   /* following: step 0 / the resumed step on the first
                                                      * pulse; stopped, seq_tick counts ACID's gates in real time */
-    cue_fade_tick(n);                                /* cue.c: this block's mix gain (a slot switch's fade) */
+    cue_block(n, seq_n, run);                        /* cue.c: this block's fade; a queued switch's boundary */
     if (run) {
         if (chain.running)
             chain_tick(seq_n);                       /* song.c: a row ends in this block -> the next one */
-        else                                         /* cue.c: a queued switch's boundary in this block -> the switch */
-            cue_tick(n, seq_n, clock_mode && midi_clock.pulse_samples > CUE_LEAD ? midi_clock.pulse_samples : CUE_LEAD);
         for (i = 0; i < NTRK; i++)
             seq_tick(&trk[i], seq_n);
         grids_tick(seq_n);
