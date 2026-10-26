@@ -180,6 +180,9 @@ Since the parameter locks, a project's motion lives in its own lock bank beside 
 an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is safe, not supported: nothing breaks, the projects stay for this
 build); every older project loads with its motion. If a project's lock bank can't be read (an upload to USR3 under
 upstream Felucca overwrote it), the project still loads, without its motion, and the FM-1 says `LOCKS LOST` once.
+A project's variations 2–8 are saved with SAVE too, in their own flash object beside it (the record links it, as its
+lock bank): a project saved now still loads on 0.24.0, without its variations. If they can't be read (an upload to
+USR2 under upstream Felucca overwrote them), the project loads without them and the FM-1 says `VARIATIONS LOST` once.
 
 **User sample slots 2 and 3 (USR2, USR3) hold up to 48 KiB each** (USR1: 80 KiB, as before): the rest of USR3's
 flash holds the projects' lock banks, the rest of USR2's the projects' variations. A longer USR2 or USR3 (uploaded

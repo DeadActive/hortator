@@ -57,7 +57,9 @@ typedef struct {
     uint16_t lk_n;                              /* FDRF: its lock bank's count (0: no bank needed); FDR8..FDRE: the
                                                  * motion here */
     uint32_t lk_link;                           /* FDRF: .. its proj_link */
-    uint8_t rsv_mo[510];                        /* FDRF: reserved, 0 */
+    uint32_t var_link;                          /* FDRF (2026-10-26): its variations' object (var_link_of; 0: none) */
+    uint16_t var_len;                           /* .. its stored length (0: none, variations 2..8 empty: 0.24.0's) */
+    uint8_t rsv_mo[504];                        /* FDRF: reserved, 0 */
     chain_config_t song;                        /* FDR9: the song (song.c) */
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint16_t pre[NTRK];                         /* FDRD: each track's preset: a factory one's uid, 0x8000 | a user
@@ -93,8 +95,22 @@ static uint8_t lk_blocked;                          /* this boot's USR3 clamp fa
                                                      * flash): no lock-bank write (an older Hortator would play them) */
 static uint8_t var_blocked;                         /* this boot's USR2 clamp failed (USR2 still longer than 48 KiB in
                                                      * flash): no variation write (spec 2026-10-26 cue / variations) */
+/* the variations (varpack.c, spec 2026-10-26 cue / variations): a slot's variations 2..8 are its own flash object
+ * (storage.c OBJ_VAR0 + slot), saved before its lock bank and its record, which links it (var_link, var_len: a torn
+ * save keeps a whole triple). RAM holds two banks (.bss): the loaded slot's (var_play) and one park buffer; var_who
+ * says whose each holds (slot + 1, 0 none). A slot's variations not in RAM are read from flash (XIP) */
+static var_bank_t var_buf[2];
+static uint8_t var_who[2];
+static uint8_t var_play;                            /* var_buf's index of the loaded slot's bank */
+static uint8_t var_dirty;                           /* bit per slot: its RAM variations are not flash's (a SAVE that
+                                                     * failed, later the edits): a record written alone (RENAME) writes
+                                                     * them first */
+#ifndef VAR_XIP                                     /* host tests / the sim: their flash image */
+#define VAR_XIP(off) ((const void *)fm1_xip_ptr(off))
+#endif
 static uint32_t proj_hash(const void *p, uint32_t n);
 static uint32_t proj_link(const lk_bank_t *b) { return proj_hash(b, sizeof *b) | 1u; }   /* (never 0) */
+static uint32_t var_link_of(const var_bank_t *b) { return proj_hash(b, 8u + b->used) | 1u; }   /* (never 0) */
 static void lk_empty(uint32_t slot)
 {
     memset(&lk_slot[slot], 0, sizeof lk_slot[slot]);
@@ -473,6 +489,41 @@ static int proj_fetch(uint32_t slot)
 }
 #endif
 
+/* slot's variations in flash: the copy of OBJ_VAR0 + slot (either: as proj_bank_fetch) that is whole and is the one
+ * its record (proj_slot, valid) links, as an XIP pointer; 0 none needed (var_len 0) or lost (no copy matches: an
+ * upload over it, a damaged sector, a torn save's leftover: the boot's check sets var_lost, said once) */
+static const var_bank_t *proj_var_flash(uint32_t slot)
+{
+#if FELUCCA_FLASH
+    const project_t *q = &proj_slot[slot & 3u];
+    uint32_t c;
+    if (!flash_ok || !q->var_len)
+        return 0;
+    for (c = 0; c < 2u; c++) {
+        st_hdr_t h;
+        const var_bank_t *b;
+        if (st_head(OBJ_VAR0 + (slot & 3u), c, &h) || h.len != q->var_len || h.len > VAR_BYTES || h.len < 8u)
+            continue;
+        b = (const var_bank_t *)VAR_XIP(st_sector(OBJ_VAR0 + (slot & 3u), c) + ST_PAYLOAD_OFF);
+        if (st_crc32(b, h.len) == h.crc && var_valid(b, slot & 3u, h.len) && var_link_of(b) == q->var_link)
+            return b;
+    }
+#else
+    (void)slot;
+#endif
+    return 0;
+}
+/* slot's variations -> dst: its flash copy (the rest of dst 0), or empty: 1 found, 0 none, -1 lost */
+static int proj_var_load(uint32_t slot, var_bank_t *dst)
+{
+    const var_bank_t *f = proj_ok(&proj_slot[slot & 3u]) ? proj_var_flash(slot) : 0;
+    var_empty(dst, slot & 3u);
+    if (!f)
+        return proj_ok(&proj_slot[slot & 3u]) && proj_slot[slot & 3u].var_len ? -1 : 0;
+    memcpy(dst, f, 8u + f->used);
+    return 1;
+}
+
 /* the sequencer runs (or starts this block): a flash erase silences the audio and stalls it, so no saving now */
 static int transport_busy(void) { return song.playing || transport_req == 1u; }
 
@@ -489,6 +540,19 @@ static void proj_name_get(char *d, const char *s)
         d[i] = s[i];
     }
 }
+
+#if FELUCCA_FLASH
+/* slot's variations to flash: not written when its current copy holds these bytes already (a SAVE that changed none:
+ * no erase, and the record's link still finds them); 0 ok */
+static int var_write(uint32_t slot, const var_bank_t *b)
+{
+    st_hdr_t h;
+    uint32_t len = 8u + b->used;
+    if (st_current(OBJ_VAR0 + slot, &h) >= 0 && h.len == len && !memcmp(st_buf, b, len))
+        return 0;
+    return st_save(OBJ_VAR0 + slot, b, len);
+}
+#endif
 
 static void project_save(uint32_t slot)
 {
@@ -518,21 +582,40 @@ static void project_save(uint32_t slot)
     p->lk_n = lk_slot[slot & 3u].count;
     p->song = chain.cfg;
     memcpy(p->name, chain.name, NAME_LEN);
+    {                                                   /* the variations: the live ones become this slot's */
+        var_bank_t *vb = &var_buf[var_play];
+        if (!var_who[var_play])
+            var_empty(vb, slot & 3u);
+        vb->slot = (uint8_t)(slot & 3u);
+        var_who[var_play] = (uint8_t)((slot & 3u) + 1u);
+        if (var_who[var_play ^ 1u] == var_who[var_play])
+            var_who[var_play ^ 1u] = 0;                 /* (a park of this slot: superseded) */
+        p->var_len = var_mask(vb) ? (uint16_t)(8u + vb->used) : 0u;   /* (none used: no object, as 0.24.0's) */
+        p->var_link = p->var_len ? var_link_of(vb) : 0u;
+    }
     p->sum = proj_sum(p);
     chain.from = (uint8_t)((slot & 3u) + 1u);
 #if FELUCCA_FLASH
-    if (flash_ok) {                                     /* the bank, then the record (the pair's commit) */
-        lk_dirty |= (uint8_t)(1u << (slot & 3u));       /* (until both are written) */
+    if (flash_ok) {                                     /* the variations, the bank, then the record (the commit) */
+        const var_bank_t *vb = &var_buf[var_play];
+        lk_dirty |= (uint8_t)(1u << (slot & 3u));       /* (until all are written) */
+        var_dirty |= (uint8_t)(1u << (slot & 3u));
+        if (var_blocked) {                              /* USR2 not shortened: no variation write (RAM keeps it) */
+            ui_message("USR2 CLAMP FAILED");
+            return;
+        }
         if (lk_blocked) {                               /* USR3 not shortened: no bank write (RAM keeps the save) */
             ui_message("USR3 CLAMP FAILED");
             return;
         }
-        if (st_save(OBJ_LOCKS0 + (slot & 3u), &lk_slot[slot & 3u], sizeof lk_slot[0]) ||
+        if ((p->var_len && var_write(slot & 3u, vb)) ||
+            st_save(OBJ_LOCKS0 + (slot & 3u), &lk_slot[slot & 3u], sizeof lk_slot[0]) ||
             st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p)) {
             ui_message("SAVE ERROR");
             return;
         }
         lk_dirty &= (uint8_t)~(1u << (slot & 3u));
+        var_dirty &= (uint8_t)~(1u << (slot & 3u));
         lastp.set = 1;                                  /* the last project: power-on loads it (spec 2026-10-11 §6) */
         lastp.slot = (uint8_t)(slot & 3u);
         settings_save();                                /* (stopped: now; unchanged: nothing written) */
@@ -636,10 +719,19 @@ static int proj_load(uint32_t slot, int irq)
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
     if (irq)
         fm1_irq_on();
+    if (var_who[var_play ^ 1u] == (slot & 3u) + 1u)
+        var_who[var_play ^ 1u] = 0;                     /* (a park of this slot: the load is flash's) */
+    proj_var_load(slot, &var_buf[var_play]);            /* its variations (the ISR plays variation 1: not read) */
+    var_who[var_play] = (uint8_t)((slot & 3u) + 1u);
+    var_dirty &= (uint8_t)~(1u << (slot & 3u));
     ui.force = 1;
-    ui_message(irq && ((lk_lost >> (slot & 3u)) & 1u) ? "LOCKS LOST" : "LOADED");   /* (power-on: the boot's note) */
-    if (irq)
+    ui_message(irq && ((lk_lost >> (slot & 3u)) & 1u)    ? "LOCKS LOST"
+               : irq && ((var_lost >> (slot & 3u)) & 1u) ? "VARIATIONS LOST"
+                                                         : "LOADED");   /* (power-on: the boot's note) */
+    if (irq) {
         lk_lost &= (uint8_t)~(1u << (slot & 3u));
+        var_lost &= (uint8_t)~(1u << (slot & 3u));
+    }
     return 1;
 }
 static void project_load(uint32_t slot) { (void)proj_load(slot, 1); }
@@ -986,18 +1078,20 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     learn_load();                                     /* MIDI LEARN's map (its own object) */
     preset_user_boot();                               /* the user presets (theirs) */
-    {   /* the slots and their banks (after the USR3 clamp): a RAM slot kept over a reset fetches its bank; lost there
-         * (an FDRE converted in RAM, never saved, has none), the record from flash again */
+    {   /* the slots, their banks and variations (after the clamps): flash is the truth (spec 2026-10-26: edits live in
+         * RAM until SAVE), so every slot is its flash record again, whatever .noinit kept */
         uint32_t i;
         lk_lost = 0;
+        var_lost = 0;
+        var_dirty = 0;
+        var_who[0] = var_who[1] = 0;
         for (i = 0; i < 4u; i++) {
-            int r = proj_ok(&proj_slot[i]) ? proj_bank_fetch(i) : -1;
-            if (r == -1) {
-                lk_lost &= (uint8_t)~(1u << i);
-                r = proj_fetch(i);
-            }
-            if (r == -1)
+            if (proj_fetch(i) == -1)
                 persist_note |= PN_LOCKS;
+            if (proj_ok(&proj_slot[i]) && proj_slot[i].var_len && !proj_var_flash(i)) {
+                var_lost |= (uint8_t)(1u << i);
+                persist_note |= PN_VARS;
+            }
         }
     }
 #endif
@@ -1035,6 +1129,19 @@ static void project_rename(uint32_t slot, const char *name)   /* only the name; 
         if (lk_blocked) {                               /* (USR3 not shortened: the pair is not written) */
             ui_message("USR3 CLAMP FAILED");
             return;
+        }
+        if ((var_dirty >> (slot & 3u)) & 1u) {          /* its variations only in RAM: written first (the record links
+                                                         * them), from the bank holding them */
+            uint32_t w = var_who[var_play] == (slot & 3u) + 1u ? var_play : var_play ^ 1u;
+            if (var_blocked) {
+                ui_message("USR2 CLAMP FAILED");
+                return;
+            }
+            if (var_who[w] != (slot & 3u) + 1u || (p->var_len && var_write(slot & 3u, &var_buf[w]))) {
+                ui_message("SAVE ERROR");
+                return;
+            }
+            var_dirty &= (uint8_t)~(1u << (slot & 3u));
         }
         if ((lk_dirty >> (slot & 3u)) & 1u) {           /* its bank only in RAM: written first (the record links it) */
             if (st_save(OBJ_LOCKS0 + (slot & 3u), &lk_slot[slot & 3u], sizeof lk_slot[0])) {

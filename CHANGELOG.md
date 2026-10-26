@@ -11,6 +11,12 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     projects' variations (frozen-base-11: storage.c's objects OBJ_VAR0..3 at 0xC0000..0xC7FFF). A longer USR2 is
     shortened in flash once at power-on, before anything writes the variations (`USR2 SHORTENED TO 48K`, as USR3's;
     a failed clamp says `USR2 CLAMP FAILED` and no variation is written that boot).
+  - Project format: still "FDRF" (3840 B); 6 of its reserved bytes link the slot's variation object (a hash and its
+    length; 0 = none, as every 0.24.0 record). SAVE writes the variations (when any is used and they changed), then the
+    lock bank, then the record: a power cut at any point loads the old or the new triple whole. Unreadable variations
+    load empty, `VARIATIONS LOST` said once. 0.24.0 loads a project saved now, without its variations.
+  - Flash is the truth: after a reset or a power cut every slot is its saved flash version again (RAM edits are not
+    kept over a reset any more).
 
 ## 0.24.0 - 2026-10-25
 

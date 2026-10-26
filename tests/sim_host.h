@@ -113,6 +113,7 @@ void isr_alnk0(void) {}
 static uint8_t hflash[SIM_FLASH_SIZE];
 static uint32_t sim_dirty[SIM_FLASH_SIZE / 4096u / 32u];
 #define SMP_USER_XIP(k) ((const uint8_t *)hflash + 0xA0000u + (k) * 0x14000u)
+#define VAR_XIP(off) ((const void *)(hflash + (off)))       /* the variations (project.c) */
 static void sim_mark(uint32_t off, uint32_t n)
 {
     uint32_t s;

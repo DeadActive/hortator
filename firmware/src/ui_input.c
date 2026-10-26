@@ -43,6 +43,8 @@ static uint8_t acc_oct;
 #define PN_USR2F 16u                                /* the USR2 clamp failed: no variation writes this boot */
 static uint8_t persist_note;
 static uint8_t lk_lost;                             /* project.c: slots whose lock bank was lost (LOCKS LOST, once) */
+#define PN_VARS 32u                                 /* a slot's variations lost (spec 2026-10-26 cue / variations) */
+static uint8_t var_lost;                            /* project.c: slots whose variations were lost (VARIATIONS LOST) */
 static void persist_note_show(void)                 /* every frame: with no message up, the lowest note's, once */
 {
     if (!persist_note || ui.msg_t)
@@ -61,6 +63,11 @@ static void persist_note_show(void)                 /* every frame: with no mess
         if (lk_lost)
             ui_message("LOCKS LOST");
         lk_lost = 0;
+    } else if (persist_note & PN_VARS) {            /* (said once: not again at those slots' LOAD) */
+        persist_note &= (uint8_t)~PN_VARS;
+        if (var_lost)
+            ui_message("VARIATIONS LOST");
+        var_lost = 0;
     } else {
         persist_note &= (uint8_t)~PN_USR3F;
         ui_message("USR3 CLAMP FAILED");
