@@ -8951,12 +8951,12 @@ static void test_fk_led_levels(void)
     static const char *const WHAT[BL_COUNT] = {
         "OFF: on steps full, the rest dark",
         "DIM LO (the old ON): on steps full, the unlit beats mid (5 of 20 frames), the other keys and the idle buttons "
-        "glow (1 of 20)",
-        "DIM HI: as DIM LO, brighter: the beats 6 of 20, the glow 2 of 20",
+        "glow (a short pulse every frame)",
+        "DIM HI: as DIM LO, brighter: the beats 6 of 20, the glow's pulse longer",
         "INV: the active ones dark, the idle keys and buttons lit",
         "INV LO: the active ones dark, the idle ones mid (2 of 20)",
         "INV HI: the active ones dark, the idle ones mid (5 of 20)"};
-    static const uint32_t MID_N[BL_COUNT] = {0, 5, 6, 0, 2, 5}, GLOW_N[BL_COUNT] = {0, 1, 2, 0, 0, 0};
+    static const uint32_t MID_N[BL_COUNT] = {0, 5, 6, 0, 2, 5}, GLOW_W[BL_COUNT] = {0, LED_GLOW_LO, LED_GLOW_HI, 0, 0, 0};
     uint32_t m;
     ui_host_init();
     trk[0].p[P_SLEN] = 32;
@@ -8973,7 +8973,7 @@ static void test_fk_led_levels(void)
              fk_layer(14u + STEP_KEY[0]) == (m == BL_DIM_LO || m == BL_DIM_HI ? 2u : idle) &&   /* an unlit beat */
              fk_layer(panel.btn[B_SEQ]) == on && fk_layer(panel.btn[B_SAVE]) == idle &&
              fk_layer(panel.btn[B_OCTUP]) == 4u &&   /* breathing in every mode */
-             fk_frames(led_mid_ph) == MID_N[m] && fk_frames(led_glow_ph) == GLOW_N[m];
+             fk_frames(led_mid_ph) == MID_N[m] && led_glow_w == GLOW_W[m];
         check(WHAT[m], ok);
     }
     backlight = BL_OFF;

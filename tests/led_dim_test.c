@@ -4,7 +4,9 @@
  * scan: hal/fm1_input.h's fm1_input_tick runs on host GPIO registers, led_dim_tick right after it as in main.c's
  * fm1_timer5_irq, and the LED lines each tick drives are decoded (row bit 1 PA9, 2 PA10, 3 PH6, 4 PH9). Checked:
  *   - OFF: the hook writes nothing; every column is lit with fm1_led bit for bit;
- *   - ON: per column, the full layer lit in every frame, the 25 % layer in 5 of 20, the 5 % layer in 1 of 20;
+ *   - ON: per column, the full layer lit in every frame, the 25 % layer in 5 of 20; the glow a short pulse in every
+ *     frame, timed in the tick (never still lit when the tick ends: a late tick, interrupts held off by the
+ *     Bluetooth libraries, cannot stretch it);
  *   - a column is lit with the value composed for it from its layers (the next-column write: never another
  *     column's, never half of a change); a layer change shows from the next frame on;
  *   - led_dim_compose: phase by phase;
@@ -25,6 +27,9 @@ static volatile uint32_t host_gpio[8][8];          /* port, register / 4 */
 #define FM1_INPUT_NOW() host_now
 #include "../firmware/hal/fm1_input.h"
 #include "../firmware/src/enc.c"                   /* (led_dim_tick runs its decoder once a frame) */
+static uint32_t lines(void);
+static uint32_t glow_n, glow_lines, glow_w;        /* the glow's pulses: how many, the lines during the last, its width */
+#define LED_GLOW_WAIT(t0, w) ((void)(t0), glow_lines = lines(), glow_w = (w), glow_n++)
 #include "../firmware/src/led_dim.c"
 
 static int fails;
@@ -42,13 +47,21 @@ static uint32_t lines(void)                        /* the row bits the LED lines
     return ((a >> 9) & 1u) << 1 | ((a >> 10) & 1u) << 2 | ((h >> 6) & 1u) << 3 | ((h >> 9) & 1u) << 4;
 }
 
-/* one TIMER5 tick as main.c runs it; returns the column lit until the next tick, *lit its row bits */
-static uint32_t tick(uint32_t *lit)
+/* one TIMER5 tick as main.c runs it; returns the column lit until the next tick, *lit its row bits; *pulse the lines
+ * during the glow's pulse in this tick (0 none) */
+static uint32_t tick_p(uint32_t *lit, uint32_t *pulse)
 {
+    uint32_t n0 = glow_n;
     fm1_input_tick();
     led_dim_tick();
     *lit = lines();
+    *pulse = glow_n != n0 ? glow_lines : 0u;
     return fm1__tick_col;
+}
+static uint32_t tick(uint32_t *lit)
+{
+    uint32_t p;
+    return tick_p(lit, &p);
 }
 
 static void reset(void)
@@ -59,6 +72,8 @@ static void reset(void)
     fm1__tick_col = 0;
     led_dim_f = 0;
     led_dim_on = 0;
+    memset(led_gl, 0, sizeof led_gl);
+    led_glow_w = LED_GLOW_LO;
 }
 
 int main(void)
@@ -69,12 +84,12 @@ int main(void)
     /* led_dim_compose, phase by phase */
     ok = 1;
     for (f = 0; f < 20u; f++) {
-        uint32_t v = led_dim_compose(0x040201u, f), want = 0x01u | (f % 4u == 0u ? 0x02u : 0u) | (f == 0u ? 0x04u : 0u);
+        uint32_t v = led_dim_compose(0x040201u, f), want = 0x01u | (f % 4u == 0u ? 0x02u : 0u);   /* (the glow: a pulse) */
         ok &= v == want;
         ok &= led_dim_compose(0x1E1E00u, f) == (f % 4u == 0u ? 0x1Eu : 0u);   /* a bit in both dim layers: 25 % */
         ok &= led_dim_compose(0x1Eu, f) == 0x1Eu;                     /* full only: every phase */
     }
-    check("compose: full in every phase, 25 % in phases 0 4 8 12 16, 5 % in phase 0", ok);
+    check("compose: full in every phase, 25 % in phases 0 4 8 12 16, the glow in none (its own pulse)", ok);
 
     /* OFF: the hook does nothing; the scan lights fm1_led bit for bit */
     reset();
@@ -104,18 +119,42 @@ int main(void)
         memset(cnt, 0, sizeof cnt);
         ok = 1;
         for (t = 0; t < 5u * FM1_NCOL * 40u; t++) {
-            uint32_t r;
-            c = tick(&lit);
-            ok &= lit == fm1_led[c];
+            uint32_t r, pulse;
+            c = tick_p(&lit, &pulse);
+            ok &= lit == fm1_led[c] && (lit & 0x08u) == 0u;   /* the glow never left lit for the rest of the tick */
+            if (pulse) {
+                ok &= pulse == (lit | 0x08u) && glow_w == LED_GLOW_LO;
+                cnt[c][3]++;
+            }
             for (r = 1; r < 5u; r++)
-                cnt[c][r] += (lit >> r) & 1u;
+                cnt[c][r] += r != 3u ? (lit >> r) & 1u : 0u;
         }
         for (c = 0; c < FM1_NCOL; c++)
-            ok &= cnt[c][1] == 200u && cnt[c][2] == 50u && cnt[c][3] == 10u && cnt[c][4] == 0u;   /* (200 frames) */
+            ok &= cnt[c][1] == 200u && cnt[c][2] == 50u && cnt[c][3] == 200u && cnt[c][4] == 0u;   /* (200 frames) */
         if (!ok)
             break;
     }
-    check("ON: full lit every frame, 25 % in 5 of 20, 5 % in 1 of 20, per column, any start", ok);
+    check("ON: full lit every frame, 25 % in 5 of 20, the glow a timed pulse in every frame (never the whole tick)", ok);
+    {                                              /* a late tick (Bluetooth's interrupts off) stretches what is lit
+                                                    * when the tick ends: never the glow */
+        uint32_t pulse, k, stretched = 0;
+        reset();
+        for (c = 0; c < FM1_NCOL; c++)
+            led_lay[c] = 0x08u << 16;              /* every LED in the glow only */
+        led_dim_on = 1;
+        tick(&lit);
+        for (k = 0; k < 20u * FM1_NCOL; k++) {
+            host_now += k % 7u == 0u ? 24000u : 0u; /* every 7th tick 1 ms late */
+            tick_p(&lit, &pulse);
+            stretched |= lit;
+        }
+        check("a late tick: the glow is dark between its pulses, so a late tick lights nothing longer", stretched == 0u);
+        led_glow_w = 0;                            /* (OFF / INV levels: no glow pulse) */
+        k = glow_n;
+        for (i = 0; i < 2u * FM1_NCOL; i++)
+            tick(&lit);
+        check("no glow width: no pulse", glow_n == k);
+    }
 
     /* the next-column write: each tick lights the value composed for that column from its own layers; a column's
      * layers changed while it is lit or just composed show from its next frame, never torn or one column over */
@@ -160,27 +199,31 @@ int main(void)
         ok &= c == n && lit == 0x10u;
         check("a layer change: the column already composed keeps its value; the new one from its next frame", ok);
     }
-    /* fixes 2026-10-21 item 9: the dim layers' frames from their masks (DIM HI: mid 6 of 20, glow 2 of 20) */
+    /* fixes 2026-10-21 item 9: the mid layer's frames from its mask (DIM HI: mid 6 of 20), the glow DIM HI's pulse */
     reset();
     led_mid_ph = 0x22489u;
-    led_glow_ph = 0x401u;
+    led_glow_w = LED_GLOW_HI;
     for (c = 0; c < FM1_NCOL; c++)
         led_lay[c] = 0x02u | 0x04u << 8 | 0x08u << 16;
     led_dim_on = 1;
     tick(&lit);
     memset(cnt, 0, sizeof cnt);
-    for (i = 0; i < 5u * FM1_NCOL * 40u; i++) {
-        uint32_t r;
-        c = tick(&lit);
-        for (r = 1; r < 5u; r++)
-            cnt[c][r] += (lit >> r) & 1u;
-    }
     ok = 1;
+    for (i = 0; i < 5u * FM1_NCOL * 40u; i++) {
+        uint32_t r, pulse;
+        c = tick_p(&lit, &pulse);
+        for (r = 1; r < 5u; r++)
+            cnt[c][r] += r != 3u ? (lit >> r) & 1u : 0u;
+        if (pulse) {
+            cnt[c][3]++;
+            ok &= glow_w == LED_GLOW_HI;
+        }
+    }
     for (c = 0; c < FM1_NCOL; c++)
-        ok &= cnt[c][1] == 200u && cnt[c][2] == 60u && cnt[c][3] == 20u && cnt[c][4] == 0u;
-    check("item 9: the masks: DIM HI's mid in 6 of 20 frames, its glow in 2 of 20, per column", ok);
+        ok &= cnt[c][1] == 200u && cnt[c][2] == 60u && cnt[c][3] == 200u && cnt[c][4] == 0u;
+    check("item 9: DIM HI's mid in 6 of 20 frames, its glow DIM HI's pulse in every frame, per column", ok);
     led_mid_ph = 0x11111u;
-    led_glow_ph = 0x1u;
+    led_glow_w = LED_GLOW_LO;
 
     /* item 5: the breath (upstream Felucca's curve): dark at its ends, ~60 % at its peak, a smooth rise; while it is on
      * the breath layer lit in the frames its sigma-delta picks (spread: no long dark run near the peak), every column

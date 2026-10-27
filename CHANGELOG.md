@@ -5,6 +5,9 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **Steadier key backlight**: the glow of BACKLIGHT DIM LO and DIM HI (the unlit keys and idle buttons) is now a very
+  short flash about 900 times a second instead of a longer one 45 times a second. It no longer flickers, and in the
+  Bluetooth version it no longer jumps brighter for an instant while Bluetooth is on.
 - **MIDI clock out**: GLO SYSTEM 2/3 SYNC sends the MIDI clock to USB (OFF / USB; in the Bluetooth version also BLE
   and BOTH). On the FM-1's own clock PLAY sends Start, then 24 clocks a quarter note on the sequencer's grid (steady
   through tempo changes, never swung), and STOP sends Stop, so a DAW, AUM or another instrument can follow it.
