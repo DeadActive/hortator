@@ -5,40 +5,43 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
-- **Live cue, variations, FILL, slot COPY / PASTE** (spec docs/superpowers/specs/2026-10-26-cue-variations-fill-copy-design.md;
-  the behaviour after mono2k by Iñigo Hernández, GPL-3.0-only):
-  - User sample slot 2: **USR2 now holds up to 48 KiB** (as USR3 since 0.24.0); its last 32 KiB of flash hold the
-    projects' variations (frozen-base-11: storage.c's objects OBJ_VAR0..3 at 0xC0000..0xC7FFF). A longer USR2 is
-    shortened in flash once at power-on, before anything writes the variations (`USR2 SHORTENED TO 48K`, as USR3's;
-    a failed clamp says `USR2 CLAMP FAILED` and no variation is written that boot).
-  - Project format: still "FDRF" (3840 B); 6 of its reserved bytes link the slot's variation object (a hash and its
-    length; 0 = none, as every 0.24.0 record). SAVE writes the variations (when any is used and they changed), then the
-    lock bank, then the record: a power cut at any point loads the old or the new triple whole. Unreadable variations
-    load empty, `VARIATIONS LOST` said once. 0.24.0 loads a project saved now, without its variations.
-  - Flash is the truth: edits live in RAM until SAVE; after a reset or a power cut every slot is its saved flash
-    version again (RAM edits are not kept over a reset any more). LOAD of another slot keeps the loaded one's edits in
-    RAM (its unsaved variations in a park buffer: `SAVE C FIRST` when that holds another slot's); a slot with unsaved
-    edits shows `*` in the PROJECTS list; LOAD of it asks `DISCARD EDITS?`. SAVE to another slot moves the edits there
-    (the old slot is its saved version again). RENAME of an edited slot renames it in RAM only
-    (`RENAMED (SAVE TO KEEP)`).
-  - The cue engine (firmware/src/cue.c, the ISR's part; project.c the rest): a queued slot or variation switches
-    where the longest track's pattern ends, every track from step 0 on the grid since PLAY (song.c seq_restart, shared
-    with SONG rows); again = at the next step; stopped: at once; STOP drops a queued cue. A slot switch keeps the
-    globals, mutes and selected track, and fades the old voices over 5 ms before the boundary (fx.c); a variation
-    switch keeps the voices ringing. A never-used variation starts as a copy of the playing one (owner) and is used
-    from then on (`VARIATIONS FULL` when it does not fit). Following a clock the switch is on the boundary's pulse.
-  - SAVE held (0.4 s, or with a white key): the cue map. White keys 1–4 slots A–D, 5–12 variations 1–8 (LEDs: used
-    lit, playing winking, queued blinking, an edited slot breathing); top line `CUE A3*` / `CUE>B3`. Its keys play
-    no note, send no MIDI, record nothing. A SAVE tap opens the projects page on the release now (was the press).
-  - FILL: PROB's list goes on past 8/8 with FILL (57) and !FILL (58). REC held 0.4 s off SEQ / SONG plays a fill
-    while held (top bar `FILL`): FILL steps play, !FILL steps rest. A shorter REC press is the tap as before (on the
-    release); REC held on SEQ / SONG is their confirm as before; learned / SMC REC: taps only. A long REC hold off SEQ
-    was REC ALL on its release before: it is the fill now.
-  - COPY / PASTE of a slot: a third SAVE page, COPY (SLOT, COPY, PASTE; no existing page moved). COPY remembers the
-    slot (`COPIED A`, `#` in the list); PASTE (two detents) makes SLOT's slot a copy of it (kit, steps, locks,
-    variations, song; name + ` COPY`) in RAM, marked unsaved; again on the same slot before its SAVE: undone (its
-    flash version back, `PASTE UNDONE`). Refused while playing (`STOP TO PASTE`), onto itself (`SAME SLOT`), with
-    nothing copied (`COPY A SLOT FIRST`), or when the park holds another slot's unsaved variations (`SAVE C FIRST`).
+- **Live cue and variations**: while a pattern plays, queue the next project slot (A–D) or another variation and it
+  comes in exactly where the pattern ends (its longest track's), every track from its first step, in time. Hold
+  SAVE (0.4 s, or press a white key with it) for the cue map: white keys 1–4 queue slots A–D, 5–12 variations 1–8 of
+  the playing slot (lit: used, winking: playing, blinking: queued, breathing: unsaved edits); a slot key then a
+  variation key queues both (`CUE>B3` on top). The same key again switches at the next step; the playing slot's key
+  cancels; stopped, a cue switches at once; STOP drops a queued cue. The keys pressed with SAVE play no note, send no
+  MIDI and record nothing. A SAVE tap still opens the projects page, now when it is let go.
+  - A slot switch brings the slot's sounds, steps, timing and locks; the tempo, swing, clock, MIDI, the master
+    effects, Grids, the mutes and the selected track stay. The old sounds fade out over the last 5 ms before the
+    switch (no click). A variation switch changes the steps and the timing only; the sounds ring on.
+  - Each slot has 8 variations: variation 1 is its own steps; 2–8 hold their own steps and timing and share the
+    slot's sounds and locks. A variation never used before starts as a copy of the one playing when it is first
+    cued. When a slot's variations are full the cue says `VARIATIONS FULL` and the playing one plays on. A slot comes
+    back on the variation it played last. A SONG row plays its slot's variation 1; while SONG plays a cue says
+    `STOP SONG TO CUE`. Following an external clock (USB or TRS) the switch comes on the pulse that ends the pattern.
+- **Edits stay in RAM until SAVE**: a reset or a power cut brings every slot back as it was last saved. Leaving a
+  slot by LOAD or by a cue keeps its edits in RAM, so going back finds them; a slot with unsaved edits shows `*` in the
+  PROJECTS list. LOAD of a slot with unsaved edits (a tempo change counts) asks `DISCARD EDITS?`; SAVE onto a slot
+  that is not loaded but has unsaved edits asks `OVERWRITE B*?`. SAVE to another slot moves the edits there (the slot
+  you came from is its saved version again). RENAME of a slot with unsaved edits renames it in RAM only
+  (`RENAMED (SAVE TO KEEP)`). Unsaved variations of one slot can wait in RAM while another plays: until they are saved, a cue
+  of a third slot (or a LOAD, when the slot you leave has unsaved variations too) says `SAVE C FIRST`.
+- **FILL**: a step's PROB goes on past 8/8 with `FILL` (plays only during a fill) and `!FILL` (only outside one).
+  Hold REC (0.4 s) on any page but SEQ's to play a fill while you hold it (`FILL` on top). A shorter REC press arms
+  as before, when it is let go; REC held on STEP, PATTERN, MOTION and SONG does what it did. A learned REC and the
+  SMC-Mixer's REC are always taps. (A long REC hold off the SEQ pages used to toggle REC ALL.)
+- **COPY / PASTE a slot**: SAVE's third page, COPY: KNOB 2 COPY remembers SLOT's slot (`COPIED A`, `#` in the list),
+  KNOB 3 PASTE (turn twice) makes SLOT's slot a copy of it: kit, steps, locks, variations and song, named
+  `... COPY`, unsaved until SAVE. PASTE again on the same slot before saving it undoes it (`PASTE UNDONE`). Not while
+  playing (`STOP TO PASTE`).
+- **User sample slot 2 (USR2) now holds up to 48 KiB**, as USR3 does: the rest of its flash holds the projects'
+  variations. A longer USR2 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the next
+  power-on (`USR2 SHORTENED TO 48K`). If that ever fails (`USR2 CLAMP FAILED` at power-on), SAVE says
+  `USR2 ERROR: NO SAVE` until the next power-on.
+- Projects: a project saved now loads on 0.25.0 and 0.24.0 without its variations. If a project's variations can't
+  be read, it loads without them and the FM-1 says `VARIATIONS LOST` once. A power cut during SAVE keeps the previous
+  save whole.
 
 ## 0.25.0 - 2026-10-27
 

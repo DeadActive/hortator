@@ -651,7 +651,7 @@ static __attribute__((noinline)) int var_pack_live(uint32_t slot)
 }
 /* the loaded slot's live state -> its RAM image (record, lock bank, the playing variation); its marks. 0, -1
  * VARIATIONS FULL (nothing changed). No message, no flash. Main loop: the IRQ off for the copy only (the sums after) */
-static int proj_writeback(void)
+static int proj_writeback_g(int globals)        /* globals 1: the live globals too (a LOAD replaces them) */
 {
     int32_t ld = proj_loaded();
     int r;
@@ -660,11 +660,25 @@ static int proj_writeback(void)
     fm1_irq_off();
     r = var_pack_live((uint32_t)ld);
     if (!r)
-        proj_image(&proj_slot[ld], (uint32_t)ld, 0);
+        proj_image(&proj_slot[ld], (uint32_t)ld, globals);
     fm1_irq_on();
     if (r)
         return -1;
     proj_seal((uint32_t)ld);
+    return 0;
+}
+static int proj_writeback(void) { return proj_writeback_g(0); }
+/* the live globals differ from the loaded slot's record (a LOAD of it would change them: the tempo ..) */
+static int live_globals_edited(void)
+{
+    int32_t ld = proj_loaded();
+    uint32_t i;
+    if (ld < 0)
+        return 0;
+    for (i = 0; i < G_COUNT; i++)
+        if (i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_CLOCK &&
+            song.g[i] != (int16_t)clamp(proj_slot[ld].g[i], GP[i].min, GP[i].max))
+            return 1;
     return 0;
 }
 /* the live state's fingerprint: what a write-back would store (the knobs at rest, the steps, the presets' marks, the
@@ -692,7 +706,7 @@ static uint32_t live_sum(void)
 static int slot_dirty(uint32_t s)
 {
     s &= 3u;
-    if (!proj_ok(&proj_slot[s]))
+    if (proj_slot[s].magic != PROJ_MAGIC)               /* (no record; a record's sum is checked when it is read) */
         return 0;
     if (proj_slot[s].sum != proj_fsum[s] || ((proj_dirty | var_dirty) >> s) & 1u)
         return 1;
@@ -716,9 +730,11 @@ static void var_leave(uint32_t out, uint32_t in)   /* (var_room said 0) the bank
 /* slot s's RAM image back to its flash version (record, lock bank, variations; a park of it dropped), its marks
  * cleared. The live state is not changed (the caller loads) */
 static uint8_t paste_undo;                          /* the last PASTE's target + 1, until its SAVE or a paste elsewhere */
+static void cue_cancel(void);
 static void project_discard(uint32_t s)
 {
     s &= 3u;
+    cue_cancel();
     if (paste_undo == s + 1u)
         paste_undo = 0;                             /* (its flash version back: nothing to undo) */
 #if FELUCCA_FLASH
@@ -750,15 +766,18 @@ static int var_write(uint32_t slot, const var_bank_t *b)
 }
 #endif
 
-static void project_save(uint32_t slot)
+static void project_save_go(uint32_t slot)
 {
     project_t *p = &proj_slot[slot & 3u];
-    int32_t ld = proj_loaded();
-    var_bank_t *vb = &var_buf[var_play];
+    int32_t ld;
+    var_bank_t *vb;
     if (transport_busy()) {                            /* (upstream 1.0) only while stopped */
         ui_message("STOP TO SAVE");
         return;
     }
+    cue_cancel();                                       /* (a switch made just before the stop: filed first) */
+    ld = proj_loaded();
+    vb = &var_buf[var_play];
     slot &= 3u;
     if (ld < 0) {                                       /* (the power-on kit: no variations) */
         var_empty(vb, slot);
@@ -784,7 +803,7 @@ static void project_save(uint32_t slot)
     if (flash_ok) {                                     /* the variations, the bank, then the record (the commit) */
         lk_dirty |= (uint8_t)(1u << slot);              /* (until all are written) */
         if (var_blocked) {                              /* USR2 not shortened: no variation write (RAM keeps it) */
-            ui_message("USR2 CLAMP FAILED");
+            ui_message("USR2 ERROR: NO SAVE");   /* (this boot: USR2's clamp failed, see the power-on note) */
             return;
         }
         if (lk_blocked) {                               /* USR3 not shortened: no bank write (RAM keeps the save) */
@@ -816,6 +835,20 @@ static void project_save(uint32_t slot)
     ui_message("SAVED (RAM)");
 }
 
+/* SAVE: onto a slot that is not the loaded one and has unsaved edits (a PASTE, edits kept when it was left), it asks
+ * OVERWRITE B*? first (ui_input.c: YES saves) */
+static void project_save(uint32_t slot)
+{
+    int32_t ld = proj_loaded();
+    if (!transport_busy() && (int32_t)(slot & 3u) != ld && slot_dirty(slot & 3u)) {
+        ui.confirm = CONFIRM_OVERWRITE;
+        ui.confirm_trk = (uint8_t)(slot & 3u);
+        ui.force = 1;
+        return;
+    }
+    project_save_go(slot);
+}
+
 /* a stored preset reference (decoded: presets.c preset_rec_dec) of a track with model m: none, or a factory preset of
  * another voice (a uid retouched by another firmware), is none; a user slot's is kept as it is (its slot may hold
  * another voice by now: shown as none, presets.c preset_of) */
@@ -826,24 +859,27 @@ static uint32_t preset_ref(uint32_t id, uint32_t m)
     return id;
 }
 
-/* every track's sound, presets, model and steps (variation 1) from record p, values back inside their ranges, the
- * caps (RESON on 4 tracks, ACID 2, CHORD 2, MODAL 2). cue 1 (a cue's slot switch, the ISR): the mutes kept, an LFO's
- * knobs settled first (lfo.c: the block's restore would put the old ones back) */
-static __attribute__((noinline)) void proj_steps_in(track_t *t, const step_t *st)
+/* steps st into d, values in their ranges (garbage cannot index a table or divide by zero) */
+static void proj_steps_to(step_t *d, const step_t *st)
 {
     uint32_t i;
-    for (i = 0; i < NSTEP; i++) {                       /* garbage cannot index a table or divide by zero */
+    for (i = 0; i < NSTEP; i++) {
         const step_t *q = &st[i];
-        t->step[i].on = q->on ? 1u : 0u;
-        t->step[i].acc = q->acc ? 1u : 0u;
-        t->step[i].cond = (uint8_t)(q->cond < COND_MAX ? q->cond : COND_MAX);
-        t->step[i].rat = (uint8_t)(q->rat < 3u ? q->rat : 3u);
-        t->step[i].slide = q->slide;
-        t->step[i].tie = q->tie;
-        t->step[i].nt = (int8_t)clamp(q->nt, NT_MIN, NT_MAX);
-        t->step[i].rsv = 0;
+        step_t *t = &d[i];
+        memset(t, 0, sizeof *t);                        /* (its spare bits too: d may be a scratch area) */
+        t->on = q->on ? 1u : 0u;
+        t->acc = q->acc ? 1u : 0u;
+        t->cond = (uint8_t)(q->cond < COND_MAX ? q->cond : COND_MAX);
+        t->rat = (uint8_t)(q->rat < 3u ? q->rat : 3u);
+        t->slide = q->slide;
+        t->tie = q->tie;
+        t->nt = (int8_t)clamp(q->nt, NT_MIN, NT_MAX);
+        t->rsv = 0;
     }
 }
+/* every track's sound, presets, model and steps (variation 1) from record p, values back inside their ranges, the
+ * caps (RESON on 4 tracks, ACID 2, CHORD 2, MODAL 2). cue_in 1 (a PASTE onto the loaded slot): the mutes kept, an LFO's
+ * knobs settled first (lfo.c: the block's restore would put the old ones back) */
 static __attribute__((noinline)) void proj_tracks_in(const project_t *p, int cue_in)
 {
     uint32_t i, k;
@@ -866,7 +902,7 @@ static __attribute__((noinline)) void proj_tracks_in(const project_t *p, int cue
         t->pre = (uint16_t)preset_ref(preset_rec_dec(p->pre[k]), m);
         t->pre_ed = p->pre_ed[k] ? 1u : 0u;
         t->key_nt = 0;                                  /* no last KEYS note carried over (spec §2) */
-        proj_steps_in(t, s->step);
+        proj_steps_to(t->step, s->step);
     }
     for (k = 0, i = 0; k < NTRK; k++)                   /* RESON on 4 tracks at most: the first four keep it */
         if (trk[k].p[P_RMODEL] != RS_OFF && ++i > RS_MAXTRK)
@@ -951,14 +987,16 @@ static int proj_load(uint32_t slot, int irq)
  * is lost; then slot as flash has it (proj_load) */
 static void proj_load_from(uint32_t slot)
 {
-    int32_t ld = proj_loaded();
+    int32_t ld;
     slot &= 3u;
     if (chain_busy()) {                                 /* a song reads the slots */
         ui_message("STOP TO LOAD");
         return;
     }
+    cue_cancel();                                       /* a queued cue dropped first (no switch under the LOAD) */
+    ld = proj_loaded();
     if (ld >= 0 && (uint32_t)ld != slot && proj_ok(&proj_slot[slot])) {
-        int r = proj_writeback();
+        int r = proj_writeback_g(1);                    /* (its globals too: the LOAD replaces the live ones) */
         fm1_irq_off();
         if (!r)
             r = var_room((uint32_t)ld, slot);
@@ -981,7 +1019,7 @@ static void proj_load_from(uint32_t slot)
 /* LOAD of a slot with unsaved edits asks DISCARD EDITS? (ui_input.c: YES discards them, then loads) */
 static void project_load(uint32_t slot)
 {
-    if (!chain_busy() && slot_dirty(slot)) {
+    if (!chain_busy() && (slot_dirty(slot) || ((int32_t)(slot & 3u) == proj_loaded() && live_globals_edited()))) {
         ui.confirm = CONFIRM_DISCARD;
         ui.confirm_trk = (uint8_t)(slot & 3u);
         ui.force = 1;
@@ -991,153 +1029,340 @@ static void project_load(uint32_t slot)
 }
 
 /* ---- the live cue (cue.c: the ISR's part; spec 2026-10-26) */
-/* the bytes variation w of bank b takes as a copy (its entry, or variation 1's steps of record p when w is 0 or empty) */
-static uint32_t var_copy_need(const var_bank_t *b, uint32_t w, const project_t *p)
-{
-    uint32_t sz, k;
-    if (w && var_find(b, w, &sz) >= 0 && sz > 2u)
-        return sz;
-    for (k = 0; k < NTRK; k++)
-        var_sp[k] = p->t[k].step;
-    return var_need(var_sp);
-}
-static int var_fits(const var_bank_t *b, uint32_t v, uint32_t need)   /* empty entry v replaced by need bytes */
-{
-    return b->used <= VAR_CAP && b->used - 2u + need <= VAR_CAP && v >= 1u && v < VAR_N;
-}
+/* A queued switch is staged by the main loop (cue_stage, when it is queued; checked every frame while it waits): the
+ * incoming steps, timing and (a slot) sounds, clamped, in a staging area — storage.c's st_buf: no flash is read or
+ * written through it while the transport runs —, the incoming slot's variations in the bank that is not playing. At
+ * the boundary the ISR only swaps the live arrays with the staged ones (the outgoing state lands in the staging area)
+ * and the lock bank with the slot's: memory moves, no packing, no hashing (proj_cue_apply). cue_poll then files the
+ * outgoing state in the main loop (cue_file_out: its packs, its image). */
+typedef struct {
+    step_t st[NTRK][NSTEP];
+    int16_t tm[NTRK][4];
+    int16_t p[NTRK][P_COUNT];
+} cue_stage_t;
+#if FELUCCA_FLASH
+typedef char cue_stage_fits[sizeof(cue_stage_t) <= sizeof st_buf ? 1 : -1];
+static cue_stage_t *cue_stg(void) { return (cue_stage_t *)(void *)st_buf; }
+#else
+static cue_stage_t cue_stage_ram;                   /* (no flash: the host's own) */
+static cue_stage_t *cue_stg(void) { return &cue_stage_ram; }
+#endif
+enum { STG_NONE, STG_VAR, STG_COPY, STG_SLOT };     /* cue.stg / cue.out: a variation's steps, a copy of the live one,
+                                                     * a slot */
+#define CUE_MARGIN 192u                             /* bytes the outgoing variation may grow between two frames' checks */
+
 static int var_unused(const var_bank_t *b, uint32_t v)   /* variation v + 1 never used (or unreadable) */
 {
     uint32_t sz;
     return var_find(b, v, &sz) < 0 || sz == 2u;
 }
-/* the ISR at the boundary (or the main loop, the IRQ off, stopped): the switch to cue.q_slot / q_var checked and the
- * outgoing state kept (the live variation packed, a slot's live state into its image, its unsaved variations to the
- * park). 0 go (cue.to_slot / to_var / sw_slot set), else CUE_E_*: nothing switches (the write-back stays) */
-static __attribute__((noinline)) int proj_cue_out(void)
+static uint32_t var_entry(const var_bank_t *b, uint32_t v)   /* its bytes in b (2: unused) */
+{
+    uint32_t sz;
+    return v && var_find(b, v, &sz) >= 0 ? sz : 2u;
+}
+/* the live variation can be filed into bank b after the switch (and copied into entry copy, 0 none), CUE_MARGIN to
+ * spare */
+static int cue_out_fits(const var_bank_t *b, uint32_t copy)
+{
+    uint32_t k, need, used = b->used;
+    if (!var_cur && !copy)
+        return 1;
+    for (k = 0; k < NTRK; k++)
+        var_sp[k] = trk[k].step;
+    need = var_need(var_sp);
+    if (var_cur)
+        used = used - var_entry(b, var_cur) + need;
+    if (copy)
+        used = used - var_entry(b, copy) + need;
+    return used <= VAR_CAP && used + CUE_MARGIN <= VAR_CAP;
+}
+/* record p's tracks' knobs, in their ranges, the caps applied (as proj_tracks_in leaves them) -> o; presets -> pre */
+static void cue_stage_knobs(const project_t *p, int16_t o[NTRK][P_COUNT], uint16_t *pre, uint8_t *pre_ed)
+{
+    uint32_t i, k, nr = 0, na = 0, nc = 0, nm = 0;
+    for (k = 0; k < NTRK; k++) {
+        const proj_trk_t *s = &p->t[k];
+        uint32_t m = (uint32_t)clamp(s->p[P_MODEL], 0, NMODELS - 1);
+        for (i = 0; i < P_COUNT; i++) {
+            const param_desc_t *d = i >= P_E0 && i <= P_E7 ? &DMODELS[m].edit[i - P_E0] : &TP[i];
+            o[k][i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(s, i), d->min, d->max);
+        }
+        o[k][P_MODEL] = (int16_t)m;
+        pre[k] = (uint16_t)preset_ref(preset_rec_dec(p->pre[k]), m);
+        pre_ed[k] = p->pre_ed[k] ? 1u : 0u;
+        if (o[k][P_RMODEL] != RS_OFF && ++nr > RS_MAXTRK)
+            o[k][P_RMODEL] = RS_OFF;
+        if (m == DM_ACID && ++na > ACID_MAXTRK) {     /* (as drum_set_model without a preset: its edit defaults) */
+            m = KIT_DEF[k][0];
+            o[k][P_MODEL] = (int16_t)m;
+            for (i = 0; i < 8u; i++)
+                o[k][P_E0 + i] = DMODELS[m].edit[i].def;
+            pre[k] = (uint16_t)PRE_NONE;
+            pre_ed[k] = 0;
+        }
+        if (o[k][P_RMODEL] == RS_CHORD && ++nc > 2u)
+            o[k][P_RMODEL] = RS_STRNG;
+        if (o[k][P_RMODEL] == RS_MODAL && ++nm > RS_MAXMODAL)
+            o[k][P_RMODEL] = RS_STRNG;
+    }
+}
+/* the park would hold another slot's unsaved variations (the incoming slot's go to the bank not playing): 1 + c */
+static int cue_park_taken(uint32_t in)
+{
+    uint32_t c = var_who[var_play ^ 1u];
+    return c && c != in + 1u && ((var_dirty >> (c - 1u)) & 1u) ? (int)c : 0;
+}
+/* main loop: switch target slot s, variation v staged (cue.stg); 0, or CUE_E_*: nothing staged */
+static int cue_stage(uint32_t s, uint32_t v)
 {
     int32_t ld = proj_loaded();
-    uint32_t s, v;
+    cue_stage_t *g = cue_stg();
+    uint32_t k, j, pk = var_play ^ 1u;
+    cue.stg = STG_NONE;
     if (ld < 0)
         return CUE_E_NOSLOT;
-    s = cue.q_slot ? cue.q_slot - 1u : (uint32_t)ld;
-    v = cue.q_var ? cue.q_var - 1u : s == (uint32_t)ld ? var_cur : cue.last[s & 3u];
-    if (s == (uint32_t)ld && v == var_cur)
-        return CUE_E_SAME;
-    if (var_pack_live((uint32_t)ld))
-        return CUE_E_FULL;
     if (s == (uint32_t)ld) {                          /* a variation switch */
         const var_bank_t *b = &var_buf[var_play];
-        if (!var_cur) {                               /* variation 1 lives in the record: its steps and timing kept */
-            uint32_t k, j;
-            project_t *p = &proj_slot[ld];
-            for (k = 0; k < NTRK; k++) {
-                memcpy(p->t[k].step, trk[k].step, sizeof p->t[k].step);
-                for (j = P_NSTORED; j < P_COUNT; j++)   /* (KEYF: the steps' spare bytes) */
-                    p->t[k].step[j - P_NSTORED].rsv = (uint8_t)clamp(motion_rest(k, j), 0, 255);
-                for (j = 0; j < 4u; j++)
-                    p->t[k].p[CHAIN_TIMING[j]] = trk[k].p[CHAIN_TIMING[j]];
-            }
-        }
-        if (v && var_unused(b, v)) {                  /* never used: a copy of the playing one must fit */
-            uint32_t k;
-            for (k = 0; k < NTRK; k++)
-                var_sp[k] = trk[k].step;
-            if (!var_fits(b, v, var_need(var_sp)))
+        if (v == var_cur)
+            return CUE_E_SAME;
+        if (v && var_unused(b, v)) {                  /* never used: a copy of the live one */
+            if (!cue_out_fits(b, v))
                 return CUE_E_FULL;
+            cue.stg = STG_COPY;
+        } else {
+            if (!cue_out_fits(b, 0))
+                return CUE_E_FULL;
+            if (v) {
+                for (k = 0; k < NTRK; k++)
+                    var_lp[k] = g->st[k];
+                (void)var_get(b, v, var_lp, g->tm);
+            } else {                                  /* variation 1: the record's */
+                for (k = 0; k < NTRK; k++) {
+                    proj_steps_to(g->st[k], proj_slot[s].t[k].step);
+                    for (j = 0; j < 4u; j++) {
+                        uint32_t id = CHAIN_TIMING[j];
+                        g->tm[k][j] = (int16_t)clamp(proj_slot[s].t[k].p[id], TP[id].min, TP[id].max);
+                    }
+                }
+            }
+            cue.stg = STG_VAR;
         }
     } else {                                          /* a slot switch */
-        int r = var_room((uint32_t)ld, s);
-        const var_bank_t *b = var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u] : cue.src;
+        var_bank_t *nb = &var_buf[pk];
+        uint32_t w = v;
+        int r = cue_park_taken(s);
         if (r)
             return CUE_E_PARK + r - 1;
-        if (v && b && var_unused(b, v)) {             /* never used: a copy of its last-played one must fit (no
-                                                       * bank: an empty one has room) */
-            uint32_t w = cue.last[s & 3u];
-            if (!var_fits(b, v, var_copy_need(b, w != v ? w : 0u, &proj_slot[s & 3u])))
+        if (!cue_out_fits(&var_buf[var_play], 0))
+            return CUE_E_FULL;
+        if (var_who[pk] != s + 1u) {                  /* its variations into the bank not playing */
+            const var_bank_t *f = proj_var_flash(s);
+            var_who[pk] = 0;
+            var_empty(nb, s);
+            if (f)
+                memcpy(nb, f, 8u + f->used);
+            var_who[pk] = (uint8_t)(s + 1u);
+        }
+        if (!lk_valid(&lk_slot[s], s))
+            lk_empty(s);
+        cue_stage_knobs(&proj_slot[s], g->p, cue.stg_pre, cue.stg_pre_ed);
+        if (v && var_unused(nb, v)) {                 /* never used: a copy of its last-played one (or variation 1) */
+            uint32_t need;
+            w = cue.last[s] != v && cue.last[s] && !var_unused(nb, cue.last[s]) ? cue.last[s] : 0u;
+            for (k = 0; k < NTRK; k++)
+                var_sp[k] = proj_slot[s].t[k].step;
+            need = w ? var_entry(nb, w) : var_need(var_sp);
+            if (nb->used > VAR_CAP || nb->used - 2u + need > VAR_CAP)
                 return CUE_E_FULL;
         }
-        proj_image(&proj_slot[ld], (uint32_t)ld, 0);  /* the live state into its image (sealed: cue_poll) */
-        var_leave((uint32_t)ld, s);
-        cue.from = (uint8_t)ld;
-    }
-    cue.to_slot = (uint8_t)s;
-    cue.to_var = (uint8_t)v;
-    cue.sw_slot = s != (uint32_t)ld;
-    return 0;
-}
-/* .. then the target in: a slot's sound, presets, model, lock bank (the mutes, the globals, the master FX kept), the
- * variation's steps and timing; a never-used variation starts as a copy of the playing one (owner 2026-10-26: a
- * variation switch's live one, a slot switch's last-played one) and is used from then on */
-static __attribute__((noinline)) void proj_cue_in(void)
-{
-    uint32_t s = cue.to_slot & 3u, v = cue.to_var, k, j;
-    var_bank_t *b = &var_buf[var_play];
-    int copy = 0;
-    if (cue.sw_slot) {
-        if (var_who[var_play] != s + 1u) {            /* its variations: flash's copy (or none) into the play bank */
-            var_empty(b, s);
-            if (cue.src)
-                memcpy(b, cue.src, 8u + cue.src->used);
-            var_who[var_play] = (uint8_t)(s + 1u);
-        }
-        for (k = 0; k < NTRK; k++)
-            lock_release(k);                          /* (the old locks off: their knobs are replaced anyway) */
-        proj_tracks_in(&proj_slot[s], 1);
-        if (lk_valid(&lk_slot[s], s))
-            mo.b = lk_slot[s];
-        else
-            memset(&mo.b, 0, sizeof mo.b);
-        motion_forget();
-        if (song.playing)
+        if (w) {
             for (k = 0; k < NTRK; k++)
-                motion_take_base(k);                  /* (the new knobs are the base: the stop puts them back) */
-        if (v && var_unused(b, v)) {                  /* a copy of its last-played variation */
-            uint32_t w = cue.last[s];
-            copy = 1;
-            if (w && w != v) {
-                for (k = 0; k < NTRK; k++)
-                    var_lp[k] = trk[k].step;
-                if (var_get(b, w, var_lp, var_tm) == 1)
-                    for (k = 0; k < NTRK; k++)
-                        for (j = 0; j < 4u; j++)
-                            trk[k].p[CHAIN_TIMING[j]] = var_tm[k][j];
-                else
-                    for (k = 0; k < NTRK; k++)
-                        proj_steps_in(&trk[k], proj_slot[s].t[k].step);
-            }
-        }
-    } else if (v && var_unused(b, v)) {
-        copy = 1;                                     /* a copy of the live one: the steps stay as they are */
-    }
-    for (k = 0; k < NTRK; k++)
-        if (song.lfo_in)
-            lfo_restore_track(&trk[k]);               /* (the block's restore must not put old timing back) */
-    if (copy) {
-        for (k = 0; k < NTRK; k++) {
-            var_sp[k] = trk[k].step;
-            for (j = 0; j < 4u; j++)
-                var_tm[k][j] = trk[k].p[CHAIN_TIMING[j]];
-        }
-        if (var_put(b, v, var_sp, var_tm) == 0)       /* (it fits: proj_cue_out) */
-            var_dirty |= (uint8_t)(1u << s);
-    } else if (v) {
-        for (k = 0; k < NTRK; k++)
-            var_lp[k] = trk[k].step;
-        if (var_get(b, v, var_lp, var_tm) == 1)
+                var_lp[k] = g->st[k];
+            (void)var_get(nb, w, var_lp, g->tm);
             for (k = 0; k < NTRK; k++)
                 for (j = 0; j < 4u; j++)
-                    trk[k].p[CHAIN_TIMING[j]] = var_tm[k][j];
-    } else if (!cue.sw_slot) {                        /* back to variation 1: the record's */
-        for (k = 0; k < NTRK; k++) {
-            proj_steps_in(&trk[k], proj_slot[s].t[k].step);
-            for (j = 0; j < 4u; j++) {
-                uint32_t id = CHAIN_TIMING[j];
-                trk[k].p[id] = (int16_t)clamp(proj_slot[s].t[k].p[id], TP[id].min, TP[id].max);
-            }
+                    g->p[k][CHAIN_TIMING[j]] = g->tm[k][j];
+        } else {
+            for (k = 0; k < NTRK; k++)
+                proj_steps_to(g->st[k], proj_slot[s].t[k].step);
+        }
+        cue.stg = STG_SLOT;
+    }
+    cue.stg_slot = (uint8_t)s;
+    cue.stg_var = (uint8_t)v;
+    return 0;
+}
+static __attribute__((noinline)) void mem_swap(void *a, void *b, uint32_t n)   /* (words when both are aligned) */
+{
+    if (!(((uintptr_t)a | (uintptr_t)b | n) & 3u)) {
+        uint32_t *x = a, *y = b, t;
+        for (n /= 4u; n; n--, x++, y++) {
+            t = *x;
+            *x = *y;
+            *y = t;
+        }
+    } else if (!(((uintptr_t)a | (uintptr_t)b | n) & 1u)) {
+        uint16_t *x = a, *y = b, t;
+        for (n /= 2u; n; n--, x++, y++) {
+            t = *x;
+            *x = *y;
+            *y = t;
+        }
+    } else {
+        uint8_t *x = a, *y = b, t;
+        for (; n; n--, x++, y++) {
+            t = *x;
+            *x = *y;
+            *y = t;
         }
     }
-    var_cur = (uint8_t)v;
-    cue.last[s] = (uint8_t)v;
+}
+/* the ISR at the boundary (or the main loop, stopped, the IRQ off): the staged state in, the outgoing one into the
+ * staging area (cue_poll files it): swaps only. A slot: the knobs (mutes kept) and the steps, the lock bank with the
+ * slot's, the presets; its variations' bank (staged in the one not playing) plays */
+static __attribute__((noinline)) int proj_cue_apply(void)
+{
+    cue_stage_t *g = cue_stg();
+    int32_t ld = proj_loaded();
+    uint32_t k, j, s = cue.stg_slot & 3u;
+    if (!cue.stg || ld < 0 || (cue.q_slot ? cue.q_slot - 1u : (uint32_t)ld) != s ||
+        (cue.q_var && cue.q_var - 1u != cue.stg_var))
+        return CUE_E_SAME;                            /* (nothing staged for it: dropped) */
+    cue.out = cue.stg;
+    cue.out_var = var_cur;
+    if (cue.stg == STG_VAR) {
+        for (k = 0; k < NTRK; k++) {
+            track_t *t = &trk[k];
+            if (song.lfo_in)
+                lfo_restore_track(t);
+            mem_swap(t->step, g->st[k], sizeof t->step);
+            for (j = 0; j < 4u; j++) {
+                int16_t x = t->p[CHAIN_TIMING[j]];
+                t->p[CHAIN_TIMING[j]] = g->tm[k][j];
+                g->tm[k][j] = x;
+            }
+        }
+        cue.done |= CUE_SW_VAR;
+    } else if (cue.stg == STG_SLOT) {
+        cue.from = (uint8_t)ld;
+        for (k = 0; k < NTRK; k++) {
+            track_t *t = &trk[k];
+            int16_t mute;
+            if (song.lfo_in)
+                lfo_restore_track(t);
+            lock_release(k);                          /* the knobs as set: the outgoing image's (motion.c) */
+            motion_restore(k);
+            cue.out_pre[k] = t->pre;
+            cue.out_pre_ed[k] = t->pre_ed;
+            mute = t->p[P_MUTE];
+            drum_cut(t);
+            mem_swap(t->p, g->p[k], sizeof g->p[k]);
+            t->p[P_MUTE] = mute;                      /* (the mutes are the performance's) */
+            t->model = (uint8_t)t->p[P_MODEL];
+            t->pre = cue.stg_pre[k];
+            t->pre_ed = cue.stg_pre_ed[k];
+            t->key_nt = 0;
+            mem_swap(t->step, g->st[k], sizeof t->step);
+        }
+        mem_swap(&mo.b, &lk_slot[s], sizeof mo.b);    /* (lk_slot[s] holds the outgoing bank until cue_poll) */
+        motion_forget();
+        if (song.playing) {                           /* the new knobs are the base: the stop puts them back */
+            for (k = 0; k < NTRK; k++)
+                memcpy(mo.base[k], trk[k].p, sizeof mo.base[k]);
+            mo.base_ok = (uint8_t)((1u << NTRK) - 1u);
+        }
+        var_play ^= 1u;                               /* its variations (staged there) play; the old ones: the park */
+        cue.done |= CUE_SW_SLOT;
+    } else {
+        cue.done |= CUE_SW_VAR;                       /* a copy: the live steps are the new variation's */
+    }
+    var_cur = (uint8_t)cue.stg_var;
+    cue.last[s] = (uint8_t)cue.stg_var;
+    cue.stg = STG_NONE;
+    return 0;
+}
+/* main loop, after a switch: the outgoing state (in the staging area) filed — the variation it played packed into its
+ * bank (variation 1: into its record), a slot's knobs, steps, presets, lock bank, song and name into its record */
+static void cue_file_out(void)
+{
+    cue_stage_t *g = cue_stg();
+    int32_t ld = proj_loaded();
+    uint32_t k, j, i, ov = cue.out_var, out = cue.out;
+    cue.out = STG_NONE;
+    if (ld < 0 || out == STG_NONE)
+        return;
+    if (out == STG_SLOT) {
+        uint32_t a = cue.from & 3u;
+        project_t *p = &proj_slot[a];
+        var_bank_t *ab = &var_buf[var_play ^ 1u];
+        for (k = 0; k < NTRK; k++) {
+            for (i = 0; i < P_NSTORED; i++) {
+                int timing = 0;
+                for (j = 0; j < 4u; j++)
+                    timing |= i == CHAIN_TIMING[j];
+                if (i != P_MUTE && !(timing && ov))   /* (another variation's timing: its, not the record's) */
+                    p->t[k].p[i] = g->p[k][i];
+            }
+            if (!ov)
+                memcpy(p->t[k].step, g->st[k], sizeof p->t[k].step);
+            for (i = P_NSTORED; i < P_COUNT; i++)      /* KEYF: the steps' spare bytes */
+                p->t[k].step[i - P_NSTORED].rsv = (uint8_t)clamp(g->p[k][i], 0, 255);
+            p->pre[k] = (uint16_t)preset_rec_enc(cue.out_pre[k]);
+            p->pre_ed[k] = cue.out_pre_ed[k];
+            var_sp[k] = g->st[k];
+            for (j = 0; j < 4u; j++)
+                var_tm[k][j] = g->p[k][CHAIN_TIMING[j]];
+        }
+        if (ov && var_who[var_play ^ 1u] == a + 1u) {
+            int r = var_put(ab, ov, var_sp, var_tm);
+            if (r == 0)
+                var_dirty |= (uint8_t)(1u << a);
+            else if (r < 0)
+                ui_message("VARIATIONS FULL");
+        }
+        lk_slot[a] = lk_slot[ld];                     /* (its bank, swapped out at the switch) */
+        p->song = chain.cfg;
+        memcpy(p->name, chain.name, NAME_LEN);
+        proj_seal(a);
+        if (chain_valid(&proj_slot[ld].song))         /* the new slot's song and name */
+            chain.cfg = proj_slot[ld].song;
+        else
+            memset(&chain.cfg, 0, sizeof chain.cfg);
+        proj_name_get(chain.name, proj_slot[ld].name);
+        chain.from = (uint8_t)(ld + 1);
+    } else if (out == STG_VAR || out == STG_COPY) {
+        project_t *p = &proj_slot[ld];
+        for (k = 0; k < NTRK; k++) {
+            var_sp[k] = out == STG_VAR ? g->st[k] : trk[k].step;
+            for (j = 0; j < 4u; j++)
+                var_tm[k][j] = out == STG_VAR ? g->tm[k][j] : trk[k].p[CHAIN_TIMING[j]];
+        }
+        if (!ov) {                                    /* variation 1 lives in the record */
+            for (k = 0; k < NTRK; k++) {
+                memcpy(p->t[k].step, var_sp[k], sizeof p->t[k].step);
+                for (i = P_NSTORED; i < P_COUNT; i++)
+                    p->t[k].step[i - P_NSTORED].rsv = (uint8_t)clamp(motion_rest(k, i), 0, 255);
+                for (j = 0; j < 4u; j++)
+                    p->t[k].p[CHAIN_TIMING[j]] = var_tm[k][j];
+            }
+        } else {
+            int r = var_put(&var_buf[var_play], ov, var_sp, var_tm);
+            if (r == 0)
+                var_dirty |= (uint8_t)(1u << ld);
+            else if (r < 0)
+                ui_message("VARIATIONS FULL");
+        }
+    }
+}
+/* main loop: a queued cue dropped (with the IRQ off: the ISR switches no more), a switch it made filed first */
+static void cue_cancel(void)
+{
+    fm1_irq_off();
+    cue.q_slot = cue.q_var = cue.now = 0;
+    fm1_irq_on();
+    cue_poll();
+    cue.stg = STG_NONE;
 }
 static void cue_say(int e)                          /* a refusal's message */
 {
@@ -1153,53 +1378,77 @@ static void cue_say(int e)                          /* a refusal's message */
         ui_message("SAVE TO A SLOT FIRST");
     }
 }
-/* main loop, first in ui_input: a switch the ISR made, finished (the old slot's image sealed, the new slot's song and
- * name, its image in step with the live state); a refusal said once */
+/* main loop, first in ui_input: a switch the ISR made, filed (the outgoing state into its slot, the new slot's
+ * image in step with the live state); while a cue waits, the live variation must still fit its bank (else the cue is
+ * dropped: VARIATIONS FULL); a refusal said once */
 static void cue_poll(void)
 {
     uint8_t d = cue.done, e = cue.err;
     if (d) {
-        uint32_t s;
         cue.done = 0;
-        if (d & CUE_SW_SLOT) {
-            proj_seal(cue.from);
-            s = cue.to_slot & 3u;
-            if (chain_valid(&proj_slot[s].song))
-                chain.cfg = proj_slot[s].song;
-            else
-                memset(&chain.cfg, 0, sizeof chain.cfg);
-            proj_name_get(chain.name, proj_slot[s].name);
-            chain.from = (uint8_t)(s + 1u);
-        }
-        (void)proj_writeback();                     /* (the new variation packs to the same bytes: nothing lost) */
+        cue_file_out();
+        (void)proj_writeback();                     /* (the new variation packs to the same bytes, a copy is stored) */
         live_sum0 = live_sum();
         ui.force = 1;
+    }
+    if ((cue.q_slot || cue.q_var) && cue.stg) {
+        int32_t ld = proj_loaded();
+        if (ld >= 0 && !cue_out_fits(&var_buf[var_play], cue.stg == STG_COPY ? cue.stg_var : 0u)) {
+            fm1_irq_off();
+            cue.q_slot = cue.q_var = cue.now = 0;
+            fm1_irq_on();
+            cue.stg = STG_NONE;
+            e = CUE_E_FULL;
+        }
     }
     if (e) {
         cue.err = 0;
         cue_say(e);
     }
 }
-/* the variations of slot s used (bit v: variation v + 1; variation 1 always): its RAM bank, else flash's */
+/* the variations of slot s used (bit v: variation v + 1; variation 1 always): its RAM bank, else flash's (that one
+ * remembered by the record's link: flash changes only with a SAVE, which links anew) */
+static struct { uint32_t link[4]; uint8_t mask[4]; } var_fmask;
 static uint32_t slot_var_mask(uint32_t s)
 {
     const var_bank_t *b = var_who[var_play] == s + 1u ? &var_buf[var_play]
-                        : var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u] : proj_var_flash(s);
-    return 1u | (b ? var_mask(b) : 0u);
+                        : var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u] : 0;
+    uint32_t key;
+    if (b)
+        return 1u | var_mask(b);
+    key = (proj_slot[s & 3u].var_link ^ proj_slot[s & 3u].var_len) | 1u;
+    if (var_fmask.link[s & 3u] != key) {
+        b = proj_var_flash(s);
+        var_fmask.mask[s & 3u] = (uint8_t)(b ? var_mask(b) : 0u);
+        var_fmask.link[s & 3u] = key;
+    }
+    return 1u | var_fmask.mask[s & 3u];
 }
 /* the cue map's white key n (1..12, ui_leds): slots A..D lit used, winking playing, blinking queued, breathing with
  * unsaved edits; variations 1..8 of the playing slot (of the queued one, if one is) lit used, winking playing, blinking
  * queued */
+static struct { uint8_t mask[4], dirty, used; } cue_map;   /* the map's per-slot state (cue_map_refresh) */
+static void cue_map_refresh(void)                   /* ui_leds, once a frame while the map shows */
+{
+    uint32_t s;
+    cue_map.dirty = cue_map.used = 0;
+    for (s = 0; s < 4u; s++) {
+        int on = proj_slot[s].magic == PROJ_MAGIC;
+        cue_map.used |= (uint8_t)(on << s);
+        cue_map.dirty |= (uint8_t)(slot_dirty(s) << s);
+        cue_map.mask[s] = (uint8_t)(on ? slot_var_mask(s) : 1u);
+    }
+}
 static int cue_led(uint32_t n)
 {
     int32_t ld = proj_loaded();
     if (n >= 1u && n <= 4u) {
         uint32_t s = n - 1u;
-        if ((int32_t)s != ld && !project_used(s))
+        if (!((cue_map.used >> s) & 1u))
             return CM_OFF;
         if (cue.q_slot == s + 1u)
             return CM_BLINK;
-        if (slot_dirty(s))
+        if ((cue_map.dirty >> s) & 1u)
             return CM_BREATHE;
         return (int32_t)s == ld ? CM_WINK : CM_ON;
     }
@@ -1209,7 +1458,7 @@ static int cue_led(uint32_t n)
             return CM_BLINK;
         if (!cue.q_slot && v == var_cur)
             return CM_WINK;
-        return (slot_var_mask(s) >> v) & 1u ? CM_ON : CM_OFF;
+        return (cue_map.mask[s] >> v) & 1u ? CM_ON : CM_OFF;
     }
     return CM_OFF;
 }
@@ -1253,7 +1502,9 @@ static void project_copy(uint32_t s)              /* COPY: slot s remembered (al
  * ones). Again on the same target before its SAVE: undone (t's flash version back). Stopped only */
 static void project_paste(uint32_t t)
 {
-    int32_t ld = proj_loaded();
+    int32_t ld;
+    cue_cancel();
+    ld = proj_loaded();
     uint32_t src, pk = var_play ^ 1u, dst;
     const var_bank_t *sb;
     t &= 3u;
@@ -1346,12 +1597,40 @@ static int cue_at_once(void)
     cue_poll();
     return r;
 }
-/* SAVE held + a slot key (ui_input.c): queue slot s (its last-played variation, or the one queued with it), the same
- * key again: at the next step, the playing slot's key: cancel. Stopped: at once. 0, or the refusal (said) */
+/* queue slot s + 1 (0: the playing one) / variation v + 1 (0: none named): staged first, queued after (the IRQ off);
+ * stopped: at once. 0 or the refusal (said) */
+static int cue_queue(uint32_t qs, uint32_t qv)
+{
+    int32_t ld = proj_loaded();
+    uint32_t s = qs ? qs - 1u : (uint32_t)ld, v = qv ? qv - 1u : qs ? cue.last[(qs - 1u) & 3u] : var_cur;
+    int r;
+    fm1_irq_off();
+    cue.q_slot = cue.q_var = cue.now = 0;
+    fm1_irq_on();
+    r = cue_stage(s, v);
+    if (r == CUE_E_SAME)
+        return 0;
+    if (r) {
+        cue_say(r);
+        return r;
+    }
+    fm1_irq_off();
+    cue.q_slot = (uint8_t)qs;
+    cue.q_var = (uint8_t)qv;
+    fm1_irq_on();
+    if (transport_busy())
+        return 0;
+    r = cue_at_once();
+    if (r)
+        cue_say(r);
+    return r;
+}
+/* SAVE held + a slot key (ui_input.c): queue slot s (its last-played variation), the same key again: at the next
+ * step, the playing slot's key: cancel. Stopped: at once */
 static int cue_slot(uint32_t s)
 {
     int32_t ld = proj_loaded();
-    int r;
+    int r = 0;
     s &= 3u;
     if (chain_busy())
         r = CUE_E_SONG;
@@ -1359,16 +1638,6 @@ static int cue_slot(uint32_t s)
         r = CUE_E_NOSLOT;
     else if (!proj_ok(&proj_slot[s]))
         r = CUE_E_EMPTY;
-    else if (cue.q_slot == s + 1u) {
-        cue.now = 1;                                  /* again: at the next step */
-        return 0;
-    } else if (s == (uint32_t)ld) {
-        cue.q_slot = cue.q_var = cue.now = 0;         /* the playing slot: nothing queued */
-        return 0;
-    } else {
-        r = var_room((uint32_t)ld, s);
-        r = r ? CUE_E_PARK + r - 1 : 0;
-    }
     if (r) {
         if (r == CUE_E_EMPTY) {
             char m[] = "SLOT A EMPTY";
@@ -1379,16 +1648,17 @@ static int cue_slot(uint32_t s)
         }
         return r;
     }
-    fm1_irq_off();
-    cue.src = var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u] : proj_var_flash(s);
-    cue.q_var = 0;
-    cue.now = 0;
-    cue.q_slot = (uint8_t)(s + 1u);
-    fm1_irq_on();
-    r = transport_busy() ? 0 : cue_at_once();
-    if (r)
-        cue_say(r);
-    return r;
+    if (cue.q_slot == s + 1u) {
+        cue.now = 1;                                  /* again: at the next step */
+        return 0;
+    }
+    if (s == (uint32_t)ld) {
+        fm1_irq_off();
+        cue.q_slot = cue.q_var = cue.now = 0;         /* the playing slot: nothing queued */
+        fm1_irq_on();
+        return 0;
+    }
+    return cue_queue(s + 1u, 0);
 }
 /* SAVE held + a variation key: queue variation v (0..7) of the queued slot, else of the playing one; again: at the
  * next step; the playing variation's (nothing else queued): cancel. Stopped: at once */
@@ -1405,17 +1675,13 @@ static int cue_var(uint32_t v)
         return 0;
     }
     if (!cue.q_slot && v == var_cur) {
+        fm1_irq_off();
         cue.q_var = 0;
         cue.now = 0;
+        fm1_irq_on();
         return 0;
     }
-    cue.q_var = (uint8_t)(v + 1u);
-    if (transport_busy())
-        return 0;
-    r = cue_at_once();
-    if (r)
-        cue_say(r);
-    return r;
+    return cue_queue(cue.q_slot, v + 1u);
 }
 
 /* power-on (drum_boot_init, not in safe start): the last project saved to flash loads as a LOAD does, stopped, its
@@ -1843,19 +2109,7 @@ static void project_rename(uint32_t slot, const char *name)   /* only the name; 
             ui_message("USR3 CLAMP FAILED");
             return;
         }
-        if ((var_dirty >> (slot & 3u)) & 1u) {          /* its variations only in RAM: written first (the record links
-                                                         * them), from the bank holding them */
-            uint32_t w = var_who[var_play] == (slot & 3u) + 1u ? var_play : var_play ^ 1u;
-            if (var_blocked) {
-                ui_message("USR2 CLAMP FAILED");
-                return;
-            }
-            if (var_who[w] != (slot & 3u) + 1u || (p->var_len && var_write(slot & 3u, &var_buf[w]))) {
-                ui_message("SAVE ERROR");
-                return;
-            }
-            var_dirty &= (uint8_t)~(1u << (slot & 3u));
-        }
+        /* (its variations: flash's, a slot with unsaved ones renamed in RAM above) */
         if ((lk_dirty >> (slot & 3u)) & 1u) {           /* its bank only in RAM: written first (the record links it) */
             if (st_save(OBJ_LOCKS0 + (slot & 3u), &lk_slot[slot & 3u], sizeof lk_slot[0])) {
                 ui_message("SAVE ERROR");

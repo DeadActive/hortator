@@ -179,8 +179,10 @@ both carry on with the power-on kit. A safe start (SEQ held at power-on) loads n
 **Edits live in RAM until SAVE.** A reset or a power cut brings every slot back as it was last saved. Loading (or
 cueing) another slot keeps the loaded one's edits in RAM, so going back finds them; a slot with unsaved edits shows
 `*` after its letter in the PROJECTS list. LOAD of a slot with unsaved edits asks `DISCARD EDITS?` (OCT+ YES: its
-saved version loads; OCT- NO: nothing changes). SAVE to another slot ("save as") stores the live state there; the
-slot it came from goes back to its saved version. RENAME of a slot with unsaved edits renames it in RAM only
+saved version loads; OCT- NO: nothing changes); for the loaded slot a changed tempo or other global counts as an
+edit too, and loading another slot keeps them with the slot you leave. SAVE to another slot ("save as") stores the
+live state there; the slot it came from goes back to its saved version. SAVE onto a slot that is not loaded but has
+unsaved edits (a PASTE, or edits kept when you left it) asks `OVERWRITE B*?` first (OCT+ YES, OCT- NO). RENAME of a slot with unsaved edits renames it in RAM only
 (`RENAMED (SAVE TO KEEP)`): SAVE keeps both.
 
 **COPY / PASTE a slot:** SAVE's third page, COPY (SAVE tapped three times): KNOB 1 SLOT, KNOB 2 COPY (remembers
@@ -219,8 +221,8 @@ their CLEAR / DELETE ROW as before) to play a fill for as long as you hold it (`
 press is the tap as before (TRACKS: arm the track; elsewhere REC ALL), on the release. A learned REC and the
 SMC-Mixer's REC are always taps. (An older firmware plays FILL / !FILL steps as 8/8.) A SAVE tap still opens the
 projects page, now on its release; SAVE does nothing in the menu, a dialog, NAME, the PRESETS list or the MUTE
-screen. Unsaved variations of a slot you leave wait in RAM (one other slot's at a time: `SAVE C FIRST` when
-another slot's unsaved variations are still waiting).
+screen. Unsaved variations of a slot you leave wait in RAM, one slot's at a time: while C's wait there, cueing
+any slot but C says `SAVE C FIRST` (stop, load C or cue it, and SAVE it).
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
 Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
@@ -235,7 +237,8 @@ USR2 under upstream Felucca overwrote them), the project loads without them and 
 flash holds the projects' lock banks, the rest of USR2's the projects' variations. A longer USR2 or USR3 (uploaded
 under upstream Felucca) is shortened to its first 48 KiB once, at the next power-on (`USR2 SHORTENED TO 48K`,
 `USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Hortator has no sample upload: an 80 KiB
-upload to USR2 or USR3 under upstream Felucca afterwards overwrites the variations or the lock banks.
+upload to USR2 or USR3 under upstream Felucca afterwards overwrites the variations or the lock banks. (If shortening
+USR2 ever fails, `USR2 CLAMP FAILED` shows at power-on and SAVE says `USR2 ERROR: NO SAVE` until the next power-on.)
 
 ### Parameter locks
 

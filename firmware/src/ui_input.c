@@ -202,6 +202,7 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_ENV], ui.env);            /* STEPS (spec 2026-10-24) */
     if (ui.cue_map) {                                 /* SAVE held: the cue map (project.c cue_led) */
         uint32_t ms = fm1_ticks() / (1000u * FM1_TICKS_PER_US);
+        cue_map_refresh();
         int blink = (int)((ms / 250u) & 1u), wink = (ms % 1000u) >= 125u;
         for (k = 0; k < 12u; k++) {
             int c = cue_led(k + 1u);
@@ -1204,6 +1205,9 @@ static void ui_input(void)
                 memset(&chain.cfg, 0, sizeof chain.cfg);
                 ui.song_row = 0;
                 ui_message("SONG CLEARED");
+            } else if (ui.confirm == CONFIRM_OVERWRITE) {   /* SAVE onto a slot with unsaved edits: saved over them */
+                ui.confirm = 0;
+                project_save_go(ui.confirm_trk & 3u);
             } else if (ui.confirm == CONFIRM_DISCARD) { /* LOAD: the slot's unsaved edits dropped, its saved one */
                 ui.confirm = 0;
                 project_discard(ui.confirm_trk & 3u);

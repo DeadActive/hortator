@@ -360,11 +360,11 @@ static void var_blocked_refuses(void)
         ui_frame();
     host_nflog = 0;
     project_save(0);
-    ok &= str_eq(ui.msg, "USR2 CLAMP FAILED") && host_nflog == 0u;
+    ok &= str_eq(ui.msg, "USR2 ERROR: NO SAVE") && host_nflog == 0u;
     project_rename(0, "NOPE");
     for (i = 0; i < host_nflog && i < HOST_NFLOG; i++)
         ok &= !(host_flog[i].off >= 0xC0000u && host_flog[i].off < 0xC8000u);
-    check("variations: a failed USR2 clamp: SAVE says USR2 CLAMP FAILED and writes nothing that boot", (int)ok);
+    check("variations: a failed USR2 clamp: SAVE says USR2 ERROR: NO SAVE and writes nothing that boot", (int)ok);
 }
 
 /* ---- Task 4: the RAM model (write-back, unsaved marks, park, LOAD / SAVE-as / RENAME) */
@@ -916,29 +916,22 @@ static void cue_park_refused(void)                    /* Review Focus 5 */
     OK(cue_slot(1) == CUE_E_PARK + 2 && proj_loaded() == 0 && !cue.q_slot && str_eq(ui.msg, "SAVE C FIRST"));
     cue_var(0);                                       /* back to variation 1: A's variations still unsaved */
     project_discard(0);
-    proj_load_from(0);                                /* A clean */
+    proj_load_from(0);                                /* A clean: B still refused (its variations would need the park) */
     OK(!slot_dirty(0));
     play();
     for (f = 0; f < 50u; f++)
         run_blk();
-    OK(cue_slot(1) == 0 && cue.q_slot == 2u);       /* accepted */
-    cue_var(1);                                       /* (B's variation 2 queued too) */
-    OK(cue.q_var == 2u);
     ui.msg[0] = 0;
-    var_cur = 0;
-    for (f = 0; f < 4u * 22050u / CTL && (cue.q_slot || cue.q_var); f++) {
-        if (f == 10u) {                               /* A's variations edited after the cue was accepted */
-            var_cur = 1;
-            trk[2].step[2].on = 1;
-        }
+    OK(cue_slot(1) == CUE_E_PARK + 2 && !cue.q_slot && str_eq(ui.msg, "SAVE C FIRST"));
+    OK(cue_slot(2) == 0 && cue.q_slot == 3u);       /* C itself: accepted (its parked variations come back) */
+    for (f = 0; f < 4u * 22050u / CTL && cue.q_slot; f++) {
         run_blk();
         cue_poll();
     }
-    OK(proj_loaded() == 0 && str_eq(ui.msg, "SAVE C FIRST") && trk[2].step[2].on && var_cur == 1u);
+    OK(proj_loaded() == 2 && var_who[var_play] == 3u && (var_dirty & 4u) && var_cur == 1u && trk[4].step[4].on);
     stop();
-    var_cur = 0;
-    check("cue: the park holds C's unsaved variations, A's are unsaved: cue B refused (SAVE C FIRST); A clean: accepted; "
-          "A's variations edited before the boundary: refused there, A's edit kept", (int)ok);
+    check("cue: the park holds C's unsaved variations: a cue of another slot is refused when queued (SAVE C FIRST), "
+          "whether the playing slot's are unsaved or not; a cue of C brings them back", (int)ok);
 }
 static void cue_song_refused(void)
 {
@@ -985,9 +978,20 @@ static int32_t peak(const int32_t *b, uint32_t n)
 static int32_t REC[8u * 22050u + CTL];
 static void cue_fade(void)
 {
-    uint32_t ok = 1, wrap = 4u * 22050u, i, n;
+    uint32_t ok = 1, wrap = 4u * 22050u, i, n, b0;
     int32_t pk20, pkend;
     four_slots();
+    proj_load_from(1);                                /* B: a conga on step 0 (no noise: a noise source runs on, a
+                                                       * fresh PLAY's starts again), no sends */
+    for (i = 0; i < NTRK; i++) {
+        memset(trk[i].step, 0, sizeof trk[i].step);
+        trk[i].p[P_REV] = trk[i].p[P_DLY] = trk[i].p[P_CHOR] = 0;
+    }
+    old_set_model(&trk[0], DM_CONGA);
+    trk[0].step[0].on = 1;
+    trk[0].p[P_LEVEL] = 110;
+    project_save(1);
+    proj_load_from(0);
     for (i = 0; i < NTRK; i++)
         memset(trk[i].step, 0, sizeof trk[i].step);
     trk[0].step[15].on = 1;                           /* A: an ACID note held through its step, into the boundary */
@@ -1005,18 +1009,46 @@ static void cue_fade(void)
         n += CTL;
     }
     cue_slot(1);
-    while (now_s < wrap + 4u * CTL) {
+    b0 = 0;
+    while (now_s < wrap + 4096u) {
         run_blk();
+        if (!b0 && cue.done)
+            b0 = n;                                   /* the switch block (the steps' blocks: a block after PLAY's) */
         cue_poll();
         memcpy(REC + n, OL, sizeof OL);
         n += CTL;
     }
-    pk20 = peak(REC + wrap - 882u - 64u, 64u);       /* 20 ms before the boundary */
-    pkend = peak(REC + wrap - 64u, 64u);              /* the last 64 samples before it */
+    OK(b0 >= wrap - CTL && b0 <= wrap + CTL);         /* (steps fire at a block's start: the switch block's) */
+    pk20 = peak(REC + b0 - 882u - 64u, 64u);         /* 20 ms before the boundary */
+    pkend = peak(REC + b0 - 64u, 64u);                /* the last 64 samples before its block */
     OK(proj_loaded() == 1 && pk20 > 0 && pkend * 8 < pk20 && mix_fade == 32767);
     stop();
     if (!ok)
         printf("     fade: peak 20 ms before %d, last 64 %d, loaded %d\n", pk20, pkend, proj_loaded());
+    {                                                 /* B's step-0 hit as a fresh PLAY of B plays it, within 1 % */
+        static int32_t fresh_b[4096u + CTL];
+        double e = 0.0, d = 0.0;
+        host_reset_fx();
+        (void)proj_load(1, 1);
+        play();
+        memcpy(fresh_b, OL, sizeof OL);
+        for (n = CTL; n < 4096u; n += CTL) {
+            run_blk();
+            memcpy(fresh_b + n, OL, sizeof OL);
+        }
+        stop();
+        for (i = 0; i < 2048u; i++) {
+            double a = REC[b0 + i], b = fresh_b[i];
+            e += b * b;
+            d += (a - b) * (a - b);
+        }
+        OK(e > 0.0 && d <= e * 1e-4);                 /* (1 % of the RMS) */
+        if (d > e * 1e-4) {
+            printf("     B's first hit vs a fresh PLAY: rms diff %.4f of its rms\n", e > 0.0 ? sqrt(d / e) : -1.0);
+            for (i = 0; i < 96u; i += 12u)
+                printf("       %4u: switch %6d fresh %6d\n", i, REC[b0 + i], fresh_b[i]);
+        }
+    }
     {                                                 /* a variation switch: up to the boundary the same as no switch */
         static int32_t a[4u * 22050u + CTL];
         pattern_slot(16, 2);
@@ -1041,7 +1073,8 @@ static void cue_fade(void)
         stop();
     }
     check("cue: a slot switch fades the old voices out over 5 ms before the boundary (the last 64 samples under 1/8 of "
-          "20 ms before); a variation switch changes nothing up to the boundary", (int)ok);
+          "20 ms before), B's step-0 hit then sounds as a fresh PLAY of B (within 1 %); a variation switch changes "
+          "nothing up to the boundary", (int)ok);
 }
 static void song_plays_var1(void)
 {
@@ -1195,15 +1228,18 @@ static void cue_map_leds(void)
     two_slots();
     play();
     OK(cue_slot(1) == 0);                             /* B queued */
+    cue_map_refresh();
     OK(cue_led(1) == CM_WINK && cue_led(2) == CM_BLINK && cue_led(3) == CM_OFF && cue_led(4) == CM_OFF);
     OK(cue_led(5) == CM_ON);                          /* variation 1 of B (the queued slot's): not empty */
     stop();
     cue.q_slot = 0;
     play();
+    cue_map_refresh();
     OK(cue_led(5) == CM_WINK && cue_led(7) == CM_ON && cue_led(6) == CM_OFF);
     for (n = 8; n <= 12u; n++)
         OK(cue_led(n) == CM_OFF);
     trk[3].step[3].on ^= 1;                           /* an edit of A */
+    cue_map_refresh();
     OK(cue_led(1) == CM_BREATHE);
     trk[3].step[3].on ^= 1;
     stop();
@@ -1467,9 +1503,206 @@ static void paste_then_load(void)                     /* Review Focus 4 */
           "pasted B plays the paste", (int)ok);
 }
 
+/* ---- final review fixes */
+/* fix 1: a LOAD while a cue is queued, the ISR's switch landing at any point where the LOAD lets the IRQ back on */
+static void race_isr(void)
+{
+    uint32_t i;
+    for (i = 0; i < 4000u && (cue.q_slot || cue.q_var); i++)
+        run_blk();
+}
+static void cue_load_race(void)
+{
+    uint32_t ok = 1, b, kept = 0;
+    four_slots();
+    var_make(5, 100);
+    var_put(live_bank(), 2, VSP, VTM);                /* A: unsaved variation 3 (RAM only) */
+    var_dirty |= 1u;
+    play();
+    for (b = 0; b < 50u; b++)
+        run_blk();
+    OK(cue_slot(1) == 0 && cue.q_slot == 2u);
+    cue.now = 1;                                      /* (B due at the next step) */
+    host_irq_hook = race_isr;                         /* the ISR runs whenever the LOAD lets the IRQ back on */
+    project_load(2);
+    host_irq_hook = 0;
+    cue_poll();
+    for (b = 0; b < 2u; b++)
+        if (var_who[b] == 1u && var_is(&var_buf[b], 2))
+            kept = 1;
+    OK(kept && proj_loaded() == 2 && chain.from == 3u && trk[0].p[P_LEVEL] == 30 && !cue.q_slot && slot_dirty(0));
+    if (!ok)
+        printf("     LOAD race: kept %u loaded %d from %u level %d who %u %u\n", kept, proj_loaded(), chain.from,
+               trk[0].p[P_LEVEL], var_who[0], var_who[1]);
+    stop();
+    check("cue: LOAD C while B is queued (the switch due at once): the cue is dropped first, A's unsaved variations "
+          "kept, C loaded with its own song and name", (int)ok);
+}
+#define CUE_SLOT_TENTHS 1u                            /* a slot switch's ceiling: tenths of a normal block */
+/* fix 2: the switch block's cost, worst case: a heavy kit (every step on, 1000 locks, dense variations) */
+static void dense_slot(uint32_t s, uint32_t seed)
+{
+    uint32_t k, i, v;
+    memset(&mo.b, 0, sizeof mo.b);
+    for (k = 0; k < NTRK; k++) {
+        for (i = 0; i < NSTEP; i++) {
+            trk[k].step[i].on = 1;
+            trk[k].step[i].nt = (int8_t)(i % 12u);
+        }
+        trk[k].p[P_SLEN] = 64;
+        trk[k].p[P_SDIV] = 2;
+    }
+    for (i = 0; i < 1000u; i++)
+        lk_put(&mo.b, lk_key(i % 8u, (i / 8u) % 64u, P_E0 + (i % 3u)), (int32_t)(i % 100u), 1);
+    project_save(s);
+    for (v = 1; v <= 2u; v++) {
+        var_make(seed + v, 1000);
+        for (k = 0; k < NTRK; k++) {
+            VTM[k][0] = 16;
+            VTM[k][1] = 2;
+        }
+        var_put(live_bank(), v, VSP, VTM);
+    }
+    project_save(s);
+}
+static uint64_t blk_cost(void)
+{
+    uint64_t a = instr_now();
+    run_blk();
+    return instr_now() - a;
+}
+static uint64_t switch_cost(int slotcue, uint32_t target, uint64_t *norm, uint64_t *abs_)
+{
+    uint64_t mx = 0, sw = 0, c;
+    uint32_t n;
+    play();
+    for (n = 0; n < 6000u; n++) {                    /* (over a bar: every step's block, the pattern's end's) */
+        c = blk_cost();
+        mx = c > mx ? c : mx;
+        cue_poll();
+    }
+    trk[3].step[5].on ^= 1;                           /* the live variation edited */
+    if (slotcue)
+        cue_slot(target);
+    else
+        cue_var(target);
+    for (n = 0; n < 40000u && !cue.done && !cue.err; n++) {
+        c = blk_cost();
+        if (cue.done)
+            sw = c;
+    }
+    cue_poll();
+    stop();
+    *norm = mx;
+    *abs_ = sw;
+    return sw > mx ? sw - mx : 0u;
+}
+static void cue_switch_cost(void)
+{
+    uint64_t nv, ns, xv, xs, xb, av, as, ab;
+    uint32_t ok = 1;
+    fresh();
+    dense_slot(1, 100);
+    dense_slot(0, 200);
+    project_load(0);
+    cue_var(1);                                       /* stopped: variation 2 */
+    xv = switch_cost(0, 2, &nv, &av);                 /* variation 2 -> 3 (dense, both used) */
+    xs = switch_cost(1, 1, &ns, &as);                 /* A -> B (B's variations from flash) */
+    xb = switch_cost(1, 0, &ns, &ab);                 /* B -> A (A's variations parked, unsaved) */
+    printf("     switch block (host instructions): variation %llu, slot %llu / %llu; the heaviest normal block of the "
+           "bar %llu (over it: +%llu, +%llu / +%llu)\n", (unsigned long long)av, (unsigned long long)as,
+           (unsigned long long)ab, (unsigned long long)nv, (unsigned long long)xv, (unsigned long long)xs,
+           (unsigned long long)xb);
+    OK(xv * 10u <= nv && xs * 10u <= nv * CUE_SLOT_TENTHS && xb * 10u <= nv * CUE_SLOT_TENTHS);
+    check("cue: the switch block's extra cost, worst case (every step on, 1000 locks, dense variations): a variation "
+          "switch within 10 % of a normal block, a slot switch within its ceiling", (int)ok);
+}
+/* fix 3: SAVE onto a slot that is not loaded but has unsaved edits asks first */
+static void save_overwrite_asks(void)
+{
+    uint32_t ok = 1;
+    static project_t keep;
+    four_slots();
+    proj_load_from(1);
+    trk[5].step[3].on = 1;                            /* B edited, then left: its edits kept in RAM (B*) */
+    proj_load_from(0);
+    OK(slot_dirty(1));
+    keep = proj_slot[1];
+    host_nflog = 0;
+    project_save(1);
+    OK(ui.confirm == CONFIRM_OVERWRITE && ui.confirm_trk == 1u && host_nflog == 0u && !memcmp(&keep, &proj_slot[1], sizeof keep));
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    OK(!ui.confirm && host_nflog == 0u && !memcmp(&keep, &proj_slot[1], sizeof keep) && proj_loaded() == 0);
+    project_save(1);
+    OK(ui.confirm == CONFIRM_OVERWRITE);
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    OK(!ui.confirm && str_eq(ui.msg, "SAVED") && image_is_flash(1) && proj_loaded() == 1 && !slot_dirty(1) &&
+       proj_slot[1].t[0].p[P_LEVEL] == 10);           /* (A's state saved over B) */
+    project_save(2);                                  /* a clean target: no question */
+    OK(!ui.confirm && str_eq(ui.msg, "SAVED"));
+    check("SAVE onto a slot with unsaved edits that is not loaded asks OVERWRITE B*? (NO: nothing; YES: saved); a "
+          "clean one does not ask", (int)ok);
+}
+/* fix 4: the cue map's LEDs cost little a frame (a queued slot's variations read from flash once a frame) */
+static void cue_led_cost(void)
+{
+    uint32_t ok = 1, n, k;
+    uint64_t a, c;
+    fresh();
+    trk[0].p[P_LEVEL] = 10;
+    project_save(0);
+    for (k = 1; k <= 6u; k++) {
+        var_make(70 + k, 400);
+        var_put(live_bank(), k, VSP, VTM);
+    }
+    trk[0].p[P_LEVEL] = 20;
+    project_save(1);
+    project_load(0);
+    play();
+    for (k = 0; k < 20u; k++)
+        run_blk();
+    cue_slot(1);
+    ui.cue_map = 1;
+    a = instr_now();
+    cue_map_refresh();
+    for (n = 1; n <= 12u; n++)
+        (void)cue_led(n);
+    c = instr_now() - a;
+    OK(c < 80000u && cue_led(6) == CM_ON && cue_led(2) == CM_BLINK);
+    printf("     cue map LEDs, a frame (B queued): %llu host instructions\n",
+           (unsigned long long)c);
+    ui.cue_map = 0;
+    stop();
+    check("cue map: the 12 keys' states computed once a frame, cheaply (was ~690k host instructions)", (int)ok);
+}
+/* fix 4: a tempo-only edit is not dropped silently */
+static void load_global_edit_asks(void)
+{
+    uint32_t ok = 1;
+    four_slots();
+    song.g[G_BPM] = 141;                              /* A's tempo changed, nothing else */
+    project_load(0);
+    OK(ui.confirm == CONFIRM_DISCARD);
+    ui.confirm = 0;
+    proj_load_from(1);                                /* LOAD B: A's tempo kept in its RAM image (A*) */
+    OK(proj_loaded() == 1 && proj_slot[0].g[G_BPM] == 141 && slot_dirty(0));
+    check("LOAD: a tempo-only edit of the loaded slot asks DISCARD EDITS?; loading another slot keeps it in RAM", (int)ok);
+}
+
 int main(void)
 {
     vptrs();
+#ifdef CUE_COST                                       /* the cost checks: their own -O2 build (ASan skews the counts) */
+    cue_switch_cost();
+    cue_led_cost();
+    printf(fails ? "cue_test (cost): %d FAILED\n" : "cue_test (cost): all passed\n", fails);
+    return fails ? 1 : 0;
+#endif
     var_save_load_round_trip();
     var_torn_keeps_triple();
     var_old_record_empty();
@@ -1512,6 +1745,9 @@ int main(void)
     paste_park_full();
     paste_from_live();
     paste_then_load();
+    cue_load_race();
+    save_overwrite_asks();
+    load_global_edit_asks();
     check("flash: no erase or program in any test outside the map", host_fl_stray == 0);
     printf(fails ? "cue_test: %d FAILED\n" : "cue_test: all passed\n", fails);
     return fails ? 1 : 0;

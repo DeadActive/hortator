@@ -2789,6 +2789,9 @@ __attribute__((always_inline)) static inline void ui_draw(void)
                 b[18] = (char)('A' + ui.confirm_trk % 4u);
             } else if (ui.confirm == CONFIRM_DISCARD) { /* LOAD of a slot with unsaved edits (project.c) */
                 str_cpy(b, "DISCARD EDITS?", sizeof b);
+            } else if (ui.confirm == CONFIRM_OVERWRITE) {   /* SAVE onto a slot with unsaved edits (project.c) */
+                str_cpy(b, "OVERWRITE A*?", sizeof b);
+                b[10] = (char)('A' + ui.confirm_trk % 4u);
             } else {
                 b[12] = (char)('1' + ui.confirm_trk);
             }
@@ -2801,7 +2804,8 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             {
                 char q2[20] = "LOAD SLOT A SAVED";
                 q2[10] = (char)('A' + ui.confirm_trk % 4u);
-                draw_confirm(b, ui.confirm == 5u ? "START NEW PROJECT?" : ui.confirm == CONFIRM_DISCARD ? q2 : 0);
+                draw_confirm(b, ui.confirm == 5u ? "START NEW PROJECT?" : ui.confirm == CONFIRM_DISCARD ? q2
+                                : ui.confirm == CONFIRM_OVERWRITE ? "ITS EDITS ARE LOST" : 0);
             }
             ui.force = 0;
         }

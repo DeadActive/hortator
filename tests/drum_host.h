@@ -21,7 +21,17 @@
 static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                    /* (the main loop's guard: nothing to guard on the host) */
 static uint32_t host_irq_on;                         /* fm1_irq_on calls (boot_test: none before main.c's) */
-static void fm1_irq_on(void) { host_irq_on++; }
+static void (*host_irq_hook)(void);                 /* tests: what the audio ISR does when the IRQ comes back on */
+static void fm1_irq_on(void)
+{
+    static uint8_t in;
+    host_irq_on++;
+    if (host_irq_hook && !in) {
+        in = 1;
+        host_irq_hook();
+        in = 0;
+    }
+}
 #include "../firmware/src/core.h"
 #include "../firmware/src/dsp.c"
 #include "../firmware/src/comp.c"
@@ -42,8 +52,7 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/seq.c"
 #include "../firmware/src/bench.c"
 #ifndef HOST_PROJECT                                  /* (without project.c: the cue never switches) */
-static int proj_cue_out(void) { return CUE_E_NOSLOT; }
-static void proj_cue_in(void) {}
+static int proj_cue_apply(void) { return CUE_E_NOSLOT; }
 #endif
 #include "old_defs.h"                                 /* the knob defaults up to drum 0.20.0 (the tests' "default") */
 

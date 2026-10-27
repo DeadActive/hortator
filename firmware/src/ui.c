@@ -17,6 +17,8 @@ static void project_rename(uint32_t slot, const char *name);
 static int slot_dirty(uint32_t s);         /* project.c: slot s has unsaved edits (spec 2026-10-26) */
 static void project_discard(uint32_t s);   /* .. its RAM image back to its flash version */
 static void proj_load_from(uint32_t slot); /* .. LOAD without the DISCARD EDITS? question */
+static void project_save_go(uint32_t slot);   /* .. SAVE without the OVERWRITE question */
+static void cue_map_refresh(void);         /* .. the cue map's per-slot state, once a frame */
 static void cue_poll(void);                /* .. a cue's switch finished (the ISR's: cue.c) */
 static int cue_slot(uint32_t s);           /* .. queue slot s / variation v (SAVE held + a white key) */
 static int cue_var(uint32_t v);
@@ -40,6 +42,7 @@ static int preset_user_save(uint32_t slot, const track_t *t);   /* project.c: th
 static void preset_user_delete(uint32_t slot);
 
 #define CONFIRM_DISCARD 7u             /* ui.confirm: DISCARD EDITS? (LOAD of a slot with unsaved edits) */
+#define CONFIRM_OVERWRITE 8u           /* .. OVERWRITE B*? (SAVE onto a slot, not the loaded one, with unsaved edits) */
 enum { CV_NORM, CV_HOT, CV_DIM };              /* a knob cell's value: plain, touched (inverted), inactive (dithered) */
 #define HOT(c) ((c) == ui.hot_col && ui.hot_t ? CV_HOT : CV_NORM)
 #define RATIO(d, v) ((d)->max > (d)->min ? (enum_rank((d), (int32_t)(v)) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
@@ -90,7 +93,7 @@ static struct {
     uint8_t confirm;             /* 1 "CLEAR TRACK n?", 2 CLEAR MOTION, 3 DELETE ROW, 4 CLEAR SONG, 5 the last project
                                   * failed to load (START NEW PROJECT?; confirm_trk its slot), 6 CLEAR ALL LEARNED?
                                   * (MIDI LEARN: ui_learn.c), 7 DISCARD EDITS? (a LOAD of slot confirm_trk with unsaved
-                                  * edits: CONFIRM_DISCARD) */
+                                  * edits: CONFIRM_DISCARD), 8 OVERWRITE B*? (a SAVE onto it: CONFIRM_OVERWRITE) */
     uint8_t confirm_trk;
     char msg[24];
     uint32_t enc_t[NE];

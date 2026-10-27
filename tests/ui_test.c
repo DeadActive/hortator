@@ -838,7 +838,7 @@ static void test_comp_ghost_knob(void)
     song.g[G_CSRC] = 1;
     project_save(0);
     song.g[G_CGHOST] = CG_MUTE;
-    project_load(0);
+    (void)proj_load(0, 1);                           /* (a global edit: as DISCARD EDITS? YES) */
     check("GHOST is saved with the project (FDR6)", song.g[G_CGHOST] == CG_HIDE);
     memset(&proj_slot[0], 0, sizeof proj_slot[0]);  /* the slot empty again for the project tests */
 }

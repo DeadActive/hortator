@@ -837,6 +837,8 @@ ACC`).
   `VARIATIONS FULL` shows (the playing one plays on). SAVE + key 2 then key 8: `CUE>B4`. Stopped, a cue switches at
   once. During SONG: `STOP SONG TO CUE`.
 - Edited slots: edit A, cue B, cue A: the edit is still there; the PROJECTS list shows `A*`; SAVE A: the `*` goes.
-  With A's and C's variations both edited and unsaved, cueing a third slot from one of them says `SAVE C FIRST`.
+  With C's variations edited and left unsaved (cue away from C), cueing any slot but C says `SAVE C FIRST`.
+- SAVE onto an edited slot that is not loaded (`B*`): `OVERWRITE B*?`; OCT- nothing, OCT+ saved. LOAD A after only
+  changing the tempo: `DISCARD EDITS?`.
 - Following CLK USB (a DAW at 120 BPM): queue variation 2 and slot B: each comes in on the bar's pulse, in time.
 - The keys pressed with SAVE held never sound, never send MIDI, never record (REC ALL on, playing).

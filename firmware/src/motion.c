@@ -71,16 +71,18 @@ static void motion_take_base(uint32_t k)
 }
 static void motion_restore(uint32_t k)            /* the moved knobs back to the base (a locked one: after its step) */
 {
-    uint32_t id;
+    uint32_t w, id, bits;
     if (!((mo.base_ok >> k) & 1u))
         return;
-    for (id = 0; id < P_COUNT; id++)
-        if (motion_moved(k, id)) {
-            if (lock_held(k, id))
-                mo.under[k][id] = mo.base[k][id];
-            else
-                *motion_slot(&trk[k], id) = mo.base[k][id];
-        }
+    for (w = 0; w < MO_W; w++)                     /* (the moved ones only: a cue's switch runs this in the ISR) */
+        for (bits = mo.act[k][w], id = w * 32u; bits; id++)
+            if ((bits >> (id & 31u)) & 1u) {
+                bits &= ~(1u << (id & 31u));
+                if (lock_held(k, id))
+                    mo.under[k][id] = mo.base[k][id];
+                else
+                    *motion_slot(&trk[k], id) = mo.base[k][id];
+            }
     mo.act[k][0] = mo.act[k][1] = mo.act[k][2] = 0;
 }
 /* every knob a lock of track k holds back to its value under the lock (the ISR, or the IRQ off); 1 one was held */

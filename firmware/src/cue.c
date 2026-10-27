@@ -6,8 +6,9 @@
  * seq_restart); the same key again: at the next step. The behaviour follows mono2k by Iñigo Hernández (an FM-1
  * firmware, GPL-3.0-only: its queued pattern switch); no code of it is copied.
  * This file is the ISR's part (seq.c events_block): the boundary, the switch, a slot switch's 5 ms fade (fx.c
- * mix_part). The main loop's (queueing, finishing a switch) and the slots' data are project.c's: proj_cue_out /
- * proj_cue_in (host tests without project.c: tests/drum_host.h's stubs). */
+ * mix_part). The main loop stages a queued switch beforehand and files the outgoing state after it; the slots' data
+ * are project.c's: proj_cue_apply, the ISR's swap of the live state with the staged one (host tests without project.c:
+ * tests/drum_host.h's stub). */
 #define CUE_SW_SLOT 1u                     /* cue.done: a slot switch / a variation switch happened */
 #define CUE_SW_VAR 2u
 enum { CUE_E_FULL = 1, CUE_E_SONG, CUE_E_NOSLOT, CUE_E_EMPTY, CUE_E_SAME, CUE_E_PARK = 8 };   /* + c: SAVE C FIRST */
@@ -21,16 +22,18 @@ static struct {
     volatile uint8_t now;                  /* the same key again: switch at the next step */
     uint8_t last[4];                       /* each slot's last-played variation (RAM only; power-on 0) */
     uint16_t b24;                          /* 1/24 beats since PLAY at the last restart, mod B24_WRAP */
-    const var_bank_t *src;                 /* the queued slot's variations: a RAM bank or a flash (XIP) copy, 0 none */
     volatile uint8_t done, err;            /* ISR -> main: CUE_SW_SLOT | CUE_SW_VAR; a refusal CUE_E_* (said once) */
-    uint8_t to_slot, to_var, sw_slot;      /* the switch under way (proj_cue_out -> proj_cue_in) */
-    uint8_t from;                          /* the slot a slot switch left (cue_poll seals its image) */
+    uint8_t stg, stg_slot, stg_var;        /* what the main loop staged (project.c STG_*), for slot / variation */
+    uint8_t out, out_var, from;            /* the switch's outgoing state, in the staging area for cue_poll to file:
+                                            * its kind, its variation, (a slot switch) the slot it left */
+    uint16_t stg_pre[NTRK], out_pre[NTRK]; /* the tracks' presets: the staged slot's, the outgoing one's */
+    uint8_t stg_pre_ed[NTRK], out_pre_ed[NTRK];
     uint8_t fade;                          /* 0 none, 1 fading out to the boundary, 2 ramping back up (a cancel) */
     uint16_t fg;                           /* the fade's gain at the next block's start (Q15) */
 } cue;
 
-static int proj_cue_out(void);             /* project.c: before the switch (0 go, else a refusal); */
-static void proj_cue_in(void);             /* .. the target's state in */
+static int proj_cue_apply(void);           /* project.c: the staged state in, the outgoing one out (0, or nothing
+                                            * staged: CUE_E_SAME) */
 
 static void cue_fade_set(uint32_t g, int32_t d, uint32_t at)   /* this block's mix gain (fx.c mix_part) */
 {
@@ -48,7 +51,9 @@ static void cue_fade_up(void)              /* a fade under way, its switch gone 
  * first, changes after. k: the track whose step boundary it is (the grid's time since PLAY moves on by its steps) */
 static __attribute__((noinline)) int cue_switch(uint32_t x, uint32_t k)
 {
-    int r = proj_cue_out();
+    uint32_t den, b24 = song.playing ? (cue.b24 + (trk[k].seq_cnt + 1u) * step24((uint32_t)trk[k].p[P_SDIV], &den)) %
+                                           B24_WRAP : cue.b24;   /* the grid's time: + the steps track k played */
+    int r = proj_cue_apply();
     if (r) {
         cue.q_slot = cue.q_var = cue.now = 0;
         if (r != CUE_E_SAME)
@@ -56,25 +61,23 @@ static __attribute__((noinline)) int cue_switch(uint32_t x, uint32_t k)
         cue_fade_up();
         return r;
     }
-    if (song.playing) {
-        uint32_t den;                              /* the grid's time: + the steps track k played since the restart */
-        cue.b24 = (uint16_t)((cue.b24 + (trk[k].seq_cnt + 1u) * step24((uint32_t)trk[k].p[P_SDIV], &den)) % B24_WRAP);
-    }
-    proj_cue_in();
+    cue.b24 = (uint16_t)b24;
     if (song.playing) {
         seq_restart(x, cue.b24);
         chain.cut = 1;                             /* (seq_tick: the block's rest after x) */
         acid_gates_close();
     }
-    if (cue.fade == 1u) {                          /* this block: the fade's end before x, full gain from x */
-        if (cue.sw_slot && mix_fade == 0)
+    if (cue.fade == 1u) {                          /* this block: the old voices were cut before it renders */
+        if (cue.done & CUE_SW_SLOT && mix_fade == 0) {
             for (k = 0; k < NTRK; k++)
                 trk[k].dtail = 0;                  /* (faded out: no declick tail of them at full gain) */
-        cue_fade_set((uint32_t)mix_fade, -(int32_t)CUE_FSTEP, x);
+            cue_fade_set(32767u, 0, CTL);          /* the new steps from the block's start (as they fire) */
+        } else {
+            cue_fade_set((uint32_t)mix_fade, -(int32_t)CUE_FSTEP, x);   /* (not faded out: their declick ramps on) */
+        }
         cue.fade = 0;
         cue.fg = 32767;
     }
-    cue.done |= (uint8_t)(cue.sw_slot ? CUE_SW_SLOT : CUE_SW_VAR);
     cue.q_slot = cue.q_var = cue.now = 0;
     return 0;
 }

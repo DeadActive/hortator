@@ -100,6 +100,9 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-re
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/cue_test" tests/cue_test.c -lm   # (cue / variations: ASan + UBSan)
 "$OUT/cue_test" > "$OUT/cue_test.txt" 2>&1 || { grep -v "^ok" "$OUT/cue_test.txt" | tail -30; exit 1; }
 tail -1 "$OUT/cue_test.txt"
+cc -O2 -DCUE_COST -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src \
+    -o "$OUT/cue_cost" tests/cue_test.c -lm   # (the switch block's cost, worst case: host instructions)
+"$OUT/cue_cost"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast \
     -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/comp_overflow" tests/comp_overflow.c -lm
 "$OUT/comp_overflow"

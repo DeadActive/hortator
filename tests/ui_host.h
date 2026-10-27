@@ -1,7 +1,7 @@
 /* Host build of the drum firmware's UI: the DSP harness, a 240x240 framebuffer for the LCD, and the
  * input / IRQ HAL replaced by state the tests set. Screens are written as PPM (tests convert to PNG). */
 #ifndef UI_NO_PROJECT
-#define HOST_PROJECT 1                                /* (project.c below: the cue's real proj_cue_out / in) */
+#define HOST_PROJECT 1                                /* (project.c below: the cue's real proj_cue_apply) */
 #endif
 #include "drum_host.h"
 #ifndef FELUCCA_FLASH
