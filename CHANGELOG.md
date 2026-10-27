@@ -5,25 +5,6 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
-- **USB AUDIO 10 CH FX** (owner 2026-10-26: "8 mono + stereo FX give full mix control"): MENU > USB AUDIO is 2 CH /
-  10 CH MIX (channels 1-2 the master, the 10 CH before) / 10 CH FX (channels 1-2 the chorus, delay and reverb
-  buses' return, mono on both, at the MASTER level, before PERFORM's master effects, METRO and the master chain).
-  T1..T8 panned + the FX pair = the master bus before its chain (18 LSB in the test). MIX <-> FX: no reconnect, a
-  5.8 ms cross-fade. Saved in the palette word's bits 12..13 (e586073's 10 CH reads as MIX). The 10 CH device's
-  channels 1-2 are named Main L / R now (bcdDevice 3.82). Standard build only.
-
-- **USB AUDIO 2 CH / 10 CH** (MENU, hold HOME; the owner's 8-track test build of 2026-10-26, "that works"): 10 CH sends
-  the master L R and the eight tracks T1..T8 (mono, each before PAN, the sends and the master's effects) to the
-  computer as a 10-channel USB audio input ("Hortator 8ch", 16-bit 44.1 kHz, 920 B packets); 2 CH (the default) is
-  the stereo master as before, byte for byte the same USB device. The change applies when the menu closes: the FM-1
-  leaves USB for 1 s and comes back as the other device, the sequencer and the sound playing on (CLK USB: the steps
-  wait for the clock up to 2 s after it). Saved in the settings record (the palette word's bit 12; older records: 2
-  CH). SAFE START is always 2 CH. The app's USB driver is usb_app8.c: the frozen usb_app.c plus marked insertions
-  only (tools/check_usb_fork.py); in 10 CH its 920 B packet is queued from every TIMER5 tick (10 kHz): at 2 kHz the
-  test build lost ~10 % of the frames (tears). 10 CH needs the standard, non-Bluetooth build (owner 2026-10-26): the
-  Bluetooth build has no USB AUDIO row, is always 2 CH and ignores a stored 10 CH (its RAM, 85868 of 98304 B, would
-  have been 97644 B); its binary is the same as 0.24.0's.
-
 - **Live cue, variations, FILL, slot COPY / PASTE** (spec docs/superpowers/specs/2026-10-26-cue-variations-fill-copy-design.md;
   the behaviour after mono2k by Iñigo Hernández, GPL-3.0-only):
   - User sample slot 2: **USR2 now holds up to 48 KiB** (as USR3 since 0.24.0); its last 32 KiB of flash hold the
@@ -58,6 +39,31 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
     variations, song; name + ` COPY`) in RAM, marked unsaved; again on the same slot before its SAVE: undone (its
     flash version back, `PASTE UNDONE`). Refused while playing (`STOP TO PASTE`), onto itself (`SAME SLOT`), with
     nothing copied (`COPY A SLOT FIRST`), or when the park holds another slot's unsaved variations (`SAVE C FIRST`).
+
+## 0.25.0 - 2026-10-27
+
+- **USB AUDIO 10 CH FX** (owner 2026-10-26: "8 mono + stereo FX give full mix control"): MENU > USB AUDIO is 2 CH /
+  10 CH MIX (channels 1-2 the master, the 10 CH before) / 10 CH FX (channels 1-2 the chorus, delay and reverb
+  buses' return, mono on both, at the MASTER level, before PERFORM's master effects, METRO and the master chain).
+  T1..T8 panned + the FX pair = the master bus before its chain (18 LSB in the test). MIX <-> FX: no reconnect, a
+  5.8 ms cross-fade. Saved in the palette word's bits 12..13 (e586073's 10 CH reads as MIX). The 10 CH device's
+  channels 1-2 are named Main L / R now (bcdDevice 3.82). Standard build only.
+
+- **USB AUDIO 2 CH / 10 CH** (MENU, hold HOME; the owner's 8-track test build of 2026-10-26, "that works"): 10 CH sends
+  the master L R and the eight tracks T1..T8 (mono, each before PAN, the sends and the master's effects) to the
+  computer as a 10-channel USB audio input ("Hortator 8ch", 16-bit 44.1 kHz, 920 B packets); 2 CH (the default) is
+  the stereo master as before, byte for byte the same USB device. The change applies when the menu closes: the FM-1
+  leaves USB for 1 s and comes back as the other device, the sequencer and the sound playing on (CLK USB: the steps
+  wait for the clock up to 2 s after it). Saved in the settings record (the palette word's bit 12; older records: 2
+  CH). SAFE START is always 2 CH. The app's USB driver is usb_app8.c: the frozen usb_app.c plus marked insertions
+  only (tools/check_usb_fork.py); in 10 CH its 920 B packet is queued from every TIMER5 tick (10 kHz): at 2 kHz the
+  test build lost ~10 % of the frames (tears). 10 CH needs the standard, non-Bluetooth build (owner 2026-10-26): the
+  Bluetooth build has no USB AUDIO row, is always 2 CH and ignores a stored 10 CH (its RAM, 85868 of 98304 B, would
+  have been 97644 B); its binary is the same as 0.24.0's.
+- Web site only: the landing page has a manual before the engines: a map of the panel (point at a control on a small
+  FM-1, or at its line, to see what it does) and ten short guides (find your way, make a beat, shape a sound, play
+  and record live, mute, perform, lock a step, save and chain, MIDI and LEARN, settings). Manual in the top bar and
+  the footer; More below leads to it.
 
 ## 0.24.0 - 2026-10-25
 
