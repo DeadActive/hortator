@@ -175,3 +175,15 @@ glue, the page's new rows, the top-bar icon. Nothing is left out (the user, 2026
 The pool would keep less than its 8 KB with the larger heap, so the Bluetooth build places FX's chorus line
 (`fx.c cho_buf`, 4,096 B, zeroed at boot as the pool is) in `.bss` (`#if FELUCCA_BLE`): `.bss` has the room, the
 plain build is byte-identical, and the BLE unit (layer 1) stays as copied. The heap stays where layer 1 puts it.
+
+## 0.25.0 (main's parameter locks and USB AUDIO merged; layer 1 from ble-kit d702dc0), 2026-10-27
+
+| | image B | slot free B | `.data + .bss` B (of 98304) | pool B (of 344064) | `.ram_text` B |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0.25.0, plain (= main 23af94c, byte for byte) | 341,696 | 239,868 | 75,056 | 317,556 | |
+| **0.25.0, Bluetooth (packaged)** | **488,284** | **93,280** | **92,160** (6,144 spare, 4,096 kept) | **334,216** (9,848 spare, 8,192 kept) | **6,864** |
+
+The locks (1,024 events a project) took about 19 KB of `.data + .bss` in every build; the Bluetooth build still keeps
+both floors with the chorus line in `.bss`. USB AUDIO 10 CH stays out of the Bluetooth build (build.py's check: no
+`uac8_service`, `ua8_ring`, `usb8_tap` there), as on main. The Bluetooth store (0x9F000 / 0xFE000) does not touch the
+lock banks (0xD4000..0xDBFFF), the shortened USR3 (0xC8000..0xD3FFF) or any other object (bt_devs_test).
