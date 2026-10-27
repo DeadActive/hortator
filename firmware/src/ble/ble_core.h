@@ -8,6 +8,11 @@
 #ifndef BLE_CORE_H
 #define BLE_CORE_H
 #include <stdint.h>
+#ifndef BLE_CONSOLE                     /* 1 (default): the console's `ble` words and the diagnostics they print; 0: none
+                                          * of them (a fit tool: docs/ble/PORTING.md; the serial logger then reads no BT
+                                          * state) */
+#define BLE_CONSOLE 1
+#endif
 /* time, watchdog, power */
 uint32_t core_ms(void);
 void core_wdt_feed(void);
@@ -24,15 +29,19 @@ void core_ble_stack_window(void);
 void core_midi_out(uint32_t pkt);
 /* flash: read the plain area (0x93000..0xFFFFF) through the core's driver; 0 = ok (never writes) */
 int core_flash_read(uint32_t off, void *buf, uint32_t n);
+#if BLE_CONSOLE
 /* audio: render blocks that missed the DMA since power-on (audio.c felucca_dbg.late), for the console's `ble` */
 uint32_t core_audio_late(void);
 /* the longest gap between two audio half interrupts since the last call, us (2902 normal: more, the audio held off) */
 uint32_t core_audio_gap_us(void);
+#endif
 /* RECONNECT SLOW, or AUTO while the transport plays (bt_set.c bt_set_slow): a host link rests longer after a drop
  * or a failed connect (ble_fail_rest) */
 int core_ble_slow(void);
+#if BLE_CONSOLE
 /* the core's UI frame counter (felucca_dbg.ui_frames: once per main-loop pass), for the loop period */
 uint32_t core_ui_frames(void);
+#endif
 /* the core's crash record (fm1_irq.h fm1_crash_t, .noinit, same layout): read only, for the console's `ble`
  * (the core's unit has the real declaration) */
 #ifndef FM1_CRASH_MAGIC
@@ -57,8 +66,10 @@ void core_ble_midi_in(uint32_t pkt);
 void core_ble_link(int up);
 /* FM-Link in (ble_service): one message from the other FM-1 and the TIMER4 tick it came at (fmlink.c) */
 void core_fml_rx(const uint8_t *p, uint32_t len, uint32_t t);
+#if BLE_CONSOLE
 /* MIDI mode: received packets the core's input ring refused (its last 8 slots are TRS MIDI's), for `ble` */
 uint32_t core_ble_in_drops(void);
+#endif
 /* libc.c */
 void *memset(void *d, int c, unsigned n);
 void *memcpy(void *d, const void *s, unsigned n);
@@ -67,10 +78,12 @@ int memcmp(const void *a, const void *b, unsigned n);
 /* the BLE unit's entry points (ble.c): the core calls ble_service (ed_service) and ble_console (the console's
  * "ble ..." line); ble_user_start is the user's trigger (gate 3: the only way to ble_start) */
 void ble_service(void);
+#if BLE_CONSOLE
 void ble_console(const char *args);
-void ble_user_start(void);
 void ble_list(void);
 void ble_status(void);
+#endif
+void ble_user_start(void);
 int ble_started(void);
 /* MIDI out to the connected BLE-MIDI device: one message of 1..3 bytes (main loop only, never from an ISR);
  * 1 = queued, 0 = dropped (not connected, or the 64-message queue full: `ble`'s out_drops). A caller that retries

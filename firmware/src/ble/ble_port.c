@@ -55,7 +55,9 @@ void request_irq(unsigned char index, unsigned char priority, void (*handler)(vo
     if (priority > 2u) {                                 /* BT stays below the audio (3) and the timer (4) (spec);
                                                           * the libraries ask for 2 (fm1-lsdj docs/ble/LINK_NOTES.md) */
         priority = 2u;
+#if BLE_CONSOLE
         ble_diag.irq_lowered++;
+#endif
     }
     local_irq_disable();
     core_irq_attach(index, handler, priority);           /* the SDK's handlers are interrupt functions (rti):
@@ -94,10 +96,14 @@ BLE_RAM void delay_us(unsigned int us)
 {
     uint32_t t0 = fm1_ble_ticks();
     ble_spin(us * ble_loops_per_us);
+#if BLE_CONSOLE
     ble_diag.delays++;
     ble_diag.last_us = us;
     if (us && fm1_ble_ticks() == t0)
         ble_diag.t4_stalls++;
+#else
+    (void)t0;
+#endif
 }
 BLE_RAM void hw_udelay(unsigned int us) { delay_us(us); }
 BLE_RAM void *__wrap_memcpy(void *d, const void *s, unsigned n)   /* (build.py --wrap=memcpy) */
@@ -287,7 +293,9 @@ static void ble_irq_check(int task)
     if (!ble_os_stack_intact((uint32_t)task))     /* its 2 KB stack overflowed: stop before the neighbour breaks */
         ble_fatal(3);
     if (fm1_ble_irq_depth) {
+#if BLE_CONSOLE
         ble_diag.irq_leaks++;
+#endif
         fm1_ble_irq_depth = 1;
         local_irq_enable();
     }

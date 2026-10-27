@@ -287,7 +287,7 @@ static void con_bench_out(const char *s)            /* BENCH lines (bench.c), al
     con_puts(s);
 }
 
-#if FELUCCA_BLE
+#if FELUCCA_BLE && BLE_CONSOLE
 static void con_fml(void)                              /* FM-Link: what the engine knows (bt_fml.c, fmlink.c) */
 {
     fml_t f;
@@ -312,7 +312,7 @@ static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?")) {
         con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  bench yes  uboot yes\r\n");
-#if FELUCCA_BLE
+#if FELUCCA_BLE && BLE_CONSOLE
         con_puts("ble [start | scan | list | stop]: Bluetooth status and tests (the page: MENU > BLUETOOTH)  "
                  "fml: FM-Link\r\n");
 #endif
@@ -348,7 +348,7 @@ static void con_exec(const char *p)
             con_puts("type 'uboot yes'\r\n");
         }
     }
-#if FELUCCA_BLE
+#if FELUCCA_BLE && BLE_CONSOLE
     else if (con_word(&p, "ble"))
         ble_console(p);
     else if (con_word(&p, "fml"))

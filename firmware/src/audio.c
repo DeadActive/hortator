@@ -58,8 +58,10 @@ static void shed_voice(void)
 }
 
 #if FELUCCA_BLE
+#if BLE_CONSOLE
 static uint32_t audio_t0_prev, audio_gap_max;      /* the half interrupts' entries: the longest gap (ticks; nominal
                                                     * HALF_FRAMES samples, 5.8 ms), for the console's `ble` */
+#endif
 #define BT_FML_HEARD_AUDIO 1
 static uint32_t bt_fml_heard;                      /* the tick the block being rendered is heard at (bt_fml.c: FM-Link) */
 #endif
@@ -70,7 +72,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     felucca_dbg.in_audio = 1;                   /* (upstream 1.0) first: TIMER5 nests from here on (main.c) */
     p = fm1_audio_pending();
     t0 = fm1_ticks();
-#if FELUCCA_BLE
+#if FELUCCA_BLE && BLE_CONSOLE
     if (p & FM1_AUDIO_HALF) {                   /* (held off: a gap longer than a half) */
         if (t0 - audio_t0_prev > audio_gap_max)
             audio_gap_max = t0 - audio_t0_prev;

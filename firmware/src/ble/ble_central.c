@@ -64,6 +64,7 @@ static int ble_uuid_is(const uint8_t u[16], const uint8_t ref[16])
 int ble_is_midi_char(const uint8_t u[16]) { return ble_uuid_is(u, MIDI_CHAR_UUID); }
 int ble_is_fml_char(const uint8_t u[16]) { return ble_uuid_is(u, FML_CHAR_UUID); }
 
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE || defined(BLE_MONITOR)   /* (BLE_CONSOLE 0: no console, docs/ble/PORTING.md) */
 /* the console's text (`ble`, `ble list`, the parser): built for size (as the core's main-loop code, tools/size_fns.py),
  * run only when typed */
 #define BLE_CON __attribute__((minsize))
@@ -100,6 +101,7 @@ static char *put_dev(char *o, const ble_dev_t *d)  /* the name, or the address m
     *o = 0;
     return o;
 }
+#endif
 #ifdef BLE_MONITOR
 /* one monitor line for a USB-MIDI packet (cin | status << 8 | d1 << 16 | d2 << 24); 0 = no line (a SysEx start or
  * continuation: *sx counts its bytes, and the end packet prints them). Hortator's MIDI monitor screen; the FM-1 has
@@ -141,6 +143,7 @@ int ble_midi_text(uint32_t pkt, uint32_t *sx, char out[32])
 }
 #endif
 
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
 /* ---- the console's `ble` words and the states they need (part 1b; pure, host-tested) ---- */
 enum { BLE_CMD_STATUS, BLE_CMD_START, BLE_CMD_SCAN, BLE_CMD_LIST, BLE_CMD_STOP, BLE_CMD_BAD };
 
@@ -199,6 +202,7 @@ void ble_loop_note(ble_loop_t *l, uint32_t frames, uint32_t now_ms)
     l->frames = frames;
     l->at_ms = now_ms;
 }
+#endif
 
 /* MIDI out (ble_midi_send, called by the core's main loop): whole messages of 1..3 bytes, queued only while
  * connected; ble_service sends them (ble_out_flush). A disconnect empties the queue (ble_ev). */
@@ -343,7 +347,9 @@ static struct {
     char name[24];                                  /* the scanned name, at the connect */
 } sl[2];
 static uint8_t disc_slot;                           /* the slot whose discovery runs (one at a time) */
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
 static uint32_t console_scan_until;                 /* the console's `ble scan`: one window */
+#endif
 static uint8_t peer[6];                             /* the device role: the host's address, for the page */
 static uint32_t deadline_ms;
 static const char *err_text = "";                   /* the last error (ble_err) */
@@ -798,7 +804,9 @@ static void ble_host(void)                         /* ble_service, the host role
     for (i = 0; i < 2u; i++)
         if (hs.s[i].st == HS_CANCELLING && ble_due(now, hs.s[i].deadline_ms))
             hs.s[i].st = HS_IDLE;                  /* (no completion came) */
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
     hs.scan_want = hs.scan_want || (int32_t)(console_scan_until - now) > 0;   /* (the console's `ble scan`) */
+#endif
     ble_scan_expire(&scan, now, 30000u);
     for (i = 0; i < 2u; i++) {
         ble_hslot_t *s = &hs.s[i];
@@ -934,6 +942,7 @@ int ble_ui_conn_name(char out[24])
 void ble_ui_role(int device) { role_want = device != 0; }   /* (applied by ble_service once nothing is going on) */
 uint32_t ble_ui_role_now(void) { return role_now; }
 
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
 /* ---- the console's `ble` (moved here from fm1-lsdj's ble_ui.c: Hortator has no BLE screen) ---- */
 static const char *const STATE_NAME[] = {"OFF", "STARTING", "IDLE", "SCANNING", "CONNECTING", "DISCOVERING",
                                          "SUBSCRIBED", "RECEIVING", "FAILED", "ADVERTISING"};
@@ -1068,9 +1077,11 @@ BLE_CON void ble_status(void)                      /* console `ble` */
     ble_list();
 }
 
+#endif
 /* ---- the console (part 1b): the core's `ble …` line comes here (ble_core.h ble_console) ---- */
 /* the user's trigger, the only way to ble_start (gate 3: tools/check_ble_boot.py); not inlined, so the gate sees it */
 __attribute__((noinline)) void ble_user_start(void) { ble_start(); }
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
 BLE_CON static void say_state(void)
 {
     char b[96], *o;
@@ -1104,4 +1115,5 @@ BLE_CON void ble_console(const char *args)
     }
     say_state();
 }
+#endif   /* BLE_CONSOLE */
 #endif

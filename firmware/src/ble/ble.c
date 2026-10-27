@@ -58,7 +58,9 @@ void ble_service(void)                             /* the main loop (ed_service)
 {
     static uint8_t kept;
     uint32_t pkt;
+#if BLE_CONSOLE
     ble_loop_note(&loop, core_ui_frames(), core_ms());   /* BT off too: the period to compare with */
+#endif
     if (!kept) {                                  /* once a power-on, BT off too: the radio calibration found in flash
                                                    * handed to the firmware to keep (core_rf_keep_put) before its own
                                                    * data can cover the store; a flash scan, no Bluetooth started */
@@ -68,8 +70,10 @@ void ble_service(void)                             /* the main loop (ed_service)
     if (!ble_on)
         return;
     ble_os_service(5000);
+#if BLE_CONSOLE
     ble_diag.heap_high = ble_os_heap_high();       /* (.noinit: kept over a crash reboot, for the heap's size) */
     ble_diag.alloc_fails = ble_os_alloc_fails();
+#endif
     ble_tick();                                    /* the start's deadline */
     ble_auto();                                    /* the role; the host's slots and scanner or the device role; the
                                                     * MIDI link up / down to the core */

@@ -205,6 +205,8 @@ def build_app():
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and not (flag == "FELUCCA_BLE" and core_ref and not ble):
             flags.append(f"-D{flag}={v}")
+    if (ble or core_ref) and os.environ.get("BLE_CONSOLE") in ("0", "1"):   # (felucca-ble PORTING.md 7: the core's
+        flags.append(f"-DBLE_CONSOLE={os.environ['BLE_CONSOLE']}")         # unit and the BLE unit agree; default 1)
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     flags.append(f'-DFELUCCA_VERSION="{VERSION or drum_version.firmware_string(drum_version.read())}"')
     asm = [("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),

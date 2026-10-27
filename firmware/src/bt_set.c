@@ -11,11 +11,12 @@
  * MODE, so an older firmware reads the MODE it last had), the saved devices (bt_devs.c), this FM-1's Bluetooth address
  * and the radio calibration's copy (bt_devs.c bt_mac, bt_rf_io). Two copies, flash 0x9F000 (the sector after the four
  * projects' 0x97000..0x9EFFF) and 0xFE000 (after the settings' 0xFC000..0xFDFFF), both inside the store's flash window
- * (fm1_flash.h FL_STORE_OK) and used by nothing else: user samples 0xA0000..0xDBFFF, MIDI LEARN and the user presets
- * 0xDC000..0xDFFFF, the update staging 0xE0000.., the stock config store 0xE5000..0xFBFFF (never written; the radio
- * calibration lives there), the loader's update-record sweep only erases sectors whose last 256 bytes hold a record
- * (an erased tail here). A write goes to the copy that is not the newest: erase, the record without its magic, then
- * the magic word last, then read back; a torn write leaves the other copy in charge (the newer valid sequence wins).
+ * (fm1_flash.h FL_STORE_OK) and used by nothing else: user samples 0xA0000..0xD3FFF, the lock banks 0xD4000..0xDBFFF
+ * (0.24.0), MIDI LEARN and the user presets 0xDC000..0xDFFFF, the update staging 0xE0000.., the stock config store
+ * 0xE5000..0xFBFFF (never written; the radio calibration lives there); the loader's update-record sweep only erases
+ * sectors whose last 256 bytes hold a record (an erased tail here). A write goes to the copy that is not the newest:
+ * erase, the record without its magic, then the magic word last, then read back; a torn write leaves the other copy
+ * in charge (the newer valid sequence wins).
  * Its own magic and version; older firmware never reads it. No store yet (a first start of this build): the device the
  * settings record remembers becomes the first saved device (a controller; its name is filled in when a scan sees it,
  * bt_devs_frame), MODE and AUTOSTART are the record's. Written only from the main loop, never while the transport

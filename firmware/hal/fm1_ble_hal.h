@@ -11,6 +11,11 @@
  *   fm1_irq_off_save() / fm1_irq_restore(s)    nesting-safe cli / sti for the BT libraries' local_irq_* */
 #pragma once
 #include <stdint.h>
+#ifndef BLE_CONSOLE                     /* 1 (default): the console's `ble` words and the diagnostics they print; 0: none
+                                          * of them (a fit tool: docs/ble/PORTING.md; the serial logger then reads no BT
+                                          * state) */
+#define BLE_CONSOLE 1
+#endif
 
 #ifdef FM1_CRASH_MAGIC
 /* as fm1_guard_enable's stack part, with the window given: both SSP and USP */
@@ -73,20 +78,28 @@ static uint32_t fm1_clk_hz(uint32_t which)
 }
 
 static volatile uint32_t fm1_ble_irq_depth;
+#if BLE_CONSOLE
 static volatile uint32_t fm1_ble_irq_t0, fm1_ble_irq_max;   /* the outermost off stretch's start; the longest (ticks)
                                                             * (`ble`: irq_off max, read and cleared) */
+#endif
 static inline __attribute__((always_inline)) void fm1_ble_irq_off(void)
 {
     __asm__ volatile("cli" ::: "memory");
+#if BLE_CONSOLE
     if (!fm1_ble_irq_depth++)
         fm1_ble_irq_t0 = fm1_ticks();
+#else
+    fm1_ble_irq_depth++;
+#endif
 }
 static inline __attribute__((always_inline)) void fm1_ble_irq_on(void)
 {
     if (fm1_ble_irq_depth && !--fm1_ble_irq_depth) {
+#if BLE_CONSOLE
         uint32_t d = fm1_ticks() - fm1_ble_irq_t0;
         if (d > fm1_ble_irq_max)
             fm1_ble_irq_max = d;
+#endif
         __asm__ volatile("csync\n\tsti" ::: "memory");
     }
 }

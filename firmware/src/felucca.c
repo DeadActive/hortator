@@ -52,6 +52,10 @@
 #ifndef FELUCCA_BLE
 #define FELUCCA_BLE 0            /* BLE MIDI (firmware/src/ble/, its own unit ble.o): the JieLi BT libraries */
 #endif
+#if FELUCCA_BLE && !defined(BLE_CONSOLE)
+#define BLE_CONSOLE 1            /* the console's ble / fml words and their diagnostics (ble/ble_core.h's default; 0 a
+                                    fit tool: felucca-ble docs/ble/PORTING.md section 7) */
+#endif
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif

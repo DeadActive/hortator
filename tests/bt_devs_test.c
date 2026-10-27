@@ -133,13 +133,14 @@ static void test_sectors(void)
             for (c = 0; c < 2u; c++)
                 clean &= !overlaps(s, 0x1000u, st_sector(o, c), 0x1000u);
         clean &= !overlaps(s, 0x1000u, SMP_USER_BASE, SMP_USER_SLOTS * SMP_USER_SIZE);   /* the user samples */
+        clean &= !overlaps(s, 0x1000u, 0xD4000u, 0x8000u);                             /* the lock banks (0.24.0) */
         clean &= !overlaps(s, 0x1000u, 0xE0000u, 0x5000u);                             /* the update staging */
         clean &= !overlaps(s, 0x1000u, 0xE5000u, 0xFC000u - 0xE5000u);                 /* the stock config store */
         clean &= !overlaps(s, 0x1000u, 0x4000u, 0x93000u - 0x4000u);                   /* the app */
         clean &= s + 0x1000u <= 0xFF000u;                                              /* (below key_mac's sector) */
     }
     ok("sectors: 0x9F000 and 0xFE000, 4 KiB aligned, inside the store's flash window, no other object / the user "
-       "samples / the staging / the stock store / the app", clean && BT_ST_A == 0x9F000u && BT_ST_B == 0xFE000u);
+       "samples / the lock banks / the staging / the stock store / the app", clean && BT_ST_A == 0x9F000u && BT_ST_B == 0xFE000u);
     ok("sectors: the record fits a sector's first two pages", sizeof(bt_st_rec_t) <= 512u);
 }
 
