@@ -55,3 +55,25 @@ static void bt_midi_in(uint32_t pkt)
         bt_in.drops++;
     fm1_irq_on();
 }
+
+/* the main loop (ed_service, before ble_service sends): GLO SYNC / THRU's packets for Bluetooth (midi_out.c mob, filled
+ * by TIMER5) to the linked device, in MIDI mode only (the SMC-Mixer's notes are its LEDs); unlinked, they are dropped */
+static void bt_midi_out(void)
+{
+    uint32_t s = ble_ui_state();
+    mob.linked = (uint8_t)((s == BLE_ST_SUBSCRIBED || s == BLE_ST_RECEIVING) && !bt_mode_now());
+    if (!mob.linked) {
+        mob.r = mob.w;
+        return;
+    }
+    while (mob.r != mob.w && ble_midi_room()) {
+        uint32_t pkt = mob.q[mob.r % MOB_Q], st = (pkt >> 8) & 0xFFu;
+        uint8_t m[3];
+        m[0] = (uint8_t)st;
+        m[1] = (uint8_t)((pkt >> 16) & 0x7Fu);
+        m[2] = (uint8_t)((pkt >> 24) & 0x7Fu);
+        ble_midi_send(m, st >= 0xF0u ? 1u : (st & 0xE0u) == 0xC0u ? 2u : 3u);
+        RING_PUBLISH();
+        mob.r++;
+    }
+}

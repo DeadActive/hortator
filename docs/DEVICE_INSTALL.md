@@ -842,3 +842,37 @@ ACC`).
   changing the tempo: `DISCARD EDITS?`.
 - Following CLK USB (a DAW at 120 BPM): queue variation 2 and slot B: each comes in on the bar's pulse, in time.
 - The keys pressed with SAVE held never sound, never send MIDI, never record (REC ALL on, playing).
+
+### MIDI clock out (SYNC), ROUT, THRU (check on the FM-1)
+
+- Old settings: after the update, GLO SYSTEM 2/3 shows SYNC OFF and ROUT NOTE on every project; GLOBAL 3/3 KNOB 3
+  shows THRU OFF. Notes on the drum channel play as before.
+- SYNC USB into a DAW (Ableton: Preferences > Link/Tempo/MIDI, the Hortator input's Sync on, EXT on; Logic: Project
+  Settings > Synchronization > MIDI, sync to MIDI Clock from Hortator): CLK INT, SYNC USB, a 1/16 hat on the FM-1, PLAY.
+  The DAW starts on the FM-1's first beat and shows its BPM (try 97, 120, 180); a click in the DAW stays with the hat
+  for 5+ minutes; STOP stops the DAW. Turn the BPM knob while playing: the DAW follows. SWING up on the FM-1: the
+  DAW's tempo does not wobble. Tight? If the DAW plays a few ms early, set its sync delay.
+- AUM on an iPad (USB to the iPad): Settings > Sync > MIDI Clock receive from Hortator; AUM's transport starts and
+  stops with PLAY / STOP, its tempo shows the FM-1's.
+- Heavy kit (SYSTEM CPU 50 % or more): the DAW's tempo display stays steady (± a little), no audible flam against
+  the DAW's click.
+- SYNC OFF: the DAW gets no clock (it shows no sync); the FM-1 plays on.
+- Following: CLK TRS with a hardware sequencer on TRS, SYNC USB: the DAW follows the sequencer's tempo, Start and
+  Stop through the FM-1. CLK USB from the DAW, SYNC USB: nothing goes back to the DAW (no loop; the DAW's tempo stays
+  steady).
+- Firmware update with SYNC USB while playing: the installer works as before (nothing in the way); the clock comes back
+  a few seconds after it ends (or after a cancelled update).
+- ROUT SEL: a keyboard on the drum channel (CH) plays the selected track chromatically, C4 its normal pitch; select
+  another track (ALGORITHM): the keyboard now plays that one. Other channels play nothing.
+- ROUT TRACK: a DAW sending channel 1 to track 1 ... channel 8 to track 8; C4 normal pitch, C5 an octave up (a tuned
+  track: TOM, ACID). Channel 10 plays nothing. White keys on the FM-1: the DAW sees notes on channels 1 to 8 at C4;
+  record them and play them back: the same tracks sound.
+- REC armed track while playing with ROUT TRACK or SEL: a played note is recorded with its pitch (STEP REC / the step
+  shows the NOTE).
+- THRU ON, a keyboard on the TRS jack, a DAW on USB: the DAW receives the keyboard's notes and CCs (and the FM-1 still
+  plays them). THRU OFF: the DAW gets only the FM-1's own key notes.
+- Bluetooth version: SYNC BLE with a BLE-MIDI device in MIDI mode that follows clock: it starts and stops with the
+  FM-1 (timing looser than USB). THRU ON: a BLE keyboard's notes reach the DAW over USB; the DAW's notes reach the
+  BLE device. With the SMC-Mixer (SMC DAW mode) nothing but its LEDs is sent.
+- Console (optional): `status` shows `midi_sync`, `midi_thru`, `midi_out_sent`, `midi_out_drops`, `midi_out_fwd`,
+  `midi_out_clocks` (counting while SYNC plays).

@@ -60,7 +60,7 @@ static void shed_voice(void)
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
 {
     uint8_t p;
-    uint32_t t0;
+    uint32_t t0, t1;
     felucca_dbg.in_audio = 1;                   /* (upstream 1.0) first: TIMER5 nests from here on (main.c) */
     p = fm1_audio_pending();
     t0 = fm1_ticks();
@@ -74,6 +74,7 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             shed_req = 0;
             shed_voice();
         }
+        mout_half(t0);                                  /* midi_out.c: SYNC's Clocks are timed from this IRQ */
 #if FELUCCA_UAC
 #if USB8_OK
         if (usb10)
@@ -89,7 +90,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             bench_mute(o);                              /* the DAC: silence */
         fm1_audio_ack_half();
         audio_halves++;
-        us = (fm1_ticks() - t0 - t5_nested_ticks) / FM1_TICKS_PER_US;   /* the render alone */
+        t1 = fm1_ticks();
+        mout_half_done(t1);                             /* .. and the render's end (USB sends again after it) */
+        us = (t1 - t0 - t5_nested_ticks) / FM1_TICKS_PER_US;   /* the render alone */
         if (us > audio_max_us)
             audio_max_us = us;
         if (bench.mode) {                               /* BENCH: timed, never shed */

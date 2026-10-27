@@ -188,6 +188,7 @@ static void ota_commit(const uint8_t *parm)
 static void ed_service(void)
 {
 #if FELUCCA_BLE
+    bt_midi_out();                                      /* SYNC / THRU's Bluetooth packets (bt_midi.c) */
     ble_service();
     smc_frame();                                        /* the SMC-Mixer's LEDs and fader positions (cheap: no change) */
 #endif
@@ -199,24 +200,25 @@ static void ed_service(void)
 #if FELUCCA_BLE
 #include "core_ble_api.c"            /* the BLE unit calls these */
 #endif
-#if USB8_OK
 #define fm1_timer5_irq fm1_timer5_irq_main   /* main.c (frozen) unchanged: its TIMER5 handler wrapped */
-#endif
 #include "main.c"
-#if USB8_OK
 #undef fm1_timer5_irq
-/* MENU > USB AUDIO 10 CH: EP4 polled on every TIMER5 tick (10 kHz), after main.c's handler (usb_app8.c uac8_service:
- * the 920 B packet leaves 0.36 ms of the frame to queue the next one). Same context as usb_poll and the nested
- * uac_service (TIMER5 never nests into itself), so INDEX is never shared; the time spent nested is not the render's.
- * 2 CH: main.c's handler alone, as before. */
+/* Every TIMER5 tick (10 kHz). First GLO SYNC / THRU (midi_out.c mout_tick): what is due goes into the USB out ring
+ * before main.c's handler polls USB (its usb_poll sends it in this tick). Then main.c's handler.
+ * MENU > USB AUDIO 10 CH: EP4 polled on every tick, after main.c's handler (usb_app8.c uac8_service: the 920 B packet
+ * leaves 0.36 ms of the frame to queue the next one). Same context as usb_poll and the nested uac_service (TIMER5 never
+ * nests into itself), so INDEX is never shared; the time spent nested is not the render's. 2 CH: main.c's handler
+ * alone, as before. */
 void fm1_timer5_irq(void)
 {
+    mout_tick(fm1_ticks(), felucca_dbg.in_audio);
     fm1_timer5_irq_main();
+#if USB8_OK
     if (usb10) {
         uint32_t t0 = fm1_ticks();
         uac8_service();
         if (felucca_dbg.in_audio)
             t5_nested_ticks += fm1_ticks() - t0;
     }
-}
 #endif
+}

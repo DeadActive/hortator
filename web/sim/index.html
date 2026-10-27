@@ -125,7 +125,7 @@
         <li data-ctl="LFO"><b>LFO</b> The track's two LFOs, then DEST: what they move.</li>
         <li data-ctl="ENV"><b>ENV</b> STEPS: the white keys are the track's steps on every page, for locks.</li>
         <li data-ctl="SEL"><b>SEL</b> KEYS: the keys play the selected track, a keyboard.</li>
-        <li data-ctl="GLO"><b>GLO</b> A tap: GLOBAL (tempo, swing, clock, MIDI channel, metronome). Hold it: the MUTE
+        <li data-ctl="GLO"><b>GLO</b> A tap: GLOBAL (tempo, swing, clock, MIDI channel, sync, routing, thru, metronome). Hold it: the MUTE
           screen.</li>
         <li data-ctl="SAVE"><b>SAVE</b> PROJECT (save, load and name slots A to D), then TOOLS.</li>
         <li data-ctl="PLAY"><b>PLAY</b> Play and stop; on SONG, the song.</li>
@@ -205,7 +205,9 @@
     <li class="guide" id="m-midi">
       <h3>MIDI, USB audio and LEARN</h3>
       <p>MIDI comes in over USB and the TRS jack: notes on the drum channel (CH, 10 at first) play the tracks whose
-        NOTE matches, and CLK follows a clock from either. MIDI LEARN ties up to 32 controls of a controller to knobs,
+        NOTE matches (ROUT NOTE; SEL plays the selected track and TRACK channels 1 to 8 the eight tracks, pitched), and
+        CLK follows a clock from either. SYNC sends a MIDI clock out over USB for a DAW or AUM to follow, and THRU passes
+        the TRS jack's notes on to USB. MIDI LEARN ties up to 32 controls of a controller to knobs,
         PLAY, REC or PERFORM: hold GLO and press G4, turn a knob (or press PLAY), then move the controller's knob.</p>
       <p>Over USB the FM&#8209;1 is also an audio interface, Hortator, that records into a computer. USB AUDIO in the
         menu sends 2 CH, the stereo master; 10 CH MIX, the master and the eight tracks each on its own; or 10 CH FX, the

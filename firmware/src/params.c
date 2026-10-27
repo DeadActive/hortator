@@ -11,6 +11,12 @@ static const char *const N_CLOCK[] = {"INT", "USB", "TRS",   /* G_CLOCK: = the i
 };
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
+static const char *const N_SYNC[] = {"OFF", "USB",   /* G_SYNC: SY_ bits (midi_out.c; no TRS out on the FM-1) */
+#if FELUCCA_BLE
+                                     "BLE", "BOTH",
+#endif
+};
+static const char *const N_ROUTE[] = {"NOTE", "SEL", "TRACK"};   /* G_ROUTE: RT_ (seq.c midi_block) */
 static const char *const N_SLOT[] = {"-", "A", "B", "C", "D"};   /* G_SLOT 1..4: the project slots A..D */
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
@@ -103,8 +109,8 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CRATE] = PD("CRT", F_LFOHZ, 0, 127, 40),
     [G_CDEPTH] = PD("CDP", F_PCT, 0, 127, 60),
     [G_MIDI] = PE("MIDI", N_DASH, 0),
-    [G_SYNC] = PE("SYNC", N_DASH, 0),
-    [G_ROUTE] = PE("ROUT", N_DASH, 0),
+    [G_SYNC] = PE("SYNC", N_SYNC, 0),
+    [G_ROUTE] = PE("ROUT", N_ROUTE, 0),
     [G_INFO] = PD("CPU", F_INT, 0, 0, 0),
     [G_SLOT] = {"SLOT", F_ENUM, 1, 4, 1, N_SLOT, 0},
     [G_NAME] = PE("NAME", N_DASH, 0),
@@ -134,12 +140,14 @@ static const param_desc_t GP[G_COUNT] = {
     [G_RTYPE] = PE("TYPE", N_RTYPE, 0),
 };
 
-/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE and METRO (G_MUTEBAR, G_METRO: the
- * device settings settings.mutebar, fx_metro); their knob values are song.act, not song.g / projects */
+/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE, METRO and THRU (G_MUTEBAR, G_METRO,
+ * G_THRU: the device settings settings.mutebar, fx_metro, midi_thru); their knob values are song.act, not song.g /
+ * projects */
 static const char *const N_MUTEBAR[] = {"NOW", "BAR"};
 static const char *const N_METRO[] = {"OFF", "LOW", "MID", "HIGH"};
-static const param_desc_t GP_ACT[6] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0),
-                                       PE("METRO", N_METRO, 0), PE("COPY", N_GO, 0), PE("PASTE", N_GO, 0)};
+static const param_desc_t GP_ACT[7] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0),
+                                       PE("METRO", N_METRO, 0), PE("COPY", N_GO, 0), PE("PASTE", N_GO, 0),
+                                       PE("THRU", N_ONOFF, 0)};
 
 /* RESON STRCT on CHORD: the chord type, 0..127 split evenly over N_RCHORD (reson.c rs_chord) */
 static const param_desc_t RS_CHORD_DESC = {"CHORD", F_INT, 0, 127, 0, N_RCHORD, 0};
