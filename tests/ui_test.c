@@ -2560,11 +2560,11 @@ static void test_backlight_leds(void)
     ui.hmode = 1;
     ui.force = 1;
     ui_frame();
-    keys(1u << 3);
+    keys(1u << 20);                                  /* (C#5: G#3 .. the first 8 black keys show the variations) */
     ui_frame();
     check("BACKLIGHT ON, HOME (the keys play): a held key and the selected track's (item 2) full, every other key 5 %",
-          !step_keys() && led_level(14u + 3u) == 100u && led_level(14u + KEY_TRK_KEY[0]) == 100u &&
-          keys_dim_except(1u << 3 | 1u << KEY_TRK_KEY[0]));
+          !step_keys() && led_level(14u + 20u) == 100u && led_level(14u + KEY_TRK_KEY[0]) == 100u &&
+          keys_dim_except(1u << 20 | 1u << KEY_TRK_KEY[0]));
     keys(0);
     ui_frame();
     {                                                /* the MUTE screen: audible tracks' keys full, the rest 5 % */

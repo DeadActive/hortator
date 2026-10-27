@@ -1424,9 +1424,9 @@ static uint32_t slot_var_mask(uint32_t s)
     }
     return 1u | var_fmask.mask[s & 3u];
 }
-/* the cue map's white key n (1..12, ui_leds): slots A..D lit used, winking playing, blinking queued, breathing with
- * unsaved edits; variations 1..8 of the playing slot (of the queued one, if one is) lit used, winking playing, blinking
- * queued */
+/* the cue map's key n (1..12, ui_leds: 1..4 white keys 1..4, 5..12 the black keys F#3 .. A#4): slots A..D lit used,
+ * winking playing, blinking queued, breathing with unsaved edits; variations 1..8 of the playing slot (of the queued
+ * one, if one is) lit used, winking playing, blinking queued */
 static struct { uint8_t mask[4], dirty, used; } cue_map;   /* the map's per-slot state (cue_map_refresh) */
 static void cue_map_refresh(void)                   /* ui_leds, once a frame while the map shows */
 {
@@ -1660,8 +1660,9 @@ static int cue_slot(uint32_t s)
     }
     return cue_queue(s + 1u, 0);
 }
-/* SAVE held + a variation key: queue variation v (0..7) of the queued slot, else of the playing one; again: at the
- * next step; the playing variation's (nothing else queued): cancel. Stopped: at once */
+/* a variation's black key (ui_input.c CUE_BK: SAVE held, or on HOME / the SEQ pages): queue variation v (0..7) of the
+ * queued slot, else of the playing one; again: at the next step; the playing variation's (nothing else queued): cancel.
+ * Stopped: at once */
 static int cue_var(uint32_t v)
 {
     int r = chain_busy() ? CUE_E_SONG : proj_loaded() < 0 ? CUE_E_NOSLOT : 0;

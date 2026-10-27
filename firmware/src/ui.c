@@ -20,9 +20,9 @@ static void proj_load_from(uint32_t slot); /* .. LOAD without the DISCARD EDITS?
 static void project_save_go(uint32_t slot);   /* .. SAVE without the OVERWRITE question */
 static void cue_map_refresh(void);         /* .. the cue map's per-slot state, once a frame */
 static void cue_poll(void);                /* .. a cue's switch finished (the ISR's: cue.c) */
-static int cue_slot(uint32_t s);           /* .. queue slot s / variation v (SAVE held + a white key) */
+static int cue_slot(uint32_t s);           /* .. queue slot s / variation v (SAVE + a white key / a black key) */
 static int cue_var(uint32_t v);
-static int cue_led(uint32_t n);            /* .. the cue map's white key n (1..12): CM_* */
+static int cue_led(uint32_t n);            /* .. the cue map's key n (1..4 slots, 5..12 variations): CM_* */
 static int32_t proj_loaded(void);          /* .. the slot loaded, -1 none */
 static void project_copy(uint32_t s);      /* .. COPY / PASTE of a slot (the COPY page) */
 static void project_paste(uint32_t t);
@@ -115,7 +115,7 @@ static struct {
     uint8_t pg_open, pg_page, pg_home;   /* PERFORM PAGE: the screen open; the page / HOME under it when it opened */
     uint32_t glo_t0;             /* GLO's press time | GLO_DOWN OPEN DEAD PLAIN (ui_input.c glo_input) */
     uint32_t cue_t0;             /* SAVE's press time | CUE_DOWN OPEN DEAD PLAIN (ui_input.c cue_input) */
-    uint8_t cue_map;             /* SAVE held: the cue map (the white keys the slots and variations, spec 2026-10-26) */
+    uint8_t cue_map;             /* SAVE held: the cue map (white keys the slots, black keys the variations, 2026-10-26) */
     uint8_t mute;                /* the MUTE screen shows (GLO held, spec §5) */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */

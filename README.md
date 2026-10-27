@@ -209,11 +209,17 @@ variation and are kept when you cue away and back. While SONG plays a cue is ref
 plays its slot's variation 1. Following an external clock (CLK USB / TRS) the switch comes on the pulse that ends
 the pattern.
 
-**The cue map: hold SAVE** (0.4 s, or press a white key with it). White keys 1–4 queue slots A–D (lit: used,
-winking: playing, blinking: queued, breathing: unsaved edits), white keys 5–12 queue variations 1–8 of the playing
-slot, or of the queued one (lit: used, winking: playing, blinking: queued). A slot key then a variation key (B, then
-3) queues both. The top line reads `CUE A3` (`CUE A3*` with unsaved edits) or what is queued (`CUE>B`, `CUE>B3`,
-`CUE>A5`). The keys pressed with SAVE play no note, send no MIDI and record nothing.
+**The black keys are the variations.** The first 8 black keys from the left (F#3 G#3 A#3 C#4 D#4 F#4 G#4 A#4) queue
+variations 1–8 of the playing slot on HOME (both modes) and the SEQ pages (STEP, PATTERN, MOTION, SONG), with STEPS
+on or off. There the playing variation's black key is lit, a queued one blinks and the rest are dark. With KEYS on,
+on the other pages, on the MUTE screen, under PERFORM, in the menu and in a dialog the black keys do what they did
+before.
+
+**The cue map: hold SAVE** (0.4 s, or press a key with it), on any page. White keys 1–4 queue slots A–D (lit: used,
+winking: playing, blinking: queued, breathing: unsaved edits); the black keys queue variations 1–8 of the playing
+slot, or of the queued one (lit: used, winking: playing, blinking: queued). A slot key then a variation key (white
+key 2, then black key 3) queues both. The top line reads `CUE A3` (`CUE A3*` with unsaved edits) or what is queued
+(`CUE>B`, `CUE>B3`, `CUE>A5`). The keys pressed with SAVE play no note, send no MIDI and record nothing.
 
 **FILL.** A step's PROB goes on past 8/8 to `FILL` and `!FILL`: a FILL step plays only while a fill is held, a !FILL
 step only when none is. **Hold REC** (0.4 s) on any page but SEQ's (STEP, PATTERN, MOTION, SONG: there REC held is

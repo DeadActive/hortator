@@ -6,10 +6,12 @@ released yet are listed under Unreleased.
 ## Unreleased
 
 - **Live cue and variations**: while a pattern plays, queue the next project slot (A–D) or another variation and it
-  comes in exactly where the pattern ends (its longest track's), every track from its first step, in time. Hold
-  SAVE (0.4 s, or press a white key with it) for the cue map: white keys 1–4 queue slots A–D, 5–12 variations 1–8 of
-  the playing slot (lit: used, winking: playing, blinking: queued, breathing: unsaved edits); a slot key then a
-  variation key queues both (`CUE>B3` on top). The same key again switches at the next step; the playing slot's key
+  comes in exactly where the pattern ends (its longest track's), every track from its first step, in time. On HOME
+  and the SEQ pages the first 8 black keys (F#3 to A#4) queue variations 1–8 of the playing slot: the playing one's
+  key lit, a queued one blinking (not with KEYS on; elsewhere the black keys work as before). Hold SAVE (0.4 s, or
+  press a key with it) for the cue map: white keys 1–4 queue slots A–D, the black keys variations 1–8 (lit: used,
+  winking: playing, blinking: queued, breathing: unsaved edits); a slot key then a variation key queues both
+  (`CUE>B3` on top). The same key again switches at the next step; the playing slot's key
   cancels; stopped, a cue switches at once; STOP drops a queued cue. The keys pressed with SAVE play no note, send no
   MIDI and record nothing. A SAVE tap still opens the projects page, now when it is let go.
   - A slot switch brings the slot's sounds, steps, timing and locks; the tempo, swing, clock, MIDI, the master

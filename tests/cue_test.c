@@ -1293,7 +1293,7 @@ static void cue_keys_queue(void)
     ui_frame();
     fm1_in.buttons |= 1u << panel.btn[B_SAVE];
     ui_frame();
-    keys((1u << STEP_KEY[1]) | (1u << STEP_KEY[6]));  /* + key 7: variation 3 */
+    keys((1u << STEP_KEY[1]) | (1u << 5));            /* + black key 3 (A#3): variation 3 */
     ui_frame();
     ui_frame();
     OK(ui.cue_map && cue.q_slot == 2u && cue.q_var == 3u && !cue.now);
@@ -1308,7 +1308,231 @@ static void cue_keys_queue(void)
     ui_frame();
     OK(!ui.cue_map && ui.home == home && ui.page == pg);   /* (no projects page: the map was used) */
     stop();
-    check("SAVE + key 2 then key 7: B and its variation 3 queued; key 2 again: at the next step", (int)ok);
+    check("SAVE + key 2 then black key 3: B and its variation 3 queued; key 2 again: at the next step", (int)ok);
+}
+
+/* ---- the black keys cue variations (2026-10-27): the first 8 black keys from F#3 (key index from F3: F#3 G#3 A#3
+ * C#4 D#4 F#4 G#4 A#4) are variations 1..8 of the playing slot on HOME (both modes), TRACKS and the SEQ pages; SAVE
+ * held: white keys 1..4 the slots, the black keys the variations (white keys 5..12 no longer) */
+static const uint8_t BK[8] = {1, 3, 5, 8, 10, 13, 15, 17};
+static int key_led(uint32_t k)                        /* key k's LED lit (ui_leds' last frame) */
+{
+    uint32_t q = led_pos[14u + k];
+    return q != 0xFF && (((led_dim_on ? led_lay[q >> 3] : fm1_led[q >> 3]) >> (q & 7u)) & 1u);
+}
+static uint32_t page_named(const char *n)
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (str_eq(PAGES[i].title, n))
+            return i;
+    return 0;
+}
+enum { PG_HOME, PG_TRACKS, PG_STEP, PG_PATTERN, PG_MOTION, PG_SONG, PG_OK_N,   /* the black keys' pages */
+       PG_SOUND = PG_OK_N, PG_FX, PG_LFO, PG_COMP, PG_GLOBAL, PG_PROJECT, PG_GRIDS, PG_N };
+static const char *const PG_NAME[PG_N] = {"HOME", "TRACKS", "STEP", "PATTERN", "MOTION", "SONG",
+                                          "SOUND", "FX", "LFO", "COMP", "GLOBAL", "PROJECT", "GRIDS"};
+static void go_page(uint32_t p)
+{
+    if (p == PG_HOME) {
+        home_screen();
+    } else if (p == PG_TRACKS) {
+        home_tracks();
+    } else {
+        ui.page = (uint8_t)page_named(PG_NAME[p]);
+        ui.home = 0;
+        page_entered();
+    }
+    ui_frame();
+}
+static void black(uint32_t v)                         /* black key v (variation v + 1) tapped */
+{
+    keys(1u << BK[v]);
+    ui_frame();
+    keys(0);
+    ui_frame();
+}
+static void cue_black_keys_queue(void)
+{
+    uint32_t ok = 1, p, env;
+    for (env = 0; env < 2u; env++)
+        for (p = 0; p < PG_OK_N; p++) {
+            two_slots();
+            play();
+            release_all();
+            ui.env = (uint8_t)env;                    /* STEPS mode too */
+            go_page(p);
+            black(2);                                 /* A#3: variation 3 queued */
+            if (!(cue.q_var == 3u && !cue.q_slot && !cue.now && var_cur == 0u && proj_loaded() == 0)) {
+                printf("     %s%s: q_var %u q_slot %u now %u var %u\n", PG_NAME[p], env ? " (STEPS)" : "", cue.q_var,
+                       cue.q_slot, cue.now, var_cur);
+                OK(0);
+            }
+            black(2);                                 /* again: at the next step */
+            OK(cue.now == 1u || (!cue.q_var && var_cur == 2u));
+            black(0);                                 /* variation 1, the playing one: cancels */
+            OK(!cue.q_var && (var_cur == 0u || var_cur == 2u));
+            stop();
+        }
+    two_slots();                                      /* stopped: at once */
+    release_all();
+    go_page(PG_HOME);
+    black(2);
+    OK(var_cur == 2u && !cue.q_var);
+    black(0);
+    OK(var_cur == 0u && !cue.q_var);
+    play();                                           /* SONG plays: refused as before */
+    chain.running = 1;                                /* (the input alone: no song's rows to draw) */
+    keys(1u << BK[2]);
+    ui_input();
+    keys(0);
+    ui_input();
+    OK(!cue.q_var && str_eq(ui.msg, "STOP SONG TO CUE"));
+    chain.running = 0;
+    stop();
+    check("black keys: F#3 .. A#4 queue variations 1..8 on HOME, TRACKS, STEP, PATTERN, MOTION, SONG (STEPS on or "
+          "off); again: at the next step; stopped: at once; SONG: STOP SONG TO CUE", (int)ok);
+}
+static void cue_black_keys_elsewhere(void)
+{
+    uint32_t ok = 1, p, i;
+    for (p = PG_OK_N; p < PG_N; p++) {               /* the other pages: the black keys keep their jobs (none) */
+        two_slots();
+        play();
+        release_all();
+        go_page(p);
+        black(2);
+        if (cue.q_var || var_cur) {
+            printf("     %s: q_var %u var %u\n", PG_NAME[p], cue.q_var, var_cur);
+            OK(0);
+        }
+        stop();
+    }
+    two_slots();                                      /* KEYS: the black keys play the track */
+    play();
+    release_all();
+    go_page(PG_HOME);
+    keys_toggle();
+    ui_frame();
+    keys(1u << BK[2]);
+    ui_frame();
+    OK(!cue.q_var && kz.key == BK[2] + 1u);
+    keys(0);
+    ui_frame();
+    keys_toggle();
+    go_page(PG_STEP);                                 /* KEYS on a SEQ page too */
+    keys_toggle();
+    ui_frame();
+    black(2);
+    OK(!cue.q_var);
+    keys_toggle();
+    ui_frame();
+    for (i = 0; i < 2u; i++) {                        /* GLO held (the MUTE screen), FX held (PERFORM) */
+        uint32_t b = i ? B_FX : B_GLO;
+        go_page(i ? PG_STEP : PG_HOME);
+        press(b);
+        ui_frame();
+        fm1_in.buttons |= 1u << panel.btn[b];
+        keys(1u << BK[2]);
+        ui_frame();
+        fm1_in.buttons |= 1u << panel.btn[b];
+        ui_frame();
+        keys(0);
+        fm1_in.buttons |= 1u << panel.btn[b];
+        ui_frame();
+        OK(!cue.q_var && var_cur == 0u);
+        release_all();
+        ui_frame();
+        ui_frame();
+    }
+    ui.menu = 1;                                      /* the menu */
+    ui_frame();
+    black(2);
+    OK(!cue.q_var);
+    ui.menu = 0;
+    stop();
+    check("black keys: no cue on SOUND, FX, LFO, COMP, GLOBAL, PROJECT, GRIDS, under KEYS, the MUTE screen, PERFORM "
+          "or the menu", (int)ok);
+}
+static void cue_black_leds(void)
+{
+    uint32_t ok = 1, v, i, on = 0, off = 0;
+    two_slots();
+    play();
+    release_all();
+    go_page(PG_HOME);
+    OK(key_led(BK[0]) && key_led(KEY_TRK_KEY[0]));   /* variation 1 playing lit; the selected track's key still */
+    for (v = 1; v < 8u; v++)
+        OK(!key_led(BK[v]));                          /* (variation 3 used: dark too, no dim level) */
+    black(2);
+    for (i = 0; i < 12u; i++) {                       /* the queued one blinks, the playing one stays lit */
+        host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+        ui_leds();
+        on += (uint32_t)key_led(BK[2]);
+        off += (uint32_t)!key_led(BK[2]);
+        OK(key_led(BK[0]));
+    }
+    OK(on && off);
+    go_page(PG_STEP);                                 /* STEP: the steps on the white keys, the variations on the black */
+    trk[0].step[0].on = 1;
+    trk[0].step[1].on = 0;
+    ui_frame();
+    OK(key_led(BK[0]) && !key_led(BK[1]) && key_led(STEP_KEY[1]) == (song.playing && view_idx(&trk[0]) == 1u));
+    go_page(PG_SOUND);                                /* elsewhere: the black keys as before (dark) */
+    OK(!key_led(BK[0]));
+    go_page(PG_HOME);
+    keys_toggle();                                    /* KEYS: the keyboard's (the keys held lit) */
+    ui_frame();
+    OK(!key_led(BK[0]));
+    keys_toggle();
+    stop();
+    check("black keys' LEDs: the playing variation lit, a queued one blinking, the rest dark; the step keys and the "
+          "selected track's key as before; not elsewhere or under KEYS", (int)ok);
+}
+static void cue_save_black(void)
+{
+    uint32_t ok = 1, v;
+    uint32_t save = 1u << panel.btn[B_SAVE];
+    two_slots();
+    play();
+    release_all();
+    go_page(PG_SOUND);                                /* (SAVE held works on any page, as before) */
+    press(B_SAVE);
+    ui_frame();
+    fm1_in.buttons |= save;
+    keys(1u << STEP_KEY[6]);                          /* SAVE + white key 7: no longer a variation */
+    ui_frame();
+    fm1_in.buttons |= save;
+    ui_frame();
+    OK(ui.cue_map && !cue.q_var && !cue.q_slot);
+    keys(0);
+    fm1_in.buttons |= save;
+    ui_frame();
+    for (v = 4; v < 12u; v++)                         /* the cue map: white keys 5..12 dark */
+        OK(!key_led(STEP_KEY[v]));
+    OK(key_led(BK[2]));                               /* .. the black keys the variations (3 used: lit) */
+    keys(1u << STEP_KEY[1]);                          /* + white key 2: slot B */
+    fm1_in.buttons |= save;
+    ui_frame();
+    keys(0);
+    fm1_in.buttons |= save;
+    ui_frame();
+    keys(1u << BK[2]);                                /* + black key 3: B3 */
+    fm1_in.buttons |= save;
+    ui_frame();
+    keys(0);
+    fm1_in.buttons |= save;
+    ui_frame();
+    OK(cue.q_slot == 2u && cue.q_var == 3u && !cue.now);
+    {
+        char b[24];
+        head_mode(b);
+        OK(str_eq(b, "CUE>B3"));
+    }
+    release_all();
+    ui_frame();
+    stop();
+    check("SAVE held: white key 2 then black key 3 queues B3 (CUE>B3); white keys 5..12 no longer cue", (int)ok);
 }
 
 /* ---- Task 7: FILL / !FILL steps through a project save and load (and a variation) */
@@ -1737,6 +1961,10 @@ int main(void)
     cue_map_leds();
     cue_top_line();
     cue_keys_queue();
+    cue_black_keys_queue();
+    cue_black_keys_elsewhere();
+    cue_black_leds();
+    cue_save_black();
     fill_steps_saved();
     paste_copies_all();
     paste_refused_playing();

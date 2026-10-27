@@ -737,6 +737,8 @@ async function simCue() {
   const seq = page.slice(page.indexOf('id="f-seq"'), page.indexOf('data-piece="seq"'));
   ok(/variation/i.test(seq) && /FILL/.test(seq) && /COPY/.test(seq) && /PASTE/.test(seq),
     "sim: the features' steps chapter names variations, FILL and COPY / PASTE");
+  ok(/black keys? variation/i.test(save.tip || "") && !/5-12/.test(save.tip || "") && /black keys queue a variation/i.test(seq) &&
+    !/5–12/.test(seq), "sim: the variations are on the black keys (SAVE's tip, the steps chapter), no longer keys 5-12");
 }
 
 await simLocks();

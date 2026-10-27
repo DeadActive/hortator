@@ -34,6 +34,19 @@ static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 /* fixes 2026-10-21 item 1: OCT+ where the keys are steps: 1 pressed (let go alone: the next bank), 2 a step key
  * accented with it (let go: nothing); 0 not held there (ui_input acc_oct_poll) */
 static uint8_t acc_oct;
+/* the black keys cue variations (2026-10-27): the first 8 black keys from F#3 (key index from F3: F#3 G#3 A#3 C#4 D#4
+ * F#4 G#4 A#4) queue variations 1..8 of the playing slot (project.c cue_var) on HOME (both modes) and the SEQ pages
+ * (STEP, PATTERN, MOTION, SONG), STEPS on or off; not under KEYS, the menu, a dialog, NAME, the PRESETS list, the MUTE
+ * screen or PERFORM, nor on the other pages (the black keys keep their jobs there). Their LEDs there: the playing
+ * variation lit, a queued one blinking, the rest dark (no dim level: the dim layers are MENU BACKLIGHT's). SAVE held
+ * (the cue map, every page it opens on): the same keys, of the queued slot if one is (cue_keys) */
+static const uint8_t CUE_BK[8] = {1, 3, 5, 8, 10, 13, 15, 17};
+#define CUE_BK_MASK 0x2A52Au                        /* (their bits) */
+static int cue_bk_page(void)
+{
+    return !ui.menu && !ui.confirm && !ui.mute && !ui.layer && !ui.fx_t0 && !name_on() && !pl_on() && !keys_mode() &&
+           (ui.home || cur_page()->fam == FAM_SEQ || cur_page()->fam == FAM_MIX);
+}
 /* things the boot found that the first frames say, once each (project.c persist_boot): USR2 / USR3 shortened to 48 KiB,
  * a lock bank lost (spec 2026-10-24 parameter locks), the variations' (spec 2026-10-26) */
 #define PN_USR3 1u
@@ -182,6 +195,7 @@ static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0}, nb[FM1_NCOL] = {0};
     uint32_t k, fam = cur_fam(), beats = 0;           /* beats: the keys of steps 1 5 9 13 (step keys) */
+    uint32_t bk = !ui.cue_map && cue_bk_page() ? CUE_BK_MASK : 0u;   /* the black keys show the variations */
     static uint8_t ready;
     if (safe_start) {                                 /* safe start: LEDs off */
         uint32_t c0;
@@ -200,14 +214,16 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ui.srec);
     led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
     led_put(nl, panel.btn[B_ENV], ui.env);            /* STEPS (spec 2026-10-24) */
-    if (ui.cue_map) {                                 /* SAVE held: the cue map (project.c cue_led) */
+    if (ui.cue_map) {                                 /* SAVE held: the cue map (project.c cue_led): white keys
+                                                       * 1..4 the slots, the black keys (CUE_BK) the variations */
         uint32_t ms = fm1_ticks() / (1000u * FM1_TICKS_PER_US);
         cue_map_refresh();
         int blink = (int)((ms / 250u) & 1u), wink = (ms % 1000u) >= 125u;
         for (k = 0; k < 12u; k++) {
             int c = cue_led(k + 1u);
-            led_put(nl, 14u + STEP_KEY[k], c == CM_ON || (c == CM_WINK && wink) || (c == CM_BLINK && blink));
-            led_put(nb, 14u + STEP_KEY[k], c == CM_BREATHE);
+            uint32_t key = k < 4u ? STEP_KEY[k] : CUE_BK[k - 4u];
+            led_put(nl, 14u + key, c == CM_ON || (c == CM_WINK && wink) || (c == CM_BLINK && blink));
+            led_put(nb, 14u + key, c == CM_BREATHE);
         }
         led_put(nl, panel.btn[B_SAVE], 1);
     } else if (ui.mute) {                             /* MUTE screen: the tracks' keys lit while audible, blinking
@@ -253,13 +269,19 @@ static void ui_leds(void)
     } else if (track_keys()) {                        /* HOME, EDIT, FX, LFO: the selected track's key (item 2) */
         led_put(nl, 14u + KEY_TRK_KEY[song.sel % NTRK], 1);
         for (k = 0; k < 27u; k++)
-            led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
+            led_put(nl, 14u + k, (int)(((fm1_in.notes & ~bk) >> k) & 1u));
     } else if (keys_mode()) {                         /* KEYS: the keys held lit (OCT- / OCT+: oct_leds) */
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
     } else {
         for (k = 0; k < 27u; k++)
-            led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
+            led_put(nl, 14u + k, (int)(((fm1_in.notes & ~bk) >> k) & 1u));
+    }
+    if (bk) {                                         /* the black keys: the playing variation lit, a queued one
+                                                       * blinking (cue_bk_page) */
+        int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
+        for (k = 0; k < 8u; k++)
+            led_put(nl, 14u + CUE_BK[k], cue.q_var == k + 1u ? blink : k == var_cur && proj_loaded() >= 0);
     }
     k = oct_leds();                                   /* OCT- / OCT+: lit, or breathing (item 5) */
     led_put(nl, panel.btn[B_OCTDN], (int)(k & OCT_LIT_DN));
@@ -794,9 +816,9 @@ static void glo_input(uint32_t now, uint32_t notes)
 }
 
 /* SAVE (spec 2026-10-26, the live cue): a tap opens the projects page on its release (as FX / GLO); held 0.4 s, or
- * pressed with a white key, the cue map: white keys 1..4 queue slots A..D, 5..12 variations 1..8 (project.c cue_slot /
- * cue_var), the top line CUE A1 / CUE>B3; its release then does nothing else. Every key pressed with SAVE is the
- * map's until let go (seq.c keyboard_block, mute_mask: no note, no MIDI, nothing recorded). Pressed in the menu, a
+ * pressed with a key, the cue map: white keys 1..4 queue slots A..D, the black keys F#3 .. A#4 (CUE_BK) variations 1..8
+ * (project.c cue_slot / cue_var; 2026-10-27: no longer white keys 5..12), the top line CUE A1 / CUE>B3; its release
+ * then does nothing else. Every key pressed with SAVE is the map's until let go (seq.c keyboard_block, mute_mask: no note, no MIDI, nothing recorded). Pressed in the menu, a
  * confirm, NAME, the PRESETS list or the MUTE screen: dead until let go; with the PERFORM layer up or FX held: a plain
  * button (the release opens the projects page) */
 /* FILL (spec 2026-10-26): REC held FILL_HOLD_MS on any page but SEQ's (STEP, PATTERN, MOTION, SONG: there REC held is
@@ -830,16 +852,15 @@ static int cue_owns_keys(void)                         /* SAVE held (GLO not): t
     return ((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u) && !((fm1_in.buttons >> panel.btn[B_GLO]) & 1u) &&
            !(ui.cue_t0 & (CUE_DEAD | CUE_PLAIN)) && !cue_dead() && !ui.layer && !ui.fx_t0;
 }
-static void cue_keys(uint32_t hits)                    /* white key n: STEP_KEY[n - 1] */
+static void cue_keys(uint32_t hits)                    /* white key n: STEP_KEY[n - 1]; black key v: CUE_BK[v - 1] */
 {
     uint32_t n;
-    for (n = 0; n < 12u; n++)
-        if ((hits >> STEP_KEY[n]) & 1u) {
-            if (n < 4u)
-                (void)cue_slot(n);
-            else
-                (void)cue_var(n - 4u);
-        }
+    for (n = 0; n < 4u; n++)
+        if ((hits >> STEP_KEY[n]) & 1u)
+            (void)cue_slot(n);
+    for (n = 0; n < 8u; n++)
+        if ((hits >> CUE_BK[n]) & 1u)
+            (void)cue_var(n);
 }
 static void cue_input(uint32_t now, uint32_t notes)
 {
@@ -1355,6 +1376,10 @@ static void ui_input(void)
             if ((notes >> KEY_TRK_KEY[k]) & 1u)         /* (it plays it too: seq.c reads the keys itself) */
                 track_select(k);
     }
+    if (cue_bk_page())                                  /* the black keys: variations 1..8 (2026-10-27) */
+        for (k = 0; k < 8u; k++)
+            if ((notes >> CUE_BK[k]) & 1u)
+                (void)cue_var(k);
     if ((s = panel_enc(EN_PRESET)) != 0 && (fx_knobs || ui.layer)) {
         /* PERFORM up: no preset loaded under it (item 7; the turn dropped) */
     } else if (s) {                                     /* PRESETS: each detent the next / previous preset, loaded */
