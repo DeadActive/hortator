@@ -71,7 +71,7 @@ for line in (log.read_text(encoding="utf-8").splitlines() if log.exists() else [
     elif cur is not None and line.startswith("  ") and cur["notes"]:
         cur["notes"][-1] += " " + line.strip()
 def note(text):                                   # a short title: the words before the first colon or bracket
-    text = text.replace("`", "")
+    text = text.replace("`", "").replace("**", "")      # plain text: no code marks, no bold
     head = re.split(r"[:(]", text, maxsplit=1)[0].strip()
     title = head if 0 < len(head) <= 48 else " ".join(text.split()[:5])
     return {"title": title, "text": text}

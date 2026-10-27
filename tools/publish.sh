@@ -68,9 +68,8 @@ for line in open(log, encoding="utf-8"):
 owner, name = repo.split("/")
 print("\n".join(out).strip() or "(no notes)")
 print()
-print(f"Install: https://{owner.lower()}.github.io/{name}/webapp/installer/ (Chrome or Edge, USB), or "
-      "tools/fm1_install.py with the .fwsc below. The package holds JieLi SDK files under Apache-2.0: LICENSING.md, "
-      "LICENSES.zip.")
+print(f"Install: https://{owner.lower()}.github.io/{name}/webapp/installer/ (Chrome or Edge, over USB). The package "
+      "holds JieLi SDK files under Apache-2.0: see LICENSING.md and LICENSES.zip below.")
 if ble == "1":
     print()
     print(f"Two versions: hortator-{v}.fwsc, and hortator-{v}-bluetooth.fwsc, the same Hortator with Bluetooth MIDI "
