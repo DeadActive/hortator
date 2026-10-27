@@ -2427,6 +2427,55 @@ static void test_global_metro_setting(void)
     fx_metro = 0;
 }
 
+/* GLO SYSTEM 2/3: KNOB 2 SYNC (MIDI clock out: OFF USB, + BLE BOTH in the Bluetooth build), KNOB 3 ROUT (MIDI in:
+ * NOTE SEL TRACK), project globals; GLOBAL 3/3 KNOB 3: THRU OFF / ON, the device setting midi_thru (midi_out.c) */
+static void test_glo_midi_settings(void)
+{
+    uint32_t k, ok = 1;
+    int16_t *vp;
+    const param_desc_t *d;
+    char v[12];
+    const char *u;
+    ui_host_init();
+    midi_thru = 0;
+    for (k = 0; k < 6u && (ui.home || cur_page()->id[1] != G_SYNC); k++)
+        tap(B_GLO);
+    d = page_desc(cur_page(), 1, &vp);
+    check("GLO SYSTEM: KNOB 2 is SYNC, OFF", d && str_eq(d->label, "SYNC") && vp == &song.g[G_SYNC] && *vp == 0);
+    param_format(d, 0, v, &u);
+    ok &= str_eq(v, "OFF");
+    param_format(d, 1, v, &u);
+    ok &= str_eq(v, "USB");
+    check("SYNC values: OFF USB (no TRS out on the FM-1)", ok && d->max == 1);
+    turn(EN_K2, 1);
+    ui_frame();
+    check("SYNC: KNOB 2 -> USB", song.g[G_SYNC] == 1);
+    d = page_desc(cur_page(), 2, &vp);
+    check("GLO SYSTEM: KNOB 3 is ROUT, NOTE", d && str_eq(d->label, "ROUT") && vp == &song.g[G_ROUTE] && *vp == 0);
+    turn(EN_K3, 1);
+    ui_frame();
+    param_format(d, song.g[G_ROUTE], v, &u);
+    check("ROUT: KNOB 3 -> SEL", song.g[G_ROUTE] == 1 && str_eq(v, "SEL"));
+    turn(EN_K3, 5);
+    ui_frame();
+    param_format(d, song.g[G_ROUTE], v, &u);
+    check("ROUT: up to TRACK at the end", song.g[G_ROUTE] == 2 && str_eq(v, "TRACK"));
+    snap_page("fixes/glo_system_sync_rout");
+    for (k = 0; k < 6u && (ui.home || cur_page()->id[0] != G_MUTEBAR); k++)
+        tap(B_GLO);
+    d = page_desc(cur_page(), 2, &vp);
+    check("GLOBAL 3/3: KNOB 3 is THRU, OFF", d && str_eq(d->label, "THRU") && vp && *vp == 0);
+    turn(EN_K3, 1);
+    ui_frame();
+    check("THRU: KNOB 3 -> ON (the setting; the knob shows it)", midi_thru == 1u && song.act[4] == 1);
+    snap_page("fixes/global_3_thru");
+    turn(EN_K3, -1);
+    ui_frame();
+    check("THRU: back OFF", midi_thru == 0u && song.act[4] == 0);
+    check("THRU leaves MUTE and METRO alone", song.act[2] == (int16_t)settings.mutebar && song.act[3] == (int16_t)fx_metro);
+    song.g[G_SYNC] = song.g[G_ROUTE] = 0;
+}
+
 static void test_clear_confirm(void)
 {
     uint32_t i;
@@ -9688,6 +9737,7 @@ int main(void)
     test_select_pages();
     test_global_mute_setting();
     test_global_metro_setting();
+    test_glo_midi_settings();
     test_comp_pages();
     test_comp_ghost_knob();
     test_comp_keys();

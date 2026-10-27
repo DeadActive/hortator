@@ -5,6 +5,20 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **MIDI clock out**: GLO SYSTEM 2/3 SYNC sends the MIDI clock to USB (OFF / USB; in the Bluetooth version also BLE
+  and BOTH). On the FM-1's own clock PLAY sends Start, then 24 clocks a quarter note on the sequencer's grid (steady
+  through tempo changes, never swung), and STOP sends Stop, so a DAW, AUM or another instrument can follow it.
+  Following a clock (CLK USB, TRS or BLE), the incoming clock and Start / Stop / Continue go on to the SYNC outputs
+  as they arrive, never back to where they came from. Nothing is sent during a firmware update. The FM-1's TRS jack
+  is an input only, so there is no TRS out.
+- **MIDI in routing**: GLO SYSTEM 2/3 ROUT chooses how incoming notes play: NOTE (as before: on the drum channel, the
+  tracks whose NOTE it is), SEL (on the drum channel, the selected track, pitched from C4) or TRACK (channels 1–8
+  play tracks 1–8, pitched from C4). Pitched notes into an armed track are recorded with their pitch. With TRACK the
+  white keys send on their track's channel at C4.
+- **MIDI THRU**: GLOBAL 3/3 THRU ON passes notes and CCs from each MIDI input to the other outputs (the TRS jack to
+  USB; Bluetooth and USB to each other in the Bluetooth version), never back to the input. It is a setting of the
+  FM-1, kept over power-off.
+- SYNC and ROUT are saved with each project; projects saved before load SYNC OFF and ROUT NOTE, and THRU starts OFF.
 - **Live cue and variations**: while a pattern plays, queue the next project slot (A–D) or another variation and it
   comes in exactly where the pattern ends (its longest track's), every track from its first step, in time. On HOME
   and the SEQ pages the first 8 black keys (F#3 to A#4) queue variations 1–8 of the playing slot: the playing one's

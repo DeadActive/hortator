@@ -287,6 +287,94 @@ static int usb_audio_persists(void)
     return ok;
 }
 
+/* GLOBAL 3/3 THRU (midi_out.c midi_thru) survives a power cycle in bit 14 of the stored palette word, the other bits as
+ * they were; a record without it (every older one) and none read OFF */
+static int thru_persists(void)
+{
+    int ok = 1;
+    uint32_t t, low = 0;
+    for (t = 0; t < 2u; t++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = THEME_TAG | 2u;
+        btset.bt_auto = 1;
+        backlight = BL_DIM_HI;
+        fx_metro = 2;
+        midi_thru = (uint8_t)t;
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= ((p.palette >> 14) & 1u) == t && p.palette >> 15 == 0u;
+        if (!t)
+            low = p.palette & 0x3FFFu;
+        else
+            ok &= (p.palette & 0x3FFFu) == low;
+        rfill(&settings, sizeof settings);           /* power off */
+        midi_thru = 7;
+        fx_metro = 0;
+        persist_boot();
+        settings_init();
+        ok &= midi_thru == t && fx_metro == 2u && btset.bt_auto == 1u && backlight == BL_DIM_HI &&
+              settings.palette == (THEME_TAG | 2u);
+    }
+    {   /* an older record: OFF; no record: OFF */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.palette = 2u | 1u << 8 | (uint32_t)BL_DIM_LO << 9 | 1u << 12;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        midi_thru = 1;
+        persist_boot();
+        ok &= midi_thru == 0u;
+        memset(hflash, 0xFF, sizeof hflash);
+        midi_thru = 1;
+        persist_boot();
+        ok &= midi_thru == 0u;
+    }
+    return ok;
+}
+
+/* GLO SYNC / ROUT are project globals: a project saved before them (0) loads SYNC OFF, ROUT NOTE; ROUT kept in its
+ * range; SYNC as this build has it (without Bluetooth: BLE OFF, BOTH USB) and a loaded slot shows no edit for it */
+static int sync_rout_load(void)
+{
+    project_t *p = &proj_slot[0];
+    uint32_t ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    project_save(0);
+    ok &= p->g[G_SYNC] == 0 && p->g[G_ROUTE] == 0;
+    song.g[G_SYNC] = 1;
+    song.g[G_ROUTE] = 2;
+    (void)proj_load(0, 1);
+    ok &= song.g[G_SYNC] == 0 && song.g[G_ROUTE] == 0;
+    p->g[G_ROUTE] = 2;
+    p->g[G_SYNC] = 1;
+    p->sum = proj_sum(p);
+    (void)proj_load(0, 1);
+    ok &= song.g[G_SYNC] == 1 && song.g[G_ROUTE] == 2;
+    p->g[G_ROUTE] = 9;
+    p->g[G_SYNC] = 3;                                /* BOTH (the Bluetooth build's): USB */
+    p->sum = proj_sum(p);
+    (void)proj_load(0, 1);
+    ok &= song.g[G_SYNC] == 1 && song.g[G_ROUTE] == 2 && !live_globals_edited();
+    p->g[G_SYNC] = 2;                                /* BLE: OFF */
+    p->sum = proj_sum(p);
+    (void)proj_load(0, 1);
+    ok &= song.g[G_SYNC] == 0 && !live_globals_edited();
+    p->g[G_SYNC] = -1;
+    p->sum = proj_sum(p);
+    (void)proj_load(0, 1);
+    return (int)(ok & (song.g[G_SYNC] == 0));
+}
+
 /* a settings record longer than ours (another firmware's, same marker): the defaults, not a half-read record */
 static int settings_oversize_refused(void)
 {
@@ -2466,6 +2554,10 @@ int main(void)
     check("settings: AUTOSTART survives a power cycle in the palette word's bit 8 (the palette, SPEAKER EQ, BACKLIGHT, "
           "the device kept); an older record and none load OFF", settings_autostart_round_trip());
     check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
+    check("settings: MIDI THRU survives a power cycle (palette bit 14, the rest kept); older records, none: OFF",
+          thru_persists());
+    check("project: SYNC / ROUT load OFF / NOTE from older projects; ROUT in range; SYNC BLE / BOTH without Bluetooth: "
+          "OFF / USB", sync_rout_load());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
     check("project: PRIO kept through a save and a load (FDRE)", fdrc_round_trip());
     check("project: FDR1, FDRA and FDRB records load with PRIO HIGH and play as the FDRC save", old_formats_play_same());

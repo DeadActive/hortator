@@ -594,6 +594,11 @@ static void edit_param(uint32_t slot, int32_t steps)
         settings_save();
         return;
     }
+    if (pg->scope == SC_GLOBAL && id == G_THRU) {     /* THRU: the device setting (midi_out.c), saved */
+        midi_thru = (uint8_t)v;
+        settings_save();
+        return;
+    }
     if (!v || pg->scope != SC_GLOBAL)
         return;
     if ((id == G_CLRSEQ || id == G_CLRALL || id == G_INITALL) && song_lock()) {
@@ -1261,6 +1266,7 @@ static void ui_input(void)
     persist_note_show();                                /* USR3 SHORTENED TO 48K, LOCKS LOST (persist_boot) */
     song.act[2] = (int16_t)settings.mutebar;
     song.act[3] = (int16_t)fx_metro;
+    song.act[4] = (int16_t)midi_thru;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
         while (ui.page > page_first(FAM_SND) && page_hidden(ui.page))

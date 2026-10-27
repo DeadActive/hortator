@@ -2,8 +2,9 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Drum machine fork: 2026 DEADACTIVE */
 /* Drum sequencer and input. 8 tracks x 64 steps (hit / accent / PROB / RATCH), per-track length, division and swing.
- * The 8 white keys F3..F4 hit tracks 1..8; MIDI notes on the drum channel hit every track whose NOTE
- * matches; an armed track records hits into the nearest step while playing. Runs in the audio ISR
+ * The 8 white keys F3..F4 hit tracks 1..8; MIDI notes play by GLO ROUT (midi_block): NOTE, those on the drum channel
+ * hit every track whose NOTE matches; SEL, the selected track, pitched; TRACK, channel 1..8 track 1..8, pitched (upstream
+ * Felucca's ROUT SEL / CH1-4, for 8 tracks); an armed track records hits into the nearest step while playing. Runs in the audio ISR
  * before each block (events_block). Grids (grids.c) runs on its own 1/32 clock and plays the tracks whose SRC
  * is one of its channels. KEYS (seq_mode 3): the keys play the selected track chromatically (keys_on). */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
@@ -457,14 +458,18 @@ static void keyboard_block(void)
                                                      * (seq_mode 2): the keys play and record */
     }
     for (i = 0; ch && i < NTRK; i++) {
-        uint32_t k = KEY_TRK_KEY[i], note = (uint32_t)trk[i].p[P_NOTE] & 127u;
+        uint32_t k = KEY_TRK_KEY[i], note = (uint32_t)trk[i].p[P_NOTE] & 127u, mc = drum_ch();
         if (!((ch >> k) & 1u))
             continue;
+        if (song.g[G_ROUTE] == RT_TRACK) {          /* ROUT TRACK: the track's channel, C4 (as it plays back) */
+            mc = i;
+            note = 60u;
+        }
         if ((cur >> k) & 1u) {
             input_hit(&trk[i], 100u);
-            midi_out_event(0x09u | (0x90u | drum_ch()) << 8 | note << 16 | 100u << 24);
+            midi_out_event(0x09u | (0x90u | mc) << 8 | note << 16 | 100u << 24);
         } else {
-            midi_out_event(0x08u | (0x80u | drum_ch()) << 8 | note << 16);
+            midi_out_event(0x08u | (0x80u | mc) << 8 | note << 16);
         }
     }
 }
@@ -481,6 +486,20 @@ static void midi_clock_transport(uint32_t status, uint32_t ms);
 static void learn_cc(uint32_t cc, uint32_t v);                /* midi_learn.c: MIDI LEARN */
 static int learn_note(uint32_t n, uint32_t on);
 static void learn_block(void);
+
+/* ROUT SEL / TRACK: a hit of t at velocity vel, note nt from C4 (as the KEYS play a drum); an armed track keeps the
+ * note on the step it records. A gated model's (ACID) gate closes after GATE, as drum_hit's */
+static __attribute__((noinline)) void midi_play(track_t *t, uint32_t vel, int32_t nt)
+{
+    nt = clamp(nt, NT_MIN, NT_MAX);
+    if (((song.rec >> trk_index(t)) & 1u) && song.playing && !t->p[P_SRC])
+        t->step[rec_hit(t, vel) % NSTEP].nt = (int8_t)nt;
+    drum_play(t, vel, nt);
+    if (trk_model(t)->gate) {
+        t->gate_n = hit_gate_len(t);
+        t->slide_in = 0;
+    }
+}
 
 static void midi_block(void)
 {
@@ -510,8 +529,19 @@ static void midi_block(void)
         }
         if ((st == 0x90u || st == 0x80u) && learn_note(d1, st == 0x90u && d2))
             continue;                               /* a learned note (any channel): its action, no drum */
-        if (st != 0x90u || !d2 || ch != drum_ch())
+        if (st != 0x90u || !d2)
             continue;                               /* note-offs: one-shots ignore them */
+        if (song.g[G_ROUTE] == RT_TRACK) {          /* channel 1..8: track 1..8, pitched */
+            if (ch < NTRK)
+                midi_play(&trk[ch], d2, (int32_t)d1 - 60);
+            continue;
+        }
+        if (ch != drum_ch())
+            continue;
+        if (song.g[G_ROUTE] == RT_SEL) {            /* the selected track, pitched */
+            midi_play(TSEL, d2, (int32_t)d1 - 60);
+            continue;
+        }
         for (i = 0; i < NTRK; i++)
             if ((uint32_t)trk[i].p[P_NOTE] == d1)
                 input_hit(&trk[i], d2);
@@ -526,6 +556,7 @@ static void seq_stop(void);
 #include "cue.c"                    /* the live cue of slots and variations (spec 2026-10-26) */
 #include "midi_learn.c"             /* MIDI LEARN: a learned CC sets its parameter, a CC / note its action (upstream
                                      * 1.5's, adapted) */
+#include "midi_out.c"               /* GLO SYNC (MIDI clock out) and THRU */
 
 static void seq_start(void)
 {
@@ -553,6 +584,7 @@ static void seq_start(void)
     motion_begin();
     cue_start();                                    /* cue.c: the grid's time from PLAY */
     chain_start();                                  /* song.c: an armed song from row 1 */
+    mout_start();                                   /* midi_out.c: SYNC's Start */
 }
 
 static void seq_stop(void)
@@ -562,6 +594,7 @@ static void seq_stop(void)
     motion_end();                                   /* motion.c: the patch back */
     chain_stop();                                   /* song.c: the timing and REC back */
     cue_stop();                                     /* cue.c: a queued cue dropped */
+    mout_stop();                                    /* midi_out.c: SYNC's Stop */
 }
 
 static void seq_tick(track_t *t, uint32_t n)
@@ -715,6 +748,7 @@ static void events_block(uint32_t n)
         grids_tick(seq_n);
         chain.cut = 0;
     }
+    mout_block(n, run);                             /* midi_out.c: SYNC's Clocks on the own clock (after grids_tick) */
     if (song.playing)
         song.tick++;
 }

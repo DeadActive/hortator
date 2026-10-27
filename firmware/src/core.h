@@ -68,7 +68,8 @@ enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK,
     G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX,
     G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH,
-    G_MIDI, G_SYNC, G_ROUTE, G_INFO,
+    G_MIDI, G_SYNC, G_ROUTE, G_INFO,   /* G_MIDI: the USB state (shown); SYNC: MIDI clock out (SY_ bits, midi_out.c);
+                                        * ROUT: MIDI in routing (RT_, seq.c midi_block); both stored, 0 before */
     G_SLOT, G_NAME, G_LOAD, G_SAVE,
     G_CLRSEQ, G_INITSND,
     G_DRCH,                      /* MIDI channel of the drum tracks, 1..16 */
@@ -82,9 +83,14 @@ enum {                          /* global parameters */
     G_COUNT
 };
 enum { CG_MUTE, CG_KEEP, CG_HIDE };                 /* GHOST: muted = muted; muted still keys; never heard, keys */
-enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE };   /* TOOLS actions, the MUTE and METRO
-                                                     * settings, COPY / PASTE of a slot (spec 2026-10-26): shown like
-                                                     * globals, not stored in projects */
+enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE, G_THRU };   /* TOOLS actions, the MUTE and
+                                                     * METRO settings, COPY / PASTE of a slot (spec 2026-10-26), the
+                                                     * THRU setting (midi_out.c): shown like globals, not stored in
+                                                     * projects */
+#define SY_USB 1u                                   /* G_SYNC: the outputs the clock goes to (OFF 0, USB 1, BLE 2, BOTH 3) */
+#define SY_BLE 2u
+enum { RT_NOTE, RT_SEL, RT_TRACK };                 /* G_ROUTE: a note on CH plays the tracks with its NOTE; on CH, the
+                                                     * selected track pitched from C4; channel 1..8 track 1..8, pitched */
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {                 /* sample playback state (eng_sample.c sample_next, dm_sample.c) */
@@ -208,8 +214,8 @@ typedef struct {
     uint32_t sheds;              /* overload sheds (audio.c shed_voice): the top bar's CPU icon (ui_draw.c) */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
-    int16_t act[4];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
-                                  * copy of settings.mutebar; METRO: of fx_metro */
+    int16_t act[5];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
+                                  * copy of settings.mutebar; METRO: of fx_metro; THRU: of midi_thru */
     uint8_t mute_q;              /* mutes to flip on the next bar (bit per track; seq.c) */
     uint8_t solo;                /* SOLO (the SMC-Mixer): bit per track, runtime only (trk_silent) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */

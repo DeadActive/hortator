@@ -668,6 +668,16 @@ static int proj_writeback_g(int globals)        /* globals 1: the live globals t
     return 0;
 }
 static int proj_writeback(void) { return proj_writeback_g(0); }
+/* a stored global as this build loads it: in its range; CLK BLE without BLE: INT; SYNC (SY_ bits) without BLE: its USB
+ * bit (BLE: OFF, BOTH: USB) */
+static int16_t g_loaded(uint32_t i, int32_t v)
+{
+    if (i == G_CLOCK && (v < 0 || v > GP[i].max))
+        return 0;
+    if (i == G_SYNC)
+        return (int16_t)(v < 0 ? 0 : v & GP[i].max);
+    return (int16_t)clamp(v, GP[i].min, GP[i].max);
+}
 /* the live globals differ from the loaded slot's record (a LOAD of it would change them: the tempo ..) */
 static int live_globals_edited(void)
 {
@@ -676,8 +686,7 @@ static int live_globals_edited(void)
     if (ld < 0)
         return 0;
     for (i = 0; i < G_COUNT; i++)
-        if (i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_CLOCK &&
-            song.g[i] != (int16_t)clamp(proj_slot[ld].g[i], GP[i].min, GP[i].max))
+        if (i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_CLOCK && song.g[i] != g_loaded(i, proj_slot[ld].g[i]))
             return 1;
     return 0;
 }
@@ -945,8 +954,7 @@ static int proj_load(uint32_t slot, int irq)
         fm1_irq_off();                                  /* the audio ISR must not see half a project */
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_LOAD && i != G_SAVE)
-            song.g[i] = (int16_t)(i == G_CLOCK && (p->g[i] < 0 || p->g[i] > GP[i].max)
-                                      ? 0 : clamp(p->g[i], GP[i].min, GP[i].max));   /* CLK BLE without BLE: INT */
+            song.g[i] = g_loaded(i, p->g[i]);
     proj_tracks_in(p, 0);
     if (lk_valid(&lk_slot[slot & 3u], slot & 3u))       /* the motion and the locks: a broken bank is dropped, the
                                                          * rest loads */
@@ -1967,6 +1975,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     memset(&lastp, 0, sizeof lastp);                  /* no last project, unless the flash record has one */
     fx_metro = 0;                                     /* METRO OFF, as well */
     backlight = 0;                                    /* BACKLIGHT OFF, as well */
+    midi_thru = 0;                                    /* MIDI THRU OFF, as well */
 #if USB10_BUILD
     usbaud = 0;                                       /* USB AUDIO 2 CH, as well */
 #endif
@@ -2019,6 +2028,7 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.magic = SETTINGS_MAGIC;
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
         btset.bt_auto = (p.palette >> 8) & 1u;
+        midi_thru = (uint8_t)((p.palette >> 14) & 1u);   /* bit 14 = MIDI THRU (midi_out.c): older records read OFF */
 #if USB10_BUILD
         usbaud = (p.palette >> 12) & 3u;            /* bits 12..13 = USB AUDIO: 0 2 CH (older records), 1 10 CH MIX
                                                      * (e586073's 10 CH), 2 10 CH FX, 3 none: 2 CH (the Bluetooth
@@ -2184,8 +2194,10 @@ static void settings_save(void)                    /* asked for while playing: w
 #if USB10_BUILD
     p.palette |= (usbaud & 3u) << 12;
 #endif
+    p.palette |= (uint32_t)(midi_thru & 1u) << 14;
     /* an older Hortator reads a palette out of range from bit 8: its display settings reset; 9..11 BACKLIGHT's level
-     * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it) */
+     * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it); 14 MIDI THRU (an
+     * older one ignores it) */
     p.lowcut = lc_pack() | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
              (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;

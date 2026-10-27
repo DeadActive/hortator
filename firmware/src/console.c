@@ -233,6 +233,12 @@ static void con_status(void)
     con_kv("uart_rx_msgs", (int32_t)um.msgs);
     con_kv("uart_rx_drops", (int32_t)um.drops);
 #endif
+    con_kv("midi_sync", song.g[G_SYNC]);                 /* GLO SYNC / THRU (midi_out.c): sent, refused, forwarded, */
+    con_kv("midi_thru", midi_thru);                      /* the own clock's Clocks */
+    con_kv("midi_out_sent", (int32_t)mout.sent);
+    con_kv("midi_out_drops", (int32_t)mout.drops);
+    con_kv("midi_out_fwd", (int32_t)mout.fwd);
+    con_kv("midi_out_clocks", (int32_t)mout.pulses);
 #if FELUCCA_UAC
     con_uac();
 #endif

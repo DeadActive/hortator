@@ -64,7 +64,8 @@ firmware ([below](#back-to-the-official-firmware)).
   and 13 a little brighter; INV turns the LEDs around. OCT- / OCT+ breathe when pressing them would do something.
 - **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
   REC, next / previous track, or holds a PERFORM effect ([below](#midi-learn)).
-- **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
+- **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS) and out (USB), MIDI THRU
+  ([below](#midi)), and USB audio: the FM-1 records
   into a DAW over its USB cable, the master or, with MENU USB AUDIO 10 CH, the eight tracks on their own too
   ([below](#usb-audio-2-or-10-channels)). On a computer or an iPad it shows up as **Hortator** (USB MIDI and audio, in a DAW
   or AUM; earlier versions: Felucca); while an update is being written it shows up as **Felucca Update**
@@ -300,6 +301,45 @@ way back (NO, CANCEL, BACK, LAYER's OCT-) is lit; KEYS' octave shift lit as befo
 levels, OCT+ steps on and wraps. A device setting: saved when the menu closes, not part of projects; OFF until it is
 set. A safe start keeps every LED dark, as before.
 
+### MIDI
+
+GLO's pages hold the MIDI settings: GLOBAL 1/3 **CH** (the drum channel, 10 by default) and **CLK**, SYSTEM 2/3
+**SYNC** and **ROUT**, GLOBAL 3/3 **THRU**. SYNC and ROUT are saved with the project (a project saved before them
+loads SYNC OFF, ROUT NOTE); THRU is a setting of the FM-1 itself, kept over power-off (OFF until you turn it on).
+
+**ROUT: how MIDI notes in play the tracks** (from USB, the TRS jack and, in MIDI mode, Bluetooth):
+
+| ROUT | Notes |
+| --- | --- |
+| **NOTE** (default) | on the drum channel, each note plays the tracks whose NOTE it is, at their tuning |
+| **SEL** | on the drum channel, every note plays the selected track, pitched: C4 (note 60) is its tuning, a semitone a note |
+| **TRACK** | MIDI channel 1 to 8 play tracks 1 to 8, pitched from C4 as SEL (CH plays no part; channels 9 to 16 nothing) |
+
+Note-offs are ignored (a hit is a hit; an ACID note ends after its GATE). A note into an armed track while playing is
+recorded, with its pitch on SEL and TRACK. The white keys send their notes to USB as before: on the drum channel with
+the track's NOTE, with ROUT TRACK on the track's own channel at C4 (so a recording in a DAW plays back the same
+tracks). SEL and TRACK are upstream Felucca's ROUT SEL and CH1-4, for eight tracks.
+
+**CLK** follows a MIDI clock: INT (its own tempo), USB, TRS (or BLE in the Bluetooth version).
+
+**SYNC: MIDI clock out**, to OFF or USB (and BLE or BOTH in the Bluetooth version; the FM-1's TRS jack is an input
+only, so there is no TRS out):
+- On its own clock (CLK INT): PLAY sends Start and then 24 clocks a quarter note, STOP sends Stop. PLAY always starts
+  from the top, so it never sends Continue (or a song position). The clocks keep to the sequencer's grid through
+  tempo changes and never swing, whatever SWING says. Each clock is sent when the step it goes with is heard; if
+  the receiving DAW still plays a little early, give its sync a few ms of delay.
+- Following a clock (CLK USB / TRS / BLE): the incoming Clock, Start, Continue and Stop go on to the SYNC outputs as
+  they arrive (nothing regenerated), never back out of the port they came in on.
+- Timing: within a quarter of a millisecond with a light kit; a busy kit adds up to half the render time (about
+  1.5 ms when the CPU shows 50 %), as USB is served between the audio renders. Bluetooth MIDI is much looser (the
+  radio's own timing): use it for tempo, not tight sync.
+- If the computer does not read the FM-1's MIDI port, the clock waits no more than 8 messages deep (no burst of old
+  clocks later). During a firmware update (and for 3 s after its last message) nothing is sent.
+
+**THRU** ON: notes, CCs and the other channel messages from each input go on to the other outputs: TRS in to USB
+(and Bluetooth), Bluetooth in to USB, USB in to Bluetooth; never back to the input they came from. Realtime messages
+(the clock) follow SYNC instead.
+
 ### USB audio: 2 or 10 channels
 
 The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI Setup records it over the cable,
@@ -377,9 +417,11 @@ it is switched on again or comes back after a lost connection, and after a power
 ON, or 5 s after it with AUTOSTART ON (no scan or pick needed). While it is not found, it scans 10 s at a time with a
 2 s pause. A SCAN from the page pauses this while the page stays open, so you can pick another device.
 
-**MIDI mode.** Notes on the drum channel (GLO: CH) play the tracks whose NOTE matches, as over USB and TRS. GLO:
+**MIDI mode.** Notes play the tracks as over USB and TRS (GLO: CH and [ROUT](#midi)). GLO:
 **CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as CLK USB / TRS do; the tempo knobs then say
-`CLK BLE`. A project saved with CLK BLE loads with CLK INT in the plain version.
+`CLK BLE`. A project saved with CLK BLE loads with CLK INT in the plain version. GLO SYNC **BLE** / **BOTH** sends the
+MIDI clock to the connected device too, and THRU passes notes between it and USB ([MIDI](#midi)); a project saved with
+SYNC BLE loads SYNC OFF in the plain version, BOTH loads USB. In SMC DAW mode nothing but the mixer's LEDs is sent.
 
 ### The SMC-Mixer (DAW mode)
 
