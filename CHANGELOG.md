@@ -25,6 +25,10 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
   test build lost ~10 % of the frames (tears). 10 CH needs the standard, non-Bluetooth build (owner 2026-10-26): the
   Bluetooth build has no USB AUDIO row, is always 2 CH and ignores a stored 10 CH (its RAM, 85868 of 98304 B, would
   have been 97644 B); its binary is the same as 0.24.0's.
+- Web site only: the landing page has a manual before the engines: a map of the panel (point at a control on a small
+  FM-1, or at its line, to see what it does) and ten short guides (find your way, make a beat, shape a sound, play
+  and record live, mute, perform, lock a step, save and chain, MIDI and LEARN, settings). Manual in the top bar and
+  the footer; More below leads to it.
 
 ## 0.24.0 - 2026-10-25
 
