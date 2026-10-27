@@ -98,12 +98,15 @@ static uint8_t var_blocked;                         /* this boot's USR2 clamp fa
 /* the variations (varpack.c, spec 2026-10-26 cue / variations): a slot's variations 2..8 are its own flash object
  * (storage.c OBJ_VAR0 + slot), saved before its lock bank and its record, which links it (var_link, var_len: a torn
  * save keeps a whole triple). RAM holds two banks (.bss): the loaded slot's (var_play) and one park buffer; var_who
- * says whose each holds (slot + 1, 0 none). A slot's variations not in RAM are read from flash (XIP) */
-#if VAR_ON
+ * says whose each holds (slot + 1, 0 none). A slot's variations not in RAM are read from flash (XIP). The Bluetooth
+ * build has no .bss room for them: its banks sit in the RAM-code region after .ram_text (app_ble.ld .ram_bss, past
+ * the PC guard's _rt_end, below the 0x01C06000 debug area), which crt0 does not zero: persist_boot does */
+#if defined(FELUCCA_BLE) && FELUCCA_BLE
+static var_bank_t var_buf[2] __attribute__((section(".ram_bss"), aligned(4)));
+#else
 static var_bank_t var_buf[2];
 #endif
-static uint8_t var_who[2];                          /* (the Bluetooth build: no banks, the roles alone: whose slot is
-                                                     * loaded, VAR_ON) */
+static uint8_t var_who[2];
 static uint8_t var_play;                            /* var_buf's index of the loaded slot's bank */
 static uint8_t var_dirty;                           /* bit per slot: its RAM variations are not flash's (a SAVE that
                                                      * failed, later the edits): a record written alone (RENAME) writes
@@ -505,7 +508,6 @@ static int proj_fetch(uint32_t slot)
 }
 #endif
 
-#if VAR_ON
 /* slot's variations in flash: the copy of OBJ_VAR0 + slot (either: as proj_bank_fetch) that is whole and is the one
  * its record (proj_slot, valid) links, as an XIP pointer; 0 none needed (var_len 0) or lost (no copy matches: an
  * upload over it, a damaged sector, a torn save's leftover: the boot's check sets var_lost, said once) */
@@ -540,7 +542,6 @@ static int proj_var_load(uint32_t slot, var_bank_t *dst)
     memcpy(dst, f, 8u + f->used);
     return 1;
 }
-#endif
 
 /* the sequencer runs (or starts this block): a flash erase silences the audio and stalls it, so no saving now */
 static int transport_busy(void) { return song.playing || transport_req == 1u; }
@@ -612,13 +613,11 @@ static __attribute__((noinline)) void proj_image(project_t *p, uint32_t slot, in
     p->song = chain.cfg;
     memcpy(p->name, chain.name, NAME_LEN);
 }
-#if VAR_ON
 static void proj_var_link(project_t *p, const var_bank_t *b)   /* the record links b (none used: no object) */
 {
     p->var_len = var_mask(b) ? (uint16_t)(8u + b->used) : 0u;
     p->var_link = p->var_len ? var_link_of(b) : 0u;
 }
-#endif
 /* slot's image whole again after proj_image (main loop): its lock bank sealed and linked, its variations linked (when
  * a RAM bank holds them), its sum, its mark */
 static void proj_seal(uint32_t slot)
@@ -628,12 +627,10 @@ static void proj_seal(uint32_t slot)
     lk_seal(&lk_slot[slot], slot);
     p->lk_link = proj_link(&lk_slot[slot]);
     p->lk_n = lk_slot[slot].count;
-#if VAR_ON
     if (var_who[var_play] == slot + 1u)
         proj_var_link(p, &var_buf[var_play]);
     else if (var_who[var_play ^ 1u] == slot + 1u)
         proj_var_link(p, &var_buf[var_play ^ 1u]);
-#endif                                                  /* (the Bluetooth build: the record's link as it is) */
     p->sum = proj_sum(p);
     if (p->sum != proj_fsum[slot])
         proj_dirty |= (uint8_t)(1u << slot);
@@ -644,16 +641,10 @@ static void proj_seal(uint32_t slot)
  * -1 VARIATIONS FULL (nothing changed) */
 static __attribute__((noinline)) int var_pack_live(uint32_t slot)
 {
-#if VAR_ON
     uint32_t k, j;
     int r;
-#endif
     if (!var_cur)
         return 0;
-#if !VAR_ON
-    (void)slot;
-    return 0;                                       /* (the Bluetooth build: var_cur is always 0) */
-#else
     for (k = 0; k < NTRK; k++) {
         var_sp[k] = trk[k].step;
         for (j = 0; j < 4u; j++)
@@ -663,7 +654,6 @@ static __attribute__((noinline)) int var_pack_live(uint32_t slot)
     if (r == 0)
         var_dirty |= (uint8_t)(1u << (slot & 3u));
     return r < 0 ? -1 : 0;
-#endif
 }
 /* the loaded slot's live state -> its RAM image (record, lock bank, the playing variation); its marks. 0, -1
  * VARIATIONS FULL (nothing changed). No message, no flash. Main loop: the IRQ off for the copy only (the sums after) */
@@ -768,10 +758,8 @@ static void project_discard(uint32_t s)
 #endif
     if (var_who[var_play ^ 1u] == s + 1u)
         var_who[var_play ^ 1u] = 0;
-#if VAR_ON
     if (var_who[var_play] == s + 1u)
         proj_var_load(s, &var_buf[var_play]);
-#endif
     proj_dirty &= (uint8_t)~(1u << s);
     var_dirty &= (uint8_t)~(1u << s);
 #if FELUCCA_FLASH
@@ -780,7 +768,7 @@ static void project_discard(uint32_t s)
         proj_fsum[s] = proj_slot[s].sum;             /* (no flash: RAM's is the version kept) */
 }
 
-#if FELUCCA_FLASH && VAR_ON
+#if FELUCCA_FLASH
 /* slot's variations to flash: not written when its current copy holds these bytes already (a SAVE that changed none:
  * no erase, and the record's link still finds them); 0 ok */
 static int var_write(uint32_t slot, const var_bank_t *b)
@@ -797,18 +785,15 @@ static void project_save_go(uint32_t slot)
 {
     project_t *p = &proj_slot[slot & 3u];
     int32_t ld;
-#if VAR_ON
     var_bank_t *vb;
-#endif
     if (transport_busy()) {                            /* (upstream 1.0) only while stopped */
         ui_message("STOP TO SAVE");
         return;
     }
     cue_cancel();                                       /* (a switch made just before the stop: filed first) */
     ld = proj_loaded();
-    slot &= 3u;
-#if VAR_ON
     vb = &var_buf[var_play];
+    slot &= 3u;
     if (ld < 0) {                                       /* (the power-on kit: no variations) */
         var_empty(vb, slot);
         var_cur = 0;
@@ -816,20 +801,10 @@ static void project_save_go(uint32_t slot)
         ui_message("VARIATIONS FULL");
         return;
     }
-#endif
     proj_image(p, slot, 1);                             /* (stopped: the base is in the knobs) */
-#if !VAR_ON
-    if (ld != (int32_t)slot)                            /* the Bluetooth build: onto its own slot the record keeps its
-                                                         * variations' link (flash keeps them, the standard build finds
-                                                         * them); the power-on kit or another slot's saved here: none
-                                                         * (that slot's variations stay in flash, unlinked, untouched) */
-        p->var_len = 0, p->var_link = 0;
-#endif
     if (var_who[var_play ^ 1u] == slot + 1u)
         var_who[var_play ^ 1u] = 0;                     /* (a park of this slot: superseded) */
-#if VAR_ON
     vb->slot = (uint8_t)slot;                           /* the live variations become this slot's */
-#endif
     var_who[var_play] = (uint8_t)(slot + 1u);
     proj_seal(slot);
     chain.from = (uint8_t)(slot + 1u);
@@ -850,10 +825,7 @@ static void project_save_go(uint32_t slot)
             ui_message("USR3 CLAMP FAILED");
             return;
         }
-        if (
-#if VAR_ON
-            (p->var_len && var_write(slot, vb)) ||
-#endif
+        if ((p->var_len && var_write(slot, vb)) ||
             st_save(OBJ_LOCKS0 + slot, &lk_slot[slot], sizeof lk_slot[0]) ||
             st_save(OBJ_PROJECT0 + slot, p, sizeof *p)) {
             ui_message("SAVE ERROR");
@@ -1009,9 +981,7 @@ static int proj_load(uint32_t slot, int irq)
         fm1_irq_on();
     if (var_who[var_play ^ 1u] == (slot & 3u) + 1u)
         var_who[var_play ^ 1u] = 0;                     /* (a park of this slot: the load is flash's) */
-#if VAR_ON
     proj_var_load(slot, &var_buf[var_play]);            /* its variations (the ISR plays variation 1: not read) */
-#endif
     var_who[var_play] = (uint8_t)((slot & 3u) + 1u);
     var_dirty &= (uint8_t)~(1u << (slot & 3u));
     var_cur = 0;                                        /* (LOAD plays variation 1) */
@@ -1095,7 +1065,6 @@ enum { STG_NONE, STG_VAR, STG_COPY, STG_SLOT };     /* cue.stg / cue.out: a vari
                                                      * a slot */
 #define CUE_MARGIN 192u                             /* bytes the outgoing variation may grow between two frames' checks */
 
-#if VAR_ON
 static int var_unused(const var_bank_t *b, uint32_t v)   /* variation v + 1 never used (or unreadable) */
 {
     uint32_t sz;
@@ -1122,7 +1091,6 @@ static int cue_out_fits(const var_bank_t *b, uint32_t copy)
         used = used - var_entry(b, copy) + need;
     return used <= VAR_CAP && used + CUE_MARGIN <= VAR_CAP;
 }
-#endif
 /* record p's tracks' knobs, in their ranges, the caps applied (as proj_tracks_in leaves them) -> o; presets -> pre */
 static void cue_stage_knobs(const project_t *p, int16_t o[NTRK][P_COUNT], uint16_t *pre, uint8_t *pre_ed)
 {
@@ -1168,22 +1136,6 @@ static int cue_stage(uint32_t s, uint32_t v)
     cue.stg = STG_NONE;
     if (ld < 0)
         return CUE_E_NOSLOT;
-#if !VAR_ON
-    if (s == (uint32_t)ld)                            /* (the Bluetooth build: no variations, variation 1 plays) */
-        return CUE_E_SAME;
-    (void)j;
-    (void)v;
-    var_who[pk] = (uint8_t)(s + 1u);                  /* (its role: the slot that plays after the switch) */
-    if (!lk_valid(&lk_slot[s], s))
-        lk_empty(s);
-    cue_stage_knobs(&proj_slot[s], g->p, cue.stg_pre, cue.stg_pre_ed);
-    for (k = 0; k < NTRK; k++)
-        proj_steps_to(g->st[k], proj_slot[s].t[k].step);
-    cue.stg = STG_SLOT;
-    cue.stg_slot = (uint8_t)s;
-    cue.stg_var = 0;
-    return 0;
-#else
     if (s == (uint32_t)ld) {                          /* a variation switch */
         const var_bank_t *b = &var_buf[var_play];
         if (v == var_cur)
@@ -1254,7 +1206,6 @@ static int cue_stage(uint32_t s, uint32_t v)
     cue.stg_slot = (uint8_t)s;
     cue.stg_var = (uint8_t)v;
     return 0;
-#endif
 }
 static __attribute__((noinline)) void mem_swap(void *a, void *b, uint32_t n)   /* (words when both are aligned) */
 {
@@ -1358,9 +1309,7 @@ static void cue_file_out(void)
     if (out == STG_SLOT) {
         uint32_t a = cue.from & 3u;
         project_t *p = &proj_slot[a];
-#if VAR_ON
         var_bank_t *ab = &var_buf[var_play ^ 1u];
-#endif
         for (k = 0; k < NTRK; k++) {
             for (i = 0; i < P_NSTORED; i++) {
                 int timing = 0;
@@ -1379,7 +1328,6 @@ static void cue_file_out(void)
             for (j = 0; j < 4u; j++)
                 var_tm[k][j] = g->p[k][CHAIN_TIMING[j]];
         }
-#if VAR_ON
         if (ov && var_who[var_play ^ 1u] == a + 1u) {
             int r = var_put(ab, ov, var_sp, var_tm);
             if (r == 0)
@@ -1387,7 +1335,6 @@ static void cue_file_out(void)
             else if (r < 0)
                 ui_message("VARIATIONS FULL");
         }
-#endif
         lk_slot[a] = lk_slot[ld];                     /* (its bank, swapped out at the switch) */
         p->song = chain.cfg;
         memcpy(p->name, chain.name, NAME_LEN);
@@ -1414,13 +1361,11 @@ static void cue_file_out(void)
                     p->t[k].p[CHAIN_TIMING[j]] = var_tm[k][j];
             }
         } else {
-#if VAR_ON
             int r = var_put(&var_buf[var_play], ov, var_sp, var_tm);
             if (r == 0)
                 var_dirty |= (uint8_t)(1u << ld);
             else if (r < 0)
                 ui_message("VARIATIONS FULL");
-#endif
         }
     }
 }
@@ -1460,7 +1405,6 @@ static void cue_poll(void)
         live_sum0 = live_sum();
         ui.force = 1;
     }
-#if VAR_ON
     if ((cue.q_slot || cue.q_var) && cue.stg) {
         int32_t ld = proj_loaded();
         if (ld >= 0 && !cue_out_fits(&var_buf[var_play], cue.stg == STG_COPY ? cue.stg_var : 0u)) {
@@ -1471,7 +1415,6 @@ static void cue_poll(void)
             e = CUE_E_FULL;
         }
     }
-#endif
     if (e) {
         cue.err = 0;
         cue_say(e);
@@ -1479,15 +1422,9 @@ static void cue_poll(void)
 }
 /* the variations of slot s used (bit v: variation v + 1; variation 1 always): its RAM bank, else flash's (that one
  * remembered by the record's link: flash changes only with a SAVE, which links anew) */
-#if VAR_ON
 static struct { uint32_t link[4]; uint8_t mask[4]; } var_fmask;
-#endif
 static uint32_t slot_var_mask(uint32_t s)
 {
-#if !VAR_ON
-    (void)s;
-    return 1u;                                      /* (the Bluetooth build: variation 1 alone) */
-#else
     const var_bank_t *b = var_who[var_play] == s + 1u ? &var_buf[var_play]
                         : var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u] : 0;
     uint32_t key;
@@ -1500,7 +1437,6 @@ static uint32_t slot_var_mask(uint32_t s)
         var_fmask.link[s & 3u] = key;
     }
     return 1u | var_fmask.mask[s & 3u];
-#endif
 }
 /* the cue map's key n (1..12, ui_leds: 1..4 white keys 1..4, 5..12 the black keys F#3 .. A#4): slots A..D lit used,
  * winking playing, blinking queued, breathing with unsaved edits; variations 1..8 of the playing slot (of the queued
@@ -1530,7 +1466,7 @@ static int cue_led(uint32_t n)
             return CM_BREATHE;
         return (int32_t)s == ld ? CM_WINK : CM_ON;
     }
-    if (VAR_ON && n >= 5u && n <= 12u && (cue.q_slot || ld >= 0)) {   /* (the Bluetooth build: dark) */
+    if (n >= 5u && n <= 12u && (cue.q_slot || ld >= 0)) {
         uint32_t v = n - 5u, s = cue.q_slot ? cue.q_slot - 1u : (uint32_t)ld;
         if (cue.q_var == v + 1u)
             return CM_BLINK;
@@ -1584,9 +1520,7 @@ static void project_paste(uint32_t t)
     cue_cancel();
     ld = proj_loaded();
     uint32_t src, pk = var_play ^ 1u, dst;
-#if VAR_ON
     const var_bank_t *sb;
-#endif
     t &= 3u;
     if (transport_busy() || chain_busy()) {
         ui_message("STOP TO PASTE");
@@ -1628,15 +1562,8 @@ static void project_paste(uint32_t t)
         }
         dst = pk;
     }
-#if VAR_ON
     sb = var_who[var_play] == src + 1u ? &var_buf[var_play] : var_who[pk] == src + 1u ? &var_buf[pk] : proj_var_flash(src);
-#endif
     proj_slot[t] = proj_slot[src];
-#if !VAR_ON
-    proj_slot[t].var_len = 0;                         /* (the Bluetooth build: no variations copied; t's own stay in
-                                                       * flash, unlinked, untouched) */
-    proj_slot[t].var_link = 0;
-#endif
     {                                                 /* the name: + " COPY" if it fits, "COPY" with none */
         char n[NAME_LEN + 1u];
         uint32_t l;
@@ -1651,14 +1578,12 @@ static void project_paste(uint32_t t)
     }
     lk_slot[t] = lk_slot[src];
     lk_dirty |= (uint8_t)(1u << t);
-#if VAR_ON
     if (&var_buf[dst] != sb) {
         var_empty(&var_buf[dst], t);
         if (sb)
             memcpy(&var_buf[dst], sb, 8u + sb->used);
     }
     var_buf[dst].slot = (uint8_t)t;
-#endif
     var_who[dst] = (uint8_t)(t + 1u);
     var_dirty |= (uint8_t)(1u << t);
     proj_seal(t);
@@ -1754,10 +1679,6 @@ static int cue_slot(uint32_t s)
  * Stopped: at once */
 static int cue_var(uint32_t v)
 {
-#if !VAR_ON
-    (void)v;
-    return 0;                                         /* (the Bluetooth build: no variations; ui_input.c never calls) */
-#else
     int r = chain_busy() ? CUE_E_SONG : proj_loaded() < 0 ? CUE_E_NOSLOT : 0;
     v &= 7u;
     if (r) {
@@ -1776,7 +1697,6 @@ static int cue_var(uint32_t v)
         return 0;
     }
     return cue_queue(cue.q_slot, v + 1u);
-#endif
 }
 
 /* power-on (drum_boot_init, not in safe start): the last project saved to flash loads as a LOAD does, stopped, its
@@ -1992,7 +1912,7 @@ static void lc_unpack(uint32_t lc)
  * the slot empty, nothing else touched). k: 1 USR2, 2 USR3. 1 rewritten, 0 nothing to do, < 0 a flash error (the slot
  * then scans as unusable: its length is past 48 KiB) */
 #define SMP_USR_CUT 0xBE00u                                 /* data bytes kept: 48 KiB - the header's 512 */
-typedef char smp_usr_cut_ok[(SMP_USR_CUT == SMP_USR2_SIZE - SMP_USER_DATA || !VAR_ON) && SMP_USR_CUT == SMP_USR3_SIZE - SMP_USER_DATA
+typedef char smp_usr_cut_ok[SMP_USR_CUT == SMP_USR2_SIZE - SMP_USER_DATA && SMP_USR_CUT == SMP_USR3_SIZE - SMP_USER_DATA
                             ? 1 : -1];
 static uint8_t usr_head[256] __attribute__((aligned(4)));
 static uint8_t *usr_at(uint32_t o) { return o < 256u ? &usr_head[o] : &st_buf[o - 256u]; }   /* sector byte o */
@@ -2056,6 +1976,9 @@ static int smp_usr_clamp(uint32_t k)
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
+#if defined(FELUCCA_BLE) && FELUCCA_BLE
+    memset(var_buf, 0, sizeof var_buf);               /* (the Bluetooth build's banks: not .bss, zeroed here) */
+#endif
     memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO, AUTOSTART OFF unless the flash record
                                                        * has them */
     memset(&lastp, 0, sizeof lastp);                  /* no last project, unless the flash record has one */
@@ -2090,17 +2013,13 @@ static void persist_boot(void)                    /* before settings_init / pane
     lk_blocked = 0;
     var_blocked = 0;
     {
-        int c;
-#if VAR_ON
-        c = smp_usr_clamp(1);                         /* USR2 at 48 KiB: before any variation write */
+        int c = smp_usr_clamp(1);                     /* USR2 at 48 KiB: before any variation write */
         if (c > 0)
             persist_note |= PN_USR2;
         else if (c < 0) {                             /* failed: USR2 still past 48 KiB in flash, no variation write now */
             var_blocked = 1;
             persist_note |= PN_USR2F;
         }
-#endif                                                  /* (the Bluetooth build writes no variation: USR2 not cut, its
-                                                         * 80 KiB room as before, eng_sample.c) */
         c = smp_usr_clamp(2);                         /* USR3 at 48 KiB: before any lock-bank write */
         if (c > 0)
             persist_note |= PN_USR3;
@@ -2159,12 +2078,10 @@ static void persist_boot(void)                    /* before settings_init / pane
         for (i = 0; i < 4u; i++) {
             if (proj_fetch(i) == -1)
                 persist_note |= PN_LOCKS;
-#if VAR_ON
             if (proj_ok(&proj_slot[i]) && proj_slot[i].var_len && !proj_var_flash(i)) {
                 var_lost |= (uint8_t)(1u << i);
                 persist_note |= PN_VARS;
             }
-#endif
         }
     }
 #endif

@@ -89,15 +89,6 @@ enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE, G_THR
                                                      * projects */
 #define SY_USB 1u                                   /* G_SYNC: the outputs the clock goes to (OFF 0, USB 1, BLE 2, BOTH 3) */
 #define SY_BLE 2u
-/* the variations (spec 2026-10-26 cue / variations): the standard build only, as USB AUDIO 10 CH (the Bluetooth build's
- * RAM has no room for their two 3.5 KB banks). The Bluetooth build keeps the slot cue, FILL and COPY / PASTE; it plays
- * variation 1 (the record's steps) and leaves the variations in flash (0xC0000..0xC7FFF) as they are: never read,
- * written or erased, a record's link to them kept by SAVE (project.c), so the standard build finds them again */
-#if defined(FELUCCA_BLE) && FELUCCA_BLE
-#define VAR_ON 0
-#else
-#define VAR_ON 1
-#endif
 enum { RT_NOTE, RT_SEL, RT_TRACK };                 /* G_ROUTE: a note on CH plays the tracks with its NOTE; on CH, the
                                                      * selected track pitched from C4; channel 1..8 track 1..8, pitched */
 

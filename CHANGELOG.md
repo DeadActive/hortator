@@ -31,11 +31,12 @@ released yet are listed under Unreleased.
   - A slot switch brings the slot's sounds, steps, timing and locks; the tempo, swing, clock, MIDI, the master
     effects, Grids, the mutes and the selected track stay. The old sounds fade out over the last 5 ms before the
     switch (no click). A variation switch changes the steps and the timing only; the sounds ring on.
-  - Each slot has 8 variations: variation 1 is its own steps; 2–8 hold their own steps and timing and share the
-    slot's sounds and locks. A variation never used before starts as a copy of the one playing when it is first
-    cued. When a slot's variations are full the cue says `VARIATIONS FULL` and the playing one plays on. A slot comes
-    back on the variation it played last. A SONG row plays its slot's variation 1; while SONG plays a cue says
-    `STOP SONG TO CUE`. Following an external clock (USB or TRS) the switch comes on the pulse that ends the pattern.
+  - Each slot has 8 variations, in both the plain and the Bluetooth version: variation 1 is its own steps; 2–8 hold
+    their own steps and timing and share the slot's sounds and locks. A variation never used before starts as a copy
+    of the one playing when it is first cued. When a slot's variations are full the cue says `VARIATIONS FULL` and the
+    playing one plays on. A slot comes back on the variation it played last. A SONG row plays its slot's variation 1;
+    while SONG plays a cue says `STOP SONG TO CUE`. Following an external clock (USB or TRS) the switch comes on the
+    pulse that ends the pattern.
 - **Edits stay in RAM until SAVE**: a reset or a power cut brings every slot back as it was last saved. Leaving a
   slot by LOAD or by a cue keeps its edits in RAM, so going back finds them; a slot with unsaved edits shows `*` in the
   PROJECTS list. LOAD of a slot with unsaved edits (a tempo change counts) asks `DISCARD EDITS?`; SAVE onto a slot
@@ -55,10 +56,6 @@ released yet are listed under Unreleased.
   variations. A longer USR2 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the next
   power-on (`USR2 SHORTENED TO 48K`). If that ever fails (`USR2 CLAMP FAILED` at power-on), SAVE says
   `USR2 ERROR: NO SAVE` until the next power-on.
-- **Bluetooth version**: variations need the standard build, as 10 CH USB audio. The Bluetooth version has the slot
-  cue, FILL and COPY / PASTE and plays each slot's variation 1; its black keys work as before. It keeps the
-  variations the standard build saved (SAVE onto the loaded slot keeps them; SAVE onto another slot or PASTE takes
-  none along), and it does not shorten USR2.
 - Projects: a project saved now loads on 0.25.0 and 0.24.0 without its variations. If a project's variations can't
   be read, it loads without them and the FM-1 says `VARIATIONS LOST` once. A power cut during SAVE keeps the previous
   save whole.
