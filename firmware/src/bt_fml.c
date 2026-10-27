@@ -4,7 +4,8 @@
 /* FELUCCA_BLE (felucca.c includes it after bt_midi.c): FM-Link's glue (felucca-ble's bt_fml.c; its
  * docs/superpowers/specs/2026-10-21-fm-link-design.md),
  * the engine (fmlink.c) with this FM-1's clock, sequencer and Bluetooth link. CLK INT leads, CLK LINK (G_CLOCK 4)
- * follows; on another clock the FM-1 takes no part (its HELLOs still say it is an FM-1).
+ * follows; CLK USB / TRS / BLE lead too, the external clock's Start / Stop and tempo passed on (bt_fml_adv: the
+ * sequencer's advance by the clock).
  *   The audio ISR: bt_fml_block (seq.c events_block, before the transport's requests) with the tick its block is heard
  *   at (audio.c bt_fml_heard): the UI's PLAY / STOP in, what to act on out (a leader's PLAY with a follower linked: both
  *   start 80 ms later), the sequencer's advance (a follower: a sample more or less a block, held on the leader).
@@ -27,17 +28,27 @@ static struct {
 
 static uint32_t bt_fml_role(uint32_t clock)
 {
-    return clock == 0u ? FML_LEADER : clock == CLK_LINK ? FML_FOLLOWER : FML_NONE;
+    return clock == CLK_LINK ? FML_FOLLOWER : FML_LEADER;
 }
 
 /* the audio ISR, every block: the transport's request as FM-Link wants it, the sequencer's advance in *seq_n */
 static void bt_fml_block(uint32_t n, uint32_t *seq_n)
 {
-    uint32_t bpm = (uint32_t)song.g[G_BPM];
-    if (bt_fml.role == FML_NONE || bt_fml.role != bt_fml_role((uint32_t)song.g[G_CLOCK]))
+    uint32_t bpm = (uint32_t)song.g[G_BPM], clock = (uint32_t)song.g[G_CLOCK];
+    if (bt_fml.role == FML_NONE || bt_fml.role != bt_fml_role(clock) || bt_fml.ext != (clock && clock != CLK_LINK))
         return;                                      /* (CLK changed: the main loop sets the engine up first) */
-    transport_req = (uint8_t)fml_block(&bt_fml, BT_FML_HEARD, n, bpm, (uint32_t)FS * 60u / bpm, song.playing,
-                                       transport_req, seq_n);
+    transport_req = (uint8_t)fml_block(&bt_fml, BT_FML_HEARD, n, bpm, bt_fml.ext ? beat_samples() : (uint32_t)FS * 60u / bpm,
+                                       song.playing, transport_req, seq_n);
+}
+
+static uint32_t bt_fml_pulses;                       /* midi_clock.pulses at the last block */
+/* the audio ISR, following an external clock (seq.c events_block, after the block's MIDI): its pulses this block */
+static void bt_fml_adv(void)
+{
+    uint32_t k = midi_clock.pulses - bt_fml_pulses;
+    bt_fml_pulses = midi_clock.pulses;
+    if (bt_fml.ext && bt_fml.role == FML_LEADER && (uint32_t)song.g[G_CLOCK] && song.g[G_CLOCK] != (int16_t)CLK_LINK)
+        fml_adv(&bt_fml, k, song.playing && !midi_clock.have_pulse);
 }
 
 /* core_fml_rx (the BLE unit's ble_service): a message from the other FM-1 and the tick it came at */
@@ -53,11 +64,12 @@ static void bt_fml_rx(const uint8_t *p, uint32_t len, uint32_t t)
 /* the main loop (core_ble_api.c bt_service): the role from CLK, the messages out while linked */
 static void bt_fml_frame(void)
 {
-    uint32_t role = bt_fml_role((uint32_t)song.g[G_CLOCK]), len;
+    uint32_t clock = (uint32_t)song.g[G_CLOCK], role = bt_fml_role(clock), ext = clock && clock != CLK_LINK, len;
     int linked;
-    if (role != bt_fml.role) {
+    if (role != bt_fml.role || ext != bt_fml.ext) {
         fm1_irq_off();
         fml_init(&bt_fml, role);
+        bt_fml.ext = (uint8_t)ext;
         fm1_irq_on();
         bt_fo.len = 0;
         bt_fo.said = 0;

@@ -5,7 +5,7 @@
  * (its sequencer through seq.c events_block, its main loop's bt_fml_frame, core_fml_rx) against another FM-1 that is
  * the engine alone (fmlink.c), its own crystal and tick count, joined by a link that delivers at 15 ms connection
  * events. The engine's accuracy over a bad link is tests/fmlink_test.c's; here: the roles from CLK (INT leads, LINK
- * follows, others none), PLAY / STOP / BPM through the core's transport, the follower's BPM from the leader, its own
+ * follows, CLK USB / TRS / BLE lead with the clock's transport and tempo), PLAY / STOP / BPM through the core's transport, the follower's BPM from the leader, its own
  * PLAY / STOP held, the messages, CLK LINK without a link as INT, a message kept while the BLE unit has no room. */
 #include "ui_host.h"
 #if !FELUCCA_BLE
@@ -100,16 +100,31 @@ static void step(void)                               /* one block of 32 samples 
     said_lead |= str_eq(ui.msg, "FM-LINK: LEADING");
     said_follow |= str_eq(ui.msg, "FM-LINK: FOLLOWING");
 }
+static uint32_t pulse_ms, pulse_next;              /* an external MIDI clock on USB: a pulse every pulse_ms (0 none) */
+static void usb_rt(uint32_t status)                  /* a realtime message from USB into the input ring */
+{
+    midi_in_q[mi_w % MQ] = 0x0Fu | status << 8;
+    midi_in_source[mi_w % MQ] = 1u;
+    midi_in_ms[mi_w % MQ] = fm1_ms;
+    mi_w++;
+}
 static void run_ms(uint32_t ms)
 {
     uint32_t end = host_ticks + ms * 24000u;
-    while ((int32_t)(host_ticks - end) < 0)
+    while ((int32_t)(host_ticks - end) < 0) {
+        if (pulse_ms && (int32_t)(fm1_ms - pulse_next) >= 0) {
+            usb_rt(0xF8u);
+            pulse_next += pulse_ms;
+        }
         step();
+    }
 }
 /* |this FM-1's beats - the peer's| at this moment, in ms (each from its last block) */
 static double apart_ms(void)
 {
-    double a = (double)bt_fml.last_beats / 65536.0 +
+    double a = bt_fml.ext ?                          /* (a clock's leader: from its last pulse, the clock's grid) */
+               (double)bt_fml.snap_beats / 65536.0 + (double)(int32_t)(host_ticks - bt_fml.snap_t) / (544.0 * beat_samples()) :
+               (double)bt_fml.last_beats / 65536.0 +
                (double)(int32_t)(host_ticks - bt_fml.last_t) / (544.0 * (double)((uint32_t)FS * 60u / (uint32_t)song.g[G_BPM]));
     double b = (double)P.f.last_beats / 65536.0 + (double)(int32_t)(peer_clk() - P.f.last_t) / (544.0 * P.spb);
     double d = (a - b) * 60000.0 / song.g[G_BPM];
@@ -233,10 +248,37 @@ int main(void)
     run_ms(2000);
     ok("... and keeps playing", song.playing);
 
-    /* another clock: no part in FM-Link */
-    fresh(1, FML_LEADER);
-    run_ms(100);
-    ok("CLK USB: no FM-Link role", bt_fml.role == FML_NONE);
+    /* this FM-1 follows a MIDI clock on USB and leads the other FM-1 */
+    fresh(1, FML_FOLLOWER);
+    song.g[G_BPM] = 125;
+    pulse_ms = 20u;                                  /* 125 BPM */
+    pulse_next = fm1_ms;
+    run_ms(3000);
+    ok("CLK USB: the leader's role, FM-LINK: LEADING", bt_fml.role == FML_LEADER && bt_fml.ext && said_lead);
+    ok("the clock running, no Start: neither plays", !song.playing && !P.playing);
+    usb_rt(0xFAu);                                   /* the DAW's Start */
+    run_ms(300);
+    ok("the clock's Start: both play, the follower from beat 1", song.playing && P.playing && P.f.joined_beats == 0u);
+    run_ms(2000);
+    ok("the follower at the clock's BPM", P.f.l_bpm == 125u);
+    e = worst_ms(10000);
+    printf("      the follower against the clock's sequencer: %.3f ms at most over 10 s\n", e);
+    ok("within 2 ms", e <= 2.0);
+    usb_rt(0xFAu);                                   /* the DAW's Start again while playing: from beat 1, both */
+    run_ms(400);
+    ok("a Start while playing: the follower starts again from beat 1 with it", song.playing && P.playing &&
+       P.f.joined_beats == 0u && P.f.beats < (2u << 16));
+    e = worst_ms(3000);
+    ok("... within 2 ms", e <= 2.0);
+    usb_rt(0xFCu);                                   /* the DAW's Stop */
+    run_ms(200);
+    ok("the clock's Stop stops both", !song.playing && !P.playing);
+    pulse_ms = 0;
+    /* a clock's leader alone: the clock's PLAY as before */
+    fresh(2, FML_FOLLOWER);
+    link_down = 1;
+    run_ms(2500);
+    ok("CLK TRS, no other FM-1: the leader's role, nothing linked", bt_fml.role == FML_LEADER && !fml_linked(&bt_fml, host_ticks));
     printf(fails ? "bt_fml: %d FAILED\n" : "bt_fml: all checks passed\n", fails);
     return fails != 0;
 }

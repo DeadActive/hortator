@@ -449,7 +449,9 @@ timeline. One FM-1 in ROLE DEVICE with BLUETOOTH ON; on the other (ROLE HOST) + 
 `Felucca FM-1`. The leader runs CLK **INT**, the follower CLK **LINK** (GLO: CLK, after BLE). The screen says
 `FM-LINK: LEADING` / `FM-LINK: FOLLOWING`. PLAY on the leader starts both together, about 80 ms after the press; the
 leader's BPM is the follower's; STOP on the leader stops both; PLAY / STOP on a linked follower say `FOLLOWING LINK`.
-A follower that joins while the leader plays starts on its next bar. If the link drops the follower plays on at the
+The leader can follow a MIDI clock too (CLK **USB**, **TRS** or **BLE**): the clock's Start starts both from beat 1
+(the follower within a few milliseconds of the first pulse, catching up at once), its tempo is the follower's, its
+Stop stops both. A follower that joins while the leader plays starts on its next bar. If the link drops the follower plays on at the
 last BPM; CLK LINK with no other FM-1 plays as INT. It works with FM-1s running Felucca's Bluetooth build too.
 
 ### The SMC-Mixer (DAW mode)

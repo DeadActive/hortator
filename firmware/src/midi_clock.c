@@ -13,6 +13,7 @@ static struct {
     uint8_t mode, have_pulse, tempo_valid, tempo_n;
     uint16_t dts[4];                                 /* the last beats' lengths (ms, 24 pulses each) */
     uint8_t dt_n, dt_i;                              /* .. how many, the next slot */
+    uint32_t pulses;                                 /* the pulses taken while playing (FM-Link's leader: bt_fml.c) */
 } midi_clock;
 
 static __attribute__((noinline)) void midi_clock_transport(uint32_t status, uint32_t ms)
@@ -97,6 +98,7 @@ static __attribute__((noinline)) void midi_clock_pulse(uint32_t ms)
             midi_clock.rem = q % 24u;
         }
         midi_clock.have_pulse = 1;
+        midi_clock.pulses++;
     }
     midi_clock.pulse_samples = beat_samples() / 24u;
     if (!midi_clock.interval_ms)

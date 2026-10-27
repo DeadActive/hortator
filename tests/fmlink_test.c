@@ -26,6 +26,10 @@ typedef struct {
     uint32_t bpm, next_block, playing, started_R;
     uint32_t pos_tick, pos_spb;                     /* the last block's end (its ticks) and samples a beat */
     uint32_t pos_beats;                             /* its beats there (Q16) */
+    uint32_t ext_spb;                               /* a leader on an external clock (CLK USB / TRS): its samples a
+                                                     * beat (the clock's tempo, a fraction of a BPM off a whole one) */
+    uint64_t ext_pulse_R;                           /* .. the clock's first pulse after its Start: it moves from then */
+    uint32_t ext_acc;                               /* .. samples x 24 towards its next pulse */
 } unit_t;
 static unit_t U[2];
 static uint64_t R;                                  /* real time, ticks */
@@ -72,18 +76,27 @@ static void step(void)                              /* R moves on by 1/24 ms; bl
         uint8_t b[20];
         uint32_t len, seq_n, req, now = clk(x);
         if ((int32_t)(now + 256u * TPS - x->next_block) >= 0) {   /* rendered 256 samples before it is heard */
-            uint32_t spb = spb_of(u && x->f.l_valid ? x->f.l_bpm : x->bpm);
+            uint32_t spb = x->ext_spb ? x->ext_spb : spb_of(u && x->f.l_valid ? x->f.l_bpm : x->bpm);
             req = fml_block(&x->f, x->next_block, BLK, u && x->f.l_valid ? x->f.l_bpm : x->bpm, spb, (int)x->playing,
                             ui_req[u], &seq_n);
             ui_req[u] = 0;
+            if (x->ext_spb) {                       /* the clock's pulses (24 a beat) in this block */
+                uint32_t k = 0;
+                if (x->playing && R >= x->ext_pulse_R) {
+                    x->ext_acc += BLK * 24u;
+                    k = x->ext_acc / spb;
+                    x->ext_acc %= spb;
+                }
+                fml_adv(&x->f, k, x->playing && R < x->ext_pulse_R);
+            }
             if (req == 1u || req == 3u) {
                 x->playing = 1;
                 x->started_R = (uint32_t)(R / MS);
             } else if (req == 2u) {
                 x->playing = 0;
             }
-            x->pos_tick = x->next_block + BLK * TPS;
-            x->pos_beats = x->f.beats;
+            x->pos_tick = x->ext_spb ? x->f.snap_t : x->next_block + BLK * TPS;
+            x->pos_beats = x->ext_spb ? x->f.snap_beats : x->f.beats;   /* (a clock's: on its pulses' grid) */
             x->pos_spb = spb;
             x->next_block += BLK * TPS;
         }
@@ -203,6 +216,42 @@ int main(void)
     printf("      30 %% of the packets lost: %.3f ms at most\n", e);
     CHECK(e <= 2.0, "30 %% of the packets lost: within 2 ms");
     loss = 50;
+    /* the leader on an external clock (CLK USB / TRS): its transport and tempo are the clock's */
+    power_on(30, -25, 21);
+    U[0].f.ext = 1;
+    U[0].bpm = 123;
+    U[0].ext_spb = FS_SIM * 600u / 1234u;           /* 123.4 BPM */
+    run_ms(3000);
+    ui_req[0] = 1;                                  /* its own PLAY: the clock's business (a Start, then pulses) */
+    run_ms(5);
+    CHECK(U[0].playing, "an external clock's leader: its own PLAY is not held back");
+    U[0].playing = 0;
+    run_ms(2000);
+    U[0].playing = 1;                               /* the clock's Start */
+    U[0].ext_pulse_R = R + 10u * MS;                /* .. its first pulse 10 ms on */
+    U[0].ext_acc = U[0].ext_spb;
+    run_ms(5);
+    CHECK(!U[1].playing, "the follower waits for the clock's first pulse");
+    run_ms(150);
+    CHECK(U[1].playing && U[1].f.joined_beats == 0u, "the follower starts from beat 1 with the clock's leader");
+    s = U[1].started_R - (uint32_t)(U[0].ext_pulse_R / MS);
+    printf("      the follower started %u ms after the clock's first pulse\n", s);
+    CHECK(s <= 60u, "the follower's first step within 60 ms of the leader's");
+    e = max_err_ms(500);
+    printf("      after the start: %.3f ms apart\n", e);
+    CHECK(e <= 2.0, "caught up: within 2 ms 150 ms after the start");
+    e = max_err_ms(180000);
+    printf("      three minutes at 123.4 BPM: %.3f ms at most\n", e);
+    CHECK(e <= 2.0, "three minutes at a clock's 123.4 BPM: within 2 ms");
+    U[0].bpm = 100;                                 /* the clock's tempo changes */
+    U[0].ext_spb = FS_SIM * 60u / 100u;
+    run_ms(1000);
+    e = max_err_ms(20000);
+    printf("      after 123.4 -> 100 BPM: %.3f ms at most\n", e);
+    CHECK(U[1].playing && U[1].f.l_bpm == 100u && e <= 2.0, "a clock's tempo change: followed, within 2 ms");
+    U[0].playing = 0;                               /* the clock's Stop */
+    run_ms(200);
+    CHECK(!U[1].playing, "the clock's Stop stops the follower");
     printf(fails ? "fmlink: %d FAILED\n" : "fmlink: all checks passed\n", fails);
     return fails != 0;
 }

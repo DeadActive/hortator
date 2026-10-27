@@ -102,6 +102,7 @@ static void bt_fml_block(uint32_t n, uint32_t *seq_n)      /* (FM-Link: tests/bt
     (void)n;
     (void)seq_n;
 }
+static void bt_fml_adv(void) {}
 #endif
 static void hw_reset(void)
 {

@@ -14,6 +14,7 @@ static volatile uint8_t panic_req;       /* bit per track: cut its voices */
 static void bt_midi_out_isr(uint32_t pkt); /* bt_midi.c: what goes to USB MIDI out, to the BLE device too */
 #define CLK_LINK 4u                       /* G_CLOCK LINK: FM-Link's follower (bt_fml.c) */
 static void bt_fml_block(uint32_t n, uint32_t *seq_n);   /* bt_fml.c: FM-Link, CLK INT (leads) / LINK (follows) */
+static void bt_fml_adv(void);                           /* .. a MIDI clock's leader: the clock's pulses */
 #define CLK_FOLLOWS() (song.g[G_CLOCK] && song.g[G_CLOCK] != (int16_t)CLK_LINK)   /* a MIDI clock (LINK: its own
                                                                                     * clock, held on the leader's) */
 #else
@@ -757,6 +758,9 @@ static void events_block(uint32_t n)
                                                      * counts as one just before the bar) */
             if ((pr >> i) & 1u)
                 drum_cut(&trk[i]);
+#if FELUCCA_BLE
+        bt_fml_adv();                                /* (bt_fml.c: FM-Link's leader moves with the clock) */
+#endif
     }
     run = !clock_mode || midi_clock.have_pulse || !song.playing;   /* following: step 0 / the resumed step on the first
                                                      * pulse; stopped, seq_tick counts ACID's gates in real time */

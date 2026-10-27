@@ -68,8 +68,10 @@ released yet are listed under Unreleased.
   and "use now". Two links at once (a controller and another FM-1), reconnected by themselves in the order you picked;
   scanning never drops a link. The top bar shows a Bluetooth rune (struck through while nothing is linked).
   - **ROLE DEVICE**: the FM-1 is a BLE-MIDI device for a computer, a tablet or another FM-1.
-  - **FM-Link**: two FM-1s in time (CLK LINK follows a CLK INT leader), with Felucca's Bluetooth version too. In MODE
-    FM-LINK the link carries FM-Link only: no MIDI either way, so no MIDI clock either.
+  - **FM-Link**: two FM-1s in time (CLK LINK follows the leader), with Felucca's Bluetooth version too. The leader
+    runs on its own clock (CLK INT) or follows a MIDI clock (CLK USB, TRS or BLE). Following a clock, the leader passes
+    its Start, Stop and tempo on: the other FM-1 starts from beat 1 with it, within a few milliseconds, and keeps in
+    time. In MODE FM-LINK the link carries FM-Link only: no MIDI either way, so no MIDI clock either.
   - **MIDI to the device**: in MIDI mode the key hits go to the linked device too, and GLO SYNC BLE or BOTH sends it
     the MIDI clock (one clock, the same as USB's).
   - The SMC-Mixer's knobs 5-8 are MIDI LEARN's.

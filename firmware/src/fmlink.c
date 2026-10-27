@@ -33,9 +33,18 @@
 #endif
 #define FML_BAR (4u << 16)                          /* a bar: 4 beats (Q16) */
 #define FML_RESYNC 2205                             /* samples (50 ms): further off than this the follower joins again */
+#define FML_LATE 4410                               /* samples (100 ms): a fresh start heard this late: the follower
+                                                     * starts at once and catches up (a leader on an external clock
+                                                     * cannot announce its start ahead) */
 enum { FML_NONE, FML_LEADER, FML_FOLLOWER };
 typedef struct {
     uint8_t role;                                   /* this unit's: FML_LEADER (CLK INT), FML_FOLLOWER (CLK LINK) */
+    uint8_t ext;                                    /* the leader follows an external clock (CLK USB / TRS / BLE): its
+                                                     * transport and advance are the clock's (fml_adv) */
+    uint8_t wait;                                   /* .. started, no pulse yet: not announced as playing */
+    uint32_t snap_t, snap_beats;                    /* .. its last pulse: heard at snap_t, at snap_beats (the clock's
+                                                     * grid: between pulses its sequencer runs ahead and waits) */
+    uint8_t catchup;                                /* the follower started late (FML_LATE): catching up */
     uint8_t seen;                                   /* an FM-Link message came, the last at seen_at */
     uint32_t seen_at;
     uint8_t timers_on, ping_n, pong_due, pong_n;
@@ -46,7 +55,8 @@ typedef struct {
     uint32_t up_n, up_i, down_n, down_i;
     uint8_t off_ok;
     volatile uint8_t l_valid, l_playing, l_fresh, l_bpm, l_seq;   /* the leader's timeline: its own, or as received */
-    volatile uint32_t l_tref, l_bref;
+    volatile uint32_t l_tref, l_bref, l_spb;       /* (l_spb: its samples a beat, a clock's tempo between whole BPMs) */
+    uint32_t spb;                                   /* this unit's samples a beat (the last block's) */
     volatile uint8_t announce;                      /* the leader: a STATE now (PLAY, STOP) */
     uint8_t bpm;                                    /* this unit's BPM (the last block's) */
     uint8_t playing, pending;                       /* its sequencer runs; a start is waiting (leader: start_at) */
@@ -123,6 +133,7 @@ static void fml_rx(fml_t *f, const uint8_t *p, uint32_t len, uint32_t t)
         f->l_bpm = p[3];
         f->l_tref = fml_rd32(p + 4);
         f->l_bref = fml_rd32(p + 8);
+        f->l_spb = len >= 16u ? fml_rd32(p + 12) : 0u;
         f->l_valid = 1;
     }
 }
@@ -143,22 +154,23 @@ static uint32_t fml_poll(fml_t *f, uint32_t now, uint8_t *out)
         return 10;
     }
     if (f->role == FML_LEADER && linked &&
-        (f->announce || f->bpm != f->l_bpm || fml_due(now, f->next_state))) {
+        (f->announce || f->bpm != f->l_bpm || f->spb != f->l_spb || fml_due(now, f->next_state))) {
         f->announce = 0;
         f->next_state = now + FML_STATE_TICKS;
-        if (f->playing) {                           /* playing: where it is (the last block) */
-            f->l_tref = f->last_t;
-            f->l_bref = f->last_beats;
-            f->l_fresh = 0;
+        if (f->playing && !f->wait) {               /* playing: where it is (the last block; a clock's: its pulse) */
+            f->l_tref = f->ext ? f->snap_t : f->last_t;
+            f->l_bref = f->ext ? f->snap_beats : f->last_beats;
+            f->l_fresh = (uint8_t)(f->ext && f->snap_beats < FML_BAR);   /* (a clock's start: just now) */
         }
-        f->l_playing = (uint8_t)(f->playing || f->pending);
+        f->l_playing = (uint8_t)((f->playing && !f->wait) || f->pending);
         f->l_bpm = f->bpm;
+        f->l_spb = f->spb;
         out[0] = 'S';
         out[1] = ++f->l_seq;
         out[2] = (uint8_t)(f->l_playing | f->l_fresh << 1);
         out[3] = f->l_bpm;
-        fml_wr32(fml_wr32(out + 4, f->l_tref), f->l_bref);
-        return 12;
+        fml_wr32(fml_wr32(fml_wr32(out + 4, f->l_tref), f->l_bref), f->l_spb);
+        return 16;
     }
     if (fml_due(now, f->next_hello)) {
         f->next_hello = now + FML_HELLO_TICKS;
@@ -205,9 +217,18 @@ static uint32_t fml_block(fml_t *f, uint32_t t, uint32_t n, uint32_t bpm, uint32
     int32_t c = 0;
     int linked = fml_linked(f, t);
     f->bpm = (uint8_t)bpm;
-    if (!playing && f->playing)
-        f->playing = 0;                             /* (stopped by other means: a load, the clock changed) */
-    if (f->role == FML_LEADER) {
+    f->spb = spb;
+    if (!playing && f->playing) {
+        f->playing = f->wait = 0;                   /* (stopped by other means: a load, the clock changed, its Stop) */
+        f->announce = f->role == FML_LEADER;
+    }
+    if (f->role == FML_LEADER && f->ext) {          /* an external clock's: its transport as it is, the follower told */
+        if (playing && !f->playing) {               /* (a Start: announced from its first pulse, fml_adv) */
+            f->playing = f->wait = 1;
+            f->beats = f->rem = 0;
+        }
+        req = ui_req;
+    } else if (f->role == FML_LEADER) {
         if (playing && !f->playing && !f->pending) {   /* started by other means (a count-in's end, SONG): from here */
             f->playing = 1;
             f->beats = f->rem = 0;
@@ -242,7 +263,9 @@ static uint32_t fml_block(fml_t *f, uint32_t t, uint32_t n, uint32_t bpm, uint32
             c = (int32_t)(t - f->start_at) / (int32_t)FML_TPS;   /* late: on by that much in this block */
         }
     } else if (f->role == FML_FOLLOWER && linked && f->l_valid && f->off_ok) {
-        int64_t exp = (int64_t)f->l_bref + fml_beats((int32_t)(t + (uint32_t)f->off - f->l_tref), spb);
+        uint32_t lspb = f->l_spb ? f->l_spb : spb;  /* (the leader's tempo, to the sample) */
+        int32_t late;
+        int64_t exp = (int64_t)f->l_bref + fml_beats((int32_t)(t + (uint32_t)f->off - f->l_tref), lspb);
         if (ui_req)
             f->msg_follow = 1;                      /* its own PLAY / STOP: the leader's are what count */
         if (f->l_playing && !f->playing) {
@@ -251,25 +274,36 @@ static uint32_t fml_block(fml_t *f, uint32_t t, uint32_t n, uint32_t bpm, uint32
                 f->target = f->l_fresh && exp < (int64_t)FML_BAR ? 0u :
                             exp <= 0 ? 0u : (uint32_t)((exp + FML_BAR - 1) / FML_BAR * FML_BAR);   /* the next bar */
             }
-            if (fml_samples(exp - (int64_t)f->target, spb) > (int32_t)n)
+            late = fml_samples(exp - (int64_t)f->target, lspb);
+            if (f->l_fresh && !f->target && late > (int32_t)n && late <= FML_LATE) {
+                f->pending = 0;                     /* a fresh start heard late: from beat 1 now, catching up */
+                f->playing = f->catchup = 1;
+                f->beats = f->joined_beats = 0;
+                f->rem = 0;
+                req = 1;
+                c = late;
+            } else if (late > (int32_t)n)
                 f->target += FML_BAR;               /* (its moment passed: the bar after) */
-            else if (fml_samples(exp - (int64_t)f->target, spb) >= -(int32_t)(n / 2u)) {
+            else if (late >= -(int32_t)(n / 2u)) {
                 f->pending = 0;
                 f->playing = 1;
                 f->beats = f->joined_beats = f->target;
                 f->rem = 0;
                 req = 1;
-                c = fml_samples(exp - (int64_t)f->target, spb);
+                c = late;
             }
         } else if (!f->l_playing && (f->playing || f->pending)) {
             req = f->playing ? 2u : 0u;
-            f->playing = f->pending = 0;
+            f->playing = f->pending = f->catchup = 0;
         } else if (f->playing) {
-            int32_t err = fml_samples(exp - (int64_t)f->beats, spb);
-            if (err > FML_RESYNC || err < -FML_RESYNC) {
+            int32_t err = fml_samples(exp - (int64_t)f->beats, lspb);
+            if (f->catchup && err >= 4 && err <= FML_LATE) {
+                c = err;                            /* (at most a block more a block: up to twice the speed) */
+            } else if (err > FML_RESYNC || err < -FML_RESYNC) {
                 req = 2;                            /* far off (it played on its own): stop, join on the next bar */
                 f->playing = 0;
             } else {
+                f->catchup = 0;
                 c = err >= 4 ? 1 : err <= -4 ? -1 : 0;
             }
         }
@@ -287,10 +321,39 @@ static uint32_t fml_block(fml_t *f, uint32_t t, uint32_t n, uint32_t bpm, uint32
     *seq_n = n + (uint32_t)c;
     f->last_t = t;
     f->last_beats = f->beats;
-    if (f->playing) {
+    if (f->playing && !f->ext) {
         q = *seq_n * 65536u + f->rem;
         f->beats += q / spb;
         f->rem = q % spb;
     }
     return req;
+}
+
+/* an external clock's leader, after each fml_block: the clock's pulses its sequencer took this block (24 a beat; the
+ * first after a Start is beat 1, its sequencer at that pulse as this block begins), waiting = started, no pulse yet */
+static void fml_adv(fml_t *f, uint32_t pulses, int waiting)
+{
+    uint32_t q;
+    if (f->role != FML_LEADER || !f->ext || !f->playing)
+        return;
+    if (waiting) {
+        if (!f->wait) {                             /* (a Start while playing: from beat 1 again, the follower too) */
+            f->wait = 1;
+            f->announce = 1;
+        }
+        return;
+    }
+    if (!pulses)
+        return;
+    if (f->wait) {
+        f->wait = 0;
+        f->beats = f->rem = 0;
+        f->announce = 1;
+        pulses--;
+    }
+    q = pulses * 65536u + f->rem;
+    f->beats += q / 24u;
+    f->rem = q % 24u;
+    f->snap_t = f->last_t;
+    f->snap_beats = f->beats;
 }
