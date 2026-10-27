@@ -148,9 +148,9 @@ static uint32_t oct_leds(void)
  * the scan's hook idle; else the hook's layers (led_dim.c), one store per column: DIM LO / HI the unlit keys and the
  * idle buttons in the glow, the unlit beats in the mid layer; INV / INV LO / INV HI the idle ones lit / in the mid
  * layer and the lit ones dark; a breathing LED only breathes (neither lit nor in the glow). The levels: the layers'
- * frames of 20 */
+ * frames of 20, the glow's pulse (led_dim.c) */
 static const uint32_t BL_MID_PH[BL_COUNT] = {0u, LED_PH_25, 0x22489u, 0u, 0x401u, LED_PH_25};   /* 25 30 - 10 25 % */
-static const uint32_t BL_GLOW_PH[BL_COUNT] = {0u, 0x1u, 0x401u, 0u, 0u, 0u};                   /* 5 10 % */
+static const uint32_t BL_GLOW_W[BL_COUNT] = {0u, LED_GLOW_LO, LED_GLOW_HI, 0u, 0u, 0u};       /* the glow's pulse */
 static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats)
 {
     uint32_t lay[FM1_NCOL] = {0}, k, c, br = 0, m = backlight < BL_COUNT ? backlight : BL_OFF;
@@ -184,7 +184,7 @@ static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats)
             lay[q >> 3] |= lit;
     }
     led_mid_ph = BL_MID_PH[m];
-    led_glow_ph = BL_GLOW_PH[m];
+    led_glow_w = BL_GLOW_W[m];
     led_br_on = br != 0u;
     for (c = 0; c < FM1_NCOL; c++)
         led_lay[c] = lay[c];                          /* one store per column: the scan sees all of it or none */

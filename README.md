@@ -298,10 +298,11 @@ most x4. ACCEL OFF: one step a click at any speed.
 
 MENU (hold HOME) **BACKLIGHT** (the LED levels of upstream Felucca's MENU > LEDS): OFF (lit or dark, as before),
 DIM LO, DIM HI, INV, INV LO, INV HI. DIM LO (an older Hortator's BACKLIGHT ON): every key LED that is not lit and every
-idle button glows at about 5 %, so the panel can be found in the dark; on every screen where the white keys are the
+idle button glows at about 3 % (a very short flash in every scan, about 900 a second: steady, also with
+Bluetooth on), so the panel can be found in the dark; on every screen where the white keys are the
 selected track's steps (STEP, PATTERN, MOTION and SONG while KEYS is off; HOME's TRACKS mode while no track is armed),
 the unlit steps 1, 5, 9 and 13 of the bank shown glow at about 25 % (bank 2: 17, 21, 25, 29), marking the beats. DIM
-HI: the same, brighter (about 10 %, the beats about 30 %). INV turns it around as the stock firmware does: the idle
+HI: the same, brighter (about 6 %, the beats about 30 %). INV turns it around as the stock firmware does: the idle
 LEDs lit, the active ones (steps that are on, the playhead, held keys, the page's button) dark; INV LO / INV HI the
 same with the idle ones at about 10 % / 25 %. In every mode OCT- / OCT+ **breathe** (fade in and out, upstream
 Felucca's) where pressing them would do something: the next / previous bank on the steps, LAYER from SOUND, the LFO pages' RATE MODE (OCT+),

@@ -52,6 +52,7 @@ static const int8_t FM1_KEYMAP[6][FM1_NCOL] = {
 };
 static uint8_t fm1_led[FM1_NCOL];
 static uint8_t fm1__tick_col;                         /* (hal/fm1_input.h: the column the scan lit last; led_dim.c) */
+static void fm1__led_lines(uint32_t rowmask) { (void)rowmask; }   /* (hal/fm1_input.h: the LED lines; led_dim.c's glow) */
 static uint32_t host_btn_edges, host_note_edges, host_ticks;
 static int32_t host_enc[7];
 #define FM1_TICKS_PER_US 24u
