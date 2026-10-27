@@ -138,27 +138,33 @@ static uint32_t steps_lit(const track_t *t)          /* the white keys of t's fi
     return m;
 }
 
+static uint32_t var_lit(void)                        /* the playing variation's black key (HOME, TRACKS, the SEQ pages:
+                                                      * ui_input.c CUE_BK), a slot loaded */
+{
+    return proj_loaded() >= 0 ? 1u << CUE_BK[var_cur & 7u] : 0u;
+}
 static void test_leds(void)
 {
     sim_init(1);
     run(4096);
     check("power-on: HOME's TRACKS mode, its button LED lit, the key LEDs track 1's steps (demo 1: the kick)",
-          mix_mode() && ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == steps_lit(&trk[0]));
+          mix_mode() && ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == (steps_lit(&trk[0]) | var_lit()));
     tap(B_HOME);                                     /* HOME's second mode: the keys play */
     run(4096);
-    check("HOME (mode 2): its button LED lit, only the selected track's key lit (track 1)", ui.home &&
-          ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == 1u << KEY_TRK_KEY[song.sel]);
-    sim_key(5, 1);
+    check("HOME (mode 2): its button LED lit, only the selected track's key lit (track 1) and the playing variation's",
+          ui.home && ((sim_leds() >> B_HOME) & 1u) && sim_key_leds() == (1u << KEY_TRK_KEY[song.sel] | var_lit()));
+    sim_key(20, 1);                                  /* (C#5: the first 8 black keys are the variations) */
     run(2048);
-    check("a held note key lights its LED", (sim_key_leds() >> 5) & 1u);
-    sim_key(5, 0);
+    check("a held note key lights its LED", (sim_key_leds() >> 20) & 1u);
+    sim_key(20, 0);
     sim_key(24, 1);
     run(2048);
     check("a held high key (F5) lights its own LED, besides the selected track's",
-          sim_key_leds() == (1u << 24 | 1u << KEY_TRK_KEY[song.sel]));
+          sim_key_leds() == (1u << 24 | 1u << KEY_TRK_KEY[song.sel] | var_lit()));
     sim_key(24, 0);
     run(2048);
-    check("released: only the selected track's key stays lit", sim_key_leds() == 1u << KEY_TRK_KEY[song.sel]);
+    check("released: only the selected track's key stays lit (and the playing variation's)",
+          sim_key_leds() == (1u << KEY_TRK_KEY[song.sel] | var_lit()));
 }
 
 /* owner 2026-10-23: through the page's key calls too, a step key toggles its step on a short press's release; a

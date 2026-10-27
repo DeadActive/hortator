@@ -85,12 +85,13 @@ test('releaseAll lets go of held keys and buttons', async () => {
   const sim = await boot();
   run(sim, 4096);
   tap(sim, B_HOME);                                 // HOME's second mode (power-on: TRACKS, the keys its steps)
-  sim.key(5, true);
+  sim.key(20, true);                                // (C#5: the first 8 black keys are the variations)
   run(sim, 2048);
-  assert.ok((sim.keyLeds() >>> 5) & 1, 'held key lit');
+  assert.ok((sim.keyLeds() >>> 20) & 1, 'held key lit');
   sim.releaseAll();
   run(sim, 2048);
-  assert.equal(sim.keyLeds(), 1 << 0, 'released: only the selected track\'s key stays lit (track 1: key 0)');
+  assert.equal(sim.keyLeds(), 1 << 0 | 1 << 1,
+    'released: only the selected track\'s key (track 1: key 0) and the playing variation\'s (1: F#3) stay lit');
 });
 
 // ---- controls.js: the panel's data, checked against the firmware
