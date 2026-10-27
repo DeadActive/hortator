@@ -195,11 +195,21 @@ lock banks (0xD4000..0xDBFFF), the shortened USR3 (0xC8000..0xD3FFF) or any othe
 | standard (variations, USB AUDIO 10 CH) | 355,820 | 82,660 | 317,556 |
 | **Bluetooth (packaged)** | **498,268** | **92,512** (5,792 spare, 4,096 kept) | **334,216** (9,848 spare, 8,192 kept) |
 
-With the variations' two RAM banks (7,168 B) the Bluetooth build's `.data + .bss` was 99,744 B: over the 98,304 B
-region. The variations are therefore the standard build's only (core.h `VAR_ON`, as USB AUDIO 10 CH): the Bluetooth
-build keeps the slot cue, FILL and COPY / PASTE, plays variation 1, never touches 0xC0000..0xC7FFF, keeps a record's
-link to them on SAVE onto the loaded slot, and does not cut USR2 (`xbuild_test`: standard -> Bluetooth -> standard on
-one flash image).
+With the variations' two RAM banks (7,168 B) in `.bss` the Bluetooth build's `.data + .bss` would be 99,744 B: over
+the 98,304 B region. The first merge therefore left the variations out of the Bluetooth build; they are back in it:
+
+| | image B | `.data + .bss` B (of 98304) | pool B (of 344064) | `.ram_bss` B |
+| --- | ---: | ---: | ---: | ---: |
+| standard (unchanged: byte for byte the merge's) | 355,820 | 82,660 | 317,556 | |
+| **Bluetooth, with the variations (packaged)** | **502,416** | **92,576** (5,728 spare, 4,096 kept) | **334,216** (9,848 spare, 8,192 kept) | **7,168** |
+
+In the Bluetooth build the two banks (project.c `var_buf`) are not in `.bss` but in `.ram_bss` (app_ble.ld, NOLOAD):
+the RAM-code region 0x01C00000..0x01C05FFF holds `.ram_text` (6,864 B) and nothing else, so the banks sit right after
+it, 0x01C01AD0..0x01C036CF, past `_rt_end` (the PC guard's RAM-code window ends there) and below the RAM-run debug
+area at 0x01C06000; 10,544 B of the region stay free. crt0 zeroes `.bss` and the pool only, so persist_boot zeroes
+the banks (first thing, every power-on). The standard build keeps them in `.bss` (app.ld untouched). Both builds have
+the same variations and the same flash format (`xbuild_test`: standard -> Bluetooth -> standard on one flash image,
+and the Bluetooth build alone: its banks zero after power-on whatever the RAM held, USR2 shortened once).
 
 The flash map of both builds after the merge (4 KiB sectors; A / B copies for every object):
 

@@ -42,9 +42,9 @@ static uint8_t acc_oct;
  * (the cue map, every page it opens on): the same keys, of the queued slot if one is (cue_keys) */
 static const uint8_t CUE_BK[8] = {1, 3, 5, 8, 10, 13, 15, 17};
 #define CUE_BK_MASK 0x2A52Au                        /* (their bits) */
-static int cue_bk_page(void)                        /* (the Bluetooth build: never, no variations: VAR_ON) */
+static int cue_bk_page(void)
 {
-    return VAR_ON && !ui.menu && !ui.confirm && !ui.mute && !ui.layer && !ui.fx_t0 && !name_on() && !pl_on() && !keys_mode() &&
+    return !ui.menu && !ui.confirm && !ui.mute && !ui.layer && !ui.fx_t0 && !name_on() && !pl_on() && !keys_mode() &&
            (ui.home || cur_page()->fam == FAM_SEQ || cur_page()->fam == FAM_MIX);
 }
 /* things the boot found that the first frames say, once each (project.c persist_boot): USR2 / USR3 shortened to 48 KiB,
@@ -863,7 +863,7 @@ static void cue_keys(uint32_t hits)                    /* white key n: STEP_KEY[
     for (n = 0; n < 4u; n++)
         if ((hits >> STEP_KEY[n]) & 1u)
             (void)cue_slot(n);
-    for (n = 0; VAR_ON && n < 8u; n++)                  /* (the Bluetooth build: the black keys do nothing) */
+    for (n = 0; n < 8u; n++)
         if ((hits >> CUE_BK[n]) & 1u)
             (void)cue_var(n);
 }

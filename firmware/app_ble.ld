@@ -12,7 +12,8 @@
  * FELUCCA memory map.
  * Code + constants execute in place from XIP (app.bin offset 0 = 0x02000120).
  * 0x01C00000..0x01C06000 holds .ram_text (code that must run while the flash
- * is busy: the flash driver); 0x01C06000..0x01C08000 stays for RAM-run debug.
+ * is busy: the flash driver), then .ram_bss (the variations' banks, NOLOAD, zeroed
+ * by project.c persist_boot); 0x01C06000..0x01C08000 stays for RAM-run debug.
  * RAM  : .data/.bss (96 KiB)
  * POOL : big zero-initialised buffers (FX lines, canvases), section .pool
  * STACKS with 256-byte guard bands; NOINIT survives resets and UBOOT entry.
@@ -50,6 +51,9 @@ SECTIONS
         *(.volatile_ram_code) *(*.rf.text.cache.L2.rf_trim)
         . = ALIGN(4); _rt_end = .;
     } > RAMTEXT AT > XIP
+    /* the variations' two banks (project.c var_buf, 7168 B): no room in .bss; zeroed by persist_boot. After _rt_end
+     * (the PC guard's RAM-code window ends there), below 0x01C06000 */
+    .ram_bss (NOLOAD) : { . = ALIGN(4); _rb_start = .; *(.ram_bss*) . = ALIGN(4); _rb_end = .; } > RAMTEXT
     _rt_load = LOADADDR(.ram_text);
     .data : { . = ALIGN(4); _data_start = .; *(.data*) *(.sdata*) *(.*_data) . = ALIGN(4); _data_end = .; } > RAM AT > XIP
     _data_load = LOADADDR(.data);

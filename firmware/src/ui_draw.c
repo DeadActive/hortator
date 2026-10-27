@@ -198,7 +198,7 @@ static int head_mode(char *b)
             uint32_t s = cue.q_slot ? cue.q_slot - 1u : (uint32_t)(ld < 0 ? 0 : ld);
             str_cpy(b, "CUE>", 16);
             b[4] = (char)('A' + s);
-            b[5] = VAR_ON && cue.q_var ? (char)('0' + cue.q_var) : 0;   /* (the Bluetooth build: CUE>B) */
+            b[5] = cue.q_var ? (char)('0' + cue.q_var) : 0;
             b[6] = 0;
         } else if (ld < 0) {
             str_cpy(b, "CUE -", 16);
@@ -208,10 +208,6 @@ static int head_mode(char *b)
             b[5] = (char)('1' + var_cur);
             b[6] = slot_dirty((uint32_t)ld) ? '*' : 0;
             b[7] = 0;
-            if (!VAR_ON) {                            /* (the Bluetooth build: CUE A, CUE A*) */
-                b[5] = b[6];
-                b[6] = 0;
-            }
         }
         return 1;
     }
