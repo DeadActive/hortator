@@ -55,6 +55,10 @@ released yet are listed under Unreleased.
   variations. A longer USR2 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the next
   power-on (`USR2 SHORTENED TO 48K`). If that ever fails (`USR2 CLAMP FAILED` at power-on), SAVE says
   `USR2 ERROR: NO SAVE` until the next power-on.
+- **Bluetooth version**: variations need the standard build, as 10 CH USB audio. The Bluetooth version has the slot
+  cue, FILL and COPY / PASTE and plays each slot's variation 1; its black keys work as before. It keeps the
+  variations the standard build saved (SAVE onto the loaded slot keeps them; SAVE onto another slot or PASTE takes
+  none along), and it does not shorten USR2.
 - Projects: a project saved now loads on 0.25.0 and 0.24.0 without its variations. If a project's variations can't
   be read, it loads without them and the FM-1 says `VARIATIONS LOST` once. A power cut during SAVE keeps the previous
   save whole.

@@ -847,6 +847,12 @@ ACC`).
   changing the tempo: `DISCARD EDITS?`.
 - Following CLK USB (a DAW at 120 BPM): queue variation 2 and slot B: each comes in on the bar's pulse, in time.
 - The keys pressed with SAVE held never sound, never send MIDI, never record (REC ALL on, playing).
+- Bluetooth version (no variations: they need the standard build). Install the standard build, save A with
+  variation 2 used; install the Bluetooth build: no `USR2 SHORTENED` / `VARIATIONS LOST`; LOAD A plays variation 1;
+  on HOME the black keys do what they did before (no variation queued, their LEDs as before); hold SAVE: `CUE A`
+  (no number), black keys dark; SAVE + white key 2 while playing: `CUE>B`, B at the pattern's end; FILL and COPY /
+  PASTE work. Edit A, SAVE onto A. Install the standard build again: LOAD A has the edit, and G#3 brings back
+  variation 2 as it was saved.
 
 ### MIDI clock out (SYNC), ROUT, THRU (check on the FM-1)
 

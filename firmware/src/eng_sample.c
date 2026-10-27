@@ -36,7 +36,8 @@ static uint32_t pow2_q16(int32_t d16)
  * 3 slots of 80 KiB at flash 0xA0000.. (Felucca data region), read through the plain XIP
  * window; USR3 holds 48 KiB (0xC8000..0xD3FFF): its last 32 KiB are the lock banks (storage.c OBJ_LOCKS0..3,
  * spec 2026-10-24 parameter locks); USR2 holds 48 KiB (0xB4000..0xBFFFF): its last 32 KiB are the variations
- * (storage.c OBJ_VAR0..3, spec 2026-10-26 cue / variations); project.c smp_usr_clamp shortens a longer one once.
+ * (storage.c OBJ_VAR0..3, spec 2026-10-26 cue / variations); project.c smp_usr_clamp shortens a longer one once. The
+ * Bluetooth build has no variations (core.h VAR_ON): its USR2 keeps 80 KiB and is never shortened.
  * Slot = header (magic, count, name, data length, CRC32) + up to 16 zones in the
  * smp_zone_t layout (off relative to the slot's data at +512) + IMA ADPCM data. */
 #include "../hal/fm1_xip.h"   /* relative: hostsim includes this file too */
@@ -44,7 +45,12 @@ static uint32_t pow2_q16(int32_t d16)
 #define SMP_USER_BASE 0xA0000u
 #define SMP_USER_SIZE 0x14000u
 #define SMP_USER_DATA 512u
+#if !defined(VAR_ON) || VAR_ON
 #define SMP_USR2_SIZE 0xC000u                       /* USR2: 48 KiB, the variations after it */
+#else
+#define SMP_USR2_SIZE SMP_USER_SIZE                 /* (the Bluetooth build, no variations: USR2's 80 KiB as before; a
+                                                     * USR2 the standard build cut says 48 KiB in its header) */
+#endif
 #define SMP_USR3_SIZE 0xC000u                       /* USR3: 48 KiB, the lock banks after it */
 #define SMP_USER_MAGIC 0x504D5346u                  /* "FSMP" */
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)

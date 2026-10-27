@@ -210,6 +210,14 @@ variation and are kept when you cue away and back. While SONG plays a cue is ref
 plays its slot's variation 1. Following an external clock (CLK USB / TRS) the switch comes on the pulse that ends
 the pattern.
 
+**Variations need the standard, non-Bluetooth build** (as 10 CH USB audio; the Bluetooth version's memory is full).
+The Bluetooth version has the slot cue (SAVE held + white keys 1–4), FILL and COPY / PASTE, and plays each slot's
+variation 1: the black keys do what they did before, the cue map's black keys stay dark and its top line reads
+`CUE A` / `CUE>B`. It leaves the variations saved by the standard build as they are: SAVE onto the loaded slot keeps
+them for the standard build, which finds them again; SAVE onto another slot and PASTE take no variations along (the
+target slot's own stay in flash, unused). In the Bluetooth version USR2 keeps its 80 KiB room: it is not shortened
+(one the standard build shortened plays its 48 KiB).
+
 **The black keys are the variations.** The first 8 black keys from the left (F#3 G#3 A#3 C#4 D#4 F#4 G#4 A#4) queue
 variations 1–8 of the playing slot on HOME (both modes) and the SEQ pages (STEP, PATTERN, MOTION, SONG), with STEPS
 on or off. There the playing variation's black key is lit, a queued one blinks and the rest are dark. With KEYS on,

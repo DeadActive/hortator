@@ -106,6 +106,15 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-re
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/cue_test" tests/cue_test.c -lm   # (cue / variations: ASan + UBSan)
 "$OUT/cue_test" > "$OUT/cue_test.txt" 2>&1 || { grep -v "^ok" "$OUT/cue_test.txt" | tail -30; exit 1; }
 tail -1 "$OUT/cue_test.txt"
+XF="-O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function
+    -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src"   # (the variations across the two builds)
+cc $XF -o "$OUT/xbuild_std" tests/xbuild_test.c -lm
+cc $XF -DFELUCCA_BLE=1 -o "$OUT/xbuild_ble" tests/xbuild_test.c -lm
+"$OUT/xbuild_std" std-make "$OUT/xbuild.img" > "$OUT/xbuild.txt" 2>&1 &&
+    "$OUT/xbuild_ble" ble "$OUT/xbuild.img" >> "$OUT/xbuild.txt" 2>&1 &&
+    "$OUT/xbuild_std" std-check "$OUT/xbuild.img" >> "$OUT/xbuild.txt" 2>&1 &&
+    "$OUT/xbuild_ble" ble-alone >> "$OUT/xbuild.txt" 2>&1 || { grep -v "^ok" "$OUT/xbuild.txt" | tail -30; exit 1; }
+grep "^xbuild_test" "$OUT/xbuild.txt"
 cc -O2 -DCUE_COST -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src \
     -o "$OUT/cue_cost" tests/cue_test.c -lm   # (the switch block's cost, worst case: host instructions)
 "$OUT/cue_cost"
