@@ -718,7 +718,7 @@ static int settings_backlight_round_trip(void)
     return (int)ok;
 }
 
-/* spec 2026-10-10 §4: a project saved with CLK BLE (3) loads as CLK INT in a build whose CLK ends at TRS (2), not as
+/* spec 2026-10-10 §4: a project saved with CLK BLE (3) or LINK (4) loads as CLK INT in a build whose CLK ends at TRS (2), not as
  * TRS; a value inside the range is kept */
 static int clock_beyond_range_is_int(void)
 {
@@ -733,6 +733,11 @@ static int clock_beyond_range_is_int(void)
     song.g[G_CLOCK] = 1;
     (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     ok = GP[G_CLOCK].max == 2 && song.g[G_CLOCK] == 0;
+    p->g[G_CLOCK] = 4;                              /* (CLK LINK, the Bluetooth build's FM-Link follower) */
+    p->sum = proj_sum(p);
+    song.g[G_CLOCK] = 1;
+    (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
+    ok &= song.g[G_CLOCK] == 0;
     p->g[G_CLOCK] = 2;
     p->sum = proj_sum(p);
     (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
@@ -2553,7 +2558,7 @@ int main(void)
           settings_backlight_round_trip());
     check("settings: AUTOSTART survives a power cycle in the palette word's bit 8 (the palette, SPEAKER EQ, BACKLIGHT, "
           "the device kept); an older record and none load OFF", settings_autostart_round_trip());
-    check("project: CLK beyond this build's range (BLE) loads as INT, not TRS", clock_beyond_range_is_int());
+    check("project: CLK beyond this build's range (BLE, LINK) loads as INT, not TRS", clock_beyond_range_is_int());
     check("settings: MIDI THRU survives a power cycle (palette bit 14, the rest kept); older records, none: OFF",
           thru_persists());
     check("project: SYNC / ROUT load OFF / NOTE from older projects; ROUT in range; SYNC BLE / BOTH without Bluetooth: "
@@ -2613,6 +2618,7 @@ int main(void)
             }
     check("flash: no erase or program in any test outside the map (projects, USR2's header, the variations, USR3's "
           "header, lock banks, user objects, settings)", host_fl_stray == 0);
+    check("flash: nothing in the core writes the Bluetooth store's sectors (0x9F000 / 0xFE000)", host_fl_bt == 0);
     printf(fails ? "boot_test: %d FAILED\n" : "boot_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

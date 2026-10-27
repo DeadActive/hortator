@@ -118,8 +118,11 @@ int main(void)
     }
     {   /* Q_CALLBACK: func(argv[3], argv[4]) runs in the pend (flags 2 = two args); a plain message still returns */
         int c[4];
+        ble_os_init(heap, sizeof heap);         /* (the hog never sleeps: a fresh OS, three task slots, NTASK) */
         nlog = 0;
         task_create(cb_consumer, 0, "cbtask");
+        CHECK(task_create(consumer, 0, "two") == 0 && task_create(consumer, 0, "three") == 0 &&
+              task_create(consumer, 0, "four") == -1, "tasks: three slots (app_core, btctrler, btstack), a fourth refused");
         ble_os_service(1000);
         c[0] = 1;   /* (the handle of add2: pointers are 64-bit on the host) */ c[1] = 2; c[2] = 30; c[3] = 12;
         os_taskq_post_type("cbtask", BLE_SDK_Q_CALLBACK, 4, c);
@@ -214,14 +217,14 @@ int main(void)
         const char *name = 0;
         ble_os_init(heap, sizeof heap);
         task_create(consumer, 0, "deep");
-        for (i = 0; i < 4u; i++)
+        for (i = 0; i < NTASK; i++)
             if (ble_os_stack_free(i, &name) && name && !strcmp(name, "deep"))
                 slot = i;
-        CHECK(slot < 4u && ble_os_stack_intact(slot), "stack: a new task is intact");
-        if (slot < 4u)
+        CHECK(slot < NTASK && ble_os_stack_intact(slot), "stack: a new task is intact");
+        if (slot < NTASK)
             tasks[slot].stack[1] = 0;
-        CHECK(slot < 4u && !ble_os_stack_intact(slot), "stack: an overflow into the lowest words is seen");
-        CHECK(ble_os_stack_intact(3u) || tasks[3].name, "stack: an empty slot counts as intact");
+        CHECK(slot < NTASK && !ble_os_stack_intact(slot), "stack: an overflow into the lowest words is seen");
+        CHECK(ble_os_stack_intact(NTASK - 1u) || tasks[NTASK - 1u].name, "stack: an empty slot counts as intact");
     }
     {   /* failed allocations are counted (heap sizing from the device) */
         ble_os_init(heap, sizeof heap);

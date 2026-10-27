@@ -13,7 +13,8 @@
 #define BLE_POOL __attribute__((section(".pool")))
 #endif
 
-#define NTASK 4
+#define NTASK 3                                    /* app_core, btctrler, btstack: the libraries create no other
+                                                    * (SDK demo_ble task_info_table); a 4th slot's 2.5 KB went to the heap */
 #define QWORDS 96                                  /* message words per task queue */
 #define NTIMER 16
 #define STACK_WORDS BLE_STACK_WORDS
@@ -40,7 +41,9 @@ typedef struct { int16_t count; uint8_t magic, owner; } sem_t;   /* lives inside
 static task_t tasks[NTASK] BLE_POOL __attribute__((aligned(8)));
 static tmr_t timers[NTIMER];
 static int cur = -1;                               /* running task, -1 = the core */
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
 static uint32_t run_max;                           /* the longest single task run, ticks (ble_os_run_max_us) */
+#endif
 #ifdef BLE_OS_HOST
 static ucontext_t core_ctx;
 #else
@@ -191,6 +194,7 @@ int task_create(void (*task)(void *p), void *p, const char *name)
     return -1;
 }
 
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
 uint32_t ble_os_stack_free(uint32_t i, const char **name)   /* bytes of task i's stack never touched */
 {
     uint32_t k = 0;
@@ -203,6 +207,7 @@ uint32_t ble_os_stack_free(uint32_t i, const char **name)   /* bytes of task i's
         k++;
     return k * 4u;
 }
+#endif
 const char *os_current_task(void) { return cur >= 0 ? tasks[cur].name : "app_core"; }
 const char *os_current_task_rom(void) { return os_current_task(); }
 
@@ -520,7 +525,7 @@ uint32_t ble_os_service(uint32_t budget_us)
             }
             if (!t->ready && !(t->waiting_q && q_used(t)))
                 continue;
-#ifdef BLE_OS_HOST
+#if defined(BLE_OS_HOST) || (defined(BLE_CONSOLE) && !BLE_CONSOLE)
             run(i);
 #else
             {
@@ -545,6 +550,7 @@ uint32_t ble_os_service(uint32_t budget_us)
     return ran;
 }
 
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
 uint32_t ble_os_run_max_us(uint32_t reset)        /* the longest single task run since the last reset, us */
 {
 #ifdef BLE_OS_HOST
@@ -557,6 +563,7 @@ uint32_t ble_os_run_max_us(uint32_t reset)        /* the longest single task run
     return us;
 #endif
 }
+#endif
 
 #ifndef BLE_OS_HOST
 /* the names the JieLi libraries call */

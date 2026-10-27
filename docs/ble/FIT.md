@@ -158,3 +158,82 @@ For 1b's device test: the sections LTO dropped in step 2 (above: `.link_task_cod
 ECDH / HMAC / crypto code, `.vendor_manager_code`, most of the link layer's and the HCI's code) are where a failed
 start, scan, connect, discovery or pairing looks first; `ble` prints the heap high-water, each task's unused stack,
 the start-up stage and a library fault (`fatal`).
+
+## The upgrade to felucca-ble's current Bluetooth (2026-10-23, Hortator 0.23.2)
+
+Layer 1 from felucca-ble ble-kit (109fda7): two host links, the device role, FM-Link, a 23,552 B heap (13,824 B
+before) and one task slot fewer; the core's side: the saved devices and their store, MIDI and clock out, FM-Link's
+glue, the page's new rows, the top-bar icon. Nothing is left out (the user, 2026-10-23: Hortator has the room).
+
+| | image B | slot free B | `.data + .bss` B (of 98304) | pool B (of 344064) | `.ram_text` B |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0.23.2, plain | 328,388 | 253,176 | 55,740 | 307,308 | 2,888 |
+| 0.23.2, Bluetooth (the first generation) | 462,640 | 118,924 | 68,412 | 331,056 | |
+| the upgrade, the heap and the tasks in the pool | 477,924 | 103,640 | 70,592 | 338,304 (5,760 spare: under the 8 KB kept) | 6,864 |
+| **the upgrade, the chorus line (4,096 B) in `.bss` (the packaged build)** | **478,020** | **103,544** | **74,704** (23,600 spare) | **334,208** (9,856 spare) | **6,864** |
+
+The pool would keep less than its 8 KB with the larger heap, so the Bluetooth build places FX's chorus line
+(`fx.c cho_buf`, 4,096 B, zeroed at boot as the pool is) in `.bss` (`#if FELUCCA_BLE`): `.bss` has the room, the
+plain build is byte-identical, and the BLE unit (layer 1) stays as copied. The heap stays where layer 1 puts it.
+
+## 0.25.0 (main's parameter locks and USB AUDIO merged; layer 1 from ble-kit d702dc0), 2026-10-27
+
+| | image B | slot free B | `.data + .bss` B (of 98304) | pool B (of 344064) | `.ram_text` B |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0.25.0, plain (= main 23af94c, byte for byte) | 341,696 | 239,868 | 75,056 | 317,556 | |
+| **0.25.0, Bluetooth (packaged)** | **488,284** | **93,280** | **92,160** (6,144 spare, 4,096 kept) | **334,216** (9,848 spare, 8,192 kept) | **6,864** |
+
+The locks (1,024 events a project) took about 19 KB of `.data + .bss` in every build; the Bluetooth build still keeps
+both floors with the chorus line in `.bss`. USB AUDIO 10 CH stays out of the Bluetooth build (build.py's check: no
+`uac8_service`, `ua8_ring`, `usb8_tap` there), as on main. The Bluetooth store (0x9F000 / 0xFE000) does not touch the
+lock banks (0xD4000..0xDBFFF), the shortened USR3 (0xC8000..0xD3FFF) or any other object (bt_devs_test).
+
+## Merged with the patterns branch (live cue, variations, MIDI SYNC / ROUT / THRU), 2026-10-27
+
+| | image B | `.data + .bss` B (of 98304) | pool B (of 344064) |
+| --- | ---: | ---: | ---: |
+| standard (variations, USB AUDIO 10 CH) | 355,820 | 82,660 | 317,556 |
+| **Bluetooth (packaged)** | **498,268** | **92,512** (5,792 spare, 4,096 kept) | **334,216** (9,848 spare, 8,192 kept) |
+
+With the variations' two RAM banks (7,168 B) the Bluetooth build's `.data + .bss` was 99,744 B: over the 98,304 B
+region. The variations are therefore the standard build's only (core.h `VAR_ON`, as USB AUDIO 10 CH): the Bluetooth
+build keeps the slot cue, FILL and COPY / PASTE, plays variation 1, never touches 0xC0000..0xC7FFF, keeps a record's
+link to them on SAVE onto the loaded slot, and does not cut USR2 (`xbuild_test`: standard -> Bluetooth -> standard on
+one flash image).
+
+The flash map of both builds after the merge (4 KiB sectors; A / B copies for every object):
+
+| range | what |
+| --- | --- |
+| 0x97000..0x9EFFF | the projects, OBJ_PROJECT0..3 |
+| **0x9F000** | **the Bluetooth store, copy A** (Bluetooth build only; bt_set.c, its own record "HBT1", 292 B) |
+| 0xA0000..0xBFFFF | user samples USR1 (0xA0000) and USR2 (0xB4000, 48 KiB) |
+| 0xC0000..0xC7FFF | the projects' variations, OBJ_VAR0..3 (standard build; the Bluetooth build: never touched, or an uncut USR2's end) |
+| 0xC8000..0xD3FFF | user sample USR3 (48 KiB) |
+| 0xD4000..0xDBFFF | the lock banks, OBJ_LOCKS0..3 |
+| 0xDC000..0xDFFFF | MIDI LEARN and the user presets, OBJ_UPRESET0..1 |
+| 0xE0000..0xE4FFF | the update staging (the loader's) |
+| 0xE5000..0xFBFFF | the stock config store (never written; the radio calibration) |
+| 0xFC000..0xFDFFF | the settings, OBJ_SETTINGS |
+| **0xFE000** | **the Bluetooth store, copy B** |
+
+The two sectors 0x9F000 / 0xFE000 were the map's only free ones (upstream Felucca keeps its FM6 patch bank there);
+they are the Bluetooth store's now, and nothing else writes them: `storage_test` keeps every storage object off them,
+`boot_test` and `cue_test` count no erase / program there from the core, `bt_devs_test` checks the store writes only
+there, and that a foreign record (Felucca's FM6 bank, random bytes, the store's magic over random bytes, zeros) is never
+read: the store starts empty and its first write takes copy A. A write cut at any step keeps the other copy. The
+store's record leaves each sector's last 256 bytes erased, so the loader's update-record sweep (+0xF00) never erases
+it; the variations' payloads (≤ 3584 B) leave them erased too. The storage object table is unchanged by Bluetooth
+(frozen-base-11 stays the baseline).
+
+Settings: the record's palette word holds bit 8 AUTOSTART, 9..11 BACKLIGHT, 12..13 USB AUDIO (standard build only), 14
+MIDI THRU; MODE / the remembered device in the zoom / lowcut words' spare bits, as before. ROLE, RECONNECT and MODE
+FM-LINK live in the Bluetooth store's own byte, so the merge adds no settings bit.
+
+One Bluetooth clock sender: GLO SYNC (midi_out.c) is the FM-1's only MIDI clock; with SYNC BLE / BOTH its Start /
+Clocks / Stop (and, following a clock, the followed source's realtime) go into bt_midi.c's out queue (bt_sync_out, the
+keys' notes' queue), which the main loop hands to the BLE unit. ble's own clock generator (bt_clock_block) is gone, so
+the device never gets two clocks; SYNC OFF / USB sends it none. MODE FM-LINK and SMC DAW take no MIDI out (bt_in.out_on),
+so no clock, no THRU, no notes go onto an FM-Link; CLK LINK (the follower) sends no clock of its own, as any following
+unit. A Clock waits only while fewer than 8 do (a device not reading gets no backlog), as on USB.
+

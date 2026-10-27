@@ -182,6 +182,16 @@ BLE_VALUES = {
     "OFF_CH_PROPERTIES": "offsetof(charact_report_t, properties)",
     "OFF_CH_UUID16": "offsetof(charact_report_t, uuid16)", "OFF_CH_UUID128": "offsetof(charact_report_t, uuid128)",
     "SZ_CHARACT": "sizeof(charact_report_t)", "SZ_SERVICE": "sizeof(service_report_t)",
+    # the device role (GATT server, advertising; le_trans_data.c)
+    "CMD_ADV_ENABLE": "BLE_CMD_ADV_ENABLE", "CMD_ADV_PARAM": "BLE_CMD_ADV_PARAM", "CMD_ADV_DATA": "BLE_CMD_ADV_DATA",
+    "CMD_RSP_DATA": "BLE_CMD_RSP_DATA", "ADV_IND": "ADV_IND", "ADV_CHANNEL_ALL": "ADV_CHANNEL_ALL",
+    "ATT_OP_AUTO_READ_CCC": "ATT_OP_AUTO_READ_CCC", "SM_EVENT_JUST_WORKS_REQUEST": "SM_EVENT_JUST_WORKS_REQUEST",
+    # FM-Link (the device role notifies without the CCCD) and two links at once (ble_api.h BLE_CMD_MULTI_ATT_*,
+    # multi_demo/le_multi_client.c)
+    "ATT_OP_NOTIFY": "ATT_OP_NOTIFY",
+    "CMD_MULTI_ATT_SEND_INIT": "BLE_CMD_MULTI_ATT_SEND_INIT",
+    "CMD_MULTI_ATT_SET_CONN_HANDLE": "BLE_CMD_MULTI_ATT_SET_CONN_HANDLE",
+    "CMD_MULTI_ATT_SEND_DATA": "BLE_CMD_MULTI_ATT_SEND_DATA", "CMD_MULTI_ATT_VAILD_LEN": "BLE_CMD_MULTI_ATT_VAILD_LEN",
 }
 
 

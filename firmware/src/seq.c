@@ -10,6 +10,15 @@
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
 static volatile uint8_t fill_on;         /* REC held off SEQ (ui_input.c rec_fill): FILL steps play, !FILL ones not */
 static volatile uint8_t panic_req;       /* bit per track: cut its voices */
+#if FELUCCA_BLE
+static void bt_midi_out_isr(uint32_t pkt); /* bt_midi.c: what goes to USB MIDI out, to the BLE device too */
+#define CLK_LINK 4u                       /* G_CLOCK LINK: FM-Link's follower (bt_fml.c) */
+static void bt_fml_block(uint32_t n, uint32_t *seq_n);   /* bt_fml.c: FM-Link, CLK INT (leads) / LINK (follows) */
+#define CLK_FOLLOWS() (song.g[G_CLOCK] && song.g[G_CLOCK] != (int16_t)CLK_LINK)   /* a MIDI clock (LINK: its own
+                                                                                    * clock, held on the leader's) */
+#else
+#define CLK_FOLLOWS() (song.g[G_CLOCK])
+#endif
 static uint32_t kb_prev;
 static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen may take keys (ui_input.c glo_input), SAVE's
                                        * while the cue map may (cue_input), 0 = none; armed before the button is pressed
@@ -100,7 +109,7 @@ static void grids_tick(uint32_t n)
             break;
         if (!start)
             gclk.rem = (uint8_t)div_rem_next(2u, gclk.rem);
-        gclk.pos = start ? (song.g[G_CLOCK] ? gclk.pos - 0x7FFFFFFFu : 0) : gclk.pos - l16;   /* (as seq_tick) */
+        gclk.pos = start ? (CLK_FOLLOWS() ? gclk.pos - 0x7FFFFFFFu : 0) : gclk.pos - l16;   /* (as seq_tick) */
         gclk.cnt++;
         gclk.half = 0;
         gclk.at = 1;
@@ -468,8 +477,15 @@ static void keyboard_block(void)
         if ((cur >> k) & 1u) {
             input_hit(&trk[i], 100u);
             midi_out_event(0x09u | (0x90u | mc) << 8 | note << 16 | 100u << 24);
+#if FELUCCA_BLE
+            bt_midi_out_isr(0x09u | (0x90u | mc) << 8 | note << 16 | 100u << 24);   /* (bt_midi.c: the BLE device, MIDI
+                                                     * mode) */
+#endif
         } else {
             midi_out_event(0x08u | (0x80u | mc) << 8 | note << 16);
+#if FELUCCA_BLE
+            bt_midi_out_isr(0x08u | (0x80u | mc) << 8 | note << 16);
+#endif
         }
     }
 }
@@ -617,7 +633,7 @@ static void seq_tick(track_t *t, uint32_t n)
         if (t->seq_pos >= 0x7FFFFFFFu) {            /* PLAY: step 0 (its remainder 0); following a clock, the advance
                                                      * into it counts (it began on the pulse), else the steps sit that
                                                      * far behind the clock's grid for good */
-            t->seq_pos = song.g[G_CLOCK] || chain.cut ? t->seq_pos - 0x7FFFFFFFu : 0;   /* (a song's row change: the
+            t->seq_pos = CLK_FOLLOWS() || chain.cut ? t->seq_pos - 0x7FFFFFFFu : 0;   /* (a song's row change: the
                                                      * block's rest after it, as the clock's) */
         } else {
             t->seq_pos -= cur_len;
@@ -696,6 +712,11 @@ static void events_block(uint32_t n)
         midi_clock.mode = (uint8_t)clock_mode;
         midi_beat_samples = 0;
     }
+#if FELUCCA_BLE
+    if (clock_mode == CLK_LINK)
+        clock_mode = 0;                               /* FM-Link's follower: its own clock, held on the leader's */
+    bt_fml_block(n, &seq_n);                          /* (bt_fml.c: PLAY / STOP as the link wants, the advance) */
+#endif
     if (transport_req == 1u) {
         if (clock_mode)
             midi_clock_transport(0xFAu, fm1_ms);     /* PLAY while following: a Start, the steps wait for pulses */

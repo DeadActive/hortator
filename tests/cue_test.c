@@ -1977,6 +1977,7 @@ int main(void)
     save_overwrite_asks();
     load_global_edit_asks();
     check("flash: no erase or program in any test outside the map", host_fl_stray == 0);
+    check("flash: nothing in the core writes the Bluetooth store's sectors (0x9F000 / 0xFE000)", host_fl_bt == 0);
     printf(fails ? "cue_test: %d FAILED\n" : "cue_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

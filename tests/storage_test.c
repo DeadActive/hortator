@@ -187,7 +187,8 @@ int main(void)
     bad += check("read-back: a changed header field is an error", st_save(OBJ_PROJECT0, b, sizeof b) == -7);
     hdr_mangle = 0;
     {   /* the lock banks (spec 2026-10-24 parameter locks): OBJ_LOCKS0..3 at 0xD4000 + slot * 2 sectors + copy, and
-         * every object's sectors distinct, aligned, in the store, off the user samples / OTA staging / the reserves */
+         * every object's sectors distinct, aligned, in the store, off the user samples / OTA staging / the Bluetooth
+         * store's two sectors 0x9F000 / 0xFE000 (the Bluetooth build's bt_set.c, its own record) */
         static uint8_t big[3208], back[3208];
         uint32_t o, c, o2, c2, s, ok = 1;
         for (s = 0; s < 4u; s++)
@@ -201,12 +202,13 @@ int main(void)
                 ok &= (a >= 0x97000u && a + 0x1000u <= 0xE0000u) || (a >= 0xFC000u && a + 0x1000u <= 0xFF000u);
                 ok &= !(a + 0x1000u > 0xA0000u && a < 0xC0000u) && !(a + 0x1000u > 0xC8000u && a < 0xD4000u) &&
                       !(a + 0x1000u > 0xE0000u && a < 0xE5000u);   /* (0xC0000..0xC7FFF: the variations) */
-                ok &= a != 0x9F000u && a != 0xFE000u;
+                ok &= a != 0x9F000u && a != 0xFE000u;           /* (the Bluetooth store's) */
                 for (o2 = 0; o2 < OBJ_COUNT; o2++)
                     for (c2 = 0; c2 < 2u; c2++)
                         ok &= (o2 == o && c2 == c) || st_sector(o2, c2) != a;
             }
-        bad += check("every object's sectors distinct, aligned, inside the map", ok && OBJ_COUNT == 15u);
+        bad += check("every object's sectors distinct, aligned, inside the map, never the Bluetooth store's 0x9F000 / 0xFE000",
+                     ok && OBJ_COUNT == 15u);
         memset(nor, 0xFF, sizeof nor);
         for (s = 0; s < sizeof big; s++)
             big[s] = (uint8_t)(s * 7u + 3u);

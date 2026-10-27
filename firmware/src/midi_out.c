@@ -21,7 +21,9 @@
  * Contexts: the audio ISR fills the schedule (mout.due / mout.st); TIMER5 outside the render (in_audio 0) empties it,
  * scans the input ring and writes the USB out ring. The audio ISR never preempts TIMER5 and TIMER5 does none of this
  * while nested in the render, so the USB out ring (whose other writer is the audio ISR's keys) has one writer at a time.
- * Bluetooth: TIMER5 writes mob, the main loop sends it (bt_midi.c bt_midi_out).
+ * Bluetooth: the same packets go to bt_midi.c's out queue (bt_sync_out, the keys' notes' queue too), which the main
+ * loop hands to the BLE unit: one clock for USB and Bluetooth, no second Bluetooth clock sender. MODE FM-LINK, SMC
+ * DAW or no link: nothing to Bluetooth.
  * An update (SysEx on USB, ota.c) pauses all of it: nothing is sent while SysEx moves and for 3 s after. */
 #define MOUT_Q 16u                                  /* the scheduled Start / Clock / Stop */
 #define MOUT_TPS_Q16 35665605u                      /* TIMER4 ticks a sample (24 MHz / 44.1 kHz), Q16 */
@@ -32,24 +34,8 @@
                                                      * reading gets no backlog of stale Clocks, the keys' notes keep room */
 #if FELUCCA_BLE
 #define SY_ALL (SY_USB | SY_BLE)
-#define MOB_Q 32u
-static struct {                                     /* SYNC / THRU's Bluetooth packets: TIMER5 -> the main loop */
-    uint32_t q[MOB_Q];
-    volatile uint32_t w, r;
-    volatile uint8_t linked;                        /* the main loop: a device linked in MIDI mode (bt_midi.c) */
-    uint32_t drops;
-} mob;
-static void mob_push(uint32_t pkt)
-{
-    uint32_t w = mob.w;
-    if (w - mob.r >= MOB_Q) {
-        mob.drops++;
-        return;
-    }
-    mob.q[w % MOB_Q] = pkt;
-    RING_PUBLISH();
-    mob.w = w + 1u;
-}
+static int bt_sync_out(uint32_t pkt, int rt);       /* bt_midi.c: to the BLE device's out queue (MIDI mode, linked; not
+                                                     * SMC DAW nor FM-LINK), the one Bluetooth MIDI sender */
 #else
 #define SY_ALL SY_USB
 #endif
@@ -83,8 +69,8 @@ static void mout_send(uint32_t pkt, uint32_t ports, int rt)
             mout.drops++;
     }
 #if FELUCCA_BLE
-    if ((ports & SY_BLE) && mob.linked)
-        mob_push(pkt);
+    if (ports & SY_BLE)
+        (void)bt_sync_out(pkt, rt);                 /* (its own room rule for a Clock, as the USB ring's) */
 #endif
     mout.sent++;
 }

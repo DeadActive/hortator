@@ -45,9 +45,11 @@ void ble_os_init(uint8_t *heap, uint32_t heap_len);
 uint32_t ble_os_service(uint32_t budget_us);
 extern void (*ble_os_after_run)(int task);      /* called after each task run (the core's checks) */
 extern volatile uint32_t *ble_os_trace;          /* diagnostics: the running task + 1 is written here */
-uint32_t ble_os_stack_free(uint32_t i, const char **name);   /* console: a task's unused stack, bytes */
 uint32_t ble_os_heap_high(void);                  /* console: the most heap in use (blocks + headers), bytes */
+#if !defined(BLE_CONSOLE) || BLE_CONSOLE
+uint32_t ble_os_stack_free(uint32_t i, const char **name);   /* console: a task's unused stack, bytes */
 uint32_t ble_os_run_max_us(uint32_t reset);       /* console: the longest task run (the slice is checked between runs) */
+#endif
 uint32_t ble_os_alloc_fails(void);                /* console: heap requests refused */
 int ble_os_stack_intact(uint32_t i);              /* 0: task i overflowed its stack (its lowest words) */
 uint32_t ble_os_now_ms(void);

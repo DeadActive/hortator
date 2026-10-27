@@ -52,6 +52,10 @@
 #ifndef FELUCCA_BLE
 #define FELUCCA_BLE 0            /* BLE MIDI (firmware/src/ble/, its own unit ble.o): the JieLi BT libraries */
 #endif
+#if FELUCCA_BLE && !defined(BLE_CONSOLE)
+#define BLE_CONSOLE 1            /* the console's ble / fml words and their diagnostics (ble/ble_core.h's default; 0 a
+                                    fit tool: felucca-ble docs/ble/PORTING.md section 7) */
+#endif
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif
@@ -177,9 +181,12 @@ static void ota_commit(const uint8_t *parm)
 #error "FELUCCA_BLE needs FELUCCA_OTA (ed_service, the main loop's hook)"
 #endif
 #include "ble/ble_core.h"            /* the BLE unit's entry points (ble.c) */
+#include "bt_set.c"                  /* what Bluetooth keeps: btset's bits, its own store (0x9F000 / 0xFE000) */
 #include "smc.c"                     /* the SMC-Mixer DAW layout: decode, actions, LEDs, fader pickup */
-#include "bt_midi.c"                 /* BLE MIDI in: the SMC-Mixer or the input ring (source 3) */
-#include "bt_page.c"                 /* the Bluetooth page (MENU > BLUETOOTH, ui_menu.c ui.menu 3) */
+#include "bt_midi.c"                 /* BLE MIDI in (the SMC-Mixer or the input ring, source 3), out, clock out */
+#include "bt_fml.c"                  /* FM-Link: two FM-1s in time (fmlink.c), CLK INT leads, LINK follows */
+#include "bt_devs.c"                 /* the saved devices, each link's target; this FM-1's address; the RF copy */
+#include "bt_page.c"                 /* the Bluetooth page (MENU > BLUETOOTH, ui_menu.c ui.menu 3); bt_service */
 #endif
 #if FELUCCA_OTA
 /* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)
@@ -188,9 +195,8 @@ static void ota_commit(const uint8_t *parm)
 static void ed_service(void)
 {
 #if FELUCCA_BLE
-    bt_midi_out();                                      /* SYNC / THRU's Bluetooth packets (bt_midi.c) */
-    ble_service();
-    smc_frame();                                        /* the SMC-Mixer's LEDs and fader positions (cheap: no change) */
+    bt_service();                                       /* bt_page.c: the BT stack's slice, then the core's Bluetooth
+                                                         * work (cheap: no change) */
 #endif
 }
 #endif

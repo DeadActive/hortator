@@ -17,15 +17,18 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
     return 0;
 }
 /* every erase / program the firmware asks for: a log (the first HOST_NFLOG of them since the test cleared host_nflog),
- * a count of the ones outside the flash map the firmware may write (host_fl_stray: never, in any test), and a power
- * loss (host_fail_at: the Nth erase / program from now, 0 the next, fails with -8 and writes nothing; -1 never) */
+ * a count of the ones outside the flash map the core may write (host_fl_stray: never, in any core test), of the ones
+ * in the Bluetooth store's two sectors 0x9F000 / 0xFE000 (host_fl_bt: the Bluetooth build's bt_set.c only, never the
+ * core's objects; they count as stray too), and a power loss (host_fail_at: the Nth erase / program from now, 0 the
+ * next, fails with -8 and writes nothing; -1 never) */
 #define HOST_NFLOG 1024u
 static struct { uint8_t erase; uint32_t off, n; } host_flog[HOST_NFLOG];
-static uint32_t host_nflog, host_fl_stray;
+static uint32_t host_nflog, host_fl_stray, host_fl_bt;
 static int host_fail_at = -1;
 /* the map (spec 2026-10-24 parameter locks, 2026-10-26 cue / variations): projects 0x97000..0x9EFFF, USR2's header
  * sector 0xB4000 (its one-time clamp), the variations 0xC0000..0xC7FFF, USR3's header sector 0xC8000 (its clamp), the
- * lock banks 0xD4000..0xDBFFF, the user objects 0xDC000..0xDFFFF, the settings 0xFC000..0xFDFFF */
+ * lock banks 0xD4000..0xDBFFF, the user objects 0xDC000..0xDFFFF, the settings 0xFC000..0xFDFFF. Not in it: the
+ * Bluetooth store's 0x9F000 and 0xFE000 (the Bluetooth build's bt_set.c, its own record; host_fl_bt) */
 static int host_fl_in_map(uint32_t off, uint32_t n)
 {
     static const uint32_t R[7][2] = {{0x97000u, 0x9F000u}, {0xB4000u, 0xB5000u}, {0xC0000u, 0xC8000u},
@@ -33,7 +36,7 @@ static int host_fl_in_map(uint32_t off, uint32_t n)
                                      {0xFC000u, 0xFE000u}};
     uint32_t i;
     for (i = 0; i < 7u; i++)
-        if (off >= R[i][0] && n <= R[i][1] - off)
+        if (off >= R[i][0] && off < R[i][1] && n <= R[i][1] - off)   /* (off past the end: not in it, no wrap) */
             return 1;
     return 0;
 }
@@ -47,6 +50,8 @@ static int host_fl_op(int erase, uint32_t off, uint32_t n)   /* -8: the injected
     host_nflog++;
     if (!host_fl_in_map(off, n))
         host_fl_stray++;
+    if ((off < 0xA0000u && off + n > 0x9F000u) || (off < 0xFF000u && off + n > 0xFE000u))
+        host_fl_bt++;
     if (host_fail_at == 0) {
         host_fail_at = -1;
         return -8;

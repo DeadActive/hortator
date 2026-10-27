@@ -884,6 +884,8 @@ ACC`).
   plays them). THRU OFF: the DAW gets only the FM-1's own key notes.
 - Bluetooth version: SYNC BLE with a BLE-MIDI device in MIDI mode that follows clock: it starts and stops with the
   FM-1 (timing looser than USB). THRU ON: a BLE keyboard's notes reach the DAW over USB; the DAW's notes reach the
-  BLE device. With the SMC-Mixer (SMC DAW mode) nothing but its LEDs is sent.
+  BLE device. With the SMC-Mixer (SMC DAW mode) nothing but its LEDs is sent. MODE FM-LINK with SYNC BOTH: the
+  USB clock goes on, nothing (no clock, no THRU, no key notes) reaches the Bluetooth link; FM-Link keeps both in time.
+  One clock only: SYNC BLE in MIDI mode, a BLE MIDI monitor counts 24 clocks a beat (not 48).
 - Console (optional): `status` shows `midi_sync`, `midi_thru`, `midi_out_sent`, `midi_out_drops`, `midi_out_fwd`,
   `midi_out_clocks` (counting while SYNC plays).

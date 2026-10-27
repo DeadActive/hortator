@@ -6,7 +6,8 @@ static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "
 static const char *const N_ONOFF[] = {"OFF", "ON"};
 static const char *const N_CLOCK[] = {"INT", "USB", "TRS",   /* G_CLOCK: = the input ring's source (1 USB, 2 TRS, */
 #if FELUCCA_BLE
-                                      "BLE",                   /* 3 BLE: bt_midi.c) */
+                                      "BLE",                   /* 3 BLE: bt_midi.c; */
+                                      "LINK",                  /* 4: FM-Link's follower, bt_fml.c) */
 #endif
 };
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};

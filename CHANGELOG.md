@@ -62,6 +62,20 @@ released yet are listed under Unreleased.
 - Projects: a project saved now loads on 0.25.0 and 0.24.0 without its variations. If a project's variations can't
   be read, it loads without them and the FM-1 says `VARIATIONS LOST` once. A power cut during SAVE keeps the previous
   save whole.
+- **Bluetooth version: a new Bluetooth page**, in Hortator's own look. ROLE (HOST / DEVICE), MODE (now also
+  FM-LINK) and RECONNECT (AUTO / FAST / SLOW), and up to 8 saved devices, controllers and FM-1s, each on its own line
+  (connected or not, CTRL or FM-1, ON / NEAR / AWAY), with + ADD A DEVICE (an 8 s scan, then the list stays), FORGET
+  and "use now". Two links at once (a controller and another FM-1), reconnected by themselves in the order you picked;
+  scanning never drops a link. The top bar shows a Bluetooth rune (struck through while nothing is linked).
+  - **ROLE DEVICE**: the FM-1 is a BLE-MIDI device for a computer, a tablet or another FM-1.
+  - **FM-Link**: two FM-1s in time (CLK LINK follows a CLK INT leader), with Felucca's Bluetooth version too. In MODE
+    FM-LINK the link carries FM-Link only: no MIDI either way, so no MIDI clock either.
+  - **MIDI to the device**: in MIDI mode the key hits go to the linked device too, and GLO SYNC BLE or BOTH sends it
+    the MIDI clock (one clock, the same as USB's).
+  - The SMC-Mixer's knobs 5-8 are MIDI LEARN's.
+  - The device the old page remembered becomes the first saved device; MODE and AUTOSTART carry over. The saved
+    devices, ROLE, RECONNECT and this FM-1's Bluetooth address are kept over power-off, in a place older versions
+    ignore. The standard version is unchanged.
 
 ## 0.25.0 - 2026-10-27
 

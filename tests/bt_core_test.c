@@ -11,8 +11,11 @@
 #include "ble_ui_stub.h"                            /* ble_core.h, the connected name (conn_name / conn_up) */
 int ble_midi_send(const uint8_t *m, uint32_t n) { (void)m; (void)n; return 0; }   /* (smc.c; smc_test checks it) */
 uint32_t ble_midi_room(void) { return 0; }
+#include "../firmware/src/bt_set.c"
 #include "../firmware/src/smc.c"
 #include "../firmware/src/bt_midi.c"
+#include "../firmware/src/bt_fml.c"
+#include "../firmware/src/bt_devs.c"
 #include "../firmware/src/bt_page.c"                  /* (ui_menu.c's Bluetooth row needs it) */
 
 static int fails;
@@ -108,7 +111,8 @@ static void test_clock(void)
     bt_midi_in(0x0Fu | 0xF8u << 8);
     render_mix(0, 0, CTL);
     check("CLK USB: a BLE Start and Clock do nothing", !song.playing && !midi_clock.tempo_valid);
-    check("CLK: BLE is value 3 in this build", GP[G_CLOCK].max == 3 && str_eq(N_CLOCK[3], "BLE"));
+    check("CLK: BLE is value 3, LINK 4 in this build (appended)", GP[G_CLOCK].max == 4 && str_eq(N_CLOCK[3], "BLE") &&
+          str_eq(N_CLOCK[4], "LINK"));
     fresh(2);
     press(B_HOME);                                   /* a HOME tap: HOME's TRACKS mode (SELECT is BPM there) */
     ui_input();

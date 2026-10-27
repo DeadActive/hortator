@@ -293,13 +293,34 @@ static void con_bench_out(const char *s)            /* BENCH lines (bench.c), al
     con_puts(s);
 }
 
+#if FELUCCA_BLE && BLE_CONSOLE
+static void con_fml(void)                              /* FM-Link: what the engine knows (bt_fml.c, fmlink.c) */
+{
+    fml_t f;
+    fm1_irq_off();
+    f = bt_fml;
+    fm1_irq_on();
+    con_kv("fml role (1 leader, 2 follower)", f.role);
+    con_kv("fml peer", fml_linked(&f, fm1_ticks()));
+    con_kv("fml offset_ok", f.off_ok);
+    con_kv("fml offset_us", f.off / (int32_t)(FML_MS / 1000u));
+    con_kv("fml samples_up", (int32_t)f.up_n);
+    con_kv("fml samples_down", (int32_t)f.down_n);
+    con_kv("fml leader_playing", f.l_playing);
+    con_kv("fml leader_bpm", f.l_bpm);
+    con_kv("fml playing", f.playing);
+    con_kv("fml beats_x100", (int32_t)((uint64_t)f.beats * 100u >> 16));
+    con_kv("fml joined_beat", (int32_t)(f.joined_beats >> 16));
+    con_kv("bt store writes failed", bt_st.fails);
+}
+#endif
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?")) {
         con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  bench yes  uboot yes\r\n");
-#if FELUCCA_BLE
-        con_puts("ble [start | scan | list | connect N | stop]: Bluetooth status and tests "
-                 "(the page: MENU > BLUETOOTH)\r\n");
+#if FELUCCA_BLE && BLE_CONSOLE
+        con_puts("ble [start | scan | list | stop]: Bluetooth status and tests (the page: MENU > BLUETOOTH)  "
+                 "fml: FM-Link\r\n");
 #endif
     }
     else if (con_word(&p, "status"))
@@ -333,9 +354,11 @@ static void con_exec(const char *p)
             con_puts("type 'uboot yes'\r\n");
         }
     }
-#if FELUCCA_BLE
+#if FELUCCA_BLE && BLE_CONSOLE
     else if (con_word(&p, "ble"))
         ble_console(p);
+    else if (con_word(&p, "fml"))
+        con_fml();                                     /* FM-Link (bt_fml.c): the role, the peer, the offset, the leader */
 #endif
     else if (*p)
         con_puts("? (help)\r\n");

@@ -84,6 +84,25 @@ static void hw_run_ms(uint32_t ms)
     for (i = 0; i < ms * 10u; i++)
         hw_tick();
 }
+#if FELUCCA_BLE
+/* bt_midi.c's bt_sync_out as a device linked in MIDI mode takes it (its gating by MODE / link, its filter and its Clock
+ * room: tests/bt_midi_test.c): what midi_out.c hands to Bluetooth */
+static uint32_t bq[64], bq_w, bq_r;
+static int bt_sync_out(uint32_t pkt, int rt)
+{
+    (void)rt;
+    if (bq_w - bq_r >= 64u)
+        return 0;
+    bq[bq_w++ % 64u] = pkt;
+    return 1;
+}
+static void bt_midi_out_isr(uint32_t pkt) { (void)pkt; }   /* (the keys' notes to the device: tests/bt_midi_test.c) */
+static void bt_fml_block(uint32_t n, uint32_t *seq_n)      /* (FM-Link: tests/bt_fml_test.c) */
+{
+    (void)n;
+    (void)seq_n;
+}
+#endif
 static void hw_reset(void)
 {
     host_init_live();
@@ -100,8 +119,7 @@ static void hw_reset(void)
     usb.sx_on = 0;
     usb.ota_req = 0;
 #if FELUCCA_BLE
-    memset(&mob, 0, sizeof mob);
-    mob.linked = 1;
+    bq_w = bq_r = 0;
 #endif
 }
 static uint32_t st_of(uint32_t pkt) { return (pkt >> 8) & 0xFFu; }
@@ -360,10 +378,10 @@ static uint32_t usb_out(uint32_t *pkts, uint32_t max)  /* what the USB poll woul
 static uint32_t ble_out(uint32_t *pkts, uint32_t max)
 {
     uint32_t n = 0;
-    while (mob.r != mob.w) {
+    while (bq_r != bq_w) {
         if (n < max)
-            pkts[n++] = mob.q[mob.r % MOB_Q];
-        mob.r++;
+            pkts[n++] = bq[bq_r % 64u];
+        bq_r++;
     }
     return n;
 }
