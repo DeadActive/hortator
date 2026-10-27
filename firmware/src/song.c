@@ -73,7 +73,8 @@ static const step_t *seq_steps(const track_t *t)   /* the steps a track plays: a
 #define B24_WRAP 768u                              /* a multiple of 24 and of every division's two steps in 1/24 beats */
 static uint32_t step24(uint32_t div, uint32_t *den)   /* a step of DIV div in 1/24 beats (1/32: 3 .. 4BAR: 384) */
 {
-    return div_num_den(div, den) * 24u / *den;
+    uint32_t num = div_num_den(div, den);
+    return num * 24u / *den;
 }
 static uint32_t chain_beats(const track_t *t, uint32_t *den)   /* t's pattern: num / den beats */
 {
