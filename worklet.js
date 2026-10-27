@@ -3,7 +3,7 @@
 // The FM-1 firmware in the audio thread: every quantum renders 128 frames (the firmware's audio ISR runs per
 // half buffer, its UI frame every 15 ms of audio, inside sim_render). Input arrives as messages; frames (the
 // screen + LEDs) and written flash sectors go back to the page.
-import { Fm1Sim } from './engine.js?v=4da7514222';
+import { Fm1Sim } from './engine.js?v=d2af565941';
 
 class Fm1Processor extends AudioWorkletProcessor {
   constructor(options) {
@@ -50,7 +50,7 @@ registerProcessor('fm1', Fm1Processor);
 
 // ---- the landing page's lab player (lab.js LabPlayer): the feature pieces' sound, live. The same wasm in its own
 // instance; calls arrive as messages (whitelisted Lab methods), probes go back about 60 times a second.
-import { Lab } from './lab.js?v=4da7514222';
+import { Lab } from './lab.js?v=d2af565941';
 
 const LAB_CALLS = new Set(['reset', 'model', 'param', 'global', 'step', 'note', 'play', 'hit', 'perf', 'watch', 'mute', 'motion',
   'knob', 'motionClear']);

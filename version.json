@@ -1,6 +1,6 @@
 {
  "version": "0.25.0",
- "commit": "9aa704b",
+ "commit": "022f6d1",
  "date": "2026-10-27",
  "since": [],
  "release": {
@@ -8,16 +8,28 @@
   "date": "2026-10-27",
   "notes": [
    {
-    "title": "**USB AUDIO 10 CH FX**",
-    "text": "**USB AUDIO 10 CH FX** (owner 2026-10-26: \"8 mono + stereo FX give full mix control\"): MENU > USB AUDIO is 2 CH / 10 CH MIX (channels 1-2 the master, the 10 CH before) / 10 CH FX (channels 1-2 the chorus, delay and reverb buses' return, mono on both, at the MASTER level, before PERFORM's master effects, METRO and the master chain). T1..T8 panned + the FX pair = the master bus before its chain (18 LSB in the test). MIX <-> FX: no reconnect, a 5.8 ms cross-fade. Saved in the palette word's bits 12..13 (e586073's 10 CH reads as MIX). The 10 CH device's channels 1-2 are named Main L / R now (bcdDevice 3.82). Standard build only."
+    "title": "USB audio, 2 or 10 channels",
+    "text": "USB audio, 2 or 10 channels: the FM-1 records into a computer over its USB cable (16-bit, 44.1 kHz), and MENU (hold HOME) > USB AUDIO now picks what it sends. 2 CH, the default, is the stereo master, exactly as before. 10 CH MIX sends the master on channels 1-2 and the eight tracks T1..T8 on channels 3-10, one mono channel each (each track before its PAN, the effect sends and the master effects). 10 CH FX sends the same eight tracks, with the chorus, delay and reverb returns on channels 1-2 instead of the master: pan the tracks in your DAW and add the effects pair to get the whole mix back, each part on its own fader."
    },
    {
-    "title": "**USB AUDIO 2 CH / 10 CH**",
-    "text": "**USB AUDIO 2 CH / 10 CH** (MENU, hold HOME; the owner's 8-track test build of 2026-10-26, \"that works\"): 10 CH sends the master L R and the eight tracks T1..T8 (mono, each before PAN, the sends and the master's effects) to the computer as a 10-channel USB audio input (\"Hortator 8ch\", 16-bit 44.1 kHz, 920 B packets); 2 CH (the default) is the stereo master as before, byte for byte the same USB device. The change applies when the menu closes: the FM-1 leaves USB for 1 s and comes back as the other device, the sequencer and the sound playing on (CLK USB: the steps wait for the clock up to 2 s after it). Saved in the settings record (the palette word's bit 12; older records: 2 CH). SAFE START is always 2 CH. The app's USB driver is usb_app8.c: the frozen usb_app.c plus marked insertions only (tools/check_usb_fork.py); in 10 CH its 920 B packet is queued from every TIMER5 tick (10 kHz): at 2 kHz the test build lost ~10 % of the frames (tears). 10 CH needs the standard, non-Bluetooth build (owner 2026-10-26): the Bluetooth build has no USB AUDIO row, is always 2 CH and ignores a stored 10 CH (its RAM, 85868 of 98304 B, would have been 97644 B); its binary is the same as 0.24.0's."
+    "title": "Switching",
+    "text": "Switching: 2 CH <-> 10 CH takes effect when the menu closes: the FM-1 leaves USB for about a second and comes back as the other device, \"Hortator 8ch\" in 10 CH (its channels named Main L, Main R, T1..T8). The sequencer and the sound play on; when following CLK USB the steps wait up to 2 s for the clock to come back. MIX <-> FX switches at once with a short cross-fade, no reconnect."
    },
    {
-    "title": "Web site only",
-    "text": "Web site only: the landing page has a manual before the engines: a map of the panel (point at a control on a small FM-1, or at its line, to see what it does) and ten short guides (find your way, make a beat, shape a sound, play and record live, mute, perform, lock a step, save and chain, MIDI and LEARN, settings). Manual in the top bar and the footer; More below leads to it."
+    "title": "Saved",
+    "text": "Saved: USB AUDIO is a device setting, saved and not part of projects; older settings start in 2 CH. A safe start (SEQ held at power-on) is always 2 CH."
+   },
+   {
+    "title": "Computers",
+    "text": "Computers: the 10 channels work on macOS and iPadOS (class-compliant USB audio) and on Linux. Windows may not accept 10 CH: use 2 CH there."
+   },
+   {
+    "title": "Bluetooth version",
+    "text": "Bluetooth version: 10 CH needs the standard build. The Bluetooth build is unchanged from 0.24.0: it has no USB AUDIO row, is always 2 CH and ignores a 10 CH setting saved by the standard build."
+   },
+   {
+    "title": "Manual",
+    "text": "Manual: the landing page has a manual before the engines: a map of the panel (point at a control on a small FM-1, or at its line, to see what it does) and ten short guides (find your way, make a beat, shape a sound, play and record live, mute, perform, lock a step, save and chain, MIDI and LEARN, settings). Manual is in the top bar and the footer, and \"More below\" leads to it."
    }
   ]
  }

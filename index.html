@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="preload" href="terminus.woff?v=4da7514222" as="font" type="font/woff" crossorigin>
-<link rel="stylesheet" href="sim.css?v=4da7514222">
+<link rel="preload" href="terminus.woff?v=d2af565941" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="sim.css?v=d2af565941">
 </head>
 <body>
 <section id="hero" class="hero" aria-label="Hortator">
@@ -203,12 +203,16 @@
       <p class="where"><b>SAVE</b>; <b>SELECT</b> to TOOLS. <b>SEQ</b>, <b>SELECT</b> to SONG.</p>
     </li>
     <li class="guide" id="m-midi">
-      <h3>MIDI and LEARN</h3>
+      <h3>MIDI, USB audio and LEARN</h3>
       <p>MIDI comes in over USB and the TRS jack: notes on the drum channel (CH, 10 at first) play the tracks whose
-        NOTE matches, and CLK follows a clock from either. Over USB the FM&#8209;1 is also an audio interface, Hortator, to
-        record into a DAW. MIDI LEARN ties up to 32 controls of a controller to knobs, PLAY, REC or PERFORM: hold GLO
-        and press G4, turn a knob (or press PLAY), then move the controller's knob.</p>
-      <p class="where">Tap <b>GLO</b> for CH and CLK. Hold <b>GLO</b> + G4 to learn, <b>OCT+</b> when done.</p>
+        NOTE matches, and CLK follows a clock from either. MIDI LEARN ties up to 32 controls of a controller to knobs,
+        PLAY, REC or PERFORM: hold GLO and press G4, turn a knob (or press PLAY), then move the controller's knob.</p>
+      <p>Over USB the FM&#8209;1 is also an audio interface, Hortator, that records into a computer. USB AUDIO in the
+        menu sends 2 CH, the stereo master; 10 CH MIX, the master and the eight tracks each on its own; or 10 CH FX, the
+        eight tracks dry and the send effects, to mix in your DAW. 10 CH needs the standard version, not Bluetooth;
+        macOS and iPadOS take it, Windows may not.</p>
+      <p class="where">Tap <b>GLO</b> for CH and CLK. Hold <b>GLO</b> + G4 to learn, <b>OCT+</b> when done. Hold
+        <b>HOME</b> for USB AUDIO.</p>
     </li>
     <li class="guide" id="m-settings">
       <h3>Make it yours</h3>
@@ -390,7 +394,7 @@
     <a href="#manual">How to play it</a>
     <a href="webapp/installer/">Install on your FM-1</a>
     <a href="#install">What's new</a>
-    <a href="source.tar.gz?v=4da7514222">Source code (GPL-3.0)</a>
+    <a href="source.tar.gz?v=d2af565941">Source code (GPL-3.0)</a>
   </nav>
   <div class="foot-credits">
     <p>By DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
@@ -400,7 +404,7 @@
       <a href="https://github.com/pichenettes/eurorack" target="_blank" rel="noopener">Mutable Instruments</a>. SKIN
       and RESON: <a href="https://github.com/electro-smith/DaisySP" target="_blank" rel="noopener">DaisySP</a>
       (Electrosmith, Emilie Gillet). Samples: Versilian Studios VSCO-2 CE and VCSL (CC0 1.0). Font: Terminus (Dimitar
-      Toshkov Zhekov, <a href="terminus-license.txt?v=4da7514222">SIL OFL 1.1</a>). Recovery: jl-uboot-tool (Andrey Grigoryev).
+      Toshkov Zhekov, <a href="terminus-license.txt?v=d2af565941">SIL OFL 1.1</a>). Recovery: jl-uboot-tool (Andrey Grigoryev).
       Icons: Fukiai (Hügelton Instruments). Pixel font: DEADACTIVE.</p>
     <p>MD voices measured from Joe Landers' Machinedrum emulator, a fork of
       <a href="https://github.com/dsp56300/gearmulator" target="_blank" rel="noopener">Gearmulator</a> by The Usual
@@ -408,6 +412,6 @@
       affiliated. M-VAVE and FM-1 are trademarks of their owners; not affiliated with M-VAVE.</p>
   </div>
 </footer>
-<script type="module" src="app.js?v=4da7514222"></script>
+<script type="module" src="app.js?v=d2af565941"></script>
 </body>
 </html>

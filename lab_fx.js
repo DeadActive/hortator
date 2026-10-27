@@ -5,8 +5,8 @@
 // stopped, the firmware renders a bar of it. Playing, the picture is the output as heard, scrolling, and the PERFORM
 // keys (the black keys with FX held, perform.c PF_BLACK) repeat, reverse, stop, filter, freeze or shift the whole mix
 // while held.
-import { el, knob, scope, INK } from './lab_ui.js?v=4da7514222';
-import * as draw from './lab_draw.js?v=4da7514222';
+import { el, knob, scope, INK } from './lab_ui.js?v=d2af565941';
+import * as draw from './lab_draw.js?v=d2af565941';
 
 const KEYS = [                                       // perform.c PF_BLACK: the black keys from F#3, in groups of 3 and 2
   ['R8', 'REPEAT 1/8'], ['R16', 'REPEAT 1/16'], ['R32', 'REPEAT 1/32'], ['REV', 'REVERSE'], ['TAPE', 'TAPE STOP'],
