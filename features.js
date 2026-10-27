@@ -4,20 +4,20 @@
 // piece on the firmware's own DSP. The analyser (lab.js Lab, silent, in the page) starts when the section nears the
 // screen and draws every piece; the player (LabPlayer, an AudioWorklet) starts on the first Play and sounds one piece
 // at a time. A piece that leaves the screen, or a hidden tab, stops.
-import { Lab, LabPlayer } from './lab.js?v=53f9d0fd26';
-import { el } from './lab_ui.js?v=53f9d0fd26';
-import { B, ENC } from './controls.js?v=53f9d0fd26';
-import { parseReel, snapshots } from './reel.js?v=53f9d0fd26';
+import { Lab, LabPlayer } from './lab.js?v=4da7514222';
+import { el } from './lab_ui.js?v=4da7514222';
+import { B, ENC } from './controls.js?v=4da7514222';
+import { parseReel, snapshots } from './reel.js?v=4da7514222';
 
 const PIECES = {                                     // data-piece -> its module, loaded once the analyser runs
-  voices: () => import('./lab_voices.js?v=53f9d0fd26'),
-  reson: () => import('./lab_reson.js?v=53f9d0fd26'),
-  comp: () => import('./lab_comp.js?v=53f9d0fd26'),
-  lfo: () => import('./lab_lfo.js?v=53f9d0fd26'),
-  seq: () => import('./lab_seq.js?v=53f9d0fd26'),
-  grids: () => import('./lab_grids.js?v=53f9d0fd26'),
-  fx: () => import('./lab_fx.js?v=53f9d0fd26'),
-  ble: () => import('./lab_ble.js?v=53f9d0fd26'),
+  voices: () => import('./lab_voices.js?v=4da7514222'),
+  reson: () => import('./lab_reson.js?v=4da7514222'),
+  comp: () => import('./lab_comp.js?v=4da7514222'),
+  lfo: () => import('./lab_lfo.js?v=4da7514222'),
+  seq: () => import('./lab_seq.js?v=4da7514222'),
+  grids: () => import('./lab_grids.js?v=4da7514222'),
+  fx: () => import('./lab_fx.js?v=4da7514222'),
+  ble: () => import('./lab_ble.js?v=4da7514222'),
 };
 
 // each chapter's page on the FM-1's own screen: the panel moves that open it from the power-on screen (HOME's TRACKS
@@ -57,9 +57,9 @@ const screens = new Map();                            // chapter -> { lcd, clip,
 function loadClips() {
   if (!window.DecompressionStream || still.matches) return Promise.resolve();
   return Promise.all([
-    fetch('features.bin.gz?v=53f9d0fd26').then(r => (r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+    fetch('features.bin.gz?v=4da7514222').then(r => (r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
       : Promise.reject(new Error(`features.bin.gz: HTTP ${r.status}`)))),
-    fetch('features.json?v=53f9d0fd26').then(r => (r.ok ? r.json() : Promise.reject(new Error(`features.json: HTTP ${r.status}`)))),
+    fetch('features.json?v=4da7514222').then(r => (r.ok ? r.json() : Promise.reject(new Error(`features.json: HTTP ${r.status}`)))),
   ]).then(([buf, list]) => {
     reel = parseReel(buf);
     clips = Object.fromEntries(list.map(c => [c.name, c]));
@@ -118,8 +118,8 @@ let lab = null, ids = null, wasm = null, player = null, starting = null, playing
 
 async function boot() {
   const [w, i] = await Promise.all([
-    fetch('fm1sim.wasm?v=53f9d0fd26').then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`fm1sim.wasm: HTTP ${r.status}`)))),
-    fetch('lab_ids.json?v=53f9d0fd26').then(r => (r.ok ? r.json() : Promise.reject(new Error(`lab_ids.json: HTTP ${r.status}`)))),
+    fetch('fm1sim.wasm?v=4da7514222').then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`fm1sim.wasm: HTTP ${r.status}`)))),
+    fetch('lab_ids.json?v=4da7514222').then(r => (r.ok ? r.json() : Promise.reject(new Error(`lab_ids.json: HTTP ${r.status}`)))),
   ]);
   wasm = w;
   ids = i;
