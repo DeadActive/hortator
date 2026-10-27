@@ -44,7 +44,8 @@
 #ifndef FELUCCA_UAC
 #define FELUCCA_UAC 1            /* USB audio input: the master output, 16-bit stereo 44.1 kHz (usb_app.c) */
 #endif
-#include "usb_app.c"         /* upstream 1.0's USB driver (the update loader keeps usb.c) */
+#include "usb_app8.c"        /* upstream 1.0's USB driver usb_app.c + MENU > USB AUDIO 10 CH (insertions only,
+                                tools/check_usb_fork.py; the update loader keeps usb.c) */
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 (upstream 1.0: on, RX verified on hardware) */
 #endif
@@ -58,6 +59,7 @@
 #include "seq.c"
 #include "bench.c"           /* BENCH: the performance cases (console `bench`) */
 #include "audio.c"
+#include "enc.c"           /* the knobs: upstream 1.1.5's decoder (#126) on the scan's frames (led_dim.c hook) */
 #include "panel.c"
 #include "pages.c"
 #include "ui.c"
@@ -94,7 +96,9 @@ static void audio_silence(void)                 /* IRQs off: the DMA would loop 
     for (i = 0; i < sizeof abuf / sizeof abuf[0]; i++)
         abuf[i] = 0;
 }
-static int st_erase(uint32_t off)
+/* always inlined: st_save keeps it inline as upstream's (H2, check_erase_order) now that project.c's USR3 clamp calls
+ * it too */
+__attribute__((always_inline)) static inline int st_erase(uint32_t off)
 {
     uint32_t took, f;
     int rc;
@@ -198,4 +202,24 @@ static void ed_service(void)
 #if FELUCCA_BLE
 #include "core_ble_api.c"            /* the BLE unit calls these */
 #endif
+#if USB8_OK
+#define fm1_timer5_irq fm1_timer5_irq_main   /* main.c (frozen) unchanged: its TIMER5 handler wrapped */
+#endif
 #include "main.c"
+#if USB8_OK
+#undef fm1_timer5_irq
+/* MENU > USB AUDIO 10 CH: EP4 polled on every TIMER5 tick (10 kHz), after main.c's handler (usb_app8.c uac8_service:
+ * the 920 B packet leaves 0.36 ms of the frame to queue the next one). Same context as usb_poll and the nested
+ * uac_service (TIMER5 never nests into itself), so INDEX is never shared; the time spent nested is not the render's.
+ * 2 CH: main.c's handler alone, as before. */
+void fm1_timer5_irq(void)
+{
+    fm1_timer5_irq_main();
+    if (usb10) {
+        uint32_t t0 = fm1_ticks();
+        uac8_service();
+        if (felucca_dbg.in_audio)
+            t5_nested_ticks += fm1_ticks() - t0;
+    }
+}
+#endif

@@ -8,6 +8,8 @@ import { FlashStore, openFlashDb } from './store.js';
 import { needsResume, playbackSession } from './audio.js';
 import { parseReel } from './reel.js';
 import { initFeatures } from './features.js';
+import { initManual } from './manual.js';
+import { buildMini } from './mini.js';
 import { installCount, loadPageCounter } from './counter.js';
 import { ditherBackground, initGlitch } from './dither.js';
 import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js';
@@ -460,30 +462,6 @@ function placePower() {
 }
 function queueHero() { if (!heroQueued) { heroQueued = true; requestAnimationFrame(heroFrame); } }
 
-// ---- a small FM-1 from the layout table (the install diagram)
-function buildMini(host) {                         // a small FM-1 from the layout table, scaled to its host
-  const parts = {};
-  if (!host) return parts;
-  const L = LAYOUTS.landscape, inner = document.createElement('div');
-  inner.className = 'mini';
-  const part = (cls, b, key) => {
-    const d = document.createElement('div');
-    d.className = cls;
-    d.style.cssText = `left:${b[0]}px;top:${b[1]}px;width:${b[2]}px;height:${b[3]}px`;
-    inner.append(d);
-    if (key) parts[key] = d;
-  };
-  for (const [name, b] of Object.entries(L.deco)) part(`m-${name}`, b);
-  part('m-lcd', L.lcd);
-  for (const [k, b] of Object.entries(L.ctl)) part(k.startsWith('key') ? 'm-key' : 'm-btn', b, k);
-  for (const [id, b] of Object.entries(L.enc)) part('m-enc', b, id === 'master' ? 'MASTER' : ENC[id].label);
-  host.append(inner);
-  const fitMini = () => { inner.style.transform = `scale(${host.clientWidth / L.W})`; };
-  new ResizeObserver(fitMini).observe(host);
-  fitMini();
-  return parts;
-}
-
 // ---- install: the firmware this site ships and what is new in it (version.json, written by the build)
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
   'November', 'December'];
@@ -520,6 +498,7 @@ fetch('version.json').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
 build();
 relayout();
 buildMini(document.getElementById('install-mini'));
+initManual();
 device.classList.add('waiting');
 heroFrame();
 window.addEventListener('scroll', queueHero, { passive: true });

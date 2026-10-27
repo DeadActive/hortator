@@ -17,7 +17,7 @@ static int check(const char *what, int ok)
 #define BAR (4u * 22050u)                           /* a bar at 120 BPM */
 static step_t ST[4][NTRK][NSTEP];
 static uint32_t now_s;                             /* samples rendered since fresh() */
-static motion_store_t MS[4];
+static lk_bank_t MS[4];
 static void slot_set(uint32_t s, uint32_t k, int16_t len, int16_t div, const char *pat)
 {
     uint32_t i;
@@ -160,12 +160,8 @@ static void test_song_motion(void)
     trk[0].p[P_E1] = 40;
     slot_set(0, 0, 16, 2, "x...............");
     slot_set(1, 0, 16, 2, "x...............");
-    MS[0].count = 1;
+    lk_put(&MS[0], lk_key(0, 0, P_E1), 99, 0);
     MS[0].on = 1;
-    MS[0].ev[0].trk = 0;
-    MS[0].ev[0].step = 0;
-    MS[0].ev[0].param = P_E1;
-    MS[0].ev[0].value = 99;
     rows(2, SL, RP, 0);
     now_s = 0;
     play_song();
@@ -189,10 +185,9 @@ static void test_song_model_skip_per_row(void)
     slot_set(0, 0, 16, 2, "x...............");
     slot_set(1, 0, 16, 2, "x...............");
     for (i = 0; i < 2u; i++) {                       /* both slots: E1 99 and LEVEL 50 at step 0 */
-        MS[i].count = 2;
+        lk_put(&MS[i], lk_key(0, 0, P_E1), 99, 0);
+        lk_put(&MS[i], lk_key(0, 0, P_LEVEL), 50, 0);
         MS[i].on = 1;
-        MS[i].ev[0] = (motion_event_t){0, 0, P_E1, 99};
-        MS[i].ev[1] = (motion_event_t){0, 0, P_LEVEL, 50};
     }
     chain.src[0].model[0] = (uint8_t)other;          /* A was saved with another model */
     rows(2, SL, RP, 0);

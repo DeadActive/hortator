@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #define __attribute__(x)
+#define SIM_HOST 1                                    /* (firmware: no USB hardware, ui_menu.c) */
 #define memset felucca_memset
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
@@ -46,7 +47,8 @@ static struct { volatile uint32_t notes, buttons, pressed, notes_pressed; } fm1_
 static int32_t sim_enc_acc[7];
 static uint8_t fm1_led[FM1_NCOL];
 static uint8_t fm1__tick_col;                         /* (hal/fm1_input.h: the column the scan lit last; led_dim.c) */
-static int32_t fm1_enc_take(uint32_t e) { int32_t s = sim_enc_acc[e % 7u]; sim_enc_acc[e % 7u] = 0; return s; }
+static int32_t enc_take(uint32_t e) { int32_t s = sim_enc_acc[e % 7u]; sim_enc_acc[e % 7u] = 0; return s; }   /* (enc.c) */
+static void enc_frame(void) {}                         /* (enc.c, left out: the scan's decoder; the page feeds steps) */
 static uint32_t fm1_input_edges(uint32_t *released)
 {
     uint32_t p = fm1_in.pressed;
@@ -133,7 +135,7 @@ static void sim_mark(uint32_t off, uint32_t n)
 #include "../firmware/src/drum_core.c"
 #include "../firmware/src/slicer.c"
 #include "../firmware/src/fx.c"
-#include "../firmware/src/usb_app.c"
+#include "../firmware/src/usb_app8.c"
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"

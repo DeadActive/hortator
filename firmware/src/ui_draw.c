@@ -190,7 +190,13 @@ static int32_t batt_shown(void)
  * ("KEYS F3"); 0 (b "") when neither */
 static int head_mode(char *b)
 {
+    uint32_t ls = lock_view_step();
     b[0] = 0;
+    if (ls < NSTEP) {                                 /* a step held in STEPS: its locks on the knobs */
+        str_cpy(b, "LOCK STEP ", 16);
+        fmt_int(b + 10, (int32_t)ls + 1);
+        return 1;
+    }
     if (ui.srec) {
         str_cpy(b, "STEP REC ", 16);
         b[9] = (char)('0' + (ui.sr_cur + 1u) / 10u);
@@ -247,7 +253,8 @@ static void draw_head(void)
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + song.sel * 13131u + (uint32_t)song.g[G_BPM] * 101u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
-                   (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u;
+                   (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u +
+                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u;
     sig += cpu * 50021u + blink * 27u;
 #if FELUCCA_BLE
     sig += bt_head_icon() * 2654435761u;               /* (the Bluetooth icon: none, struck, lit) */
@@ -293,6 +300,15 @@ static void draw_head(void)
 #endif
     if (usb.config && !usb.suspended)
         md_text(196, 3, &MD_ICON, 2, "u", C_BG);
+    if (ui.env) {                                     /* STEPS (parameter locks): a padlock, the icons' 5 x 5 at 2x,
+                                                       * between USB and the battery */
+        static const uint8_t PADLOCK[5] = {0x0E, 0x11, 0x1F, 0x1B, 0x1F};   /* .###. #...# ##### ##.## ##### */
+        uint32_t r, c;
+        for (r = 0; r < 5u; r++)
+            for (c = 0; c < 5u; c++)
+                if ((PADLOCK[r] >> (4u - c)) & 1u)
+                    cv_rect(207 + (int32_t)c * 2, 3 + (int32_t)r * 2, 2, 2, C_BG);
+    }
     lvl = batt_shown();                               /* the battery: outline, nub, up to 3 cells */
     cv_frame(220, 4, 14, 8, C_BG);
     cv_rect(234, 6, 2, 4, C_BG);
@@ -719,21 +735,36 @@ static void graph_steps(const track_t *t, uint16_t c)
 
 static int srec_ok(void);                               /* ui_input.c: a REC tap starts step record */
 
-/* the STEP page's held step (a grid key held, KEYS off) at graph row y: "STEP n  PROB  RATCH n"; 0: none held */
-static int held_line(const track_t *t, int32_t y)
+/* the held step's line into h (32 B): "STEP n  PROB  RATCH n", + "  ACC" when accented; its index, NSTEP none held
+ * (worst "STEP 64  1-SHOT  RATCH 4  ACC": 29 characters, 236 px) */
+static uint32_t held_text(char *h)
 {
     const step_t *hs;
-    char h[32], cs[8];
-    if (!(ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] != 0xFFFFu))
-        return 0;
-    hs = &t->step[ui.step_si[ui.held]];
-    str_cpy(h, "STEP ", sizeof h);
-    fmt_int(h + str_len(h), (int32_t)ui.step_si[ui.held] + 1);
-    str_cpy(h + str_len(h), "  ", sizeof h - str_len(h));
+    char cs[8];
+    uint32_t si = held_step();                        /* (held STEP_HOLD_MS, or edited: a tap shows nothing) */
+    h[0] = 0;
+    if (si >= NSTEP)
+        return NSTEP;
+    hs = &TSEL->step[si];
+    str_cpy(h, "STEP ", 32);
+    fmt_int(h + str_len(h), (int32_t)si + 1);
+    str_cpy(h + str_len(h), "  ", 32 - str_len(h));
     cond_format(hs->cond, cs);
-    str_cpy(h + str_len(h), cs, sizeof h - str_len(h));
-    str_cpy(h + str_len(h), "  RATCH ", sizeof h - str_len(h));
+    str_cpy(h + str_len(h), cs, 32 - str_len(h));
+    str_cpy(h + str_len(h), "  RATCH ", 32 - str_len(h));
     fmt_int(h + str_len(h), (int32_t)hs->rat + 1);
+    if (hs->acc)
+        str_cpy(h + str_len(h), "  ACC", 32 - str_len(h));
+    return si;
+}
+
+/* the STEP page's held step (a grid key held, KEYS off) at graph row y: held_text; 0: none held */
+static int held_line(const track_t *t, int32_t y)
+{
+    char h[32];
+    (void)t;
+    if (held_text(h) >= NSTEP)
+        return 0;
     md_text(4, y, &MD_F3, 2, h, C_INK);
     return 1;
 }
@@ -1638,7 +1669,7 @@ static uint32_t graph_signature(void)
     }
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
         h ^= steps_hash(t) + (song.playing ? view_idx(t) + 1u : 0u) * 31u;
-        h ^= (ui.held < 16u && ui.step_t0[ui.held] ? ui.held + 1u : 0u) * 977u;
+        h ^= (held_step() + 1u) * 977u;
     if (pg->graph == GR_GRID)                         /* step record's cursor, the key sounding, KEYS (the roll's view
                                                        * follows from these: draw_graph) */
         h ^= (ui.srec ? ui.sr_cur + 1u : 0u) * 1543u +
@@ -1840,10 +1871,11 @@ static void graph_motion(void)
 {
     const track_t *t = TSEL;
     uint32_t k = song.sel, len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i, sig, n = 0, nw, wi;
-    uint32_t has[2] = {0, 0}, ph = song.playing ? t->seq_idx % len : 0xFFu;
-    for (i = 0; i < mo.s.count; i++)
-        if (mo.s.ev[i].trk == k) {
-            has[mo.s.ev[i].step >> 5] |= 1u << (mo.s.ev[i].step & 31u);
+    uint32_t has[2] = {0, 0}, ph = song.playing ? t->seq_idx % len : 0xFFu, z = lk_seek(&mo.b, k + 1u, 0);
+    for (i = lk_seek(&mo.b, k, 0); i < z; i++)          /* the track's motion events (not its locks) */
+        if (!lk_is_lock(&mo.b, i)) {
+            uint32_t st = ((uint32_t)mo.b.key[i] >> 7) & 63u;
+            has[st >> 5] |= 1u << (st & 31u);
             n++;
         }
     sig = has[0] * 31u + has[1] * 131u + len * 7u + ph * 1009u + k * 65537u + n * 3u + (uint32_t)motion_on(k);
@@ -1867,15 +1899,17 @@ static void graph_motion(void)
         cv_blit(0, Y_GRAPH);
     }
 }
-/* MOTION: KNOB 1 PLAY, 2 EVENT (the count), 4 CLEAR */
+/* MOTION: KNOB 1 PLAY, 2 MOTION and 3 LOCKS (the selected track's recorded motion events and parameter locks), 4
+ * CLEAR (the motion) */
 static void motion_columns(void)
 {
     char val[12];
     uint32_t k = song.sel;
     draw_column(0, "PLAY", motion_on(k) ? "ON" : "OFF", "", HOT(0u), -1);
     fmt_int(val, (int32_t)motion_count(k));
-    draw_column(1, "EVENT", val, "", CV_NORM, -1);
-    draw_column(2, "", "", "", CV_NORM, -1);
+    draw_column(1, "MOTION", val, "", CV_NORM, -1);
+    fmt_int(val, (int32_t)lock_count(k));
+    draw_column(2, "LOCKS", val, "", CV_NORM, -1);
     draw_column(3, "CLEAR", "", "", CV_NORM, -1);
 }
 
@@ -2139,8 +2173,8 @@ static int foot_note(char *b)
     b[0] = 0;
     if (ui.srec)
         si = ui.sr_cur % NSTEP;
-    else if (step_keys() && ui.held < 16u && ui.step_t0[ui.held] && ui.step_si[ui.held] < NSTEP)
-        si = ui.step_si[ui.held];
+    else if (step_keys() && held_step() < NSTEP)
+        si = held_step();
     else
         return 0;
     s = &st[si];
@@ -2169,6 +2203,7 @@ static int foot_note(char *b)
  * right; a held / cursor step's note at x 120 (the number then hidden); MIDI LEARN's line across it */
 static struct {
     uint32_t trig_sig;           /* the trig strip's steps shown: on | acc << 16 (exact, no hash) */
+    uint32_t lock_sig;           /* .. its lock marks (STEPS: the bank's locked steps) */
     uint8_t trig_n;              /* .. and their count */
     uint8_t ph;                  /* its playhead shown (16+: none) */
     int16_t x0, x1;              /* the breadcrumb's text span shown */
@@ -2179,7 +2214,7 @@ static void draw_foot(void)
     const track_t *t = TSEL;
     const page_t *pg = cur_page();
     const char *mn = N_MODEL[(uint32_t)t->p[P_MODEL] % NMODELS];
-    uint32_t sig, i, on = 0, acc = 0, n = 0, len = view_len(t), ph = 99u;
+    uint32_t sig, i, on = 0, acc = 0, n = 0, len = view_len(t), ph = 99u, lmask;
     int32_t x0, x1;
     int note = foot_note(fn);                        /* the held / cursor step's note */
     right[0] = 0;
@@ -2244,11 +2279,16 @@ static void draw_foot(void)
     }
     if (song.playing && view_idx(t) / 16u == ui.bank)
         ph = view_idx(t) % 16u;
+    {                                                 /* STEPS: the bank's locked steps marked (a song's row: its
+                                                       * slot's bank) */
+        const lk_bank_t *lb = chain.running && chain.src[chain.slot].m ? chain.src[chain.slot].m : &mo.b;
+        lmask = env_steps() && !view_src(t) ? lk_step_mask(lb, song.sel, ui.bank * 16u) : 0u;
+    }
     sig = on | acc << 16;                             /* the trig strip (all it shows: on, acc, n; the playhead):
                                                        * whole when the steps change, else the playhead's old box and
                                                        * its new */
     rg_region(0, Y_TRIG, 240, H_TRIG);
-    if (ui.force || sig != ft.trig_sig || n != ft.trig_n)
+    if (ui.force || sig != ft.trig_sig || n != ft.trig_n || lmask != ft.lock_sig)
         rg_whole();
     else if (ph != ft.ph) {
         if (ft.ph < 16u)
@@ -2257,6 +2297,7 @@ static void draw_foot(void)
             rg_add(4 + (int32_t)ph * 14 + (int32_t)ph / 4 * 2, 3, 14, 14);
     }
     ft.trig_sig = sig;
+    ft.lock_sig = lmask;
     ft.trig_n = (uint8_t)n;
     ft.ph = (uint8_t)ph;
     for (i = 0; i < rg.n; i++) {
@@ -2265,6 +2306,7 @@ static void draw_foot(void)
         cv_rect(239, 0, 1, H_TRIG, C_INK);
         cv_hdot(1, 238, 0, C_INK);
         cv_trigs(6, 5, n, on, acc, ph, C_INK);
+        cv_lock_marks(6, 5, n, lmask, C_INK);
         cv_blit(0, Y_TRIG);
     }
     sig = str_hash(str_hash(str_hash(str_hash(0x9E3779B9u, left), right), fn), ml) + (uint32_t)note * 31u;
@@ -2460,13 +2502,14 @@ static void draw_home_strip(void)
     char l[4][8], v[4][8], ab[8], m[16], nm[NAME_LEN + 1u], pj[8];
     int32_t r[4], md[4], lx1;
     uint32_t c, i, sig, cur = home_bar();
-    uint32_t hot = ui.hot_t ? ui.hot_col : 9u, lev = 0;
+    uint32_t hot = ui.hot_t ? ui.hot_col : 9u, lev = 0, inv = 0;   /* inv: bit c, cell c's value inverted */
     for (c = 0; c < 4u; c++) {
-        int16_t *vp;
+        int16_t *vp, sv;
         const param_desc_t *d = home_param(c, &vp);
         char val[12];
         const char *unit = "";
         int32_t mv;
+        int lk;
         l[c][0] = v[c][0] = 0;
         r[c] = md[c] = -1;
         if (!d->label || d->label[0] == '-') {
@@ -2474,11 +2517,13 @@ static void draw_home_strip(void)
                 ui.focus_l[0] = 0;
             continue;
         }
-        param_format(d, *vp, val, &unit);
+        sv = lock_shown(lock_id(c), *vp, &lk);        /* (a step held in STEPS: the macro's lock there) */
+        inv |= (uint32_t)(lk || c == hot) << c;
+        param_format(d, sv, val, &unit);
         md_fit(l[c], abbr4(d->label, ab), sizeof l[c], 36);
         md_fit(v[c], val, 5, 36);
         if (d->fmt != F_ENUM)
-            r[c] = RATIO(d, *vp);
+            r[c] = RATIO(d, sv);
         if (lfo_live(TSEL, P_E0 + c, &mv))
             md[c] = RATIO(d, mv);
         if (c == ui.hot_col) {                        /* the breadcrumb's whole value while touched */
@@ -2491,6 +2536,11 @@ static void draw_home_strip(void)
     if (!head_mode(m) && chain.running) {
         str_cpy(m, "SONG ", sizeof m);
         fmt_int(m + 5, (int32_t)chain.row + 1);
+    }
+    if (lock_view_step() < NSTEP && 4 + md_text_w(&MD_F3, 2, m) > 61) {   /* the left block's 58 px (LEV's column
+                                                       * paints over more): "LOCK 5" (the top bar has LOCK STEP 5) */
+        str_cpy(m, "LOCK ", sizeof m);
+        fmt_int(m + 5, (int32_t)lock_view_step() + 1);
     }
     pj[0] = 'P', pj[1] = 'R', pj[2] = 'O', pj[3] = 'J', pj[4] = ' ';
     pj[5] = (char)('A' + (uint32_t)(song.g[G_SLOT] > 0 ? song.g[G_SLOT] - 1 : 0) % 4u);
@@ -2514,7 +2564,7 @@ static void draw_home_strip(void)
     hs.lx1 = (int16_t)lx1;
     for (c = 0; c < 4u; c++) {                        /* a cell: its label, ring, value (touched: inverted) */
         int32_t cx = HS_CX(c), x0 = cx - 21 < 87 ? 87 : cx - 21, x1 = cx + 22 > 240 ? 240 : cx + 22;
-        sig = str_hash(str_hash(0x811C9DC5u, l[c]), v[c]) + (uint32_t)(r[c] + 1) * 7u + (c == hot) * 7919u;
+        sig = str_hash(str_hash(0x811C9DC5u, l[c]), v[c]) + (uint32_t)(r[c] + 1) * 7u + ((inv >> c) & 1u) * 7919u;
         if (ui.force) {
         } else if (sig != hs.cell[c])
             rg_add(x0, 0, x1 - x0, 51);
@@ -2552,7 +2602,7 @@ static void draw_home_strip(void)
             md_text(cx - md_text_w(&MD_F3, 2, l[c]) / 2, 2, &MD_F3, 2, l[c], C_INK);
             if (r[c] >= 0)
                 cv_knob(cx, 24, 7, r[c], md[c], C_INK);
-            if (c == hot) {                           /* touched: the value inverted */
+            if ((inv >> c) & 1u) {                    /* touched, or a step's lock: the value inverted */
                 cv_rect(cx - vw / 2 - 2, vy - 2, vw + 4, 13, C_INK);
                 md_text(cx - vw / 2, vy, &MD_F3, 2, v[c], C_BG);
             } else {
@@ -2592,17 +2642,23 @@ static void draw_columns(void)
         uint32_t lvl = (uint32_t)t->p[P_LEVEL];
         fmt_int(val, (int32_t)song.sel + 1);
         draw_column(0, "TRACK", val, "/8", HOT(0u), (int32_t)song.sel * 1000 / (NTRK - 1));
-        if (!lvl || t->p[P_MUTE]) {
+        int lk;
+        lvl = (uint32_t)lock_shown(P_LEVEL, (int16_t)lvl, &lk);   /* (a step held in STEPS: LEVEL's lock) */
+        if (!lk && (!lvl || t->p[P_MUTE])) {
             str_cpy(val, "MUTE", 12);
             unit = "";
         } else {
             param_format(&TP[P_LEVEL], (int32_t)lvl, val, &unit);
         }
-        draw_column(1, "LEVEL", val, unit, lvl && !trk_silent(t) ? HOT(1u) : CV_DIM, (int32_t)lvl * 1000 / 127);
+        draw_column(1, "LEVEL", val, unit, lk ? CV_HOT : lvl && !trk_silent(t) ? HOT(1u) : CV_DIM, (int32_t)lvl * 1000 / 127);
         param_format(&TP[P_SLEN], t->p[P_SLEN], val, &unit);
         draw_column(2, "LEN", val, unit, HOT(2u), RATIO(&TP[P_SLEN], t->p[P_SLEN]));
-        param_format(&TP[P_PAN], t->p[P_PAN], val, &unit);
-        draw_column(3, "PAN", val, unit, HOT(3u), RATIO(&TP[P_PAN], t->p[P_PAN]));
+        {                                               /* (a step held in STEPS: PAN's lock) */
+            int lp;
+            int16_t pv = lock_shown(P_PAN, t->p[P_PAN], &lp);
+            param_format(&TP[P_PAN], pv, val, &unit);
+            draw_column(3, "PAN", val, unit, lp ? CV_HOT : HOT(3u), RATIO(&TP[P_PAN], pv));
+        }
         return;
     }
     if (pg->scope == SC_GRID && ui.srec) {             /* step record: STEP NOTE TIME FLAG of the cursor step */
@@ -2617,6 +2673,16 @@ static void draw_columns(void)
         draw_column(1, "NOTE", val, "", HOT(1u), (st->nt - NT_MIN) * 1000 / (NT_MAX - NT_MIN));
         draw_column(2, "TIME", TM[srec_time(st)], "", HOT(2u), -1);
         draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", HOT(3u), -1);
+        return;
+    }
+    if (pg->scope == SC_GRID && held_step() < NSTEP) {  /* a step held: KNOB 1 PROB, 2 RATCH, 3 ACC (step_edit) */
+        const step_t *st = &TSEL->step[held_step()];
+        cond_format(st->cond, val);
+        draw_column(0, "PROB", val, "", HOT(0u), -1);
+        fmt_int(val, (int32_t)st->rat + 1);
+        draw_column(1, "RATCH", val, "", HOT(1u), -1);
+        draw_column(2, "ACC", st->acc ? "ON" : "OFF", "", HOT(2u), -1);
+        draw_column(3, "", "", "", CV_NORM, -1);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */
@@ -2650,17 +2716,21 @@ static void draw_columns(void)
             draw_column(c, "NAME", "EDIT", "", CV_NORM, -1);
             continue;
         }
+        int lk = 0;
+        int16_t sv = pg->scope == SC_TRACK ? lock_shown(lock_id(c), *vp, &lk) : *vp;   /* (a step held in STEPS: the
+                                                                                          * knob's lock there) */
         if (pg->id[c] == G_INFO && pg->scope == SC_GLOBAL) {
             fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
             unit = "%";
         } else {
-            param_format(d, *vp, val, &unit);
+            param_format(d, sv, val, &unit);
         }
         {
             int32_t mv, mod = -1;
             if (pg->scope == SC_TRACK && lfo_live(TSEL, page_id(pg, c), &mv))
                 mod = RATIO(d, mv);
-            draw_column_m(c, d->label, val, unit, HOT(c), d->fmt == F_ENUM || d->fmt == F_LDEST ? -1 : RATIO(d, *vp), mod);
+            draw_column_m(c, d->label, val, unit, lk ? CV_HOT : HOT(c),
+                          d->fmt == F_ENUM || d->fmt == F_LDEST ? -1 : RATIO(d, sv), mod);
         }
     }
 }

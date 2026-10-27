@@ -376,11 +376,71 @@ static void sentinel(void)
     check(b, fails == f0);
 }
 
+/* locks (2026-10-24): a held step's knob turn (a lock) sends no more than a plain turn on the page, plus the top line */
+static void lock_turn_partial(void)
+{
+    st_t plain, held;
+    uint32_t i;
+    ui_host_init();
+    pattern();
+    press(B_EDIT);
+    frame();
+    release_all();
+    press(B_ENV);                                     /* STEPS */
+    frame();
+    release_all();
+    settle(60);
+    memset(&plain, 0, sizeof plain);
+    for (i = 0; i < 20u; i++) {
+        host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+        turn(EN_K2, (i & 4u) ? -1 : 1);
+        add(&plain, frame());
+    }
+    settle(60);
+    keys(1u << 7);                                    /* (step 5's key) */
+    frame();
+    host_ticks += 400u * 1000u * FM1_TICKS_PER_US;    /* held: LOCK STEP 5, the cells the step's */
+    settle(30);
+    memset(&held, 0, sizeof held);
+    for (i = 0; i < 20u; i++) {
+        host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+        turn(EN_K2, (i & 4u) ? -1 : 1);
+        add(&held, frame());
+    }
+    report("SOUND, a knob turn a frame", &plain);
+    report("SOUND, step 5 held: a lock turn a frame", &held);
+    check("locks: a held step's knob turn sends no more than a plain turn + the top line",
+          held.max <= plain.max + 240u * H_HEAD && held.full == 0u && lock_count(0) > 0u);
+    keys(0);
+    settle(30);
+}
+
+/* the top bar's padlock (STEPS): an ENV tap repaints the top bar only, not the screen */
+static void lock_icon_partial(void)
+{
+    st_t e;
+    ui_host_init();
+    pattern();
+    home_tracks();
+    settle(60);
+    memset(&e, 0, sizeof e);
+    press(B_ENV);
+    add(&e, frame());
+    release_all();
+    add(&e, frame());
+    add(&e, frame());
+    report("TRACKS: ENV tapped (STEPS: the padlock)", &e);
+    check("the padlock: an ENV tap sends no full repaint (the top bar, the keys' strip)", ui.env == 1u && e.full == 0u);
+}
+
 int main(void)
 {
     st_t s;
     uint32_t i;
     fr_t f;
+
+    lock_turn_partial();
+    lock_icon_partial();
 
     /* a full repaint (a page change): at most the screen once, plus the 1 px rules (nothing drawn twice) */
     ui_host_init();

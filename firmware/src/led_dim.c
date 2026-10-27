@@ -19,7 +19,9 @@
  * led_dim_tick runs in fm1_timer5_irq right after fm1_input_tick (main.c), also nested in the audio ISR: it composes
  * the column the NEXT tick lights (fm1__tick_col + 1, the column fm1_input_tick just lit being fm1__tick_col), so a
  * column's value is written a whole tick before it is used and never changes while it is lit. A handful of
- * instructions a tick: it runs 10000 times a second. Included before main.c (ui_input.c; frozen-base-8's felucca.c). */
+ * instructions a tick: it runs 10000 times a second. Included before main.c (ui_input.c; frozen-base-8's felucca.c).
+ * It is also the knobs' hook: on the tick that completed a scan frame (fm1__tick_col 0) it runs enc.c's decoder
+ * first, whether the dimming is on or not (0.23.3, #126: the frozen HAL's decoder lost clicks of a quick turn). */
 #define LED_BR_FRAMES 1024u                        /* a breath: frames dark -> the peak -> dark (a power of 2) */
 #define LED_BR_PK 154u                             /* its peak, /256 of lit: ~60 % (upstream FM1_LED_BREATH_PK) */
 static volatile uint32_t led_lay[FM1_NCOL];
@@ -66,6 +68,8 @@ static inline void led_br_frame(void)             /* (a new frame, before column
 static inline void led_dim_tick(void)
 {
     uint32_t n, f;
+    if (!fm1__tick_col)
+        enc_frame();                               /* a frame just scanned: the knobs (enc.c, #126), dim or not */
     if (!led_dim_on)
         return;
     n = fm1__tick_col + 1u;

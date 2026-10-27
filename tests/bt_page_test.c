@@ -205,8 +205,16 @@ static void add(const uint8_t a[6], uint32_t kind, const char *name)
 static void test_menu_row(void)
 {
     fresh();
-    check("menu: BLUETOOTH is the row before ABOUT; eleven rows", str_eq(MI_NAME[MI_BT], "BLUETOOTH") &&
-          MI_BT + 1 == MI_ABOUT && MI_COUNT == 11 && str_eq(MI_NAME[MI_BACKLIGHT], "BACKLIGHT"));
+    check("menu: BLUETOOTH is the row before ABOUT; eleven rows (BACKLIGHT, spec 2026-10-11-fixes §12)",
+          str_eq(MI_NAME[MI_BT], "BLUETOOTH") && MI_BT + 1 == MI_ABOUT && MI_COUNT == 11 &&
+          str_eq(MI_NAME[MI_BACKLIGHT], "BACKLIGHT"));
+    {   /* MENU > USB AUDIO is the standard build's only (owner 2026-10-26): no row, no 10 CH code, 2 CH always */
+        uint32_t k, none = 1;
+        for (k = 0; k < MI_COUNT; k++)
+            none &= !str_eq(MI_NAME[k], "USB AUDIO");
+        check("menu: no USB AUDIO row in the Bluetooth build (2 CH always; a stored 10 CH is not read)",
+              none && !USB10_BUILD && !USB8_OK);
+    }
     {
         uint32_t k;
         for (k = 0; k < MI_BT; k++) {

@@ -34,6 +34,30 @@ static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
 /* fixes 2026-10-21 item 1: OCT+ where the keys are steps: 1 pressed (let go alone: the next bank), 2 a step key
  * accented with it (let go: nothing); 0 not held there (ui_input acc_oct_poll) */
 static uint8_t acc_oct;
+/* things the boot found that the first frames say, once each (project.c persist_boot): USR3 shortened to 48 KiB, a
+ * lock bank lost (spec 2026-10-24 parameter locks) */
+#define PN_USR3 1u
+#define PN_LOCKS 2u
+#define PN_USR3F 4u                                 /* the USR3 clamp failed: no lock-bank writes this boot */
+static uint8_t persist_note;
+static uint8_t lk_lost;                             /* project.c: slots whose lock bank was lost (LOCKS LOST, once) */
+static void persist_note_show(void)                 /* every frame: with no message up, the lowest note's, once */
+{
+    if (!persist_note || ui.msg_t)
+        return;
+    if (persist_note & PN_USR3) {
+        persist_note &= (uint8_t)~PN_USR3;
+        ui_message("USR3 SHORTENED TO 48K");
+    } else if (persist_note & PN_LOCKS) {           /* (said once: not again at those slots' LOAD) */
+        persist_note &= (uint8_t)~PN_LOCKS;
+        if (lk_lost)
+            ui_message("LOCKS LOST");
+        lk_lost = 0;
+    } else {
+        persist_note &= (uint8_t)~PN_USR3F;
+        ui_message("USR3 CLAMP FAILED");
+    }
+}
 /* fixes 2026-10-21 item 2: the keys show the selected track (its white key lit, as the keys select it there) on the
  * HOME screen and every page of the EDIT (SOUND, LAYER), FX and LFO families; not under KEYS (the keyboard's), the
  * menu, NAME, the PRESETS list, the MUTE screen or PERFORM (ui_leds tests those first) */
@@ -74,16 +98,21 @@ static uint32_t oct_leds(void)
         return OCT_LIT_DN | OCT_BR_UP;
     if (keys_mode())
         return (song.octave < 0 ? OCT_LIT_DN : 0u) | (song.octave > 0 ? OCT_LIT_UP : 0u);
-    if (step_keys())
+    if (seq_keys())
         return (ui.bank > 0u ? OCT_BR_DN : 0u) |
                (acc_oct ? OCT_LIT_UP : ui.bank + 1u < bank_count() ? OCT_BR_UP : 0u);
-    if (!ui.home && cur_fam() == FAM_SND)
-        return OCT_BR_UP;
-    if (!ui.home && cur_fam() == FAM_LAY)
-        return OCT_LIT_DN;
-    if (!ui.home && cur_fam() == FAM_LFO)             /* LFO: OCT+ the RATE MODE of the LFO turned last (item 3); */
-        return OCT_BR_UP;                             /* OCT- does nothing there */
-    return 0;
+    {
+        uint32_t r = 0;
+        if (!ui.home && cur_fam() == FAM_SND)
+            r = OCT_BR_UP;
+        else if (!ui.home && cur_fam() == FAM_LAY)
+            r = OCT_LIT_DN;
+        else if (!ui.home && cur_fam() == FAM_LFO)    /* LFO: OCT+ the RATE MODE of the LFO turned last (item 3); */
+            r = OCT_BR_UP;                            /* OCT- does nothing there */
+        if (env_steps() && acc_oct)                   /* STEPS: OCT+ held (its accent) lit, as on the SEQ pages */
+            r = (r & ~OCT_BR_UP) | OCT_LIT_UP;
+        return r;
+    }
 }
 
 /* fixes 2026-10-21 item 9 (upstream Felucca's LEDS levels; MENU BACKLIGHT, panel.c BL_*): the picture nl (lit), nb
@@ -155,6 +184,7 @@ static void ui_leds(void)
     led_put(nl, panel.btn[B_PLAY], song.playing && ((song.tick / 64u) & 1u) == 0u);   /* blinks: intended */
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ui.srec);
     led_put(nl, panel.btn[B_SCL], ui.keys);           /* KEYS (spec §5) */
+    led_put(nl, panel.btn[B_ENV], ui.env);            /* STEPS (spec 2026-10-24) */
     if (ui.mute) {                                    /* MUTE screen: the tracks' keys lit while audible, blinking
                                                        * while a mute waits for the bar; top C# (NOW) / D# (NEXT BAR) */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
@@ -215,50 +245,66 @@ static void ui_leds(void)
 }
 
 /* ---------------------------------------------------------- input --- */
-/* knob acceleration (upstream 1.0, #23 / #52): only a turn going on in one direction over a wide value (range > 32)
- * speeds up, by the longer of this read's and the previous read's time per detent (ACC_RATE / ms: x2 .. x4); a slow
- * turn, the first two detents of a turn, a single quick detent (a bounce) and a reversal are one step per detent.
- * MENU > KNOB ACCEL OFF: always one step. ui.enc_t[role]: bits 0..23 the ms of its last read, bit 24 its direction
- * (+1), 25..31 its ms per detent (127 slow) */
-#define ACC_GAP 40u
-#define ACC_RATE 50u
+/* knob acceleration (MENU > KNOB ACCEL ON; after upstream Felucca 1.1.5's, 276f72a, #23 / #52 / #126): a turn going on
+ * in one direction over a wide value (range > 32) speeds up with the time per click, the longer of this read's and the
+ * previous read's: x ACC_RATE / ms, in sixteenths of a step carried through the turn (80 ms x1.25, 50 ms (20 clicks/s)
+ * x2, 25 ms x4, 12.5 ms x8), at most x4, x8 over a range above 64 (upstream's caps). A click slower than ACC_GAP ms
+ * (12.5 clicks/s and slower), the first two reads of a turn, a single quick click (a bounce) and a reversal are one
+ * step a click, and the sign is always the clicks'. Faster than upstream's (x50 / ms from 40 ms: x1 to 25 clicks/s,
+ * x2 .. x3 at 40 .. 60) at a medium turn; the same caps. A list of names (F_ENUM: MODEL, TYPE ..) never speeds up
+ * (knob_turn; upstream's too). OFF: always one step a click. ui.enc_t[role]: bits 0..23 the ms of its last read, bit 24
+ * its direction (+1), 25..31 its ms per click (127 slow); ui.enc_c[role] the carry. tests/accel_test.c: the clicks
+ * to sweep 0..127 against upstream's */
+#define ACC_GAP 80u
+#define ACC_RATE 100u
 static int32_t accel(uint32_t role, int32_t s, int32_t range)
 {
     uint32_t now = (fm1_ticks() / (1000u * FM1_TICKS_PER_US)) & 0xFFFFFFu, st = ui.enc_t[role], up = s > 0, pi = st >> 25;
-    uint32_t a, i, m = 1;
+    uint32_t a, i, m = 16u, cap;
     if (!settings.accel || range <= 32 || !s)
         return s;
     a = (uint32_t)(s < 0 ? -s : s);
-    i = ((now - st) & 0xFFFFFFu) / a;                   /* ms per detent of this read */
-    if (!st || ((st >> 24) & 1u) != up || i >= ACC_GAP)
+    i = ((now - st) & 0xFFFFFFu) / a;                   /* ms per click of this read */
+    if (!st || ((st >> 24) & 1u) != up || i >= ACC_GAP) {
         i = 127u;                                       /* a new turn, or reversed */
-    else if (pi < ACC_GAP) {
-        m = ACC_RATE / (i > pi ? i : pi ? pi : 1u);
-        m = m < 1u ? 1u : m > 4u ? 4u : m;
+        ui.enc_c[role] = 0;
+    } else if (pi < ACC_GAP) {
+        cap = range > 64 ? 8u * 16u : 4u * 16u;
+        m = ACC_RATE * 16u / (i > pi ? i : pi ? pi : 1u);
+        m = m < 16u ? 16u : m > cap ? cap : m;
     }
     ui.enc_t[role] = now | up << 24 | (i ? i : 1u) << 25;
-    return s * (int32_t)m;
+    a = a * m + ui.enc_c[role];                         /* sixteenths: at least one step a click */
+    ui.enc_c[role] = (uint8_t)(a & 15u);
+    return up ? (int32_t)(a >> 4) : -(int32_t)(a >> 4);
 }
 
-/* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH. The first turn of a hold undoes the press's on / off: the
- * step is as before the press, and on (pressed with OCT+: as the accent left it). A held key outside LEN takes the
- * turn and does nothing. */
+/* a knob (role) turned s on the value v of d: the new value; a list of names one entry a click (upstream 1.1.5) */
+static int32_t knob_turn(uint32_t role, const param_desc_t *d, int32_t v, int32_t s)
+{
+    return param_turn(d, v, accel(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
+}
+
+/* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH, KNOB 3: its accent (a detent right ACC on, left off),
+ * from the first detent (the press changed nothing). An edit is no tap: the keys down let go toggle nothing. An off
+ * step's first edit turns it on (step_hold_on, as the hold itself: KNOB 3 right at once = on accented). A held key
+ * outside LEN takes the turn and does nothing. KNOB 4: the page's (nothing on STEP) */
 static int step_edit(uint32_t knob, int32_t steps)
 {
-    uint32_t k = ui.held;
+    uint32_t k = ui.held, i;
     step_t *s;
-    if (knob > 1u || k >= 16u || !ui.step_t0[k])
+    if (knob > 2u || k >= 16u || !ui.step_t0[k])
         return 0;
+    for (i = 0; i < 16u; i++)                         /* edited: no key down is a tap any more */
+        if (ui.step_t0[i])
+            ui.step_t0[i] |= 2u;
     if (ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))   /* outside LEN, or a Grids track */
         return 1;
     s = &TSEL->step[ui.step_si[k]];
-    if (!(ui.step_t0[k] & 4u)) {
-        *s = ui.step_prev[k];
-        s->on = 1;
-        s->tie = 0;
-        if (!ui.step_prev[k].on)
-            s->nt = new_step_nt(TSEL);
-        ui.step_t0[k] |= 6u;                          /* edited: the press undone once */
+    step_hold_on(k);
+    if (knob == 2u) {
+        s->acc = steps > 0;                           /* (absolute: a fast turn's detents never flicker it) */
+        return 1;
     }
     if (knob == 0u)
         s->cond = (uint8_t)cond_store((uint32_t)clamp((int32_t)cond_pos(s->cond) + accel(EN_K1, steps, COND_MAX), 0,
@@ -471,7 +517,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         ui_say("CLK ", N_CLOCK[song.g[G_CLOCK]]);
         return;
     }
-    v = param_turn(d, *vp, accel(EN_K1 + slot, steps, d->max - d->min));
+    v = knob_turn(EN_K1 + slot, d, *vp, steps);
     if (pg->scope == SC_TRACK && id == P_RMODEL && v != *vp) {   /* a capped model full: the next one (or why not) */
         int32_t dir = v > *vp ? 1 : -1;
         const char *why = reson_refused(TSEL, *vp, v);
@@ -819,13 +865,102 @@ static void srec_knob(uint32_t k, int32_t s)
 /* fixes 2026-10-21 item 1: OCT+ let go where it was pressed on the steps: alone (no step key accented with it), and the
  * keys still the steps, the next bank; anything else (an accent, another page, the menu, a dialog, the MUTE screen or
  * PERFORM up while it was held: acc_oct 2, ui_input) nothing */
+/* OCT+'s page job (SOUND: LAYER 1/2; an LFO page: the RATE MODE of the LFO turned last); OCT-'s (LAYER: back to its
+ * SOUND page) */
+static void oct_up_job(void)
+{
+    if (!ui.home && cur_fam() == FAM_SND) {
+        ui.fam_last[FAM_LAY] = 0;                       /* LAYER 1/2 */
+        open_family(FAM_LAY);
+    } else if (!ui.home && cur_fam() == FAM_LFO) {      /* the LFO turned last (DEST: the slot's source): SYNC -> Hz
+                                                         * -> TIME */
+        uint32_t l = cur_page()->graph == GR_LDEST ? (TSEL->p[LS_ID[song.lslot & 3u][LS_SRC]] ? 1u : 0u)
+                                                   : ui.lfo_l & 1u;
+        int16_t *mp = &TSEL->p[(l ? P_LFO2 : P_LFO1) + LF_MODE];
+        *mp = (int16_t)((clamp(*mp, 0, 2) + 1) % 3);
+        ui.force = 1;
+    }
+}
+static void oct_dn_job(void)
+{
+    if (!ui.home && cur_fam() == FAM_LAY)
+        open_family(FAM_SND);                           /* the SOUND page it came from */
+}
 static void acc_oct_poll(void)
 {
     if (!acc_oct || ((fm1_in.buttons >> panel.btn[B_OCTUP]) & 1u))
         return;
-    if (acc_oct == 1u && step_keys() && !ui.confirm && !name_on() && !pl_on() && !ui.mute && !ui.layer && !fx_knobs)
-        bank_set((int32_t)ui.bank + 1);
+    if (acc_oct == 1u && step_keys() && !ui.confirm && !name_on() && !pl_on() && !ui.mute && !ui.layer && !fx_knobs) {
+        if (seq_keys())
+            bank_set((int32_t)ui.bank + 1);
+        else
+            oct_up_job();                               /* STEPS elsewhere: OCT+ let go alone is the page's */
+    }
     acc_oct = 0;
+}
+/* locks (spec 2026-10-24): a held step + a knob: its lock, from the knob's value there (the lock's, else the knob's own),
+ * as a held step's edit (no tap on the release, an off step on); the knob, the base and motion untouched. A knob MOTION
+ * cannot record does nothing while a step is held (the held step is its own context) */
+static void lock_knob(uint32_t c, int32_t s)
+{
+    uint32_t id = lock_id(c), st = lock_step(), i;
+    int16_t cur;
+    if (id >= P_COUNT || st >= NSTEP)
+        return;
+    for (i = 0; i < 16u; i++)                         /* edited: no key down is a tap any more */
+        if (ui.step_t0[i])
+            ui.step_t0[i] |= 2u;
+    step_hold_on(ui.held);
+    if (!lock_get(song.sel, st, id, &cur))
+        cur = motion_rest(song.sel, id);
+    lock_set(song.sel, st, id, knob_turn(EN_K1 + c, track_desc(TSEL, id), cur, s));
+    ui.hot_col = (uint8_t)c;
+    ui.hot_t = 40;
+}
+/* OCT- pressed with a step held (ui.ocd_t0): let go before LOCK_CLR_MS, that step's locks on this page's knobs go;
+ * held LOCK_CLR_MS, all its locks at once (its release then nothing) */
+static void lock_clear_say(const char *what)
+{
+    char m[24];
+    str_cpy(m, "STEP ", sizeof m);
+    fmt_int(m + 5, (int32_t)ui.ocd_si + 1);
+    str_cpy(m + str_len(m), what, sizeof m - str_len(m));
+    ui_message(m);
+}
+static void ocd_poll(uint32_t now)
+{
+    if (!ui.ocd_t0)
+        return;
+    if ((fm1_in.buttons >> panel.btn[B_OCTDN]) & 1u) {
+        if (!(ui.ocd_t0 & 2u) && now - (ui.ocd_t0 & ~3u) >= LOCK_CLR_MS * 1000u * FM1_TICKS_PER_US) {
+            lock_clear_step(song.sel, ui.ocd_si, 0);
+            lock_clear_say(" ALL CLEARED");
+            ui.ocd_t0 |= 2u;
+        }
+        return;
+    }
+    if (!(ui.ocd_t0 & 2u)) {
+        uint32_t ids[MO_W] = {0}, c, id;
+        for (c = 0; c < 4u; c++)
+            if ((id = lock_id(c)) < P_COUNT)
+                ids[id >> 5] |= 1u << (id & 31u);
+        lock_clear_step(song.sel, ui.ocd_si, ids);
+        lock_clear_say(" LOCKS CLEARED");
+    }
+    ui.ocd_t0 = 0;
+}
+/* ENV (spec 2026-10-24): a tap toggles STEPS / TRACKS on its release, unless OCT+- changed the bank while it was held
+ * or it was pressed under the menu, NAME, the PRESETS list, the MUTE screen, PERFORM or a dialog */
+static void env_poll(uint32_t now, uint32_t pressed)
+{
+    int busy = ui.menu || name_on() || pl_on() || ui.mute || ui.layer || fx_knobs || ui.confirm;
+    if ((pressed >> panel.btn[B_ENV]) & 1u)
+        ui.env_t0 = ((now | 1u) & ~2u) | (busy ? 2u : 0u);   /* (the clock's own bit 1 cleared: it is the flag) */
+    if (ui.env_t0 && !((fm1_in.buttons >> panel.btn[B_ENV]) & 1u)) {
+        if (!(ui.env_t0 & 2u) && !busy)
+            env_toggle();
+        ui.env_t0 = 0;
+    }
 }
 
 static void ui_input(void)
@@ -836,7 +971,11 @@ static void ui_input(void)
     int32_t s, dt;
     if (safe_start)                                     /* safe start: no pages, no edits */
         return;
+#if USB8_OK
+    usb_mode_service();                                 /* MENU > USB AUDIO: the reconnect, once the menu closed */
+#endif
     acc_oct_poll();                                     /* OCT+ let go on the steps: the next bank (item 1) */
+    env_poll(now, pressed);                             /* ENV: STEPS / TRACKS */
     pre_frame(now);                                     /* PRESETS: EDIT's hold, the popup's time (ui_preset.c) */
 #if FELUCCA_BLE
     bt_autostart();                                     /* AUTOSTART: BLUETOOTH ON once, 5 s after power-on (the
@@ -965,6 +1104,7 @@ static void ui_input(void)
     if (home == BT_TAP)
         home_tap();                                     /* HOME: TRACKS <-> HOME; elsewhere HOME as last shown */
     settings_poll();
+    persist_note_show();                                /* USR3 SHORTENED TO 48K, LOCKS LOST (persist_boot) */
     song.act[2] = (int16_t)settings.mutebar;
     song.act[3] = (int16_t)fx_metro;
     bank_fix();                                         /* LEN may have changed (knob, load) */
@@ -1001,24 +1141,33 @@ static void ui_input(void)
                 ml_oct(b == B_OCTUP);
             } else if (keys_mode()) {
                 keys_octave(b == B_OCTUP ? 1 : -1);
-            } else if (step_keys()) {                   /* OCT+: held + a step key its accent, let go alone the
+            } else if (ui.env_t0) {                     /* ENV held: the bank (STEPS' banks; no toggle on its release) */
+                bank_set((int32_t)ui.bank + (b == B_OCTUP ? 1 : -1));
+                ui.env_t0 |= 2u;
+            } else if (b == B_OCTDN && lock_step() < NSTEP) {   /* a step held: OCT- clears its locks (ocd_poll), no
+                                                                 * page job */
+                uint32_t i;
+                ui.ocd_t0 = (now | 1u) & ~2u;           /* (the clock's own bit 1 cleared: the flag) */
+                ui.ocd_si = (uint8_t)lock_step();
+                for (i = 0; i < 16u; i++)               /* (the keys down: no tap) */
+                    if (ui.step_t0[i])
+                        ui.step_t0[i] |= 2u;
+            } else if (seq_keys()) {                    /* OCT+: held + a step key its accent, let go alone the
                                                          * next bank (acc_oct_poll); OCT-: the bank before */
                 if (b == B_OCTUP)
                     acc_oct = 1;
                 else
                     bank_set((int32_t)ui.bank - 1);
-            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_SND) {
-                ui.fam_last[FAM_LAY] = 0;               /* LAYER 1/2 */
-                open_family(FAM_LAY);
-            } else if (!ui.home && b == B_OCTDN && cur_fam() == FAM_LAY) {
-                open_family(FAM_SND);                   /* the SOUND page it came from */
-            } else if (!ui.home && b == B_OCTUP && cur_fam() == FAM_LFO) {   /* the LFO turned last (DEST: the slot's
-                                                                               * source): SYNC -> Hz -> TIME */
-                uint32_t l = cur_page()->graph == GR_LDEST ? (TSEL->p[LS_ID[song.lslot & 3u][LS_SRC]] ? 1u : 0u)
-                                                           : ui.lfo_l & 1u;
-                int16_t *mp = &TSEL->p[(l ? P_LFO2 : P_LFO1) + LF_MODE];
-                *mp = (int16_t)((clamp(*mp, 0, 2) + 1) % 3);
-                ui.force = 1;
+            } else if (env_steps()) {                   /* STEPS elsewhere: OCT+ held + a step key its accent, let go
+                                                         * alone the page's job; OCT- the page's at once */
+                if (b == B_OCTUP)
+                    acc_oct = 1;
+                else
+                    oct_dn_job();
+            } else if (b == B_OCTUP) {
+                oct_up_job();
+            } else {
+                oct_dn_job();
             }
             break;
         default: {
@@ -1030,6 +1179,7 @@ static void ui_input(void)
         }
         }
     }
+    ocd_poll(now);                                      /* locks: OCT- with a step held */
     edit_hold(now);                                     /* EDIT held: the PRESETS list */
     if (pl_on())
         return;
@@ -1039,20 +1189,27 @@ static void ui_input(void)
     if (ui.srec) {
         srec_keys(notes);
     } else if (step_keys()) {
-        for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a press */
-            uint32_t *t0 = &ui.step_t0[k];               /* turns the step on / off; with OCT+ held, its accent */
+        for (k = 0; k < 16u; k++) {                     /* steps on the white keys (seq.c STEP_KEY): a short press */
+            uint32_t *t0 = &ui.step_t0[k];               /* toggles the step on its release, a hold edits it (owner
+                                                         * 2026-10-23); with OCT+ held, its accent at the press */
+            uint32_t held_long = *t0 && now - (*t0 & ~7u) >= STEP_HOLD_MS * 1000u * FM1_TICKS_PER_US;
             if ((notes >> STEP_KEY[k]) & 1u) {
                 if (acc_oct) {
                     step_accent(k);
                     acc_oct = 2;
-                    *t0 = (now | 1u | 4u) & ~2u;        /* (as it is now: a knob turned while held edits it) */
+                    *t0 = now | 1u | 2u | 4u;           /* (as it is now: a knob turned while held edits it) */
                 } else {
-                    step_press(k);
+                    step_grab(k);
                     *t0 = (now | 1u) & ~6u;
                 }
                 ui.held = (uint8_t)k;
-            } else if (!((fm1_in.notes >> STEP_KEY[k]) & 1u)) {
+            } else if (*t0 && !((fm1_in.notes >> STEP_KEY[k]) & 1u)) {
+                if (!(*t0 & 2u) && !held_long)
+                    step_tap(k);                        /* a short press: the step on / off */
                 *t0 = 0;
+            } else if (held_long && !(*t0 & 2u)) {
+                *t0 |= 2u;                              /* a hold: no tap; the STEP n PROB RATCH line; */
+                step_hold_on(k);                        /* an off step on now */
             }
         }
     } else if (comp_mode()) {
@@ -1105,6 +1262,10 @@ static void ui_input(void)
         }
         if (grid_mode() && step_edit(k, s))
             continue;
+        if (lock_step() < NSTEP) {                      /* STEPS, a step held: a lock (or nothing) */
+            lock_knob(k, s);
+            continue;
+        }
         if (ui.home || pg->scope == SC_GRID || pg->scope == SC_MIX || pg->graph == GR_SONG || pg->graph == GR_LDEST ||
             page_desc(pg, k, &hv)) {
             ui.hot_col = (uint8_t)k;
@@ -1114,7 +1275,7 @@ static void ui_input(void)
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
             if (d->max > d->min) {
-                int32_t v = param_turn(d, *vp, accel(EN_K1 + k, s, d->max - d->min));
+                int32_t v = knob_turn(EN_K1 + k, d, *vp, s);
                 if (v != *vp)
                     preset_touch(TSEL);                 /* (TUNE DECAY TONE CHAR: the voice edited; not at a limit) */
                 *vp = (int16_t)v;
@@ -1130,6 +1291,10 @@ static void ui_input(void)
     if (mo.full) {                                      /* motion.c: a turn found no free place */
         mo.full = 0;
         ui_message("MOTION FULL");
+    }
+    if (mo.lfull) {                                     /* motion.c: a lock found the bank full */
+        mo.lfull = 0;
+        ui_message("LOCKS FULL");
     }
 }
 
@@ -1173,14 +1338,14 @@ static void panel_setup(void)
         draw_text_box(0, 80, 240, &FONT_S, "TURN RIGHT", C_INK, 1);
         draw_text_box(0, 100, 240, &FONT_L, E_NAME[i], C_INK, 1);
         for (e = 0; e < 7u; e++)
-            fm1_enc_take(e);
+            enc_take(e);
         t0 = fm1_ms;
         for (;;) {
             fm1_wdt_feed();
             if (fm1_ms - t0 > SETUP_IDLE_MS)
                 goto timeout;
             for (e = 0; e < 7u; e++)
-                if (!((used >> e) & 1u) && (st = fm1_enc_take(e)) != 0)
+                if (!((used >> e) & 1u) && (st = enc_take(e)) != 0)
                     break;
             if (e < 7u)
                 break;
@@ -1189,7 +1354,7 @@ static void panel_setup(void)
         panel.dir[i] = (int8_t)(st > 0 ? 1 : -1);
         used |= 1u << e;
         fm1_delay_ms(300);
-        fm1_enc_take(e);
+        enc_take(e);
     }
     panel.magic = PANEL_MAGIC;
     lcd_fill(0, 0, 240, 240, C_BG);

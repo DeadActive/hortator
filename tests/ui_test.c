@@ -72,7 +72,7 @@ static void test_families(void)
     press(B_SCL);
     ui_frame();
     release_all();
-    check("ENV does nothing (free); SCL toggles KEYS, the page stays", !ui.home && cur_page()->fam == FAM_LFO && ui.keys);
+    check("ENV (STEPS, 2026-10-24) then SCL: KEYS on (STEPS off), the page stays", !ui.home && cur_page()->fam == FAM_LFO && ui.keys);
     press(B_SCL);                                    /* KEYS off again */
     ui_frame();
     release_all();
@@ -309,11 +309,10 @@ static void test_grid_hold_accent(void)
     check("grid: a tap turns step 5 on, no accent", s->on && !s->acc);
     grid_hold(WHITE[4], 0);
     check("grid: a tap on an on step turns it off", !s->on && !s->acc);
-    grid_hold(WHITE[4], 300);
-    check("grid: a 0.3 s press is still a tap (on, no accent)", s->on && !s->acc);
+    grid_hold(WHITE[4], 200);
+    check("grid: a 0.2 s press is still a tap (on, no accent)", s->on && !s->acc);
     grid_hold(WHITE[4], 600);
-    check("grid: a 0.6 s hold is a tap too (off, no accent)", !s->on && !s->acc);
-    grid_hold(WHITE[4], 0);
+    check("grid: a 0.6 s hold is no tap: the step stays on, no accent", s->on && !s->acc);
     grid_acc(WHITE[4]);
     check("grid: OCT+ held + an on step: accented (it stays on), the bank unchanged", s->on && s->acc && ui.bank == 0u);
     grid_acc(WHITE[4]);
@@ -340,15 +339,16 @@ static void test_grid_hold_accent(void)
     trk[0].step[2].on = trk[0].step[2].acc = 0;
     {
         uint32_t ms;
-        keys(1u << WHITE[6]);                        /* a step key held long: nothing more than its tap */
+        keys(1u << WHITE[6]);                        /* a step key held long: no tap, no accent */
         ui_frame();
         for (ms = 0; ms < 800u; ms += 50u) {
             host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
             ui_frame();
         }
-        check("grid: a key held 0.8 s: its tap only (step 7 off), no accent", !trk[0].step[6].on && !trk[0].step[6].acc);
+        check("grid: a key held 0.8 s: step 7 stays on, no accent", trk[0].step[6].on && !trk[0].step[6].acc);
         keys(0);
         ui_frame();
+        check("grid: .. and let go: still on (a hold never toggles)", trk[0].step[6].on && !trk[0].step[6].acc);
     }
     trk[0].step[4].on = 1;
     trk[0].step[4].acc = 1;
@@ -379,7 +379,7 @@ static void test_grid_step_edit(void)
     open_step_page();
     grid_acc(WHITE[4]);                              /* on, accented (OCT+ held) */
     grid_hold_turn(WHITE[4], 0, -5);                 /* 100 % -> 75 % */
-    check("hold + KNOB 1: PROB of the held step (100 % -> 75 %); its accent stays, the press undone (on again)",
+    check("hold + KNOB 1: PROB of the held step (100 % -> 75 %); its accent stays, still on",
           s->on && s->acc && s->cond == cond_store(15) && ui.bank == 0);
     snap_page("seq/20_step_held_prob");
     keys(0);
@@ -422,6 +422,219 @@ static void test_grid_step_edit(void)
     snap_page("seq/21_step_prob_ratch");
     open_step_page();                                /* PATTERN */
     snap_page("seq/22_pattern_prob_ratch");
+}
+
+/* owner 2026-10-23: a step key toggles its step only on a SHORT press, decided on the release (down less than
+ * STEP_HOLD_MS, no held-step edit meanwhile); a long press or a KNOB 1 / 2 edit while held never toggles (holding is
+ * for editing; the STEP n PROB RATCH line once held past STEP_HOLD_MS). Every page whose white keys are the steps. */
+static void grid_down(uint32_t key) { keys(fm1_in.notes | 1u << key); ui_frame(); }
+static void grid_up(uint32_t key) { keys(fm1_in.notes & ~(1u << key)); ui_frame(); }
+static void grid_wait(uint32_t ms)
+{
+    uint32_t t;
+    for (t = 0; t < ms; t += 50u) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+}
+
+static void step_hold_on_page(const char *what)
+{
+    step_t *s = &trk[0].step[3];
+    char b[160];
+    memset(s, 0, sizeof *s);
+    grid_down(WHITE[3]);
+    snprintf(b, sizeof b, "%s: a step key pressed: nothing yet (the step decided on the release)", what);
+    check(b, !s->on);
+    grid_wait(100);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: a short press (0.1 s) let go: the step on", what);
+    check(b, s->on && !s->acc);
+    grid_down(WHITE[3]);
+    grid_wait(STEP_HOLD_MS + 100u);
+    snprintf(b, sizeof b, "%s: an on step held past STEP_HOLD_MS: still on", what);
+    check(b, s->on);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: .. let go: still on (a hold never toggles)", what);
+    check(b, s->on);
+    grid_down(WHITE[3]);
+    grid_wait(50);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: a short press on an on step: off", what);
+    check(b, !s->on);
+    grid_down(WHITE[3]);
+    grid_wait(STEP_HOLD_MS - 100u);
+    snprintf(b, sizeof b, "%s: an off step held under STEP_HOLD_MS: still off", what);
+    check(b, !s->on);
+    grid_wait(150u);
+    snprintf(b, sizeof b, "%s: .. held past STEP_HOLD_MS: on at once, still held (no accent)", what);
+    check(b, s->on && !s->acc);
+    grid_up(WHITE[3]);
+    snprintf(b, sizeof b, "%s: .. let go: stays on", what);
+    check(b, s->on);
+}
+
+static void test_step_hold(void)
+{
+    step_t *s = &trk[0].step[4];
+    ui_host_init();
+    open_step_page();
+    check("STEP_HOLD_MS is about 0.3 s", STEP_HOLD_MS >= 200u && STEP_HOLD_MS <= 400u);
+    s->on = 1;
+    grid_down(WHITE[4]);
+    check("STEP: an on step pressed stays on (no toggle on the press)", s->on);
+    check("STEP: no held-step line before STEP_HOLD_MS (a tap does not flash it)", held_step() == NSTEP);
+    grid_wait(STEP_HOLD_MS + 50u);
+    check("STEP: held past STEP_HOLD_MS: still on; the held-step line shows step 5", s->on && held_step() == 4u);
+    snap_page("seq/23_step_held_long");
+    grid_up(WHITE[4]);
+    check("STEP: let go after a hold: still on; no held step", s->on && held_step() == NSTEP);
+    grid_down(WHITE[4]);                             /* a quick press + KNOB 1: an edit, no toggle */
+    turn(EN_K1, -1);
+    ui_frame();
+    check("STEP: a quick KNOB 1 turn while pressed edits PROB at once; the line shows", s->on &&
+          s->cond == cond_store(19) && held_step() == 4u);
+    grid_up(WHITE[4]);
+    check("STEP: .. let go within STEP_HOLD_MS: no toggle (edited), PROB kept", s->on && s->cond == cond_store(19));
+    memset(&trk[0].step[6], 0, sizeof trk[0].step[6]);
+    grid_down(WHITE[6]);                             /* an off step + KNOB 2: on (an off step's edit is no use) */
+    turn(EN_K2, 1);
+    ui_frame();
+    check("STEP: an off step held + KNOB 2: on (no accent) with RATCH 2", trk[0].step[6].on && !trk[0].step[6].acc &&
+          trk[0].step[6].rat == 1);
+    grid_up(WHITE[6]);
+    check("STEP: .. let go: stays on (an edit is no tap)", trk[0].step[6].on && trk[0].step[6].rat == 1);
+    s->acc = 0;                                      /* accent: OCT+ held + a key, at the press, as before */
+    press(B_OCTUP);
+    ui_frame();
+    grid_down(WHITE[4]);
+    check("OCT+ held + a step key: the accent at the press (still on)", s->on && s->acc);
+    grid_up(WHITE[4]);
+    release_all();
+    ui_frame();
+    check("OCT+ + key let go quickly: no tap on the release (on, accented); the bank stays",
+          s->on && s->acc && ui.bank == 0u);
+    memset(&trk[0].step[8], 0, sizeof trk[0].step[8]);
+    trk[0].step[9].on = 1;
+    grid_down(WHITE[8]);                             /* two keys: each its own press */
+    grid_down(WHITE[9]);
+    grid_wait(STEP_HOLD_MS + 50u);
+    grid_down(WHITE[10]);
+    grid_up(WHITE[10]);
+    check("a key tapped while two are held: it toggles (step 11 on)", trk[0].step[10].on);
+    grid_up(WHITE[8]);
+    grid_up(WHITE[9]);
+    check("the two held long: step 9 (off) on by the hold, step 10 (on) unchanged", trk[0].step[8].on &&
+          trk[0].step[9].on);
+    trk[0].step[10].on = 0;
+    grid_down(WHITE[10]);                            /* the page changes under a quick press: no tap */
+    press(B_SEQ);
+    ui_frame();
+    release_all();
+    grid_up(WHITE[10]);
+    check("a quick press whose page changes before the release: no toggle", !trk[0].step[10].on);
+    ui_host_init();
+    seq_open("STEP");
+    step_hold_on_page("STEP");
+    seq_open("PATTERN");
+    step_hold_on_page("PATTERN");
+    seq_open("MOTION");
+    step_hold_on_page("MOTION");
+    seq_open("SONG");
+    step_hold_on_page("SONG");
+    open_tracks();
+    check("TRACKS open (keys = the steps)", mix_mode() && step_keys());
+    step_hold_on_page("TRACKS");
+    seq_open("STEP");                                /* KEYS: the keys are notes, no step changes */
+    tap(B_SCL);
+    memset(&trk[0].step[3], 0, sizeof trk[0].step[3]);
+    grid_down(WHITE[3]);
+    grid_wait(50);
+    grid_up(WHITE[3]);
+    check("KEYS on: a key tap changes no step", ui.keys && !trk[0].step[3].on);
+    tap(B_SCL);
+}
+
+/* owner 2026-10-23, follow-up: an OFF step held STEP_HOLD_MS turns on there and then (lit, its line), KNOB 1 / 2 its
+ * PROB / RATCH; KNOB 3 its accent (right: ACC on, left: off), shown in the held-step line and the knob columns; an
+ * ON step's hold changes nothing; OCT+ + a key still flips the accent */
+static void test_step_hold_on_acc(void)
+{
+    step_t *s = &trk[0].step[5];
+    char b[40];
+    ui_host_init();
+    open_step_page();
+    memset(s, 0, sizeof *s);
+    grid_down(WHITE[5]);
+    grid_wait(STEP_HOLD_MS - 100u);
+    check("off step held under STEP_HOLD_MS: still off, its key dark, no line", !s->on && !led_on(14u + WHITE[5]) &&
+          held_step() == NSTEP);
+    grid_wait(150u);
+    check("off step held past STEP_HOLD_MS: on (no accent, plain) while held, its key lit, its line",
+          s->on && !s->acc && s->cond == 0 && s->rat == 0 && led_on(14u + WHITE[5]) && held_step() == 5u);
+    turn(EN_K1, -1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    turn(EN_K2, 1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held (turned on by the hold): KNOB 1 PROB, KNOB 2 RATCH", s->on && s->cond == cond_store(19) && s->rat == 1);
+    turn(EN_K3, 1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 3 right: ACC on; PROB / RATCH kept", s->on && s->acc && s->cond == cond_store(19) && s->rat == 1);
+    check("held-step line: STEP 6 .. RATCH 2  ACC", held_text(b) == 5u && strstr(b, "STEP 6") && strstr(b, "RATCH 2") &&
+          strstr(b, "ACC"));
+    snap_page("seq/24_step_held_acc");
+    check("the longest held-step line fits the screen (STEP 64  1-SHOT  RATCH 4  ACC)",
+          4 + md_text_w(&MD_F3, 2, "STEP 64  1-SHOT  RATCH 4  ACC") <= 240);
+    turn(EN_K3, 3);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 3 further right: ACC stays on", s->acc);
+    turn(EN_K3, -1);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 3 left: ACC off, still on; the line without ACC", s->on && !s->acc && held_text(b) == 5u &&
+          !strstr(b, "ACC"));
+    turn(EN_K4, 2);
+    host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+    ui_frame();
+    check("held: KNOB 4 does nothing (step, bank unchanged)", s->on && !s->acc && ui.bank == 0u);
+    grid_up(WHITE[5]);
+    check("let go: on, PROB / RATCH kept, no accent", s->on && !s->acc && s->cond == cond_store(19) && s->rat == 1);
+    memset(&trk[0].step[7], 0, sizeof trk[0].step[7]);
+    grid_down(WHITE[7]);                             /* KNOB 3 before STEP_HOLD_MS on an off step: on, accented */
+    turn(EN_K3, 1);
+    ui_frame();
+    check("off step, KNOB 3 right at once: on and accented", trk[0].step[7].on && trk[0].step[7].acc);
+    grid_up(WHITE[7]);
+    check(".. let go quickly: stays on, accented (an edit is no tap)", trk[0].step[7].on && trk[0].step[7].acc);
+    trk[0].step[2].on = 1;                           /* an ON step held: nothing changes (no accent, no plain-again) */
+    trk[0].step[2].acc = 1;
+    trk[0].step[2].rat = 2;
+    grid_down(WHITE[2]);
+    grid_wait(STEP_HOLD_MS + 200u);
+    grid_up(WHITE[2]);
+    check("an on (accented, RATCH 3) step held and let go: unchanged", trk[0].step[2].on && trk[0].step[2].acc &&
+          trk[0].step[2].rat == 2);
+    grid_acc(WHITE[2]);
+    check("OCT+ + the key: the accent off as before (still on)", trk[0].step[2].on && !trk[0].step[2].acc);
+    grid_acc(WHITE[2]);
+    check("OCT+ + the key again: accented", trk[0].step[2].on && trk[0].step[2].acc);
+    seq_open("PATTERN");                             /* elsewhere KNOB 3 is the page's (SWING), not the accent */
+    {
+        int16_t sw = trk[0].p[P_SSWING];
+        trk[0].step[2].acc = 0;
+        grid_down(WHITE[2]);
+        grid_wait(STEP_HOLD_MS + 50u);
+        turn(EN_K3, 2);
+        host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+        grid_up(WHITE[2]);
+        check("PATTERN: a step held + KNOB 3: SWING turns, no accent", trk[0].p[P_SSWING] != sw && !trk[0].step[2].acc &&
+              trk[0].step[2].on);
+    }
 }
 
 static void test_grids_pages(void)
@@ -530,9 +743,10 @@ static void test_grid_hold_track_change(void)
     ui_frame();
     keys(0);
     ui_frame();
-    check("a held step key, then another track (ALGO): the new track's steps are untouched (also outside its LEN)",
-          song.sel == 1 && !memcmp(&trk[1].step[20], &before, sizeof before) && trk[0].step[20].cond == 0 &&
-              !trk[0].step[20].on);
+    check("a held step key, then another track (ALGO): the new track's steps are untouched (also outside its LEN), "
+          "the held one too (no tap on the release)",
+          song.sel == 1 && !memcmp(&trk[1].step[20], &before, sizeof before) && trk[0].step[20].cond == 33 &&
+              trk[0].step[20].on);
 }
 
 static void open_comp(int page2)                    /* HOME's second mode, then SELECT until COMP (2/3, or 3/3) */
@@ -1240,8 +1454,9 @@ static void test_no_save_while_playing(void)
     memset(proj_slot, 0, sizeof proj_slot);
 }
 
-/* upstream 1.0 (#23 / #52): knob acceleration only for a turn going on in one direction over a wide range; the
- * first detents, a single quick detent (a bounce) and a reversal are one step each; at most x4; MENU switches it off */
+/* upstream 1.0 / 1.1.5 (#23 / #52): knob acceleration only for a turn going on in one direction over a wide range; the
+ * first detents, a single quick detent (a bounce) and a reversal are one step each; at most x8 (x4 over a range of 64 or
+ * less); MENU switches it off (the curve against upstream's: tests/accel_test.c) */
 static int32_t acc_at(int32_t s, int32_t range, uint32_t gap_ms)
 {
     host_ticks += gap_ms * 1000u * FM1_TICKS_PER_US;
@@ -1260,8 +1475,11 @@ static void test_knob_accel(void)
     for (k = 0; k < 6u; k++)                         /* a new turn (after a pause), fast */
         r[k] = acc_at(1, 127, k ? 8u : 300u);
     printf("     accel, a new fast turn (8 ms a detent): %d %d %d %d %d %d\n", r[0], r[1], r[2], r[3], r[4], r[5]);
-    check("accel: a fast turn speeds up after its first detents, at most x4",
-          r[0] == 1 && r[1] == 1 && r[5] > 1 && r[5] <= 4);
+    check("accel: a fast turn speeds up after its first detents, at most x8",
+          r[0] == 1 && r[1] == 1 && r[5] > 1 && r[5] <= 8);
+    for (k = 0; k < 6u; k++)                         /* the same over a range of 64: at most x4 */
+        r[k] = acc_at(1, 64, k ? 8u : 300u);
+    check("accel: over a range of 64 or less, at most x4", r[0] == 1 && r[5] > 1 && r[5] <= 4);
     check("accel: a reversal is one step", acc_at(-1, 127, 8) == -1);
     check("accel: a single quick detent after a pause (a bounce) is one step", acc_at(1, 127, 300) == 1 && acc_at(1, 127, 8) == 1);
     for (k = 0, ok = 1; k < 6u; k++)
@@ -1829,6 +2047,24 @@ static void test_reson_pages(void)
         check("RESON 2/2 on CHORD: the second knob is CHORD", d && str_eq(d->label, "CHORD"));
     }
     snap_page("reson/02_chord_page2");
+    check("RESON 2/2: KNOB 4 is KEYF (KEYFOLLOW), 0 % by default", page_id(cur_page(), 3) == P_RKEY && TSEL->p[P_RKEY] == 0);
+    TSEL->p[P_RMODEL] = RS_STRNG;
+    turn(EN_K4, 200);
+    ui_frame();
+    {
+        char v[12];
+        const char *u = 0;
+        param_format(&TP[P_RKEY], TSEL->p[P_RKEY], v, &u);
+        check("RESON KEYF: the knob runs to 100 %", TSEL->p[P_RKEY] == 127 && str_eq(v, "100"));
+    }
+    keys(1u << KEY_TRK_KEY[0]);                      /* the ring for the picture */
+    ui_frame();
+    keys(0);
+    for (k = 0; k < 10u; k++)
+        ui_frame();
+    snap_page("reson/04_keyf");
+    TSEL->p[P_RKEY] = 0;
+    TSEL->p[P_RMODEL] = RS_CHORD;
     trk[1].p[P_RMODEL] = RS_CHORD;                   /* tracks 1 and 2 CHORD: track 3 cannot */
     trk[2].p[P_RMODEL] = RS_PIPE;
     for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
@@ -2327,27 +2563,173 @@ static void test_boot_title(void)
     theme_set(settings.palette);
 }
 
-/* spec 2026-10-19-md-ui §2: MENU > COLOR steps the 4 themes (KNOB 1 and OCT+) and wraps */
+/* owner 2026-10-23: every colour in both polarities, the COLOR row in the order RED, RED INV, BLUE, BLUE INV, GREEN,
+ * GREEN INV (each colour, then its inverse); the stored index is the one before (the old four keep 0..3, the new
+ * inverses take 4, 5) */
+static const char *const THEME_SHOWN[6] = {"RED", "RED INV", "BLUE", "BLUE INV", "GREEN", "GREEN INV"};
+
+static uint32_t c8(uint16_t c, uint32_t ch)          /* RGB565 channel ch (0 r, 1 g, 2 b) as 8 bits */
+{
+    return ch == 0 ? (c >> 11) << 3 : ch == 1 ? ((c >> 5) & 63u) << 2 : (c & 31u) << 3;
+}
+static uint32_t lum(uint16_t c) { return 2u * c8(c, 0) + 7u * c8(c, 1) + c8(c, 2); }
+static int near_c(uint16_t a, uint16_t b)             /* the same colour, retuned a little (as RED's pair) */
+{
+    uint32_t ch, d, ok = 1;
+    for (ch = 0; ch < 3u; ch++) {
+        d = c8(a, ch) > c8(b, ch) ? c8(a, ch) - c8(b, ch) : c8(b, ch) - c8(a, ch);
+        ok &= d <= 0x30u;
+    }
+    return (int)ok;
+}
+
+static void test_theme_list(void)
+{
+    uint32_t i, j, pairs = 0, ok = NTHEMES == 6u;
+    char inv[24];
+    for (i = 0; i < NTHEMES; i++) {
+        size_t n = strlen(THEMES[i].name);
+        ok &= n <= 9u;                               /* "GREEN INV" the longest */
+        if (n > 4u && str_eq(THEMES[i].name + n - 4u, " INV"))
+            continue;
+        snprintf(inv, sizeof inv, "%s INV", THEMES[i].name);
+        for (j = 0; j < NTHEMES; j++)
+            if (str_eq(THEMES[j].name, inv)) {
+                const theme_t *a = &THEMES[i], *b = &THEMES[j];
+                int swapped = (lum(a->bg) > lum(a->ink)) != (lum(b->bg) > lum(b->ink));
+                if (swapped && near_c(a->bg, b->ink) && near_c(a->ink, b->bg))
+                    pairs++;
+                else
+                    printf("      %s / %s: ink and ground not swapped\n", a->name, b->name);
+            }
+    }
+    check("themes: 6, RED BLUE GREEN each with its INV (ink and ground swapped, the colours as the base's)",
+          ok && pairs == 3u);
+    for (ok = 1, i = 0; i < NTHEMES; i++)
+        ok &= THEMES[theme_index(THEME_TAG | THEME_ORDER[i])].bg == THEMES[THEME_ORDER[i]].bg &&
+              str_eq(THEMES[THEME_ORDER[i]].name, THEME_SHOWN[i]);
+    check("themes: shown RED, RED INV, BLUE, BLUE INV, GREEN, GREEN INV", ok);
+}
+
+/* a stored COLOR from any older Hortator loads as the theme it was: the palette ids 0..4 (GREEN AMBER CYAN RED MONO)
+ * and THEME_TAG | 0..3 (MD RED, RED ON BLACK, WHITE ON BLUE, BLACK ON GREEN, md-ui) keep their colours; the new
+ * inverses are 4, 5; anything else MD RED */
+static void test_theme_stored(void)
+{
+    static const struct { uint32_t stored; uint16_t bg, ink; } C[] = {
+        {THEME_TAG | 0u, RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},
+        {THEME_TAG | 1u, RGB(0x17, 0x06, 0x05), RGB(0xf0, 0x53, 0x2f)},
+        {THEME_TAG | 2u, RGB(0x24, 0x45, 0xc8), RGB(0xea, 0xf1, 0xff)},
+        {THEME_TAG | 3u, RGB(0xa3, 0xbf, 0x3c), RGB(0x1c, 0x2a, 0x08)},
+        {0u, RGB(0xa3, 0xbf, 0x3c), RGB(0x1c, 0x2a, 0x08)},              /* GREEN */
+        {1u, RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},              /* AMBER */
+        {2u, RGB(0x24, 0x45, 0xc8), RGB(0xea, 0xf1, 0xff)},              /* CYAN */
+        {3u, RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},              /* RED */
+        {4u, RGB(0x17, 0x06, 0x05), RGB(0xf0, 0x53, 0x2f)},              /* MONO */
+        {THEME_TAG | 6u, RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},
+        {THEME_TAG | 15u, RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},
+        {0x2Au, RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},
+    };
+    uint32_t i, ok = 1, keep = settings.palette;
+    for (i = 0; i < sizeof C / sizeof C[0]; i++) {
+        settings.palette = C[i].stored;
+        settings_init();
+        if (C_BG != C[i].bg || C_INK != C[i].ink) {
+            ok = 0;
+            printf("      stored 0x%02x: the wrong theme\n", (unsigned)C[i].stored);
+        }
+    }
+    check("COLOR: every stored value of an older Hortator loads as the theme it was (0..4, 0x10..0x13; else MD RED)",
+          ok);
+    for (ok = 1, i = 4u; i < 6u; i++) {
+        settings.palette = THEME_TAG | i;
+        settings_init();
+        ok &= settings.palette == (THEME_TAG | i) && C_BG == THEMES[i].bg && C_INK == THEMES[i].ink;
+    }
+    check("COLOR: the new inverses stored as 0x14, 0x15 (BLUE INV, GREEN INV), kept across a restart",
+          ok && str_eq(THEMES[4].name, "BLUE INV") && str_eq(THEMES[5].name, "GREEN INV"));
+    settings.palette = keep;
+    settings_init();
+}
+
+/* MENU > COLOR steps the 6 themes in their shown order (KNOB 1 and OCT+) and wraps */
 static void test_theme_menu(void)
 {
-    uint32_t k, ok;
+    uint32_t k, ok, seen = 0;
     ui_host_init();
     ok = settings.palette == (THEME_TAG | 0u);
     ui.menu = 1;
     ui.menu_sel = MI_COLOR;
     ui.force = 1;
-    for (k = 1; k <= 4u; k++) {
+    for (k = 1; k <= NTHEMES; k++) {
         press(B_OCTUP);
         ui_frame();
         release_all();
         ui_frame();
-        ok &= settings.palette == (THEME_TAG | (k % 4u)) && C_BG == THEMES[k % 4u].bg;
+        ok &= str_eq(THEMES[theme_index(settings.palette)].name, THEME_SHOWN[k % NTHEMES]) &&
+              C_BG == THEMES[theme_index(settings.palette)].bg;
+        seen |= 1u << theme_index(settings.palette);
     }
     turn(EN_K1, -1);
     ui_frame();
-    ok &= settings.palette == (THEME_TAG | 3u);
-    check("COLOR: a new device is MD RED; OCT+ steps MD RED > RED ON BLACK > WHITE ON BLUE > BLACK ON GREEN > MD RED; "
-          "KNOB 1 left steps back", ok);
+    ok &= str_eq(THEMES[theme_index(settings.palette)].name, "GREEN INV");
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= str_eq(THEMES[theme_index(settings.palette)].name, "GREEN");
+    turn(EN_K1, 1);
+    ui_frame();
+    turn(EN_K1, 1);
+    ui_frame();
+    ok &= settings.palette == (THEME_TAG | 0u);
+    check("COLOR: a new device is RED; OCT+ steps RED > RED INV > BLUE > BLUE INV > GREEN > GREEN INV > RED (every "
+          "theme once); KNOB 1 left steps back, right on, both wrap", ok && seen == (1u << NTHEMES) - 1u);
+    menu_close();
+    ui_frame();
+}
+
+/* the menu row's value: s in F3 at 2x right-aligned at the row's end (list_row 10..225), the row's pen, 2 px clear */
+static int menu_value_is(uint32_t row, const char *s, int sel)
+{
+    uint32_t w = (uint32_t)md_text_w(&MD_F3, 2, s) + 4u, h = 14u, x0 = 225u - 4u - (w - 4u) - 2u,
+             y0 = MENU_Y0 + row * MENU_DY - 2u, x, y;
+    uint16_t pen = sel ? C_BG : C_INK, gr = sel ? C_INK : C_BG;
+    cv_begin(w, h, gr);
+    md_text(2, 2, &MD_F3, 2, s, pen);
+    for (y = 0; y < h; y++)
+        for (x = 0; x < w; x++)
+            if ((fb[(y0 + y) * 240u + x0 + x] == pen) != (cv_px[y * w + x] == swap16(pen)))
+                return 0;
+    return 1;
+}
+
+/* owner 2026-10-23: the COLOR row shows the theme's name as its value (as SPEAKER EQ's FLAT), no boxes */
+static void test_theme_row_name(void)
+{
+    uint32_t k, ok = 1, clear = 1;
+    ui_host_init();
+    ui.menu = 1;
+    for (k = 0; k < NTHEMES; k++) {
+        uint32_t sel;
+        settings.palette = THEME_TAG | THEME_ORDER[k];
+        theme_set(settings.palette);
+        for (sel = 0; sel < 2u; sel++) {
+            uint32_t x, w = (uint32_t)md_text_w(&MD_F3, 2, THEME_SHOWN[k]), y = MENU_Y0 + MI_COLOR * MENU_DY;
+            ui.menu_sel = sel ? MI_COLOR : MI_SPKEQ;
+            ui.force = 1;
+            ui_frame();
+            if (!menu_value_is(MI_COLOR, THEME_SHOWN[k], (int)sel)) {
+                ok = 0;
+                printf("      COLOR %s%s: no name\n", THEME_SHOWN[k], sel ? " (cursor)" : "");
+            }
+            for (x = 80; x < 221u - w - 4u; x++)     /* between COLOR and the name: nothing (no boxes) */
+                clear &= fb_count(x, y - 1u, 1, 12, sel ? C_BG : C_INK) == 0u;
+        }
+    }
+    check("MENU: COLOR shows the theme's name (RED .. GREEN INV) right-aligned as the other rows' values, cursor or not",
+          ok);
+    check("MENU: COLOR draws no boxes (nothing between the label and the name)", clear);
+    settings.palette = THEME_TAG | 0u;
+    theme_set(settings.palette);
     menu_close();
     ui_frame();
 }
@@ -2363,7 +2745,7 @@ static void test_theme_repaint(void)
     ui.menu = 1;
     ui.menu_sel = MI_COLOR;
     ui.force = 1;
-    turn(EN_K1, 1);                                  /* MD RED -> RED ON BLACK -> WHITE ON BLUE (a detent per frame) */
+    turn(EN_K1, 1);                                  /* RED -> RED INV -> BLUE (a detent per frame) */
     ui_frame();
     turn(EN_K1, 1);
     ui_frame();
@@ -2789,7 +3171,7 @@ static void test_home_scope_height(void)
 }
 
 /* spec 2026-10-19-md-ui §7: confirms and TEMPO as MD popups over the live page; MENU a popup window (the cursor an
- * inverted bar, COLOR the themes as boxes); NAME's block cursor */
+ * inverted bar); NAME's block cursor */
 static void test_confirm_popup(void)
 {
     uint32_t i;
@@ -2840,9 +3222,6 @@ static void test_menu_popup_cursor(void)
     ui_frame();
     y = MENU_Y0 + MI_SPKEQ * MENU_DY;
     check("MENU: the cursor's row an inverted bar", fb_count(12, y - 2u, 214, 14, C_INK) > 214u * 14u * 7u / 10u);
-    check("MENU: COLOR shows the 4 themes as 10x10 boxes, the current one solid",
-          fb_count(170, MENU_Y0, 10, 10, C_INK) == 100u && fb_count(184, MENU_Y0, 10, 10, C_INK) == 36u &&
-          fb_count(212, MENU_Y0, 10, 10, C_INK) == 36u);
     menu_close();
     ui_frame();
 }
@@ -2862,7 +3241,8 @@ static void test_name_block_cursor(void)
 
 /* spec 2026-10-19-md-ui §10: the review sheet: the key pages in each theme into build/ui_shots/themes/<theme>/, every
  * one in two tones only (the theme's BG and INK) */
-static const char *const THEME_DIR[4] = {"md-red", "red-on-black", "white-on-blue", "black-on-green"};
+static const char *const THEME_DIR[6] = {"md-red", "red-on-black", "white-on-blue", "black-on-green", "blue-on-white",
+                                         "green-on-black"};   /* by stored index */
 static uint32_t sheet_t;
 static uint32_t sheet_stray;
 static void sheet_snap(const char *page)
@@ -2891,7 +3271,7 @@ static void test_theme_sheet(void)
 {
     uint32_t i;
     sheet_stray = 0;
-    for (sheet_t = 0; sheet_t < 4u; sheet_t++) {
+    for (sheet_t = 0; sheet_t < NTHEMES; sheet_t++) {
         sheet_open();
         draw_boot_title();
         shot("build/ui_shots/themes/boot.ppm");
@@ -2966,7 +3346,7 @@ static void test_theme_sheet(void)
     }
     sheet_t = 0;
     theme_set(THEME_TAG | 0u);
-    check("theme sheet: 16 screens in each of the 4 themes, every pixel the theme's BG or INK", sheet_stray == 0u);
+    check("theme sheet: 16 screens in each of the 6 themes, every pixel the theme's BG or INK", sheet_stray == 0u);
 }
 
 /* final review fixes (2026-10-19-md-ui): a 4-glyph value whole; ZOOM on HOME; a shorter message repaints; popups do
@@ -3702,6 +4082,36 @@ static void test_div_order(void)
     settings.accel = 1;
 }
 
+/* MENU > USB AUDIO: the row under USB LEVEL, 2 CH / 10 CH (KNOB 1 right / left, OCT+ toggles); the reconnect is
+ * tests/usbmode_test.c's. The menu with 10 CH for the user's eye */
+static void test_usb_audio(void)
+{
+    uint32_t ok = 1;
+    ui_host_init();
+    usbaud = 0;
+    ui.menu = 1;
+    ui.menu_sel = MI_USBAUD;
+    ui.force = 1;
+    ok &= str_eq(MI_NAME[MI_USBAUD], "USB AUDIO") && MI_USBAUD == MI_USB + 1;
+    turn(EN_K1, 1);
+    ui_frame();
+    ok &= usbaud == 1;
+    turn(EN_K1, -1);
+    ui_frame();
+    ok &= usbaud == 0;
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= usbaud == 1;
+    check("USB AUDIO: KNOB 1 right 10 CH MIX / left 2 CH, OCT+ steps", ok);
+    ui.force = 1;
+    snap_page("menu_usb_audio");
+    usbaud = 0;
+    ui.menu = 0;
+    ui.force = 1;
+}
+
 /* MENU > USB LEVEL (USB audio): KNOB 1 right FIXED / left MASTER, OCT+ toggles; the mix follows (fx_usb_fixed); the
  * menu's eight rows for the user's eye */
 static void test_usb_level(void)
@@ -4148,8 +4558,8 @@ static void test_motion_recording(void)
     turn(EN_K2, 3);                                   /* TRACKS: LEVEL */
     ui_frame();
     check("MOTION: TRACKS' LEVEL records", motion_count(0) >= 3u);
-    for (i = 0; mo.s.count < MOTION_MAX; i++)
-        motion_add(1, i % 64u, P_E0 + i / 64u, 1);    /* the store full with track 2's */
+    for (i = 0; mo.b.count < LK_MAX; i++)             /* the store full with tracks 2 and 3's */
+        motion_add(1u + i / 512u, i % 64u, P_E0 + (i / 64u) % 8u, 1);
     tap(B_EDIT);
     turn(EN_K4, -4);                                  /* the model's 3rd knob: a new place (E1's is taken) */
     ui_frame();
@@ -4184,7 +4594,30 @@ static void test_motion_model_change(void)
     check("MOTION: STOP after a model change puts the other knobs' patch values back (LEVEL 104, not 20)",
           trk[0].p[P_LEVEL] == 104);
     init_all();
-    check("INIT ALL: no motion left", mo.s.count == 0u);
+    check("INIT ALL: no motion left", mo.b.count == 0u);
+}
+
+/* parameter locks (2026-10-24): CLEAR TRACK and TOOLS CLR* remove a track's locks with its motion; MOTION CLEAR
+ * keeps them; INIT ALL leaves an empty bank; other tracks' locks are kept */
+static void test_clears_and_locks(void)
+{
+    uint32_t ok;
+    ui_host_init();
+    lock_set(2, 4, P_E1, 100);
+    lock_set(5, 6, P_FCUT, 20);
+    motion_add(2, 1, P_E2, 3);
+    motion_add(5, 1, P_E2, 3);
+    track_clear(&trk[2]);                             /* CLEAR TRACK 3 (REC held on SEQ, YES) */
+    ok = lock_count(2) == 0u && motion_count(2) == 0u && lock_count(5) == 1u && motion_count(5) == 1u;
+    check("CLEAR TRACK: the track's locks and motion gone, the other tracks' kept", ok);
+    motion_clear(5);                                  /* MOTION's CLEAR */
+    check("MOTION CLEAR: the track's motion gone, its locks kept", motion_count(5) == 0u && lock_count(5) == 1u);
+    lock_set(1, 0, P_E3, 9);
+    seq_clear_all();                                  /* TOOLS CLR* */
+    check("TOOLS CLR*: every track's locks gone", mo.b.count == 0u);
+    lock_set(1, 0, P_E3, 9);
+    init_all();                                       /* TOOLS INIT* */
+    check("INIT ALL: an empty bank", mo.b.count == 0u && lock_count(1) == 0u);
 }
 
 /* the MOTION page: PLAY, EVENTS, CLEAR with its dialog; screens */
@@ -6061,8 +6494,17 @@ static void test_foot_note(void)
     t = TSEL;                                        /* track 1, a drum */
     t->key_nt = 1;
     open_step_page();
-    keys(1u << WHITE[1]);
+    keys(1u << WHITE[1]);                            /* a tap: the step on (on the release) */
     ui_frame();
+    check("footer: a step key just pressed (maybe a tap) shows no note", !foot_note(b));
+    keys(0);
+    ui_frame();
+    keys(1u << WHITE[1]);                            /* then held past STEP_HOLD_MS */
+    ui_frame();
+    for (ms = 0; ms < STEP_HOLD_MS; ms += 50u) {
+        host_ticks += 50u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
     check("footer: a step held on the grid shows its note (a drum's new step: C4, not the last key note)",
           foot_note(b) && str_eq(b, "C4") && foot_lit() > 0u);
     keys(0);
@@ -6224,7 +6666,9 @@ static void test_roll_held_prob(void)
     y = pr_row_y(62);                                /* step 3: D4 */
     band0 = fb_lit(Y_GRAPH, Y_GRAPH + G_OY);
     lit0 = pr_bar_lit(PR_X0 + 2 * PR_CW + 2, y);
-    keys(1u << STEP_KEY[2]);                         /* step 3 held ... */
+    keys(1u << STEP_KEY[2]);                         /* step 3 held (past STEP_HOLD_MS) ... */
+    ui_frame();
+    host_ticks += (STEP_HOLD_MS + 10u) * 1000u * FM1_TICKS_PER_US;
     ui_frame();
     band1 = fb_lit(Y_GRAPH, Y_GRAPH + G_OY);
     for (k = 0; k < 3u; k++)                         /* ... KNOB 1: its PROB */
@@ -8261,12 +8705,726 @@ static void test_fk_led_levels(void)
     ui_frame();
 }
 
+/* ---- ENV: the white keys as the selected track's steps on every page (STEPS), or as today (TRACKS) (spec
+ * 2026-10-24 parameter locks) */
+static void btn_up(uint32_t label) { fm1_in.buttons &= ~(1u << panel.btn[label]); }
+static void env_tap(void) { tap(B_ENV); }
+static void key_tap(uint32_t key) { grid_down(key); grid_wait(50); grid_up(key); }
+static void test_env_toggle(void)
+{
+    uint32_t ok;
+    ui_host_init();
+    tap(B_EDIT);                                     /* SOUND */
+    song.sel = 0;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    memset(trk[2].step, 0, sizeof trk[2].step);
+    env_tap();
+    ok = ui.env == 1u && led_lit(panel.btn[B_ENV]) && song.seq_mode == 1u;
+    key_tap(WHITE[2]);
+    ok &= trk[0].step[2].on && song.sel == 0u && !trk[2].step[2].on && str_eq(cur_page()->title, "SOUND");
+    check("ENV: STEPS mode (LED lit): on SOUND a white key toggles the selected track's step, selects no track, plays "
+          "nothing", ok);
+    env_tap();
+    ok = ui.env == 0u && !led_lit(panel.btn[B_ENV]) && song.seq_mode == 0u;
+    key_tap(WHITE[2]);
+    check("ENV again: TRACKS mode: the key selects its track as before", ok && song.sel == 2u && trk[0].step[2].on);
+}
+static void test_env_tracks_unchanged(void)
+{
+    static const uint32_t FAMS[5] = {FAM_SND, FAM_FX, FAM_LFO, FAM_SEQ, FAM_MIX};
+    uint32_t f, ok = 1, seqm, sel;
+    for (f = 0; f < 5u; f++) {
+        uint32_t lv[2];
+        ui_host_init();
+        open_family(FAMS[f]);
+        ui_frame();
+        seqm = song.seq_mode;
+        lv[0] = led_lit(panel.btn[B_OCTUP]) | led_lit(14u + WHITE[0]) << 1 | led_lit(14u + WHITE[3]) << 2;
+        env_tap();
+        env_tap();
+        lv[1] = led_lit(panel.btn[B_OCTUP]) | led_lit(14u + WHITE[0]) << 1 | led_lit(14u + WHITE[3]) << 2;
+        ok &= ui.env == 0u && song.seq_mode == seqm && lv[0] == lv[1];
+        sel = song.sel;
+        key_tap(WHITE[3]);
+        ok &= FAMS[f] == FAM_SEQ || FAMS[f] == FAM_MIX ? trk[sel].step[3].on : song.sel == 3u;
+    }
+    check("ENV toggled twice: every family's keys, LEDs and key mode as before", ok);
+}
+static void test_env_banks(void)
+{
+    uint32_t ok;
+    ui_host_init();
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 64;
+    env_tap();
+    press(B_ENV);                                    /* ENV held + OCT+: the next bank */
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    btn_up(B_OCTUP);
+    ui_frame();
+    ok = ui.bank == 1u && str_eq(cur_page()->title, "SOUND");
+    btn_up(B_ENV);
+    ui_frame();
+    ok &= ui.env == 1u;
+    press(B_ENV);
+    ui_frame();
+    press(B_OCTDN);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= ui.bank == 0u && ui.env == 1u;
+    check("ENV held + OCT+ / OCT-: the next / previous bank; ENV let go after them: still STEPS", ok);
+    env_tap();
+    press(B_ENV);
+    ui_frame();
+    btn_up(B_ENV);
+    ui_frame();
+    check("(ENV tapped back to STEPS)", ui.env == 1u);
+    env_tap();
+    tap(B_OCTUP);
+    check("ENV off on SOUND: OCT+ is the page's (LAYER), no bank", ui.bank == 0u && str_eq(cur_page()->title, "LAYER"));
+}
+static void test_env_oct_jobs(void)
+{
+    uint32_t ok;
+    int16_t m;
+    ui_host_init();
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 32;
+    env_tap();
+    press(B_OCTUP);
+    ui_frame();
+    ok = str_eq(cur_page()->title, "SOUND") && led_lit(panel.btn[B_OCTUP]);
+    release_all();
+    ui_frame();
+    ok &= str_eq(cur_page()->title, "LAYER") && ui.bank == 0u;
+    check("STEPS on SOUND: OCT+ alone goes to LAYER on its release (not the press)", ok);
+    tap(B_OCTDN);
+    check("STEPS on LAYER: OCT- back to SOUND", str_eq(cur_page()->title, "SOUND"));
+    TSEL->step[5].acc = 0;
+    TSEL->step[5].on = 1;
+    press(B_OCTUP);
+    ui_frame();
+    grid_down(WHITE[5]);
+    btn_up(B_OCTUP);
+    ui_frame();
+    grid_up(WHITE[5]);
+    check("STEPS: OCT+ held + a step key: its accent, OCT+'s release no LAYER",
+          TSEL->step[5].acc && TSEL->step[5].on && str_eq(cur_page()->title, "SOUND"));
+    tap(B_LFO);
+    ui.lfo_l = 0;
+    m = TSEL->p[P_LFO1 + LF_MODE];
+    tap(B_OCTUP);
+    check("STEPS on an LFO page: OCT+ alone cycles the RATE MODE", TSEL->p[P_LFO1 + LF_MODE] == (m + 1) % 3);
+    open_step_page();
+    ui_frame();
+    tap(B_OCTUP);
+    check("STEPS on SEQ STEP: OCT+ alone is the next bank, as today", ui.bank == 1u && ui.env == 1u);
+}
+static void test_env_keys_exclusive(void)
+{
+    ui_host_init();
+    tap(B_EDIT);
+    tap(B_SCL);
+    check("(KEYS on)", ui.keys == 1u);
+    env_tap();
+    check("ENV with KEYS on: KEYS off, STEPS on", ui.keys == 0u && ui.env == 1u && song.seq_mode == 1u);
+    tap(B_SCL);
+    check("SCL in STEPS: STEPS off, KEYS on", ui.keys == 1u && ui.env == 0u && song.seq_mode == 3u);
+}
+static void test_env_not_saved(void)
+{
+    static uint8_t a[sizeof settings];
+    ui_host_init();
+    memcpy(a, &settings, sizeof a);
+    env_tap();
+    check("ENV: not in the settings (not saved), off at power-on",
+          ui.env == 1u && !memcmp(a, &settings, sizeof a) && (ui_host_init(), ui.env == 0u));
+}
+static void test_env_home_and_tracks(void)
+{
+    uint32_t ok, k;
+    ui_host_init();                                  /* the HOME screen */
+    song.sel = 1;
+    for (k = 0; k < NTRK; k++)
+        memset(trk[k].step, 0, sizeof trk[k].step);
+    env_tap();
+    key_tap(WHITE[6]);
+    ok = ui.home && trk[1].step[6].on && song.sel == 1u;
+    home_tracks();
+    song.rec = 1u << 1;                              /* TRACKS, track 2 armed */
+    ui_frame();
+    key_tap(WHITE[7]);
+    ok &= trk[1].step[7].on && song.seq_mode == 1u;
+    check("STEPS: the HOME screen and TRACKS (armed) keys are the selected track's steps", ok);
+    song.rec = 0;
+    tap(B_EDIT);
+    transport_req = 1;
+    ui_frame();
+    tap(B_REC);                                      /* off TRACKS: REC ALL */
+    ok = ui.rec_all && song.playing;
+    key_tap(WHITE[9]);
+    key_tap(WHITE[10]);
+    for (k = 0; k < NTRK; k++)
+        if (k != 1u)
+            ok &= !trk[k].step[0].on && !trk[k].step[4].on && !trk[k].step[8].on && !trk[k].step[12].on;
+    ok &= trk[1].step[9].on && trk[1].step[10].on;
+    transport_req = 2;
+    ui_frame();
+    check("STEPS + REC ALL playing: the keys toggle steps, record no hits", ok);
+    rec_all_drop();
+    song.rec = 0;
+}
+/* Review Focus 5: ENV while a step key is held: the hold drops, its release toggles nothing, no lock after */
+static void test_env_while_step_held(void)
+{
+    uint32_t ok;
+    int16_t v;
+    const page_t *pg;
+    int16_t *vp;
+    ui_host_init();
+    tap(B_EDIT);
+    song.sel = 0;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    env_tap();
+    grid_down(WHITE[4]);
+    grid_wait(400);
+    ok = trk[0].step[4].on;                          /* an off step held 0.3 s: on */
+    press(B_ENV);
+    ui_frame();
+    btn_up(B_ENV);
+    ui_frame();
+    ok &= ui.env == 0u;
+    grid_up(WHITE[4]);
+    ok &= trk[0].step[4].on;
+    pg = cur_page();
+    page_desc(pg, 1, &vp);
+    v = *vp;
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    turn(EN_K2, 1);
+    ui_frame();
+    ok &= *vp == v + 1 && lock_count(0) == 0u && mo.b.count == 0u;
+    check("ENV while a step key is held: TRACKS mode, the release leaves the step on, a turn edits the knob (no lock)", ok);
+}
+
+/* ---- parameter locks: hold a step in STEPS and turn a knob (spec 2026-10-24) */
+static void lock_fresh(void)                         /* STEPS on, track 1, its steps off, an empty bank */
+{
+    ui_host_init();
+    song.sel = 0;
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    memset(&mo.b, 0, sizeof mo.b);
+    env_tap();
+}
+static void open_page_at(uint32_t i)
+{
+    ui.page = (uint8_t)i;
+    ui.home = 0;
+    page_entered();
+    ui_frame();
+}
+/* step 5 held 0.35 s, KNOB c+1 one detent right, let go; the knob's id here (P_COUNT none) */
+static uint32_t held_turn(uint32_t c, int32_t dir)
+{
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    turn(EN_K1 + c, dir);
+    ui_frame();
+    return lock_id(c);
+}
+static int lock_page_ok(const char *what)            /* every knob of this screen, step 5 held */
+{
+    uint32_t c, ok = 1;
+    for (c = 0; c < 4u; c++) {
+        static int16_t before[P_COUNT], base[P_COUNT];
+        uint32_t id, nlocks;
+        int16_t lv = 0, want;
+        int16_t *vp = 0;
+        const param_desc_t *d;
+        if (ui.home)
+            d = home_param(c, &vp);
+        else if (cur_page()->scope == SC_MIX)
+            d = c == 1u ? &TP[P_LEVEL] : c == 3u ? &TP[P_PAN] : 0, vp = c == 1u ? &TSEL->p[P_LEVEL] : c == 3u ? &TSEL->p[P_PAN] : 0;
+        else
+            d = page_desc(cur_page(), c, &vp);
+        memcpy(before, trk[0].p, sizeof before);
+        memcpy(base, mo.base[0], sizeof base);
+        nlocks = mo.b.count;
+        id = held_turn(c, 1);
+        grid_up(WHITE[4]);
+        if (id < P_COUNT) {
+            want = (int16_t)(vp && *vp < d->max ? *vp + 1 : vp ? *vp : 0);
+            ok &= lock_get(0, 4, id, &lv) && lv == want && mo.b.count == nlocks + 1u &&
+                  !memcmp(before, trk[0].p, sizeof before) && motion_param(id) && trk[0].step[4].on;
+            if (!(lock_get(0, 4, id, &lv) && lv == want))
+                printf("     %s KNOB %u (id %u): lock %d, want %d\n", what, c + 1u, id, lock_get(0, 4, id, &lv) ? lv : -999, want);
+        } else {
+            ok &= mo.b.count == nlocks && !memcmp(before, trk[0].p, sizeof before) &&
+                  !(vp && vp >= TSEL->p && vp < TSEL->p + P_COUNT && motion_param((uint32_t)(vp - TSEL->p)) && d &&
+                    d->label && d->label[0] != '-' && d->max > d->min);
+            if (mo.b.count != nlocks || memcmp(before, trk[0].p, sizeof before))
+                printf("     %s KNOB %u: not lockable, but changed\n", what, c + 1u);
+        }
+        (void)base;
+        memset(&mo.b, 0, sizeof mo.b);
+        memset(trk[0].step, 0, sizeof trk[0].step);
+    }
+    return (int)ok;
+}
+static void test_lock_entry_every_page(void)
+{
+    uint32_t i, l, ok = 1, pages = 0;
+    char b[96];
+    lock_fresh();
+    for (i = 0; i < NPAGES; i++) {
+        uint32_t f = PAGES[i].fam;
+        if (PAGES[i].scope != SC_TRACK || (f != FAM_SND && f != FAM_LAY && f != FAM_FX && f != FAM_LFO) ||
+            page_hidden(i))
+            continue;
+        for (l = 0; l < (PAGES[i].graph == GR_LDEST ? 4u : 1u); l++) {
+            song.lslot = (uint8_t)l;
+            open_page_at(i);
+            snprintf(b, sizeof b, "%s %u (slot %u)", PAGES[i].title, i, l);
+            ok &= (uint32_t)lock_page_ok(b);
+            pages++;
+        }
+    }
+    song.lslot = 0;
+    home_screen();
+    ui_frame();
+    ok &= (uint32_t)lock_page_ok("HOME");
+    home_tracks();
+    ui_frame();
+    ok &= (uint32_t)lock_page_ok("TRACKS");
+    check("locks: on every SOUND, LAYER, FX, SLICER, RESON, FILTER, LFO, LFO DEST page, HOME and TRACKS a held step + "
+          "a recordable knob writes a lock (its own value + 1), the knob and the base untouched; MODEL, TYPE, WAVE, "
+          "DEST, SRC and the rest change nothing", ok && pages > 12u);
+}
+static void test_lock_before_hold(void)
+{
+    int16_t v = 0;
+    uint32_t ok;
+    lock_fresh();
+    tap(B_EDIT);
+    grid_down(WHITE[4]);
+    grid_wait(100);
+    host_ticks += 300u * 1000u * FM1_TICKS_PER_US;
+    turn(EN_K2, 1);
+    ui_frame();
+    ok = lock_get(0, 4, lock_id(1), &v) && trk[0].step[4].on;
+    grid_up(WHITE[4]);
+    check("locks: a turn 0.1 s after the press writes the lock, turns the off step on; the release toggles nothing",
+          ok && trk[0].step[4].on);
+}
+static void test_lock_cells(void)
+{
+    char want[16], val[12], m[16];
+    const char *unit;
+    uint32_t ok, id;
+    int16_t lv = 0;
+    lock_fresh();
+    tap(B_EDIT);
+    id = held_turn(1, 1);                            /* KNOB 2 locked on step 5 */
+    ok = lock_get(0, 4, id, &lv);
+    grid_up(WHITE[4]);
+    grid_wait(2200);                                 /* (the touched mark gone) */
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    param_format(track_desc(TSEL, id), lv, val, &unit);
+    snprintf(want, sizeof want, "|%sB", val);
+    ok &= strstr(ui.col[1], want) != 0;
+    param_format(track_desc(TSEL, lock_id(2)), TSEL->p[lock_id(2)], val, &unit);
+    snprintf(want, sizeof want, "|%sA", val);
+    ok &= strstr(ui.col[2], want) != 0;
+    ok &= head_mode(m) && str_eq(m, "LOCK STEP 5");
+    snap_page("locks/sound_held");
+    grid_up(WHITE[4]);
+    param_format(track_desc(TSEL, id), TSEL->p[id], val, &unit);
+    snprintf(want, sizeof want, "|%sA", val);
+    ok &= strstr(ui.col[1], want) != 0 && !head_mode(m);
+    check("locks: step held: a locked cell shows the lock inverted, the others their value; LOCK STEP 5; let go: the "
+          "knobs' values", ok);
+}
+static void test_lock_full(void)
+{
+    uint32_t i;
+    lock_fresh();
+    tap(B_EDIT);
+    for (i = 0; mo.b.count < LK_MAX; i++)
+        motion_add(1u + i / 512u, i % 64u, P_E0 + (i / 64u) % 8u, 1);
+    held_turn(1, 1);
+    grid_up(WHITE[4]);
+    check("locks: a held turn with 1024 events: LOCKS FULL, nothing added", str_eq(ui.msg, "LOCKS FULL") &&
+          mo.b.count == LK_MAX && lock_count(0) == 0u);
+}
+static void oct_dn_for(uint32_t ms)                  /* OCT- held ms, let go (the step key stays down) */
+{
+    press(B_OCTDN);
+    ui_frame();
+    grid_wait(ms);
+    btn_up(B_OCTDN);
+    ui_frame();
+}
+static void two_locks(void)                          /* E1 (SOUND 1) and CUT (FILTER) locked at step 5, motion E1 too */
+{
+    lock_set(0, 4, P_E1, 100);
+    lock_set(0, 4, P_FCUT, 20);
+    lock_set(0, 5, P_E1, 90);
+    motion_add(0, 4, P_E1, 33);
+}
+static void test_lock_clear_page(void)
+{
+    uint32_t ok;
+    int16_t v;
+    lock_fresh();
+    tap(B_EDIT);
+    two_locks();
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    oct_dn_for(100);
+    ok = !lock_get(0, 4, P_E1, &v) && lock_get(0, 4, P_FCUT, &v) && lock_get(0, 5, P_E1, &v) && motion_count(0) == 1u;
+    ok &= str_eq(ui.msg, "STEP 5 LOCKS CLEARED") && str_eq(cur_page()->title, "SOUND");
+    grid_up(WHITE[4]);
+    check("locks: step held + OCT- tap on SOUND clears that step's SOUND locks only (FILTER's, the next step's and "
+          "motion kept)", ok && trk[0].step[4].on);
+}
+static void test_lock_clear_all(void)
+{
+    uint32_t ok;
+    int16_t v;
+    lock_fresh();
+    tap(B_EDIT);
+    tap(B_OCTUP);                                    /* (STEPS: OCT+ alone, LAYER on its release) */
+    check("(LAYER)", str_eq(cur_page()->title, "LAYER"));
+    two_locks();
+    grid_down(WHITE[4]);
+    grid_wait(350);
+    press(B_OCTDN);
+    ui_frame();
+    grid_wait(700);
+    ok = !lock_get(0, 4, P_E1, &v) && !lock_get(0, 4, P_FCUT, &v) && lock_get(0, 5, P_E1, &v) && motion_count(0) == 1u &&
+         str_eq(ui.msg, "STEP 5 ALL CLEARED");
+    btn_up(B_OCTDN);
+    ui_frame();
+    grid_up(WHITE[4]);
+    check("locks: step held + OCT- held 0.6 s clears all its locks; the release after does nothing (still LAYER)",
+          ok && str_eq(cur_page()->title, "LAYER"));
+}
+static void test_lock_oct_dn_alone(void)
+{
+    lock_fresh();
+    tap(B_EDIT);
+    tap(B_OCTUP);
+    tap(B_OCTDN);
+    check("locks: OCT- with no step held on LAYER: back to SOUND", str_eq(cur_page()->title, "SOUND"));
+}
+static void test_lock_step_page(void)
+{
+    step_t *s = &trk[0].step[4];
+    lock_fresh();
+    open_step_page();
+    ui_frame();
+    held_turn(0, -1);
+    held_turn(1, 1);
+    held_turn(2, 1);
+    grid_up(WHITE[4]);
+    check("locks: SEQ STEP in STEPS: held + KNOB 1 / 2 / 3 are PROB / RATCH / ACC, no lock",
+          s->on && s->cond == cond_store(19) && s->rat == 1u && s->acc && mo.b.count == 0u);
+}
+static void test_lock_song_busy(void)
+{
+    lock_fresh();
+    tap(B_EDIT);
+    chain.armed = 1;
+    held_turn(1, 1);
+    grid_up(WHITE[4]);
+    chain.armed = 0;
+    check("locks: while a song plays (or is armed) a held key gives no lock step: no lock", mo.b.count == 0u &&
+          lock_step() == NSTEP);
+}
+
+/* ---- locks shown (spec 2026-10-24): the footer's underline under a locked step in STEPS; MOTION's counts */
+static uint32_t trig_x(uint32_t i) { return 6u + i * 14u + i / 4u * 2u; }   /* (draw_foot: cv_trigs at x 6, y 5) */
+static int lock_mark(uint32_t i)                     /* the underline under trig box i (bank-relative) */
+{
+    uint16_t ink = fb[(Y_TRIG + 5u) * 240u + trig_x(i)];   /* (the box's top-left: ink) */
+    uint32_t x, n = 0;
+    for (x = 0; x < 10u; x++)
+        n += fb[(Y_TRIG + 17u) * 240u + trig_x(i) + x] == ink;
+    return n == 10u;
+}
+static void test_foot_lock_marks(void)
+{
+    uint32_t i, ok = 1;
+    lock_fresh();
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 32;
+    lock_set(0, 3, P_E1, 100);
+    lock_set(0, 18, P_FCUT, 10);
+    motion_add(0, 7, P_E1, 5);                       /* (motion: no mark) */
+    ui_frame();
+    ui_frame();
+    for (i = 0; i < 16u; i++)
+        ok &= lock_mark(i) == (i == 3u);
+    check("locks: STEPS, bank 1: a mark under step 4's box only (not under motion's step 8)", ok);
+    press(B_ENV);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ui_frame();
+    for (i = 0, ok = ui.bank == 1u && ui.env == 1u; i < 16u; i++)
+        ok &= lock_mark(i) == (i == 2u);
+    check("locks: bank 2: the mark under step 19's box (the bank's 3rd)", ok);
+    snap_page("locks/foot_bank1");
+    env_tap();
+    ui_frame();
+    for (i = 0, ok = ui.env == 0u; i < 16u; i++)
+        ok &= !lock_mark(i);
+    check("locks: ENV off (TRACKS): no marks", ok);
+}
+static void test_motion_page_counts(void)
+{
+    uint32_t i;
+    char m[24], l[24];
+    ui_host_init();
+    song.sel = 0;
+    memset(&mo.b, 0, sizeof mo.b);
+    for (i = 0; i < 40u; i++)
+        motion_add(0, i, P_E2, 3);
+    for (i = 0; i < 212u; i++)
+        lock_set(0, i % 64u, P_E0 + i / 64u, 9);
+    lock_set(1, 0, P_E0, 9);                         /* (another track's) */
+    seq_open("MOTION");
+    ui_frame();
+    snprintf(m, sizeof m, "MOTION|40");
+    snprintf(l, sizeof l, "LOCKS|212");
+    check("MOTION page: KNOB 2 MOTION 40, KNOB 3 LOCKS 212 (the selected track's)",
+          strstr(ui.col[1], m) == ui.col[1] && strstr(ui.col[2], l) == ui.col[2]);
+    snap_page("locks/motion_counts");
+    memset(&mo.b, 0, sizeof mo.b);
+}
+
+/* device test 2026-10-25 ("ENV acts only from the second push"): the FM-1's tick counter has any low bits at a press
+ * (the host's advance in steps of 24000: bit 1 always 0); ENV, and OCT- clearing a held step's locks, act on one
+ * press at every phase of the clock */
+static void test_env_any_tick_phase(void)
+{
+    uint32_t ph, ok = 1, n = 0;
+    int16_t v;
+    ui_host_init();
+    tap(B_EDIT);
+    for (ph = 0; ph < 8u; ph++) {
+        uint32_t was = ui.env;
+        host_ticks = (host_ticks & ~7u) + ph;
+        env_tap();
+        ok &= ui.env == (was ^ 1u);
+        n += ui.env != was;
+    }
+    check("ENV: one press toggles STEPS at every phase of the tick counter (8 presses, 8 toggles)", ok && n == 8u);
+    for (ph = 0; ph < 8u; ph++) {                    /* in STEPS: hold step 5, OCT- tap clears its SOUND locks */
+        if (!ui.env)
+            env_tap();
+        lock_set(0, 4, P_E1, 100);
+        grid_down(WHITE[4]);
+        grid_wait(350);
+        host_ticks = (host_ticks & ~7u) + ph;
+        press(B_OCTDN);
+        ui_frame();
+        grid_wait(100);
+        btn_up(B_OCTDN);
+        ui_frame();
+        grid_up(WHITE[4]);
+        ok &= !lock_get(0, 4, P_E1, &v);
+    }
+    check("locks: step held + OCT- tap clears at every phase of the tick counter", ok);
+    memset(&mo.b, 0, sizeof mo.b);
+}
+/* .. one press after: a bank change with ENV held, a held step, a page change, the menu, power-on */
+static int env_one_press(void)
+{
+    uint32_t was = ui.env;
+    host_ticks = (host_ticks & ~7u) + 6u;
+    env_tap();
+    if (ui.env == was)
+        printf("     ENV press did not toggle (env %u, page %s, fx_knobs %u, menu %u)\n", ui.env, cur_page()->title, fx_knobs, ui.menu);
+    return ui.env == (was ^ 1u);
+}
+static void test_env_one_press_after_states(void)
+{
+    uint32_t ok;
+    ui_host_init();                                  /* (power-on) */
+    tap(B_EDIT);
+    TSEL->p[P_SLEN] = 64;
+    ok = env_one_press();                            /* on */
+    press(B_ENV);
+    ui_frame();
+    press(B_OCTUP);
+    ui_frame();
+    release_all();
+    ui_frame();
+    ok &= ui.bank == 1u && ui.env == 1u && env_one_press();   /* after ENV + OCT+: off */
+    ok &= env_one_press();                           /* on */
+    grid_down(WHITE[2]);
+    grid_wait(400);
+    grid_up(WHITE[2]);
+    ok &= env_one_press();                           /* after a held step: off */
+    tap(B_FX);
+    grid_wait(100);                                  /* (a hand's gap: FX's release frame is PERFORM's) */
+    ok &= env_one_press();                           /* after a page change: on */
+    hold(B_HOME);
+    hold(B_HOME);                                    /* the menu, closed */
+    ok &= !ui.menu && env_one_press();               /* after the menu: off */
+    check("ENV: one press toggles after ENV + OCT+, a held step, a page change, the menu, power-on", ok);
+}
+/* .. and lock entry after one ENV press, through the panel's own path (ENV, a step key, KNOB 2) */
+static void test_env_one_press_then_lock(void)
+{
+    int16_t v = 0;
+    uint32_t id;
+    ui_host_init();
+    tap(B_EDIT);
+    song.sel = 0;
+    memset(&mo.b, 0, sizeof mo.b);
+    host_ticks = (host_ticks & ~7u) + 2u;
+    env_tap();
+    id = held_turn(1, 2);
+    grid_up(WHITE[4]);
+    check("one ENV press (tick bit 1 set), step 5 held + KNOB 2: a lock on step 5", ui.env == 1u && id < P_COUNT &&
+          lock_get(0, 4, id, &v) && lock_count(0) == 1u);
+    memset(&mo.b, 0, sizeof mo.b);
+}
+
+/* device test 2026-10-25: STEPS shows a padlock in the top bar (x 207..216, rows 3..12, the icons' 5 x 5 at 2x), on
+ * every page; TRACKS none */
+static uint32_t head_lock_px(void)                   /* the padlock's square: pixels not the bar's ink */
+{
+    uint16_t ink = fb[(Y_HEAD + 1u) * 240u + 206u];
+    uint32_t x, y, n = 0;
+    for (y = 3; y < 13u; y++)
+        for (x = 207; x < 217u; x++)
+            n += fb[(Y_HEAD + y) * 240u + x] != ink;
+    return n;
+}
+static void test_head_lock_icon(void)
+{
+    static const uint32_t FAMS[4] = {FAM_SND, FAM_FX, FAM_LFO, FAM_SEQ};
+    uint32_t f, ok;
+    ui_host_init();
+    tap(B_EDIT);
+    ui_frame();
+    ok = head_lock_px() == 0u;
+    env_tap();
+    ui_frame();
+    ok &= head_lock_px() == 76u;
+    snap_page("locks/head_sound");
+    for (f = 0; f < 4u; f++) {
+        open_family(FAMS[f]);
+        ui_frame();
+        ok &= head_lock_px() == 76u;
+    }
+    snap_page("locks/head_seq");
+    home_screen();
+    ui_frame();
+    ok &= head_lock_px() == 76u;
+    snap_page("locks/head_home");
+    env_tap();
+    ui_frame();
+    ok &= head_lock_px() == 0u;
+    check("STEPS: a padlock in the top bar on every page (SOUND, FX, LFO, SEQ, HOME); TRACKS: none", ok);
+}
+
+/* release check 2026-10-25: the held step's "LOCK STEP n" line drawn whole (no glyph cut by a neighbour's paint), on
+ * the top bar of every page where a step can be held in STEPS, and in HOME's strip */
+static uint16_t ref_px[16 * 240];
+static int text_whole(const char *t, uint32_t y0, uint32_t y1, uint16_t fg, uint16_t bg)   /* t somewhere in rows y0..y1 */
+{
+    uint32_t w = (uint32_t)md_text_w(&MD_F3, 2, t), h = 10u, x, y, i, j, good;
+    cv_begin(w, h, bg);
+    md_text(0, 0, &MD_F3, 2, t, fg);
+    for (i = 0; i < w * h; i++)
+        ref_px[i] = (uint16_t)((cv_px[i] >> 8) | (cv_px[i] << 8));
+    for (y = y0; y + h <= y1 + 1u; y++)
+        for (x = 0; x + w <= 240u; x++) {
+            for (j = 0, good = 1; good && j < h; j++)
+                for (i = 0; good && i < w; i++)
+                    good = fb[(y + j) * 240u + x + i] == ref_px[j * w + i];
+            if (good)
+                return 1;
+        }
+    return 0;
+}
+static int lock_line_whole_now(const char *where);
+static int lock_line_whole(const char *where)    /* as the frames left it, and after a full repaint */
+{
+    int ok = lock_line_whole_now(where);
+    ui.force = 1;
+    ui_frame();
+    return ok && lock_line_whole_now(where);
+}
+static int lock_line_whole_now(const char *where)
+{
+    char t[16];
+    int ok;
+    snprintf(t, sizeof t, "LOCK STEP %u", (unsigned)lock_view_step() + 1u);
+    ok = lock_view_step() < NSTEP && text_whole(t, 0, 15, C_BG, C_INK);   /* the top bar: BG on the ink bar */
+    if (ok && ui.home) {                                                  /* HOME's strip: its mode line, whole */
+        char sh[12];                                                      /* (its 58 px: "LOCK 5") */
+        snprintf(sh, sizeof sh, "LOCK %u", (unsigned)lock_view_step() + 1u);
+        ok = (text_whole(t, Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG) || text_whole(sh, Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG)) &&
+             !text_whole("LOCK ST", Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG);   /* (never cut: "LOCK ST..") */
+        ok = ok || (md_text_w(&MD_F3, 2, t) <= 57 && text_whole(t, Y_KNOB + 30u, Y_KNOB + 50u, C_INK, C_BG));
+    }
+    if (!ok)
+        printf("     LOCK STEP line not whole: %s\n", where);
+    return ok;
+}
+static void test_lock_line_whole_every_page(void)
+{
+    uint32_t i, ok = 1, n = 0;
+    lock_fresh();
+    for (i = 0; i < NPAGES; i++) {
+        uint32_t f = PAGES[i].fam;
+        if (f == FAM_SEQ || page_hidden(i))
+            continue;
+        open_page_at(i);
+        grid_down(WHITE[4]);
+        grid_wait(400);
+        if (lock_page()) {
+            ok &= (uint32_t)lock_line_whole(PAGES[i].title);
+            n++;
+        }
+        grid_up(WHITE[4]);
+        grid_wait(100);
+    }
+    home_screen();
+    ui_frame();
+    grid_down(WHITE[4]);
+    grid_wait(400);
+    ok &= (uint32_t)lock_line_whole("HOME");
+    snap_page("locks/home_held");
+    grid_up(WHITE[4]);
+    home_tracks();
+    ui_frame();
+    grid_down(WHITE[4]);
+    grid_wait(400);
+    ok &= (uint32_t)lock_line_whole("TRACKS");
+    grid_up(WHITE[4]);
+    check("locks: the LOCK STEP 5 line whole on every page a step can be held in STEPS (top bar; HOME's strip too)",
+          ok && n > 15u);
+}
+
 int main(void)
 {
     test_safe_start();
     test_key_selects_track();
     test_grid_hold_accent();
     test_grid_step_edit();
+    test_step_hold();
+    test_step_hold_on_acc();
     test_grid_hold_track_change();
     test_grids_pages();
     test_src_readonly();
@@ -8314,6 +9472,7 @@ int main(void)
     test_reverb_pages();
     test_div_order();
     test_usb_level();
+    test_usb_audio();
     test_clock_screens();
     test_perform_gesture();
     test_perform_keys();
@@ -8325,6 +9484,7 @@ int main(void)
     test_perform_dead_hold();
     test_motion_recording();
     test_motion_model_change();
+    test_clears_and_locks();
     test_motion_page();
     test_song_page();
     test_song_play_ui();
@@ -8396,7 +9556,10 @@ int main(void)
     test_backlight_beats_everywhere();
     test_backlight_menu();
     test_boot_title();
+    test_theme_list();
+    test_theme_stored();
     test_theme_menu();
+    test_theme_row_name();
     test_theme_repaint();
     test_topbar();
     test_crumb();
@@ -8463,6 +9626,30 @@ int main(void)
     test_fk_track_keys();
     test_fk_oct_breath();
     test_fk_led_levels();
+    test_env_toggle();                               /* parameter locks (2026-10-24): ENV */
+    test_env_tracks_unchanged();
+    test_env_banks();
+    test_env_oct_jobs();
+    test_env_keys_exclusive();
+    test_env_not_saved();
+    test_env_home_and_tracks();
+    test_env_while_step_held();
+    test_lock_entry_every_page();                    /* parameter locks: entry and clearing */
+    test_lock_before_hold();
+    test_lock_cells();
+    test_lock_full();
+    test_lock_clear_page();
+    test_lock_clear_all();
+    test_lock_oct_dn_alone();
+    test_lock_step_page();
+    test_lock_song_busy();
+    test_foot_lock_marks();                          /* .. shown */
+    test_motion_page_counts();
+    test_env_any_tick_phase();                       /* device test 2026-10-25 */
+    test_env_one_press_then_lock();
+    test_env_one_press_after_states();
+    test_head_lock_icon();
+    test_lock_line_whole_every_page();
     printf(fails ? "ui_test: %d FAILED\n" : "ui_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

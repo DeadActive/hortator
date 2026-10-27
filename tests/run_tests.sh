@@ -34,6 +34,11 @@ $CC -DT_CDC=1 -DHALF_FRAMES=$HALF -o "$OUT/uac_test" tests/uac_test.c
 run "USB audio input: descriptors (with CDC), ring and packets" "$OUT/uac_test"
 $CC -DT_CDC=0 -DHALF_FRAMES=$HALF -o "$OUT/uac_test_nocdc" tests/uac_test.c
 run "USB audio input: descriptors (without CDC), ring and packets" "$OUT/uac_test_nocdc"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src \
+    -o "$OUT/usb8_test" tests/usb8_test.c tests/usb8_ref.c -lm
+run "USB AUDIO 2 CH / 10 CH: descriptors, 2 CH = usb_app.c byte for byte, ring, mix, EP4 timing (usb_app8.c)" "$OUT/usb8_test"
+run "the app's USB driver = the frozen usb_app.c + USB8 blocks, insertions only" python3 tools/check_usb_fork.py
+run "fork check self-test (a changed, removed or added line is caught)" python3 tools/check_usb_fork.py --selftest
 $CC -o "$OUT/input_test" tests/input_test.c
 run "keys and buttons: fast press, long release, bouncy contacts, glitches; encoders (#23)" "$OUT/input_test"
 $CC -o "$OUT/ota_test" tests/ota_test.c

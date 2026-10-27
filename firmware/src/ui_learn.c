@@ -170,7 +170,7 @@ static void ml_name(char *b)
     char dn[4] = "D1.";
     const char *pre = ls >= 0 ? (dn[1] = (char)('1' + ls), dn) : id >= P_LFO1 && id < P_LFO2 ? "L1."
                     : id >= P_LFO2 && id < P_LFO2 + LF_N ? "L2."
-                    : id >= P_RMODEL && id <= P_RPOS ? "R." : id >= P_FTYPE && id <= P_FDEC ? "F."
+                    : (id >= P_RMODEL && id <= P_RPOS) || id == P_RKEY ? "R." : id >= P_FTYPE && id <= P_FDEC ? "F."
                     : id >= P_SLCR && id <= P_SLDEPTH ? "S." : "";
     if (c) {
         if (c <= ML_A_PREV) {

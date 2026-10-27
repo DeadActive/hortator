@@ -55,7 +55,8 @@ static int32_t host_enc[7];
 static uint32_t fm1_ticks(void) { return host_ticks += 24u * 1000u; }   /* 1 ms per call */
 static int32_t host_enc_late[7];                      /* detents that come in after a pass's first read of the encoder
                                                        * (the scan ISR runs while ui_input does: the next read has them) */
-static int32_t fm1_enc_take(uint32_t e)
+static void enc_frame(void) {}                         /* (enc.c: the scan's decoder) */
+static int32_t enc_take(uint32_t e)                   /* (enc.c) */
 {
     int32_t s = host_enc[e % 7u];
     host_enc[e % 7u] = host_enc_late[e % 7u];

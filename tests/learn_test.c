@@ -326,8 +326,7 @@ static void test_ends(void)
     hold(B_REC);
     check("REC held on SEQ while learning: REC picked (no CLEAR TRACK?)", !ui.confirm && ui.ml.on &&
           ui.ml.act == ML_A_REC);
-    mo.s.ev[0] = (motion_event_t){0, 4, P_PAN, 40};  /* (a motion event: MOTION's CLEAR asks) */
-    mo.s.count = 1;
+    lk_put(&mo.b, lk_key(0, 4, P_PAN), 40, 0);       /* (a motion event: MOTION's CLEAR asks) */
     for (k = 0; k < 6u && cur_page()->graph != GR_MOTION; k++)
         tap(B_SEQ);
     knob(3, 1);
@@ -412,6 +411,14 @@ static void test_pages(void)
         tap(B_FX);
     knob(2, 1);
     check("FX: DLY (the track's send)", ui.ml.id == P_DLY && ui.ml.trk == 2u);
+    for (k = 0; k < 8u && page_id(cur_page(), 3) != P_RKEY; k++)
+        tap(B_FX);
+    knob(3, 1);
+    {
+        char b[16];
+        ml_name(b);
+        check("RESON 2/2: KNOB 4 is KEYF, named T3 R.KEYF", ui.ml.id == P_RKEY && ui.ml.trk == 2u && same(b, "T3 R.KEYF"));
+    }
     tap(B_HOME);
     tap(B_HOME);
     if (!mix_mode())
@@ -565,9 +572,8 @@ static void test_motion_base(void)
     track_t *t = &trk[0];
     fresh();
     ml_learn(80, 0, P_PAN);
-    mo.s.ev[0] = (motion_event_t){0, 4, P_PAN, 40};
-    mo.s.count = 1;
-    mo.s.on = 1;
+    lk_put(&mo.b, lk_key(0, 4, P_PAN), 40, 0);
+    mo.b.on = 1;
     transport_req = 1;
     render_mix(0, 0, CTL * 4);
     check("(motion plays: its base taken)", (mo.base_ok & 1u) && song.playing);
@@ -577,7 +583,7 @@ static void test_motion_base(void)
     transport_req = 2;
     render_mix(0, 0, CTL);
     check("STOP: the knob stays at the CC's value (the base), no motion event recorded", t->p[P_PAN] == -64 &&
-          mo.s.count == 1u);
+          mo.b.count == 1u);
 }
 
 /* ---- the inputs */

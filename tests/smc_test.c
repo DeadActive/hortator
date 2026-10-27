@@ -92,8 +92,8 @@ static void fresh(void)                              /* AUTO, linked to an SMC-M
 static int has_event(uint32_t k, uint32_t id, int v)
 {
     uint32_t i;
-    for (i = 0; i < mo.s.count; i++)
-        if (mo.s.ev[i].trk == k && mo.s.ev[i].param == id && mo.s.ev[i].value == v)
+    for (i = 0; i < mo.b.count; i++)
+        if (!lk_is_lock(&mo.b, i) && (uint32_t)mo.b.key[i] >> 13 == k && (mo.b.key[i] & 127u) == id && mo.b.val[i] == v)
             return 1;
     return 0;
 }

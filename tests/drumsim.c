@@ -345,7 +345,7 @@ static void write_perform(const char *dir)
 
 /* MOTION demo (120 BPM): the 808 kit, the kick's DECAY recorded as a sweep over a bar (step k: 10 + 7 k); bar 1
  * PLAY OFF (the patch), bars 2..4 PLAY ON: motion_decay.wav */
-static void motion_bar(uint32_t b) { mo.s.on = b ? 1u : 0u; }
+static void motion_bar(uint32_t b) { mo.b.on = b ? 1u : 0u; }
 static void write_motion(const char *dir)
 {
     uint32_t k;
@@ -355,6 +355,27 @@ static void write_motion(const char *dir)
     for (k = 0; k < 16u; k++)
         motion_add(0, k, P_E1, (int32_t)(10u + 7u * k));
     write_demo(dir, "motion_decay.wav", 4, motion_bar);
+    memset(&mo, 0, sizeof mo);
+}
+
+/* parameter locks A/B (120 BPM, 4 bars): the 808 kit, the kick on every 1/8 and on steps 3 7 11 15, through the LP
+ * FILTER; locks_on.wav: those four steps lock its DECAY (E1) long and the CUT low, snapping back after each;
+ * locks_off.wav: the same pattern without them */
+static void locks_bar(uint32_t b) { (void)b; }
+static void write_locks(const char *dir, int on)
+{
+    uint32_t k;
+    sp_kit();
+    for (k = 0; k < 16u; k++)
+        trk[0].step[k].on = (k & 1u) == 0u || (k & 3u) == 3u;
+    trk[0].p[P_FTYPE] = FT_LP;
+    trk[0].p[P_FCUT] = 100;
+    trk[0].p[P_E1] = 30;
+    for (k = 3; on && k < 16u; k += 4u) {
+        lock_set(0, k, P_E1, 120);
+        lock_set(0, k, P_FCUT, 25);
+    }
+    write_demo(dir, on ? "locks_on.wav" : "locks_off.wav", 4, locks_bar);
     memset(&mo, 0, sizeof mo);
 }
 
@@ -369,7 +390,7 @@ static void write_song(const char *dir)
     sp_kit();
     memset(song_st, 0, sizeof song_st);
     for (s = 0; s < 2u; s++) {
-        chain.src[s].m = &MOTION_NONE;
+        chain.src[s].m = &LK_NONE;
         for (k = 0; k < NTRK; k++) {
             chain.src[s].step[k] = song_st[s][k];
             chain.src[s].timing[k][0] = 16;
@@ -919,6 +940,8 @@ int main(int argc, char **argv)
     write_sound_pack(dir);
     write_perform(dir);
     write_motion(dir);
+    write_locks(dir, 0);
+    write_locks(dir, 1);
     write_song(dir);
     write_phys(dir);
     write_filter(dir);

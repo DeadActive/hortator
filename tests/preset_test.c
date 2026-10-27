@@ -503,7 +503,7 @@ static void test_save_while_motion_plays(void)
     t->p[P_E1] = 40;
     t->p[P_E2] = 50;
     motion_add(0, 0, P_E1, 100);
-    mo.s.on = 1u;
+    mo.b.on = 1u;
     transport_req = 1;
     render_mix(0, 0, CTL * 8);
     check("(playing, motion moved DECAY off its base)", song.playing && (mo.base_ok & 1u) && t->p[P_E1] == 100 &&
@@ -513,7 +513,27 @@ static void test_save_while_motion_plays(void)
           preset_get(user_id(5), &p) && p.k[1] == 40 && p.k[2] == 50 && p.model == (uint32_t)t->p[P_MODEL]);
     transport_req = 2;
     render_mix(0, 0, CTL * 4);
-    memset(&mo.s, 0, sizeof mo.s);
+    memset(&mo.b, 0, sizeof mo.b);
+}
+
+/* parameter locks (2026-10-24): SAVE during a locked step saves the knob's own value, not the lock's */
+static void test_save_during_lock(void)
+{
+    track_t *t = &trk[0];
+    preset_t p;
+    fresh();
+    t->p[P_E2] = 50;
+    t->step[0].on = 1;
+    lock_set(0, 0, P_E2, 99);
+    transport_req = 1;
+    render_mix(0, 0, CTL * 8);
+    check("(playing, the lock on step 0 holds E2 at 99)", song.playing && t->seq_idx == 0u && t->p[P_E2] == 99);
+    preset_user_save(6, t);
+    check("SAVE during a locked step: the knob's own value (50), not the lock's",
+          preset_get(user_id(6), &p) && p.k[2] == 50);
+    transport_req = 2;
+    render_mix(0, 0, CTL * 4);
+    memset(&mo.b, 0, sizeof mo.b);
 }
 
 static void test_edit_marks(void)
@@ -627,6 +647,7 @@ int main(void)
     test_preset_ref_stable();
     test_user_slot_reused();
     test_save_while_motion_plays();
+    test_save_during_lock();
     test_edit_marks();
     test_bank_order_old_refs();
     printf(fails ? "preset_test: %d FAILED\n" : "preset_test: all passed\n", fails);

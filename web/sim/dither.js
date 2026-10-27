@@ -52,7 +52,7 @@ export function initGlitch(root = document) {
     void el.offsetWidth;                              // restart the animation
     el.classList.add('glitching');
   };
-  const heads = [...root.querySelectorAll('.hero-copy h1, .features-head h2, .ch-text h3, .install-head h2, .foot-mark')];
+  const heads = [...root.querySelectorAll('.hero-copy h1, .manual-head h2, .features-head h2, .ch-text h3, .install-head h2, .foot-mark')];
   for (const el of heads) {
     el.dataset.text = el.textContent;
     el.classList.add('glitch');

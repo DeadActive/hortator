@@ -57,8 +57,12 @@ enum {                          /* per-track parameters */
                                   * DEST / DEPTH are LFO 1's / LFO 2's own (P_LFO1 / P_LFO2 + LF_DEST, LF_DEPTH) */
     P_LS3SRC, P_LS3DEST, P_LS3DEPTH,   /* slot 3: SRC DEST DEPTH */
     P_LS4SRC, P_LS4DEST, P_LS4DEPTH,   /* slot 4 */
+    P_RKEY,                      /* RESON KEYF (reson.c): how far the ring follows the hit's note from C4, 0..127 = 0..100 %.
+                                  * Past the project's parameter block (FDRE fills its sector): stored in the steps' spare
+                                  * byte (project.c) */
     P_COUNT
 };
+#define P_NSTORED P_RKEY         /* the parameters in a project's block (FDRE: P_MODEL .. P_LS4DEPTH) */
 
 enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK,
@@ -145,6 +149,8 @@ typedef struct {                 /* RESON runtime (reson.c): per line (STRNG / P
     uint16_t w, seg, quiet, peak;   /* write position, segment length, quiet blocks, last block's line peak */
     uint8_t ns, model, ring, kill;  /* lines, the model running, ringing, fade out this block */
     uint8_t hold;                /* after a cut: no input until the track's next hit (its declick tail excites nothing) */
+    int8_t knt;                  /* KEYF: the last hit's note (offset from C4) */
+    int32_t kq;                  /* KEYF: the pitch offset playing, 1/256 semitone (glides to knt x KEYF while it rings) */
 } reson_t;
 
 typedef struct track {

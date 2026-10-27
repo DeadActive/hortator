@@ -18,7 +18,7 @@
   <div class="hero-stage" id="stage">
     <nav class="hero-nav">
       <span class="silk">HORTATOR</span>
-      <a href="webapp/installer/">Install</a>
+      <span class="nav-links"><a href="#manual">Manual</a><a href="webapp/installer/">Install</a></span>
     </nav>
 
     <div class="desk-shadow" id="desk-shadow"></div>
@@ -61,7 +61,7 @@
         <button type="button" id="reset-no">Keep my saves</button>
       </div>
     </div>
-    <a class="more-cue" id="more-cue" href="#features">More below<span aria-hidden="true">↓</span></a>
+    <a class="more-cue" id="more-cue" href="#manual">More below<span aria-hidden="true">↓</span></a>
     <div id="help" class="help" hidden>
       <div>
         <h2>Mouse and touch</h2>
@@ -91,6 +91,137 @@
     </div>
   </div>
   <span class="hero-end" id="play" aria-hidden="true"></span>
+</section>
+
+<section id="manual" class="manual" aria-labelledby="manual-title">
+  <header class="manual-head">
+    <h2 id="manual-title">How to play it.</h2>
+    <p>Every control, then ten things to do with them. Each works in the simulator above as on the FM&#8209;1. The whole
+      manual is in the <a href="https://github.com/DeadActive/hortator#readme" target="_blank" rel="noopener">README</a>.</p>
+  </header>
+
+  <div class="panel-map">
+    <div class="map-stage">
+      <div class="map-device" id="manual-mini" aria-hidden="true"></div>
+      <p class="map-caption" id="map-caption">Point at a control, or at a line of the list.</p>
+    </div>
+    <div class="map-list" id="map-list">
+      <h3>Knobs</h3>
+      <ul>
+        <li data-ctl="MASTER"><b>MASTER</b> The volume: the speaker, the headphones and USB audio.</li>
+        <li data-ctl="SELECT"><b>SELECT</b> Turns a section's pages and moves the menu's cursor. On TRACKS: the tempo.</li>
+        <li data-ctl="ALGORITHM"><b>ALGORITHM</b> Picks the track, on any page.</li>
+        <li data-ctl="PRESETS"><b>PRESETS</b> Loads the next or the previous preset onto the track.</li>
+        <li data-ctl="KNOB1 KNOB2 KNOB3 KNOB4"><b>KNOB1</b> to <b>KNOB4</b> Edit the four values on the screen.</li>
+      </ul>
+      <h3>Buttons</h3>
+      <ul>
+        <li data-ctl="HOME"><b>HOME</b> TRACKS (levels, lengths, pans) and HOME (the scope, the track's first four knobs);
+          a tap switches. Hold it: the menu.</li>
+        <li data-ctl="EDIT"><b>EDIT</b> The track's sound: its model and knobs. Hold it: the PRESETS list.</li>
+        <li data-ctl="SEQ"><b>SEQ</b> The steps on the white keys, then PATTERN, MOTION and SONG.</li>
+        <li data-ctl="FX"><b>FX</b> FILTER, FX, SLICER, RESON, delay, reverb, chorus. Hold it: PERFORM.</li>
+        <li data-ctl="ARP"><b>ARP</b> Grids, a map of drum patterns.</li>
+        <li data-ctl="LFO"><b>LFO</b> The track's two LFOs, then DEST: what they move.</li>
+        <li data-ctl="ENV"><b>ENV</b> STEPS: the white keys are the track's steps on every page, for locks.</li>
+        <li data-ctl="SEL"><b>SEL</b> KEYS: the keys play the selected track, a keyboard.</li>
+        <li data-ctl="GLO"><b>GLO</b> A tap: GLOBAL (tempo, swing, clock, MIDI channel, metronome). Hold it: the MUTE
+          screen.</li>
+        <li data-ctl="SAVE"><b>SAVE</b> PROJECT (save, load and name slots A to D), then TOOLS.</li>
+        <li data-ctl="PLAY"><b>PLAY</b> Play and stop; on SONG, the song.</li>
+        <li data-ctl="REC"><b>REC</b> Arms tracks to record: on TRACKS the selected one, on any other page all of them.</li>
+        <li data-ctl="OCT- OCT+"><b>OCT-</b> <b>OCT+</b> The next and previous 16 steps; the octave in KEYS; NO and YES,
+          BACK and OK.</li>
+      </ul>
+      <h3>Keys</h3>
+      <ul>
+        <li data-ctl="white">The 16 white keys: the steps, 1 to 16. On HOME, F3 to F4 play tracks 1 to 8; with GLO held
+          they mute them.</li>
+        <li data-ctl="black">The 11 black keys: with FX held, live effects on the whole mix. In KEYS, the sharps.</li>
+      </ul>
+    </div>
+  </div>
+
+  <ol class="guides">
+    <li class="guide" id="m-around">
+      <h3>Find your way</h3>
+      <p>Each section has its button: press it again, or turn SELECT, for its next page. ALGORITHM picks the track
+        (T1 to T8 in the top bar), and the four knobs edit the four columns under it. HOME takes you back: TRACKS is
+        the mixer, HOME the scope and the track's main knobs.</p>
+      <p class="where"><b>SELECT</b> pages, <b>ALGORITHM</b> the track, <b>HOME</b> back; hold <b>HOME</b> for the menu.</p>
+    </li>
+    <li class="guide" id="m-beat">
+      <h3>Make a beat</h3>
+      <p>SEQ puts the track's steps on the white keys: tap one to turn it on or off, then PLAY. Hold a step and turn a
+        knob for its chance, ratchet or accent. OCT+ and OCT- go to the next 16 steps, up to 64. PATTERN, the next
+        page, sets the track's length, division and swing, or has it follow a Grids lane (SRC).</p>
+      <p class="where"><b>SEQ</b>, tap the white keys, <b>PLAY</b>. Hold a step: <b>KNOB1</b> PROB, <b>KNOB2</b> RATCH,
+        <b>KNOB3</b> ACCENT.</p>
+    </li>
+    <li class="guide" id="m-sound">
+      <h3>Shape a sound</h3>
+      <p>EDIT opens the track's sound. KNOB1 picks the model, one of 45; TUNE, DECAY, TONE and a knob of the model's own
+        follow, then its other knobs, the level, pan, note, choke group and PRIO on the next pages. PRESETS tries the
+        factory presets on the track; hold EDIT for the list, to load one or save yours to the USER bank.</p>
+      <p class="where"><b>EDIT</b>, <b>KNOB1</b> the model; <b>PRESETS</b> the next preset; hold <b>EDIT</b> for the list.</p>
+    </li>
+    <li class="guide" id="m-live">
+      <h3>Play and record live</h3>
+      <p>SEL turns the keys into a keyboard for the track (KEYS), OCT- and OCT+ its octave. REC arms the track on
+        TRACKS; on any other page it is REC ALL, each white track key playing and recording its own track, to
+        finger-drum a kit. REC never starts the transport: PLAY does. An armed track records knob turns too, as
+        MOTION. On the STEP page, stopped and in KEYS, REC starts step record, a note at a time.</p>
+      <p class="where"><b>SEL</b> KEYS, <b>REC</b> to arm, <b>PLAY</b> to go.</p>
+    </li>
+    <li class="guide" id="m-mute">
+      <h3>Mute tracks</h3>
+      <p>Hold GLO: the MUTE screen. The white keys F3 to F4 mute and unmute tracks 1 to 8 (a filled box is heard, an
+        outline muted). The top C# makes a mute land at once, the top D# on the next bar: made while playing, it blinks
+        until the downbeat. Let go of GLO to go back.</p>
+      <p class="where">Hold <b>GLO</b>, press the white keys.</p>
+    </li>
+    <li class="guide" id="m-perform">
+      <h3>Perform</h3>
+      <p>Hold FX: the black keys play effects on the whole mix while held: repeat 1/8, 1/16 and 1/32, reverse, tape
+        stop, filter sweeps, freeze, an octave up or down. The white keys silence their tracks while held. The knobs
+        become FILTER, CRUSH, THROW and DEPTH, which stay on when you let go, an FX in the top bar, until turned back
+        to 0.</p>
+      <p class="where">Hold <b>FX</b>: the black keys, the white keys, <b>KNOB1</b> to <b>KNOB4</b>.</p>
+    </li>
+    <li class="guide" id="m-locks">
+      <h3>Lock a step</h3>
+      <p>Tap ENV (lit, a padlock in the top bar): the white keys are the track's steps on every page. Hold a step and
+        turn a knob, on HOME, EDIT, FX or LFO: that step plays its own value, and the next one the knob's again. Hold the
+        step and tap OCT- to clear its locks on that page; hold OCT- for 0.6 s to clear all of them.</p>
+      <p class="where"><b>ENV</b>, hold a step, turn a knob; <b>OCT-</b> clears.</p>
+    </li>
+    <li class="guide" id="m-save">
+      <h3>Save and chain</h3>
+      <p>SAVE opens PROJECT: four slots, A to D, in the FM&#8209;1's flash, each with a name. The last project saved loads at
+        power-on; with SEQ held at power-on nothing loads. SONG, SEQ's last page, chains up to 16 rows of projects, each
+        with its repeats. TOOLS clears a track's steps or its sound, or starts everything over.</p>
+      <p class="where"><b>SAVE</b>; <b>SELECT</b> to TOOLS. <b>SEQ</b>, <b>SELECT</b> to SONG.</p>
+    </li>
+    <li class="guide" id="m-midi">
+      <h3>MIDI, USB audio and LEARN</h3>
+      <p>MIDI comes in over USB and the TRS jack: notes on the drum channel (CH, 10 at first) play the tracks whose
+        NOTE matches, and CLK follows a clock from either. MIDI LEARN ties up to 32 controls of a controller to knobs,
+        PLAY, REC or PERFORM: hold GLO and press G4, turn a knob (or press PLAY), then move the controller's knob.</p>
+      <p>Over USB the FM&#8209;1 is also an audio interface, Hortator, that records into a computer. USB AUDIO in the
+        menu sends 2 CH, the stereo master; 10 CH MIX, the master and the eight tracks each on its own; or 10 CH FX, the
+        eight tracks dry and the send effects, to mix in your DAW. 10 CH needs the standard version, not Bluetooth;
+        macOS and iPadOS take it, Windows may not.</p>
+      <p class="where">Tap <b>GLO</b> for CH and CLK. Hold <b>GLO</b> + G4 to learn, <b>OCT+</b> when done. Hold
+        <b>HOME</b> for USB AUDIO.</p>
+    </li>
+    <li class="guide" id="m-settings">
+      <h3>Make it yours</h3>
+      <p>Hold HOME for the menu. COLOR picks one of six screen themes, ACCEL speeds a knob up as it turns faster,
+        BACKLIGHT lets the unlit keys glow to find them in the dark, SPEAKER EQ adds bass to the small speaker. METRO,
+        on GLOBAL's last page, clicks every quarter note. The Bluetooth version adds BLUETOOTH to the menu.</p>
+      <p class="where">Hold <b>HOME</b>, <b>SELECT</b> to a row, <b>OCT+</b> OK, <b>OCT-</b> back.</p>
+    </li>
+  </ol>
 </section>
 
 <section id="features" class="features" aria-labelledby="features-title">
@@ -154,8 +285,10 @@
     <div class="ch-text">
       <h3 id="f-seq-title">Steps that roll dice</h3>
       <p>A step can play by chance, ratchet, or wait for a fill bar. Mutes can wait for the next bar, and
-        knob moves record into the pattern.</p>
-      <p class="where"><b>SEQ</b>: hold a step, <b>KNOB1</b> chance, <b>KNOB2</b> ratchet. Hold <b>GLO</b> for mutes; <b>REC</b> records knob moves.</p>
+        knob moves record into the pattern. Parameter locks give one step its own value for a knob, on any sound
+        page: the next step plays the knob again.</p>
+      <p class="where"><b>SEQ</b>: hold a step, <b>KNOB1</b> chance, <b>KNOB2</b> ratchet. Hold <b>GLO</b> for mutes; <b>REC</b> records knob moves.
+        <b>ENV</b>: the keys are the steps on every page; hold one and turn a knob to lock it, <b>OCT-</b> clears.</p>
       <figure class="device-screen">
         <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
         <figcaption>The FM-1’s own screen.</figcaption>
@@ -258,6 +391,7 @@
   </div>
   <nav class="foot-nav" aria-label="On this page">
     <a href="#play">Play it in the browser</a>
+    <a href="#manual">How to play it</a>
     <a href="webapp/installer/">Install on your FM-1</a>
     <a href="#install">What's new</a>
     <a href="source.tar.gz">Source code (GPL-3.0)</a>

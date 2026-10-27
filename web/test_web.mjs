@@ -32,11 +32,20 @@ const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-
 const E = vm.runInNewContext(proto + `
 ;({ frame, unframe, parse, req, Link, parseWav, resample, normalize, rootFromName, buildSlot, makeMockDevice, CMD, SMP,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
-   mixer, GM_DRUM, drumName, parseNotes })`,
+   mixer, GM_DRUM, drumName, parseNotes, isDevicePort })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console });
 
 async function editorMock() {
   const m = E.makeMockDevice();
+  {
+    /* the app's USB name: "Hortator" (older firmware: "Felucca"; "Felucca Update" in update mode) */
+    const port = (name, state = "connected") => ({ name, state });
+    ok(["Hortator", "Hortator MIDI 1", "Hortator Port 1", "Felucca", "Felucca MIDI 1", "Hortator 8ch", "Hortator 8ch MIDI 1",
+      "Hortator 8ch Port 1"].every((n) => E.isDevicePort(port(n)))
+      && !E.isDevicePort(port("Hortator", "disconnected")) && !["IAC Driver Bus 1", "Launchpad X", ""].some((n) => E.isDevicePort(port(n)))
+      && [...m.access.inputs.values(), ...m.access.outputs.values()].every((p) => p.name === "Hortator" && E.isDevicePort(p)),
+      "editor: connects to a port named Hortator or Felucca (the mock: Hortator)");
+  }
   const inp = [...m.access.inputs.values()][0], out = [...m.access.outputs.values()][0];
   const link = new E.Link((d) => out.send(d), { timeout: 300 });
   inp.onmidimessage = (e) => link.receive(e.data);
@@ -527,10 +536,10 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 
 /* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image */
 class FakeFM1 {
-  constructor(image, { unplugAfter = Infinity, after = "FM-1_900" } = {}) {
-    this.image = image; this.unplugAfter = unplugAfter; this.after = after; this.served = 0; this.bad = 0;
+  constructor(image, { unplugAfter = Infinity, after = "FM-1_900", identity = "FM-1_015", name = "FM-1", afterName = "Felucca" } = {}) {
+    this.image = image; this.unplugAfter = unplugAfter; this.after = after; this.afterName = afterName; this.served = 0; this.bad = 0;
     this.access = { inputs: new Map(), outputs: new Map() };
-    this.boot("FM-1_015", "FM-1");
+    this.boot(identity, name);
   }
   boot(identity, name) {
     this.identity = identity; this.waiting = null; this.queue = [];
@@ -565,7 +574,7 @@ class FakeFM1 {
       this.served++;
       if (this.served >= this.unplugAfter) { this.input.state = this.output.state = "disconnected"; return; }
       if (addr === 0xE0000000) setTimeout(() => this.boot("ota-FM-1_900", "Felucca Update"), 300);
-      else if (addr === 0xF0000000) setTimeout(() => this.boot(this.after, "Felucca"), 300);
+      else if (addr === 0xF0000000) setTimeout(() => this.boot(this.after, this.afterName), 300);
       else this.next();
     }
   }
@@ -589,6 +598,17 @@ async function updater() {
   const got = await new Updater(dev.access).install(image, "FM-1_900", (k) => steps.push(k));
   ok(got === "FM-1_900" && dev.bad === 0 && steps.includes("write") && steps.at(-1) === "done",
     `fm1ota.js: install: running firmware -> loader -> Felucca (${dev.served} reads)`);
+
+  // the app's USB name is "Hortator" (older firmware: "Felucca"): an FM-1 running it is found, and found again after the update
+  const devH = new FakeFM1(image, { identity: "FM-1_900", name: "Hortator", after: "FM-1_901", afterName: "Hortator" });
+  const gotH = await new Updater(devH.access).install(image, "FM-1_901").then((r) => r, (x) => x);
+  ok(gotH === "FM-1_901" && devH.bad === 0, "fm1ota.js: install: running Hortator -> loader -> Hortator");
+  // MENU > USB AUDIO 10 CH: the app's USB name is "Hortator 8ch" (and comes back as "Hortator" from a 2 CH build)
+  for (const [nm, back] of [["Hortator 8ch", "Hortator 8ch"], ["Hortator 8ch MIDI 1", "Hortator"], ["Hortator 8ch Port 1", "Hortator"]]) {
+    const dev8 = new FakeFM1(image, { identity: "FM-1_900", name: nm, after: "FM-1_901", afterName: back });
+    const got8 = await new Updater(dev8.access).install(image, "FM-1_901").then((r) => r, (x) => x);
+    ok(got8 === "FM-1_901" && dev8.bad === 0, `fm1ota.js: install: running ${nm} (USB AUDIO 10 CH) -> loader -> ${back}`);
+  }
 
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
   dev2.boot("ota-FM-1_900", "Felucca Update");
@@ -697,6 +717,17 @@ async function counter() {
   ok(/^loadPageCounter\(\);$/m.test(inst), "installer: its visits counted (count.js, guarded)");
 }
 
+/* ------------------------------------------------- the simulator: parameter locks (2026-10-24) --- */
+async function simLocks() {
+  const { BTN } = await import("./sim/controls.js");
+  const env = BTN.find((b) => b.c === "B_ENV");
+  ok(env && /STEPS \/ TRACKS/.test(env.tip || "") && /lock/.test(env.tip || ""), "sim: ENV has a tip (STEPS / TRACKS, locks)");
+  const page = readFileSync(join(HERE, "sim/index.html"), "utf8");
+  const seq = page.slice(page.indexOf('id="f-seq"'), page.indexOf('data-piece="seq"'));
+  ok(/parameter lock/i.test(seq) && /<b>ENV<\/b>/.test(seq), "sim: the features' steps chapter names parameter locks and ENV");
+}
+
+await simLocks();
 await editorMock();
 await editorLibrarian();
 await editorLive();

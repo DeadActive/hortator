@@ -43,7 +43,8 @@ firmware ([below](#back-to-the-official-firmware)).
   drum. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
   is cut (a safety limit). A loaded project keeps ACID on its first two ACID tracks; the others come back as their
   power-on kit drum.
-- **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern.
+- **MOTION.** Knob turns recorded per step while a track plays, and played back with the pattern: up to 1024 events
+  per project (shared by the 8 tracks).
 - **SONG and names.** Chain up to 16 rows of projects with repeats; name projects on the device.
 - **Grids.** Mutable Instruments' pattern generator: a map of drum patterns, chaos, or Euclidean rhythms. Any track
   can follow one of its three channels.
@@ -51,7 +52,10 @@ firmware ([below](#back-to-the-official-firmware)).
   key track muted.
 - **Movement.** Two LFOs per track, ten waves with a morph between them, synced to the tempo.
 - **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM or SPRING reverb
-  and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker.
+  and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker. RESON is tuned in semitones (TUNE);
+  its **KEYF** (KEYFOLLOW, RESON 2/2 KNOB 4, 0 % = off) makes the ring follow the note of each hit from C4: at 100 % a
+  step at C5 (or a KEYS note, a ratchet's note) rings an octave above TUNE, at 50 % half an octave; MIDI notes play
+  their track at C4, so they ring at TUNE. A new note under a ringing tail glides to it in a few ms, without a click.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
@@ -61,7 +65,10 @@ firmware ([below](#back-to-the-official-firmware)).
 - **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
   REC, next / previous track, or holds a PERFORM effect ([below](#midi-learn)).
 - **Connections.** MIDI in over USB and the TRS jack, MIDI clock in (USB or TRS), and USB audio: the FM-1 records
-  into a DAW over its USB cable. The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
+  into a DAW over its USB cable, the master or, with MENU USB AUDIO 10 CH, the eight tracks on their own too
+  ([below](#usb-audio-2-or-10-channels)). On a computer or an iPad it shows up as **Hortator** (USB MIDI and audio, in a DAW
+  or AUM; earlier versions: Felucca); while an update is being written it shows up as **Felucca Update**
+  (the update loader, upstream Felucca's). The Bluetooth version adds Bluetooth MIDI ([below](#bluetooth-midi)): a BLE-MIDI
   keyboard or clock, or the M-VAVE SMC-Mixer as a mixer for the eight tracks.
 - **Projects.** Four slots, A to D, saved in the FM-1's flash; the last one saved loads at power-on.
 
@@ -71,7 +78,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | --- | --- |
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
-| **SEQ** | the steps on the white keys (a tap: on / off; hold OCT+ and tap a step: its accent; hold a step and turn KNOB 1 / 2: PROB / RATCH; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
+| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3: PROB / RATCH / ACCENT (right on, left off); hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
 | **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
@@ -79,6 +86,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
 | **SAVE** | projects (save, load, name) and tools |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
+| **ENV** | STEPS / TRACKS (and [parameter locks](#parameter-locks)) (a tap, on its release; its LED lit and a padlock in the top bar, left of the battery, in STEPS). **STEPS**: the white keys are the selected track's steps on every page (HOME, EDIT, FX, LFO, COMP, TRACKS armed ...), tapped and held as on SEQ; hold ENV and press OCT+ / OCT- for the next / previous bank; OCT+ held + a step: its accent; OCT+ alone and OCT- keep their page's job (LAYER, back to SOUND, the LFO's RATE MODE). Finger drumming needs TRACKS (ENV off: the keys as before). ENV turns KEYS off, SCL turns STEPS off. Off at power-on |
 
 With KEYS on, OCT- / OCT+ are the octave: LAYER (from EDIT) and the LFO pages' OCT+ (the RATE MODE of the LFO turned
 last) need KEYS off; the STEP
@@ -170,12 +178,53 @@ PROJECT's SLOT points at it). If it can't be loaded (the slot is empty or unread
 both carry on with the power-on kit. A safe start (SEQ held at power-on) loads nothing.
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
+Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
+an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is safe, not supported: nothing breaks, the projects stay for this
+build); every older project loads with its motion. If a project's lock bank can't be read (an upload to USR3 under
+upstream Felucca overwrote it), the project still loads, without its motion, and the FM-1 says `LOCKS LOST` once.
+
+**User sample slot 3 (USR3) holds up to 48 KiB** (USR1 and USR2: 80 KiB, as before): the rest of its flash holds the
+projects' lock banks. A longer USR3 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the
+next power-on (`USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Hortator has no sample upload:
+an 80 KiB upload to USR3 under upstream Felucca afterwards overwrites the lock banks.
+
+### Parameter locks
+
+In STEPS (ENV lit), on any page whose knobs MOTION can record (HOME's macros, TRACKS' LEVEL and PAN, SOUND, LAYER,
+FX, SLICER, RESON, FILTER, the LFOs' RATE MORPH DEPTH, the DEST slots' DEPTH), **hold a step and turn a knob**: that
+step plays with its own value for that knob, and the next step plays the knob's value again (the LFO, if any,
+modulates round the locked value). The top bar says `LOCK STEP 5` while a step is held, and the knob cells show that
+step's values (a locked one inverted). Knobs MOTION can't record (MODEL, FILTER TYPE, RESON MODEL, an LFO's WAVE,
+DEST, SRC) do nothing while a step is held. Hold the step and tap OCT- to clear its locks on this page's knobs
+(`STEP 5 LOCKS CLEARED`); hold OCT- 0.6 s to clear all of that step's locks (`STEP 5 ALL CLEARED`). A step turned off
+keeps its locks for when it is on again. Locks and recorded MOTION share 1024 events per project (`LOCKS FULL`); locks
+always play (MOTION's PLAY and CLEAR are for recorded motion only). On SEQ STEP a held step keeps PROB / RATCH / ACC.
+In STEPS the footer's step strip underlines each locked step of the bank; SEQ > MOTION shows the selected track's
+MOTION (recorded events) and LOCKS counts.
 
 ### Metronome
 
 GLOBAL 3/3 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every
 quarter note, higher on the bar's first. It comes after the PERFORM effects (they leave it alone) and follows the
 MASTER volume, on the speaker, the headphones and USB audio. A device setting: saved, not part of projects.
+
+### Screen colours
+
+MENU (hold HOME) **COLOR**: the screen's two colours. The row shows the theme's name: **RED** (the default, red
+ground and dark ink, the Machinedrum's look), **RED INV** (red on black), **BLUE** (white on blue), **BLUE INV** (blue
+on white), **GREEN** (dark on green), **GREEN INV** (green on black): each colour, then its inverse. KNOB 1 on the
+row steps back and on, OCT+ steps on; both wrap. A device setting: saved when the menu closes, not part of projects;
+a colour chosen on an older Hortator stays the same.
+
+### Knob acceleration
+
+MENU (hold HOME) **ACCEL** (ON by default): a knob turned on in one direction over a wide value (more than 32
+steps) speeds up with how fast it turns. A click at a time, or a turn of up to about 12 clicks a second, is one step
+a click (fine control); faster, the steps grow with the speed, in fractions of a step: about x2 at 20 clicks a
+second, x4 at 40, up to x8 (x4 on a value of 64 steps or less). A 0..127 value takes about 65 clicks at 20 a second,
+34 at 40, 24 at 60 (upstream Felucca's: 127, 65, 64). The first clicks of a turn and the first click back after a
+reversal are one step. Lists of names (MODEL, TYPE, WAVE ..) are one entry a click at any speed; the PRESETS list at
+most x4. ACCEL OFF: one step a click at any speed.
 
 ### Key backlight
 
@@ -192,6 +241,44 @@ YES in a dialog, OK in the menu, NAME's RENAME, MIDI LEARN's DONE, the PRESETS l
 way back (NO, CANCEL, BACK, LAYER's OCT-) is lit; KEYS' octave shift lit as before. KNOB 1 on the row steps through the
 levels, OCT+ steps on and wraps. A device setting: saved when the menu closes, not part of projects; OFF until it is
 set. A safe start keeps every LED dark, as before.
+
+### USB audio: 2 or 10 channels
+
+The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI Setup records it over the cable,
+16-bit, 44.1 kHz. MENU (hold HOME) **USB AUDIO** picks what it sends:
+
+- **2 CH** (the default): the master, stereo, exactly as before. The device is **Hortator**.
+- **10 CH MIX**: channels 1-2 the master L R (with every effect, as in 2 CH), channels 3-10 the tracks **T1..T8**, one
+  mono channel each: the track as the mix gets it (its RESON, FILTER, DIST, SLICER, mute, COMP duck and LEVEL), before
+  PAN, the CHOR / DLY / REV sends and the master's effects and limiter, at the MASTER level (or full level with USB
+  LEVEL FIXED). The device is **Hortator 8ch**; hosts that read channel names show Main L, Main R, T1 .. T8.
+- **10 CH FX**: the same, but channels 1-2 carry only the **send effects**: what the chorus, delay and reverb return
+  (THROW's share too), at the MASTER level. The FM-1's effect buses are mono, so L = R. T1 .. T8 panned in the DAW plus
+  this pair make the whole mix, each part on its own fader.
+
+What T1 .. T8 + FX cannot give back: the **master chain**, which only channels 1-2 in MIX (and 2 CH) carry: PERFORM's
+master effects (REPEAT, REVERSE, TAPE STOP, FREEZE, OCT, LPF, HPF, CRUSH; its track mutes and THROW are in the
+channels), METRO, SPEAKER EQ (LOWCUT, BASS+), the DC blocker, the limiter and the soft clip. COMP's ducking is a gain
+on each ducked track, so the T channels and their sends are already ducked. The FM-1 pans with full level on both
+sides at the centre: set the DAW's pan law to 0 dB to match it. Each channel is 16-bit: a single track or the sum may
+reach full scale where the FM-1's limiter would have held the master down (the test: T1 .. T8 panned + FX equal the
+master bus before its chain within 18 LSB).
+
+KNOB 1 on the row steps 2 CH, 10 CH MIX, 10 CH FX; OCT+ steps on and wraps. MIX <-> FX changes channels 1-2 at once
+(a 6 ms cross-fade, no reconnect: the same device). 2 CH <-> 10 CH reaches the computer when the menu closes: the
+FM-1 leaves USB for a second (`USB RECONNECT: 10 CH` in the top bar) and comes back as the other device. The
+sequencer and the sound play on; MIDI in and out work again once the computer has found the device (a DAW may list
+Hortator and Hortator 8ch as two devices: choose the one shown). Following **CLK USB**, the clock pauses with the
+cable (`CLK USB PAUSED`): the steps wait up to 2 s after the reconnect for the clock to come back, then stop as when
+the cable is pulled. A device setting: saved, not part of projects. A **safe start** (SEQ held at power-on) is always
+2 CH, and the installers and the editor find the FM-1 under both names.
+
+**10 CH needs the standard, non-Bluetooth build**: the Bluetooth version has no USB AUDIO row and is always 2 CH (its
+memory is full; a 10 CH setting saved by the standard build is not read there, and a settings save there clears it).
+
+Computers: macOS and iPadOS take the 10 channels (class-compliant USB audio 1.0). Linux takes them. **Windows may not
+accept 10 CH** (its USB audio 1.0 driver and the channel layout): use 2 CH there. 10 CH uses about 920 bytes of every
+1 ms USB frame (2 CH: 184): plug the FM-1 straight into the computer or a hub with little else on it.
 
 ### CPU and PRIO
 

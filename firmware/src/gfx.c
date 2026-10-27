@@ -19,19 +19,27 @@ static int32_t cv_wx, cv_wy;     /* a window (cv_begin_win): where cv_px's corne
 
 #define RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 /* Machinedrum-style themes (spec 2026-10-19-md-ui §2): two colours, BG and INK. Stored in settings.palette bits 0..7
- * as THEME_TAG | index; the old palette ids 0..4 (GREEN AMBER CYAN RED MONO) map on load. */
+ * as THEME_TAG | index (index: bits 0..3, up to 16 themes); the old palette ids 0..4 (GREEN AMBER CYAN RED MONO) map
+ * on load. Every colour in both polarities (owner 2026-10-23): the colour as the ground, then INV, the colour as the
+ * ink on a neutral ground pushed further out (darker / lighter: the contrast up, as RED INV's black). THEMES[] is in
+ * stored order: the index is what settings keep, so a theme never moves (an older Hortator reads 4.. as MD RED);
+ * THEME_ORDER is the order MENU > COLOR shows (each colour, then its INV) */
 typedef struct {
-    const char *name;
+    const char *name;          /* MENU > COLOR's value */
     uint16_t bg, ink;
 } theme_t;
 static const theme_t THEMES[] = {
-    {"MD RED", RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},
-    {"RED ON BLACK", RGB(0x17, 0x06, 0x05), RGB(0xf0, 0x53, 0x2f)},
-    {"WHITE ON BLUE", RGB(0x24, 0x45, 0xc8), RGB(0xea, 0xf1, 0xff)},
-    {"BLACK ON GREEN", RGB(0xa3, 0xbf, 0x3c), RGB(0x1c, 0x2a, 0x08)},
+    {"RED", RGB(0xe0, 0x47, 0x2b), RGB(0x38, 0x10, 0x0a)},          /* 0 MD RED (default) */
+    {"RED INV", RGB(0x17, 0x06, 0x05), RGB(0xf0, 0x53, 0x2f)},      /* 1 RED ON BLACK */
+    {"BLUE", RGB(0x24, 0x45, 0xc8), RGB(0xea, 0xf1, 0xff)},         /* 2 WHITE ON BLUE */
+    {"GREEN", RGB(0xa3, 0xbf, 0x3c), RGB(0x1c, 0x2a, 0x08)},        /* 3 BLACK ON GREEN */
+    {"BLUE INV", RGB(0xf4, 0xf8, 0xff), RGB(0x24, 0x45, 0xc8)},     /* 4 BLUE ON WHITE */
+    {"GREEN INV", RGB(0x0c, 0x12, 0x04), RGB(0xb4, 0xd0, 0x44)},    /* 5 GREEN ON BLACK */
 };
 #define NTHEMES (sizeof(THEMES) / sizeof(THEMES[0]))
 #define THEME_TAG 0x10u
+_Static_assert(NTHEMES <= 16u, "the theme index is 4 bits (THEME_TAG | index)");
+static const uint8_t THEME_ORDER[NTHEMES] = {0, 1, 2, 4, 3, 5};   /* RED RED INV BLUE BLUE INV GREEN GREEN INV */
 static uint16_t C_BG, C_INK;
 
 static uint32_t theme_index(uint32_t stored)
@@ -43,6 +51,15 @@ static uint32_t theme_index(uint32_t stored)
     if ((stored & ~0xFu) == THEME_TAG && (stored & 0xFu) < NTHEMES)
         return stored & 0xFu;
     return 0;
+}
+
+/* the stored COLOR id one theme on (dir > 0) or back in the shown order, wrapping */
+static uint32_t theme_step(uint32_t stored, int32_t dir)
+{
+    uint32_t i, cur = theme_index(stored);
+    for (i = 0; i < NTHEMES && THEME_ORDER[i] != cur; i++)
+        ;
+    return THEME_TAG | THEME_ORDER[(i + (dir > 0 ? 1u : NTHEMES - 1u)) % NTHEMES];
 }
 
 /* the theme of a stored COLOR id */
@@ -393,6 +410,16 @@ static void cv_trigs(int32_t x0, int32_t y, uint32_t n, uint32_t on16, uint32_t 
         if (i % 4 == 0)
             cv_rect(bx + 4, y + 14, 2, 2, ink);
     }
+}
+
+/* parameter locks (spec 2026-10-24): under each of the first n trigs whose bit is set in mask16, a 10 x 1 px
+ * underline at y + 12 (under the box, rows y..y+9, and the playhead's outline, to y+11; over the beat dot, y+14) */
+static void cv_lock_marks(int32_t x0, int32_t y, uint32_t n, uint32_t mask16, uint16_t ink)
+{
+    int32_t i;
+    for (i = 0; i < (int32_t)n && i < 16; i++)
+        if ((mask16 >> i) & 1u)
+            cv_rect(x0 + i * 14 + (i / 4) * 2, y + 12, 10, 1, ink);
 }
 
 /* the logo (spec 2026-10-19-md-ui §9a; the user's pick, C3-4 "VU"): 8 bars mirrored round a dotted centre line, every

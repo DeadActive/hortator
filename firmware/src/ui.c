@@ -70,9 +70,9 @@ static struct {
     uint32_t rec_t0;             /* REC press time (btn_hold) */
     uint8_t rec_all, rec_keep;   /* REC ALL (a REC tap off TRACKS, ui_input.c rec_tap): on; the arm mask before it (back
                                   * when it is left). Never stored, as the arm state */
-    uint32_t step_t0[16];        /* STEP grid: a white key's press time (as btn_hold: bit1 = the hold acted) */
+    uint32_t step_t0[16];        /* STEP grid: a white key's press time | 1; bit 1: no tap on its release (held
+                                  * STEP_HOLD_MS, edited, accented or let go of: grid_drop_holds), bit 2: edited */
     uint16_t step_si[16];        /* the step it pressed, 0xFFFF none */
-    step_t step_prev[16];        /* that step before the press (a hold or a knob turn restores it) */
     uint8_t held;                /* the grid key pressed last (valid while step_t0[held] is set) */
     uint8_t confirm;             /* 1 "CLEAR TRACK n?", 2 CLEAR MOTION, 3 DELETE ROW, 4 CLEAR SONG, 5 the last project
                                   * failed to load (START NEW PROJECT?; confirm_trk its slot), 6 CLEAR ALL LEARNED?
@@ -80,6 +80,7 @@ static struct {
     uint8_t confirm_trk;
     char msg[24];
     uint32_t enc_t[NE];
+    uint8_t enc_c[NE];           /* knob acceleration: the turn's carried sixteenths of a step (ui_input.c accel) */
     char col[4][32];
     char focus_l[8], focus_v[8], focus_u[8];
     uint32_t graph_sig, head_sig, foot_sig, msg_sig, tempo_sig, col_sig, lev_sig, lev_m, frame;
@@ -99,6 +100,12 @@ static struct {
     uint8_t mute;                /* the MUTE screen shows (GLO held, spec §5) */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
+    uint8_t env;                 /* ENV (spec 2026-10-24 parameter locks): 1 STEPS (the white keys the selected track's
+                                  * steps on every page), 0 TRACKS (as before); off at power-on, never stored */
+    uint32_t env_t0;             /* ENV's press time | 1; bit 1: used (ENV + OCT+-, or pressed under a dialog): its
+                                  * release toggles nothing */
+    uint32_t ocd_t0;             /* locks: OCT- pressed with a step held: its time | 1; bit 1: the 0.6 s clear done */
+    uint8_t ocd_si;              /* .. the step held then */
     uint8_t srec, sr_cur, sr_key;   /* step record (spec §6): on; its cursor; the key whose note is on it + 1 */
     struct {                     /* MIDI LEARN (ui_learn.c; GLO + G4): never stored */
         uint8_t on;              /* LEARN is on */
@@ -164,11 +171,15 @@ static int keys_mode(void)
 }
 /* the white keys are the selected track's steps (the bank's 16): every SEQ page while KEYS is off, and TRACKS while
  * nothing is armed (user, 2026-10-08) */
-static int step_keys(void)
+static int seq_keys(void)
 {
     return !ui.home && !ui.menu &&
            ((cur_page()->fam == FAM_SEQ && !keys_mode()) || (cur_page()->scope == SC_MIX && !song.rec));
 }
+/* ENV's STEPS mode (spec 2026-10-24 parameter locks): the white keys the selected track's steps on every page (HOME,
+ * TRACKS armed, SOUND, FX, LFO, COMP ...); not in the menu or NAME */
+static int env_steps(void) { return ui.env && !ui.menu && !name_on(); }
+static int step_keys(void) { return seq_keys() || env_steps(); }
 /* seq.c keyboard_block: whose the keys' presses are: 0 the drum keys (hits, MIDI), 1 the UI's (the STEP grid, COMP,
  * TRACKS, NAME), 2 TRACKS armed (hits and recording, as 0), 3 KEYS */
 static uint8_t seq_mode_now(void)
@@ -204,9 +215,21 @@ static void page_entered(void)
 static void keys_toggle(void)
 {
     ui.keys ^= 1u;
+    if (ui.keys)
+        ui.env = 0;                                    /* one key role at a time: STEPS off */
     grid_drop_holds();                                 /* a grid key held edits nothing more */
     song.seq_mode = seq_mode_now();
     ui.force = 1;
+}
+/* ENV (its release): STEPS <-> TRACKS (KEYS off for STEPS: one key role at a time); a held key lets go of its step */
+static void env_toggle(void)
+{
+    ui.env ^= 1u;
+    if (ui.env)
+        ui.keys = 0;
+    grid_drop_holds();
+    song.seq_mode = seq_mode_now();
+    /* (no full repaint: the top bar's padlock, its KEYS line and the strip's marks are in their signatures) */
 }
 /* OCT- / OCT+ while KEYS has the keys: the keyboard an octave down / up, -2..+2 (seq.c keys_nt) */
 static void keys_octave(int32_t d) { song.octave = (int8_t)clamp(song.octave + d, -2, 2); }
@@ -363,20 +386,62 @@ static void bank_fix(void)                             /* LEN shortened (knob, p
  * note; a drum's C4 (its steps transposed only by KEYS record, step record's NOTE or the roll) */
 static int8_t new_step_nt(const track_t *t) { return trk_model(t)->gate ? t->key_nt : 0; }
 
-/* key k of the grid pressed: step bank * 16 + k turns on, or off (then plain again: no accent, PROB 100 %,
- * 1 hit), inside LEN only; the step before the press is kept for a hold / a knob turn */
-static void step_press(uint32_t k)
+/* a step key down this long is a hold, not a tap (owner 2026-10-23: holding a step is for editing it, never toggles
+ * it). 0.3 s: a deliberate tap on these keys is well under it (~0.1 s down), a hold to edit is felt as one past it,
+ * and the STEP n PROB RATCH line comes up without a wait; under GLO / FX's 0.4 s and HOME / REC's 0.7 s holds */
+#define STEP_HOLD_MS 300u
+
+/* the step a grid key holds for editing: held STEP_HOLD_MS, or edited / accented while down (step_t0 bit 1, its
+ * page and track unchanged); NSTEP none. A tap shows nothing (its line would only flash) */
+static uint32_t held_step(void)
+{
+    uint32_t k = ui.held;
+    return k < 16u && (ui.step_t0[k] & 2u) && ui.step_si[k] < NSTEP ? ui.step_si[k] : NSTEP;
+}
+
+/* key k of the grid pressed: the step it holds, bank * 16 + k, inside LEN only (a song's lock: none, saying so).
+ * The press changes nothing: a short one toggles the step on the release (step_tap); a hold turns an off step on
+ * (step_hold_on) and edits it (step_edit) */
+static void step_grab(uint32_t k)
 {
     uint32_t si = ui.bank * 16u + k;
-    step_t *s;
     ui.step_si[k] = 0xFFFFu;
     if (song_lock())
         return;
     if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
         return;
-    s = &TSEL->step[si];
     ui.step_si[k] = (uint16_t)si;
-    ui.step_prev[k] = *s;
+}
+
+/* key k's step held for editing (STEP_HOLD_MS down, or a knob edit while down; owner 2026-10-23): an OFF step turns
+ * on there and then (plain, the note a tap's new step gets), lit, its line up and its knobs live; an ON step stays
+ * exactly as it is. Once a press (bit 2) */
+static void step_hold_on(uint32_t k)
+{
+    step_t *s;
+    if (k >= 16u || (ui.step_t0[k] & 4u))
+        return;
+    ui.step_t0[k] |= 4u;
+    if (ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL) || chain_busy())
+        return;
+    s = &TSEL->step[ui.step_si[k]];
+    if (!s->on) {
+        s->nt = new_step_nt(TSEL);                    /* spec §2: ACID's last played / recorded note, a drum's C4 */
+        s->on = 1;
+        s->acc = 0;
+        s->tie = 0;                                   /* a TIE step turned on plays (acid_step reads TIE first) */
+    }
+}
+
+/* key k let go after a short press (down less than STEP_HOLD_MS, no held-step edit, its page and track unchanged):
+ * its step turns on, or off (then plain again: no accent, PROB 100 %, 1 hit) */
+static void step_tap(uint32_t k)
+{
+    uint32_t si = ui.step_si[k];
+    step_t *s;
+    if (si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL) || chain_busy())
+        return;
+    s = &TSEL->step[si];
     if (s->on) {
         memset(s, 0, sizeof *s);
     } else {
@@ -389,7 +454,7 @@ static void step_press(uint32_t k)
 
 /* key k pressed with OCT+ held (fixes 2026-10-21 item 1: the accent's gesture; a held key is PROB / RATCH's): step
  * bank * 16 + k accented, an off one turned on with it (a TIE: plays), an accented one plain again (still on), inside
- * LEN only; kept as the press's step (a knob turned while the key is held edits it as it is now) */
+ * LEN only, at the press; held, the key's step (a knob turned edits it as it is now; its release toggles nothing) */
 static void step_accent(uint32_t k)
 {
     uint32_t si = ui.bank * 16u + k;
@@ -409,14 +474,14 @@ static void step_accent(uint32_t k)
         s->acc = (uint8_t)!s->acc;
     }
     ui.step_si[k] = (uint16_t)si;
-    ui.step_prev[k] = *s;
 }
 
-static void track_clear(track_t *t)               /* its steps and its motion; its last KEYS note C4 again */
+static void track_clear(track_t *t)               /* its steps, its motion and its locks; its last KEYS note C4 again */
 {
     memset(t->step, 0, sizeof t->step);
     t->key_nt = 0;
     motion_clear((uint32_t)(t - trk));
+    lock_clear_track((uint32_t)(t - trk));
 }
 
 /* TOOLS CLR*: every track's pattern cleared and its pattern settings (LEN DIV SWG SRC) at default; sounds, FX,
@@ -526,6 +591,10 @@ static void safe_start_check(void)
 static void drum_boot_init(void)
 {
     safe_start_check();
+#if USB8_OK
+    usb10 = (uint8_t)(usbaud != UA_2CH && !safe_start);   /* MENU > USB AUDIO (usb_start follows; SAFE START: 2 CH) */
+    usb_fxpair = (uint8_t)(usbaud == UA_10FX);
+#endif
     drum_tracks_init();
     home_tracks();                                     /* HOME's TRACKS mode (spec §3) */
     ui.force = 1;
@@ -579,4 +648,61 @@ static const param_desc_t *home_param(uint32_t k, int16_t **vp)
 {
     *vp = &TSEL->p[P_E0 + (k & 3u)];
     return track_desc(TSEL, P_E0 + (k & 3u));
+}
+
+/* ---- parameter locks (spec 2026-10-24): in STEPS, off the SEQ pages, a held step + a recordable knob locks it */
+#define LOCK_CLR_MS 600u                               /* step held + OCT- held this long: all its locks cleared */
+static int lock_page(void) { return env_steps() && (ui.home || cur_page()->fam != FAM_SEQ); }   /* HOME TRACKS SOUND
+                                                                                                * LAYER FX LFO COMP */
+/* the step of the last-pressed key still down (from the press: a turn right after it locks), NSTEP none (not a lock
+ * page, no key, outside LEN, a Grids track, a song's lock: step_grab) */
+static uint32_t lock_step(void)
+{
+    uint32_t k = ui.held;
+    if (!lock_page() || k >= 16u || !ui.step_t0[k] || !((fm1_in.notes >> STEP_KEY[k]) & 1u) || ui.step_si[k] >= NSTEP)
+        return NSTEP;
+    return ui.step_si[k];
+}
+/* .. shown (cells, LOCK STEP n): once held STEP_HOLD_MS or turned (a tap shows nothing, as held_step) */
+static uint32_t lock_view_step(void)
+{
+    uint32_t s = lock_step();
+    return s < NSTEP && (ui.step_t0[ui.held] & 2u) ? s : NSTEP;
+}
+/* the P_* id KNOB slot + 1 edits here when MOTION can record it (motion.c motion_param): a track page's, HOME's macros,
+ * TRACKS' LEVEL and PAN; P_COUNT none (the model, TYPE, WAVE, DEST, SRC, the timing, a global page ...) */
+static uint32_t lock_id(uint32_t slot)
+{
+    const page_t *pg = cur_page();
+    const param_desc_t *d;
+    int16_t *vp = 0;
+    uint32_t id;
+    if (slot > 3u)
+        return P_COUNT;
+    if (ui.home)
+        d = home_param(slot, &vp);
+    else if (pg->scope == SC_MIX)
+        return slot == 1u ? (uint32_t)P_LEVEL : slot == 3u ? (uint32_t)P_PAN : (uint32_t)P_COUNT;
+    else if (pg->scope == SC_TRACK)
+        d = page_desc(pg, slot, &vp);
+    else
+        return P_COUNT;
+    if (!d || !vp || vp < TSEL->p || vp >= TSEL->p + P_COUNT || !d->label || d->label[0] == '-' || d->max <= d->min)
+        return P_COUNT;
+    id = (uint32_t)(vp - TSEL->p);
+    return motion_param(id) ? id : P_COUNT;
+}
+/* what a cell of knob id shows: with a step held, its lock there (*locked 1) or the knob's own value; else live */
+static int16_t lock_shown(uint32_t id, int16_t live, int *locked)
+{
+    uint32_t s = lock_view_step();
+    int16_t v;
+    *locked = 0;
+    if (s >= NSTEP || id >= P_COUNT)
+        return live;
+    if (lock_get(song.sel, s, id, &v)) {
+        *locked = 1;
+        return v;
+    }
+    return motion_rest(song.sel, id);
 }

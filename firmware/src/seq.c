@@ -530,6 +530,7 @@ static void midi_block(void)
     }
 }
 
+#include "lockbank.c"               /* the lock bank: motion events and parameter locks, sorted (spec 2026-10-24) */
 #include "motion.c"                 /* knob moves per step (upstream 1.0's motion recording) */
 static void seq_stop(void);
 #include "song.c"                   /* SONG: rows of the four slots (upstream 1.0's song chain) */
@@ -612,6 +613,44 @@ static void seq_tick(track_t *t, uint32_t n)
 
 #include "midi_clock.c"
 
+/* TRACKS' waiting mutes (song.mute_q), before the bar's first steps: flipped in the block whose sequencer advance adv
+ * crosses the bar line (the 1/16 grids_tick counts as the bar's first), at once when stopped; returns the tracks to
+ * cut. The COMP source plays on muted (ghost key): it changes lead samples ahead of the bar (its 5 ms fade ends before
+ * the bar's first hit). Own clock: adv = the block (known before the block's input), lead MUTE_LEAD. Following a clock
+ * the advance is midi_clock_advance's, known only after the block's Clock packets are read: it stalls 1/8 pulse short
+ * of each pulse and jumps over the bar line when the bar's pulse arrives, so the block's length predicts nothing (the
+ * bar was never seen: the mutes waited forever); lead = a pulse: the source mutes on the bar's last pulse before it */
+static __attribute__((noinline)) uint32_t mute_bar(uint32_t adv, uint32_t lead)
+{
+    uint32_t i, pr = 0, src = comp_src(), gs = comp_ghost_src(), sb = gs < NTRK ? 1u << gs : 0u, l16;
+    int bar;
+    if (!song.mute_q)
+        return 0;
+    l16 = grids_l16(gclk.cnt);
+    bar = song.playing && ((gclk.cnt + 1u) & 15u) == 0u;
+    if (bar && (song.mute_q & sb) && gclk.pos + adv + lead >= l16) {
+        if (!trk[src].p[P_MUTE]) {
+            trk[src].p[P_MUTE] = 1;                 /* mute: its 5 ms fade (fx.c) ends before the bar's first hit */
+            song.mute_q &= (uint8_t)~sb;
+        } else {
+            pr |= sb;                               /* unmute: its silent voices end (declick) before the bar */
+        }
+    }
+    if (!song.playing || (bar && gclk.pos + adv >= l16)) {
+        for (i = 0; i < NTRK; i++)
+            if ((song.mute_q >> i) & 1u) {
+                trk[i].p[P_MUTE] = (int16_t)!trk[i].p[P_MUTE];
+                if (trk[i].p[P_MUTE])
+                    pr |= 1u << i;
+                else if (i == src && song.playing && (!song.solo || ((song.solo >> i) & 1u)))
+                    trk[i].gfade = 0;               /* heard at once: the bar's first hit with its attack (unless
+                                                     * another track's SOLO silences it: trk_silent, inline here) */
+            }
+        song.mute_q = 0;
+    }
+    return pr;
+}
+
 /* everything that happens between two rendered blocks */
 static void events_block(uint32_t n)
 {
@@ -644,31 +683,8 @@ static void events_block(uint32_t n)
 #endif
     pr = panic_req;
     panic_req = 0;
-    if (song.mute_q) {                              /* TRACKS' waiting mutes: before the bar's first steps */
-        uint32_t src = comp_src(), gs = comp_ghost_src(), sb = gs < NTRK ? 1u << gs : 0u, l16 = grids_l16(gclk.cnt);
-        int bar = song.playing && ((gclk.cnt + 1u) & 15u) == 0u;
-        if (bar && (song.mute_q & sb) && gclk.pos + n + MUTE_LEAD >= l16) {   /* the COMP source plays on muted (ghost
-                                                         * key): it changes ahead of the bar */
-            if (!trk[src].p[P_MUTE]) {
-                trk[src].p[P_MUTE] = 1;             /* mute: its 5 ms fade (fx.c) ends before the bar's first hit */
-                song.mute_q &= (uint8_t)~sb;
-            } else {
-                pr |= sb;                           /* unmute: its silent voices end (declick) before the bar */
-            }
-        }
-        if (!song.playing || (bar && gclk.pos + n >= l16)) {
-            for (i = 0; i < NTRK; i++)
-                if ((song.mute_q >> i) & 1u) {
-                    trk[i].p[P_MUTE] = (int16_t)!trk[i].p[P_MUTE];
-                    if (trk[i].p[P_MUTE])
-                        pr |= 1u << i;
-                    else if (i == src && song.playing && (!song.solo || ((song.solo >> i) & 1u)))
-                        trk[i].gfade = 0;           /* heard at once: the bar's first hit with its attack (unless
-                                                     * another track's SOLO silences it: trk_silent, inline here) */
-                }
-            song.mute_q = 0;
-        }
-    }
+    if (!clock_mode)                                /* TRACKS' waiting mutes: the own clock's advance is the block */
+        pr |= mute_bar(n, MUTE_LEAD);
     for (i = 0; i < NTRK; i++)
         if ((pr >> i) & 1u)
             drum_cut(&trk[i]);
@@ -678,13 +694,23 @@ static void events_block(uint32_t n)
         seq_n = song.playing ? 0u : n;               /* of this block are read, as upstream: a tempo change rescales */
         if (song.playing) {                          /* first, then this block's advance is in the new units) */
             uint32_t last = midi_clock.have_pulse ? midi_clock.last_ms : midi_clock.start_ms;
+#if USB8_OK
+            if (fm1_ms - last > 500u && (clock_mode != 1u || (int32_t)(fm1_ms - usb_hold_until) >= 0)) {
+#else
             if (fm1_ms - last > 500u) {
-                seq_stop();                          /* the clock lost (a cable out): stop, nothing left running */
+#endif
+                seq_stop();                          /* the clock lost (a cable out): stop, nothing left running (CLK
+                                                      * USB: not while MENU > USB AUDIO reconnects, ui_menu.c) */
                 midi_clock.tempo_valid = 0;
             } else {
                 seq_n = midi_clock_advance(fm1_ms);
             }
         }
+        pr = mute_bar(seq_n, midi_clock.pulse_samples > MUTE_LEAD ? midi_clock.pulse_samples : MUTE_LEAD);
+        for (i = 0; pr && i < NTRK; i++)            /* (after the block's keys and MIDI: a live hit in the bar's block
+                                                     * counts as one just before the bar) */
+            if ((pr >> i) & 1u)
+                drum_cut(&trk[i]);
     }
     run = !clock_mode || midi_clock.have_pulse || !song.playing;   /* following: step 0 / the resumed step on the first
                                                      * pulse; stopped, seq_tick counts ACID's gates in real time */

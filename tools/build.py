@@ -505,6 +505,12 @@ def main():
                          f"({len(cup.selected(cup.functions(ref_dis)))} functions)")
         if not e3:
             notes.append("gate 3: no BT start-up reachable at boot (only through ble_user_start)")
+        # MENU > USB AUDIO 10 CH is the standard build's only (owner 2026-10-26: the Bluetooth build's RAM)
+        u10 = [n for n in ("uac8_service", "ua8_ring", "usb_mode_service", "usbaud", "usb8_tap")
+               if re.search(r"\s" + n + r"$", syms, re.M)]
+        errors += [f"USB AUDIO 10 CH code in the Bluetooth build: {', '.join(u10)}"] if u10 else []
+        if not u10:
+            notes.append("USB AUDIO: 2 CH only (no 10 CH code in the Bluetooth build)")
     hal_err = mmio_check()
     errors += hal_err
     if not hal_err:

@@ -14,6 +14,7 @@ name, C4 = 60, else 60); without LO-HI the zones split the keyboard between thei
 A slot holds 80 KiB (about 7 s at 22050 Hz). Protocol: web/EDITOR_PROTOCOL.md, cmds 11..15.
 Needs mido (and a backend such as python-rtmidi) for the device commands.
 """
+import re
 import sys
 import time
 from pathlib import Path
@@ -22,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sampleio as sio  # noqa: E402
 
 HDR = [0x7D, 0x46, 0x4C]
+PORT = re.compile(r"hortator|felucca", re.I)   # the app's USB name: "Hortator" (older firmware: "Felucca")
 RC = {1: "size", 2: "header", 3: "data CRC", 4: "flash", 5: "zones"}
 
 
@@ -42,10 +44,10 @@ class Link:
         except ImportError:
             sys.exit("needs mido: pip install mido python-rtmidi")
         self.mido = mido
-        outs = [n for n in mido.get_output_names() if "Felucca" in n]
-        ins = [n for n in mido.get_input_names() if "Felucca" in n]
+        outs = [n for n in mido.get_output_names() if PORT.search(n)]
+        ins = [n for n in mido.get_input_names() if PORT.search(n)]
         if not outs or not ins:
-            sys.exit("no MIDI port named Felucca: connect the FM-1 (running Felucca) by USB")
+            sys.exit("no MIDI port named Hortator or Felucca: connect the FM-1 (running Hortator) by USB")
         self.o = mido.open_output(outs[0])
         self.i = mido.open_input(ins[0])
         for _ in range(3):                          # the first frame after opening the port can be lost

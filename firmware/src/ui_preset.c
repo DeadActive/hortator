@@ -92,7 +92,7 @@ static void pl_audition(uint32_t hit, uint32_t key)
         ui.pr.pv_trk = (uint8_t)k;
         ui.pr.sv_model = (uint8_t)t->p[P_MODEL];
         for (i = 0; i < 8u; i++)
-            ui.pr.sv_k[i] = (mo.base_ok >> k) & 1u ? mo.base[k][P_E0 + i] : t->p[P_E0 + i];
+            ui.pr.sv_k[i] = motion_rest(k, P_E0 + i);   /* (motion's base, a lock's value under it) */
         ui.pr.sv_pre = t->pre;
         ui.pr.sv_ed = t->pre_ed;
     }
@@ -319,7 +319,7 @@ static void preset_list_input(uint32_t pressed, uint32_t notes, uint32_t home)
     if ((s = panel_enc(EN_PRESET)) != 0)              /* one preset per detent */
         pl_move((int32_t)ui.pr.cur + s);
     if ((s = panel_enc(EN_K1)) != 0)
-        pl_move((int32_t)ui.pr.cur + accel(EN_K1, s, (int32_t)PRE_NID));
+        pl_move((int32_t)ui.pr.cur + accel(EN_K1, s, 64));   /* (a list: at most x4, as before; one a slow click) */
     if ((s = panel_enc(EN_K2)) != 0)
         pl_bank(s);
     if ((s = panel_enc(EN_SELECT)) != 0)

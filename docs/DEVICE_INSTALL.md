@@ -40,6 +40,9 @@ Both directions now work on your FM-1, with firmware many people run.
 3. Connect the FM-1 (powered on, stock or Felucca) and run:
    `~/fm1-venv/bin/python tools/fm1_install.py build/felucca-UNTESTED.fwsc`
    Expected: it finds the FM-1, asks to confirm, writes, and the FM-1 restarts.
+   (The FM-1's USB name: **Hortator** while the drum firmware runs, in a DAW / AUM / the MIDI port list; older
+   drum builds and upstream Felucca: Felucca; while the update is written: **Felucca Update**. The installers and
+   the editor find each of them.)
 
    Or with the web installer: every `DRUM_PACKAGE=1 ./build.sh` also rebuilds a local copy of the site in
    `build/site` with that same package, labelled `drum-<version>+<commit>` (docs/VERSIONING.md; `-dirty` when the source had uncommitted
@@ -219,6 +222,28 @@ Report what you saw first; we'll go through it together.
   the speaker / headphones follow the knob.
 - With nothing recording (DAW closed or another input chosen), the CPU meter is as without USB audio.
 
+### USB AUDIO 10 CH (check on the FM-1)
+
+- MENU > USB AUDIO shows 2 CH after the install (an older settings record reads 2 CH); Audio MIDI Setup lists
+  **Hortator**, 2 channels, as before.
+- Set 10 CH MIX and close the menu (OCT-) while a pattern plays: `USB RECONNECT: 10 CH`; the sound and the steps go on;
+  about a second later Audio MIDI Setup lists **Hortator 8ch**, 10 channels, 44.1 kHz.
+- In a DAW / AUM: 10 inputs (named Main L, Main R, T1 .. T8 where the host shows names). Record T1 .. T8 on eight
+  mono tracks and the master on a stereo one for 5 minutes of a heavy kit: no tears or dropouts; each track on its
+  own channel, nothing of the others in it; with the pans centred and no sends, the eight summed sound like the master.
+  Optional: console `status`: `usb_audio_10ch 1`, `uac8_underruns 0`, `uac8_missed 0` (or a few), `uac8_rate_hz`
+  near 44100.
+- MIDI from the DAW plays after the reconnect (choose the Hortator 8ch port if the DAW lists it as new). CLK USB: the
+  steps pause with the reconnect and go on with the DAW's clock; without it they stop 2 s after.
+- Power off and on: 10 CH is kept (Hortator 8ch). SAFE START (SEQ held): **Hortator**, 2 channels, and the installer
+  finds it there. The installer and the editor also find Hortator 8ch.
+- 10 CH FX (KNOB 1 once more, no reconnect: the DAW keeps recording): channels 1-2 now only the echoes and the
+  reverb (nothing with every send at 0). T1 .. T8 panned like the FM-1 (DAW pan law 0 dB) + the FX pair sound like
+  the master (not PERFORM's master effects, METRO, SPEAKER EQ or the limiter). Switching MIX <-> FX while playing:
+  no click on channels 1-2. Power off and on: 10 CH FX kept.
+- Back to 2 CH, close the menu: Hortator again; the CPU meter as before 10 CH. Windows: note whether it accepts 10
+  CH (it may not).
+
 ### MIDI clock (check on the FM-1)
 
 - GLOBAL > CLK USB, a DAW sending MIDI clock to the FM-1: the DAW's Start / Stop / Continue start, stop and resume
@@ -249,7 +274,7 @@ Report what you saw first; we'll go through it together.
 ### MOTION (check on the FM-1)
 - Select a track and arm it (a REC tap); play; open SOUND and sweep DECAY over a bar: the sweep comes back every
   bar. STOP: the knob back where it was before.
-- SEQ > MOTION: KNOB 1 PLAY OFF (the sweep stops, the events kept) / ON; EVENT shows how many; KNOB 4 CLEAR asks
+- SEQ > MOTION: KNOB 1 PLAY OFF (the sweep stops, the events kept) / ON; MOTION shows how many; KNOB 4 CLEAR asks
   (OCT- keeps, OCT+ clears).
 - Turn DECAY without REC while it plays: that is the new value the loop comes back to.
 - Save the project (stopped), power off and on, load it: the motion plays again.
@@ -308,6 +333,12 @@ Report what you saw first; we'll go through it together.
 - CPU: RESON on 4 tracks (2 CHORD) with a dense pattern: GLOBAL -> SYSTEM CPU under 100 %, no crackle (note the
   CPU % you see: the stress case on the host is above the stock reference, by decision).
 - SAVE / power cycle / LOAD: RESON comes back; an older project loads with RESON OFF.
+- KEYF (KEYFOLLOW, RESON 2/2 KNOB 4; the screen: `build/ui_shots/reson/04_keyf.png`): STRNG on the snare, TUNE C3,
+  KEYF 100 %; steps at C4, C5, G4 (STEP: the step's NOTE): the ring plays C3, C4, G3 (the melody of
+  the steps). KEYF 50 %: half the intervals. KEYS on the track: the ring follows the keys. A fast run of notes with a
+  long DECAY: each new note slides into place without a click. KEYF 0 %: the ring stays at TUNE (as before).
+- A project saved before KEYF loads with KEYF 0 % on every track and sounds as before; KEYF set, SAVE, power
+  cycle, LOAD: it comes back. MIDI LEARN on KEYF names it `T1 R.KEYF`.
 
 ### Panel (stage 2 step 1: check on the FM-1)
 
@@ -630,8 +661,9 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
 
 - Accent (item 1; screen `build/ui_shots/fixes/step_oct_accent_hint.png`, the hint `[OCT+] +TAP ACCENT`): on STEP hold
   OCT+ and tap a step key: an on step gets its accent (the tall bar), again: plain; an off step turns on accented.
-  While OCT+ is held the keys show only the accented steps. A step key held 1 s: nothing but its tap (no accent);
-  held + KNOB 1 / KNOB 2: PROB / RATCH as before. OCT+ tapped alone (32 steps): bank 2 when let go; OCT+ held while
+  While OCT+ is held the keys show only the accented steps. A step key held 1 s: no accent, an on step as it was
+  (Unreleased: a hold never turns a step off, see "Step keys: tap or hold" below); held + KNOB 1 / 2 / 3: PROB /
+  RATCH / accent. OCT+ tapped alone (32 steps): bank 2 when let go; OCT+ held while
   accenting: the bank stays. The same on PATTERN, MOTION, SONG and TRACKS (unarmed). Play: accented steps louder.
 - Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page, DLY / REVERB / CHORUS
   too) and LFO the selected track's white key is lit (track 1: F3, track 2: G3 .. track 8: F4); ALGORITHM moves it, a
@@ -720,3 +752,64 @@ The screens: `build/ui_shots/presets/06_list.png` (the tabs MD MODERN CLASSIC US
 - A project saved on 0.22.0 or earlier loads with the same presets and sound (projects store each model by its
   number and each preset by its fixed uid, neither of which moved): load one, every track's `PRESET` name and `*` as
   before. USER presets unchanged.
+
+### Step keys: tap or hold (check on the FM-1)
+
+The screens: `build/ui_shots/seq/23_step_held_long.png` (step 5 held: `STEP 5  100%  RATCH 1`, the step still on),
+`24_step_held_acc.png` (step 6 held: the knob boxes `PROB 95%`, `RATCH 2`, `ACC ON`; the line `STEP 6  95%  RATCH 2
+ACC`).
+
+- STEP, KEYS off: a quick tap on a step key turns the step on / off when the key is let go (it should still feel
+  immediate). Tap fast runs of steps, two fingers alternating: every tap counts.
+- Hold an ON step's key (about 0.3 s or more), let go: it stays ON, accent / PROB / RATCH unchanged (before: the
+  press turned it off). While held past 0.3 s the hint line shows `STEP n  PROB  RATCH n` and the knob boxes PROB,
+  RATCH, ACC; a tap shows neither.
+- Hold an OFF step's key: at 0.3 s, still held, it turns ON (its key lit, the line and boxes up); let go: it stays on.
+  Hold it short of 0.3 s: nothing until let go (then a tap: on).
+- While a step is held (STEP page): KNOB 1 PROB, KNOB 2 RATCH, KNOB 3 ACCENT (a click right: `ACC ON`, the tall bar,
+  `ACC` at the end of the line; left: `ACC OFF`; more clicks the same way change nothing), even right after pressing;
+  the step stays on when let go. An off step with KNOB 3 turned right at once: on and accented. KNOB 4: nothing.
+- OCT+ held + a step key: its accent flips at once, as before (let go: no further change). Hold one step, tap
+  another: the tapped one toggles, the held one not.
+- The same tap / hold on PATTERN, MOTION, SONG and TRACKS (unarmed); there the knobs stay the page's (PATTERN KNOB 3
+  SWING, not the accent). KEYS on (SCL): the keys play notes, no step changes; step record (KEYS on, stopped, REC) as
+  before.
+
+### Parameter locks (check on the FM-1)
+
+- USR3 at 48 KiB: with an 80 KiB sample in USR3 (uploaded under upstream Felucca before), the first power-on shows
+  `USR3 SHORTENED TO 48K` once; SAMPLE's USR3 still plays (its first 48 KiB). The next power-on says nothing. With
+  USR3 48 KiB or less (or empty), nothing is shown. (If the FM-1 ever says `USR3 CLAMP FAILED` at power-on, SAVE
+  says it too and writes nothing to flash that boot: power off and on.)
+- A project saved by 0.23.3 (FDRE) with MOTION loads (`LOADED`) and its motion plays as before. RENAME it (NAME)
+  before any SAVE, power off and on, load it: still its motion (not `LOCKS LOST`). Save it, power off
+  and on, load it: the same. MOTION's count (SEQ > MOTION, KNOB 2) can now pass 128 (record a long sweep on several tracks).
+- ENV tap (let go): its LED lights and a padlock shows in the top bar, left of the battery (STEPS), at the first
+  press, every time (tap it 10 times: 10 toggles). On SOUND the white keys now tap the selected track's steps (a short tap
+  on / off on the release, a 0.3 s hold turns an off step on), they select no track and play no drum; the key LEDs
+  show the bank's steps. ENV again: LED off, the keys select / play tracks as before. Same on HOME, FX, LFO, COMP and
+  TRACKS with a track armed.
+- STEPS with LEN 64: hold ENV, press OCT+: the next bank (the key LEDs move on); OCT-: back; letting ENV go after that
+  keeps STEPS. OCT+ alone on SOUND: LAYER when OCT+ is let go; OCT+ held + a step key: its accent, no LAYER. On LAYER
+  OCT-: back to SOUND. On an LFO page OCT+: the RATE MODE cycles. On SEQ STEP OCT+ / OCT- are the bank as before.
+- KEYS (SCL) on, ENV: KEYS goes off, STEPS on; SCL again: STEPS off, KEYS on. Power off and on: STEPS off.
+- Hold a step key in STEPS, tap ENV while holding it: TRACKS; letting the key go changes nothing.
+- STEPS on SOUND, play a 4-on-the-floor kick: hold step 5's key, turn DECAY up a lot: the top bar says
+  `LOCK STEP 5`, the DECAY cell shows the new value inverted; let go: the cell shows the knob's own value again. Step
+  5's kick is long, the others as before (snap back). Repeat a lock on each family: LAYER (LEVEL), FX (DIST, REV),
+  SLICER, RESON (TUNE, MIX), FILTER (CUT), LFO (RATE, DEPTH), LFO DEST slot 3 DEPTH, HOME (a macro), TRACKS (LEVEL,
+  PAN): each plays on its step only. MODEL, FILTER TYPE, RESON MODEL, an LFO's WAVE / DEST / SRC: nothing happens while
+  a step is held.
+- An LFO on DECAY plus a lock on DECAY: on the locked step the wobble is round the locked value.
+- Hold the step, tap OCT-: `STEP 5 LOCKS CLEARED`, this page's locks gone (another page's kept). Hold the step, hold
+  OCT- 0.6 s: `STEP 5 ALL CLEARED`. OCT- with no step held: LAYER back to SOUND as usual.
+- With the project full (1024 events), a lock turn says `LOCKS FULL`.
+- Locks on two tracks and a few pages, SAVE the project (stopped), power off and on, LOAD it: every lock plays as
+  before; `LOADED` (not `LOCKS LOST`).
+- A song of two rows, slot A (with locks) and slot B (without): PLAY on SONG: A's rows play their locks, B's rows play
+  the knobs' own values, and nothing of A's locks is left on in B.
+- Optional (downgrade is not supported): on an older Hortator (0.23.x) a project saved now reads as an empty slot
+  (`EMPTY SLOT` on LOAD; `LOAD FAILED` at power-on if it was the last one saved); nothing else breaks; back on this
+  build it loads.
+- STEPS: a locked step has a short line under its box in the footer's step strip (another bank: ENV + OCT+ shows its
+  own); ENV off: no lines. SEQ > MOTION: KNOB 2 `MOTION` and KNOB 3 `LOCKS` count the selected track's.

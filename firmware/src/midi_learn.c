@@ -93,6 +93,8 @@ static __attribute__((noinline)) void ml_set(track_t *t, uint32_t id, uint32_t v
     nv = ml_value(d, v);
     if ((mo.base_ok >> k) & 1u)
         mo.base[k][id] = (int16_t)nv;
+    if (lock_held(k, id))
+        mo.under[k][id] = (int16_t)nv;              /* (a locked step: what the knob goes back to) */
     if (*motion_slot(t, id) == nv)
         return;
     lf = song.lfo_in && (t->lon || lfo_own(id));    /* (lfo_track: lon, the LFOs on; an LFO's or a slot's knob) */

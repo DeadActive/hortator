@@ -185,6 +185,19 @@ static void con_uac(void)                              /* USB audio input: strea
     con_kv("uac_fill", (int32_t)uac.fill_min);
     con_kv("uac_fill_lo", uac.fill_lo == 0xFFFFFFFFu ? -1 : (int32_t)uac.fill_lo);
     con_kv("uac_fill_hi", (int32_t)uac.fill_hi);
+#if USB8_OK
+    {                                                   /* MENU > USB AUDIO 10 CH's stream (usb_app8.c uac8) */
+        uint32_t q = uac8.pkts;
+        con_kv("usb_audio_10ch", usb10);
+        con_kv("uac8_alt", uac8.alt);
+        con_kv("uac8_pkts", (int32_t)q);
+        con_kv("uac8_rate_hz", q ? 44000 + (int32_t)(uac8.frames - 44u * q) * 1000 / (int32_t)q : 0);
+        con_kv("uac8_underruns", (int32_t)uac8.underruns);
+        con_kv("uac8_overruns", (int32_t)uac8.overruns);
+        con_kv("uac8_missed", (int32_t)uac8.missed);
+        con_kv("uac8_stalls", (int32_t)uac8.stalls);
+    }
+#endif
 }
 #endif
 
