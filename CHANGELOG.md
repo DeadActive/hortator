@@ -5,6 +5,8 @@ The drum firmware's versions (docs/VERSIONING.md). Newest first; notes go under 
 
 ## Unreleased
 
+## 0.25.0 - 2026-10-27
+
 - **USB AUDIO 10 CH FX** (owner 2026-10-26: "8 mono + stereo FX give full mix control"): MENU > USB AUDIO is 2 CH /
   10 CH MIX (channels 1-2 the master, the 10 CH before) / 10 CH FX (channels 1-2 the chorus, delay and reverb
   buses' return, mono on both, at the MASTER level, before PERFORM's master effects, METRO and the master chain).
