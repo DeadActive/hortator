@@ -216,6 +216,18 @@
       <p class="where">Tap <b>GLO</b> for CH and CLK. Hold <b>GLO</b> + G4 to learn, <b>OCT+</b> when done. Hold
         <b>HOME</b> for USB AUDIO.</p>
     </li>
+    <li class="guide" id="m-ble">
+      <h3>Bluetooth</h3>
+      <p>The Bluetooth version adds a BLUETOOTH page to the menu. ROLE HOST: the FM&#8209;1 connects a BLE&#8209;MIDI
+        controller, the M&#8209;VAVE SMC&#8209;Mixer or another FM&#8209;1 itself; set BLUETOOTH ON, + ADD A DEVICE, pick
+        it. ROLE DEVICE: the FM&#8209;1 is <b>Felucca FM&#8209;1</b>, a Bluetooth MIDI port for a Mac (Audio MIDI Setup,
+        Bluetooth, Connect), an iPad app or another FM&#8209;1. Notes, MIDI LEARN, CLK BLE and SYNC BLE work as over
+        USB. FM&#8209;Link keeps two FM&#8209;1s in time: the leader on CLK INT (or following a DAW's clock), the
+        follower on CLK LINK; PLAY on the leader starts both.</p>
+      <p>It leaves out USB AUDIO 10 CH (USB audio is 2 CH there). Known issue: a saved device that is not connected can
+        make the sound stutter now and then; FORGET the ones you don't use (KNOB 1 left on its line, OCT+).</p>
+      <p class="where">Hold <b>HOME</b>, <b>SELECT</b> to BLUETOOTH, <b>OCT+</b>. Step by step: the <a href="https://github.com/DeadActive/hortator#connecting-step-by-step" target="_blank" rel="noopener">README</a>.</p>
+    </li>
     <li class="guide" id="m-settings">
       <h3>Make it yours</h3>
       <p>Hold HOME for the menu. COLOR picks one of six screen themes, ACCEL speeds a knob up as it turns faster,
@@ -331,7 +343,8 @@
     <div class="ch-text">
       <h3 id="f-ble-title">Bluetooth MIDI</h3>
       <p>The Bluetooth version connects to Bluetooth MIDI controllers itself. An M-VAVE SMC-Mixer becomes
-        its mixer (levels, the selected track's knobs, MUTE, SOLO); other controllers play the tracks.</p>
+        its mixer (levels, the selected track's knobs, MUTE, SOLO); other controllers play the tracks. It is also a
+        Bluetooth MIDI device for a computer or a tablet, and FM-Link plays two FM-1s in time without a cable.</p>
       <p class="where">Hold <b>HOME</b> for the menu, <b>SELECT</b> to BLUETOOTH, <b>OCT+</b>. Off at power-on unless AUTOSTART is ON.</p>
       <figure class="device-screen">
         <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>

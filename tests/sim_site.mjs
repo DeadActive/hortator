@@ -179,7 +179,7 @@ test('manual: the panel map lists every knob and button, with the keys; every gu
   for (const c of mapped) assert.ok(labels.has(c) || c === 'white' || c === 'black', `${c} is not on the panel`);
   for (const [, k] of list.matchAll(/<b>([^<]+)<\/b>/g)) assert.ok(labels.has(k), `map: ${k} is not on the panel`);
   const guides = [...sec.matchAll(/<li class="guide" id="m-(\w+)">([\s\S]*?)<\/li>/g)];
-  assert.equal(guides.length, 10, 'ten guides');
+  assert.equal(guides.length, 11, 'eleven guides (Bluetooth the 10th)');
   for (const [, id, g] of guides) {
     assert.match(g, /<h3>[^<]+<\/h3>/, `${id}: its title`);
     const where = g.match(/<p class="where">([\s\S]*?)<\/p>/)?.[1];

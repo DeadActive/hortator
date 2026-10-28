@@ -78,6 +78,12 @@ released yet are listed under Unreleased.
   - The device the old page remembered becomes the first saved device; MODE and AUTOSTART carry over. The saved
     devices, ROLE, RECONNECT and this FM-1's Bluetooth address are kept over power-off, in a place older versions
     ignore. The standard version is unchanged.
+  - What the Bluetooth version leaves out: USB AUDIO 10 CH MIX and 10 CH FX (USB audio is always 2 CH there). The
+    manual has a new Bluetooth section: what it adds, what it leaves out, and step-by-step connecting of a MIDI
+    controller, the SMC-Mixer, a computer or tablet, and two FM-1s with FM-Link.
+  - **Known issue**: while Bluetooth is on, a saved device that is not connected can make the sound stutter now and
+    then, as the FM-1 keeps looking for it. If you no longer use a device, FORGET it on the Bluetooth page (KNOB 1 left
+    on its line, OCT+); or switch Bluetooth off when you don't need it.
 
 ## 0.25.0 - 2026-10-27
 

@@ -391,11 +391,89 @@ a held ACID note goes last. The same order picks the voice to stop when too many
 ## Bluetooth MIDI
 
 A second version of each release, **Hortator + Bluetooth MIDI** (experimental): the installer offers it next to the
-plain one, and the release has it as `hortator-X.Y.Z-bluetooth.fwsc`. Everything above works the same in it.
+plain one, and the release has it as `hortator-X.Y.Z-bluetooth.fwsc`. Everything above works the same in it, except
+what is listed under [What it leaves out](#what-it-leaves-out).
 Bluetooth is **off at every power-on**, unless you set AUTOSTART ON (below); it runs only after you turn it on, until
 the FM-1 is switched off.
 
 Please credit me if you using bluetooth code in your firmware🙏🏻
+
+### What Bluetooth adds
+
+| | What you get |
+| --- | --- |
+| **MIDI over Bluetooth** | A BLE-MIDI controller (keyboard, pads, knobs) plays and controls the FM-1 as USB MIDI does: notes play the tracks (GLO CH and ROUT), MIDI LEARN learns its CCs and notes, CLK BLE follows its clock. The FM-1's key hits go back to it, SYNC BLE / BOTH sends it the FM-1's MIDI clock, THRU passes notes between it and USB. |
+| **ROLE HOST** | The FM-1 finds and connects the devices itself: up to 8 saved, a controller and another FM-1 linked at once, reconnected by themselves. |
+| **ROLE DEVICE** | The FM-1 is itself a Bluetooth MIDI device, **Felucca FM-1**, for a computer, a tablet or another FM-1 to connect to: wireless MIDI to and from a DAW or AUM. |
+| **SMC-Mixer** | The M-VAVE SMC-Mixer becomes the FM-1's mixer: faders = track levels, MUTE / SOLO / REC / SELECT per track, transport, knobs for the selected track's sound ([below](#the-smc-mixer-daw-mode)). |
+| **FM-Link** | Two FM-1s in time over Bluetooth, without MIDI clock: PLAY on one starts both, the tempo follows, STOP stops both. The leader can itself follow a DAW's clock. |
+
+### What it leaves out
+
+The Bluetooth stack needs memory and CPU of its own, so the Bluetooth version has less than the plain one:
+
+- **USB AUDIO 10 CH MIX and 10 CH FX** are not in it: USB audio is always 2 CH (the stereo master), and the menu has no
+  USB AUDIO row. For 10 channels into a DAW use the plain version.
+- **The simulator** on the website runs the plain version: it has no Bluetooth page.
+- It is **experimental**: the audio has less headroom while Bluetooth is on (see the known issue below).
+
+**Known issue: a saved device that is not connected can make the sound stutter.** While BLUETOOTH is ON the FM-1 keeps
+looking for every saved device it is not linked to, and those tries can interrupt the audio for a moment. If you no
+longer use a device, remove it: on the Bluetooth page turn KNOB 1 left on its line, `FORGET <name>?`, OCT+. Keep only
+the devices you use (or switch BLUETOOTH OFF when you don't need it).
+
+### Connecting, step by step
+
+Bluetooth is on the menu: hold **HOME**, **SELECT** to BLUETOOTH, **OCT+**. On the Bluetooth page SELECT moves the
+cursor, KNOB 1 changes a row, OCT+ acts, OCT- goes back.
+
+**A Bluetooth MIDI controller (keyboard, pads, knobs)**
+
+1. Switch the controller on and make it discoverable (most BLE-MIDI controllers are, as soon as they are on).
+2. On the FM-1: ROLE **HOST**, MODE **AUTO** (or **MIDI**), BLUETOOTH **ON**.
+3. SELECT to **+ ADD A DEVICE**, OCT+. After the 8 s scan, SELECT to the controller (it says `MIDI`), OCT+. It is saved
+   and connects; the top bar shows `BT CONNECTED`.
+4. Play: notes on the drum channel (GLO CH, 10 at first) play the tracks whose NOTE matches; GLO ROUT SEL plays the
+   selected track pitched, ROUT TRACK plays tracks 1–8 from channels 1–8. To map its knobs: MIDI LEARN (hold GLO,
+   press G4).
+5. To play in time with it: GLO CLK **BLE** follows its clock; GLO SYNC **BLE** (or BOTH, USB too) sends it the FM-1's.
+6. Next time it connects by itself once BLUETOOTH is ON (or set AUTOSTART ON).
+
+**The SMC-Mixer**
+
+1. Switch the SMC-Mixer on in its **DAW** (Mackie Control) mode.
+2. On the FM-1: ROLE **HOST**, MODE **AUTO** (it is recognised by its name) or **SMC DAW**, BLUETOOTH **ON**.
+3. + ADD A DEVICE, OCT+, pick the `SMC` device, OCT+. Its LEDs light with the FM-1's state.
+4. Move each fader to its track's level to pick it up (its LED blinks until then), then mix. SELECT picks the track
+   whose sound knobs 1–4 change; knobs 5–8 are MIDI LEARN's.
+
+**A computer or a tablet (the FM-1 as a Bluetooth MIDI device)**
+
+1. On the FM-1: ROLE **DEVICE**, BLUETOOTH **ON**. The page says `WAITING FOR A HOST`.
+2. Connect from the computer or tablet; no pairing is needed:
+   - **macOS**: Audio MIDI Setup > Window > Show MIDI Studio > the Bluetooth icon, then **Connect** next to
+     `Felucca FM-1`.
+   - **iPad / iPhone**: in the app's Bluetooth MIDI screen (AUM, GarageBand, Logic Remote and others), tap
+     `Felucca FM-1`.
+   - **Android / Windows**: an app that connects BLE-MIDI devices.
+3. The page says `CONNECTED` and the host's name. `Felucca FM-1` is now a MIDI port in the DAW or app.
+4. From the DAW: send notes to it on the drum channel (or use ROUT SEL / TRACK); to have the FM-1 follow the DAW's
+   tempo and transport set GLO CLK **BLE** and turn on the DAW's MIDI clock out to `Felucca FM-1`.
+5. To the DAW: the FM-1's key hits come in as notes (record them); with GLO SYNC **BLE** the DAW can follow the FM-1's
+   clock instead (one clock direction at a time).
+
+**Two FM-1s with FM-Link**
+
+1. On FM-1 **B**: ROLE **DEVICE**, BLUETOOTH **ON**.
+2. On FM-1 **A**: ROLE **HOST**, BLUETOOTH **ON**, + ADD A DEVICE, pick `Felucca FM-1` (shown as `FM-1` and the last
+   four digits of its address), OCT+.
+3. Choose the leader and the follower: the leader's GLO CLK is **INT** (or USB / TRS / BLE to follow a DAW); the
+   follower's GLO CLK is **LINK** (after BLE). Either FM-1 can lead. The screens say `FM-LINK: LEADING` and
+   `FM-LINK: FOLLOWING`.
+4. PLAY on the leader: both start together. The follower takes the leader's tempo; STOP on the leader stops both. With
+   the leader following a DAW, the DAW's Start and Stop drive both.
+5. MODE **FM-LINK** keeps the link for FM-Link only (no MIDI on it either way); in MIDI or AUTO the same FM-1 can still
+   have a MIDI controller linked as well.
 
 ### The Bluetooth page
 
@@ -424,7 +502,9 @@ picked them (ADD, or OCT+ "use now", puts one first); connecting by itself never
 it reconnects by itself, as long as BLUETOOTH is ON; a device that dropped keeps its link for 30 s (no other of its
 kind takes its place meanwhile). Scanning never drops a link. The device the earlier Bluetooth page remembered becomes
 the first saved device (its name appears once it is seen). Each FM-1 has one Bluetooth address for good (made the
-first time Bluetooth starts), so a saved FM-1 is found again.
+first time Bluetooth starts), so a saved FM-1 is found again. A saved device that is not connected is looked for
+again and again, which can make the sound stutter: FORGET the devices you don't use
+([known issue](#what-it-leaves-out)).
 
 **MIDI mode.** Notes play the tracks as over USB and TRS (GLO: CH and [ROUT](#midi)); MIDI LEARN learns the device's
 CCs and notes. GLO: **CLK BLE** follows the device's MIDI clock (Start, Stop and the tempo), as CLK USB / TRS do; the
