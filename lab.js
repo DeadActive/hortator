@@ -4,7 +4,7 @@
 // (tests/sim_lab.c in fm1sim.wasm) driven directly for the feature pieces. One class, two uses: the analyser in the
 // page (silent: a voice's waveform, the Grids lanes, the sequencer's dice) and the player in an AudioWorklet
 // (worklet.js 'fm1lab': the same calls, heard live). Ids come from lab_ids.json, made from the firmware's enums.
-import { Fm1Sim } from './engine.js?v=d2af565941';
+import { Fm1Sim } from './engine.js?v=9d7508cdf2';
 
 const PROBE = { gr: 0, lfo: 4, fired: 68, idx: 72, muteQ: 88, muted: 89, watch: 90 };   // sim_lab.c lab_probe_t (92 B)
 
@@ -117,7 +117,7 @@ export class LabPlayer {
   static async start(wasm, ids) {
     const ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                     // inside the click: the browser allows sound from here
-    await ctx.audioWorklet.addModule('worklet.js?v=d2af565941');
+    await ctx.audioWorklet.addModule('worklet.js?v=9d7508cdf2');
     const node = new AudioWorkletNode(ctx, 'fm1lab', {
       numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm: wasm.slice(0), ids },
     });

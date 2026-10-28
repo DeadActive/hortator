@@ -1,35 +1,59 @@
 {
- "version": "0.25.0",
- "commit": "022f6d1",
- "date": "2026-10-27",
+ "version": "0.26.0",
+ "commit": "4e40f27",
+ "date": "2026-10-28",
  "since": [],
  "release": {
-  "version": "0.25.0",
-  "date": "2026-10-27",
+  "version": "0.26.0",
+  "date": "2026-10-28",
   "notes": [
    {
-    "title": "USB audio, 2 or 10 channels",
-    "text": "USB audio, 2 or 10 channels: the FM-1 records into a computer over its USB cable (16-bit, 44.1 kHz), and MENU (hold HOME) > USB AUDIO now picks what it sends. 2 CH, the default, is the stereo master, exactly as before. 10 CH MIX sends the master on channels 1-2 and the eight tracks T1..T8 on channels 3-10, one mono channel each (each track before its PAN, the effect sends and the master effects). 10 CH FX sends the same eight tracks, with the chorus, delay and reverb returns on channels 1-2 instead of the master: pan the tracks in your DAW and add the effects pair to get the whole mix back, each part on its own fader."
+    "title": "Steadier key backlight",
+    "text": "Steadier key backlight: the glow of BACKLIGHT DIM LO and DIM HI (the unlit keys and idle buttons) is now a very short flash about 900 times a second instead of a longer one 45 times a second. It no longer flickers, and in the Bluetooth version it no longer jumps brighter for an instant while Bluetooth is on."
    },
    {
-    "title": "Switching",
-    "text": "Switching: 2 CH <-> 10 CH takes effect when the menu closes: the FM-1 leaves USB for about a second and comes back as the other device, \"Hortator 8ch\" in 10 CH (its channels named Main L, Main R, T1..T8). The sequencer and the sound play on; when following CLK USB the steps wait up to 2 s for the clock to come back. MIX <-> FX switches at once with a short cross-fade, no reconnect."
+    "title": "MIDI clock out",
+    "text": "MIDI clock out: GLO SYSTEM 2/3 SYNC sends the MIDI clock to USB (OFF / USB; in the Bluetooth version also BLE and BOTH). On the FM-1's own clock PLAY sends Start, then 24 clocks a quarter note on the sequencer's grid (steady through tempo changes, never swung), and STOP sends Stop, so a DAW, AUM or another instrument can follow it. Following a clock (CLK USB, TRS or BLE), the incoming clock and Start / Stop / Continue go on to the SYNC outputs as they arrive, never back to where they came from. Nothing is sent during a firmware update. The FM-1's TRS jack is an input only, so there is no TRS out."
    },
    {
-    "title": "Saved",
-    "text": "Saved: USB AUDIO is a device setting, saved and not part of projects; older settings start in 2 CH. A safe start (SEQ held at power-on) is always 2 CH."
+    "title": "MIDI in routing",
+    "text": "MIDI in routing: GLO SYSTEM 2/3 ROUT chooses how incoming notes play: NOTE (as before: on the drum channel, the tracks whose NOTE it is), SEL (on the drum channel, the selected track, pitched from C4) or TRACK (channels 1\u20138 play tracks 1\u20138, pitched from C4). Pitched notes into an armed track are recorded with their pitch. With TRACK the white keys send on their track's channel at C4."
    },
    {
-    "title": "Computers",
-    "text": "Computers: the 10 channels work on macOS and iPadOS (class-compliant USB audio) and on Linux. Windows may not accept 10 CH: use 2 CH there."
+    "title": "MIDI THRU",
+    "text": "MIDI THRU: GLOBAL 3/3 THRU ON passes notes and CCs from each MIDI input to the other outputs (the TRS jack to USB; Bluetooth and USB to each other in the Bluetooth version), never back to the input. It is a setting of the FM-1, kept over power-off."
+   },
+   {
+    "title": "SYNC and ROUT are saved",
+    "text": "SYNC and ROUT are saved with each project; projects saved before load SYNC OFF and ROUT NOTE, and THRU starts OFF."
+   },
+   {
+    "title": "Live cue and variations",
+    "text": "Live cue and variations: while a pattern plays, queue the next project slot (A\u2013D) or another variation and it comes in exactly where the pattern ends (its longest track's), every track from its first step, in time. On HOME and the SEQ pages the first 8 black keys (F#3 to A#4) queue variations 1\u20138 of the playing slot: the playing one's key lit, a queued one blinking (not with KEYS on; elsewhere the black keys work as before). Hold SAVE (0.4 s, or press a key with it) for the cue map: white keys 1\u20134 queue slots A\u2013D, the black keys variations 1\u20138 (lit: used, winking: playing, blinking: queued, breathing: unsaved edits); a slot key then a variation key queues both (CUE>B3 on top). The same key again switches at the next step; the playing slot's key cancels; stopped, a cue switches at once; STOP drops a queued cue. The keys pressed with SAVE play no note, send no MIDI and record nothing. A SAVE tap still opens the projects page, now when it is let go. - A slot switch brings the slot's sounds, steps, timing and locks; the tempo, swing, clock, MIDI, the master effects, Grids, the mutes and the selected track stay. The old sounds fade out over the last 5 ms before the switch (no click). A variation switch changes the steps and the timing only; the sounds ring on. - Each slot has 8 variations, in both the plain and the Bluetooth version: variation 1 is its own steps; 2\u20138 hold their own steps and timing and share the slot's sounds and locks. A variation never used before starts as a copy of the one playing when it is first cued. When a slot's variations are full the cue says VARIATIONS FULL and the playing one plays on. A slot comes back on the variation it played last. A SONG row plays its slot's variation 1; while SONG plays a cue says STOP SONG TO CUE. Following an external clock (USB or TRS) the switch comes on the pulse that ends the pattern."
+   },
+   {
+    "title": "Edits stay in RAM until SAVE",
+    "text": "Edits stay in RAM until SAVE: a reset or a power cut brings every slot back as it was last saved. Leaving a slot by LOAD or by a cue keeps its edits in RAM, so going back finds them; a slot with unsaved edits shows * in the PROJECTS list. LOAD of a slot with unsaved edits (a tempo change counts) asks DISCARD EDITS?; SAVE onto a slot that is not loaded but has unsaved edits asks OVERWRITE B*?. SAVE to another slot moves the edits there (the slot you came from is its saved version again). RENAME of a slot with unsaved edits renames it in RAM only (RENAMED (SAVE TO KEEP)). Unsaved variations of one slot can wait in RAM while another plays: until they are saved, a cue of a third slot (or a LOAD, when the slot you leave has unsaved variations too) says SAVE C FIRST."
+   },
+   {
+    "title": "FILL",
+    "text": "FILL: a step's PROB goes on past 8/8 with FILL (plays only during a fill) and !FILL (only outside one). Hold REC (0.4 s) on any page but SEQ's to play a fill while you hold it (FILL on top). A shorter REC press arms as before, when it is let go; REC held on STEP, PATTERN, MOTION and SONG does what it did. A learned REC and the SMC-Mixer's REC are always taps. (A long REC hold off the SEQ pages used to toggle REC ALL.)"
+   },
+   {
+    "title": "COPY / PASTE a slot",
+    "text": "COPY / PASTE a slot: SAVE's third page, COPY: KNOB 2 COPY remembers SLOT's slot (COPIED A, # in the list), KNOB 3 PASTE (turn twice) makes SLOT's slot a copy of it: kit, steps, locks, variations and song, named ... COPY, unsaved until SAVE. PASTE again on the same slot before saving it undoes it (PASTE UNDONE). Not while playing (STOP TO PASTE)."
+   },
+   {
+    "title": "User sample slot 2",
+    "text": "User sample slot 2 (USR2) now holds up to 48 KiB, as USR3 does: the rest of its flash holds the projects' variations. A longer USR2 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the next power-on (USR2 SHORTENED TO 48K). If that ever fails (USR2 CLAMP FAILED at power-on), SAVE says USR2 ERROR: NO SAVE until the next power-on."
+   },
+   {
+    "title": "Projects",
+    "text": "Projects: a project saved now loads on 0.25.0 and 0.24.0 without its variations. If a project's variations can't be read, it loads without them and the FM-1 says VARIATIONS LOST once. A power cut during SAVE keeps the previous save whole."
    },
    {
     "title": "Bluetooth version",
-    "text": "Bluetooth version: 10 CH needs the standard build. The Bluetooth build is unchanged from 0.24.0: it has no USB AUDIO row, is always 2 CH and ignores a 10 CH setting saved by the standard build."
-   },
-   {
-    "title": "Manual",
-    "text": "Manual: the landing page has a manual before the engines: a map of the panel (point at a control on a small FM-1, or at its line, to see what it does) and ten short guides (find your way, make a beat, shape a sound, play and record live, mute, perform, lock a step, save and chain, MIDI and LEARN, settings). Manual is in the top bar and the footer, and \"More below\" leads to it."
+    "text": "Bluetooth version: a new Bluetooth page, in Hortator's own look. ROLE (HOST / DEVICE), MODE (now also FM-LINK) and RECONNECT (AUTO / FAST / SLOW), and up to 8 saved devices, controllers and FM-1s, each on its own line (connected or not, CTRL or FM-1, ON / NEAR / AWAY), with + ADD A DEVICE (an 8 s scan, then the list stays), FORGET and \"use now\". Two links at once (a controller and another FM-1), reconnected by themselves in the order you picked; scanning never drops a link. The top bar shows a Bluetooth rune (struck through while nothing is linked). - ROLE DEVICE: the FM-1 is a BLE-MIDI device for a computer, a tablet or another FM-1. - FM-Link: two FM-1s in time (CLK LINK follows the leader), with Felucca's Bluetooth version too. The leader runs on its own clock (CLK INT) or follows a MIDI clock (CLK USB, TRS or BLE). Following a clock, the leader passes its Start, Stop and tempo on: the other FM-1 starts from beat 1 with it, within a few milliseconds, and keeps in time. In MODE FM-LINK the link carries FM-Link only: no MIDI either way, so no MIDI clock either. - MIDI to the device: in MIDI mode the key hits go to the linked device too, and GLO SYNC BLE or BOTH sends it the MIDI clock (one clock, the same as USB's). - The SMC-Mixer's knobs 5-8 are MIDI LEARN's. - The device the old page remembered becomes the first saved device; MODE and AUTOSTART carry over. The saved devices, ROLE, RECONNECT and this FM-1's Bluetooth address are kept over power-off, in a place older versions ignore. The standard version is unchanged. - What the Bluetooth version leaves out: USB AUDIO 10 CH MIX and 10 CH FX (USB audio is always 2 CH there). The manual has a new Bluetooth section: what it adds, what it leaves out, and step-by-step connecting of a MIDI controller, the SMC-Mixer, a computer or tablet, and two FM-1s with FM-Link. - Known issue: while Bluetooth is on, a saved device that is not connected can make the sound stutter now and then, as the FM-1 keeps looking for it. If you no longer use a device, FORGET it on the Bluetooth page (KNOB 1 left on its line, OCT+); or switch Bluetooth off when you don't need it."
    }
   ]
  }

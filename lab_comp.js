@@ -4,9 +4,9 @@
 // the 16ths, the hats and the line ducked under the kick (Streams' compressor keyed by track 1). The firmware renders
 // the bar twice, bypassed and compressed, after a bar of warm-up; the compressor's gain reduction per audio half (the
 // lab's probes) is drawn under it. Playing, a playhead follows the sequencer's step and a meter shows the reduction now.
-import { el, knob, chips, scope, INK } from './lab_ui.js?v=d2af565941';
-import * as draw from './lab_draw.js?v=d2af565941';
-import { ditherPattern } from './dither.js?v=d2af565941';
+import { el, knob, chips, scope, INK } from './lab_ui.js?v=9d7508cdf2';
+import * as draw from './lab_draw.js?v=9d7508cdf2';
+import { ditherPattern } from './dither.js?v=9d7508cdf2';
 
 const DB = gr => gr * 241 / 327680;                  // comp.gr -> dB, as the FM-1's COMP page (ui_draw.c)
 const FLOOR = -24;                                   // the trace's bottom, dB
