@@ -419,6 +419,24 @@ static void test_pages(void)
         ml_name(b);
         check("RESON 2/2: KNOB 4 is KEYF, named T3 R.KEYF", ui.ml.id == P_RKEY && ui.ml.trk == 2u && same(b, "T3 R.KEYF"));
     }
+    trk[2].p[P_ITYPE] = IT_SOFT;
+    for (k = 0; k < 12u && page_id(cur_page(), 0) != P_ITYPE; k++)
+        tap(B_FX);
+    knob(1, 1);
+    {
+        char b[16];
+        ml_name(b);
+        check("INSERT: KNOB 2 is A, named by the TYPE: T3 I.DRIVE", ui.ml.id == P_IA && ui.ml.trk == 2u &&
+              same(b, "T3 I.DRIVE"));
+    }
+    tap(B_FX);                                       /* INSERT 2/2 */
+    knob(1, 1);
+    {
+        char b[16];
+        ml_name(b);
+        check("INSERT 2/2: KNOB 2 is SRR, named T3 SRR", ui.ml.id == P_SRR && ui.ml.trk == 2u && same(b, "T3 SRR"));
+    }
+    trk[2].p[P_ITYPE] = IT_OFF;
     tap(B_HOME);
     tap(B_HOME);
     if (!mix_mode())

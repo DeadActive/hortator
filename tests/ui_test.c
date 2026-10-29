@@ -208,7 +208,10 @@ static void test_select_pages(void)
     sel(1);                                          /* FILTER 2/2 */
     sel(1);                                          /* FX */
     sel(1);
-    check("SELECT on FX: SLICER", str_eq(cur_page()->title, "SLICER"));
+    check("SELECT on FX: INSERT 1/2 (TYPE A B C)", str_eq(cur_page()->title, "INSERT") && page_id(cur_page(), 0) == P_ITYPE);
+    sel(1);                                          /* INSERT 2/2 */
+    sel(1);
+    check("SELECT on INSERT 2/2: SLICER", str_eq(cur_page()->title, "SLICER"));
     sel(1);
     check("SELECT again: RESON 1/2", str_eq(cur_page()->title, "RESON") && page_id(cur_page(), 0) == P_RMODEL);
     sel(-1);
@@ -2252,7 +2255,7 @@ static void test_reson_pages(void)
 {
     uint32_t k, n;
     ui_host_init();
-    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
+    for (k = 0; k < 12u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
         tap(B_FX);
     check("FX: RESON 1/2 after SLICER (MODEL TUNE DECAY MIX)",
           str_eq(cur_page()->title, "RESON") && page_id(cur_page(), 0) == P_RMODEL && page_id(cur_page(), 3) == P_RMIX &&
@@ -2296,7 +2299,7 @@ static void test_reson_pages(void)
     TSEL->p[P_RMODEL] = RS_CHORD;
     trk[1].p[P_RMODEL] = RS_CHORD;                   /* tracks 1 and 2 CHORD: track 3 cannot */
     trk[2].p[P_RMODEL] = RS_PIPE;
-    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
+    for (k = 0; k < 12u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
         tap(B_FX);                                   /* round the FX pages back to RESON 1/2 */
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
@@ -4241,7 +4244,8 @@ static void test_key_selects_track(void)
 {
     static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
         {"SOUND", B_EDIT, 1, 1},
-        {"FILTER", B_FX, 1, 1}, {"FX", B_FX, 3, 1}, {"SLICER", B_FX, 4, 1}, {"RESON", B_FX, 5, 1}, {"DLY", B_FX, 7, 0},
+        {"FILTER", B_FX, 1, 1}, {"FX", B_FX, 3, 1}, {"INSERT", B_FX, 4, 1}, {"SLICER", B_FX, 6, 1}, {"RESON", B_FX, 7, 1},
+        {"DLY", B_FX, 9, 0},
         {"PATTERN", B_SEQ, 2, 0},
     };
     uint32_t i, ok = 1;
@@ -5331,6 +5335,52 @@ static void test_filter_screens(void)
         param_format(&TP[P_LFO1 + LF_DEST], 17, v, &u);
         check("LFO DEST 17 reads F.CUT", str_eq(v, "F.CUT"));
     }
+}
+
+/* INSERT (insert.c, from Skiff / Felucca 1.5): two pages after FX (DIST and the sends), before the SLICER: TYPE A B
+ * C (A B C named by the TYPE), then MIX and SRR; the graph per TYPE */
+static void test_insert_screens(void)
+{
+    static const char *const SHOT[IT_N] = {"insert/off", "insert/soft", "insert/hard", "insert/fold", "insert/fuzz",
+                                           "insert/crush", "insert/phasr", "insert/flang", "insert/chor"};
+    uint32_t k, ty;
+    int16_t *vp;
+    ui_host_init();
+    for (k = 0; k < NPAGES && (ui.home || page_id(cur_page(), 0) != P_ITYPE); k++)
+        tap(B_FX);
+    check("FX: INSERT 1/2 after FX (TYPE A B C), OFF by default",
+          str_eq(cur_page()->title, "INSERT") && page_id(cur_page(), 0) == P_ITYPE && page_id(cur_page(), 3) == P_IC &&
+              str_eq(page_desc(cur_page(), 1, &vp)->label, "A") && TSEL->p[P_ITYPE] == IT_OFF);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("INSERT TYPE: one step right is SOFT; A B C read DRIVE TONE LEVEL", TSEL->p[P_ITYPE] == IT_SOFT &&
+          str_eq(page_desc(cur_page(), 1, &vp)->label, "DRIVE") && str_eq(page_desc(cur_page(), 2, &vp)->label, "TONE") &&
+          str_eq(page_desc(cur_page(), 3, &vp)->label, "LEVEL"));
+    TSEL->p[P_SRR] = 30;
+    for (ty = 0; ty < IT_N; ty++) {
+        TSEL->p[P_ITYPE] = (int16_t)ty;
+        ui.force = 1;
+        snap_page(SHOT[ty]);
+    }
+    TSEL->p[P_ITYPE] = IT_CRUSH;
+    ui_frame();
+    check("INSERT on CRUSH: A B C read BITS RATE LPF", str_eq(page_desc(cur_page(), 1, &vp)->label, "BITS") &&
+          str_eq(page_desc(cur_page(), 2, &vp)->label, "RATE") && str_eq(page_desc(cur_page(), 3, &vp)->label, "LPF"));
+    page_turn(1);
+    ui.force = 1;
+    snap_page("insert/mix_srr");
+    check("INSERT 2/2: MIX (100 % by default) and SRR (OFF by default)",
+          str_eq(cur_page()->title, "INSERT") && page_id(cur_page(), 0) == P_IMIX && page_id(cur_page(), 1) == P_SRR &&
+              TP[P_IMIX].def == 127 && TP[P_SRR].def == 0);
+    turn(EN_K2, -200);
+    ui_frame();
+    {
+        char v[12];
+        const char *u = 0;
+        param_format(&TP[P_SRR], TSEL->p[P_SRR], v, &u);
+        check("SRR turned down to 0 reads OFF", TSEL->p[P_SRR] == 0 && str_eq(v, "OFF"));
+    }
+    TSEL->p[P_ITYPE] = IT_OFF;
 }
 
 /* INIT SOUND resets the FILTER (spec §3); a model change keeps it (as DIST and RESON) */
@@ -9784,6 +9834,7 @@ int main(void)
     test_modal_load_clamp();
     test_phys_screens();
     test_filter_screens();
+    test_insert_screens();
     test_initsnd_filter();
     test_perform_knobs_follow_screen();
     test_perform_dead_knob();

@@ -193,6 +193,7 @@ static uint32_t div_samples(uint32_t div)
 }
 
 #include "perform.c"                                 /* the FX hold layer's effects (the master) */
+#include "insert.c"                                  /* SRR and the INSERT, per track (mix_part, trk_inserts) */
 
 static uint32_t delay_samples(void)
 {
@@ -361,8 +362,8 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
         rev_room(rev_in, wet, n);
 }
 
-/* one block of the whole mix (shared with the host tests): events -> each drum track -> dist -> SLICER
- * -> level / pan / sends -> buses -> master; out: stereo Q15 */
+/* one block of the whole mix (shared with the host tests): events -> each drum track -> RESON -> FILTER -> SRR -> dist
+ * -> INSERT -> SLICER -> level / pan / sends -> buses -> master; out: stereo Q15 */
 static void events_block(uint32_t n);                    /* seq.c */
 static void midi_drop(void);                             /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_r[CTL];
@@ -438,10 +439,12 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
 {
     int32_t *b = part_buf;
     uint32_t i, is_src = (uint32_t)(t - trk) == src, snd = track_render(t, b, n);
-    snd = trk_inserts(t, b, n, snd);                   /* RESON, then FILTER (filter.c), before DIST */
+    snd = trk_inserts(t, b, n, snd);                   /* RESON, then FILTER (filter.c), SRR (insert.c), before DIST */
     if (snd)
-        t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
-    else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
+        t->tail = (uint8_t)(16 + 48 * ins_on(t));       /* blocks of DIST / INSERT state to run out after the last voice
+                                                         * (the INSERT's: 46 ms, a flanger's feedback) */
+    else if ((!t->tail || !(t->p[P_DIST] | ins_on(t)) || !--t->tail) && !slicer_busy(t)) {
+        ins_idle(t);                                    /* (insert.c: TYPE OFF / MIX 0 meanwhile: at rest) */
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
         if ((pf.mute >> (t - trk)) & 1u)
             perf_mute_idle((uint32_t)(t - trk));        /* perform.c: a white key in the FX layer */
@@ -458,6 +461,7 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         int32_t xmax = c > d ? c : d;
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
         track_dist(t, b, n);
+        track_insert(t, b, n);                          /* insert.c: after DIST, before the SLICER (OFF: nothing) */
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         if ((pf.mute >> (t - trk)) & 1u)
             perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a white key in the FX layer */

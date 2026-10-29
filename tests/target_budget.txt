@@ -55,3 +55,7 @@ cbefm_render 182
 hhefm_render 219
 cyefm_render 220
 cue_switch 3
+track_srr 7
+ins_drive 351
+ins_crush 62
+ins_swept 230

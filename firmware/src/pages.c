@@ -6,7 +6,7 @@
 enum { FAM_HOME, FAM_SND, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS, FAM_LFO, FAM_MIX, FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX };   /* knobs edit: the selected track, song.g, the STEP grid, the mixer */
 enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS, GR_COMP, GR_LFO, GR_RESON, GR_MOTION, GR_SONG, GR_FILTER,
-       GR_LDEST };
+       GR_LDEST, GR_INSERT };
 
 #define SND_SLOT 0xC0u                            /* EDIT page ids: SND_SLOT + n = the track's n-th sound knob */
 
@@ -27,6 +27,8 @@ static const page_t PAGES[] = {
     {"FILTER", FAM_FX, SC_TRACK, GR_FILTER, {P_FTYPE, P_FCUT, P_FRESO, P_FENV}},   /* filter.c */
     {"FILTER", FAM_FX, SC_TRACK, GR_FILTER, {P_FDEC, 0xFF, 0xFF, 0xFF}},
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
+    {"INSERT", FAM_FX, SC_TRACK, GR_INSERT, {P_ITYPE, P_IA, P_IB, P_IC}},   /* insert.c: after DIST; A B C by the TYPE */
+    {"INSERT", FAM_FX, SC_TRACK, GR_INSERT, {P_IMIX, P_SRR, 0xFF, 0xFF}},   /* its dry / wet; SRR (before DIST) */
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},
     {"RESON", FAM_FX, SC_TRACK, GR_RESON, {P_RMODEL, P_RTUNE, P_RDECAY, P_RMIX}},
     {"RESON", FAM_FX, SC_TRACK, GR_RESON, {P_RTONE, P_RSTRCT, P_RPOS, P_RKEY}},   /* STRCT: CHORD on CHORD; KEYF */

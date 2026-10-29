@@ -18,8 +18,10 @@
  * / LFO 2 (the same ids), slots 3 / 4 off). An older image in a RAM slot (FDRA, FDRB: 3672 B a slot, FDRC: 3688 B,
  * FDRD: 3712 B, FDRE's are 3840 B) is never read as one: the slots are filled from flash at boot. FDRE fills a flash
  * sector's payload (3840 B, ST_PAYLOAD_MAX): a larger record needs another layout. The parameters after its block
- * (P_NSTORED .., RESON's KEYF) ride in a track's steps' spare byte (step_t.rsv: parameter P_NSTORED + j in step j's,
- * 0..255; every earlier firmware wrote 0 there and ignores it on load), so an FDRE from before them loads with them at 0.
+ * (P_NSTORED ..: RESON's KEYF, SRR, the INSERT's TYPE A B C MIX) ride in a track's steps' spare byte (step_t.rsv:
+ * parameter P_NSTORED + j in step j's), each as its offset from its power-on value (TP def, mod 256: KEYF's def is 0,
+ * so its byte is its value, as before); every earlier firmware wrote 0 there and ignores it on load, so a record from
+ * before them loads with them at their power-on values (KEYF 0, SRR 0, the INSERT OFF at MIX 100 %).
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
 #define PROJ_MAGIC 0x46524446u                 /* "FDRF" (the 15th): the lock bank (spec 2026-10-24 parameter locks) */
 #define PROJ_MAGIC_VE 0x45524446u              /* "FDRE": + the LFO DEST slots (fixes 2026-10-21 item 3); converted on load */
@@ -41,14 +43,18 @@ typedef struct {
     step_t step[NSTEP];
 } proj_trk_t;
 typedef char proj_xp_fit[P_COUNT - P_NSTORED <= NSTEP && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's block: 69) */
-/* the parameters past the block: into / out of a stored track's steps' spare bytes (0 = their value 0) */
+/* the parameters past the block: into / out of a stored track's steps' spare bytes (0 = the power-on value) */
+static uint8_t proj_xp_enc(uint32_t id, int32_t v) { return (uint8_t)(clamp(v, -128, 255) - TP[id].def); }
 static void proj_xp_put(proj_trk_t *s, const int16_t *p)
 {
     uint32_t i;
     for (i = P_NSTORED; i < P_COUNT; i++)
-        s->step[i - P_NSTORED].rsv = (uint8_t)clamp(p[i], 0, 255);
+        s->step[i - P_NSTORED].rsv = proj_xp_enc(i, p[i]);
 }
-static int16_t proj_xp_get(const proj_trk_t *s, uint32_t id) { return (int16_t)s->step[id - P_NSTORED].rsv; }
+static int16_t proj_xp_get(const proj_trk_t *s, uint32_t id)
+{
+    return (int16_t)(TP[id].def + (int8_t)s->step[id - P_NSTORED].rsv);
+}
 typedef struct {
     uint32_t magic, size;
     int16_t g[G_COUNT];
@@ -603,8 +609,8 @@ static __attribute__((noinline)) void proj_image(project_t *p, uint32_t slot, in
         } else {
             memcpy(p->t[k].step, trk[k].step, sizeof p->t[k].step);
         }
-        for (i = P_NSTORED; i < P_COUNT; i++)           /* KEYF: the steps' spare bytes */
-            p->t[k].step[i - P_NSTORED].rsv = (uint8_t)clamp(motion_rest(k, i), 0, 255);
+        for (i = P_NSTORED; i < P_COUNT; i++)           /* KEYF, SRR, the INSERT: the steps' spare bytes */
+            p->t[k].step[i - P_NSTORED].rsv = proj_xp_enc(i, motion_rest(k, i));
         p->pre[k] = (uint16_t)preset_rec_enc(trk[k].pre);   /* (stable: a uid / a user slot, presets.c) */
         p->pre_ed[k] = trk[k].pre_ed;
     }
@@ -1320,8 +1326,8 @@ static void cue_file_out(void)
             }
             if (!ov)
                 memcpy(p->t[k].step, g->st[k], sizeof p->t[k].step);
-            for (i = P_NSTORED; i < P_COUNT; i++)      /* KEYF: the steps' spare bytes */
-                p->t[k].step[i - P_NSTORED].rsv = (uint8_t)clamp(g->p[k][i], 0, 255);
+            for (i = P_NSTORED; i < P_COUNT; i++)      /* KEYF, SRR, the INSERT: the steps' spare bytes */
+                p->t[k].step[i - P_NSTORED].rsv = proj_xp_enc(i, g->p[k][i]);
             p->pre[k] = (uint16_t)preset_rec_enc(cue.out_pre[k]);
             p->pre_ed[k] = cue.out_pre_ed[k];
             var_sp[k] = g->st[k];
@@ -1356,7 +1362,7 @@ static void cue_file_out(void)
             for (k = 0; k < NTRK; k++) {
                 memcpy(p->t[k].step, var_sp[k], sizeof p->t[k].step);
                 for (i = P_NSTORED; i < P_COUNT; i++)
-                    p->t[k].step[i - P_NSTORED].rsv = (uint8_t)clamp(motion_rest(k, i), 0, 255);
+                    p->t[k].step[i - P_NSTORED].rsv = proj_xp_enc(i, motion_rest(k, i));
                 for (j = 0; j < 4u; j++)
                     p->t[k].p[CHAIN_TIMING[j]] = var_tm[k][j];
             }
@@ -1978,6 +1984,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 {
 #if defined(FELUCCA_BLE) && FELUCCA_BLE
     memset(var_buf, 0, sizeof var_buf);               /* (the Bluetooth build's banks: not .bss, zeroed here) */
+    memset(ins, 0, sizeof ins);                       /* (.. and the INSERTs' state beside them, insert.c) */
 #endif
     memset(&btset, 0, sizeof btset);                  /* no device, MODE AUTO, AUTOSTART OFF unless the flash record
                                                        * has them */

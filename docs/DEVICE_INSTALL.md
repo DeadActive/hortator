@@ -889,3 +889,22 @@ ACC`).
   One clock only: SYNC BLE in MIDI mode, a BLE MIDI monitor counts 24 clocks a beat (not 48).
 - Console (optional): `status` shows `midi_sync`, `midi_thru`, `midi_out_sent`, `midi_out_drops`, `midi_out_fwd`,
   `midi_out_clocks` (counting while SYNC plays).
+
+### INSERT and SRR (check on the FM-1)
+
+The screens: `build/ui_shots/insert/` (each TYPE, and `mix_srr.png`).
+
+- FX: after FX (DIST and the sends) come INSERT 1/2 (TYPE A B C) and INSERT 2/2 (MIX SRR), then SLICER. A B C read
+  DRIVE TONE LEVEL on SOFT HARD FOLD FUZZ, BITS RATE LPF on CRUSH, RATE DEPTH FDBK on PHASR FLANG CHOR.
+- A snare with a busy pattern: step through every TYPE while it plays: each change fades in without a click. SOFT /
+  HARD / FOLD / FUZZ: DRIVE up gets dirtier, TONE darker to the left, LEVEL 112 about as loud as dry. CRUSH: BITS 1
+  harsh, RATE 689 Hz gritty. PHASR / FLANG / CHOR: the sweep at RATE, FDBK more resonant (FLANG rings a little after
+  each hit).
+- MIX 0 and TYPE OFF: the track sounds exactly as without the INSERT.
+- SRR (INSERT 2/2 KNOB 2): OFF = as before; turned up, the hats get aliased and metallic, at 347 Hz a lo-fi buzz. It
+  comes before DIST: SRR then DIST on a kick sounds harsher than DIST alone.
+- Locks: hold a step and turn SRR, then MIX: only that step crushes / gets the INSERT. MOTION records them too.
+- MIDI LEARN: INSERT 1/2 KNOB 2 reads `T3 I.DRIVE` on SOFT; SRR reads `T3 SRR`.
+- SAVE / power cycle / LOAD: the INSERT and SRR come back; a project saved with 0.26.0 loads with both off.
+- CPU: the INSERT (FLANG or CHOR) on all 8 tracks plus SRR on all 8, a dense pattern: GLOBAL -> SYSTEM CPU (note the %
+  you see), no crackle. Bluetooth version too.

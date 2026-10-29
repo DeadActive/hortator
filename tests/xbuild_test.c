@@ -9,7 +9,8 @@
  *                 a variation 6, saved; SAVE held, white key 2 then a black key queues CUE>B3 and the switch plays it
  *   std-check IMG (standard) boots on what the Bluetooth build left: no VARIATIONS LOST, A has the Bluetooth build's
  *                 edit on variation 1 and its variation 4 as saved, B its variation 3 and the Bluetooth build's 6
- *   ble-alone     (Bluetooth) on its own: its RAM banks zeroed at power-on (whatever the RAM held), an 80 KiB USR2
+ *   ble-alone     (Bluetooth) on its own: its RAM banks and the INSERTs' state (.ram_bss too) zeroed at power-on
+ *                 (whatever the RAM held), an 80 KiB USR2
  *                 shortened to 48 KiB once, as the standard build does; a variation saved survives a power cycle
  * Built with ASan + UBSan. */
 #define FELUCCA_FLASH 1
@@ -308,6 +309,7 @@ static void ble_alone(void)
     memset(&cue, 0, sizeof cue);
     wipe_ram();
     memset(var_buf, 0xA5, sizeof var_buf);            /* the banks' RAM as a reset leaves it (not .bss: not zeroed) */
+    memset(ins, 0x5A, sizeof ins);                    /* .. and the INSERTs' state, beside them */
     host_nflog = 0;
     host_fl_stray = 0;
     persist_boot();
@@ -317,6 +319,9 @@ static void ble_alone(void)
     for (ok = 1, i = 0; i < sizeof var_buf; i++)
         ok &= ((const uint8_t *)var_buf)[i] == 0;
     check("Bluetooth alone: the variation banks are zero after power-on, whatever the RAM held", ok);
+    for (ok = 1, i = 0; i < sizeof ins; i++)
+        ok &= ((const uint8_t *)ins)[i] == 0;
+    check("Bluetooth alone: the INSERTs' state is zero after power-on, whatever the RAM held", ok);
     ok = (persist_note & PN_USR2) && rd32(U2 + 16u) == 0xBE00u && usr_nz[1] == 2;
     check("Bluetooth alone: an 80 KiB USR2 is shortened to 48 KiB once (USR2 SHORTENED TO 48K)", ok);
     slot_steps(0);

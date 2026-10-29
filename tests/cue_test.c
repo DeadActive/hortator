@@ -817,6 +817,39 @@ static void cue_round_trip_edits(void)
     OK(slot_dirty(0) && !slot_dirty(1));
     check("cue: A on variation 3 with an edit, cue B, cue A: back on variation 3 with the edit (and the knob)", (int)ok);
 }
+/* SRR and the INSERT (steps' spare bytes): a slot switch brings the cued slot's (stopped: at once; playing: staged,
+ * at its step), back again the other's; a variation switch leaves them (they are the slot's sound, not its steps);
+ * PASTE copies them */
+static void cue_inserts_follow(void)
+{
+    uint32_t ok = 1, n = 0;
+    four_slots();                                     /* (A loaded: SRR 0, INSERT OFF) */
+    project_load(1);
+    trk[0].p[P_SRR] = 33;
+    trk[0].p[P_ITYPE] = IT_CRUSH;
+    trk[0].p[P_IMIX] = 50;
+    trk[3].p[P_IC] = 7;
+    project_save(1);
+    project_load(0);
+    OK(trk[0].p[P_SRR] == 0 && trk[0].p[P_ITYPE] == IT_OFF && trk[0].p[P_IMIX] == 127);
+    OK(cue_slot(1) == 0 && proj_loaded() == 1 && trk[0].p[P_SRR] == 33 && trk[0].p[P_ITYPE] == IT_CRUSH &&
+       trk[0].p[P_IMIX] == 50 && trk[3].p[P_IC] == 7);
+    OK(cue_var(2) == 0 && trk[0].p[P_SRR] == 33 && trk[0].p[P_IMIX] == 50);
+    OK(cue_slot(0) == 0 && proj_loaded() == 0 && trk[0].p[P_SRR] == 0 && trk[0].p[P_ITYPE] == IT_OFF &&
+       trk[3].p[P_IC] == 96);
+    play();
+    OK(cue_slot(1) == 0);
+    while (proj_loaded() != 1 && n++ < 4000u)
+        run_blk();
+    OK(proj_loaded() == 1 && trk[0].p[P_SRR] == 33 && trk[0].p[P_ITYPE] == IT_CRUSH && trk[3].p[P_IC] == 7);
+    stop();
+    project_copy(1);
+    project_paste(2);
+    project_load(2);
+    OK(trk[0].p[P_SRR] == 33 && trk[0].p[P_ITYPE] == IT_CRUSH && trk[0].p[P_IMIX] == 50 && trk[3].p[P_IC] == 7);
+    check("cue: a slot switch (stopped, playing) brings the slot's SRR and INSERT, a variation keeps them; PASTE copies "
+          "them", (int)ok);
+}
 static void cue_empty_copies(void)                    /* owner 2026-10-26: a never-used variation starts as a copy */
 {
     uint32_t ok = 1, k;
@@ -1949,6 +1982,7 @@ int main(void)
     cue_stopped_immediate();
     cue_globals_kept();
     cue_round_trip_edits();
+    cue_inserts_follow();
     cue_empty_copies();
     cue_var_edits_while_queued();
     cue_var_full();

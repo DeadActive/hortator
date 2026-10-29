@@ -56,6 +56,16 @@ firmware ([below](#back-to-the-official-firmware)).
   its **KEYF** (KEYFOLLOW, RESON 2/2 KNOB 4, 0 % = off) makes the ring follow the note of each hit from C4: at 100 % a
   step at C5 (or a KEYS note, a ratchet's note) rings an octave above TUNE, at 50 % half an octave; MIDI notes play
   their track at C4, so they ring at TUNE. A new note under a ringing tail glides to it in a few ms, without a click.
+- **INSERT and SRR.** Each track has an INSERT effect after DIST and before the SLICER (FX > INSERT, the two pages
+  after FX). INSERT 1/2: **TYPE** OFF, SOFT, HARD, FOLD, FUZZ (drives), CRUSH (bit and sample-rate crusher), PHASR,
+  FLANG, CHOR (swept), and its three knobs, named by the TYPE: DRIVE / TONE / LEVEL for the drives, BITS / RATE / LPF
+  for CRUSH, RATE / DEPTH / FDBK for the swept ones. INSERT 2/2: **MIX** (dry to wet, 100 % by default; the swept
+  types' wet is the pedal's dry + effect, so 100 % is the whole effect) and **SRR**, the track's sample rate
+  reduction in the classic drum machines' style: it samples and holds the track's sound after the FILTER and before
+  DIST, aliasing on purpose, from OFF (0) down to 347 Hz (the screen shows the rate). A TYPE change fades over 3 ms,
+  without a click; TYPE OFF, MIX 0 and SRR OFF leave the sound exactly as before. SRR and the INSERT's knobs (not its
+  TYPE, as the FILTER's) take MOTION, parameter locks and MIDI LEARN (`T3 I.DRIVE`, `T3 SRR`), and are saved with
+  each project; projects saved before load them off.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
@@ -130,7 +140,7 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
 - **Turn it on:** hold GLO (the MUTE screen) and press **G4**: `G4 LEARN: ON`, and `MIDI LEARN ON` in the top bar.
   Let go of GLO: the footer's first row (where the steps are) shows `LEARN: TURN OR PRESS`.
 - **Pick a knob:** turn a knob of the selected track on any page: HOME, EDIT (SOUND, LAYER), FX (FILTER, the sends,
-  SLICER, RESON), LFO, PATTERN, or LEVEL / LEN / PAN on HOME's TRACKS mode. It edits as usual and the footer says
+  INSERT and SRR, SLICER, RESON), LFO, PATTERN, or LEVEL / LEN / PAN on HOME's TRACKS mode. It edits as usual and the footer says
   `T3 DECAY: SEND A CC`.
 - **Or pick an action:** while LEARN is on, PLAY, REC, ALGORITHM and the PERFORM keys pick their action instead of
   doing their job (they work again after OCT+): the footer says `PLAY: SEND CC/NOTE`, `FX R1/16: SEND CC/NOTE`,
@@ -253,10 +263,10 @@ USR2 ever fails, `USR2 CLAMP FAILED` shows at power-on and SAVE says `USR2 ERROR
 ### Parameter locks
 
 In STEPS (ENV lit), on any page whose knobs MOTION can record (HOME's macros, TRACKS' LEVEL and PAN, SOUND, LAYER,
-FX, SLICER, RESON, FILTER, the LFOs' RATE MORPH DEPTH, the DEST slots' DEPTH), **hold a step and turn a knob**: that
+FX, INSERT (and SRR), SLICER, RESON, FILTER, the LFOs' RATE MORPH DEPTH, the DEST slots' DEPTH), **hold a step and turn a knob**: that
 step plays with its own value for that knob, and the next step plays the knob's value again (the LFO, if any,
 modulates round the locked value). The top bar says `LOCK STEP 5` while a step is held, and the knob cells show that
-step's values (a locked one inverted). Knobs MOTION can't record (MODEL, FILTER TYPE, RESON MODEL, an LFO's WAVE,
+step's values (a locked one inverted). Knobs MOTION can't record (MODEL, FILTER TYPE, INSERT TYPE, RESON MODEL, an LFO's WAVE,
 DEST, SRC) do nothing while a step is held. Hold the step and tap OCT- to clear its locks on this page's knobs
 (`STEP 5 LOCKS CLEARED`); hold OCT- 0.6 s to clear all of that step's locks (`STEP 5 ALL CLEARED`). A step turned off
 keeps its locks for when it is on again. Locks and recorded MOTION share 1024 events per project (`LOCKS FULL`); locks
@@ -351,7 +361,7 @@ The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI S
 
 - **2 CH** (the default): the master, stereo, exactly as before. The device is **Hortator**.
 - **10 CH MIX**: channels 1-8 the tracks **T1..T8**, one mono channel each: the track as the mix gets it (its RESON,
-  FILTER, DIST, SLICER, mute, COMP duck and LEVEL), before PAN, the CHOR / DLY / REV sends and the master's effects and
+  FILTER, SRR, DIST, INSERT, SLICER, mute, COMP duck and LEVEL), before PAN, the CHOR / DLY / REV sends and the master's effects and
   limiter, at the MASTER level (or full level with USB LEVEL FIXED); channels 9-10 the master L R (with every effect,
   as in 2 CH). The device is **Hortator 8ch**; hosts that read channel names show T1 .. T8, Main L, Main R.
 - **10 CH FX**: the same, but channels 9-10 carry only the **send effects**: what the chorus, delay and reverb return
@@ -613,7 +623,8 @@ If it does not start at all and never reaches boot mode, recovering it needs a
 - Hortator by DEADACTIVE. BLE MIDI: 2026 DEADACTIVE.
 - [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita ([@kurogedelic](https://github.com/kurogedelic)),
   [Hügelton Instruments](https://hugelton.com): the firmware Hortator is built on, its hardware layer, update
-  loader, installer, UI and engines.
+  loader, installer, UI and engines; the per-track INSERT effect is Felucca 1.5's, as ported to Skiff (by
+  DEADACTIVE) and from there to Hortator.
 - [Grids](https://github.com/pichenettes/eurorack/tree/master/grids) by Emilie Gillet, Mutable Instruments: the GRIDS
   pattern engine is a C port (GPL-3.0-or-later).
 - [Streams](https://github.com/pichenettes/eurorack/tree/master/streams) by Emilie Gillet, Mutable Instruments: the

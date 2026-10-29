@@ -171,7 +171,7 @@ static void ml_name(char *b)
     const char *pre = ls >= 0 ? (dn[1] = (char)('1' + ls), dn) : id >= P_LFO1 && id < P_LFO2 ? "L1."
                     : id >= P_LFO2 && id < P_LFO2 + LF_N ? "L2."
                     : (id >= P_RMODEL && id <= P_RPOS) || id == P_RKEY ? "R." : id >= P_FTYPE && id <= P_FDEC ? "F."
-                    : id >= P_SLCR && id <= P_SLDEPTH ? "S." : "";
+                    : id >= P_SLCR && id <= P_SLDEPTH ? "S." : id >= P_ITYPE && id <= P_IMIX ? "I." : "";
     if (c) {
         if (c <= ML_A_PREV) {
             str_cpy(b, ML_ACT_NAME[c - ML_A_PLAY], 16);

@@ -43,6 +43,12 @@ static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR
 static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
 static const char *const N_PRIO[] = {"HIGH", "LOW"};                 /* P_PRIO */
 static const char *const N_LSRC[] = {"LFO1", "LFO2"};                /* an LFO DEST slot's SRC */
+static const char *const N_ITYPE[] = {"OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"};   /* INSERT
+                                                                     * TYPE (IT_; insert.c) */
+static const char *const N_IBITS[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
+                                      "16", 0};             /* CRUSH BITS (insert.c ins_bits_sh) */
+static const char *const N_IRATE[] = {"689", "919", "1.1k", "1.4k", "1.8k", "2.2k", "2.8k", "3.7k", "4.4k", "5.5k",
+                                      "7.4k", "8.8k", "11k", "15k", "22k", "44k", 0};   /* CRUSH RATE (INS_HOLD) */
 #define LFO_TP(b, rf)                                                                                     \
     [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
     [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
@@ -95,6 +101,12 @@ static const param_desc_t TP[P_COUNT] = {
     [P_LS4SRC] = PE("SRC", N_LSRC, 1), [P_LS4DEST] = PD("DEST", F_LDEST, 0, 18, 0),
     [P_LS4DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0),
     [P_RKEY] = PD("KEYF", F_PCT, 0, 127, 0),       /* RESON KEYFOLLOW: 0 off (the ring at TUNE), 127 = 100 % */
+    [P_SRR] = PD("SRR", F_SRR, 0, 127, 0),         /* SRR (insert.c): 0 off (as before), else the held rate */
+    [P_ITYPE] = PE("TYPE", N_ITYPE, IT_OFF),       /* INSERT: OFF as before; A B C named by the TYPE (ins_desc) */
+    [P_IA] = PD("A", F_PCT, 0, 127, 64),
+    [P_IB] = PD("B", F_PCT, 0, 127, 96),
+    [P_IC] = PD("C", F_PCT, 0, 127, 96),
+    [P_IMIX] = PD("MIX", F_PCT, 0, 127, 127),
 };
 
 static const param_desc_t GP[G_COUNT] = {
@@ -153,8 +165,26 @@ static const param_desc_t GP_ACT[7] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0)
 /* RESON STRCT on CHORD: the chord type, 0..127 split evenly over N_RCHORD (reson.c rs_chord) */
 static const param_desc_t RS_CHORD_DESC = {"CHORD", F_INT, 0, 127, 0, N_RCHORD, 0};
 
+/* the INSERT's A B C as its TYPE names them (Skiff 1.3, from Felucca 1.5; insert.c): the drives, CRUSH, the swept
+ * ones; OFF: TP's A B C */
+#define PU(l, f, df, n, u) {l, f, 0, 127, df, n, u}
+static const param_desc_t INS_DESC[3][3] = {
+    {PU("DRIVE", F_PCT, 64, 0, 0), PU("TONE", F_CUTOFF, 96, 0, 0), PU("LEVEL", F_DB, 96, 0, 0)},
+    {PU("BITS", F_INT, 64, N_IBITS, 0), PU("RATE", F_INT, 96, N_IRATE, "Hz"), PU("LPF", F_CUTOFF, 96, 0, 0)},
+    {PU("RATE", F_LFOHZ, 64, 0, 0), PU("DEPTH", F_PCT, 96, 0, 0), PU("FDBK", F_PCT, 96, 0, 0)},
+};
+#undef PU
+static const param_desc_t *ins_desc(int32_t type, uint32_t k)
+{
+    if (type <= IT_OFF || type >= IT_N)
+        return &TP[P_IA + k];
+    return &INS_DESC[type < IT_CRUSH ? 0 : type == IT_CRUSH ? 1 : 2][k];
+}
+
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 {
+    if (id >= P_IA && id <= P_IC)
+        return ins_desc(t->p[P_ITYPE], id - P_IA);
     if (id >= P_E0 && id <= P_E7)
         return &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS].edit[id - P_E0];
     if (id == P_RSTRCT && t->p[P_RMODEL] == RS_CHORD)
@@ -274,6 +304,20 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         break;
     case F_RDECAY:
         fmt_ms10(val, unit, RS_T60_MS10[clamp(v, 0, 127)]);
+        break;
+    case F_SRR:                                       /* SRR: OFF, the held rate (insert.c srr_period) */
+        if (v <= 0) {
+            str_cpy(val, "OFF", 6);
+        } else {
+            uint32_t h = (uint32_t)FS * 256u / (uint32_t)(256 + 2 * clamp(v, 0, 127) * clamp(v, 0, 127));
+            if (h < 1000u) {
+                fmt_int(val, (int32_t)h);
+                *unit = "Hz";
+            } else {
+                fmt_fix(val, (int32_t)(h / 100u), 1);
+                *unit = "kHz";
+            }
+        }
         break;
     case F_FDEC:                                      /* FILTER DECAY: 5 ms .. 2 s (filter.c flt_dec_idx) */
         fmt_ms10(val, unit, TIME_MS_X10[flt_dec_idx(v)]);
