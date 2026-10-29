@@ -367,7 +367,7 @@ static void test_fdrc_converts(void)
     memset(&old, 0, sizeof old);
     old.magic = PROJ_MAGIC_VC;
     old.size = sizeof old;
-    for (k = 0; k < G_COUNT; k++)
+    for (k = 0; k < G_NSTORED; k++)
         old.g[k] = song.g[k];
     for (k = 0; k < NTRK; k++) {
         memcpy(old.t[k].p, trk[k].p, sizeof old.t[k].p);

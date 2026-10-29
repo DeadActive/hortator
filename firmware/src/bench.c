@@ -125,6 +125,9 @@ static void bench_fx_clear(void)
     fx.sp_w = 0;
     fx.sp_lp = fx.sp_hp = fx.sp_he = fx.sp_size = 0;
     fx.sp_ph = 0;
+    dpp.mode = dpp.side = 0;                         /* the delay's MODE: NORMAL running (the line cleared above) */
+    dpp.clr = 0;
+    dpp.lp1 = dpp.lp2 = dpp.s = 0;
 }
 
 /* the machine as at power-on, as the host tests' host_init (tests/drum_host.h host_reset_fx): FX buses, master,

@@ -203,6 +203,10 @@ Report what you saw first; we'll go through it together.
   DAMP change it; switching TYPE while it rings: no click. FX > CHORUS: RATE and DEPTH as before.
 - PATTERN DIV on a hi-hat track: the knob runs 4BAR 2BAR 1/1 1/2 1/4 … 1/32; at 2BAR / 4BAR the hat plays once per
   2 / 4 bars, in time with a 1/16 kick. DLY TIME at 1/2 and slower: long echoes (the longest cut to 1.49 s).
+- FX > DLY: TIME runs … 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T … 1/32 32T; at 1/8D the snare's echoes fall a dotted eighth
+  apart. FX again: DLY 2/2, MODE PING: on headphones the echoes go left, right, left …; back to NORM: centred again.
+  Turning MODE while the echoes ring: they stop, no burst. SAVE, LOAD: MODE kept. Listen first:
+  build/drum_renders/dly_pingpong.wav (4 bars NORM, 4 bars PING), dly_times.wav (1/4D 1/8D 4T 1/16D 32T).
 - A project saved before this build loads with ROOM and sounds as before. With the heaviest kit and SPRNG, the
   CPU meter stays close to where it was.
 - Listen first on the computer: build/drum_renders/sp_speaker_eq.wav (FLAT, LOWCUT, BASS+, 2 bars each),

@@ -647,7 +647,7 @@ static void test_fx_pair(void)
         int32_t last = 20000, step = 0, n = 0;
         for (i = 0; i < CTL; i++) {
             m[2 * i] = m[2 * i + 1] = 20000;
-            usb8_wet[i] = -20000;
+            usb8_wet[i] = usb8_wet_l[i] = -20000;      /* (both sides: NORMAL's delay, L = R) */
         }
         usb_fxpair = 1;
         for (b = 0; b < 12u; b++) {

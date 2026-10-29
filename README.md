@@ -56,6 +56,11 @@ firmware ([below](#back-to-the-official-firmware)).
   its **KEYF** (KEYFOLLOW, RESON 2/2 KNOB 4, 0 % = off) makes the ring follow the note of each hit from C4: at 100 % a
   step at C5 (or a KEYS note, a ratchet's note) rings an octave above TUNE, at 50 % half an octave; MIDI notes play
   their track at C4, so they ring at TUNE. A new note under a ringing tail glides to it in a few ms, without a click.
+- **Delay.** One tempo delay for every track's DLY send (FX > DLY: TIME, FDBK, COLR, MIX). TIME runs by length, 4BAR
+  2BAR 1/1 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T 1/16 16T 1/32 32T (D dotted, T triplet); a time longer than the delay
+  holds (1.49 s) is cut to 1.49 s. DLY 2/2 **MODE**: NORM, or PING (ping-pong): the echoes go left, right, left ...,
+  with the same FDBK, COLR and longest time; its echoes are a little softer in the top end. Changing MODE clears the
+  delay (the old echoes stop). MODE is saved with the project; older projects load NORM.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
@@ -355,8 +360,9 @@ The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI S
   PAN, the CHOR / DLY / REV sends and the master's effects and limiter, at the MASTER level (or full level with USB
   LEVEL FIXED). The device is **Hortator 8ch**; hosts that read channel names show Main L, Main R, T1 .. T8.
 - **10 CH FX**: the same, but channels 1-2 carry only the **send effects**: what the chorus, delay and reverb return
-  (THROW's share too), at the MASTER level. The FM-1's effect buses are mono, so L = R. T1 .. T8 panned in the DAW plus
-  this pair make the whole mix, each part on its own fader.
+  (THROW's share too), at the MASTER level. The FM-1's effect buses are mono, so L = R, except the delay in PING,
+  whose echoes go left and right here too. T1 .. T8 panned in the DAW plus this pair make the whole mix, each part on
+  its own fader.
 
 What T1 .. T8 + FX cannot give back: the **master chain**, which only channels 1-2 in MIX (and 2 CH) carry: PERFORM's
 master effects (REPEAT, REVERSE, TAPE STOP, FREEZE, OCT, LPF, HPF, CRUSH; its track mutes and THROW are in the

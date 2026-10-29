@@ -2296,7 +2296,7 @@ static void test_reson_pages(void)
     TSEL->p[P_RMODEL] = RS_CHORD;
     trk[1].p[P_RMODEL] = RS_CHORD;                   /* tracks 1 and 2 CHORD: track 3 cannot */
     trk[2].p[P_RMODEL] = RS_PIPE;
-    for (k = 0; k < 8u && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
+    for (k = 0; k < NPAGES && (ui.home || page_id(cur_page(), 0) != P_RMODEL); k++)
         tap(B_FX);                                   /* round the FX pages back to RESON 1/2 */
     keys(1u << KEY_TRK_KEY[2]);
     ui_frame();
@@ -4330,6 +4330,36 @@ static void test_reverb_pages(void)
     snap_page("fx_chorus");
 }
 
+/* the delay's MODE: DLY's second page (after TIME FDBK COLR MIX), KNOB 1 NORM / PING; screens for the user (TIME
+ * at a dotted value, MODE PING-PONG) */
+static void test_delay_mode_page(void)
+{
+    ui_host_init();
+    fx_open("DLY");
+    check("FX reaches DLY: TIME FDBK COLR MIX", str_eq(cur_page()->title, "DLY") && cur_page()->id[0] == G_DTIME);
+    song.g[G_DTIME] = 12;                            /* 1/8D */
+    snap_page("fx_delay_time_dotted");
+    press(B_FX);
+    ui_frame();
+    release_all();
+    ui_frame();
+    check("FX: DLY's second page has MODE (KNOB 1), nothing else", str_eq(cur_page()->title, "DLY") &&
+          cur_page()->id[0] == G_DMODE && cur_page()->id[1] == 0xFF && cur_page()->id[2] == 0xFF &&
+          cur_page()->id[3] == 0xFF);
+    check("DLY MODE: NORM at power-on", song.g[G_DMODE] == 0);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("DLY MODE: KNOB 1 turns it to PING, and stops there", song.g[G_DMODE] == 1);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("DLY MODE: (the end)", song.g[G_DMODE] == 1);
+    check("DLY MODE: the names fit the value box whole (4 characters: NORM, PING)",
+          strlen(N_DMODE[0]) <= 4u && strlen(N_DMODE[1]) <= 4u && str_eq(N_DMODE[1], "PING"));
+    snap_page("fx_delay_mode_pingpong");
+    fx_open("REVERB");
+    check("FX: REVERB after the two DLY pages", str_eq(cur_page()->title, "REVERB"));
+}
+
 /* sound pack: division knobs run by length (4BAR .. 1/32), the stored value stays the id; the gauge follows */
 static void test_div_order(void)
 {
@@ -4340,7 +4370,9 @@ static void test_div_order(void)
         ok &= param_turn(d, WANT[i], 1) == WANT[i + 1] && param_turn(d, WANT[i + 1], -1) == WANT[i];
     ok &= param_turn(d, 3, 1) == 3 && param_turn(d, 9, -1) == 9 && param_turn(d, 9, 20) == 3;
     check("DIV: the knob steps 4BAR 2BAR 1/1 1/2 1/4 1/8 8T 1/16 16T 1/32, stopping at the ends", ok);
-    check("DLY TIME: the same order", param_turn(&GP[G_DTIME], 6, 1) == 0 && param_turn(&GP[G_DTIME], 0, -1) == 6);
+    check("DLY TIME: the same order, its dotted values between (1/2 1/4D 1/4 1/8D 4T 1/8 ..)",
+          param_turn(&GP[G_DTIME], 6, 1) == 11 && param_turn(&GP[G_DTIME], 11, 1) == 0 &&
+          param_turn(&GP[G_DTIME], 0, -1) == 11 && param_turn(&GP[G_DTIME], 0, 1) == 12);
     check("DIV gauge: by length (4BAR empty, 1/32 full, 1/4 at 4/9)",
           RATIO(d, 9) == 0 && RATIO(d, 3) == 1000 && RATIO(d, 0) == 444);
     check("other knobs keep their order (SLICER RATE, ids as shown)", param_turn(&TP[P_SLRATE], 1, 1) == 2);
@@ -9755,6 +9787,7 @@ int main(void)
     test_ui_frame_cost();
     test_speaker_eq();
     test_reverb_pages();
+    test_delay_mode_page();
     test_div_order();
     test_usb_level();
     test_usb_audio();
