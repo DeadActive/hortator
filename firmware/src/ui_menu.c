@@ -35,12 +35,12 @@ static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting,
  * often the row is stepped, none when it is stepped back; and no USB drop while the menu is still being read).
  * usb_mode_service (ui_input, the main loop) then: USB off (usb_detach: D+ pull-up off, the host sees the FM-1 leave;
  * nothing streams, MIDI out dropped: usb8_quiesce), USBM_WAIT_MS later on again (usb_start) with the other descriptor
- * set; the host enumerates it afresh (bcdDevice 3.11 / 3.81, "Hortator" / "Hortator 8ch"). The sequencer, the audio
+ * set; the host enumerates it afresh (bcdDevice 3.11 / 3.83, "Hortator" / "Hortator 8ch"). The sequencer, the audio
  * and the UI run on throughout (the ISRs); MIDI in and out come back with the host's configuration. Following CLK USB,
  * the clock pauses with the cable: the steps wait for its pulses (the top bar says so), and the lost-clock stop (seq.c,
  * 0.5 s without a pulse) waits till USBM_GRACE_MS after the reconnect; a clock that has not come back by then stops
  * the sequencer as a pulled cable does (a DAW may see "Hortator 8ch" as another port and need it chosen again).
- * Inside 10 CH, MIX <-> FX (channels 1-2: the master or the send effects) needs no reconnect: usb_fxpair at once.
+ * Inside 10 CH, MIX <-> FX (channels 9-10: the master or the send effects) needs no reconnect: usb_fxpair at once.
  * SAFE START, an unfinished update and the update loader never switch: they present 2 CH (usb_app.c's set). The
  * Bluetooth build has none of it (fx.c USB10_BUILD): no row, 2 CH always, a stored 10 CH ignored. */
 #define USBM_WAIT_MS 1000u

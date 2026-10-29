@@ -381,14 +381,14 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet[CTL], mix_l[CTL], mix_
 static volatile uint8_t usb10;                  /* the audio input the host enumerated: 0 2 CH, 1 10 CH (ui_menu.c) */
 static volatile uint32_t usb_hold_until;        /* the reconnect (ui_menu.c): CLK USB's lost-clock stop waits till then */
 static int16_t usb8_tap[NTRK][CTL];
-/* 10 CH FX (MENU > USB AUDIO, ui_menu.c): channels 1-2 carry the send effects' return instead of the master: the
+/* 10 CH FX (MENU > USB AUDIO, ui_menu.c): channels 9-10 carry the send effects' return instead of the master: the
  * chorus, delay and reverb buses' output (fx_buses' wet, mono: the same on both; THROW's share in it), at the master's
  * level as the tracks are, before PERFORM's master effects, METRO and master_out (DC block, SPEAKER EQ, limiter, soft
  * clip). T1..T8 panned as on the FM-1 plus this pair add up to the master bus before those (mix_l / mix_r), to
  * rounding. MIX <-> FX cross-fades over 256 samples (5.8 ms; usb8_main). */
-static volatile uint8_t usb_fxpair;             /* 1: 10 CH FX, 0: 10 CH MIX (the master on 1-2) */
+static volatile uint8_t usb_fxpair;             /* 1: 10 CH FX, 0: 10 CH MIX (the master on 9-10) */
 static int16_t usb8_wet[CTL];
-static int32_t usb8_pair[2 * CTL], usb8_g;       /* channels 1-2 for uac8_tap; the cross-fade, 0 MIX .. 32768 FX */
+static int32_t usb8_pair[2 * CTL], usb8_g;       /* channels 9-10 for uac8_tap; the cross-fade, 0 MIX .. 32768 FX */
 static __attribute__((noinline)) void usb8_wet_tap(const int32_t *w, uint32_t n)
 {
     int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (mix_block's mg) */
@@ -396,7 +396,7 @@ static __attribute__((noinline)) void usb8_wet_tap(const int32_t *w, uint32_t n)
     for (i = 0; i < n; i++)
         usb8_wet[i] = (int16_t)clamp(((clamp(w[i], -2097151, 2097151) >> 2) * mg) >> 10, -32768, 32767);
 }
-/* audio ISR, after mix_block: channels 1-2 of the 10 CH stream (out: the master, Q15 stereo); MIX: out itself */
+/* audio ISR, after mix_block: channels 9-10 of the 10 CH stream (out: the master, Q15 stereo); MIX: out itself */
 static __attribute__((noinline)) const int32_t *usb8_main(const int32_t *out, uint32_t n)
 {
     int32_t to = usb_fxpair ? 32768 : 0, g = usb8_g;

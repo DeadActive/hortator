@@ -174,16 +174,16 @@ static void test_descriptors(void)
     ref_get_desc(0x0100, &r, &rn);
     for (i = 0, ndiff = 0; i < 18u; i++)
         ndiff += d[i] != r[i];
-    check("device descriptor = usb_app.c's but bcdDevice 3.82 (was 3.11)", l == 18 && rn == 18 && ndiff == 1 &&
-          d[12] == 0x82 && r[12] == 0x11 && d[13] == 3);
+    check("device descriptor = usb_app.c's but bcdDevice 3.83 (was 3.11; 3.82 had Main L R first)", l == 18 &&
+          rn == 18 && ndiff == 1 && d[12] == 0x83 && r[12] == 0x11 && d[13] == 3);
     get_desc(0x0302, &d, &l);
     check("product string \"Hortator 8ch\" (the installers match \"hortator\")", str_is(d, l, "Hortator 8ch"));
     {
-        static const char *NAMES[UA8_NCH] = {"Main L", "Main R", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
+        static const char *NAMES[UA8_NCH] = {"T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "Main L", "Main R"};
         int ok = 1;
         for (i = 0; i < UA8_NCH; i++)
             ok &= get_desc(0x0300 + USB8_STR_CH + i, &d, &l) && str_is(d, l, NAMES[i]);
-        check("channel names, strings 4..13: Main L, Main R, T1..T8 (MIX and FX alike)", ok);
+        check("channel names, strings 4..13: T1..T8, Main L, Main R (MIX and FX alike)", ok);
     }
     check("string 14 and 3: none (stall)", !get_desc(0x0300 + USB8_STR_CH + UA8_NCH, &d, &l) && !get_desc(0x0303, &d, &l));
 }
@@ -238,11 +238,13 @@ static void test_two_ch(void)
 }
 
 /* --------------------------------------------------------------------- the ring --- */
-/* each channel of frame f carries its own code: master L = f, R = ~f, track k = f * 3 + k (16 bits) */
+/* each channel of frame f carries its own code: master L = f, R = ~f, track k = f * 3 + k + 2 (16 bits). 10 CH: the
+ * host's channels 1-8 the tracks T1..T8, 9-10 the pair (L R); 2 CH: 1-2 the pair */
 #define FS_DEV 44117.6
 static uint32_t prod_n, cons_n, cons_bad, cons_rep, cons_zero, sizes[64], npk, max_bytes, last_frame;
 static int32_t rblk[2 * CTL];
 static uint16_t code(uint32_t f, uint32_t ch) { return ch == 0 ? (uint16_t)f : ch == 1 ? (uint16_t)~f : (uint16_t)(f * 3u + ch); }
+static uint32_t role(uint32_t ch) { return !M10 ? ch : ch < NTRK ? ch + 2u : ch - NTRK; }   /* host channel -> code's */
 
 static void render_block(void)
 {
@@ -267,7 +269,7 @@ static void check_frames(const uint32_t *d, uint32_t n)   /* n frames as the hos
         uint16_t h[2 * UA8_W];                               /* the channels as the host reads them (little-endian) */
         for (ch = 0; ch < 2u * fw; ch++)
             h[ch] = (uint16_t)(d[i * fw + ch / 2u] >> (16u * (ch & 1u)));
-        uint32_t f = h[0], ok = 1, zero = 1;
+        uint32_t f = h[M10 ? NTRK : 0u], ok = 1, zero = 1;
         for (ch = 0; ch < 2u * fw; ch++)
             zero &= h[ch] == 0;
         if (zero && (!UA(go) || !cons_n)) {
@@ -275,7 +277,7 @@ static void check_frames(const uint32_t *d, uint32_t n)   /* n frames as the hos
             continue;
         }
         for (ch = 0; ch < 2u * fw; ch++)
-            ok &= h[ch] == code(f, ch);
+            ok &= h[ch] == code(f, role(ch));
         if (!ok) {
             if (zero) {
                 cons_zero++;
@@ -539,12 +541,12 @@ static void test_mix(void)
         good = RW == w0 + CTL;
         for (i = 0; i < CTL; i++) {
             const uint32_t *f = &ua8_ring[((w0 + i) & (UA_N - 1u)) * UA8_W];
-            good &= (int16_t)(f[0] & 0xFFFF) * (1 << OUT_SHIFT) == out[2 * i] &&
-                    (int16_t)(f[0] >> 16) * (1 << OUT_SHIFT) == out[2 * i + 1];
+            good &= (int16_t)(f[NTRK / 2] & 0xFFFF) * (1 << OUT_SHIFT) == out[2 * i] &&
+                    (int16_t)(f[NTRK / 2] >> 16) * (1 << OUT_SHIFT) == out[2 * i + 1];
             for (k = 0; k < NTRK; k++)
-                good &= (int16_t)(k & 1u ? f[1 + k / 2] >> 16 : f[1 + k / 2] & 0xFFFF) == usb8_tap[k][i];
+                good &= (int16_t)(k & 1u ? f[k / 2] >> 16 : f[k / 2] & 0xFFFF) == usb8_tap[k][i];
         }
-        check("audio_block: ring frame = master L R (the DAC's block) + T1..T8", good);
+        check("audio_block: ring frame = T1..T8 + master L R (the DAC's block), channels 1-8 + 9-10", good);
         m_stream(0);
     }
 }
@@ -574,7 +576,7 @@ static uint64_t cost_run(uint32_t ten, uint32_t N)  /* host instructions of N au
     return instr_now() - i0;
 }
 
-/* 10 CH FX: channels 1-2 the send effects' return; T1..T8 panned as the FM-1 pans + the pair = the master bus before
+/* 10 CH FX: channels 9-10 the send effects' return; T1..T8 panned as the FM-1 pans + the pair = the master bus before
  * PERFORM's master effects, METRO and master_out; no sends: the pair silent; MIX: the master itself; MIX <-> FX fades */
 static void test_fx_pair(void)
 {
@@ -596,7 +598,7 @@ static void test_fx_pair(void)
         for (i = 0; i < CTL; i++)
             silent &= p[2 * i] == 0 && p[2 * i + 1] == 0;
     }
-    check("10 CH FX, every send 0: channels 1-2 silent", silent);
+    check("10 CH FX, every send 0: channels 9-10 silent", silent);
 
     kit_dry(4096, 100);                                 /* sends, pans: the sum */
     for (k = 0; k < NTRK; k++) {
@@ -629,7 +631,7 @@ static void test_fx_pair(void)
             sm += (double)mix_l[i] * mix_l[i];
         }
     }
-    check("10 CH FX: channels 1-2 the buses' return, mono (L = R), at the master's level", mono && maxw > 300);
+    check("10 CH FX: channels 9-10 the buses' return, mono (L = R), at the master's level", mono && maxw > 300);
     snprintf(s, sizeof s, "T1..T8 panned + FX = the master bus before its chain: max %d LSB (peak %d), %.1f dB", maxe,
              maxm, 10.0 * log10(se / sm));
     check(s, maxe <= 48 && se / sm < 1e-5);           /* floors: 9 x (>> 2) x MASTER/1024 + the >> 10s and pans */
@@ -640,7 +642,7 @@ static void test_fx_pair(void)
         p = usb8_main(o, CTL);
     }
     same = usb8_g == 0 && usb8_main(o, CTL) == o;
-    check("10 CH MIX: channels 1-2 are the master block itself (as e586073)", same);
+    check("10 CH MIX: channels 9-10 are the master block itself (as e586073)", same);
 
     {   /* MIX -> FX -> MIX: a 256-sample fade, no jump */
         static int32_t m[2 * CTL];

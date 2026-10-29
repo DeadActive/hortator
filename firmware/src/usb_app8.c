@@ -5,12 +5,13 @@
  * without them it is usb_app.c byte for byte (tools/check_usb_fork.py). The app compiles this file; the update loader
  * keeps usb.c. MENU > USB AUDIO (ui_menu.c) picks the audio input the next enumeration presents (usb10, fx.c):
  *   2 CH   usb_app.c's descriptors and stream, byte for byte (uac_*, unchanged code): the master, 16-bit stereo
- *   10 CH  ten channels: 1-2 the master L R (MIX) or the send effects' return (FX; fx.c usb8_main: the same
- *          descriptors, so MIX <-> FX needs no reconnect), 3-10 the tracks T1..T8 mono (fx.c usb8_track_tap: each track as the dry
- *          mix gets it, before PAN, the sends and the master FX, at the master's level); 16-bit, 44.1 kHz, 920 B in
- *          the largest packet (under a full-speed isochronous endpoint's 1023 B); "Hortator 8ch", bcdDevice 3.82,
- *          channel names Main L, Main R, T1..T8 (strings 4..13: "Main", true of MIX and FX alike; a string cannot
- *          change while attached; 3.81 named them Master L / R). Its own ring and packets (uac8_*), EP4 polled
+ *   10 CH  ten channels: 1-8 the tracks T1..T8 mono (fx.c usb8_track_tap: each track as the dry mix gets it, before
+ *          PAN, the sends and the master FX, at the master's level), 9-10 the master L R (MIX) or the send effects'
+ *          return (FX; fx.c usb8_main: the same descriptors, so MIX <-> FX needs no reconnect); 16-bit, 44.1 kHz,
+ *          920 B in the largest packet (under a full-speed isochronous endpoint's 1023 B); "Hortator 8ch", bcdDevice
+ *          3.83, channel names T1..T8, Main L, Main R (strings 4..13: "Main", true of MIX and FX alike; a string cannot
+ *          change while attached; 3.81 named them Master L / R, first; 3.82 Main L / R, first). Its own ring and
+ *          packets (uac8_*), EP4 polled
  *          at 10 kHz (felucca.c fm1_timer5_irq): one packet buffer, and 920 B take 0.64 ms of the 1 ms frame.
  * SAFE START presents 2 CH whatever the setting (ui.c drum_boot_init). */
 /* } USB8 */
@@ -118,8 +119,8 @@ static volatile uint8_t usb10;
 static int16_t usb8_tap[8][CTL];
 #endif
 static void usb8_quiesce(void);                         /* the mode switch (ui_menu.c): nothing streams, MIDI out dropped */
-#define UA8_NCH 10u                                     /* master L R + T1..T8 */
-#define UA8_W (UA8_NCH / 2u)                            /* words a ring frame: L | R << 16, T1 | T2 << 16, .. */
+#define UA8_NCH 10u                                     /* T1..T8 + master L R */
+#define UA8_W (UA8_NCH / 2u)                            /* words a ring frame: T1 | T2 << 16, .., T7 | T8 << 16, L | R << 16 */
 #define UAC8_MAXP (UA_MAXF * 2u * UA8_NCH)              /* 920 */
 #define UAC8_POLL_HZ 10000u                             /* uac8_service: every TIMER5 tick */
 #define UAC8_STALL_POLLS 200u                           /* 20 ms of polls */
@@ -283,7 +284,7 @@ static const uint8_t STR2[] = {18, 3, 'H', 0, 'o', 0, 'r', 0, 't', 0, 'a', 0, 't
 #if USB8_OK
 #define USB8_STR_CH 4u                                  /* string index of channel 1's name */
 static const uint8_t DEV8_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00,
-                                      0x82, 0x03, 1, 2, 0, 1};                /* misc/IAD, bcdDevice 3.82 */
+                                      0x83, 0x03, 1, 2, 0, 1};                /* misc/IAD, bcdDevice 3.83 */
 static const uint8_t CFG8_DESC[] = {                   /* CFG_DESC, but 10 channels, named; wMaxPacketSize 920 */
     9, 2, CFG_LEN & 0xFF, CFG_LEN >> 8, USB_NIF, 1, 0, 0x80, 50,
     8, 0x0B, 0, 3, 1, 1, 0, 0,                          /* IAD: audio + MIDI (IF 0-2) */
@@ -346,11 +347,11 @@ static int usb8_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
     }
     if (t == 3u && i >= USB8_STR_CH && i < USB8_STR_CH + UA8_NCH) {
         i -= USB8_STR_CH;
-        if (i < 2u) {
-            *d = i ? STR8_MR : STR8_ML;
+        if (i >= UA8_NCH - 2u) {                        /* channels 9-10 */
+            *d = i == UA8_NCH - 1u ? STR8_MR : STR8_ML;
             *l = sizeof STR8_ML;
-        } else {
-            str8_trk[4] = (uint8_t)('1' + i - 2u);
+        } else {                                        /* channels 1-8 */
+            str8_trk[4] = (uint8_t)('1' + i);
             *d = str8_trk;
             *l = sizeof str8_trk;
         }
@@ -1197,7 +1198,8 @@ static __attribute__((noinline)) void uac8_render_start(void)   /* audio ISR, be
         uac8.fill_hi = fill;
 }
 
-/* audio ISR: one block. out: the master (Q15 stereo, audio.c), usb8_tap: the tracks' block (fx.c, 16 bit) */
+/* audio ISR: one block. out: the master (Q15 stereo, audio.c), usb8_tap: the tracks' block (fx.c, 16 bit); a frame
+ * is channels 1-8 the tracks, 9-10 out */
 static __attribute__((noinline)) void uac8_tap(const int32_t *out, uint32_t n)
 {
     uint32_t w = ua8_w, i, k;
@@ -1209,9 +1211,9 @@ static __attribute__((noinline)) void uac8_tap(const int32_t *out, uint32_t n)
     }
     for (i = 0; i < n; i++) {
         uint32_t *f = &ua8_ring[((w + i) & (UA_N - 1u)) * UA8_W];
-        f[0] = (uint32_t)(uint16_t)uac_s16(out[2u * i]) | (uint32_t)(uint16_t)uac_s16(out[2u * i + 1u]) << 16;
-        for (k = 1; k < UA8_W; k++)
-            f[k] = (uint32_t)(uint16_t)usb8_tap[2u * k - 2u][i] | (uint32_t)(uint16_t)usb8_tap[2u * k - 1u][i] << 16;
+        for (k = 0; k < UA8_W - 1u; k++)
+            f[k] = (uint32_t)(uint16_t)usb8_tap[2u * k][i] | (uint32_t)(uint16_t)usb8_tap[2u * k + 1u][i] << 16;
+        f[UA8_W - 1u] = (uint32_t)(uint16_t)uac_s16(out[2u * i]) | (uint32_t)(uint16_t)uac_s16(out[2u * i + 1u]) << 16;
     }
     RING_PUBLISH();
     ua8_w = w + n;

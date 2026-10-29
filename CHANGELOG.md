@@ -5,6 +5,11 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **USB AUDIO 10 CH: the tracks come first.** In 10 CH MIX and 10 CH FX, channels 1-8 now carry the tracks T1..T8 and
+  channels 9-10 the stereo pair (the master in MIX, the send effects in FX); before, the pair came first. Hosts that
+  show channel names list T1..T8, Main L, Main R. If a DAW or AUM had inputs set up for the old order, pick them
+  again. 2 CH and the Bluetooth version are unchanged.
+
 ## 0.26.0 - 2026-10-28
 
 - **Steadier key backlight**: the glow of BACKLIGHT DIM LO and DIM HI (the unlit keys and idle buttons) is now a very

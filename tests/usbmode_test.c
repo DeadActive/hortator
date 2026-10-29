@@ -163,7 +163,7 @@ static void test_reconnect(void)
     c2 = trk[0].seq_cnt;
     check("  the sequencer ran on throughout (steps played before, during and after)", c1 > c0 && c2 > c1 &&
           song.playing);
-    check("  the host enumerates the other set: bcdDevice 3.81, \"Hortator 8ch\"",
+    check("  the host enumerates the other set: bcdDevice 3.83, \"Hortator 8ch\"",
           product_is("Hortator 8ch") && !same_as_frozen());
     usb.config = 1;                                     /* the host configures it */
     mo = mo_w;
@@ -286,7 +286,7 @@ static void test_power_on(void)
     setup();
     usbaud = UA_10FX;
     drum_boot_init();
-    check("power-on with 10 CH FX saved: 10 CH, channels 1-2 the send effects", usb10 == 1 && usb_fxpair == 1);
+    check("power-on with 10 CH FX saved: 10 CH, channels 9-10 the send effects", usb10 == 1 && usb_fxpair == 1);
     usb_fxpair = 0;
     setup();
     usbaud = 1;
