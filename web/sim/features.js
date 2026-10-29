@@ -24,7 +24,7 @@ const PIECES = {                                     // data-piece -> its module
 // mode), as the chapter's "On the panel"
 const PAGES = {
   voices: [{ sel: 0 }, { tap: 'EDIT' }],                       // SOUND 1/3
-  reson: [{ sel: 0 }, ...Array(5).fill({ tap: 'FX' })],       // FILTER 1, 2, FX, SLICER, RESON 1
+  reson: [{ sel: 0 }, ...Array(7).fill({ tap: 'FX' })],       // FILTER 1, 2, FX, INSERT 1, 2, SLICER, RESON 1
   comp: [{ tap: 'HOME' }, { enc: 'SELECT' }],                   // the HOME screen, SELECT on: COMP 2/3
   lfo: [{ sel: 0 }, { tap: 'LFO' }],                           // LFO 1
   seq: [{ sel: 1 }, { tap: 'SEQ' }],                           // STEP 1/4

@@ -5,6 +5,17 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **INSERT effect on every track**: FX > INSERT, two new pages after FX. Choose a TYPE (SOFT, HARD, FOLD, FUZZ,
+  CRUSH, PHASR, FLANG or CHOR) and shape it with its three knobs, named by the type (DRIVE / TONE / LEVEL, BITS /
+  RATE / LPF, or RATE / DEPTH / FDBK); MIX on the second page blends it with the dry sound. It sits after DIST and
+  before the SLICER. Changing the type fades over a few milliseconds, without a click. Its knobs can be recorded
+  with MOTION, locked on steps and learned with MIDI LEARN.
+- **SRR (sample rate reduction) on every track**: INSERT 2/2 KNOB 2. It samples and holds the track's sound, after
+  the FILTER and before DIST, for the gritty, aliased sound of the classic drum machines: from OFF down to 347 Hz,
+  the rate shown on the screen. MOTION, locks and MIDI LEARN take it too.
+- Both are saved with each project. Projects saved before load with SRR OFF and the INSERT OFF, and sound exactly as
+  before.
+
 ## 0.26.0 - 2026-10-28
 
 - **Steadier key backlight**: the glow of BACKLIGHT DIM LO and DIM HI (the unlit keys and idle buttons) is now a very

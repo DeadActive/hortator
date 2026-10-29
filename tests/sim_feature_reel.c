@@ -34,8 +34,8 @@ static const act_t VOICES[] = {                           /* SOUND: the MODEL li
     {8.4f, 's', EN_K2, 3, 12}, {9.2f, 's', EN_K2, -3, 12},
 };
 static const act_t RESON[] = {                            /* FX to RESON; the four models, TUNE, DECAY, MIX swept */
-    {0.3f, 'b', B_FX, 0, 0}, {0.6f, 'b', B_FX, 0, 0}, {0.9f, 'b', B_FX, 0, 0}, {1.2f, 'b', B_FX, 0, 0},
-    {1.5f, 'b', B_FX, 0, 0},
+    {0.3f, 'b', B_FX, 0, 0}, {0.5f, 'b', B_FX, 0, 0}, {0.7f, 'b', B_FX, 0, 0}, {0.9f, 'b', B_FX, 0, 0},
+    {1.1f, 'b', B_FX, 0, 0}, {1.3f, 'b', B_FX, 0, 0}, {1.5f, 'b', B_FX, 0, 0},   /* (.. INSERT 1/2, 2/2 on the way) */
     {2.0f, 'e', EN_K1, 1, 0}, {2.8f, 'e', EN_K1, 1, 0}, {3.6f, 'e', EN_K1, 1, 0}, {4.4f, 'e', EN_K1, 1, 0},
     {5.2f, 'e', EN_K1, -3, 0},
     {5.6f, 's', EN_K2, 4, 14}, {6.6f, 's', EN_K2, -4, 14},

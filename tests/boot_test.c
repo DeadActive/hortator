@@ -1671,6 +1671,77 @@ static int fdre_old_keyf_off(void)
     return (int)ok && h == ref;
 }
 
+/* SRR and the INSERT (P_SRR, P_ITYPE .. P_IMIX): past FDRE's block, so in the steps' spare bytes after KEYF's (one a
+ * step: step 1 SRR, 2 TYPE, 3..5 A B C, 6 MIX), each stored as its offset from its power-on value (a byte 0 = the
+ * power-on value: SRR 0, TYPE OFF, MIX 100 %, A B C 64 96 96). Kept through a save and a load (any value 0..127),
+ * the record still 3840 B, the live steps' spare bytes 0; a track at its power-on values stores 0 there */
+static int fdre_inserts_round_trip(void)
+{
+    static const uint32_t ID[6] = {P_SRR, P_ITYPE, P_IA, P_IB, P_IC, P_IMIX};
+    uint32_t k, i, j, ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    pattern_kit();
+    for (j = 0; j < 6u; j++) {
+        trk[1].p[ID[j]] = (int16_t)(j == 1u ? IT_CRUSH : 127 - 3 * (int32_t)j);
+        trk[4].p[ID[j]] = (int16_t)(j == 1u ? IT_CHORUS : (int32_t)j);   /* (0: below every A B C MIX default) */
+    }
+    trk[6].p[P_IMIX] = 0;
+    project_save(2);
+    for (k = 0; k < NTRK; k++)                         /* the tracks left at their power-on values: 0 stored */
+        if (k != 1u && k != 4u && k != 6u)
+            for (j = 0; j < 6u; j++)
+                ok &= proj_slot[2].t[k].step[ID[j] - P_NSTORED].rsv == 0;
+    host_init();
+    memset(proj_slot, 0, sizeof proj_slot);
+    persist_boot();
+    project_load(2);
+    for (k = 0; k < NTRK; k++) {
+        for (j = 0; j < 6u; j++) {
+            int32_t want = k == 1u ? (j == 1u ? IT_CRUSH : 127 - 3 * (int32_t)j)
+                         : k == 4u ? (j == 1u ? IT_CHORUS : (int32_t)j)
+                         : k == 6u && j == 5u ? 0 : TP[ID[j]].def;
+            if (trk[k].p[ID[j]] != want) {
+                printf("     T%u %s: %d, want %d\n", k + 1u, TP[ID[j]].label, trk[k].p[ID[j]], want);
+                ok = 0;
+            }
+        }
+        for (i = 0; i < NSTEP; i++)
+            ok &= trk[k].step[i].rsv == 0;
+    }
+    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x46524446u && proj_ok(&proj_slot[2]);
+}
+/* a record from before SRR and the INSERT (its steps' spare bytes 0, as 0.26.0 and every earlier firmware wrote
+ * them) loads with SRR 0 and the INSERT OFF on every track (A B C MIX at their power-on values), and plays as it did */
+static int fdre_old_inserts_off(void)
+{
+    project_t *p = &proj_slot[1];
+    uint32_t k, i, ok = 1, ref, h;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    pattern_kit();
+    trk[3].p[P_DIST] = 70;                            /* (a tail the INSERT's would lengthen) */
+    project_save(1);
+    for (k = 0; k < NTRK; k++)                         /* (what 0.26.0 wrote: no byte of it set) */
+        for (i = 0; i < NSTEP; i++)
+            ok &= p->t[k].step[i].rsv == 0;
+    host_init();
+    ref = play_hash(1);
+    host_init();
+    for (k = 0; k < NTRK; k++) {                       /* the live values: replaced by the load */
+        trk[k].p[P_SRR] = 99;
+        trk[k].p[P_ITYPE] = IT_FUZZ;
+        trk[k].p[P_IA] = trk[k].p[P_IB] = trk[k].p[P_IC] = trk[k].p[P_IMIX] = 5;
+    }
+    h = play_hash(1);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_SRR] == 0 && trk[k].p[P_ITYPE] == IT_OFF && trk[k].p[P_IA] == 64 && trk[k].p[P_IB] == 96 &&
+              trk[k].p[P_IC] == 96 && trk[k].p[P_IMIX] == 127;
+    return (int)ok && h == ref;
+}
+
 /* RAM slots left by 0.16.0 (.noinit, FDRB at 3672 B a slot; FDRC's are 3688 B): never read as projects; every slot
  * comes from flash (FDRB converted, PRIO HIGH), a slot with no flash record is empty */
 static int fdrb_ram_refetched(void)
@@ -2573,6 +2644,10 @@ int main(void)
     check("project: RESON KEYF kept through a save and a load (FDRE, still 3840 B: the steps' spare bytes)",
           fdre_keyf_round_trip());
     check("project: an FDRE record from before KEYF loads with KEYF off, playing as before", fdre_old_keyf_off());
+    check("project: SRR and the INSERT kept through a save and a load (still 3840 B: the steps' spare bytes), 0 stored "
+          "at their power-on values", fdre_inserts_round_trip());
+    check("project: a record from before SRR and the INSERT loads with both off, playing as before",
+          fdre_old_inserts_off());
     check("last project: a flash SAVE remembers its slot; power-on loads it (stopped, LOADED, no IRQ enable)",
           last_project_loads());
     check("last project: an empty slot asks START NEW PROJECT? over the power-on kit; NO asks again, YES forgets",

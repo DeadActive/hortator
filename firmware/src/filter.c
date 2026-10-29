@@ -101,15 +101,19 @@ static __attribute__((noinline)) uint32_t trk_filter(track_t *t, int32_t *b, uin
     return ring;
 }
 
+static void track_srr(track_t *t, int32_t *b, uint32_t n, uint32_t snd);   /* insert.c */
 /* the track's inserts before DIST (fx.c mix_part): RESON (reson.c) while it rings or the track sounds with a MODEL,
  * then the FILTER while the track sounds or the filter rings (TYPE OFF: once more, to clear its state); both keep
- * the track on. Out of line, so mix_part stays straight: a condition there was laid out as a cold block jumping
- * back, which tests/target_budget.py reads as a loop around the whole mix */
+ * the track on; then SRR (insert.c) on a block that sounds (SRR 0, or held and now 0 / silent: once more, at rest).
+ * Out of line, so mix_part stays straight: a condition there was laid out as a cold block jumping back, which
+ * tests/target_budget.py reads as a loop around the whole mix */
 static __attribute__((noinline)) uint32_t trk_inserts(track_t *t, int32_t *b, uint32_t n, uint32_t snd)
 {
     if (t->rs.ring || (snd && t->p[P_RMODEL]))
         snd |= reson_block(t, b, n);
     if (t->p[P_FTYPE] ? snd || t->fring : t->fmode)
         snd |= trk_filter(t, b, n);
+    if (t->p[P_SRR] | t->srr_a)
+        track_srr(t, b, n, snd);
     return snd;
 }

@@ -66,6 +66,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     memset(&fx, 0, sizeof fx);
     memset(sl, 0, sizeof sl);
     memset(sl_buf, 0, sizeof sl_buf);
+    memset(ins, 0, sizeof ins);                     /* the INSERTs (insert.c) at rest */
     lim_env = LIM_T;
     lc_l1 = lc_l2 = lc_r1 = lc_r2 = dc_l = dc_r = dce_l = dce_r = 0;
     memset(lce, 0, sizeof lce);

@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Drum machine fork: 2026 DEADACTIVE */
 /* Drum machine core types: 8 drum tracks; each plays one drum model (1 or 2 voices) and an
- * optional sample layer, through Felucca's per-track DIST / SLICER / sends (fx.c). */
+ * optional sample layer, through Felucca's per-track DIST / INSERT / SLICER / sends (fx.c). */
 #include <stdint.h>
 #include "dm_state.h"
 #define NTRK 8                   /* drum tracks */
@@ -16,7 +16,7 @@
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
     F_ONOFF, F_OCT, F_STEPS, F_CTHR, F_CRAT, F_CATK, F_CREL, F_CMKUP, F_LRATE1, F_LRATE2, F_LDEST, F_LPHASE,
-    F_NOTEO, F_RDECAY, F_FDEC
+    F_NOTEO, F_RDECAY, F_FDEC, F_SRR
 };
 
 typedef struct {
@@ -35,6 +35,8 @@ enum { LM_SYNC, LM_HZ, LM_TIME };
 enum { LT_FREE, LT_HIT, LT_PLAY };
 enum { RS_OFF, RS_STRNG, RS_PIPE, RS_CHORD, RS_MODAL, RS_NMODEL };   /* RESON models (reson.c); MODAL: the modal core (phys_dsp.c) */
 enum { FT_OFF, FT_LP, FT_BP, FT_HP, FT_NOTCH, FT_N };   /* FILTER types (filter.c) */
+enum { IT_OFF, IT_SOFT, IT_HARD, IT_FOLD, IT_FUZZ, IT_CRUSH, IT_PHASER, IT_FLANGER, IT_CHORUS, IT_N };   /* INSERT
+                                                     * types (insert.c; stored: append only) */
 #define RS_NCHORD 20                                 /* CHORD types (reson.c RS_CHORD_IV, params.c N_RCHORD) */
 
 enum {                          /* per-track parameters */
@@ -60,6 +62,8 @@ enum {                          /* per-track parameters */
     P_RKEY,                      /* RESON KEYF (reson.c): how far the ring follows the hit's note from C4, 0..127 = 0..100 %.
                                   * Past the project's parameter block (FDRE fills its sector): stored in the steps' spare
                                   * byte (project.c) */
+    P_SRR,                       /* SRR (insert.c): sample rate reduction before DIST, 0 off .. 127 (347 Hz) */
+    P_ITYPE, P_IA, P_IB, P_IC, P_IMIX,   /* INSERT (insert.c, Skiff's from Felucca 1.5): TYPE, its A B C, MIX */
     P_COUNT
 };
 #define P_NSTORED P_RKEY         /* the parameters in a project's block (FDRE: P_MODEL .. P_LS4DEPTH) */
@@ -196,6 +200,7 @@ typedef struct track {
     int32_t fs[2];               /* FILTER (filter.c): the SVF's states */
     int32_t fenv;                /* its envelope, Q24 (a hit: 1 << 24) */
     uint8_t fvel, fmode, fring;  /* the hit's velocity, the TYPE running (a change: from silence), ringing */
+    int32_t srr_h, srr_a;        /* SRR (insert.c track_srr): the held sample, what is left of it (Q8 samples) */
     int32_t wow;                 /* ACID: the accent smoother, Q24 (accented notes charge it, track_render decays it
                                   * every block: it carries over consecutive accents, as the 303's) */
     uint16_t pre;                /* presets.c: the preset id the voice was loaded from (PRE_NONE: none; projects: FDRD) */

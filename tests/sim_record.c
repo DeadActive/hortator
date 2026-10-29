@@ -24,8 +24,8 @@ static const act_t SCRIPT[] = {                           /* HOME's scope first;
     {9.8f, 'e', EN_K2, 2}, {10.1f, 'e', EN_K2, 2}, {10.4f, 'e', EN_K2, 2}, {10.7f, 'e', EN_K2, 2},
     {11.2f, 'e', EN_K2, -2}, {11.5f, 'e', EN_K2, -2}, {11.8f, 'e', EN_K2, -2}, {12.1f, 'e', EN_K2, -2},
     {12.8f, 'b', B_FX, 0}, {12.8f, 'm', 0, 0, "fx"},     /* FX, SELECT through to REVERB, SIZE swept */
-    {13.4f, 'e', EN_SELECT, 1}, {13.8f, 'e', EN_SELECT, 1}, {14.2f, 'e', EN_SELECT, 1}, {14.6f, 'e', EN_SELECT, 1},
-    {15.0f, 'e', EN_SELECT, 1},
+    {13.4f, 'e', EN_SELECT, 1}, {13.65f, 'e', EN_SELECT, 1}, {13.9f, 'e', EN_SELECT, 1}, {14.15f, 'e', EN_SELECT, 1},
+    {14.4f, 'e', EN_SELECT, 1}, {14.65f, 'e', EN_SELECT, 1}, {14.9f, 'e', EN_SELECT, 1},   /* (INSERT 1/2, 2/2 too) */
     {15.8f, 'e', EN_K2, 3}, {16.2f, 'e', EN_K2, 3}, {16.8f, 'e', EN_K2, -3}, {17.2f, 'e', EN_K2, -3},
     {18.0f, 'b', B_ARP, 0}, {18.0f, 'm', 0, 0, "grids"}, /* Grids: X and Y wander */
     {18.8f, 'e', EN_K2, 4}, {19.3f, 'e', EN_K3, 4}, {19.8f, 'e', EN_K2, 4}, {20.3f, 'e', EN_K3, -4},

@@ -1678,6 +1678,58 @@ static void graph_filter(uint16_t c)
             cv_rect(100 + ex, x, 1, 2, C_INK);
 }
 
+/* INSERT 1/2 and 2/2 (insert.c): the TYPE in large, MIX and SRR under it; at the right a sine's cycle as the track's
+ * chain bends it (SRR's steps, then the drive's / CRUSH's curve at MIX, after Skiff's graph_insert), or for the swept
+ * ones their sweep over two cycles (PHASR and FLANG a triangle, FLANG's squared, CHOR a sine, as deep as DEPTH). Both
+ * off: OFF */
+static void graph_insert(void)
+{
+    const track_t *t = TSEL;
+    uint32_t ty = (uint32_t)clamp(t->p[P_ITYPE], 0, IT_N - 1), i;
+    int32_t a = t->p[P_IA], bb = t->p[P_IB], cc = t->p[P_IC], mix = ins_mixq(t->p[P_IMIX]), srr = t->p[P_SRR];
+    int32_t hold = 1 + srr_period(srr) / 1024, py = 0, h = 0;   /* (SRR's steps, drawn: 1 .. 32 px) */
+    char b[16];
+    const char *u;
+    if (!ty && !srr) {
+        off_word();
+        return;
+    }
+    md_text(4, 4, &MD_F3, 4, N_ITYPE[ty], C_INK);
+    str_cpy(b, "MIX ", sizeof b);
+    param_format(&TP[P_IMIX], t->p[P_IMIX], b + 4, &u);
+    str_cpy(b + str_len(b), u, sizeof b - str_len(b));
+    if (ty)
+        md_text(4, 30, &MD_F3, 2, b, C_INK);
+    str_cpy(b, "SRR ", sizeof b);
+    param_format(&TP[P_SRR], srr, b + 4, &u);
+    str_cpy(b + str_len(b), u, sizeof b - str_len(b));
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, 46, C_INK);                                /* 0 */
+    for (i = 0; i < 136u; i++) {
+        int32_t y, x = sine_i(i * 31580641u) * 3 / 4;        /* (one cycle across 136 px) */
+        if (ty >= IT_PHASER) {
+            uint32_t ph = (uint32_t)((i % 68u) * 65536u / 68u) << 16;
+            int32_t sw = ty == IT_CHORUS ? osc_sine(ph) : (int32_t)ins_tri(ph) - 32768;
+            if (ty == IT_FLANGER)
+                sw = (int32_t)(((uint32_t)(sw + 32768) * (uint32_t)(sw + 32768)) >> 16) - 32768;
+            y = sw * bb / 127 * 24000 / 32768;
+        } else {
+            if (!(i % (uint32_t)hold))
+                h = x;                                       /* SRR: held */
+            y = h;
+            if (ty == IT_CRUSH)
+                y = ins_shape(IT_CRUSH, h, ins_bits_sh(a));
+            else if (ty)
+                y = (ins_shape(ty, ((h >> 3) * (4096 + a * a * 3)) >> 9, 0) * LEVEL_Q12[cc & 127]) >> 12;
+            y = h + (int32_t)(((int64_t)(clamp(y, -40000, 40000) - h) * mix) >> 15);
+        }
+        y = clamp(46 - y * 36 / 24000, 4, 88);
+        if (i)
+            cv_line(99 + (int32_t)i, py, 100 + (int32_t)i, y, C_INK);
+        py = y;
+    }
+}
+
 static uint32_t graph_signature(void)
 {
     const page_t *pg = cur_page();
@@ -2101,6 +2153,9 @@ static uint32_t graph_paint(int whole)
         break;
     case GR_FILTER:
         graph_filter(c);
+        break;
+    case GR_INSERT:
+        graph_insert();
         break;
     case GR_SLOTS:
         cv_oy = 0;
