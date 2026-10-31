@@ -29,6 +29,7 @@
 #define TL_K_CPSEL 15u              /* G#4 COPY SEL: the selection page; again: copy */
 #define TL_K_PSEL 17u               /* A#4 PASTE SEL: then a step */
 #define TL_K_DUP 20u                /* C#5 DUPLICATE */
+#define TL_K_CLEAR 22u              /* D#5 CLEAR: "CLEAR TRACK n?", as REC held on a SEQ page */
 typedef struct {
     step_t st;                      /* the step buffer (COPY STEP) */
     uint8_t st_ok, st_n, st_from;   /* .. holds a step; its locks; the step it came from */
@@ -248,6 +249,7 @@ static void tl_duplicate(void)
 
 /* the keys the ISR gave the screen: the tools first, then the white keys (a step: COPY STEP / PASTE STEP held, or
  * PASTE SEL armed) */
+static void tl_close(void);
 static void tl_keys(uint32_t hits)
 {
     uint32_t k, held = fm1_in.notes, len = tl_len(TSEL);
@@ -286,6 +288,12 @@ static void tl_keys(uint32_t hits)
     }
     if ((hits >> TL_K_DUP) & 1u)
         tl_duplicate();
+    if (((hits >> TL_K_CLEAR) & 1u) && !song_lock()) {   /* the dialog in the screen's place (ui_input.c: REC held) */
+        ui.confirm = 1;
+        ui.confirm_trk = song.sel;
+        tl_close();
+        return;
+    }
     for (k = 0; k < 16u; k++) {
         uint32_t s = ui.bank * 16u + k;
         if (!((hits >> STEP_KEY[k]) & 1u) || s >= len)
@@ -414,8 +422,8 @@ static void tools_panel(uint32_t pressed)
  * selection), the tools lit where they can act (the pastes with something copied), the one held or armed blinking */
 static void tools_leds(uint8_t *nl)
 {
-    static const uint8_t TK[9] = {TL_K_CPSTEP, TL_K_PSTEP, TL_K_CPPAGE, TL_K_REPL, TL_K_MERGE, TL_K_FILL, TL_K_CPSEL,
-                                  TL_K_PSEL, TL_K_DUP};
+    static const uint8_t TK[10] = {TL_K_CPSTEP, TL_K_PSTEP, TL_K_CPPAGE, TL_K_REPL, TL_K_MERGE, TL_K_FILL, TL_K_CPSEL,
+                                   TL_K_PSEL, TL_K_DUP, TL_K_CLEAR};
     const track_t *t = TSEL;
     uint32_t k, len = tl_len(t), blink = (fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u;
     for (k = 0; k < 16u; k++) {
@@ -425,7 +433,7 @@ static void tools_leds(uint8_t *nl)
             on = !on;
         led_put(nl, 14u + STEP_KEY[k], on);
     }
-    for (k = 0; k < 9u; k++) {
+    for (k = 0; k < 10u; k++) {
         uint32_t key = TK[k];
         led_put(nl, 14u + key, tl_tool_act(key) ? (int)blink : tl_tool_ok(key));
     }
@@ -442,10 +450,11 @@ static void tools_leds(uint8_t *nl)
 static void tl_text_r(int32_t xr, int32_t y, const char *s, uint16_t c) { md_text(xr - md_text_w(&MD_F3, 2, s), y, &MD_F3, 2, s, c); }
 static void draw_tools(void)
 {
-    static const struct { uint8_t key; const char *note, *name; } TOOL[9] = {
+    static const struct { uint8_t key; const char *note, *name; } TOOL[10] = {
         {TL_K_CPSTEP, "F#3", "COPY STEP"}, {TL_K_PSTEP, "G#3", "PASTE STEP"}, {TL_K_CPPAGE, "A#3", "COPY PAGE"},
         {TL_K_REPL, "C#4", "REPLACE"}, {TL_K_MERGE, "D#4", "MERGE"}, {TL_K_FILL, "F#4", "FILL"},
         {TL_K_CPSEL, "G#4", "COPY SEL"}, {TL_K_PSEL, "A#4", "PASTE SEL"}, {TL_K_DUP, "C#5", "DUPLICATE"},
+        {TL_K_CLEAR, "D#5", "CLEAR"},
     };
     const track_t *t = TSEL;
     uint32_t k, len = tl_len(t), a = ui.bank * 16u, lkm = lk_step_mask(&mo.b, song.sel, a), sig, ph = NSTEP;
@@ -536,7 +545,7 @@ static void draw_tools(void)
     cv_rect(0, 0, 1, (int32_t)TL_H2, C_INK);
     cv_rect(239, 0, 1, (int32_t)TL_H2, C_INK);
     cv_hdot(1, 238, 0, C_INK);
-    for (k = 0; k < 9u; k++) {                      /* the tools: two columns, five rows */
+    for (k = 0; k < 10u; k++) {                     /* the tools: two columns, five rows */
         uint32_t key = TOOL[k].key;
         int32_t x = k < 5u ? 5 : 125, y = 4 + (int32_t)(k % 5u) * 12, xe;
         uint16_t pen = tl_tool_act(key) ? C_BG : C_INK;

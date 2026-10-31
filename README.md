@@ -103,7 +103,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | --- | --- |
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
-| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3 / 4: PROB / RATCH / ACCENT (right on, left off) / NUDGE; hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG (each tap on its release); held: the TOOLS screen ([step tools](#step-tools): copy and paste steps, pages, selections, DUPLICATE) |
+| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3 / 4: PROB / RATCH / ACCENT (right on, left off) / NUDGE; hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG (each tap on its release); held: the TOOLS screen ([step tools](#step-tools): copy and paste steps, pages, selections, DUPLICATE, CLEAR) |
 | **FX** | FILTER, FX (the sends), INSERT (and SRR), SLICER and RESON; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
@@ -302,6 +302,7 @@ clipboard and the step buffer hold, and each tool's result.
 | **G#4** COPY SEL | a selection: KNOB 1 START, KNOB 2 END (1 to 64, lit on the bank's keys); G#4 again copies it |
 | **A#4** PASTE SEL | then tap a step: the clipboard pasted from there (nothing past step 64); hold A#4 to paste at several steps |
 | **C#5** DUPLICATE | every track's pattern doubles: LEN x 2 (64 at most), the new steps a copy of the first ones |
+| **D#5** CLEAR | `CLEAR TRACK n?` for the selected track, as REC held on a SEQ page: OCT+ clears its steps, motion and locks, OCT- keeps them |
 
 A copied step is all of it: on, accent, PROB, ratchet, note, slide and tie, and its parameter locks (a pasted step's
 own locks are replaced). When the project's locks are full a paste brings what fits and says `LOCKS FULL`. The keys

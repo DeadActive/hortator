@@ -150,6 +150,7 @@ Report what you saw first; we'll go through it together.
   every bank = bank 1 (`FILLED 1-64`).
 - COPY SEL / PASTE SEL: G#4, KNOB 1 START 5, KNOB 2 END 12 (keys 5..12 lit, `build/ui_shots/seqtools/02_copy_sel.png`),
   G#4 again (`COPIED 5-12`); OCT+ to the last bank, A#4, tap step 60: `PASTED 60-64`, nothing wraps to step 1.
+- TOOLS D#5: `CLEAR TRACK n?` for the selected track; OCT- keeps, OCT+ clears (steps, motion, locks).
 - DUPLICATE: tracks at LEN 16, 40 and 64, C#5 (`DUPLICATED`): LEN 32, 64, 64; the new steps play the first ones
   again, locks included; the LEN 64 track unchanged. With the project's locks nearly full a paste says `LOCKS FULL`.
 - SAVE after a paste, power off and on, LOAD: the pasted steps and their locks come back.

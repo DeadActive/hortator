@@ -21,7 +21,7 @@ released yet are listed under Unreleased.
   turns the SEQ pages, now on its release). The white keys are the bank's 16 steps, OCT- / OCT+ the bank, and the
   black keys copy and paste: F#3 COPY STEP and G#3 PASTE STEP (hold the tool, tap steps), A#3 COPY PAGE, C#4 REPLACE,
   D#4 MERGE (only the clipboard's steps that are on), F#4 FILL (the clipboard repeated up to LEN), G#4 COPY SEL (KNOB 1
-  START, KNOB 2 END, G#4 again copies), A#4 PASTE SEL (then tap where it starts) and C#5 DUPLICATE (every track's
+  START, KNOB 2 END, G#4 again copies), A#4 PASTE SEL (then tap where it starts), D#5 CLEAR (the CLEAR TRACK question, as REC held) and C#5 DUPLICATE (every track's
   pattern twice as long, up to 64 steps, the new half a copy). A copied step keeps everything: accent, PROB, ratchet,
   note, slide and tie, its NUDGE and its parameter locks; with the locks full a paste brings what fits and says LOCKS FULL. Keys
   pressed with SEQ play nothing and record nothing. Holding SEQ while switching on is still the safe start.

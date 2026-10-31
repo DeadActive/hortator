@@ -1805,7 +1805,7 @@ static void test_mute_screen_keys(void)
  * turns the SEQ pages (on the release). The keys pressed with SEQ are the screen's until let go: no note, no MIDI,
  * nothing recorded. White keys: the bank's 16 steps (OCT- / OCT+ the bank); black keys: the tools */
 enum { TK_CPSTEP = 1, TK_PSTEP = 3, TK_CPPAGE = 5, TK_REPL = 8, TK_MERGE = 10, TK_FILL = 13, TK_CPSEL = 15,
-       TK_PSEL = 17, TK_DUP = 20 };
+       TK_PSEL = 17, TK_DUP = 20, TK_CLEAR = 22 };
 static uint32_t seq_bit(void) { return 1u << panel.btn[B_SEQ]; }
 static void seq_hold_frames(uint32_t n)
 {
@@ -1980,6 +1980,34 @@ static void test_tools_seq_tap(void)
     ui_frame();
 }
 
+/* TOOLS: D#5 CLEAR = REC held on a SEQ page: "CLEAR TRACK n?" for the selected track (OCT+ clears, OCT- keeps) */
+static void test_tools_clear(void)
+{
+    uint32_t k, n;
+    ui_host_init();
+    tools_reset();
+    kit_session();
+    song.sel = 2;
+    seq_open("STEP");
+    tools_open();
+    check("TOOLS: D#5 (CLEAR) lit", led_lit(14u + TK_CLEAR));
+    seq_key(TK_CLEAR);
+    check("TOOLS: D#5 asks CLEAR TRACK 3? (the screen gives way to the dialog)", ui.confirm == 1u &&
+          ui.confirm_trk == 2u && !ui.tools);
+    tools_close();
+    check("TOOLS: SEQ let go: the dialog stays, no page turned", ui.confirm == 1u && str_eq(cur_page()->title, "STEP"));
+    tap(B_OCTDN);
+    for (k = 0, n = 0; k < NSTEP; k++)
+        n += trk[2].step[k].on;
+    check("CLEAR from TOOLS: OCT- keeps the steps", !ui.confirm && n > 0u);
+    tools_open();
+    seq_key(TK_CLEAR);
+    tools_close();
+    tap(B_OCTUP);
+    for (k = 0, n = 0; k < NSTEP; k++)
+        n += trk[2].step[k].on;
+    check("CLEAR from TOOLS: OCT+ clears track 3's steps", !ui.confirm && n == 0u);
+}
 static void test_tools_screen(void)
 {
     uint32_t k, ok;
@@ -10542,6 +10570,7 @@ int main(void)
     test_mute_screen_refused();
     test_tools_seq_tap();                            /* step tools (spec 2026-10-31 §3): SEQ held */
     test_tools_screen();
+    test_tools_clear();
     test_tools_step_copy();
     test_tools_page();
     test_tools_sel();
