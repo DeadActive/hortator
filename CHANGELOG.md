@@ -5,6 +5,10 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **Solo on the MUTE screen**: hold GLO and press a black key F#3 to A#4 to solo track 1 to 8 (several at once; the
+  soloed keys lit). The other tracks' boxes are half filled, a soloed one shows an S. The top black key F#5 switches
+  solo between TGL (a tap on, a tap off) and MOM (soloed only while the key is held); the choice is kept over
+  power-off.
 - **The delay's and the reverb's settings moved to GLO**: DLY (TIME, FDBK, COLR, MIX, and MODE on its second page)
   and REVERB (TYPE, SIZE, DAMP) are now GLO's pages 4–6, after GLOBAL, SYSTEM and GLOBAL; FX keeps the track's own
   pages and CHORUS. GLO's first three pages are now numbered 1/6 to 3/6. The send knobs (DLY, REV) stay on the FX page.

@@ -1855,13 +1855,15 @@ static void graph_perf(void)
 #define MU_BH 40u
 #define MU_BX(k) (4u + (k) % 4u * 59u)
 #define MU_BY(k) (MU_Y + 4u + (k) / 4u * 60u)
-/* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber); in each the track and its
- * model, under it the key that toggles it; below, the mode and its keys, and G4's MIDI LEARN. The top bar as
+/* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber), a track another's SOLO
+ * silences: half filled (dithered), a soloed one: an S in its corner; in each the track and its model, under it the
+ * key that toggles it; below, the mute mode and its keys, G4's MIDI LEARN and F#5's SOLO mode. The top bar as
  * everywhere */
 static void draw_mute(void)
 {
     uint32_t k, blink = (fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u;
-    uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u + ui.ml.on * 5003u;
+    uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u + ui.ml.on * 5003u +
+                   song.solo * 65537u + solo_mom * 1000003u;
     int32_t x, w;
     char b[24];
     for (k = 0; k < NTRK; k++)
@@ -1895,14 +1897,19 @@ static void draw_mute(void)
         int on = !trk[k].p[P_MUTE] ^ (wait && blink);
         const char *mn = N_MODEL[(uint32_t)trk[k].p[P_MODEL] % NMODELS];
         uint16_t pen = on ? C_BG : C_INK;
+        int hushed = on && song.solo && !((song.solo >> k) & 1u);   /* (another track's SOLO) */
         if (on)
             cv_rect(bx, by, MU_BW, MU_BH, C_INK);
         else
             cv_frame(bx, by, MU_BW, MU_BH, C_INK);
+        if (hushed)
+            cv_dither(bx + 1, by + 1, (int32_t)MU_BW - 2, (int32_t)MU_BH - 2, C_BG);
         b[0] = (char)('1' + k);
         b[1] = 0;
         md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, b)) / 2, by + 6, &MD_F3, 2, b, pen);
         md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, mn)) / 2, by + 22, &MD_F3, 2, mn, pen);
+        if ((song.solo >> k) & 1u)
+            md_text(bx + 4, by + 6, &MD_F3, 2, "S", pen);
         note_text(b, 53 + KEY_TRK_KEY[k]);
         md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, b)) / 2, by + (int32_t)MU_BH + 4, &MD_F3, 2, b, C_INK);
     }
@@ -1922,11 +1929,12 @@ static void draw_mute(void)
     k = (uint32_t)md_text(x, 24, &MD_F3, 2, "D# NEXT BAR", C_INK);
     if (!settings.mutebar)
         cv_dither(x, 24, (int32_t)k - x, 10, C_BG);
-    str_cpy(b, ui.ml.on ? "G4 LEARN: ON" : "G4 LEARN: OFF", sizeof b);
-    x = (240 - md_text_w(&MD_F3, 2, b)) / 2;
-    md_text(x, 44, &MD_F3, 2, b, C_INK);
+    w = md_text_w(&MD_F3, 2, "G4 LEARN") + 12 + md_text_w(&MD_F3, 2, solo_mom ? "F# SOLO MOM" : "F# SOLO TGL");
+    x = (240 - w) / 2;
+    k = (uint32_t)md_text(x, 44, &MD_F3, 2, "G4 LEARN", C_INK);
     if (!ui.ml.on)
-        cv_dither(x, 44, md_text_w(&MD_F3, 2, b), 10, C_BG);
+        cv_dither(x, 44, (int32_t)k - x, 10, C_BG);
+    md_text((int32_t)k + 12, 44, &MD_F3, 2, solo_mom ? "F# SOLO MOM" : "F# SOLO TGL", C_INK);
     cv_blit(0, 164);
 }
 /* PERFORM: KNOB 1..4 FILTER CRUSH THROW DEPTH (SHIMMER while OCT UP / DN plays) */

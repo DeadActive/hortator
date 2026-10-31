@@ -134,6 +134,10 @@ Report what you saw first; we'll go through it together.
 - Mute on the next bar: on the MUTE screen the top D# (POLY): `MUTE: NEXT BAR`; while playing, a mute waits for the
   next bar (its box and key blink) and lands on the downbeat. The top C# (MONO): `MUTE: NOW`. The same setting is
   GLOBAL 3/6 MUTE NOW / BAR; it survives a power cycle.
+- Solo on the MUTE screen: black key F#3 solos track 1 .. A#4 track 8, the key lit, an S in the box, the other boxes
+  half filled and silent while playing; the same key again unsolos (`F# SOLO TGL` on the last line). Top F#5:
+  `SOLO: MOMENTARY` (F#5 lit, `F# SOLO MOM`): a solo key now solos only while held, also when GLO is let go first;
+  F#5 again: `SOLO: TOGGLE`. Power off and on: the mode kept, nothing soloed.
 - CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
   stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1

@@ -128,6 +128,13 @@ BAR, a mute made while playing blinks, then lands on the next downbeat. G4 (the 
 [MIDI LEARN](#midi-learn) on and off. While the screen is up the keys play nothing and the knobs and the other
 buttons rest, PLAY aside. Let go of GLO: back to the page you were on.
 
+**Solo** on the same screen: the black keys F#3 to A#4 solo tracks 1 to 8, their LEDs lit while soloed. While any
+track is soloed only the soloed ones are heard; the others' boxes are half filled, a soloed box has an S in its corner,
+and the mutes stay as they are. The top black key **F#5** flips the solo mode, shown on the screen's last line:
+**TGL** (toggle: a tap solos, another tap unsolos) or **MOM** (momentary: soloed while the key is held, also after
+GLO is let go). The mode is a setting of the FM-1, kept over power-off; solo itself is not saved (INIT and a power-on
+clear it).
+
 ### MIDI LEARN
 
 A controller's knobs, faders, buttons and pads can each be learned: up to 32 of them.
@@ -575,8 +582,8 @@ FM-1's keys as live record does. While a dialog or NAME is on the screen, the mi
   the mixer blinks its LED. Then it follows. On every connection, and whenever a track's LEVEL changes some other
   way (the FM-1's knob, LOAD, INIT, LEVEL motion), that fader has to be picked up again.
 - **Solo:** while any track is soloed, only the soloed tracks are heard; several can be soloed. A silenced track
-  is dimmed on HOME and TRACKS, as a muted one; the mutes are unchanged. The FM-1 has no SOLO control, so solo
-  clears by itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (every track audible again; nothing
+  is dimmed on HOME and TRACKS, as a muted one; the mutes are unchanged. The FM-1's own solo is on the MUTE screen
+  ([mutes](#mutes)); solo clears by itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (every track audible again; nothing
   is cut). Solo is not saved: INIT and a power-on clear it too.
 - **Leaving SMC DAW** (MODE MIDI or FM-LINK while connected): Hortator turns the mixer's LEDs off once and sends it nothing
   more.

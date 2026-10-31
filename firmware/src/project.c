@@ -2052,6 +2052,8 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
         btset.bt_auto = (p.palette >> 8) & 1u;
         midi_thru = (uint8_t)((p.palette >> 14) & 1u);   /* bit 14 = MIDI THRU (midi_out.c): older records read OFF */
+        solo_mom = (uint8_t)((p.palette >> 15) & 1u);    /* bit 15 = SOLO MOMENTARY (the MUTE screen's F#5, ui_input.c):
+                                                           * older records read TOGGLE */
 #if USB10_BUILD
         usbaud = (p.palette >> 12) & 3u;            /* bits 12..13 = USB AUDIO: 0 2 CH (older records), 1 10 CH MIX
                                                      * (e586073's 10 CH), 2 10 CH FX, 3 none: 2 CH (the Bluetooth
@@ -2217,9 +2219,9 @@ static void settings_save(void)                    /* asked for while playing: w
 #if USB10_BUILD
     p.palette |= (usbaud & 3u) << 12;
 #endif
-    p.palette |= (uint32_t)(midi_thru & 1u) << 14;
+    p.palette |= (uint32_t)(midi_thru & 1u) << 14 | (uint32_t)(solo_mom & 1u) << 15;
     /* an older Hortator reads a palette out of range from bit 8: its display settings reset; 9..11 BACKLIGHT's level
-     * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it); 14 MIDI THRU (an
+     * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it); 14 MIDI THRU, 15 SOLO MOMENTARY (an
      * older one ignores it) */
     p.lowcut = lc_pack() | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |

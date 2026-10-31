@@ -560,19 +560,28 @@ static void track_mute_toggle(uint32_t k)
         panic_req |= (uint8_t)(1u << k);
 }
 
-/* SOLO (the SMC-Mixer): track k soloed / not; the tracks this silences cut what they play, as a mute does */
-static void track_solo_toggle(uint32_t k)
+/* SOLO (the SMC-Mixer; the MUTE screen's black keys, ui_input.c): track k soloed (on 1) / not (0) / the other (2); the
+ * tracks this silences cut what they play, as a mute does */
+static uint8_t solo_mom;                               /* SOLO on the MUTE screen: 0 TOGGLE, 1 MOMENTARY (F#5; a device
+                                                        * setting: project.c, the palette word's bit 15) */
+static void track_solo_set(uint32_t k, uint32_t on)
 {
     uint32_t i, was = 0;
     if (k >= NTRK)
         return;
     for (i = 0; i < NTRK; i++)
         was |= (uint32_t)trk_silent(&trk[i]) << i;
-    song.solo ^= (uint8_t)(1u << k);
+    if (on == 2u)
+        song.solo ^= (uint8_t)(1u << k);
+    else if (on)
+        song.solo |= (uint8_t)(1u << k);
+    else
+        song.solo &= (uint8_t)~(1u << k);
     for (i = 0; i < NTRK; i++)
         if (trk_silent(&trk[i]) && !((was >> i) & 1u))
             panic_req |= (uint8_t)(1u << i);
 }
+static void track_solo_toggle(uint32_t k) { track_solo_set(k, 2u); }
 
 /* COMP: white key k turns DUCK of track k on / off (not the source's: it is never ducked) */
 static void track_duck_toggle(uint32_t k)

@@ -1586,6 +1586,59 @@ static int mute_box_filled(uint32_t k)               /* track k's box: lit insid
 {
     return fb[(MU_BY(k) + MU_BH - 3u) * 240u + MU_BX(k) + 3u] == C_INK;
 }
+/* SOLO on the MUTE screen: the black keys F#3 .. A#4 solo tracks 1..8 (TOGGLE: a tap on / off; MOMENTARY: while
+ * held), F#5 flips the mode (a device setting, its key lit while MOMENTARY); the soloed keys lit; no sound */
+static const uint8_t SOLO_BK[8] = {1, 3, 5, 8, 10, 13, 15, 17};
+static void test_mute_screen_solo(void)
+{
+    uint32_t a, k, ok;
+    ui_host_init();
+    solo_mom = 0;
+    song.solo = 0;
+    press(B_GLO);
+    glo_hold_frames(450);
+    check("SOLO: the MUTE screen up, nothing soloed, F#5 dark (TOGGLE)", ui.mute && !song.solo && !led_lit(14u + 25u));
+    a = hit_age(&trk[2]);
+    glo_key(SOLO_BK[2]);
+    check("SOLO TOGGLE: black key 3 solos track 3, its key lit, no sound, no select",
+          song.solo == 1u << 2 && led_lit(14u + SOLO_BK[2]) && hit_age(&trk[2]) == a && song.sel == 0);
+    glo_key(SOLO_BK[5]);
+    check("SOLO TOGGLE: black key 6 adds track 6", song.solo == (1u << 2 | 1u << 5));
+    ok = 1;
+    for (k = 0; k < NTRK; k++)
+        ok &= trk_silent(&trk[k]) == !(k == 2u || k == 5u);
+    check("SOLO: only the soloed tracks are heard", ok);
+    snap_page("fixes/mute_screen_solo");
+    glo_key(SOLO_BK[2]);
+    glo_key(SOLO_BK[5]);
+    check("SOLO TOGGLE: the same keys again unsolo", song.solo == 0u && !led_lit(14u + SOLO_BK[2]));
+    glo_key(25u);                                    /* F#5 */
+    check("F#5 flips the mode to MOMENTARY (saved), its key lit, the top line says so",
+          solo_mom == 1u && led_lit(14u + 25u) && str_eq(ui.msg, "SOLO: MOMENTARY"));
+    keys(1u << SOLO_BK[0]);
+    glo_hold_frames(3);
+    check("SOLO MOMENTARY: black key 1 held = track 1 soloed", song.solo == 1u);
+    keys(0);
+    glo_hold_frames(2);
+    check("SOLO MOMENTARY: let go = unsoloed", song.solo == 0u);
+    keys(1u << SOLO_BK[7]);
+    glo_hold_frames(3);
+    release_all();                                   /* GLO let go first, the key still held */
+    ui_frame();
+    ui_frame();
+    check("SOLO MOMENTARY: GLO let go with the key held: still soloed, the screen gone",
+          song.solo == 1u << 7 && !ui.mute);
+    keys(0);
+    ui_frame();
+    ui_frame();
+    check("SOLO MOMENTARY: the key let go later: unsoloed", song.solo == 0u);
+    press(B_GLO);
+    glo_hold_frames(450);
+    glo_key(25u);
+    check("F#5 again: TOGGLE", solo_mom == 0u && !led_lit(14u + 25u) && str_eq(ui.msg, "SOLO: TOGGLE"));
+    release_all();
+    ui_frame();
+}
 static void test_mute_screen(void)
 {
     uint32_t a, k, ok, l1, l2;
@@ -9829,6 +9882,7 @@ int main(void)
     test_rec_everywhere();
     test_quick_mute();
     test_mute_screen();
+    test_mute_screen_solo();
     test_mute_screen_keys();
     test_mute_screen_refused();
     test_save_tap_opens_projects();
