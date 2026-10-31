@@ -29,7 +29,7 @@
 #define TL_K_CPSEL 15u              /* G#4 COPY SEL: the selection page; again: copy */
 #define TL_K_PSEL 17u               /* A#4 PASTE SEL: then a step */
 #define TL_K_DUP 20u                /* C#5 DUPLICATE */
-static struct {
+typedef struct {
     step_t st;                      /* the step buffer (COPY STEP) */
     uint8_t st_ok, st_n, st_from;   /* .. holds a step; its locks; the step it came from */
     uint8_t st_id[TL_SLK];          /* .. their knobs and values */
@@ -42,7 +42,15 @@ static struct {
     uint8_t sel, s0, s1;            /* COPY SEL: the selection page up; START, END (steps 0..63) */
     uint8_t arm;                    /* PASTE SEL: waiting for a step */
     uint8_t full;                   /* a paste found the lock bank full */
-} tl;
+} tl_t;
+/* ~950 B: the standard build's .bss; the Bluetooth build has no .bss room to spare for it: the RAM-code region's
+ * spare (app_ble.ld .ram_bss, after .ram_text's PC-guard window, below 0x01C06000, as the variations' banks and the
+ * INSERTs' state), which crt0 does not zero: project.c persist_boot does (all zero: nothing copied, no page up) */
+#if defined(FELUCCA_BLE) && FELUCCA_BLE
+static tl_t tl __attribute__((section(".ram_bss"), aligned(4)));
+#else
+static tl_t tl;
+#endif
 
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* (ui_input.c) */
 static int cue_owns_keys(void);
