@@ -131,6 +131,11 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-re
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_pattern_test" tests/editor_pattern_test.c -lm   # (the editor's presets / patterns: ASan + UBSan)
 "$OUT/editor_pattern_test" > "$OUT/editor_pattern_test.txt" 2>&1 || { grep -v "^ok" "$OUT/editor_pattern_test.txt" | tail -30; exit 1; }
 tail -1 "$OUT/editor_pattern_test.txt"
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
+    -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_backup_test" \
+    tests/editor_backup_test.c -lm   # (the web editor's backup / restore: ASan + UBSan)
+"$OUT/editor_backup_test" > "$OUT/editor_backup_test.txt" 2>&1 || { grep -v "^ok" "$OUT/editor_backup_test.txt" | tail -30; exit 1; }
+tail -1 "$OUT/editor_backup_test.txt"
 XF="-O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src"   # (the variations across the two builds)
 cc $XF -o "$OUT/xbuild_std" tests/xbuild_test.c -lm
