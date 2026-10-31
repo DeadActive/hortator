@@ -157,8 +157,10 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
   95..150), then 151..278 the user slots 0..127. **NAMES** lists a factory bank, from `first`, as many as fit (bank
   3 = the user bank: rc 1; user presets are read as backup object 0, their names live only in the page and files).
 - **PRESET_LOAD** loads a preset onto a track as the device's PRESETS list does (MODEL and the 8 SOUND knobs,
-  nothing else). rc 2 detail 17: an empty user slot; detail 18: ACID onto a third track. The page re-reads the track
-  (DUMP / GET) afterwards: no CHANGED push echoes it.
+  nothing else). rc 2 detail 17: an empty user slot; detail 18: ACID onto a third track. The push shadows are not
+  updated (editor_pattern.c): on the **selected** track the knobs that moved arrive as CHANGED pushes (MODEL and the
+  SOUND knobs, as if turned on the device; at most 4 a pass); another track: no push. Neither carries the preset id
+  (DUMP): the page re-reads the track it shows.
 
 ### 2.4 Patterns: STEPS_GET, STEPS_SET, LOCKS_GET, LOCK_EDIT, CUE, SAVE
 
@@ -175,7 +177,8 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
 - **STEPS_SET** writes steps of the **playing variation of the loaded slot** (slot 7F or the loaded slot; values
   clamped). Another variation of the loaded slot: the device **presses that variation's key itself** (owner decision
   3, switch-to-edit; the cue key's rules and refusals): stopped, the switch happens at once and the edit applies
-  (rc 0); playing, the switch is queued to the pattern's end (or already is) and the edit is refused with rc 5 detail
+  (rc 0; the reply has no state block: the switch arrives as a STATE push, with the timing knobs as CHANGED and a
+  STEPS_CHANGED for the tracks that differ, never one for the steps written); playing, the switch is queued to the pattern's end (or already is) and the edit is refused with rc 5 detail
   32 "CUE FIRST": the page sends the same STEPS_SET again once a STATE push shows that variation playing — it must
   **not** send CUE for it (a second press of a queued key means "at the next step"). Also rc 5 detail 32: a slot is
   queued (wait for its switch), or `slot` is another slot (CUE it first). A song plays: rc 2 detail 2 "STOP TO
@@ -364,7 +367,8 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
 **hortator-presets** — readable, so rename / reorder / delete is list editing:
 
 ```json
-{ …envelope, "slots": [ null | { "name": "K808 01", "model": 0, "modelName": "K808", "knobs": [0, 80, 40, 40, 30, 0, 0, 0] }, … 128 ] }
+{ …envelope, "slots": [ null | { "name": "K808 01", "model": 0, "modelName": "K808", "knobs": [0, 80, 40, 40, 30, 0, 0, 0] }, … 128 ],
+  "upr1": { "size": 1284, "crc32": "1a2b3c4d" } }
 ```
 
 - The position is the device's user slot 0..127. `model` (the id) is authoritative, `modelName` informational,
@@ -372,6 +376,11 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
   FM-1 keeps showing its "MODEL NN"); a backup from the device names slots as the device does ("K808 01",
   "SDTRX128": `proto.mjs userPresetName`).
 - "Write to FM-1" builds the UPR1 record (§6) from the list and restores it as object 0 (kind 0) with its CRC-32.
+- `upr1` (top level, written by the page): `size` and `crc32` (as below: 8 lowercase hex digits) of the UPR1 record
+  the file's `slots` build — the bytes "Write to FM-1" would send. A reader that finds it builds the record from
+  `slots` and refuses the file when either differs ("damaged"); a file without `upr1` (hand-made, or older) is read
+  as it is. Names do not enter the record, so renaming in a text editor keeps the file valid; changing a model or a
+  knob there makes it damaged. The presets of a hortator-backup carry no `upr1`.
 
 **hortator-project** — the device's objects byte for byte, plus a readable summary:
 

@@ -70,6 +70,7 @@ function xcheck(bin) {
   const dev = (line, fn) => steps.push([line, null, fn]);
   const rq = (what, cmd, args = {}, s) => steps.push([what, encodeRequest(cmd, s ?? (seq = (seq + 1) % SEQ_PUSH), args), null]);
   const set = (what, scope, track, id, value, s) => rq(what, CMD.SET, { scope, track, id, value }, s);
+  const push = (line, what) => steps.push([what, null, null, line]);   // the pushes since the last such step
   const A = m.flashObjects(0), parts = [A.record, A.locks, A.vars];
   const begin = (slot) => ({ op: RS.BEGIN, kind: RK.PROJECT, slot, magic: A.record[0] | A.record[1] << 8 | A.record[2] << 16 | (A.record[3] << 24 >>> 0),
     parts: parts.map((p) => ({ size: p ? p.length : 0, crc: p ? crc32(p) : 0 })) });
@@ -100,7 +101,23 @@ function xcheck(bin) {
   rq("STEPS_SET while a song plays: rc 2 2 STOP TO EDIT", CMD.STEPS_SET, { slot: NONE, var: 0, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
   rq("CUE while a song plays: rc 2 2", CMD.CUE, { kind: CUE.VAR, n: 1 });
   dev("song 0", () => m.setSong(false));
+  rq("WATCH on", CMD.WATCH, { on: 1 });
+  push("pushes 100", "WATCH on: nothing changed, no push");
   rq("STEPS_SET stopped, variation 2: switched, written", CMD.STEPS_SET, { slot: 0, var: 1, track: 1, first: 5, steps: [{ flags: 3, cond: 11, note: 64 }] });
+  push("pushes 100", "STEPS_SET's switch (stopped): a STATE push, STEPS_CHANGED for the other tracks, none for the write");
+  rq("PRESET_LOAD onto the selected track", CMD.PRESET_LOAD, { track: NONE, id: 7 });
+  push("pushes 100", "PRESET_LOAD onto the selected track: CHANGED for MODEL and the SOUND knobs that moved");
+  rq("PRESET_LOAD onto another track", CMD.PRESET_LOAD, { track: 6, id: 9 });
+  push("pushes 100", "PRESET_LOAD onto another track: no push");
+  rq("SET MODEL of the selected track", CMD.SET, { scope: 0, track: NONE, id: P.MODEL, value: M.K909 });
+  push("pushes 100", "SET MODEL: no push (the editor's own write)");
+  rq("CUE variation 3, stopped", CMD.CUE, { kind: CUE.VAR, n: 2 });
+  push("pushes 100", "CUE stopped: the switch's STATE push, STEPS_CHANGED");
+  rq("CUE variation 2 again", CMD.CUE, { kind: CUE.VAR, n: 1 });
+  push("pushes 100", "CUE stopped, back: STATE, the timing knobs as CHANGED, STEPS_CHANGED");
+  rq("WATCH off", CMD.WATCH, { on: 0 });
+  dev("turn 0 1 5", () => { m.tracks[0].p[1] = 5; });
+  push("pushes 100", "WATCH off: no push");
   rq("INFO: the state after the switch", CMD.INFO);
   rq("STEPS_GET variation 2 track 2", CMD.STEPS_GET, { slot: NONE, var: 1, track: 1 });
   dev("play", () => m.play());
@@ -133,15 +150,31 @@ function xcheck(bin) {
   rq("STEPS_GET D variation 2", CMD.STEPS_GET, { slot: 3, var: 1, track: 0 });
   rq("INFO at the end", CMD.INFO);
 
-  for (const [what, frame] of steps) lines.push(frame ? `frame ${hex(frame)}` : what);
+  for (const [what, frame, , line] of steps) lines.push(line || (frame ? `frame ${hex(frame)}` : what));
   const r = spawnSync(bin, { input: lines.join("\n") + "\n", encoding: "utf8", maxBuffer: 1 << 24 });
   if (r.status !== 0) { console.log(`FAIL  ${bin}: ${r.stderr || r.status}`); return 1; }
   const fw = r.stdout.split("\n").filter(Boolean);
-  let bad = 0, i = 0, n = 0;
+  let bad = 0, i = 0, n = 0, np = 0, acc = [];
+  const keep = (frames) => { if (Array.isArray(frames)) for (const f of frames) if (f[5] === SEQ_PUSH) acc.push(hex(f)); };
   const show = (h) => { if (h === "-") return "(no reply)"; try { const d = decodeFrame(Buffer.from(h, "hex")); return JSON.stringify(d, (k, v) => (v instanceof Uint8Array ? `[${v.length} B]` : v)); } catch (e) { return `${h} (${e.message})`; } };
-  for (const [what, frame, fn] of steps) {
-    if (!frame) { fn(); continue; }
-    const out = m.feed(frame).find((f) => f[5] !== SEQ_PUSH), mh = out ? hex(out) : "-", ch = fw[i++] ?? "(missing)";
+  for (const [what, frame, fn, line] of steps) {
+    if (line) { // the pushes: as a set (the firmware's knob order is round robin, the mock's by id)
+      keep(m.advance(Number(line.split(" ")[1])));
+      keep(m.drain());
+      const mp = acc.sort().join(" ") || "-", raw = fw[i++] ?? "(missing)", cp = raw === "-" ? "-" : raw.split(" ").sort().join(" ");
+      acc = [];
+      np++;
+      const showAll = (h) => (h === "-" ? "(none)" : h.split(" ").map(show).join("\n                 "));
+      if (process.env.XCHECK_SHOW) console.log(`      ${what}: ${showAll(cp)}`);
+      if (mp !== cp) {
+        bad++;
+        console.log(`FAIL  xcheck ${what}\n        firmware ${showAll(cp)}\n        mock     ${showAll(mp)}`);
+      }
+      continue;
+    }
+    if (!frame) { keep(fn()); continue; }
+    const all = m.feed(frame), out = all.find((f) => f[5] !== SEQ_PUSH), mh = out ? hex(out) : "-", ch = fw[i++] ?? "(missing)";
+    keep(all);
     n++;
     if (process.env.XCHECK_SHOW) console.log(`      ${what}: ${show(ch)}`);
     if (mh !== ch) {
@@ -149,7 +182,7 @@ function xcheck(bin) {
       console.log(`FAIL  xcheck ${what}\n        firmware ${show(ch)}\n        mock     ${show(mh)}`);
     }
   }
-  console.log(`${bad ? "FAIL" : "ok  "}  xcheck: ${n} requests through the firmware (tests/editor_xcheck.c) and the mock ` +
-    `device, ${n - bad} replies the same byte for byte`);
+  console.log(`${bad ? "FAIL" : "ok  "}  xcheck: ${n} requests and ${np} push checkpoints through the firmware ` +
+    `(tests/editor_xcheck.c) and the mock device, ${n + np - bad} the same byte for byte`);
   return bad;
 }

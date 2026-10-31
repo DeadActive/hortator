@@ -14,6 +14,7 @@ import * as P from "./proto.mjs";
 import { createMockDevice, loadDeviceData } from "./mock_device.mjs";
 import { connect } from "./session.mjs";
 import { ProjectsModel } from "./tab_projects.mjs";
+import { PresetsModel } from "./tab_presets.mjs";
 
 const { CMD, RS } = P;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -129,6 +130,34 @@ export async function runProjectsTests(log = console.log) {
   ok(eqb(m.flash.upr.bytes, upr0) && [0, 1, 2, 3].every((k) => sameObjs(flash(k), before[k])) && /Everything restored/.test(pm.message)
     && !m.restore, "restore all: presets and A–D byte-exact as backed up");
   ok(/128 user presets and projects A, B, C, D/.test(pm.replacesAll(rb)), "restore all: the confirmation names what is replaced");
+
+  /* one restore at a time across the tabs: the session's restore lock */
+  {
+    const pr = new PresetsModel(s, { storage: null }), ev = [];
+    await pr.load();
+    const offR = s.on("restore", (l) => ev.push(l && l.owner));
+    const n0 = m.received.length;
+    const w = pr.write();
+    const blocked = pm.restoreBlocked, eCopy = await fail(pm.copySlot(0, 3)), eAll = await fail(pm.restoreAll(file));
+    const begins = () => m.received.slice(n0).map((f) => P.decodeRequest(f)).filter((x) => x.cmd === CMD.RESTORE && x.args.op === RS.BEGIN);
+    ok(/Writing the user presets to the FM-1 \(Presets tab\)/.test(blocked) && eCopy && /Wait for it/.test(eCopy.message)
+      && eAll && /Presets tab/.test(eAll.message) && !s.restoreBlocked("Presets"),
+    "restore lock: while Presets writes, Projects' copy and restore are refused before sending, with the reason");
+    await w;
+    ok(begins().length === 1 && !s.restoring && !pm.restoreBlocked && ev.join() === "Presets,", "restore lock: one BEGIN went out; released after the write");
+    let inside = "";
+    const offS = s.on("restore", (l) => { if (l && l.owner === "Projects") inside = s.restoreBlocked("Presets"); });
+    await pm.copySlot(0, 3);
+    const ePr = await fail(pr.write());
+    ok(/Projects tab/.test(inside) && !s.restoring && !ePr, "restore lock: Projects holds it during a copy (Presets sees why); free again after");
+    const rel = [], offL = s.on("reload", (x) => rel.push(x));
+    await m.request(CMD.CUE, { kind: P.CUE.SLOT, n: 3 }); // (D loaded: a copy into it loads it again)
+    await until(() => s.state.slot === 3);
+    await pm.copySlot(0, 3);
+    ok(rel.some((x) => x.slot === 3), "reload: a restore into the loaded slot tells the views (session reload { slot })");
+    await m.request(CMD.CUE, { kind: P.CUE.SLOT, n: 0 });
+    [offR, offS, offL].forEach((f) => f());
+  }
 
   /* no flash this boot */
   m.faults.noFlash = true;

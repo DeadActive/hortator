@@ -9,7 +9,10 @@
  *   load S                             LOAD of slot S (the device's own)
  *   play | stop | song 0/1 | noflash 0/1 | park S|- | otarace | turn K ID V | advance MS
  *   frame <hex>                        a request through the SysEx path, one main-loop pass: prints its reply's hex
- *                                      ("-": none) */
+ *                                      ("-": none)
+ *   pushes MS                          MS ms of main-loop passes (every 5 ms), then prints every push frame sent since
+ *                                      the last "pushes" (frames, advance and these passes), hex, space-separated
+ *                                      ("-": none). (Pushes need WATCH on; the order is compared sorted.) */
 #define FELUCCA_FLASH 1
 #define FELUCCA_OTA 1
 #include <stdint.h>
@@ -52,22 +55,32 @@ static uint32_t hex(const char *s, uint8_t *out, uint32_t max)
     }
     return n;
 }
-static void replies(void)                           /* the pass' reply frames (pushes left out), one line */
+static char pushed[1 << 16];                        /* the push frames since the last "pushes", hex */
+static uint32_t npushed;
+static void take(int reply)                         /* what went out: pushes kept; reply: its first reply, one line */
 {
-    uint32_t i, s = 0, any = 0;
+    uint32_t i, j, s = 0, any = 0;
     usb_host_take();
     for (i = 0; i < nwire; i++) {
         if (wire[i] == 0xF0)
             s = i;
-        if (wire[i] == 0xF7 && i - s >= 6u && wire[s + 5u] != ED_SEQ_PUSH) {
-            uint32_t j;
+        if (wire[i] != 0xF7 || i - s < 6u)
+            continue;
+        if (wire[s + 5u] == ED_SEQ_PUSH) {
+            for (j = s; j <= i && npushed + 4u < sizeof pushed; j++)
+                npushed += (uint32_t)snprintf(pushed + npushed, sizeof pushed - npushed, "%02x", wire[j]);
+            if (npushed + 2u < sizeof pushed) {
+                pushed[npushed++] = ' ';
+                pushed[npushed] = 0;
+            }
+        } else if (reply && !any) {
             for (j = s; j <= i; j++)
                 printf("%02x", wire[j]);
             any = 1;
-            break;
         }
     }
-    printf(any ? "\n" : "-\n");
+    if (reply)
+        printf(any ? "\n" : "-\n");
     nwire = 0;
 }
 static void power_on(void)
@@ -152,15 +165,26 @@ int main(void)
             for (; a > 0; a -= 5) {
                 fm1_ms += 5u;
                 ed_service();
+                take(0);
             }
-            usb_host_take();
-            nwire = 0;
+        } else if (!strcmp(w, "pushes")) {
+            sscanf(line, "%*s %d", &a);
+            for (; a > 0; a -= 5) {
+                fm1_ms += 5u;
+                ed_service();
+                take(0);
+            }
+            if (npushed && pushed[npushed - 1u] == ' ')
+                pushed[--npushed] = 0;
+            printf("%s\n", npushed ? pushed : "-");
+            npushed = 0;
+            pushed[0] = 0;
         } else if (!strcmp(w, "frame")) {
             n = hex(line + 6, b, sizeof b);
             for (c = 0; c < (int)n; c++)
                 sysex_byte(b[c]);
             ed_service();
-            replies();
+            take(1);
             ota_race = 0;
         }
     }

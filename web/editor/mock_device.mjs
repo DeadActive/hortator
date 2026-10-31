@@ -31,6 +31,8 @@ import {
 } from "./proto.mjs";
 
 export async function loadDeviceData() {
+  const inlined = globalThis.HORTATOR_DEVICE_DATA; // the published page carries it (web/make_site.py inlines it)
+  if (inlined) return JSON.parse(JSON.stringify(inlined));
   const url = new URL("./device_data.json", import.meta.url);
   if (typeof process !== "undefined" && process.versions && process.versions.node) {
     const { readFile } = await import("node:fs/promises");
@@ -556,8 +558,7 @@ export class MockDevice {
         t.p[P.MODEL] = p.model;
         p.knobs.forEach((k, i) => { t.p[P.E0 + i] = this.clampKnob(p.model, i, k); });
         t.pre = a.id;
-        t.preEd = 0;
-        this.shadowAll(true);
+        t.preEd = 0; // (no shadow update, as editor_pattern.c: the selected track's moved knobs are pushed as CHANGED)
         return { track: ti, id: a.id, model: p.model };
       }
       case CMD.STEPS_GET: {
@@ -707,14 +708,17 @@ export class MockDevice {
     if (s !== this.loaded && this.faults.cuePark >= 0 && this.faults.cuePark !== s)
       refuse(RC.REFUSED, DETAIL.CUE_PARK + this.faults.cuePark, `SAVE ${"ABCD"[this.faults.cuePark]} FIRST`);
     this.q = { slot: qs, var: qv, now: false };
-    if (!this.playing) this.boundary();
+    if (!this.playing) this.switchQueued(); // stopped: at once; its STATE push comes from the pass after the reply
   }
-  /** the pattern's end (or the next step after the same key again): a queued switch happens */
-  boundary() {
-    if (this.q.slot < 0 && this.q.var < 0) return this.poll();
+  switchQueued() {
+    if (this.q.slot < 0 && this.q.var < 0) return;
     const s = this.q.slot >= 0 ? this.q.slot : this.loaded, v = this.q.var >= 0 ? this.q.var : this.q.slot >= 0 ? this.lastVar[s] : this.varCur;
     this.q = { slot: -1, var: -1, now: false };
     this.switchTo(s, v);
+  }
+  /** the pattern's end (or the next step after the same key again): a queued switch happens; the pass' pushes */
+  boundary() {
+    this.switchQueued();
     return this.poll();
   }
 
@@ -861,13 +865,16 @@ export class MockDevice {
       const [text, unit] = this.text(this.knob(SCOPE.GLOBAL, 0, id), this.g[id]);
       out.push(encodePush(PUSH.CHANGED, { scope: SCOPE.GLOBAL, track: 0, id, value: this.g[id], text, unit }));
     }
-    for (let k = 0; k < 8 && room(); k++) if (this.hashSteps(k) !== sh.steps[k]) {
-      sh.steps[k] = this.hashSteps(k);
-      out.push(encodePush(PUSH.STEPS_CHANGED, { slot: this.loaded < 0 ? NONE : this.loaded, var: this.varCur, track: k }));
+    // editor_pattern.c ed_pattern_push: one STEPS_CHANGED and one LOCKS_CHANGED at most (track 7F: several)
+    const ks = [0, 1, 2, 3, 4, 5, 6, 7].filter((k) => this.hashSteps(k) !== sh.steps[k]);
+    if (ks.length && room()) {
+      ks.forEach((k) => { sh.steps[k] = this.hashSteps(k); });
+      out.push(encodePush(PUSH.STEPS_CHANGED, { slot: this.loaded < 0 ? NONE : this.loaded, var: this.varCur, track: ks.length > 1 ? NONE : ks[0] }));
     }
-    for (let k = 0; k < 8 && room(); k++) if (this.hashLocks(k) !== sh.locks[k]) {
-      sh.locks[k] = this.hashLocks(k);
-      out.push(encodePush(PUSH.LOCKS_CHANGED, { slot: this.loaded < 0 ? NONE : this.loaded, track: k }));
+    const kl = [0, 1, 2, 3, 4, 5, 6, 7].filter((k) => this.hashLocks(k) !== sh.locks[k]);
+    if (kl.length && room()) {
+      kl.forEach((k) => { sh.locks[k] = this.hashLocks(k); });
+      out.push(encodePush(PUSH.LOCKS_CHANGED, { slot: this.loaded < 0 ? NONE : this.loaded, track: kl.length > 1 ? NONE : kl[0] }));
     }
     return out;
   }

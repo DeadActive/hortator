@@ -44,14 +44,21 @@ export async function runPresetsTests(log = console.log) {
       && pm.factory("", 1).length === 40 && pm.factory("", 1).every((p) => p.bank === 1) && pm.factory("zzzq").length === 0,
     "factory: search by name or model, filter by bank");
     await s.select(2);
-    const id = data.banks[2].start + 3, seen = [];
-    const off = s.on("changed", (p) => seen.push(p));
+    const id = data.banks[2].start + 3, seen = [], rel = [];
+    const off = s.on("changed", (p) => seen.push(p)), off2 = s.on("reload", (w) => rel.push(w));
     const lr = await pm.loadPreset(id);
-    off();
+    await new Promise((r) => setTimeout(r, 20));
     const t2 = m.tracks[2];
     ok(lr.track === 2 && t2.p[m.P.MODEL] === data.presets[id].model && t2.pre === id
-      && seen.some((p) => p.id === 0 && p.track === 2 && p.value === data.presets[id].model),
-    "factory: Load onto the selected track (PRESET_LOAD), the Sound tab told (MODEL changed)");
+      && seen.some((p) => p.id === 0 && p.track === 2 && p.value === data.presets[id].model) && rel.length === 1 && rel[0].track === 2,
+    "factory: Load onto the selected track (PRESET_LOAD): its moved knobs pushed as CHANGED (as the firmware), a reload of track 3");
+    seen.length = 0;
+    rel.length = 0;
+    await pm.loadPreset(data.banks[0].start + 1, 5);
+    await new Promise((r) => setTimeout(r, 20));
+    off();
+    off2();
+    ok(!seen.some((p) => p.track === 5) && rel.length === 1 && rel[0].track === 5, "factory: onto another track: no push (not selected), a reload of track 6");
 
     /* --------------------------------------------------------------- user list --- */
     const before = flashUpr(m);

@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 import * as P from "./proto.mjs";
 import { createMockDevice, loadDeviceData } from "./mock_device.mjs";
 import { connect } from "./session.mjs";
-import { CONDS, PatternsModel, cueKeys, noteName, plain, stepGlyph, withRatch } from "./tab_patterns.mjs";
+import { CONDS, PatternsModel, cueKeys, fileProjects, fileVariation, noteName, plain, stepGlyph, withRatch } from "./tab_patterns.mjs";
 
 const { CMD, CUE, LK, NONE, RC, DETAIL, STEP } = P;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -222,6 +222,35 @@ export async function runPatternTests(log = console.log) {
       "... after the switch: VAR 3 = A VAR 2; never CUE");
     ok(!(await pm.copy({ slot: 0, var: 5 }, 4)) && /not used/.test(pm.note), "copy from an unused variation: refused, nothing written");
     ok(!(await pm.copy({ slot: 0, var: 2 }, 2)) && /same/.test(pm.note), "copy onto itself: refused");
+    s.close();
+    pm.destroy();
+  }
+  /* copy from a file: a hortator-backup or hortator-project, a variation of one of its projects */
+  {
+    const { m, s, pm } = await start();
+    const objs = [0, 1, 2, 3].map((k) => m.flashObjects(k)), json = (f) => JSON.parse(JSON.stringify(f));
+    const backup = json(P.makeBackupFile(Array(128).fill(null), objs.map((o) => o && { ...o, unsaved: false })));
+    const list = fileProjects(backup), B = list.find((x) => /project B/.test(x.label));
+    ok(list.length === objs.filter(Boolean).length && B && B.vars[0] === 0 && J(fileProjects(json(P.makeProjectFile(objs[0], 0)))[0].vars)
+      === J([0, ...m.slots[0].vars.flatMap((v, i) => (v ? [i + 1] : []))]), "file: its projects and their used variations (project and backup files)");
+    let bad = null;
+    try { fileProjects({ format: "hortator-presets", version: 1, slots: [] }); } catch (e) { bad = e; }
+    ok(bad instanceof P.FileError && /hortator-project or hortator-backup/.test(bad.message), "file: a presets file is not a copy source");
+    const bLocks = m.slots[1].locks.filter((e) => e.kind === LK.LOCK).map((e) => J([e.track, e.step, e.param, e.value])).sort();
+    const aMotion = m.slots[0].locks.filter((e) => e.kind === LK.MOTION).length, bMotion = fileVariation(B.objs, 0).motion;
+    const c0 = m.received.length;
+    ok(await pm.copy({ file: B.objs, name: "backup.json project B", var: 0 }, 3, { locks: true })
+      && m.varCur === 3 && m.tracks.every((t, k) => J(t.steps) === J(m.slots[1].steps1[k]) && J(m.timingOf(t)) === J(m.timingOf(m.slots[1].tracks[k]))),
+    "copy from a backup file's B VAR 1 -> A VAR 4: steps and timing = the file's");
+    const aLocks = m.img().locks.filter((e) => e.kind === LK.LOCK).map((e) => J([e.track, e.step, e.param, e.value])).sort();
+    ok(J(aLocks) === J(bLocks) && m.img().locks.filter((e) => e.kind === LK.MOTION).length === aMotion && cues(m, c0) === 0
+      && /with its locks/.test(pm.note) && (!bMotion || /MOTION/.test(pm.note)), "... with locks: A's LOCKs = the file's, A's MOTION kept, the file's MOTION not copied (said)");
+    const A = fileProjects(json(P.makeProjectFile(objs[0], 0)))[0], v3 = m.slots[0].vars[1];
+    ok(await pm.copy({ file: A.objs, name: "a.json", var: 2 }, 5) && m.varCur === 5
+      && m.tracks.every((t, k) => J(t.steps) === J(v3.steps[k]) && J(m.timingOf(t)) === J(v3.timing[k])), "copy from a project file's VAR 3 -> A VAR 6");
+    const unused = [1, 2, 3, 4, 5, 6, 7].find((v) => !A.vars.includes(v)), n0 = m.received.length;
+    ok(!(await pm.copy({ file: A.objs, name: "a.json", var: unused }, 1)) && /not used/.test(pm.note)
+      && !cmds(m, n0).some((x) => x.cmd === CMD.STEPS_SET), "copy from a file's unused variation: refused, nothing written");
     s.close();
     pm.destroy();
   }

@@ -299,9 +299,18 @@ const q = (cmd, args) => m.request(cmd, args);
   ok(ed.some((x) => x.cmd === PUSH.STEPS_CHANGED && x.track === 4) && lo.some((x) => x.cmd === PUSH.LOCKS_CHANGED && x.track === 4),
     "WATCH: steps / locks changed on the device -> STEPS_CHANGED / LOCKS_CHANGED");
   m.play();
-  const many = m.request(CMD.CUE, { kind: P.CUE.VAR, n: 0 }) && m.boundary().map(P.decodeFrame);
-  ok(many.length <= 4 && m.drain().length > 0, "WATCH: at most 4 pushes a pass, the rest next pass");
+  const sw = m.request(CMD.CUE, { kind: P.CUE.VAR, n: 0 }) && m.boundary().map(P.decodeFrame);
+  const sc = sw.filter((x) => x.cmd === PUSH.STEPS_CHANGED);
+  ok(sw.some((x) => x.cmd === PUSH.STATE) && sc.length === 1 && sc[0].track === NONE,
+    "WATCH: a variation switch -> STATE and one STEPS_CHANGED for several tracks (7F), as editor_pattern.c");
+  for (let i = 1; i <= 6; i++) m.tracks[m.sel].p[i] = (m.tracks[m.sel].p[i] + 1) % 100; // six knobs in one pass
+  const many = m.poll();
+  ok(many.length === 4 && m.poll().length === 2, "WATCH: at most 4 pushes a pass, the rest next pass");
   m.stop();
+  m.request(CMD.CUE, { kind: P.CUE.VAR, n: 1 }); // stopped: the switch at once
+  const swp = m.pushed;
+  ok(swp.some((x) => x.cmd === PUSH.STATE && x.state.var === 1), "WATCH: a stopped CUE's switch -> a STATE push in the same pass");
+  m.request(CMD.CUE, { kind: P.CUE.VAR, n: 0 });
   m.drain();
   m.advance(3001);
   ok(m.turn(0, fcut, 70).length === 0, "WATCH: ends 3 s after the last request");

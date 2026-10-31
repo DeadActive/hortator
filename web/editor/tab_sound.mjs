@@ -31,6 +31,8 @@ export class SoundModel {
       session.on("changed", (p) => this.changed(p)),
       session.on("state", ({ state, prev }) => this.stateChanged(state, prev)),
       session.on("resync", () => this.reload(ALL)),
+      // another tab loaded a preset onto a track, or restored the loaded slot: the device pushes only some of it
+      session.on("reload", (w) => { if (w.slot !== undefined || (w.track !== undefined && (this.track === null || w.track === this.track))) this.reload(TRACK); }),
     ];
   }
   on(ev, fn) { if (!this.handlers.has(ev)) this.handlers.set(ev, new Set()); this.handlers.get(ev).add(fn); return () => this.handlers.get(ev).delete(fn); }

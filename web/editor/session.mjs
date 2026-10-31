@@ -17,6 +17,7 @@ export const LINKS = {
   felucca: { text: "Felucca", href: "https://github.com/hugelton/Felucca" },
 };
 export const BUSY_MSG = "FM-1 busy (update?)";
+const restoreBusy = (l) => `Writing ${l.what} to the FM-1 (${l.owner} tab).`;
 const REFUSAL = {
   nomidi: { message: "This browser has no Web MIDI. Use Chrome, Edge or Opera (desktop or Android), or Firefox.", links: [] },
   denied: { message: "MIDI access was refused. Allow MIDI (with SysEx) for this page, then connect again.", links: [] },
@@ -75,6 +76,7 @@ export class Session {
     this.state = null;
     this.busy = false;
     this.connected = false;
+    this.restoring = null; // the restore lock: { owner, what } while a tab runs RESTORE BEGIN .. COMMIT / ABORT
     this.link = new Link((f) => port.output.send(f), { timer: this.timer, timeout: this.timing.timeout,
       longTimeout: this.timing.longTimeout, tries: this.timing.tries, allow: INFO_ONLY, onPush: (p) => this.push(p),
       onTimeout: () => this.silent(), onSend: opts.onSend });
@@ -128,6 +130,22 @@ export class Session {
       return r;
     });
   }
+  /** The restore lock: the FM-1 runs one restore at a time and a second RESTORE BEGIN cancels the first, so every tab
+   * that restores takes this first. owner: the tab's id; what: words for the others ("the user presets"). Returns the
+   * release function; throws when another owner holds it. Emits "restore" ({ owner, what } or null). */
+  lockRestore(owner, what) {
+    if (this.restoring) throw new Error(`${restoreBusy(this.restoring)} Wait for it to finish.`);
+    const lock = { owner, what };
+    this.restoring = lock;
+    this.emit("restore", lock);
+    return () => { if (this.restoring === lock) { this.restoring = null; this.emit("restore", null); } };
+  }
+  /** why owner cannot restore now ("" = it can): another tab's restore runs */
+  restoreBlocked(owner) { return this.restoring && this.restoring.owner !== owner ? restoreBusy(this.restoring) : ""; }
+  /** a tab changed what the FM-1 holds in a way no push reports to the other views: { track } (a preset loaded onto
+   * it), { slot } (the slot restored and loaded again) or { presets: true } (the user presets restored). Views showing
+   * it read it again (event "reload"). */
+  reloaded(what) { if (this.connected && !this.busy) this.emit("reload", what); }
   /** one selection, the device's: choosing a track here selects it on the FM-1 */
   select(track) { return this.request(CMD.SELECT, { track }); }
   setState(st) {

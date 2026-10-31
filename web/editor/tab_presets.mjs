@@ -99,12 +99,9 @@ export class PresetsModel {
   /** PRESET_LOAD onto a track (the selected one): MODEL and the 8 SOUND knobs, as the FM-1's PRESETS list */
   async loadPreset(id, track = this.track) {
     const r = await this.s.request(CMD.PRESET_LOAD, { track, id });
-    // no CHANGED push echoes PRESET_LOAD: tell the views of that track (the Sound tab re-reads it on a MODEL change)
-    if (track === this.s.state?.sel) {
-      const g = await this.s.request(CMD.GET, { scope: SCOPE.TRACK, track, id: P_MODEL, count: 1 }).catch(() => null);
-      const v = g?.values?.[0];
-      if (v) this.s.emit("changed", { scope: SCOPE.TRACK, track, id: P_MODEL, value: v.value, text: v.text, unit: v.unit });
-    }
+    // the selected track's knobs that moved come as CHANGED pushes (as a knob turned on the FM-1); the preset id and
+    // another track do not: the views showing that track read it again
+    this.s.reloaded({ track: r.track });
     return r;
   }
 
@@ -232,6 +229,7 @@ export class PresetsModel {
     if (this.job) throw new Error("A write is already running.");
     const bad = this.check();
     if (bad.length) throw new Error(bad[0]);
+    const release = this.s.lockRestore("Presets", "the user presets"); // (another tab's restore: throws, nothing sent)
     const rec = this.record(), total = rec.length, job = this.job = { cancelled: false, committing: false };
     let begun = false;
     try {
@@ -259,6 +257,7 @@ export class PresetsModel {
       throw e;
     } finally {
       this.job = null;
+      release();
       this.emit("render");
     }
   }
@@ -364,11 +363,14 @@ export function mountPresets(el, ctx) {
     else t += "Same as the FM-1.";
     if (m.deviceInfo && m.deviceInfo.flags & BF.UNSAVED) t += " The FM-1 has user preset changes not saved to flash.";
     if (s.state?.playing && m.canWrite) t += " Stop the FM-1 to write.";
+    const other = s.restoreBlocked("Presets");
+    if (other && m.canWrite) t += ` ${other} Write to FM-1 waits for it.`;
     st.textContent = t;
     st.classList.remove("alert");
     for (const b of el.querySelectorAll(".pr-bar [data-a]")) {
       const a = b.dataset.a;
-      b.disabled = busy() || (a === "read" && !m.canRead) || (a === "write" && (!m.canWrite || !m.loaded));
+      b.disabled = busy() || (a === "read" && !m.canRead) || (a === "write" && (!m.canWrite || !m.loaded || !!other));
+      if (a === "write") b.title = other || "";
     }
   };
   const drawUser = () => {
@@ -465,6 +467,8 @@ export function mountPresets(el, ctx) {
   const offs = [
     s.on("state", ({ state, prev }) => { if (!prev || state.sel !== prev.sel || state.playing !== prev.playing) { drawLoad(); if (!busy()) drawUser(); } }),
     s.on("resync", () => { if (m.loaded && !m.differs && !busy()) m.readDevice().catch(() => {}); }),
+    s.on("restore", () => { if (!busy()) drawStatus(); }),
+    s.on("reload", (w) => { if (w.presets && m.loaded && !m.differs && !busy()) m.readDevice().catch(() => {}); }),
   ];
   let started = false;
   const show = () => { // read the FM-1 when the tab is first shown (not at connect, while the Sound tab reads)

@@ -46,6 +46,7 @@ export class ProjectsModel {
       }),
       session.on("resync", () => { if (this.list) this.refresh(); }),
       session.on("busy", () => this.emit("render")),
+      session.on("restore", () => this.emit("render")),
     ];
   }
   on(ev, fn) { if (!this.handlers.has(ev)) this.handlers.set(ev, new Set()); this.handlers.get(ev).add(fn); return () => this.handlers.get(ev).delete(fn); }
@@ -150,9 +151,13 @@ export class ProjectsModel {
 
   /* ------------------------------------------------------- one operation --- */
   tick(n = 1) { if (this.op) { this.op.done = Math.min(this.op.total, this.op.done + n); this.emit("progress", this.op); } }
-  /** one operation at a time: progress, abort, its outcome as the message (and thrown again for the caller) */
-  async run(what, total, fn) {
+  /** why a restore cannot start now ("": it can): another tab's restore runs (session.mjs, the restore lock) */
+  get restoreBlocked() { return this.s.restoreBlocked("Projects"); }
+  /** one operation at a time: progress, abort, its outcome as the message (and thrown again for the caller).
+   * restore: the words for the session's restore lock, held for the whole operation (other tabs cannot restore) */
+  async run(what, total, fn, restore = "") {
     if (this.op) throw new Error("Another backup or restore is running.");
+    const release = restore ? this.s.lockRestore("Projects", restore) : () => {};
     this.op = { what, done: 0, total, commit: false, abortable: false };
     this.aborting = false;
     this.say("");
@@ -163,6 +168,7 @@ export class ProjectsModel {
       this.say(e.message, true);
       throw e;
     } finally {
+      release();
       this.op = null;
       this.aborting = false;
       this.emit("progress", null);
@@ -212,8 +218,8 @@ export class ProjectsModel {
   after(slots) {
     for (const s of slots) objs3(s).forEach((o) => this.cache.delete(o));
     if (this.s.busy || !this.s.connected) return;
-    if (slots.includes(this.s.state?.slot)) this.s.emit("resync");
-    else this.refresh();
+    if (slots.includes(this.s.state?.slot)) this.s.reloaded({ slot: this.s.state.slot });
+    this.refresh();
   }
 
   /* ------------------------------------------------------------ actions --- */
@@ -244,7 +250,7 @@ export class ProjectsModel {
     return this.run(`Restoring ${SLOTS[slot]}`, this.partsPieces([p.record, p.locks, p.vars]), async () => {
       try { await this.restoreProjectObjs(p, slot, SLOTS[slot]); } finally { this.after([slot]); }
       this.say(`Restored into ${SLOTS[slot]}${p.summary.name ? ` (${p.summary.name})` : ""}.`);
-    });
+    }, `project ${SLOTS[slot]}`);
   }
   /** "Copy to…": slot from's flash copy into slot to */
   async copySlot(from, to) {
@@ -256,7 +262,7 @@ export class ProjectsModel {
       this.op.total = this.op.done + this.partsPieces([p.record, p.locks, p.vars]);
       try { await this.restoreProjectObjs(p, to, SLOTS[to]); } finally { this.after([to]); }
       this.say(`${SLOTS[from]} copied to ${SLOTS[to]}.${p.unsaved ? ` (${SLOTS[from]} as saved: its unsaved changes are not copied.)` : ""}`);
-    });
+    }, `project ${SLOTS[to]}`);
   }
   /** "Back up all": { file, name, unsaved: [what] } — the user presets and the four projects from flash */
   async backupAll() {
@@ -300,9 +306,12 @@ export class ProjectsModel {
         }
       } catch (e) {
         throw Object.assign(new Error(`${e.message}${done.length ? ` Already restored: ${done.join(", ")}.` : ""}`), { cause: e.cause || e });
-      } finally { this.after(slots); }
+      } finally {
+        if (done.length) this.s.reloaded({ presets: true });
+        this.after(slots);
+      }
       this.say(`Everything restored (${done.join(", ")}).`);
-    });
+    }, "a backup");
   }
 }
 
@@ -409,13 +418,14 @@ export function mountProjects(el, ctx) {
     <div class="grid prj-grid"></div>`;
   const $ = (s) => el.querySelector(s), grid = $(".prj-grid"), run = $(".prj-run"), msg = $(".prj-msg");
   const render = () => {
-    const lock = !!m.op || m.s.busy || !m.s.connected, stopLock = lock || m.playing;
+    const other = m.restoreBlocked, lock = !!m.op || m.s.busy || !m.s.connected, stopLock = lock || m.playing || !!other;
     grid.innerHTML = m.cards.map((c) => cardHtml(m, c, lock, stopLock)).join("");
     $('[data-a="backup-all"]').disabled = lock;
     $('[data-a="restore-all"]').hidden = !m.canRestore;
     $('[data-a="restore-all"]').disabled = stopLock;
     $('[data-a="reload"]').disabled = lock;
-    const text = m.message || (m.playing && m.canRestore ? "The FM-1 is playing: stop it to restore or copy." : "");
+    const text = m.message || (other && m.canRestore ? `${other} Restores and copies wait for it.`
+      : m.playing && m.canRestore ? "The FM-1 is playing: stop it to restore or copy." : "");
     msg.hidden = !text;
     msg.textContent = text;
     msg.classList.toggle("err", !!m.message && m.error);

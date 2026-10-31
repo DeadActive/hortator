@@ -3,13 +3,17 @@
 // The Patterns tab (web/EDITOR_PROTOCOL.md §2.4): the cue keys (slots A-D, variations 1-8: CUE, exactly the FM-1's
 // keys; playing lit, queued blinking, from STATE), an 8 x 64 step grid of a slot's variation (STEPS_GET; edits with
 // STEPS_SET; live from STEPS_CHANGED), a step's NOTE / PROB / RATCH / ACC / SLIDE / TIE, the slot's locks (LOCKS_GET,
-// LOCK_EDIT; live from LOCKS_CHANGED), "Copy variation" and the device's SAVE.
+// LOCK_EDIT; live from LOCKS_CHANGED), "Copy variation" (from a slot on the FM-1, or from a hortator-project /
+// hortator-backup file) and the device's SAVE.
 // Owner decision 3: editing a variation that is not playing makes the FM-1 switch to it. STEPS_SET itself presses the
 // variation's key on the device: stopped, at once (rc 0); playing, queued (rc 5 detail 32): the page waits for the
 // STATE push showing that variation playing, then sends the same STEPS_SET again. It never sends CUE for an edit (a
 // second press of a queued key means "at the next step").
 // PatternsModel holds no DOM (node tests drive it against the mock device: test_tab_patterns.mjs); mountPatterns draws.
-import { CAP, CMD, CUE, DETAIL, DF, LAYOUT, LK, NONE, RC, SCOPE, STEP } from "./proto.mjs";
+import {
+  CAP, CMD, CUE, DETAIL, DF, FileError, LAYOUT, LK, NONE, RC, SCOPE, STEP, decodeLocks, decodeProject, decodeVars,
+  readBackupFile, readProjectFile,
+} from "./proto.mjs";
 import { DeviceError } from "./link.mjs";
 import { SLOTS, esc } from "./ui.mjs";
 
@@ -76,6 +80,40 @@ export function plain(e) {
   return hint ? `${msg}: ${hint}.` : msg;
 }
 
+/** a copy's source from a file: the projects of a hortator-project or hortator-backup file (parsed JSON) as
+ * [{ label, objs: { record, locks, vars }, vars: [variation indexes used] }]; FileError if it is neither */
+export function fileProjects(f) {
+  const one = (label, p) => {
+    const d = decodeProject(p.record);
+    if (d.format !== "FDRF") return { label, objs: p, vars: [], old: d.format };
+    const used = [0];
+    if (p.vars) decodeVars(p.vars).entries.forEach((e, i) => e && used.push(i + 1));
+    return { label: label + (d.name ? ` (${d.name})` : ""), objs: p, vars: used };
+  };
+  if (f && f.format === "hortator-backup") {
+    const b = readBackupFile(f);
+    return SLOTS.flatMap((n, s) => (b.projects[s] ? [one(`project ${n}`, b.projects[s])] : []));
+  }
+  if (f && f.format === "hortator-project") { const p = readProjectFile(f); return [one(`project ${SLOTS[p.slot] ?? "?"}`, p)]; }
+  throw new FileError("format", "Not a hortator-project or hortator-backup file.");
+}
+/** variation v of a file's project: { rows[8] { steps, timing, used }, locks[8] (its LOCKs), motion (MOTION events,
+ * not copied: LOCK_EDIT writes LOCKs only) } */
+export function fileVariation(objs, v) {
+  const p = decodeProject(objs.record);
+  if (p.format !== "FDRF") throw new Error(`The file's project is in an older format (${p.format}): restore it into a slot on the FM-1, then copy from that slot.`);
+  let rows;
+  if (!v) rows = p.tracks.map((t) => ({ steps: t.steps, timing: LAYOUT.timing.map((id) => t.p[id]), used: 1 }));
+  else {
+    const e = objs.vars ? decodeVars(objs.vars).entries[v - 1] : null;
+    if (!e) throw new Error(`VAR ${v + 1} of the file's project is not used: nothing to copy.`);
+    rows = e.steps.map((steps, k) => ({ steps, timing: e.timing[k], used: 1 }));
+  }
+  const ev = objs.locks ? decodeLocks(objs.locks).events : [];
+  return { rows, locks: Array.from({ length: NTRK }, (_, k) => ev.filter((e) => e.track === k && e.kind === LK.LOCK)),
+    motion: ev.filter((e) => e.kind === LK.MOTION).length };
+}
+
 const blank = () => ({ steps: Array.from({ length: NSTEP }, () => ({ flags: 0, cond: 0, note: STEP.NT_OFFSET })), timing: [0, 0, 0, 0], used: 0, live: 0 });
 const same = (a, b) => !!a && !!b && a.slot === b.slot && a.var === b.var;
 const ALL = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -103,6 +141,7 @@ export class PatternsModel {
       session.on("locks", (p) => this.locksPushed(p)),
       session.on("changed", (p) => { if (p.scope === SCOPE.TRACK && [0, 48, 71].includes(p.id)) this.forget(p.track); }),
       session.on("resync", () => { this.forget(); this.reload(); }),
+      session.on("reload", (w) => { if (w.slot !== undefined) { this.forget(); this.reload(); } else if (w.track !== undefined) this.forget(w.track); }),
       session.on("busy", (on) => on && this.wait?.rej(new Error("FM-1 busy (update?): the edit was not applied."))),
       session.on("closed", () => this.wait?.rej(new Error("Disconnected."))),
     ];
@@ -232,12 +271,7 @@ export class PatternsModel {
     for (let n = 0; ; n++) {
       if (this.wait && this.wait.key === `${slot}:${v}`) await this.waitSwitch(slot, v);
       const r = await this.s.request(CMD.STEPS_SET, a, { raw: true });
-      if (!r.rc) {
-        // rc 0 off the variation the page knew playing: the FM-1 switched (stopped). Its reply has no state block; read
-        // it (INFO) rather than wait for the STATE push (the mock's stopped switch never pushes one)
-        if (this.state && this.state.var !== v) await this.s.request(CMD.INFO).catch(() => {});
-        return r;
-      }
+      if (!r.rc) return r; // (off the variation the page knew playing: the FM-1 switched, stopped; a STATE push follows)
       if (r.rc === RC.STALE && r.detail === DETAIL.CUE_FIRST && n < 8) { await this.waitSwitch(slot, v); continue; }
       throw new DeviceError(r);
     }
@@ -315,24 +349,27 @@ export class PatternsModel {
   lockClearTrack(track) { return this.lockEdit(LK.CLEAR_TRACK, track); }
 
   /* ---------------------------------------------------------------- copy / save --- */
-  /** a variation (any slot) into variation `to` of the loaded slot: steps and timing (LEN DIV SWG SRC). Locks belong
-   * to the slot: with `locks` (from another slot) the loaded slot's LOCKs are replaced by the source slot's. The
-   * FM-1 switches to `to` (owner decision 3). Resolves true, or says why not and resolves false. */
+  /** a variation into variation `to` of the loaded slot: steps and timing (LEN DIV SWG SRC). from: { slot, var } (on
+   * the FM-1) or { file: objs (fileProjects), name, var } (a project in a file). Locks belong to the slot: with
+   * `locks` (from another slot or a file) the loaded slot's LOCKs are replaced by the source's; MOTION events are never
+   * copied (LOCK_EDIT writes LOCKs only). The FM-1 switches to `to` (owner decision 3). Resolves true, or says why not
+   * and resolves false. Into another slot: cue it first (copies go into the loaded slot only). */
   async copy(from, to, { locks = false } = {}) {
-    const slot = this.state?.slot;
+    const slot = this.state?.slot, file = from.file || null;
+    const what = file ? `${from.name || "the file"} VAR ${from.var + 1}` : `${SLOTS[from.slot]} VAR ${from.var + 1}`;
     try {
       if (slot === undefined || slot === NONE) throw new Error("Load a slot on the FM-1 first: a copy goes into the loaded slot.");
-      if (from.slot === slot && from.var === to) throw new Error("Source and target are the same variation.");
+      if (!file && from.slot === slot && from.var === to) throw new Error("Source and target are the same variation.");
       this.working = true;
       this.emit("working", true);
-      const rows = [];
-      for (let k = 0; k < NTRK; k++) {
+      const src = file ? fileVariation(file, from.var) : null, rows = src ? src.rows : [];
+      if (!src) for (let k = 0; k < NTRK; k++) {
         const r = await this.readSteps(from.slot, from.var, k);
         if (!r.used) throw new Error(`VAR ${from.var + 1} of slot ${SLOTS[from.slot]} is not used: nothing to copy.`);
         rows.push(r);
       }
-      const lks = locks && from.slot !== slot ? [] : null;
-      if (lks) for (let k = 0; k < NTRK; k++) lks.push((await this.readLocks(from.slot, k)).filter((e) => e.kind === LK.LOCK));
+      const lks = locks && (src || from.slot !== slot) ? (src ? src.locks : []) : null;
+      if (lks && !src) for (let k = 0; k < NTRK; k++) lks.push((await this.readLocks(from.slot, k)).filter((e) => e.kind === LK.LOCK));
       // the first STEPS_SET makes the FM-1 switch; rc 0 means `to` plays now, so the timing knobs below are its own
       for (let k = 0; k < NTRK; k++) await this.writeSteps(slot, to, k, 0, rows[k].steps);
       for (let k = 0; k < NTRK; k++) for (let j = 0; j < 4; j++)
@@ -341,7 +378,8 @@ export class PatternsModel {
         await this.s.request(CMD.LOCK_EDIT, { op: LK.CLEAR_TRACK, track: k, step: 0, param: 0, value: 0 });
         for (const e of lks[k]) await this.s.request(CMD.LOCK_EDIT, { op: LK.SET, track: k, step: e.step, param: e.param, value: e.value });
       }
-      this.say(`Copied ${SLOTS[from.slot]} VAR ${from.var + 1} to ${SLOTS[slot]} VAR ${to + 1}${lks ? " with its locks" : ""} (unsaved: SAVE keeps it).`);
+      const motion = src && locks && src.motion ? ` (its ${src.motion} MOTION event${src.motion > 1 ? "s were" : " was"} not copied)` : "";
+      this.say(`Copied ${what} to ${SLOTS[slot]} VAR ${to + 1}${lks ? ` with its locks${motion}` : ""} (unsaved: SAVE keeps it).`);
       this.forget();
       this.follow = true;
       if (!same(this.view, { slot, var: to })) { this.view = { slot, var: to }; this.emit("view"); }
@@ -539,28 +577,79 @@ export function mountPatterns(el, ctx) {
   const drawAll = () => { drawKeys(); drawGrid(); drawStep(); drawLocks(); };
   const select = (track, step) => { m.sel = { track, step }; drawGrid(); drawStep(); drawLocks(); };
 
-  /* Copy variation */
+  /* Copy variation: from a slot on the FM-1 or from a project in a file, into a variation of the loaded slot */
+  let srcFile = null; // { name, projects: fileProjects() } once a file is picked
   const openCopy = () => {
     const st = s.state;
     if (st.slot === NONE) { m.say("Load a slot on the FM-1 first: a copy goes into the loaded slot."); return; }
-    const k = cueKeys(st), opt = (list, sel) => list.map((x) => `<option value="${x.n}"${x.n === sel ? " selected" : ""}>${esc(x.name)}</option>`).join("");
+    const k = cueKeys(st), L = SLOTS[st.slot], opt = (list, sel) => list.map((x) => `<option value="${x.n}"${x.n === sel ? " selected" : ""}>${esc(x.name)}</option>`).join("");
     copyEl.hidden = false;
-    copyEl.innerHTML = `<label>From slot <select data-c="fs">${opt(k.slots.filter((x) => x.used), m.view.slot === NONE ? st.slot : m.view.slot)}</select></label>
-      <label>VAR <select data-c="fv">${opt(k.vars, m.view.var)}</select></label>
-      <label>into ${esc(SLOTS[st.slot])} (loaded) VAR <select data-c="tv">${opt(k.vars, (m.view.var + 1) % 8)}</select></label>
-      <label class="pt-cl"><input type="checkbox" data-c="lk"> also replace ${esc(SLOTS[st.slot])}'s locks with the source slot's</label>
+    copyEl.innerHTML = `<label>From <select data-c="src"><option value="fm1">the FM-1</option><option value="file">a file…</option></select></label>
+      <span class="pt-cfm1"><label>slot <select data-c="fs">${opt(k.slots.filter((x) => x.used), m.view.slot === NONE ? st.slot : m.view.slot)}</select></label>
+        <label>VAR <select data-c="fv">${opt(k.vars, m.view.var)}</select></label></span>
+      <span class="pt-cfile" hidden><button type="button" class="pt-btn" data-act="pickfile">Choose a file…</button> <span class="pt-cfn pt-empty"></span>
+        <label hidden>project <select data-c="fp"></select></label><label hidden>VAR <select data-c="ffv"></select></label></span>
+      <label>into ${esc(L)} (loaded) VAR <select data-c="tv">${opt(k.vars, (m.view.var + 1) % 8)}</select></label>
+      <label class="pt-cl"><input type="checkbox" data-c="lk"> also replace ${esc(L)}'s locks with the source's</label>
       <button type="button" class="pt-btn main" data-act="docopy">Copy</button><button type="button" class="pt-btn" data-act="nocopy">Cancel</button>
-      <span class="pt-empty">To copy into another slot, cue that slot first.</span>`;
-    const sync = () => { copyEl.querySelector(".pt-cl").hidden = Number(copyEl.querySelector('[data-c="fs"]').value) === st.slot; };
-    copyEl.querySelector('[data-c="fs"]').addEventListener("change", sync);
-    sync();
+      <span class="pt-empty pt-chint"></span>
+      <span class="pt-empty">To copy into another slot, cue that slot first: a copy goes into the loaded slot (${esc(L)}).</span>`;
+    copyEl.querySelector('[data-c="src"]').addEventListener("change", syncCopy);
+    copyEl.querySelector('[data-c="fs"]').addEventListener("change", syncCopy);
+    copyEl.querySelector('[data-c="fp"]').addEventListener("change", () => { fileVars(); syncCopy(); });
+    if (srcFile) showFile();
+    syncCopy();
+  };
+  const cg = (c) => copyEl.querySelector(`[data-c="${c}"]`);
+  const fromFile = () => cg("src")?.value === "file";
+  const syncCopy = () => {
+    const st = s.state, ff = fromFile();
+    copyEl.querySelector(".pt-cfm1").hidden = ff;
+    copyEl.querySelector(".pt-cfile").hidden = !ff;
+    copyEl.querySelector(".pt-cl").hidden = !ff && Number(cg("fs").value) === st.slot; // (the same slot: its locks already)
+    copyEl.querySelector(".pt-chint").textContent = ff
+      ? "From a file: the variation's steps and timing; with the box ticked, the project's LOCKs too. MOTION events are not copied (the editor writes LOCKs only)."
+      : "";
+    copyEl.querySelector('[data-act="docopy"]').disabled = m.working || (ff && !fileProject());
+  };
+  const fileProject = () => { const p = srcFile?.projects[Number(cg("fp").value)]; return p && p.vars.length ? p : null; };
+  const fileVars = () => {
+    const p = srcFile?.projects[Number(cg("fp").value)], sel = cg("ffv");
+    sel.innerHTML = (p?.vars || []).map((v) => `<option value="${v}">${v + 1}</option>`).join("");
+    sel.parentElement.hidden = !p?.vars.length;
+    copyEl.querySelector(".pt-cfn").textContent = srcFile ? `${srcFile.name}${p && p.old ? `: ${p.label} is in an older format (${p.old}): restore it into a slot, then copy from there` : ""}` : "";
+  };
+  const showFile = () => {
+    cg("src").value = "file";
+    const fp = cg("fp");
+    fp.innerHTML = srcFile.projects.map((p, i) => `<option value="${i}">${esc(p.label)}</option>`).join("");
+    fp.parentElement.hidden = srcFile.projects.length < 2;
+    fileVars();
+  };
+  const pickFile = () => {
+    const i = Object.assign(document.createElement("input"), { type: "file", accept: ".json,application/json" });
+    i.addEventListener("change", async () => {
+      const f = i.files && i.files[0];
+      if (!f) return;
+      try {
+        const projects = fileProjects(JSON.parse(await f.text()));
+        if (!projects.length) throw new Error(`${f.name}: no project in it.`);
+        srcFile = { name: f.name, projects };
+        showFile();
+      } catch (e) { m.say(e instanceof SyntaxError ? `${f.name}: not a JSON file.` : e.message); }
+      syncCopy();
+    });
+    i.click();
   };
   const doCopy = async () => {
-    const g = (c) => copyEl.querySelector(`[data-c="${c}"]`), st = s.state;
-    const from = { slot: Number(g("fs").value), var: Number(g("fv").value) }, to = Number(g("tv").value);
-    const locks = from.slot !== st.slot && g("lk").checked;
-    const msg = `Copy ${SLOTS[from.slot]} VAR ${from.var + 1} into ${SLOTS[st.slot]} VAR ${to + 1}?\n\nVAR ${to + 1}'s steps and timing are replaced`
-      + (locks ? `, and every LOCK of slot ${SLOTS[st.slot]} (all its variations) is replaced by slot ${SLOTS[from.slot]}'s (MOTION is not copied)` : "")
+    const st = s.state, ff = fromFile(), p = ff ? fileProject() : null, to = Number(cg("tv").value);
+    if (ff && !p) { m.say("Choose a hortator-project or hortator-backup file first."); return; }
+    const from = ff ? { file: p.objs, name: `${srcFile.name} ${p.label}`, var: Number(cg("ffv").value) }
+      : { slot: Number(cg("fs").value), var: Number(cg("fv").value) };
+    const locks = (ff || from.slot !== st.slot) && cg("lk").checked;
+    const name = ff ? `${p.label} of ${srcFile.name}` : `slot ${SLOTS[from.slot]}`;
+    const msg = `Copy ${ff ? `${p.label} VAR ${from.var + 1} from ${srcFile.name}` : `${SLOTS[from.slot]} VAR ${from.var + 1}`} into ${SLOTS[st.slot]} VAR ${to + 1}?\n\nVAR ${to + 1}'s steps and timing are replaced`
+      + (locks ? `, and every LOCK of slot ${SLOTS[st.slot]} (all its variations) is replaced by ${name}'s (MOTION events are not copied)` : "")
       + `. The FM-1 switches to VAR ${to + 1}${st.playing ? " at the pattern's end" : ""}. Nothing is saved until SAVE.`;
     if (!(await ctx.confirm(msg))) return;
     copyEl.hidden = true;
@@ -599,6 +688,7 @@ export function mountPatterns(el, ctx) {
     else if (act === "copy") { if (copyEl.hidden) openCopy(); else copyEl.hidden = true; }
     else if (act === "nocopy") copyEl.hidden = true;
     else if (act === "docopy") doCopy();
+    else if (act === "pickfile") pickFile();
     else if (act === "clrstep" && (await ctx.confirm(`Clear the LOCKs of track ${m.sel.track + 1}, step ${m.sel.step + 1}?`))) m.lockClearStep(m.sel.track, m.sel.step);
     else if (act === "clrtrk" && (await ctx.confirm(`Clear every LOCK of track ${m.sel.track + 1}? They apply in all variations of the slot. MOTION stays.`))) m.lockClearTrack(m.sel.track);
     else if (act === "cancelwait") m.cancelWait();

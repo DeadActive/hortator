@@ -13,14 +13,13 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import * as P from "./proto.mjs";
-import { createMockDevice, loadDeviceData } from "./mock_device.mjs";
-import { DeviceError, INFO_ONLY, Link, TimeoutError } from "./link.mjs";
-import { BUSY_MSG, Session, connect, listPorts } from "./session.mjs";
-import { ID, SoundModel } from "./tab_sound.mjs";
-import { headerModel } from "./header.mjs";
+import * as proto from "./proto.mjs";
+import * as mockDevice from "./mock_device.mjs";
+import * as linkMod from "./link.mjs";
+import * as sessionMod from "./session.mjs";
+import * as tabSound from "./tab_sound.mjs";
+import * as headerMod from "./header.mjs";
 
-const { CMD, PUSH, SCOPE, NONE, SF } = P;
 const HERE = new URL(".", import.meta.url).pathname;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(cond, ms = 3000) {
@@ -29,7 +28,14 @@ async function until(cond, ms = 3000) {
 }
 const FAST = { timeout: 25, longTimeout: 60, tries: 3, silence: 60, retryInfo: 25, keepAlive: 100000 };
 
-export async function runPageTests(log = console.log) {
+/** mods: the modules to test by file name (the inlined page's: web/test_web.mjs); default: these sources */
+export async function runPageTests(log = console.log, mods = {}) {
+  const M = { "proto.mjs": proto, "mock_device.mjs": mockDevice, "link.mjs": linkMod, "session.mjs": sessionMod,
+    "tab_sound.mjs": tabSound, "header.mjs": headerMod, ...mods };
+  const P = M["proto.mjs"], { createMockDevice, loadDeviceData } = M["mock_device.mjs"];
+  const { DeviceError, INFO_ONLY, Link, TimeoutError } = M["link.mjs"], { BUSY_MSG, Session, connect, listPorts } = M["session.mjs"];
+  const { ID, SoundModel } = M["tab_sound.mjs"], { headerModel } = M["header.mjs"];
+  const { CMD, PUSH, SCOPE, NONE, SF } = P;
   let passed = 0, failed = 0;
   const ok = (cond, what) => { if (cond) passed++; else { failed++; log(`FAIL page: ${what}`); } };
   const data = await loadDeviceData();
@@ -265,6 +271,15 @@ export async function runPageTests(log = console.log) {
     m.turnGlobal(m.G.GMODE, 1);
     await until(() => !snd.loading && byTitle("GRIDS")?.ids.includes(m.G.GLEN1));
     ok(byTitle("GRIDS").ids.includes(m.G.GLEN1), "G_GMODE changed: PAGES read again (GRIDS shows LEN)");
+    const pid = snd.preset === 5 ? 6 : 5;
+    m.tracks[7].pre = pid; // what PRESET_LOAD changes and no push carries (the preset id)
+    m.tracks[6].pre = 0;
+    s.reloaded({ track: 6 });
+    await sleep(5);
+    const not6 = !snd.loading && snd.preset !== pid;
+    s.reloaded({ track: 7 });
+    await until(() => !snd.loading && snd.preset === pid);
+    ok(not6 && snd.preset === pid && valuesMatch(), "reload { track }: the Sound tab reads its track again (another track: nothing)");
 
     /* the header */
     m.play();
@@ -274,6 +289,10 @@ export async function runPageTests(log = console.log) {
       && hm.firmware === "0.28.0" && hm.status === "", "header: PLAY, A* (unsaved), VAR 1, D empty");
     m.stop();
     const fake = (flags, busy) => headerModel({ busy, info: { firmware: "0.28.0" }, state: { ...s.state, flags } });
+    const other09 = dev({ firmware: "0.9.9" }), r09 = await connect(access(other09), { timing: FAST });
+    ok(headerModel(r09.session).firmware === "0.9.9" && headerModel(r09.session).port === "Hortator",
+      "header: the firmware version is INFO's (not written in the page), then the port's name");
+    r09.session.close();
     ok(fake(SF.RESTORING, false).status === "RESTORING" && fake(0, true).status === BUSY_MSG && fake(SF.SONG, false).status === "SONG",
       "header: RESTORING, FM-1 busy (update?), SONG");
 
