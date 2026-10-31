@@ -272,6 +272,7 @@ async function simCue() {
 await simLocks();
 await simCue();
 await editorPage();
+{ const r = await (await import("./editor/test_tab_patterns.mjs")).runPatternTests((x) => console.log(x)); ok(!r.failed, `editor: Patterns tab against the mock device (${r.passed} checks)`); }
 await packages();
 await updater();
 await counter();
