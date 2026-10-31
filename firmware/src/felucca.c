@@ -189,6 +189,8 @@ static void ota_commit(const uint8_t *parm)
 #include "bt_page.c"                 /* the Bluetooth page (MENU > BLUETOOTH, ui_menu.c ui.menu 3); bt_service */
 #endif
 #if FELUCCA_OTA
+#include "editor_proto.h"
+#include "editor_backup.c"           /* the web editor's backup / restore (editor.c calls its hooks) */
 /* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)
  * frees every SysEx frame, so editor frames cannot block the update handshake. FELUCCA_BLE: the BT stack's slice,
  * every main-loop pass and in its 15 ms wait (spec amendment 3) */
