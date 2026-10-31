@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Drum machine fork: 2026 DEADACTIVE
+// The editor page's shell (web/editor.html): Connect, the header bar, the tabs. Nothing is sent before Connect; the
+// session (session.mjs) asks only "Hortator" ports, only INFO, until one identifies itself. `?mock` runs the page
+// against the mock device (mock_device.mjs) for development; `?mock=auto` also connects at once.
+// The tabs, one module each: tab_sound.mjs (live sound), tab_presets.mjs, tab_projects.mjs, tab_patterns.mjs.
+import { connect, refusal } from "./session.mjs";
+import { mountHeader } from "./header.mjs";
+import { esc } from "./ui.mjs";
+import { tab as sound } from "./tab_sound.mjs";
+import { tab as presets } from "./tab_presets.mjs";
+import { tab as projects } from "./tab_projects.mjs";
+import { tab as patterns } from "./tab_patterns.mjs";
+
+export const TABS = [sound, presets, projects, patterns];
+const TAB_KEY = "hortator-editor-tab";
+const $ = (s) => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const MOCK = params.has("mock");
+let session = null, views = [], header = null, mock = null;
+
+function say(r) { // a message under Connect, with its links
+  const el = $("#msg");
+  el.hidden = !r;
+  if (!r) return;
+  el.innerHTML = `<p>${esc(r.message)}</p>${(r.links || []).map((l) =>
+    `<a class="cta ghost" href="${esc(l.href)}"${/^https?:/.test(l.href) ? ' rel="noopener"' : ""}>${esc(l.text)}</a>`).join(" ")}`;
+}
+let toastT;
+function toast(msg) {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { el.hidden = true; }, 4000);
+}
+
+async function access() {
+  if (MOCK) {
+    if (!mock) {
+      const { createMockDevice, loadDeviceData } = await import("./mock_device.mjs");
+      mock = createMockDevice(await loadDeviceData(), { latency: 2 });
+      setInterval(() => mock.deliver(mock.advance(100)), 100); // the device's clock runs (WATCH, the update silence)
+      mockBar(mock);
+    }
+    return mock.access;
+  }
+  if (!navigator.requestMIDIAccess) throw refusal("nomidi");
+  try { return await navigator.requestMIDIAccess({ sysex: true }); } catch { throw refusal("denied"); }
+}
+
+async function onConnect() {
+  const btn = $("#connect");
+  btn.disabled = true;
+  say({ message: "Looking for a Hortator FM-1…" });
+  try {
+    const r = await connect(await access());
+    if (!r.ok) { say(r); return; }
+    say(null);
+    started(r.session);
+  } catch (e) {
+    say(e.why ? e : { message: e.message, links: [] });
+  } finally { btn.disabled = false; }
+}
+
+function started(s) {
+  session = s;
+  $("#start").hidden = true;
+  $("#app").hidden = false;
+  header = mountHeader($("#hb"), s, { onError: toast });
+  const ctx = { session: s, toast, confirm: (m) => window.confirm(m) };
+  const nav = $("#tabs"), panels = $("#panels");
+  nav.innerHTML = "";
+  panels.innerHTML = "";
+  views = [];
+  for (const t of TABS) {
+    if (!(s.info.caps & t.cap)) continue; // a feature this firmware lacks: no tab
+    const b = document.createElement("button");
+    Object.assign(b, { type: "button", textContent: t.title });
+    b.setAttribute("role", "tab");
+    b.dataset.tab = t.id;
+    b.addEventListener("click", () => show(t.id));
+    nav.append(b);
+    const p = document.createElement("section");
+    p.className = "panel";
+    p.id = `p-${t.id}`;
+    p.dataset.tab = t.id;
+    p.setAttribute("role", "tabpanel");
+    panels.append(p);
+    views.push({ id: t.id, view: t.mount(p, ctx) || {} });
+  }
+  let last = location.hash.slice(1);
+  try { last = last || localStorage.getItem(TAB_KEY) || ""; } catch { /* storage off */ }
+  show(views.some((v) => v.id === last) ? last : views[0]?.id);
+  s.on("busy", (on) => on && toast("FM-1 busy (update?): the editor waits and reconnects by itself."));
+  s.on("refused", (r) => stopped(r));
+  s.on("closed", (why) => why !== "refused" && stopped({ message: why === "unplugged" ? "The FM-1 was unplugged." : "Disconnected.", links: [] }));
+}
+
+function show(id) {
+  if (!id) return;
+  for (const b of document.querySelectorAll("#tabs [data-tab]")) b.setAttribute("aria-selected", b.dataset.tab === id ? "true" : "false");
+  for (const p of document.querySelectorAll("#panels .panel")) p.hidden = p.dataset.tab !== id;
+  views.find((v) => v.id === id)?.view.show?.();
+  try { localStorage.setItem(TAB_KEY, id); } catch { /* storage off */ }
+  history.replaceState(null, "", location.pathname + location.search + "#" + id);
+}
+
+function stopped(r) {
+  views.forEach((v) => v.view.destroy?.());
+  header?.destroy();
+  views = [];
+  session = null;
+  $("#app").hidden = true;
+  $("#start").hidden = false;
+  say(r);
+}
+
+/* ?mock: the FM-1's side, by hand -------------------------------------------------------- */
+function mockBar(m) {
+  const bar = $("#mockbar");
+  bar.hidden = false;
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const acts = {
+    knob: () => { const id = m.P.E0 + rnd(0, 3), d = m.trackDesc(m.tracks[m.sel], id); m.turn(m.sel, id, rnd(d.min, d.max)); },
+    bpm: () => m.turnGlobal(m.G.BPM, rnd(90, 160)),
+    track: () => m.select((m.sel + 1) % 8),
+    play: () => (m.playing ? m.stop() : m.play()),
+    update: () => m.updateFrame(),
+  };
+  bar.addEventListener("click", (e) => { const a = e.target.closest("button[data-a]"); if (a) acts[a.dataset.a](); });
+}
+
+$("#connect").addEventListener("click", onConnect);
+if (!MOCK && !navigator.requestMIDIAccess) say(refusal("nomidi"));
+if (MOCK) $("#mode").textContent = "Mock device: no FM-1 needed.";
+if (params.get("mock") === "auto") onConnect();
