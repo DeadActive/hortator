@@ -860,6 +860,8 @@ static int cue_owns_keys(void)                         /* SAVE held (GLO not): t
 static void cue_keys(uint32_t hits)                    /* white key n: STEP_KEY[n - 1]; black key v: CUE_BK[v - 1] */
 {
     uint32_t n;
+    if (ui_locked())
+        return;
     for (n = 0; n < 4u; n++)
         if ((hits >> STEP_KEY[n]) & 1u)
             (void)cue_slot(n);
@@ -911,6 +913,8 @@ static void play_press(void)
     ui.srec = 0;
     if (song.playing || chain_busy())
         transport_req = 2;
+    else if (ui_locked())
+        return;                                     /* (a web editor restore: no start) */
     else if (!ui.home && cur_page()->graph == GR_SONG)
         song_play();
     else
@@ -1236,8 +1240,10 @@ static void ui_input(void)
                 project_save_go(ui.confirm_trk & 3u);
             } else if (ui.confirm == CONFIRM_DISCARD) { /* LOAD: the slot's unsaved edits dropped, its saved one */
                 ui.confirm = 0;
-                project_discard(ui.confirm_trk & 3u);
-                proj_load_from(ui.confirm_trk & 3u);
+                if (!ui_locked()) {
+                    project_discard(ui.confirm_trk & 3u);
+                    proj_load_from(ui.confirm_trk & 3u);
+                }
             } else if (ui.confirm == 5u) {              /* the last project failed to load: forget it (saved) */
                 lastp.set = 0;
                 settings_save();
@@ -1384,7 +1390,7 @@ static void ui_input(void)
     }
     if (cue_bk_page())                                  /* the black keys: variations 1..8 (2026-10-27) */
         for (k = 0; k < 8u; k++)
-            if ((notes >> CUE_BK[k]) & 1u)
+            if (((notes >> CUE_BK[k]) & 1u) && !ui_locked())
                 (void)cue_var(k);
     if ((s = panel_enc(EN_PRESET)) != 0 && (fx_knobs || ui.layer)) {
         /* PERFORM up: no preset loaded under it (item 7; the turn dropped) */

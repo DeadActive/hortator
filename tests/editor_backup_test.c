@@ -233,6 +233,7 @@ static void wipe_ram(void)                            /* a power cycle's RAM */
     memset(var_buf, 0, sizeof var_buf);
     memset(var_who, 0, sizeof var_who);
     memset(&edb, 0, sizeof edb);
+    ed_lock_on = 0;
     var_play = 0;
     var_dirty = 0;
     var_lost = 0;
@@ -561,6 +562,79 @@ static void t_abort_timeout_drop(void)
           "reloaded", (int)ok);
 }
 
+/* RESTORING on the device (ui.c ed_lock_on): its own PLAY, cue keys, LOAD, SAVE, PASTE, NAME and preset save / delete
+ * are refused with "RESTORING" and touch nothing (the staged homes, flash, the transport); COMMIT, ABORT, the idle
+ * timeout and update traffic release them */
+static int keys_refused(const uint8_t *keep, const project_t *staged)
+{
+    uint32_t ok = 1, ld = (uint32_t)proj_loaded(), vc = var_cur;
+    transport_req = 0;
+    ui.msg[0] = 0;
+    play_press();
+    ok &= transport_req == 0u && str_eq(ui.msg, "RESTORING");
+    ui.msg[0] = 0;
+    cue_keys(1u << STEP_KEY[0] | 1u << CUE_BK[3]);
+    ok &= !cue.q_slot && !cue.q_var && proj_loaded() == (int32_t)ld && var_cur == vc && str_eq(ui.msg, "RESTORING");
+    project_load(0);
+    proj_load_from(0);
+    project_save(ld);
+    project_save_go(ld);
+    project_paste(2);
+    project_rename(ld, "X");
+    ok &= preset_user_save(0, &trk[0]) < 0;
+    preset_user_delete(0);
+    ok &= !ui.confirm && proj_loaded() == (int32_t)ld && same_flash(keep) && transport_req == 0u &&
+          !memcmp(&proj_slot[1], staged, sizeof *staged) && str_eq(ui.msg, "RESTORING");
+    return (int)ok;
+}
+static int keys_free(void)
+{
+    transport_req = 0;
+    ui.msg[0] = 0;
+    play_press();
+    return !ed_lock_on && transport_req == 1u && !str_eq(ui.msg, "RESTORING");
+}
+static void t_restoring_lock(void)
+{
+    static uint8_t keep[sizeof hflash];
+    static project_t staged;
+    static int16_t kv[P_COUNT];
+    robj_t o;
+    uint32_t ok;
+    fresh();
+    make_project(0, 5);
+    o = backup_project(0, B);
+    make_project(1, 8);                               /* B: the target, loaded */
+    kv[P_E0] = 10;
+    upr_set(0, 1, kv);
+    upr_write();
+    ok = keys_free();
+    transport_req = 0;
+    memcpy(keep, hflash, sizeof keep);
+    ok &= restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK && ed_lock_on;
+    staged = proj_slot[1];
+    ok &= keys_refused(keep, &staged) && ed_restoring();
+    ok &= rs_op(ED_RS_ABORT) == ED_OK && keys_free();
+    check("RESTORING: the device's PLAY, cue keys, LOAD, SAVE, PASTE, NAME, preset save / delete refused with its "
+          "message, nothing touched; ABORT releases them", (int)ok);
+
+    transport_req = 0;
+    ok = restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK;
+    staged = proj_slot[1];
+    ok &= keys_refused(keep, &staged);
+    host_ms += ED_RESTORE_IDLE_MS + 1u;
+    ed_backup_poll();
+    ok &= keys_free();
+    transport_req = 0;
+    ok &= restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK && ed_lock_on;
+    ed_backup_drop();                                 /* update traffic */
+    ok &= keys_free();
+    transport_req = 0;
+    ok &= restore(ED_RK_PROJECT, 1, &o, 999, 1) == ED_OK && keys_free();
+    transport_req = 0;
+    check("RESTORING released by the idle timeout, update traffic and COMMIT", (int)ok);
+}
+
 static void t_other_slot_plays(void)
 {
     static uint8_t C[3][4096];
@@ -717,6 +791,7 @@ int main(void)
     t_list_get();
     t_restore_refusals();
     t_abort_timeout_drop();
+    t_restoring_lock();
     t_other_slot_plays();
     t_power_cut();
     t_presets();

@@ -170,6 +170,17 @@ static void ui_say(const char *a, const char *b)     /* transient message in the
 
 static void ui_message(const char *s) { ui_say(s, ""); }
 
+/* the web editor restores a project or the user presets (editor_backup.c sets it from BEGIN to COMMIT / ABORT / the
+ * idle timeout / update traffic): the device's own PLAY, cue keys, LOAD, SAVE, PASTE, NAME and preset save / delete
+ * are refused meanwhile, as other refusals are (a message), so nothing touches the RAM homes the restore stages in */
+static uint8_t ed_lock_on;
+static int ui_locked(void)
+{
+    if (ed_lock_on)
+        ui_message("RESTORING");
+    return ed_lock_on;
+}
+
 static int song_lock(void)                          /* a song plays (or is armed): its patterns stay as they are */
 {
     if (!chain_busy())

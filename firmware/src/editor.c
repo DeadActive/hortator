@@ -593,6 +593,10 @@ static int ed_is_write(uint32_t cmd)
 }
 static void ed_dispatch(uint32_t cmd, const uint8_t *a, uint32_t n)
 {
+#ifdef ED_HAS_BACKUP
+    if (ed_backup_cmd(cmd, a, n))          /* first: every request keeps a restore alive (ED_RESTORE_IDLE_MS) */
+        return;
+#endif
     switch (cmd) {
     case ED_INFO:
         if (ed_len(cmd, n, ED_LEN_INFO))
@@ -654,10 +658,6 @@ static void ed_dispatch(uint32_t cmd, const uint8_t *a, uint32_t n)
     }
 #ifdef ED_HAS_PATTERN
     if (ed_pattern_cmd(cmd, a, n))
-        return;
-#endif
-#ifdef ED_HAS_BACKUP
-    if (ed_backup_cmd(cmd, a, n))
         return;
 #endif
     if (cmd >= ED_NAMES && cmd < ED_CMD_N)

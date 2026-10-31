@@ -122,8 +122,11 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-re
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test" tests/editor_test.c -lm   # (the web editor's core: ASan + UBSan)
 "$OUT/editor_test" "$OUT/editor_frames.txt" > "$OUT/editor_test.txt" 2>&1 || { grep -v "^ok" "$OUT/editor_test.txt" | tail -30; exit 1; }
 tail -1 "$OUT/editor_test.txt"
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
+    -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_xcheck" tests/editor_xcheck.c -lm   # (the whole editor, scripted)
 if command -v node >/dev/null 2>&1; then
-    node tests/editor_wire.mjs "$OUT/editor_frames.txt"   # (its frames through the page's codec, byte for byte)
+    # its frames through the page's codec, byte for byte; one script through the firmware and the mock device
+    node tests/editor_wire.mjs "$OUT/editor_frames.txt" "$OUT/editor_xcheck"
 else
     echo "editor_wire: SKIPPED (no node)"
 fi

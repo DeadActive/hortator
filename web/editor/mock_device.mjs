@@ -15,7 +15,12 @@
 //   device side: m.turn(track, id, v) m.turnGlobal(id, v) m.select(t) m.play() m.stop() m.boundary()
 //                m.editStep(track, step, s) m.lockOnDevice(track, step, param, v) m.setSong(on) m.advance(ms)
 //   faults:      m.faults.noReply = n (the next n requests unanswered), m.faults.refuse[cmd] = { rc, detail, msg },
-//                m.faults.flashError, m.faults.cueFull, m.faults.cuePark = slot, m.updateFrame(), m.otaReq()
+//                m.faults.flashError, m.faults.cueFull, m.faults.cuePark = slot (the park holds that slot's unsaved
+//                variations), m.faults.noFlash (no flash this boot), m.faults.updateAtCommit (the upgrade command lands
+//                just before a COMMIT's writes), m.updateFrame(), m.otaReq()
+//   m.g[G.CLOCK] (following an external clock: BPM stays the clock's) and m.song (a song plays) as the firmware
+// tests/editor_wire.mjs runs one request script through this mock and the firmware's (tests/editor_xcheck.c) and
+// compares the replies byte for byte.
 // opts: name ("Hortator"), editor (false: an FM-1 without the editor, it never answers), firmware ("0.28.0"),
 //       major / minor, magic, caps, latency (ms, the access' replies), powerOnKit (no slot loaded), seed
 import {
@@ -74,7 +79,7 @@ export class MockDevice {
     this.M = Object.fromEntries(data.models.map((m, i) => [m.name, i]));
     this.roG = new Set(RO_G.map((n) => G[n]));
     this.t = 0; // the virtual clock (advance)
-    this.faults = { noReply: 0, refuse: {}, flashError: false, cueFull: false, cuePark: -1 };
+    this.faults = { noReply: 0, refuse: {}, flashError: false, cueFull: false, cuePark: -1, noFlash: false, updateAtCommit: false };
     this.received = []; // every frame fed (the whitelist test)
     this.silentUntil = -1;
     this.watchUntil = -1;
@@ -302,7 +307,7 @@ export class MockDevice {
     const dirty = [0, 1, 2, 3].reduce((m, i) => m | (this.slotDirty(i) ? 1 << i : 0), 0);
     return { playing: this.playing ? 1 : 0, slot: this.loaded < 0 ? NONE : this.loaded, var: this.varCur,
       qslot: this.q.slot < 0 ? NONE : this.q.slot, qvar: this.q.var < 0 ? NONE : this.q.var, sel: this.sel,
-      flags: (this.restore ? 1 : 0) | (this.song ? 2 : 0), used, dirty, vmask: [0, 1, 2, 3].map((s) => this.vmask(s)) };
+      flags: (this.restore ? 1 : 0) | (this.song ? 2 : 0) | (this.faults.noFlash ? 4 : 0), used, dirty, vmask: [0, 1, 2, 3].map((s) => this.vmask(s)) };
   }
 
   /* knobs ---------------------------------------------------------------------- */
@@ -359,6 +364,7 @@ export class MockDevice {
       case "SEMI": return [(v > 0 ? "+" : "") + v, "st"];
       case "ONOFF": return [v ? "ON" : "OFF", ""];
       case "NOTE": return [N_NOTE[((v % 12) + 12) % 12], ""];
+      case "LPHASE": return [String(Math.trunc(clamp(v, 0, 127) * 360 / 128)), "deg"]; // (the font's degree sign: "deg")
       case "INT":
         if (d.split) return [d.names[Math.floor((v - d.min) * d.names.length / (d.max - d.min + 1))], d.unit || ""];
         return [String(v), d.unit || ""];
@@ -370,21 +376,35 @@ export class MockDevice {
     return this.tracks[track === NONE ? this.sel : track].p[id];
   }
   acidOthers(k) { return this.tracks.filter((t, i) => i !== k && t.p[this.P.MODEL] === this.d.consts.ACID).length; }
-  set(scope, track, id, v) { // a knob turned to v (clamped), as the device's setter; returns the value kept
-    const k = this.knob(scope, track, id);
-    if (k.flags & DF.RO) refuse(RC.BAD, DETAIL.RANGE);
+  set(scope, track, id, v) { // a knob turned to v (clamped), as the device's setter (editor.c ed_set); the value kept
+    const k = this.knob(scope, track, id), P = this.P, c = this.d.consts;
     v = clamp(v, k.desc.min, k.desc.max);
-    if (scope === SCOPE.GLOBAL) { this.g[id] = v; return v; }
-    const ti = track === NONE ? this.sel : track, t = this.tracks[ti];
-    if (id === this.P.MODEL) {
-      if (v === this.d.consts.ACID && t.p[id] !== v && this.acidOthers(ti) >= 2) refuse(RC.REFUSED, DETAIL.ACID_CAP);
-      if (t.p[id] !== v) { // as the MODEL knob: the model's default sound, no preset
-        for (let i = 0; i < 8; i++) t.p[this.P.E0 + i] = this.d.models[v].edit[i].def;
-        t.pre = LAYOUT.preNone;
-        t.preEd = 0;
-      }
+    if (k.flags & DF.RO) refuse(RC.BAD, DETAIL.RANGE, "READ ONLY");
+    this.busy();
+    if (scope === SCOPE.GLOBAL) {
+      if (id === this.G.BPM && this.g[this.G.CLOCK]) return this.g[id]; // following a clock: its tempo
+      this.g[id] = v;
+      return v;
     }
-    if (id >= this.P.E0 && id <= this.P.E7) t.preEd = 1;
+    const ti = track === NONE ? this.sel : track, t = this.tracks[ti];
+    if (id === P.MODEL) {
+      if (v === t.p[id]) return v;
+      if (v === c.ACID && this.acidOthers(ti) >= c.ACID_MAXTRK) refuse(RC.REFUSED, DETAIL.ACID_CAP);
+      const pre = this.d.presets.findIndex((x) => x.model === v); // drum_set_model: the model's first factory preset
+      t.p[id] = v;
+      for (let i = 0; i < 8; i++) t.p[P.E0 + i] = pre >= 0 ? this.clampKnob(v, i, this.d.presets[pre].k[i]) : this.d.models[v].edit[i].def;
+      t.pre = pre >= 0 ? pre : LAYOUT.preNone;
+      t.preEd = 0;
+      return v;
+    }
+    if (id === P.RMODEL && v !== t.p[id]) { // reson.c reson_refused: the caps
+      const others = (f) => this.tracks.filter((x, i) => i !== ti && f(x.p[P.RMODEL])).length, from = t.p[id];
+      if (v !== c.RS_OFF && from === c.RS_OFF && others((m) => m !== c.RS_OFF) >= c.RS_MAXTRK) refuse(RC.REFUSED, DETAIL.NONE, "RESON: 4 TRACKS MAX");
+      if (v === c.RS_CHORD && from !== c.RS_CHORD && others((m) => m === c.RS_CHORD) >= 2) refuse(RC.REFUSED, DETAIL.NONE, "CHORD: 2 TRACKS MAX");
+      if (v === c.RS_MODAL && from !== c.RS_MODAL && others((m) => m === c.RS_MODAL) >= c.RS_MAXMODAL) refuse(RC.REFUSED, DETAIL.NONE, "MODAL: 2 TRACKS MAX");
+    }
+    if (((id >= P.SLEN && id <= P.SSWING) || id === P.SRC) && this.song) return t.p[id]; // a song's rows set PATTERN
+    if (id >= P.E0 && id <= P.E7 && t.p[id] !== v) t.preEd = 1;
     t.p[id] = v;
     return v;
   }
@@ -426,8 +446,8 @@ export class MockDevice {
   handle(f) {
     const cmd = f[4], seq = f[5];
     if (seq === SEQ_PUSH) return null;
-    if (this.last && this.last.cmd === cmd && this.last.seq === seq && WRITES.has(cmd) && this.t - this.last.at < TIMING.dup)
-      return this.last.frame; // a retry: answered again, not done twice
+    if (this.last && this.last.cmd === cmd && this.last.seq === seq && WRITES.has(cmd) && this.t - this.last.at <= TIMING.dup)
+      return this.last.frame; // a retry: its first reply again, byte for byte, not done twice
     let reply;
     try {
       let req;
@@ -455,6 +475,7 @@ export class MockDevice {
     return f;
   }
   busy() { if (this.restore) refuse(RC.BUSY, DETAIL.RESTORING); }
+  flashOk() { if (this.faults.noFlash) refuse(RC.REFUSED, DETAIL.NO_FLASH); }
   slotArg(s) {
     if (s === NONE) return this.loaded;
     if (s > 3) refuse(RC.BAD, DETAIL.RANGE);
@@ -495,7 +516,6 @@ export class MockDevice {
         if (a.scope > SCOPE.GLOBAL) refuse(RC.BAD, DETAIL.RANGE);
         let v;
         if (cmd === CMD.SET) {
-          this.busy();
           v = this.set(a.scope, a.track, a.id, a.value);
           this.shadowKnob(a.scope, a.track, a.id);
         } else { const k0 = this.knob(a.scope, a.track, a.id); v = clamp(a.value, k0.desc.min, k0.desc.max); }
@@ -532,7 +552,7 @@ export class MockDevice {
         const p = a.id < nf ? { model: this.d.presets[a.id].model, knobs: this.d.presets[a.id].k } : this.upr[a.id - nf];
         if (!p) refuse(RC.REFUSED, DETAIL.PRESET_EMPTY);
         const t = this.tracks[ti];
-        if (p.model === this.d.consts.ACID && this.acidOthers(ti) >= 2) refuse(RC.REFUSED, DETAIL.ACID_CAP);
+        if (p.model === this.d.consts.ACID && this.acidOthers(ti) >= this.d.consts.ACID_MAXTRK) refuse(RC.REFUSED, DETAIL.ACID_CAP);
         t.p[P.MODEL] = p.model;
         p.knobs.forEach((k, i) => { t.p[P.E0 + i] = this.clampKnob(p.model, i, k); });
         t.pre = a.id;
@@ -559,7 +579,14 @@ export class MockDevice {
         this.busy();
         if (a.track > 7 || a.var > 7 || a.first > 63 || !a.steps.length || a.first + a.steps.length > 64) refuse(RC.BAD, DETAIL.RANGE);
         const s = this.slotArg(a.slot);
-        if (s !== this.loaded || a.var !== this.varCur) refuse(RC.STALE, DETAIL.CUE_FIRST);
+        if (this.song) refuse(RC.REFUSED, DETAIL.CUE_SONG, "STOP TO EDIT"); // a song's patterns stay as they are
+        if (this.loaded < 0 && a.var !== this.varCur) refuse(RC.REFUSED, DETAIL.NO_SLOT);
+        if (s !== this.loaded) refuse(RC.STALE, DETAIL.CUE_FIRST);
+        if (a.var !== this.varCur) { // switch-to-edit: the variation's key pressed (stopped: at once; playing: queued)
+          if (this.q.slot >= 0) refuse(RC.STALE, DETAIL.CUE_FIRST);
+          if (this.q.var !== a.var) this.cueVar(a.var);
+          if (a.var !== this.varCur) refuse(RC.STALE, DETAIL.CUE_FIRST);
+        }
         const t = this.tracks[a.track];
         a.steps.forEach((x, i) => { t.steps[a.first + i] = { flags: x.flags & 0x3f, cond: Math.min(x.cond, this.d.consts.COND_MAX), note: x.note }; });
         this.shadowSteps(a.track);
@@ -585,14 +612,16 @@ export class MockDevice {
         if (a.slot !== NONE && a.slot !== this.loaded) refuse(RC.BAD, DETAIL.RANGE);
         if (this.playing) refuse(RC.STOP, DETAIL.STOP, "STOP TO SAVE");
         if (this.loaded < 0) refuse(RC.REFUSED, DETAIL.NO_SLOT);
+        if (this.faults.noFlash) refuse(RC.REFUSED, DETAIL.NO_FLASH);
         if (this.faults.flashError) refuse(RC.FLASH, DETAIL.NONE, "SAVE ERROR");
         const img = this.liveImage();
         this.slots[this.loaded] = img;
         this.writeSlot(this.loaded, img); // (the live state stays: it is now the slot's flash version)
         return { slot: this.loaded, state: this.state() };
       }
-      case CMD.BACKUP_LIST: return { objects: this.backupList() };
+      case CMD.BACKUP_LIST: this.flashOk(); return { objects: this.backupList() };
       case CMD.BACKUP_GET: {
+        this.flashOk();
         const o = this.backupList()[a.obj];
         if (!o) refuse(RC.BAD, DETAIL.RANGE);
         const b = this.objBytes(a.obj);
@@ -602,7 +631,7 @@ export class MockDevice {
         const data = b.slice(a.offset, a.offset + LIMITS.piece);
         return { obj: a.obj, offset: a.offset, len: data.length, data };
       }
-      case CMD.RESTORE: return this.restoreOp(a);
+      case CMD.RESTORE: this.flashOk(); return this.restoreOp(a);
       default: refuse(RC.BAD, DETAIL.UNKNOWN);
     }
   }
@@ -733,8 +762,10 @@ export class MockDevice {
         if (!size || p0.size !== size || (p1.size && p1.size !== SZ.LOCKS) || (p2.size && (p2.size < SZ.VARS_MIN || p2.size > SZ.VARS_MAX))
           || (m !== MAGIC.PROJ && (p1.size || p2.size))) refuse(RC.REFUSED, DETAIL.BAD_OBJECT);
       }
-      this.restore = { kind: a.kind, slot: a.kind === RK.PROJECT ? a.slot : 0, magic: a.magic, parts: a.parts.map((p) => ({ ...p, buf: new Uint8Array(p.size), next: 0, last: -1 })), at: this.t };
       this.q = { slot: -1, var: -1, now: false };
+      const c = this.faults.cuePark; // the park (var_buf[var_play ^ 1]) holds another slot's unsaved variations
+      if (a.kind === RK.PROJECT && p2.size && c >= 0 && c !== a.slot) refuse(RC.REFUSED, DETAIL.CUE_PARK + c, `SAVE ${"ABCD"[c]} FIRST`);
+      this.restore = { kind: a.kind, slot: a.kind === RK.PROJECT ? a.slot : 0, magic: a.magic, parts: a.parts.map((p) => ({ ...p, buf: new Uint8Array(p.size), next: 0, last: -1 })), at: this.t };
       return { op: a.op, kind: a.kind, slot: this.restore.slot };
     }
     if (!r) refuse(RC.BAD, DETAIL.NOT_RESTORING);
@@ -755,11 +786,15 @@ export class MockDevice {
     if (r.parts.some((p) => p.next !== p.size)) refuse(RC.REFUSED, DETAIL.INCOMPLETE);
     if (r.parts.some((p) => p.size && crc32(p.buf) !== p.crc)) { this.abortRestore(); refuse(RC.REFUSED, DETAIL.CRC); }
     const bad = () => { this.abortRestore(); refuse(RC.REFUSED, DETAIL.INVALID); };
-    if (this.faults.flashError) { this.abortRestore(); refuse(RC.FLASH, DETAIL.NONE, "SAVE ERROR"); }
+    const writes = () => { // the update check right before the writes; a failed write leaves flash's version
+      if (this.faults.updateAtCommit) { this.faults.updateAtCommit = false; this.abortRestore(); refuse(RC.BUSY, DETAIL.NONE, "UPDATE"); }
+      if (this.faults.flashError) { this.abortRestore(); refuse(RC.FLASH, DETAIL.NONE, "SAVE ERROR"); }
+    };
     if (r.kind === RK.PRESETS) {
       let slots;
       try { slots = decodePresets(r.parts[0].buf); } catch { bad(); }
       if (slots.some((s) => s && s.model >= this.d.models.length)) bad();
+      writes();
       this.upr = slots.map((s) => s && { model: s.model, knobs: s.knobs.map((k, i) => this.clampKnob(s.model, i, k)) });
       this.writeUpr();
       this.restore = null;
@@ -775,6 +810,7 @@ export class MockDevice {
       }
       if (vr) { try { if (decodeVars(vr).magic !== MAGIC.VAR || varLink(vr) !== p.var_link) bad(); } catch { bad(); } }
     }
+    writes();
     const sealed = sealProject({ record: rec, locks: lk, vars: vr }, r.slot);
     if (sealed.vars) this.flashWrite("vr", r.slot, sealed.vars);
     if (sealed.locks) this.flashWrite("lk", r.slot, sealed.locks);

@@ -193,6 +193,8 @@ static void name_ok(void)                          /* OCT+: written (ends trimme
         ui_message("STOP TO SAVE");
         return;
     }
+    if (ui_locked())
+        return;
     project_rename(nm.slot, b);
     name_close();
 }
@@ -206,7 +208,7 @@ static void name_input(uint32_t pressed, uint32_t notes, uint32_t now, uint32_t 
         name_close();
         return;
     }
-    if ((pressed >> panel.btn[B_PLAY]) & 1u)
+    if (((pressed >> panel.btn[B_PLAY]) & 1u) && (song.playing || chain_busy() || !ui_locked()))
         transport_req = song.playing || chain_busy() ? 2 : 1;
     if (nm.key && now - nm.t >= NM_T(NM_TAP_MS))
         nm_commit();

@@ -50,6 +50,7 @@ export const WRITES = new Set([CMD.SET, CMD.SELECT, CMD.PRESET_LOAD, CMD.STEPS_S
   CMD.RESTORE]);
 export const LONG = new Set([CMD.SAVE]); // + RESTORE COMMIT: TIMING.longTimeout
 export const SCOPE = { TRACK: 0, GLOBAL: 1, MODEL: 2 };
+export const GR = { LFO: 10 }; // PAGES graph: the LFO pages (columns 1-2 LFO 1, 3-4 LFO 2)
 export const DF = { SPLIT: 0x01, ORDER: 0x02, LOCK: 0x04, RO: 0x08, CONTEXT: 0x10 };
 export const SF = { RESTORING: 0x01, SONG: 0x02, NOFLASH: 0x04 };
 export const STEP = { ON: 0x01, ACC: 0x02, SLIDE: 0x04, TIE: 0x08, RAT_SHIFT: 4, NT_OFFSET: 60 };

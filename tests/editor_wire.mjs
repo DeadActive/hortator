@@ -3,9 +3,16 @@
 // The firmware's editor frames (tests/editor_test.c FILE: every reply and push it sent, hex, a line each) read with the
 // page's codec (web/editor/proto.mjs) and written again: each must decode and re-encode byte for byte, so the
 // firmware's field layout is the protocol's (web/EDITOR_PROTOCOL.md). Also INFO's numbers = device_data.json's.
-//   node tests/editor_wire.mjs build/host/editor_frames.txt
+// With the whole editor built for the host (tests/editor_xcheck.c), one request script runs through the firmware and
+// through the page's mock device (web/editor/mock_device.mjs), both holding the same flash, and every reply must be
+// the same byte for byte: the mock (what the page is built and tested against) and the protocol document cannot drift
+// from the firmware unnoticed.
+//   node tests/editor_wire.mjs build/host/editor_frames.txt [build/host/editor_xcheck]
 import { readFileSync } from "node:fs";
-import { CMD, decodeFrame, encodePush, encodeReply, isEditorFrame } from "../web/editor/proto.mjs";
+import { spawnSync } from "node:child_process";
+import { CMD, CUE, NONE, RC, RK, RS, SEQ_PUSH, crc32, decodeFrame, encodePush, encodeReply, encodeRequest, isEditorFrame,
+} from "../web/editor/proto.mjs";
+import { createMockDevice } from "../web/editor/mock_device.mjs";
 
 const data = JSON.parse(readFileSync(new URL("../web/editor/device_data.json", import.meta.url), "utf8"));
 const lines = readFileSync(process.argv[2], "utf8").split("\n").filter(Boolean)
@@ -39,4 +46,110 @@ if (!info || info.pcount !== c.P_COUNT || info.gcount !== c.G_COUNT || info.nmod
 }
 console.log(`${bad ? "FAIL" : "ok  "}  ${lines.length} firmware frames (${seen.size} kinds) decoded by proto.mjs and ` +
   "re-encoded byte for byte; INFO = device_data.json");
+if (process.argv[3]) bad += xcheck(process.argv[3]);
 process.exit(bad ? 1 : 0);
+
+/* ---- the firmware and the mock, the same script ---------------------------------------------------------------- */
+function xcheck(bin) {
+  const m = createMockDevice(data, { firmware: "DEV" }), P = Object.fromEntries(data.P.map((n, i) => [n, i]));
+  const G = Object.fromEntries(data.G.map((n, i) => [n, i])), M = Object.fromEntries(data.models.map((x, i) => [x.name, i]));
+  const hex = (b) => Buffer.from(b).toString("hex");
+  const lines = [];                                    // the C harness' script
+  const steps = [];                                    // [what, frame | null (a device action), mock action]
+  let seq = 0;
+  /* the same flash: the mock's seeded objects; the firmware boots from them and LOADs A, as the mock starts */
+  lines.push(`flash upr ${hex(m.flash.upr.bytes)}`);
+  for (let s = 0; s < 4; s++) {
+    const f = m.flashObjects(s);
+    if (!f) continue;
+    if (f.vars) lines.push(`flash var ${s} ${hex(f.vars)}`);
+    if (f.locks) lines.push(`flash lk ${s} ${hex(f.locks)}`);
+    lines.push(`flash rec ${s} ${hex(f.record)}`);
+  }
+  lines.push("boot", "load 0");
+  const dev = (line, fn) => steps.push([line, null, fn]);
+  const rq = (what, cmd, args = {}, s) => steps.push([what, encodeRequest(cmd, s ?? (seq = (seq + 1) % SEQ_PUSH), args), null]);
+  const set = (what, scope, track, id, value, s) => rq(what, CMD.SET, { scope, track, id, value }, s);
+  const A = m.flashObjects(0), parts = [A.record, A.locks, A.vars];
+  const begin = (slot) => ({ op: RS.BEGIN, kind: RK.PROJECT, slot, magic: A.record[0] | A.record[1] << 8 | A.record[2] << 16 | (A.record[3] << 24 >>> 0),
+    parts: parts.map((p) => ({ size: p ? p.length : 0, crc: p ? crc32(p) : 0 })) });
+  const pieces = (what) => parts.forEach((p, part) => { for (let o = 0; p && o < p.length; o += 256)
+    rq(`${what} DATA ${part}@${o}`, CMD.RESTORE, { op: RS.DATA, part, offset: o, data: p.subarray(o, o + 256) }); });
+
+  rq("INFO", CMD.INFO);
+  set("SET MODEL: the model with its first factory preset", 0, 0, P.MODEL, M.S909);
+  rq("DUMP after SET MODEL", CMD.DUMP, { track: 0 });
+  set("SET MODEL ACID (track 2)", 0, 1, P.MODEL, M.ACID);
+  set("SET MODEL ACID (track 3)", 0, 2, P.MODEL, M.ACID);
+  set("SET MODEL ACID onto a third track: rc 2 18", 0, 3, P.MODEL, M.ACID);
+  for (let k = 0; k < 4; k++) set(`SET RESON MODEL STRNG (track ${k + 1})`, 0, k, P.RMODEL, 1);
+  set("SET RESON MODEL on a fifth track: rc 2 0 + the device's message", 0, 4, P.RMODEL, 1);
+  set("SET RESON MODEL CHORD (track 1)", 0, 0, P.RMODEL, data.consts.RS_CHORD);
+  set("SET RESON MODEL CHORD (track 2)", 0, 1, P.RMODEL, data.consts.RS_CHORD);
+  set("SET RESON MODEL CHORD on a third track: rc 2 0", 0, 2, P.RMODEL, data.consts.RS_CHORD);
+  set("SET LFO 1 PHASE: the degree unit as \"deg\"", 0, 0, P.LFO1_PHASE, 64);
+  set("SET CLOCK USB", 1, 0, G.CLOCK, 1);
+  set("SET BPM following a clock: rc 0, unchanged", 1, 0, G.BPM, 150);
+  set("SET CLOCK INT", 1, 0, G.CLOCK, 0);
+  set("SET a read-only global: rc 1 45 READ ONLY", 1, 0, G.INFO, 1);
+  set("SET CHOKE (the retried write's first send)", 0, 0, P.CHOKE, 2, 100);
+  dev("turn 0 12 3", () => m.turn(0, P.CHOKE, 3));
+  set("SET CHOKE retried (same seq): its first reply byte for byte", 0, 0, P.CHOKE, 2, 100);
+  dev("song 1", () => m.setSong(true));
+  set("SET LEN while a song plays: rc 0, unchanged", 0, 0, P.SLEN, 32);
+  rq("STEPS_SET while a song plays: rc 2 2 STOP TO EDIT", CMD.STEPS_SET, { slot: NONE, var: 0, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
+  rq("CUE while a song plays: rc 2 2", CMD.CUE, { kind: CUE.VAR, n: 1 });
+  dev("song 0", () => m.setSong(false));
+  rq("STEPS_SET stopped, variation 2: switched, written", CMD.STEPS_SET, { slot: 0, var: 1, track: 1, first: 5, steps: [{ flags: 3, cond: 11, note: 64 }] });
+  rq("INFO: the state after the switch", CMD.INFO);
+  rq("STEPS_GET variation 2 track 2", CMD.STEPS_GET, { slot: NONE, var: 1, track: 1 });
+  dev("play", () => m.play());
+  rq("STEPS_SET playing, variation 3: queued, rc 5 32", CMD.STEPS_SET, { slot: 0, var: 2, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
+  rq("STEPS_SET again before the switch: rc 5 32", CMD.STEPS_SET, { slot: 0, var: 2, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
+  rq("INFO: variation 3 queued", CMD.INFO);
+  rq("SAVE playing: rc 3", CMD.SAVE, { slot: NONE });
+  dev("stop", () => m.stop());
+  dev("noflash 1", () => { m.faults.noFlash = true; });
+  rq("SAVE without flash: rc 2 28", CMD.SAVE, { slot: NONE });
+  rq("BACKUP_LIST without flash: rc 2 28", CMD.BACKUP_LIST);
+  dev("noflash 0", () => { m.faults.noFlash = false; });
+  dev("park 1", () => { m.faults.cuePark = 1; });
+  rq("RESTORE BEGIN with variations, the park holding B's: rc 2 9 SAVE B FIRST", CMD.RESTORE, begin(2));
+  dev("park -", () => { m.faults.cuePark = -1; });
+  rq("RESTORE BEGIN into C", CMD.RESTORE, begin(2));
+  dev("advance 2000", () => m.advance(2000));
+  rq("GET while restoring (keeps it alive)", CMD.GET, { scope: 1, track: 0, id: G.BPM, count: 1 });
+  dev("advance 2000", () => m.advance(2000));
+  set("SET while restoring: rc 6 40", 0, 0, P.CHOKE, 1);
+  set("SET read-only while restoring: rc 1 45", 1, 0, G.INFO, 1);
+  rq("STEPS_SET while restoring: rc 6 40", CMD.STEPS_SET, { slot: NONE, var: 0, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
+  pieces("restore C");
+  dev("otarace", () => { m.faults.updateAtCommit = true; });
+  rq("COMMIT with the upgrade command pending: rc 6 0, dropped", CMD.RESTORE, { op: RS.COMMIT });
+  rq("COMMIT again: rc 1 41 (no restore)", CMD.RESTORE, { op: RS.COMMIT });
+  rq("RESTORE BEGIN into D", CMD.RESTORE, begin(3));
+  pieces("restore D");
+  rq("COMMIT into D", CMD.RESTORE, { op: RS.COMMIT });
+  rq("STEPS_GET D variation 2", CMD.STEPS_GET, { slot: 3, var: 1, track: 0 });
+  rq("INFO at the end", CMD.INFO);
+
+  for (const [what, frame] of steps) lines.push(frame ? `frame ${hex(frame)}` : what);
+  const r = spawnSync(bin, { input: lines.join("\n") + "\n", encoding: "utf8", maxBuffer: 1 << 24 });
+  if (r.status !== 0) { console.log(`FAIL  ${bin}: ${r.stderr || r.status}`); return 1; }
+  const fw = r.stdout.split("\n").filter(Boolean);
+  let bad = 0, i = 0, n = 0;
+  const show = (h) => { if (h === "-") return "(no reply)"; try { const d = decodeFrame(Buffer.from(h, "hex")); return JSON.stringify(d, (k, v) => (v instanceof Uint8Array ? `[${v.length} B]` : v)); } catch (e) { return `${h} (${e.message})`; } };
+  for (const [what, frame, fn] of steps) {
+    if (!frame) { fn(); continue; }
+    const out = m.feed(frame).find((f) => f[5] !== SEQ_PUSH), mh = out ? hex(out) : "-", ch = fw[i++] ?? "(missing)";
+    n++;
+    if (process.env.XCHECK_SHOW) console.log(`      ${what}: ${show(ch)}`);
+    if (mh !== ch) {
+      bad++;
+      console.log(`FAIL  xcheck ${what}\n        firmware ${show(ch)}\n        mock     ${show(mh)}`);
+    }
+  }
+  console.log(`${bad ? "FAIL" : "ok  "}  xcheck: ${n} requests through the firmware (tests/editor_xcheck.c) and the mock ` +
+    `device, ${n - bad} replies the same byte for byte`);
+  return bad;
+}

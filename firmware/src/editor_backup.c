@@ -12,7 +12,9 @@
  *   lk_slot[s], the variations -> the park var_buf[var_play ^ 1], the user presets -> upr. COMMIT checks the CRCs and
  *   the boot checks, re-seals a project for its target slot and writes it in SAVE's order (variations, lock bank, then
  *   the record: storage.c's A/B copies keep the old or the new project whole), stopped only. ABORT, the idle timeout
- *   and update traffic (ed_backup_drop) reload the homes from flash. */
+ *   and update traffic (ed_backup_drop) reload the homes from flash.
+ * - RESTORING (BEGIN to its end): ui.c ed_lock_on refuses the device's own PLAY, cue keys, LOAD, SAVE, PASTE, NAME
+ *   and preset save / delete (main loop only, as the keys are read); editor writes get rc 6 detail 40. */
 #include "editor_proto.h"
 #define ED_HAS_BACKUP 1
 #ifndef EDB_MS
@@ -152,6 +154,7 @@ static void edb_end(void)
 {
     uint32_t s = edb.slot, bit = 1u << s;
     edb.on = 0;
+    ed_lock_on = 0;                                 /* (ui.c: the device's keys again) */
     if (edb.kind == ED_RK_PRESETS) {
         preset_user_boot();
         return;
@@ -278,6 +281,7 @@ static void edb_begin(const uint8_t *a, uint32_t n)
         EDB_NO(ED_RESTORE, ED_E_REFUSED, ED_D_CUE_PARK + c - 1u, msg);
     }
     edb.on = 1;
+    ed_lock_on = 1;                                 /* ui.c: PLAY, cue, LOAD, SAVE, preset save refused on the device */
     edb.kind = (uint8_t)kind;
     edb.slot = (uint8_t)s;
     edb.magic = m;

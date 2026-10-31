@@ -4,7 +4,7 @@
 // (new pages and knobs in the firmware appear here by themselves), each value with the device's own text, edited
 // live both ways: SET from the page, CHANGED / STATE pushes from the device (web/EDITOR_PROTOCOL.md §2.2, §4 rule 5).
 // SoundModel holds no DOM (node tests drive it against the mock device); mountSound draws it.
-import { CAP, CMD, DF, NONE, SCOPE, U14_NONE } from "./proto.mjs";
+import { CAP, CMD, DF, GR, NONE, SCOPE, U14_NONE } from "./proto.mjs";
 import { esc } from "./ui.mjs";
 
 /** core.h ids the page needs by name (protocol 1; the tests check them against device_data.json) */
@@ -73,11 +73,18 @@ export class SoundModel {
       first = r.first + r.pages.length;
       if (first >= r.total || !r.pages.length) break;
     }
-    const groups = [];
+    const groups = [], add = (title, scope, cols, any) => {
+      const ids = cols.filter((x) => x !== U14_NONE);
+      if (!ids.length) return;
+      const g = any ? groups.find((x) => x.title === title && x.scope === scope) : groups[groups.length - 1];
+      if (g && g.title === title && g.scope === scope) g.ids.push(...ids);
+      else groups.push({ title, scope, ids });
+    };
     for (const p of pages) {
-      const ids = p.ids.filter((x) => x !== U14_NONE), last = groups[groups.length - 1];
-      if (last && last.title === p.title && last.scope === p.scope) last.ids.push(...ids);
-      else groups.push({ title: p.title, scope: p.scope, ids });
+      if (p.graph === GR.LFO) { // the device draws an LFO page in two halves: LFO 1's two knobs, then LFO 2's
+        add(`${p.title} 1`, p.scope, p.ids.slice(0, 2), true);
+        add(`${p.title} 2`, p.scope, p.ids.slice(2), true);
+      } else add(p.title, p.scope, p.ids, false);
     }
     this.groups = groups;
   }

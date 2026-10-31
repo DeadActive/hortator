@@ -95,10 +95,12 @@ int main(void)
     printf("\"consts\": {\"NTRK\": %u, \"NSTEP\": %u, \"P_COUNT\": %u, \"G_COUNT\": %u, \"P_NSTORED\": %u, "
            "\"G_NSTORED\": %u, \"NMODELS\": %u, \"PRE_NFACT\": %u, \"PRE_NUSER\": %u, \"COND_MAX\": %u, "
            "\"NT_MIN\": %d, \"NT_MAX\": %d, \"LK_MAX\": %u, \"VAR_BYTES\": %u, \"VAR_N\": %u, \"NAME_LEN\": %u, "
-           "\"ACID\": %u},\n",
+           "\"ACID\": %u, \"ACID_MAXTRK\": %u, \"RS_OFF\": %u, \"RS_CHORD\": %u, \"RS_MODAL\": %u, \"RS_MAXTRK\": %u, "
+           "\"RS_MAXMODAL\": %u},\n",
            NTRK, NSTEP, P_COUNT, G_COUNT, P_NSTORED, G_NSTORED, NMODELS, (unsigned)PRE_NFACT, (unsigned)PRE_NUSER,
            (unsigned)COND_MAX, NT_MIN, NT_MAX, (unsigned)LK_MAX, (unsigned)VAR_BYTES, (unsigned)VAR_N,
-           (unsigned)NAME_LEN, (unsigned)DM_ACID);
+           (unsigned)NAME_LEN, (unsigned)DM_ACID, (unsigned)ACID_MAXTRK, (unsigned)RS_OFF, (unsigned)RS_CHORD,
+           (unsigned)RS_MODAL, (unsigned)RS_MAXTRK, (unsigned)RS_MAXMODAL);
     printf("\"nameSet\": "), str(NAME_SET), printf(",\n");
     printf("\"fmt\": [");
     for (i = 0; i <= F_SRR; i++)
@@ -166,8 +168,9 @@ int main(void)
         printf(", \"fam\": %u, \"scope\": %u, \"graph\": %u, \"id\": [%u, %u, %u, %u]}", g->fam, g->scope, g->graph,
                g->id[0], g->id[1], g->id[2], g->id[3]);
     }
-    printf("],\n\"sndSlot\": %u, \"gr\": {\"SLOTS\": %u, \"MOTION\": %u, \"SONG\": %u, \"GRIDS\": %u, \"LDEST\": %u},\n",
-           SND_SLOT, GR_SLOTS, GR_MOTION, GR_SONG, GR_GRIDS, GR_LDEST);
+    printf("],\n\"sndSlot\": %u, \"gr\": {\"SLOTS\": %u, \"MOTION\": %u, \"SONG\": %u, \"GRIDS\": %u, \"LDEST\": %u, "
+           "\"LFO\": %u},\n",
+           SND_SLOT, GR_SLOTS, GR_MOTION, GR_SONG, GR_GRIDS, GR_LDEST, GR_LFO);
     printf("\"sc\": {\"TRACK\": %u, \"GLOBAL\": %u}, \"preNone\": %u, \"preRecUser\": %u,\n", SC_TRACK, SC_GLOBAL,
            PRE_NONE, PRE_REC_USER);
     printf("\"conds\": [");                         /* the PROB knob, position by position: stored code, name */

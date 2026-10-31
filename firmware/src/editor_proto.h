@@ -153,7 +153,8 @@ static uint32_t ed_get_u35(const uint8_t *a);
 static uint32_t ed_unpack7(const uint8_t *in, uint32_t n, uint8_t *out, uint32_t max);   /* bytes out, 0 malformed */
 
 /* hooks editor.c calls (#ifdef ED_HAS_BACKUP / ED_HAS_PATTERN), for reference:
- *   static int ed_backup_cmd(uint32_t cmd, const uint8_t *a, uint32_t n);   1: handled (replied)
+ *   static int ed_backup_cmd(uint32_t cmd, const uint8_t *a, uint32_t n);   every request, first: a restore kept
+ *                                               alive; 1: a backup command, handled (replied)
  *   static void ed_backup_poll(void);           every ed_service pass: the restore's idle timeout
  *   static void ed_backup_drop(void);           update traffic: an uncommitted restore dropped, homes reloaded
  *   static int ed_restoring(void);              1 between BEGIN and COMMIT / ABORT / timeout (the RESTORING lock)

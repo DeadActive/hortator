@@ -799,6 +799,8 @@ static void project_save_go(uint32_t slot)
     project_t *p = &proj_slot[slot & 3u];
     int32_t ld;
     var_bank_t *vb;
+    if (ui_locked())                                   /* (a web editor restore) */
+        return;
     if (transport_busy()) {                            /* (upstream 1.0) only while stopped */
         ui_message("STOP TO SAVE");
         return;
@@ -868,6 +870,8 @@ static void project_save_go(uint32_t slot)
 static void project_save(uint32_t slot)
 {
     int32_t ld = proj_loaded();
+    if (ui_locked())
+        return;
     if (!transport_busy() && (int32_t)(slot & 3u) != ld && slot_dirty(slot & 3u)) {
         ui.confirm = CONFIRM_OVERWRITE;
         ui.confirm_trk = (uint8_t)(slot & 3u);
@@ -1016,6 +1020,8 @@ static void proj_load_from(uint32_t slot)
 {
     int32_t ld;
     slot &= 3u;
+    if (ui_locked())
+        return;
     if (chain_busy()) {                                 /* a song reads the slots */
         ui_message("STOP TO LOAD");
         return;
@@ -1046,6 +1052,8 @@ static void proj_load_from(uint32_t slot)
 /* LOAD of a slot with unsaved edits asks DISCARD EDITS? (ui_input.c: YES discards them, then loads) */
 static void project_load(uint32_t slot)
 {
+    if (ui_locked())
+        return;
     if (!chain_busy() && (slot_dirty(slot) || ((int32_t)(slot & 3u) == proj_loaded() && live_globals_edited()))) {
         ui.confirm = CONFIRM_DISCARD;
         ui.confirm_trk = (uint8_t)(slot & 3u);
@@ -1535,6 +1543,8 @@ static void project_paste(uint32_t t)
     uint32_t src, pk = var_play ^ 1u, dst;
     const var_bank_t *sb;
     t &= 3u;
+    if (ui_locked())
+        return;
     if (transport_busy() || chain_busy()) {
         ui_message("STOP TO PASTE");
         return;
@@ -1853,7 +1863,7 @@ static int preset_user_save(uint32_t slot, const track_t *t)
 {
     static int16_t kv[P_COUNT];                     /* (static: off the main path's deepest stack) */
     uint32_t k = (uint32_t)(t - trk), id;
-    if (slot >= PRE_NUSER)
+    if (slot >= PRE_NUSER || ui_locked())
         return -1;
     for (id = 0; id < P_COUNT; id++)                /* motion's base, a lock's value under it (motion.c) */
         kv[id] = k < NTRK ? motion_rest(k, id) : t->p[id];
@@ -1863,7 +1873,7 @@ static int preset_user_save(uint32_t slot, const track_t *t)
 }
 static void preset_user_delete(uint32_t slot)       /* user slot emptied (tracks loaded from it keep their knobs) */
 {
-    if (slot >= PRE_NUSER || upr.s[slot].used != 1u)
+    if (slot >= PRE_NUSER || upr.s[slot].used != 1u || ui_locked())
         return;
     memset(&upr.s[slot], 0, sizeof upr.s[slot]);
     upr_write();
@@ -2115,6 +2125,8 @@ static void project_rename(uint32_t slot, const char *name)   /* only the name; 
 {
     project_t *p = &proj_slot[slot & 3u];
     char n[NAME_LEN + 1u];
+    if (ui_locked())
+        return;
     if (transport_busy()) {
         ui_message("STOP TO SAVE");
         return;

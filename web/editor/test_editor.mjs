@@ -223,12 +223,23 @@ const q = (cmd, args) => m.request(cmd, args);
   ok(v3.live === 0 && v3.used === 1 && v3.steps.slice(0, 16).every((s) => s.flags & STEP.ON) && v4.used === 0 && same(v4.timing, [0, 0, 0, 0])
     && q(CMD.STEPS_GET, { slot: 3, var: 0, track: 0 }).detail === DETAIL.EMPTY_SLOT, "STEPS_GET: another variation, an unused one, an empty slot");
   const st = { flags: STEP.ON | STEP.TIE | (2 << STEP.RAT_SHIFT), cond: 57, note: 67 };
-  const no = q(CMD.STEPS_SET, { slot: 0, var: 1, track: 0, first: 3, steps: [st] });
-  ok(no.rc === RC.STALE && no.detail === DETAIL.CUE_FIRST, "STEPS_SET: off the playing variation -> CUE FIRST");
-  const cue = q(CMD.CUE, { kind: P.CUE.VAR, n: 1 });
+  m.play();
+  const no = q(CMD.STEPS_SET, { slot: 0, var: 1, track: 0, first: 3, steps: [st] }), queued = m.state();
+  const again = q(CMD.STEPS_SET, { slot: 0, var: 1, track: 0, first: 3, steps: [st] });
+  ok(no.rc === RC.STALE && no.detail === DETAIL.CUE_FIRST && queued.var === 0 && queued.qvar === 1 && again.detail === DETAIL.CUE_FIRST
+    && !m.q.now, "STEPS_SET playing, another variation: its key pressed (switch queued), rc 5 CUE FIRST; resent early: rc 5 again, no 'at the next step'");
+  m.boundary();
   const yes = q(CMD.STEPS_SET, { slot: NONE, var: 1, track: 0, first: 3, steps: [st] });
-  ok(cue.state.var === 1 && yes.count === 1 && same(q(CMD.STEPS_GET, { slot: 0, var: 1, track: 0 }).steps[3], st)
-    && (m.state().dirty & 1), "STEPS_SET: switch-to-edit (CUE when stopped switches at once), the edit lands, A unsaved");
+  m.stop();
+  ok(yes.count === 1 && m.state().var === 1 && same(q(CMD.STEPS_GET, { slot: 0, var: 1, track: 0 }).steps[3], st)
+    && (m.state().dirty & 1), "STEPS_SET: resent after the switch (STATE push): the edit lands, A unsaved");
+  const now = q(CMD.STEPS_SET, { slot: 0, var: 2, track: 7, first: 0, steps: [st] });
+  ok(now.rc === RC.OK && m.state().var === 2 && same(q(CMD.STEPS_GET, { slot: NONE, var: 2, track: 7 }).steps[0], st),
+    "STEPS_SET stopped, another variation: switched at once (its key), the edit lands, rc 0");
+  m.setSong(true);
+  const sng = q(CMD.STEPS_SET, { slot: NONE, var: 2, track: 7, first: 0, steps: [st] });
+  m.setSong(false);
+  ok(sng.rc === RC.REFUSED && sng.detail === DETAIL.CUE_SONG && sng.msg === "STOP TO EDIT", "STEPS_SET while a song plays: rc 2 detail 2 STOP TO EDIT");
   const lk = q(CMD.LOCKS_GET, { slot: NONE, track: 2, first: 0 });
   const set = q(CMD.LOCK_EDIT, { op: LK.SET, track: 2, step: 0, param: 2, value: 500 });
   const mute = q(CMD.LOCK_EDIT, { op: LK.SET, track: 2, step: 0, param: data.P.indexOf("MUTE"), value: 1 });
@@ -288,7 +299,7 @@ const q = (cmd, args) => m.request(cmd, args);
   ok(ed.some((x) => x.cmd === PUSH.STEPS_CHANGED && x.track === 4) && lo.some((x) => x.cmd === PUSH.LOCKS_CHANGED && x.track === 4),
     "WATCH: steps / locks changed on the device -> STEPS_CHANGED / LOCKS_CHANGED");
   m.play();
-  const many = m.request(CMD.CUE, { kind: P.CUE.VAR, n: 2 }) && m.boundary().map(P.decodeFrame);
+  const many = m.request(CMD.CUE, { kind: P.CUE.VAR, n: 0 }) && m.boundary().map(P.decodeFrame);
   ok(many.length <= 4 && m.drain().length > 0, "WATCH: at most 4 pushes a pass, the rest next pass");
   m.stop();
   m.drain();

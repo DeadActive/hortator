@@ -202,11 +202,15 @@ export async function runPageTests(log = console.log) {
     const labelOf = (scope, id) => snd.descOf(scope, id)?.label;
     const valuesMatch = () => m.tracks[m.sel].p.every((v, id) => snd.value(SCOPE.TRACK, id)?.value === v)
       && m.g.every((v, id) => snd.value(SCOPE.GLOBAL, id)?.value === v);
-    ok(["SOUND", "LAYER", "FILTER", "FX", "INSERT", "SLICER", "RESON", "LFO", "DEST 1", "DLY", "GLOBAL"].every((t) => titles.includes(t))
+    ok(["SOUND", "LAYER", "FILTER", "FX", "INSERT", "SLICER", "RESON", "LFO 1", "LFO 2", "DEST 1", "DLY", "GLOBAL"].every((t) => titles.includes(t))
       && !titles.includes("SONG") && byTitle("SOUND").ids.length > 8, `pages from PAGES, merged by title (${titles.length}: ${titles.join(" ")})`);
     ok(byTitle("INSERT").ids.includes(m.P.SRR) && labelOf(SCOPE.TRACK, m.P.SRR) === "SRR" && byTitle("INSERT").ids.includes(m.P.ITYPE)
       && byTitle("DLY").scope === SCOPE.GLOBAL && byTitle("DLY").ids.includes(m.G.DMODE)
       && snd.descOf(SCOPE.GLOBAL, m.G.DMODE).names.join() === "NORM,PING", "SRR, INSERT and DLY MODE appear by themselves");
+    const lfo = (n) => byTitle(`LFO ${n}`).ids, lfoNames = (n) => lfo(n).map((id) => data.P[id]).join();
+    ok(!titles.includes("LFO") && lfoNames(1) === "LFO1_WAVE,LFO1_RATE,LFO1_MORPH,LFO1_PHASE,LFO1_TRIG,LFO1_MODE"
+      && lfoNames(2) === lfoNames(1).replaceAll("LFO1", "LFO2") && P.GR.LFO === data.gr.LFO
+      && new Set(lfo(1).map((id) => labelOf(SCOPE.TRACK, id))).size === 6, "LFO: two groups, LFO 1 and LFO 2, each knob once");
     ok(ID.MODEL === m.P.MODEL && ID.RMODEL === m.P.RMODEL && ID.ITYPE === m.P.ITYPE && ID.GMODE === m.G.GMODE,
       "the ids the page names = core.h (device_data.json)");
     const md = snd.descOf(SCOPE.TRACK, ID.MODEL);
@@ -244,7 +248,13 @@ export async function runPageTests(log = console.log) {
     await snd.set(SCOPE.TRACK, ID.MODEL, acid);
     await until(() => !snd.loading);
     ok(m.tracks[5].p[0] === acid && snd.value(SCOPE.TRACK, 0).text === "ACID" && labelOf(SCOPE.TRACK, m.P.E0) === data.models[acid].edit[0].label
-      && valuesMatch(), "the MODEL changed here: the track and its SOUND page follow");
+      && valuesMatch() && snd.preset === data.presets.findIndex((x) => x.model === acid) && snd.edited === 0,
+    "the MODEL changed here: the model's first factory preset, the track and its SOUND page follow");
+    m.g[m.G.CLOCK] = 1;
+    const bpm = m.g[m.G.BPM], rb = await snd.set(SCOPE.GLOBAL, m.G.BPM, bpm + 7);
+    m.g[m.G.CLOCK] = 0;
+    ok(rb.rc === 0 && snd.value(SCOPE.GLOBAL, m.G.BPM).value === bpm && m.g[m.G.BPM] === bpm,
+      "SET BPM while following a clock: rc 0, the page shows the value the device kept");
     m.tracks[6].p[0] = acid;
     await s.select(7);
     await until(() => snd.track === 7 && !snd.loading);
