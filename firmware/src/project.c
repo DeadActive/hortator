@@ -22,6 +22,8 @@
  * parameter P_NSTORED + j in step j's), each as its offset from its power-on value (TP def, mod 256: KEYF's def is 0,
  * so its byte is its value, as before); every earlier firmware wrote 0 there and ignores it on load, so a record from
  * before them loads with them at their power-on values (KEYF 0, SRR 0, the INSERT OFF at MIX 100 %).
+ * The globals after its block (G_NSTORED .., the delay's MODE) ride in the record's reserved byte rsv[0] (proj_g; 0 in
+ * every earlier record: NORMAL).
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
 #define PROJ_MAGIC 0x46524446u                 /* "FDRF" (the 15th): the lock bank (spec 2026-10-24 parameter locks) */
 #define PROJ_MAGIC_VE 0x45524446u              /* "FDRE": + the LFO DEST slots (fixes 2026-10-21 item 3); converted on load */
@@ -57,7 +59,7 @@ static int16_t proj_xp_get(const proj_trk_t *s, uint32_t id)
 }
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_t t[NTRK];
     uint16_t lk_n;                              /* FDRF: its lock bank's count (0: no bank needed); FDR8..FDRE: the
@@ -74,11 +76,15 @@ typedef struct {
     uint32_t sum;
 } project_t;
 typedef char project_size[sizeof(project_t) == 3840u ? 1 : -1];
+/* global i of a record: the block (G_NSTORED), past it G_DMODE in the reserved byte rsv[0] (0 in every record before
+ * it: NORMAL) */
+static int16_t proj_g(const project_t *p, uint32_t i) { return i < G_NSTORED ? p->g[i] : (int16_t)p->rsv[0]; }
+typedef char proj_g_fit[G_COUNT - G_NSTORED == 1 ? 1 : -1];   /* (one reserved byte used: rsv[1..2] free) */
 project_t proj_slot[4] __attribute__((section(".noinit")));
 /* FDRE (0.23.x): FDRF's layout with the motion (128 events) where FDRF has its bank link */
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_t t[NTRK];
     motion_store_t motion;
@@ -158,7 +164,7 @@ typedef struct {
 } proj_trk_va_t;
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_va_t t[NTRK];
     motion_store_t motion;
@@ -174,7 +180,7 @@ typedef struct {
 } proj_trk_vb_t;
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_vb_t t[NTRK];
     motion_store_t motion;
@@ -191,7 +197,7 @@ typedef struct {
 /* FDRC (0.17.0 .. 0.20.0): everything but the presets, 3688 B; FDRD's fields up to the name at the same offsets */
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_vd_t t[NTRK];
     motion_store_t motion;
@@ -202,7 +208,7 @@ typedef struct {
 /* FDRD (0.21.0 .. 0.22.0): everything but the DEST slots' new parameters, 3712 B */
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_vd_t t[NTRK];
     motion_store_t motion;
@@ -289,7 +295,7 @@ typedef struct {
 /* the sound pack's format: everything but the motion. 3028 B */
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_v9_t t[NTRK];
     uint32_t sum;
@@ -297,7 +303,7 @@ typedef struct {
 /* motion's format: everything but the song and the name. 3544 B */
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_v9_t t[NTRK];
     motion_store_t motion;
@@ -306,7 +312,7 @@ typedef struct {
 /* FDR9: everything but the FILTER. 3592 B */
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[G_NSTORED];
     uint8_t sel, rsv[3];
     proj_trk_v9_t t[NTRK];
     motion_store_t motion;
@@ -390,7 +396,7 @@ static void proj_from_old(project_t *q, lk_bank_t *b, uint32_t ver)
         memset(q, 0, sizeof *q);
         q->magic = PROJ_MAGIC;
         q->size = sizeof *q;
-        for (i = 0; i < G_COUNT; i++)
+        for (i = 0; i < G_NSTORED; i++)
             q->g[i] = g[i];
         q->sel = ver == 8u ? proj_old.v8.sel : ver == 9u ? proj_old.v9.sel : ver == 10u ? proj_old.va.sel : proj_old.vb.sel;
         for (k = 0; k < NTRK; k++) {
@@ -415,13 +421,13 @@ static void proj_from_old(project_t *q, lk_bank_t *b, uint32_t ver)
         return;
     }
     ng = ver == 1u ? (uint32_t)G_GMODE : ver == 2u ? (uint32_t)G_CSRC : ver == 6u ? (uint32_t)G_RTYPE
-                : ver == 7u ? (uint32_t)G_COUNT : (uint32_t)G_CGHOST;
+                : ver == 7u ? (uint32_t)G_NSTORED : (uint32_t)G_CGHOST;
     np = ver == 1u ? (uint32_t)P_SRC : ver == 2u ? (uint32_t)P_DUCK : ver == 3u ? (uint32_t)P_LFO1
                 : ver == 4u ? (uint32_t)P_RMODEL : (uint32_t)P_FTYPE;
     memset(q, 0, sizeof *q);
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         q->g[i] = i >= ng ? GP[i].def
                 : ver == 1u ? proj_old.v1.g[i] : ver == 2u ? proj_old.v2.g[i] : ver == 3u ? proj_old.v3.g[i]
                 : ver == 4u ? proj_old.v4.g[i] : ver == 5u ? proj_old.v5.g[i] : ver == 6u ? proj_old.v6.g[i] : proj_old.v7.g[i];
@@ -585,13 +591,14 @@ static __attribute__((noinline)) void proj_image(project_t *p, uint32_t slot, in
     uint32_t i, j, k;
     int ok = proj_ok(p);
     if (globals || !ok) {
-        for (i = 0; i < G_COUNT; i++)
+        for (i = 0; i < G_NSTORED; i++)
             p->g[i] = song.g[i];
         p->sel = song.sel;
+        p->rsv[0] = (uint8_t)song.g[G_DMODE];          /* the globals past the block (proj_g) */
     }
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
-    p->rsv[0] = p->rsv[1] = p->rsv[2] = 0;
+    p->rsv[1] = p->rsv[2] = 0;
     for (k = 0; k < NTRK; k++) {
         int16_t tm[4], mute = p->t[k].p[P_MUTE];
         int keep = !globals && ok;                      /* (a write-back: the mutes are the performance's, kept) */
@@ -698,7 +705,7 @@ static int live_globals_edited(void)
     if (ld < 0)
         return 0;
     for (i = 0; i < G_COUNT; i++)
-        if (i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_CLOCK && song.g[i] != g_loaded(i, proj_slot[ld].g[i]))
+        if (i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_CLOCK && song.g[i] != g_loaded(i, proj_g(&proj_slot[ld], i)))
             return 1;
     return 0;
 }
@@ -966,7 +973,7 @@ static int proj_load(uint32_t slot, int irq)
         fm1_irq_off();                                  /* the audio ISR must not see half a project */
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_LOAD && i != G_SAVE)
-            song.g[i] = g_loaded(i, p->g[i]);
+            song.g[i] = g_loaded(i, proj_g(p, i));
     proj_tracks_in(p, 0);
     if (lk_valid(&lk_slot[slot & 3u], slot & 3u))       /* the motion and the locks: a broken bank is dropped, the
                                                          * rest loads */

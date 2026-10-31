@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Effects: per-track DIST insert, then sends into three
- * shared buses (chorus, tempo delay, reverb). Mono buses, stereo dry mix. */
+ * shared buses (chorus, tempo delay, reverb). Mono buses, stereo dry mix; the delay's PING-PONG returns stereo. */
 #define DLY_LEN 65536u           /* 1.49 s: 1/4 at 40 BPM fits */
 #define CHO_LEN 2048u
 static int16_t dly_buf[DLY_LEN] __attribute__((section(".pool")));
@@ -32,6 +32,13 @@ static struct {
                                              * length (Q8, glides) */
     uint32_t sp_ph;                      /* .. the output tap's wobble */
 } fx;
+static struct {                          /* the delay's MODE (G_DMODE; fx's layout kept: bench.c) */
+    uint8_t mode;                        /* the mode running: 0 NORMAL, 1 PING-PONG */
+    uint8_t side;                        /* dly_side holds this block's left - right (PING-PONG ran) */
+    uint32_t clr;                        /* a mode change: the line's samples still to clear (the delay silent) */
+    int32_t lp1, lp2, s;                 /* PING-PONG: the low-passes of its two passes, the right's last entry */
+} dpp;
+static int32_t dly_side[CTL];            /* PING-PONG: the delay's left - right (the left = wet + this) */
 
 /* SPRING (G_RTYPE 1, upstream 1.0.2): one spring of a spring tank, mono like the other buses, in the ROOM's own
  * buffers (no RAM of its own): the input and the loop's return -> a low cut (~110 Hz: a spring carries little bass)
@@ -184,12 +191,15 @@ static uint32_t beat_samples(void)                    /* a quarter note: the clo
     return song.g[G_CLOCK] && midi_beat_samples ? midi_beat_samples : (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM];
 }
 /* length of one division (N_DIV id) in samples at the song tempo: ids 0..5 a quarter / DEN, the slow ids 6..9
- * (1/2 1/1 2BAR 4BAR) a quarter x 2, 4, 8, 16 (upstream 1.0.2) */
+ * (1/2 1/1 2BAR 4BAR) a quarter x 2, 4, 8, 16 (upstream 1.0.2); the delay TIME's own ids 10..14 (N_DTIME: 4T 1/4D
+ * 1/8D 1/16D 32T) a quarter x XN / XD, floored */
 static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* beats = 1 / DEN; original ids fixed, slow rates append */
+static const uint8_t DIV_XN[5] = {2, 3, 3, 3, 1}, DIV_XD[5] = {3, 2, 4, 8, 12};
 static uint32_t div_samples(uint32_t div)
 {
     uint32_t quarter = beat_samples();
-    return div < 6u ? quarter / DIV_DEN[div] : div < 10u ? quarter << (div - 5u) : quarter / DIV_DEN[div % 6u];
+    return div < 6u ? quarter / DIV_DEN[div] : div < 10u ? quarter << (div - 5u)
+         : div < 15u ? quarter * DIV_XN[div - 10u] / DIV_XD[div - 10u] : quarter / DIV_DEN[div % 6u];
 }
 
 #include "perform.c"                                 /* the FX hold layer's effects (the master) */
@@ -310,7 +320,94 @@ static __attribute__((noinline)) void mix_fade_block(int32_t *b, uint32_t n)
     }
 }
 
-/* process the three buses for one block; sends in, wet stereo-equal out */
+/* chorus: modulated short delay, 5..15 ms; one sample of in, its output */
+static inline __attribute__((always_inline)) int32_t cho_tick(int32_t in, uint32_t cinc, int32_t cdepth)
+{
+    int32_t r;
+    cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)clamp(in >> 1, -32768, 32767);
+    fx.cho_ph += cinc;
+    r = (400 << 8) + ((osc_sine(fx.cho_ph) + 32768) * cdepth >> 8);   /* Q8 delay: read between samples */
+    {
+        uint32_t ri = (uint32_t)r >> 8;
+        int32_t f = r & 255, c0 = cho_buf[(fx.cho_w - ri) & (CHO_LEN - 1u)];
+        int32_t c1 = cho_buf[(fx.cho_w - ri - 1u) & (CHO_LEN - 1u)];
+        fx.cho_w++;
+        return (c0 + (((c1 - c0) * f) >> 8)) << 1;
+    }
+}
+
+/* PING-PONG (G_DMODE 1): the echoes of a mono send alternate left and right, at NORMAL's longest TIME too, in
+ * NORMAL's line (no more RAM). The line runs at half the rate: each pair of sends, averaged (the decimation's
+ * low-pass), is one entry h[m], so its 65536 entries hold 2.97 s and a feedback tap at 2 d fits (d = TIME, up to
+ * DLY_LEN - 1 samples as NORMAL). One loop, two passes of FEEDBACK and COLOR per round trip:
+ *   s[m] = FEEDBACK x lowpass1(h[m])             the right's echo (one pass)
+ *   h[m] = send pair + FEEDBACK x lowpass2(s[m - d])   (d entries = 2 d samples: the round trip)
+ *   left  = h read d samples back (d / 2 entries), right = s read 2 d samples back (d entries)
+ * read between entries by linear interpolation (a half entry: the mean of two). A send's echoes: the left at d, the
+ * right at 2 d (one pass), the left at 3 d (two), ...: NORMAL's echoes, at NORMAL's level, every other one on the
+ * other side. The low-passes run at the half rate with NORMAL's corner (1 - (1 - col)^2); the decimation and the
+ * interpolation soften the top end a little (an echo -3 dB near 7 kHz against NORMAL). n even (CTL); the delay's
+ * left - right into dly_side, the right added to wet (the master and USB 10 CH FX add dly_side on the left) */
+#define DLY_HM (DLY_LEN - 1u)
+_Static_assert(CTL % 2u == 0u, "PING-PONG: a block is whole pairs");
+static __attribute__((noinline)) void dly_pp(const int32_t *dly_in, int32_t *wet, uint32_t n)
+{
+    uint32_t i, d = delay_samples(), e = (d + 1u) >> 1, w = fx.dly_w;
+    int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240, dmix = song.g[G_DMIX] * 258;
+    int32_t c2 = 2 * col - ((col * col) >> 15), mo = -(int32_t)(d & 1u);   /* (odd d: the left a half entry on) */
+    int32_t lp1 = dpp.lp1, lp2 = dpp.lp2, s0 = dpp.s;
+    for (i = 0; i < n; i += 2u, w++) {
+        int32_t a = dly_buf[(w - e) & DLY_HM], b = dly_buf[(w - e + 1u) & DLY_HM], h1 = (b - a) >> 1;
+        int32_t s1, l0, l1, r0, r1;
+        lp1 += mulq15(dly_buf[(w - d + 1u) & DLY_HM] - lp1, c2);   /* the right's next: s[m - d + 1] */
+        s1 = mulq15(lp1, fb);
+        lp2 += mulq15(s0 - lp2, c2);                    /* the round trip: s[m - d] */
+        dly_buf[w & DLY_HM] = (int16_t)clamp(((dly_in[i] + dly_in[i + 1u]) >> 2) + mulq15(lp2, fb), -32768, 32767);
+        l0 = mulq15((a + (h1 & mo)) << 1, dmix);         /* d even: a, the mean; odd: the mean, b */
+        l1 = mulq15((a + h1 + ((b - a - h1) & mo)) << 1, dmix);
+        r0 = mulq15(s0 << 1, dmix);                      /* s[m - d], the mean of it and s[m - d + 1] */
+        r1 = mulq15((s0 + s1) & ~1, dmix);
+        wet[i] += r0;
+        wet[i + 1u] += r1;
+        dly_side[i] = l0 - r0;
+        dly_side[i + 1u] = l1 - r1;
+        s0 = s1;
+    }
+    fx.dly_w = w;
+    dpp.lp1 = lp1;
+    dpp.lp2 = lp2;
+    dpp.s = s0;
+    dpp.side = 1;
+}
+
+/* the delay's mode changed (G_DMODE): the line is cleared, DLY_CLR samples a block (the delay silent till done; its
+ * states from 0), so nothing of the other mode's echoes plays back; NORMAL runs on in fx_buses' loop */
+#define DLY_CLR 4096u
+static __attribute__((noinline)) void dly_alt(const int32_t *cho_in, const int32_t *dly_in, int32_t *wet, uint32_t n)
+{
+    uint32_t i, m = song.g[G_DMODE] == 1;
+    uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
+    int32_t cdepth = song.g[G_CDEPTH] * 6;
+    for (i = 0; i < n; i++)
+        wet[i] = cho_tick(cho_in[i], cinc, cdepth);     /* the chorus as in fx_buses' loop */
+    if (m != dpp.mode) {
+        dpp.mode = (uint8_t)m;
+        dpp.clr = DLY_LEN;
+        dpp.lp1 = dpp.lp2 = dpp.s = 0;
+        fx.dly_lp = 0;
+    }
+    if (dpp.clr) {
+        int16_t *p = dly_buf + (DLY_LEN - dpp.clr);
+        for (i = 0; i < DLY_CLR; i++)
+            p[i] = 0;
+        dpp.clr -= DLY_CLR;
+        return;
+    }
+    if (m)
+        dly_pp(dly_in, wet, n);
+}
+
+/* process the three buses for one block; sends in, wet out (stereo-equal; PING-PONG: + dly_side on the left) */
 static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet,
                      uint32_t n)
 {
@@ -319,28 +416,21 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
-    for (i = 0; i < n; i++) {
-        int32_t y = 0, x, r;
-        /* chorus: modulated short delay, 5..15 ms */
-        cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)clamp(cho_in[i] >> 1, -32768, 32767);
-        fx.cho_ph += cinc;
-        r = (400 << 8) + ((osc_sine(fx.cho_ph) + 32768) * cdepth >> 8);   /* Q8 delay: read between samples */
-        {
-            uint32_t ri = (uint32_t)r >> 8;
-            int32_t f = r & 255, c0 = cho_buf[(fx.cho_w - ri) & (CHO_LEN - 1u)];
-            int32_t c1 = cho_buf[(fx.cho_w - ri - 1u) & (CHO_LEN - 1u)];
-            y += (c0 + (((c1 - c0) * f) >> 8)) << 1;
+    dpp.side = 0;
+    if (song.g[G_DMODE] | dpp.mode | dpp.clr)
+        dly_alt(cho_in, dly_in, wet, n);                /* PING-PONG, a mode change's clearing (the chorus too) */
+    else
+        for (i = 0; i < n; i++) {
+            int32_t y = cho_tick(cho_in[i], cinc, cdepth), x;
+            /* delay with a low-passed feedback */
+            x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
+            fx.dly_lp += mulq15(x - fx.dly_lp, col);
+            dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
+                (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
+            fx.dly_w++;
+            y += mulq15(x << 1, dmix);
+            wet[i] = y;
         }
-        fx.cho_w++;
-        /* delay with a low-passed feedback */
-        x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
-        fx.dly_lp += mulq15(x - fx.dly_lp, col);
-        dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
-            (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
-        fx.dly_w++;
-        y += mulq15(x << 1, dmix);
-        wet[i] = y;
-    }
     rt = song.g[G_RTYPE] == 1;
     if (rt != fx.rtype) {                               /* the model changed: the old one's block fades out, */
         int32_t *t = part_buf, g = 65536, d = 65536 / (int32_t)n;   /* its buffers are cleared, the new */
@@ -383,19 +473,23 @@ static volatile uint8_t usb10;                  /* the audio input the host enum
 static volatile uint32_t usb_hold_until;        /* the reconnect (ui_menu.c): CLK USB's lost-clock stop waits till then */
 static int16_t usb8_tap[NTRK][CTL];
 /* 10 CH FX (MENU > USB AUDIO, ui_menu.c): channels 9-10 carry the send effects' return instead of the master: the
- * chorus, delay and reverb buses' output (fx_buses' wet, mono: the same on both; THROW's share in it), at the master's
+ * chorus, delay and reverb buses' output (fx_buses' wet, mono: the same on both, but for the delay's PING-PONG: its
+ * left - right, dly_side, on channel 9; THROW's share in it), at the master's
  * level as the tracks are, before PERFORM's master effects, METRO and master_out (DC block, SPEAKER EQ, limiter, soft
  * clip). T1..T8 panned as on the FM-1 plus this pair add up to the master bus before those (mix_l / mix_r), to
  * rounding. MIX <-> FX cross-fades over 256 samples (5.8 ms; usb8_main). */
 static volatile uint8_t usb_fxpair;             /* 1: 10 CH FX, 0: 10 CH MIX (the master on 9-10) */
-static int16_t usb8_wet[CTL];
+static int16_t usb8_wet[CTL], usb8_wet_l[CTL];   /* the return: channel 10 (and 9), channel 9 */
 static int32_t usb8_pair[2 * CTL], usb8_g;       /* channels 9-10 for uac8_tap; the cross-fade, 0 MIX .. 32768 FX */
 static __attribute__((noinline)) void usb8_wet_tap(const int32_t *w, uint32_t n)
 {
     int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (mix_block's mg) */
     uint32_t i;
-    for (i = 0; i < n; i++)
+    for (i = 0; i < n; i++) {
         usb8_wet[i] = (int16_t)clamp(((clamp(w[i], -2097151, 2097151) >> 2) * mg) >> 10, -32768, 32767);
+        usb8_wet_l[i] = dpp.side ? (int16_t)clamp(((clamp(w[i] + dly_side[i], -2097151, 2097151) >> 2) * mg) >> 10,
+                                                  -32768, 32767) : usb8_wet[i];
+    }
 }
 /* audio ISR, after mix_block: channels 9-10 of the 10 CH stream (out: the master, Q15 stereo); MIX: out itself */
 static __attribute__((noinline)) const int32_t *usb8_main(const int32_t *out, uint32_t n)
@@ -406,7 +500,7 @@ static __attribute__((noinline)) const int32_t *usb8_main(const int32_t *out, ui
         return out;
     for (i = 0; i < n; i++) {
         g += clamp(to - g, -128, 128);
-        usb8_pair[2u * i] = out[2u * i] + (((usb8_wet[i] - out[2u * i]) * (g >> 1)) >> 14);
+        usb8_pair[2u * i] = out[2u * i] + (((usb8_wet_l[i] - out[2u * i]) * (g >> 1)) >> 14);
         usb8_pair[2u * i + 1u] = out[2u * i + 1u] + (((usb8_wet[i] - out[2u * i + 1u]) * (g >> 1)) >> 14);
     }
     usb8_g = g;
@@ -543,6 +637,15 @@ static __attribute__((noinline)) void metro_block(int32_t *l, int32_t *r, uint32
     }
 }
 
+/* PING-PONG: the delay's left - right onto the dry left (the master adds wet, the right, to both); noinline: the
+ * audio ISR's loop code stays as it was (target_budget.py) */
+static __attribute__((noinline)) void dly_side_add(int32_t *l, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        l[i] += dly_side[i];
+}
+
 static uint32_t comp_was = NTRK;                 /* the COMP source of the last block (NTRK = off) */
 static void mix_block(int32_t *out, uint32_t n)
 {
@@ -587,6 +690,8 @@ static void mix_block(int32_t *out, uint32_t n)
     if (usb10)
         usb8_wet_tap(wet, n);                           /* MENU > USB AUDIO 10 CH FX: the send effects' return */
 #endif
+    if (dpp.side)
+        dly_side_add(mix_l, n);                         /* the delay's PING-PONG: its left */
     for (i = 0; i < n; i++) {                           /* the master level */
         mix_l[i] = (clamp((mix_l[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;
         mix_r[i] = (clamp((mix_r[i] + wet[i]) >> 2, -524287, 524287) * mg) >> 10;   /* fits Q12 */

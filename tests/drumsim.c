@@ -314,6 +314,28 @@ static void write_sound_pack(const char *dir)
     write_demo(dir, "sp_slow_div.wav", 12, sp_div_bar);
 }
 
+/* the delay's MODE and its dotted / triplet TIMEs (the 808 kit, the snare alone into the delay, FDBK 70):
+ * dly_pingpong.wav: TIME 1/8D, 4 bars NORM then 4 bars PING (the echoes left, right, left ..); dly_times.wav: PING,
+ * TIME 1/4D 1/8D 4T 1/16D 32T, 2 bars each */
+static void dly_mode_bar(uint32_t b) { song.g[G_DMODE] = b < 4u ? 0 : 1; }
+static void dly_time_bar(uint32_t b)
+{
+    static const int16_t T[5] = {11, 12, 10, 13, 14};
+    song.g[G_DTIME] = T[b / 2u < 5u ? b / 2u : 4u];
+}
+static void write_delay(const char *dir)
+{
+    sp_kit();
+    memset(trk[0].step, 0, sizeof trk[0].step);      /* the snare alone */
+    memset(trk[2].step, 0, sizeof trk[2].step);
+    trk[1].p[P_DLY] = 100;
+    song.g[G_DFDBK] = 70;
+    song.g[G_DTIME] = 12;                            /* 1/8D */
+    write_demo(dir, "dly_pingpong.wav", 8, dly_mode_bar);
+    write_demo(dir, "dly_times.wav", 10, dly_time_bar);
+    song.g[G_DMODE] = 0;
+}
+
 /* PERFORM demos (120 BPM, the sound pack's 808 kit with a reverb / delay send): 4 bars each, the effect (a key or a
  * knob) held over bars 2 and 3: pf_<name>.wav */
 static const struct { const char *name; uint32_t held; int8_t k[4]; } PF_DEMO[] = {
@@ -938,6 +960,7 @@ int main(int argc, char **argv)
     acid_kit(1);
     write_demo(dir, "acid_sqr.wav", 8, reson_none_bar);
     write_sound_pack(dir);
+    write_delay(dir);
     write_perform(dir);
     write_motion(dir);
     write_locks(dir, 0);

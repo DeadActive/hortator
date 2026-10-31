@@ -19,6 +19,15 @@ released yet are listed under Unreleased.
   the rate shown on the screen. MOTION, locks and MIDI LEARN take it too.
 - Both are saved with each project. Projects saved before load with SRR OFF and the INSERT OFF, and sound exactly as
   before.
+- **Dotted and triplet delay times**: DLY TIME now also has 1/4D, 1/8D and 1/16D (dotted) and 4T and 32T
+  (triplets). The knob runs by length, the new times between their neighbours: 4BAR 2BAR 1/1 1/2 1/4D 1/4 1/8D 4T
+  1/8 1/16D 8T 1/16 16T 1/32 32T. A time longer than the delay holds is cut to its longest, 1.49 s, as before.
+  Projects keep their delay times. The steps' DIV is unchanged.
+- **Ping-pong delay**: the new DLY 2/2 page has MODE: NORM (the delay as before) or PING (ping-pong). In PING the
+  echoes alternate between left and right: the first on the left, the next on the right, and so on, with FDBK and
+  COLR working as in NORM and the same longest time, 1.49 s. The ping-pong echoes are a little softer in the top
+  end. Changing MODE clears the delay, so no old echoes come back. MODE is saved with each project; projects saved
+  before load NORM. With USB AUDIO 10 CH FX, channels 9-10 carry the ping-pong's left and right.
 
 ## 0.26.0 - 2026-10-28
 

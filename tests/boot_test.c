@@ -959,6 +959,40 @@ static int fdr7_round_trip(void)
     project_load(2);
     return song.g[G_RTYPE] == 1;
 }
+/* the delay's MODE (PING-PONG 1) rides in the record's reserved byte (rsv[0]): kept through a save and a load, the
+ * record's size as before */
+static int dmode_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    song.g[G_DMODE] = 1;
+    project_save(2);
+    if (proj_slot[2].rsv[0] != 1u || sizeof(project_t) != 3840u)
+        return 0;
+    song.g[G_DMODE] = 0;
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_load(2);
+    return song.g[G_DMODE] == 1;
+}
+/* a record from before MODE (its reserved byte 0) loads NORMAL, PING-PONG running before; a stray value is cut */
+static int dmode_old_normal(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    project_save(1);                                 /* (NORMAL: rsv[0] 0, as every earlier firmware wrote it) */
+    song.g[G_DMODE] = 1;
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_load(1);
+    if (song.g[G_DMODE] != 0)
+        return 0;
+    proj_slot[1].rsv[0] = 9;
+    proj_slot[1].sum = proj_sum(&proj_slot[1]);
+    song.g[G_DMODE] = 0;
+    (void)proj_load(1, 0);                           /* (the RAM record as it is: no DISCARD question) */
+    return song.g[G_DMODE] == 1;
+}
 /* FDR8: the motion goes through a save and a load (flash) */
 static int fdr8_motion_round_trip(void)
 {
@@ -987,7 +1021,7 @@ static int fdr7_converts(void)
     memset(&v, 0, sizeof v);
     v.magic = PROJ_MAGIC_V7;
     v.size = sizeof v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v.g[i] = song.g[i];
     v.g[G_RTYPE] = 1;
     for (k = 0; k < NTRK; k++)
@@ -999,8 +1033,9 @@ static int fdr7_converts(void)
     memset(proj_slot, 0, sizeof proj_slot);
     persist_boot();
     motion_add(0, 1, P_E1, 5);                       /* motion in RAM before: the load replaces it */
+    song.g[G_DMODE] = 1;                             /* PING-PONG running: an old record loads NORMAL */
     project_load(1);
-    return song.g[G_RTYPE] == 1 && trk[2].step[9].on && mo.b.count == 0u && sizeof v == 3028u;
+    return song.g[G_RTYPE] == 1 && trk[2].step[9].on && mo.b.count == 0u && sizeof v == 3028u && song.g[G_DMODE] == 0;
 }
 /* a broken motion block: the project loads, the motion dropped */
 static int fdr8_bad_motion_dropped(void)
@@ -1068,7 +1103,7 @@ static int fdr9_converts(void)
     memset(&v, 0, sizeof v);
     v.magic = PROJ_MAGIC_V9;
     v.size = sizeof v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v.g[i] = song.g[i];
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < P_FTYPE; i++)
@@ -1149,7 +1184,7 @@ static int fdra_flash_converts(void)
     memset(&v, 0, sizeof v);
     v.magic = PROJ_MAGIC_VA;
     v.size = sizeof v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v.g[i] = song.g[i];
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < P_PRIO; i++)
@@ -1179,7 +1214,7 @@ static int fdra_ram_refetched(void)
     memset(&v, 0, sizeof v);
     v.magic = PROJ_MAGIC_VA;
     v.size = sizeof v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v.g[i] = song.g[i];
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < P_PRIO; i++)
@@ -1247,7 +1282,7 @@ static int fdr8_converts(void)
     memset(&v, 0, sizeof v);
     v.magic = PROJ_MAGIC_V8;
     v.size = sizeof v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v.g[i] = song.g[i];
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < P_FTYPE; i++)
@@ -1355,7 +1390,7 @@ static void fdrb_of_live(project_vb_t *v)
     memset(v, 0, sizeof *v);
     v->magic = PROJ_MAGIC_VB;
     v->size = sizeof *v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v->g[i] = song.g[i];
     v->sel = song.sel;
     for (k = 0; k < NTRK; k++) {
@@ -1495,7 +1530,7 @@ static int old_formats_play_same(void)
     memset(&va, 0, sizeof va);                       /* FDRA: everything before P_PRIO, the old steps */
     va.magic = PROJ_MAGIC_VA;
     va.size = sizeof va;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         va.g[i] = song.g[i];
     for (k = 0; k < NTRK; k++) {
         for (i = 0; i < P_PRIO; i++)
@@ -1539,7 +1574,7 @@ static void fdrd_of_live(project_vd_t *v)
     memset(v, 0, sizeof *v);
     v->magic = PROJ_MAGIC_VD;
     v->size = sizeof *v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v->g[i] = song.g[i];
     v->sel = song.sel;
     for (k = 0; k < NTRK; k++) {
@@ -2274,7 +2309,7 @@ static void fdre_of_live(project_ve_t *v)            /* the live state as 0.23.3
     memset(v, 0, sizeof *v);
     v->magic = PROJ_MAGIC_VE;
     v->size = sizeof *v;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < G_NSTORED; i++)
         v->g[i] = song.g[i];
     v->sel = song.sel;
     for (i = 0; i < NTRK; i++) {
@@ -2589,6 +2624,8 @@ int main(void)
     check("project: an FDR5 record loads with GHOST KEEP", fdr5_converts());
     check("project: an FDR6 record (same size as FDR5) loads with reverb TYPE ROOM", fdr6_converts());
     check("project: the reverb TYPE survives a save and a load", fdr7_round_trip());
+    check("project: the delay MODE (PING-PONG) survives a save and a load, in the reserved byte", dmode_round_trip());
+    check("project: a record from before the delay MODE loads NORMAL", dmode_old_normal());
     check("project: FDR8 keeps the motion through a save and a load", fdr8_motion_round_trip());
     check("project: an FDR7 record (3028 B) loads with no motion", fdr7_converts());
     check("project: a broken motion block is dropped, the project loads", fdr8_bad_motion_dropped());
