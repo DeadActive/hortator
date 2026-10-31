@@ -272,6 +272,7 @@ async function simCue() {
 await simLocks();
 await simCue();
 await editorPage();
+await (async () => { const r = await (await import("./editor/test_tab_projects.mjs")).runProjectsTests((s) => console.log(s)); ok(!r.failed, `editor: Projects tab against the mock device (${r.passed} checks)`); })();
 await packages();
 await updater();
 await counter();
