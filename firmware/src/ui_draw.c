@@ -2934,7 +2934,7 @@ static void draw_columns(void)
         val[0] = st->micro > 0 ? '+' : 0;            /* -50 .. +50 */
         val[1] = 0;
         fmt_int(val + str_len(val), st->micro);
-        draw_column(3, "MICRO", val, "", HOT(3u), -1);
+        draw_column(3, "NUDGE", val, "", HOT(3u), -1);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */

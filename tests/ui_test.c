@@ -2513,7 +2513,7 @@ static void test_step_micro(void)
     check("MICRO: down to -50 at most", s->micro == -MICRO_MAX);
     ui.force = 1;
     ui_frame();
-    check("MICRO: KNOB 4's column shows it", col_has(3, "MICRO") && col_has(3, "-50"));
+    check("NUDGE: KNOB 4's column shows it", col_has(3, "NUDGE") && col_has(3, "-50"));
     snap_page("seq/26_step_micro_held");
     for (i = 0; i < 140; i++) {
         turn(EN_K4, 1);

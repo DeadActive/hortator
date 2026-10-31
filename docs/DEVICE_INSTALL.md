@@ -917,27 +917,27 @@ The screens: `build/ui_shots/insert/` (each TYPE, and `mix_srr.png`).
 - CPU: the INSERT (FLANG or CHOR) on all 8 tracks plus SRR on all 8, a dense pattern: GLOBAL -> SYSTEM CPU (note the %
   you see), no crackle. Bluetooth version too.
 
-### MICRO and QUANT (check on the FM-1)
+### NUDGE and QUANT (check on the FM-1)
 
 The screens: `build/ui_shots/seq/26_step_micro_held.png`, `27_step_micro_marks.png`,
 `build/ui_shots/fixes/global_3_quant.png`. The sound: `build/drum_renders/micro.wav` (8 bars: plain, the off-beat hats
 +25, then +50 with the snare -10, plain again).
 
-- SEQ STEP: hold a step: KNOB 4 reads MICRO 0; turned right `+1` .. `+50`, left `-1` .. `-50` (it stops there). An
+- SEQ STEP: hold a step: KNOB 4 reads NUDGE 0; turned right `+1` .. `+50`, left `-1` .. `-50` (it stops there). An
   off step held and KNOB 4 turned: on. The grid: a late step has a mark on its box's right, an early one on its left.
 - A hat on every 1/16, the off-beats at +25: a light shuffle; at +50 they land halfway (triplet-like). A snare at -10
-  rushes a little. MICRO 0 everywhere: the groove exactly as before.
+  rushes a little. NUDGE 0 everywhere: the groove exactly as before.
 - Step 1 at -25 while playing: its hit comes before the bar line (in the last step), every time round; LEN 5 too.
 - RATCH 4 at +50: four quick hits in the second half of the step. A lock on a step at +50: the knob changes at the
   hit, not at the step's start, and comes back at the next step.
-- Following a clock (CLK USB from a DAW): MICRO +-50 hits land half a step off, steady, no drift.
-- A step with MICRO turned off by a tap and on again: MICRO 0.
+- Following a clock (CLK USB from a DAW): NUDGE +-50 hits land half a step off, steady, no drift.
+- A step with NUDGE turned off by a tap and on again: NUDGE 0.
 - GLOBAL 3/7 KNOB 4 QUANT: 1/16 (default), 1/8, 1/32, OFF. Arm a track, play the keys a little late or early: 1/16
-  on the steps as before; 1/8 only on every other step; 1/32 on the steps or halfway (the held step shows MICRO 0 or
-  +-50); OFF where you played (MICRO shows how far off). A hit recorded early into the next step sounds once.
-- QUANT after a power cycle: as set. Step record (KEYS, stopped): MICRO 0 on the steps it writes.
-- SAVE with nudged steps, power cycle, LOAD: MICRO back, RESON KEYF, SRR and the INSERT as saved. A project saved with
-  0.26.0 loads (MICRO 0, its KEYF, SRR, INSERT kept). A variation with nudged steps: kept (cue it, SAVE, power cycle).
+  on the steps as before; 1/8 only on every other step; 1/32 on the steps or halfway (the held step shows NUDGE 0 or
+  +-50); OFF where you played (NUDGE shows how far off). A hit recorded early into the next step sounds once.
+- QUANT after a power cycle: as set. Step record (KEYS, stopped): NUDGE 0 on the steps it writes.
+- SAVE with nudged steps, power cycle, LOAD: NUDGE back, RESON KEYF, SRR and the INSERT as saved. A project saved with
+  0.26.0 loads (NUDGE 0, its KEYF, SRR, INSERT kept). A variation with nudged steps: kept (cue it, SAVE, power cycle).
 - CPU: a busy pattern with nudged steps on all 8 tracks: GLOBAL -> SYSTEM CPU as without, no crackle. Bluetooth
   version too.
 
