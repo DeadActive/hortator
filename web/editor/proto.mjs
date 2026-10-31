@@ -11,7 +11,7 @@
 
 /* ------------------------------------------------------------------ constants --- */
 export const HDR = [0x7d, 0x48, 0x54]; // F0 7D 48 54 <cmd> <seq> ... F7
-export const PROTO = { major: 1, minor: 0, magic: "HORTATOR" };
+export const PROTO = { major: 1, minor: 1, magic: "HORTATOR" }; // minor 1: NUDGE (CAP.NUDGE)
 export const SEQ_PUSH = 0x7f, NONE = 0x7f, U14_NONE = 0x3fff, DESC_ORDER = 0x7f;
 export const LIMITS = { req: 640, reply: 400, piece: 256, state: 17 };
 export const TIMING = {
@@ -38,7 +38,7 @@ export const DETAIL = {
   CUE_FIRST: 32, CHANGED: 33, ORDER: 34, RESTORING: 40, NOT_RESTORING: 41, STOP: 42,
   UNKNOWN: 43, LENGTH: 44, RANGE: 45, NO_CAP: 46,
 };
-export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10 };
+export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10, NUDGE: 0x20 };
 export const CMD_CAP = {
   [CMD.INFO]: 0, [CMD.PAGES]: CAP.LIVE, [CMD.DESC]: CAP.LIVE, [CMD.GET]: CAP.LIVE, [CMD.SET]: CAP.LIVE,
   [CMD.DUMP]: CAP.LIVE, [CMD.SELECT]: CAP.LIVE, [CMD.WATCH]: CAP.LIVE, [CMD.TEXT]: CAP.LIVE,
@@ -52,10 +52,14 @@ export const WRITES = new Set([CMD.SET, CMD.SELECT, CMD.PRESET_LOAD, CMD.STEPS_S
   CMD.RESTORE]);
 export const LONG = new Set([CMD.SAVE]); // + RESTORE COMMIT: TIMING.longTimeout
 export const SCOPE = { TRACK: 0, GLOBAL: 1, MODEL: 2 };
+/** the core.h ids the page names (protocol 1: ids are the firmware's enums, §2.2; test_editor.mjs checks them against
+ * device_data.json): P_MODEL P_RMODEL P_ITYPE (scope 0); G_GMODE G_SYNC (scope 1). Everything else comes from PAGES /
+ * DESC */
+export const ID = { MODEL: 0, RMODEL: 48, ITYPE: 71, GMODE: 22, SYNC: 12 };
 export const GR = { LFO: 10 }; // PAGES graph: the LFO pages (columns 1-2 LFO 1, 3-4 LFO 2)
 export const DF = { SPLIT: 0x01, ORDER: 0x02, LOCK: 0x04, RO: 0x08, CONTEXT: 0x10 };
 export const SF = { RESTORING: 0x01, SONG: 0x02, NOFLASH: 0x04 };
-export const STEP = { ON: 0x01, ACC: 0x02, SLIDE: 0x04, TIE: 0x08, RAT_SHIFT: 4, NT_OFFSET: 60 };
+export const STEP = { ON: 0x01, ACC: 0x02, SLIDE: 0x04, TIE: 0x08, RAT_SHIFT: 4, NT_OFFSET: 60, MICRO_OFFSET: 64, MICRO_MAX: 50 };
 export const CUE = { SLOT: 0, VAR: 1 };
 export const LK = { SET: 0, CLEAR: 1, CLEAR_STEP: 2, CLEAR_TRACK: 3, MOTION: 1, LOCK: 2 };
 export const RS = { BEGIN: 0, DATA: 1, COMMIT: 2, ABORT: 3 };
@@ -64,18 +68,21 @@ export const PART = { RECORD: 0, LOCKS: 1, VARS: 2 };
 export const OBJ = { PRESETS: 0, PROJECT: 1, LOCKS: 5, VARS: 9, N: 13 }; // + slot
 export const BF = { UNSAVED: 0x01, LOST: 0x02, OLD: 0x04 };
 export const SZ = { PRESETS: 1284, PROJECT: 3840, LOCKS: 3208, VARS_MIN: 22, VARS_MAX: 3584 };
-export const MAGIC = { PROJ: 0x46524446, LK: 0x31424b4c, VAR: 0x31524156, UPR: 0x31525055 }; // FDRF LKB1 VAR1 UPR1
-/** the older project records the firmware converts at load: magic -> size ("FDR1" .. "FDRE") */
+export const MAGIC = { PROJ: 0x47524446, PROJ_F: 0x46524446, LK: 0x31424b4c, VAR: 0x31524156, UPR: 0x31525055 }; // FDRG FDRF LKB1 VAR1 UPR1
+/** a record in the current layout: FDRG, or FDRF (the same bytes, but steps 0..6's spare bytes hold the parameters
+ * past the block, no NUDGE; it links a lock bank and variations as FDRG does) */
+export const isFullRecord = (m) => m === MAGIC.PROJ || m === MAGIC.PROJ_F;
+/** the older project records the firmware converts at load: magic -> size ("FDR1" .. "FDRF") */
 export const OLD_PROJECTS = new Map([[0x31524446, 1564], [0x32524446, 2624], [0x33524446, 2656], [0x34524446, 2912],
   [0x35524446, 3024], [0x36524446, 3024], [0x37524446, 3028], [0x38524446, 3544], [0x39524446, 3592],
-  [0x41524446, 3672], [0x42524446, 3672], [0x43524446, 3688], [0x44524446, 3712], [0x45524446, 3840]]);
+  [0x41524446, 3672], [0x42524446, 3672], [0x43524446, 3688], [0x44524446, 3712], [0x45524446, 3840], [0x46524446, 3840]]);
 /** byte layouts (little endian) of the objects as flash stores them; checked against the firmware by the tests */
 export const LAYOUT = {
   ntrk: 8, nstep: 64, pcount: 76, gcount: 42, pStored: 69, gStored: 41, nuser: 128, nvar: 8, lkMax: 1024, nameLen: 12,
-  xpDef: [0, 0, 0, 64, 96, 96, 127], // P_RKEY P_SRR P_ITYPE P_IA P_IB P_IC P_IMIX: their power-on values (step rsv)
+  xpDef: [0, 0, 0, 64, 96, 96, 127], // P_RKEY P_SRR P_ITYPE P_IA P_IB P_IC P_IMIX: their power-on values (xp; FDRF: step rsv)
   timing: [22, 23, 24, 30], // P_SLEN P_SDIV P_SSWING P_SRC: a variation's own timing
   project: { size: 3840, g: 8, sel: 90, rsv: 91, t: 94, trk: 394, trkStep: 138, lk_n: 3246, lk_link: 3248, var_link: 3252,
-    var_len: 3256, song: 3762, name: 3798, pre: 3810, pre_ed: 3826, sum: 3836 },
+    var_len: 3256, xp: 3258, song: 3762, name: 3798, pre: 3810, pre_ed: 3826, sum: 3836 },
   locks: { size: 3208, slot: 4, on: 5, count: 6, key: 8, val: 2056, lock: 3080 },
   vars: { slot: 4, used: 6, d: 8 },
   presets: { size: 1284, slot: 10 },
@@ -164,6 +171,9 @@ export const packedSize = (n) => n + Math.ceil(n / 7);
 const STATE = [["playing", "u7"], ["slot", "u7"], ["var", "u7"], ["qslot", "u7"], ["qvar", "u7"], ["sel", "u7"],
   ["flags", "u7"], ["used", "u7"], ["dirty", "u7"], ["vmask", "u14", 4]];
 const STEP_F = [["flags", "u7"], ["cond", "u7"], ["note", "u7"]];
+/* NUDGE (minor 1): each step's micro (-50..+50) as micro + 64, after the steps (["micro", "nudge", "steps"]): in the step
+ * objects as `micro`; written when any step has one (a missing one: 0), read when the frame has bytes left */
+const NUDGE_F = ["micro", "nudge", "steps"];
 const VALUE = [["value", "v14"], ["text", "str"], ["unit", "str"]];
 const KNOB = [["scope", "u7"], ["track", "u7"], ["id", "u14"]];
 const PART_F = [["size", "u14"], ["crc", "u35"]];
@@ -187,8 +197,8 @@ export const SCHEMA = {
     ["first", "u7"], ["presets", ["list", [["id", "u14"], ["model", "u7"], ["name", "str"]]]]] },
   [CMD.PRESET_LOAD]: { req: [["track", "u7"], ["id", "u14"]], rep: [["track", "u7"], ["id", "u14"], ["model", "u7"]] },
   [CMD.STEPS_GET]: { req: [["slot", "u7"], ["var", "u7"], ["track", "u7"]], rep: [["slot", "u7"], ["var", "u7"],
-    ["track", "u7"], ["used", "u7"], ["live", "u7"], ["timing", "u7", 4], ["steps", "step", 64]] },
-  [CMD.STEPS_SET]: { req: [["slot", "u7"], ["var", "u7"], ["track", "u7"], ["first", "u7"], ["steps", ["list", "step"]]],
+    ["track", "u7"], ["used", "u7"], ["live", "u7"], ["timing", "u7", 4], ["steps", "step", 64], NUDGE_F] },
+  [CMD.STEPS_SET]: { req: [["slot", "u7"], ["var", "u7"], ["track", "u7"], ["first", "u7"], ["steps", ["list", "step"]], NUDGE_F],
     rep: [["slot", "u7"], ["var", "u7"], ["track", "u7"], ["first", "u7"], ["count", "u7"]] },
   [CMD.LOCKS_GET]: { req: [["slot", "u7"], ["track", "u7"], ["first", "u14"]], rep: [["slot", "u7"], ["track", "u7"],
     ["total", "u14"], ["first", "u14"], ["locks", ["list", [["step", "u7"], ["param", "u7"], ["kind", "u7"], ["value", "v14"]]]]] },
@@ -234,7 +244,11 @@ function put(w, type, v, o) {
 function putFields(w, fields, o) {
   if (!o || typeof o !== "object") throw new ProtoError("fields expected", DETAIL.RANGE);
   for (const [name, type, n] of fields) {
-    if (n !== undefined) {
+    if (type === "nudge") {
+      const st = o[n] || [];
+      if (st.some((s) => s && s.micro !== undefined))
+        for (const s of st) w.u7(Math.max(-STEP.MICRO_MAX, Math.min(STEP.MICRO_MAX, s.micro | 0)) + STEP.MICRO_OFFSET);
+    } else if (n !== undefined) {
       if (!o[name] || o[name].length !== n) throw new ProtoError(`${name}: ${n} expected`, DETAIL.RANGE);
       for (const x of o[name]) put(w, type, x, o);
     } else put(w, type, o[name], o);
@@ -255,7 +269,7 @@ function get(r, type, o) {
 function getFields(r, fields) {
   const o = {};
   for (const [name, type, n] of fields) {
-    if (n !== undefined) { o[name] = []; for (let i = 0; i < n; i++) o[name].push(get(r, type, o)); } else o[name] = get(r, type, o);
+    if (type === "nudge") { if (r.left()) for (const s of o[n]) s.micro = r.u7() - STEP.MICRO_OFFSET; } else if (n !== undefined) { o[name] = []; for (let i = 0; i < n; i++) o[name].push(get(r, type, o)); } else o[name] = get(r, type, o);
   }
   return o;
 }
@@ -402,8 +416,9 @@ export function fromBase64(s) {
 /* ------------------------------------------------------- stored objects --- */
 const dv = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
 export const magicText = (m) => String.fromCharCode(m & 255, m >> 8 & 255, m >> 16 & 255, m >>> 24);
-export const stepIsSet = (s) => (s.flags | s.cond) !== 0 || s.note !== STEP.NT_OFFSET;
-export const emptyStep = () => ({ flags: 0, cond: 0, note: STEP.NT_OFFSET });
+export const stepIsSet = (s) => (s.flags | s.cond | (s.micro | 0)) !== 0 || s.note !== STEP.NT_OFFSET; // varpack.c var_set
+export const emptyStep = () => ({ flags: 0, cond: 0, note: STEP.NT_OFFSET, micro: 0 });
+const microOf = (s) => Math.max(-STEP.MICRO_MAX, Math.min(STEP.MICRO_MAX, s.micro | 0));
 
 /** the user presets record ("UPR1", 1284 B) <-> 128 slots: null or { model, knobs[8] } (int8) */
 export function decodePresets(b) {
@@ -430,14 +445,17 @@ export function encodePresets(slots) {
   return b;
 }
 
-/** a project record ("FDRF", 3840 B; an older one: only magic, size and sum are read) */
+/** a project record ("FDRG", 3840 B; "FDRF" too: the same layout, its parameters past the block in steps 0..6's spare
+ * bytes and every NUDGE 0, as the firmware converts it at load (old: true); an older one: only magic, size and sum are
+ * read). full: decoded (FDRG / FDRF) */
 export function decodeProject(b) {
   const v = dv(b), L = LAYOUT.project, magic = v.getUint32(0, true), size = v.getUint32(4, true);
   const sumOk = b.length >= 8 && fnv1a(b, b.length - 4) === v.getUint32(b.length - 4, true);
-  if (magic !== MAGIC.PROJ) {
+  if (!isFullRecord(magic)) {
     const old = OLD_PROJECTS.get(magic);
-    return { magic, format: magicText(magic), old: !!old, ok: !!old && size === b.length && old === b.length && sumOk };
+    return { magic, format: magicText(magic), old: !!old, full: false, ok: !!old && size === b.length && old === b.length && sumOk };
   }
+  const f = magic === MAGIC.PROJ_F;
   const ok = b.length === L.size && size === L.size && sumOk;
   const g = [];
   for (let i = 0; i < LAYOUT.gStored; i++) g.push(v.getInt16(L.g + 2 * i, true));
@@ -446,26 +464,28 @@ export function decodeProject(b) {
   for (let k = 0; k < LAYOUT.ntrk; k++) {
     const o = L.t + k * L.trk, p = [], steps = [];
     for (let i = 0; i < LAYOUT.pStored; i++) p.push(v.getInt16(o + 2 * i, true));
-    for (let j = 0; j < LAYOUT.pcount - LAYOUT.pStored; j++)
-      p.push(LAYOUT.xpDef[j] + v.getInt8(o + L.trkStep + 4 * j + 3)); // proj_xp_get
+    const nx = LAYOUT.pcount - LAYOUT.pStored;
+    for (let j = 0; j < nx; j++) // proj_xp_get (FDRF: proj_xp_move's source, steps 0..6's spare bytes)
+      p.push(LAYOUT.xpDef[j] + v.getInt8(f ? o + L.trkStep + 4 * j + 3 : L.xp + nx * k + j));
     for (let i = 0; i < LAYOUT.nstep; i++) {
       const s = o + L.trkStep + 4 * i;
-      steps.push({ flags: b[s] & 0x3f, cond: b[s + 1], note: v.getInt8(s + 2) + STEP.NT_OFFSET });
+      steps.push({ flags: b[s] & 0x3f, cond: b[s + 1], note: v.getInt8(s + 2) + STEP.NT_OFFSET,
+        micro: f ? 0 : Math.max(-STEP.MICRO_MAX, Math.min(STEP.MICRO_MAX, v.getInt8(s + 3))) });
     }
     tracks.push({ p, steps, pre: v.getUint16(L.pre + 2 * k, true), preEd: b[L.pre_ed + k] });
   }
   let name = "";
   for (let i = 0; i < LAYOUT.nameLen && b[L.name + i]; i++) name += String.fromCharCode(b[L.name + i]);
   if ([...name].some((c) => !NAME_SET.includes(c))) name = "";
-  return { magic, format: "FDRF", old: false, ok, g, sel: b[L.sel], tracks, name, song: b.slice(L.song, L.song + 36),
+  return { magic, format: magicText(magic), old: f, full: true, ok, g, sel: b[L.sel], tracks, name, song: b.slice(L.song, L.song + 36),
     lk_n: v.getUint16(L.lk_n, true), lk_link: v.getUint32(L.lk_link, true), var_link: v.getUint32(L.var_link, true),
     var_len: v.getUint16(L.var_len, true), sum: v.getUint32(L.sum, true) };
 }
-/** p: { g[42], sel, tracks[8] { p[76], steps[64], pre (stored reference), preEd }, name, song?, lk_n, lk_link,
- * var_link, var_len } -> 3840 B with its sum */
-export function encodeProject(p) {
-  const b = new Uint8Array(SZ.PROJECT), v = dv(b), L = LAYOUT.project;
-  v.setUint32(0, MAGIC.PROJ, true);
+/** p: { g[42], sel, tracks[8] { p[76], steps[64] (micro: NUDGE), pre (stored reference), preEd }, name, song?, lk_n,
+ * lk_link, var_link, var_len } -> 3840 B with its sum; format "FDRF": the record an editor before NUDGE wrote (tests) */
+export function encodeProject(p, format = "FDRG") {
+  const b = new Uint8Array(SZ.PROJECT), v = dv(b), L = LAYOUT.project, f = format === "FDRF", nx = LAYOUT.pcount - LAYOUT.pStored;
+  v.setUint32(0, f ? MAGIC.PROJ_F : MAGIC.PROJ, true);
   v.setUint32(4, SZ.PROJECT, true);
   for (let i = 0; i < LAYOUT.gStored; i++) v.setInt16(L.g + 2 * i, p.g[i], true);
   b[L.rsv] = p.g[LAYOUT.gStored] & 255;
@@ -478,9 +498,10 @@ export function encodeProject(p) {
       b[q] = s.flags & 0x3f;
       b[q + 1] = s.cond;
       v.setInt8(q + 2, s.note - STEP.NT_OFFSET);
+      if (!f) v.setInt8(q + 3, microOf(s));
     });
-    for (let j = 0; j < LAYOUT.pcount - LAYOUT.pStored; j++)
-      b[o + L.trkStep + 4 * j + 3] = (Math.max(-128, Math.min(255, t.p[LAYOUT.pStored + j])) - LAYOUT.xpDef[j]) & 255;
+    for (let j = 0; j < nx; j++) // proj_xp_enc
+      b[f ? o + L.trkStep + 4 * j + 3 : L.xp + nx * k + j] = (Math.max(-128, Math.min(255, t.p[LAYOUT.pStored + j])) - LAYOUT.xpDef[j]) & 255;
     v.setUint16(L.pre + 2 * k, t.pre, true);
     b[L.pre_ed + k] = t.preEd ? 1 : 0;
   });
@@ -541,9 +562,11 @@ export function decodeVars(b) {
       const row = [];
       for (let i = 0; i < LAYOUT.nstep; i++) {
         if (b[t + 4 + (i >> 3)] >> (i & 7) & 1) {
-          if (q + 3 > o + n) throw new Error("variations: malformed");
-          row.push({ flags: b[q] & 0x3f, cond: b[q + 1], note: v.getInt8(q + 2) + STEP.NT_OFFSET });
-          q += 3;
+          const mb = q < o + n ? b[q] >> 6 & 1 : 0; // flags bit 6: a micro byte follows (NUDGE)
+          if (q + 3 + mb > o + n) throw new Error("variations: malformed");
+          row.push({ flags: b[q] & 0x3f, cond: b[q + 1], note: v.getInt8(q + 2) + STEP.NT_OFFSET,
+            micro: mb ? Math.max(-STEP.MICRO_MAX, Math.min(STEP.MICRO_MAX, v.getInt8(q + 3))) : 0 });
+          q += 3 + mb;
         } else row.push(emptyStep());
       }
       steps.push(row);
@@ -567,7 +590,8 @@ export function encodeVars({ slot, entries }) {
       x.steps[k].forEach((s, i) => {
         if (!stepIsSet(s)) return;
         map[i >> 3] |= 1 << (i & 7);
-        tail.push(s.flags & 0x3f, s.cond, (s.note - STEP.NT_OFFSET) & 255);
+        const m = microOf(s); // varpack.c var_enc: flags bit 6 and the micro byte, only for a nudged step
+        tail.push(s.flags & 0x3f | (m ? 0x40 : 0), s.cond, (s.note - STEP.NT_OFFSET) & 255, ...(m ? [m & 255] : []));
       });
       body.push(...map);
     }
@@ -585,10 +609,10 @@ export function encodeVars({ slot, entries }) {
 export const lockLink = (lk) => (fnv1a(lk) | 1) >>> 0; // project.c proj_link
 export const varLink = (vb) => (fnv1a(vb) | 1) >>> 0; // project.c var_link_of (8 + used bytes)
 /** a project's three objects sealed for slot (the device does this at RESTORE COMMIT): the lock bank's and the
- * variations' slot bytes, the record's links and sum. Older records are returned as they are */
+ * variations' slot bytes, the record's links and sum (FDRG, FDRF: its magic kept). Older records are returned as they are */
 export function sealProject({ record, locks, vars }, slot) {
   const r = Uint8Array.from(record), v = dv(r);
-  if (v.getUint32(0, true) !== MAGIC.PROJ) return { record: r, locks, vars };
+  if (!isFullRecord(v.getUint32(0, true))) return { record: r, locks, vars };
   const lk = locks ? Uint8Array.from(locks) : null, vb = vars ? Uint8Array.from(vars) : null;
   if (lk) { lk[LAYOUT.locks.slot] = slot; v.setUint32(LAYOUT.project.lk_link, lockLink(lk), true); }
   if (vb) { vb[LAYOUT.vars.slot] = slot; v.setUint32(LAYOUT.project.var_link, varLink(vb), true); }
@@ -647,11 +671,11 @@ function objIn(o, what) {
 /** a readable summary of a project's objects (never trusted on read: recomputed) */
 export function summarize({ record, locks, vars }, modelNames = []) {
   const p = decodeProject(record);
-  if (p.format !== "FDRF") return { name: "", models: [], variations: [1], locks: 0, format: p.format };
+  if (!p.full) return { name: "", models: [], variations: [1], locks: 0, format: p.format };
   const variations = [1];
   if (vars) decodeVars(vars).entries.forEach((e, i) => e && variations.push(i + 2));
   const nl = locks ? decodeLocks(locks).events.filter((e) => e.kind === LK.LOCK).length : 0;
-  return { name: p.name, models: p.tracks.map((t) => modelNames[t.p[0]] ?? t.p[0]), variations, locks: nl, format: "FDRF" };
+  return { name: p.name, models: p.tracks.map((t) => modelNames[t.p[0]] ?? t.p[0]), variations, locks: nl, format: p.format };
 }
 /** objs: { record, locks, vars } (Uint8Array | null) as BACKUP_GET read them; slot 0..3; unsaved: the device's flag */
 export function makeProjectFile(objs, slot, meta = {}, modelNames = []) {
@@ -666,7 +690,7 @@ function readProjectBody(f, what) {
   if (!o || !o.record) throw new FileError("damaged", `${what}: no project record.`);
   const objs = { record: objIn(o.record, what), locks: objIn(o.locks, what), vars: objIn(o.variations, what) };
   const p = decodeProject(objs.record);
-  if (!p.ok) throw new FileError(p.old || p.format === "FDRF" ? "damaged" : "unknown",
+  if (!p.ok) throw new FileError(p.old || p.full ? "damaged" : "unknown",
     `${what}: not a Hortator project record (${p.format}).`);
   return { slot: SLOT_NAMES.indexOf(f.slot), ...objs, summary: summarize(objs) };
 }

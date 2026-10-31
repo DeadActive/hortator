@@ -25,6 +25,15 @@ static uint32_t kb_prev;
  * record's palette bits 16..17, project.c), main writes, the ISR reads */
 enum { QUANT_16, QUANT_8, QUANT_32, QUANT_OFF, QUANT_N };
 static volatile uint8_t rec_quant;
+/* live recording (the keys, MIDI notes, the SMC: rec_hit) while the web editor restores (editor_backup.c ed_restoring,
+ * ED_RESTORE_LOCK: felucca.c, the editor's host tests): nothing recorded, the hits only play, as the device's other
+ * edits are refused meanwhile (ui.c ui_locked) */
+#ifdef ED_RESTORE_LOCK
+static int ed_restoring(void);
+#define REC_LOCKED() ed_restoring()
+#else
+#define REC_LOCKED() 0
+#endif
 #define MIC_DUE 1u                               /* track_t.mic (MICRO, seq_tick): the playing step's late hit to come */
 #define MIC_EARLY 2u                             /* .. step mic_idx's early hit played (the step before it playing) */
 static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen may take keys (ui_input.c glo_input), SAVE's
@@ -353,7 +362,7 @@ static uint32_t rec_hit(track_t *t, uint32_t vel)
 
 static void input_hit(track_t *t, uint32_t vel)
 {
-    if (((song.rec >> trk_index(t)) & 1u) && song.playing && !t->p[P_SRC])
+    if (((song.rec >> trk_index(t)) & 1u) && song.playing && !t->p[P_SRC] && !REC_LOCKED())
         rec_hit(t, vel);
     drum_hit(t, vel);
 }
@@ -435,7 +444,7 @@ static __attribute__((noinline)) void keys_on(uint32_t key)
     int legato = kz.key && kz.trk == song.sel;
     if (kz.key && !legato)
         keys_off();                                    /* mono over the keys: another track's held note ends */
-    if (((song.rec >> song.sel) & 1u) && song.playing && !t->p[P_SRC])
+    if (((song.rec >> song.sel) & 1u) && song.playing && !t->p[P_SRC] && !REC_LOCKED())
         keys_rec(t, nt, legato);                       /* live record (spec §6) */
     else
         kz.rec = 0;
@@ -551,7 +560,7 @@ static void learn_block(void);
 static __attribute__((noinline)) void midi_play(track_t *t, uint32_t vel, int32_t nt)
 {
     nt = clamp(nt, NT_MIN, NT_MAX);
-    if (((song.rec >> trk_index(t)) & 1u) && song.playing && !t->p[P_SRC])
+    if (((song.rec >> trk_index(t)) & 1u) && song.playing && !t->p[P_SRC] && !REC_LOCKED())
         t->step[rec_hit(t, vel) % NSTEP].nt = (int8_t)nt;
     drum_play(t, vel, nt);
     if (trk_model(t)->gate) {

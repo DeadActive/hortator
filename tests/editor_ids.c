@@ -96,11 +96,11 @@ int main(void)
            "\"G_NSTORED\": %u, \"NMODELS\": %u, \"PRE_NFACT\": %u, \"PRE_NUSER\": %u, \"COND_MAX\": %u, "
            "\"NT_MIN\": %d, \"NT_MAX\": %d, \"LK_MAX\": %u, \"VAR_BYTES\": %u, \"VAR_N\": %u, \"NAME_LEN\": %u, "
            "\"ACID\": %u, \"ACID_MAXTRK\": %u, \"RS_OFF\": %u, \"RS_CHORD\": %u, \"RS_MODAL\": %u, \"RS_MAXTRK\": %u, "
-           "\"RS_MAXMODAL\": %u},\n",
+           "\"RS_MAXMODAL\": %u, \"MICRO_MAX\": %u},\n",
            NTRK, NSTEP, P_COUNT, G_COUNT, P_NSTORED, G_NSTORED, NMODELS, (unsigned)PRE_NFACT, (unsigned)PRE_NUSER,
            (unsigned)COND_MAX, NT_MIN, NT_MAX, (unsigned)LK_MAX, (unsigned)VAR_BYTES, (unsigned)VAR_N,
            (unsigned)NAME_LEN, (unsigned)DM_ACID, (unsigned)ACID_MAXTRK, (unsigned)RS_OFF, (unsigned)RS_CHORD,
-           (unsigned)RS_MODAL, (unsigned)RS_MAXTRK, (unsigned)RS_MAXMODAL);
+           (unsigned)RS_MODAL, (unsigned)RS_MAXTRK, (unsigned)RS_MAXMODAL, (unsigned)MICRO_MAX);
     printf("\"nameSet\": "), str(NAME_SET), printf(",\n");
     printf("\"fmt\": [");
     for (i = 0; i <= F_SRR; i++)
@@ -185,25 +185,26 @@ int main(void)
            VAR_MAGIC, UPR_MAGIC, ST_MAGIC);
     printf("\"oldProjects\": [");                   /* the older records the firmware converts at load: magic, size */
     {
-        static const uint32_t MAGIC[14] = {PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
+        static const uint32_t MAGIC[15] = {PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
                                            PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA,
-                                           PROJ_MAGIC_VB, PROJ_MAGIC_VC, PROJ_MAGIC_VD, PROJ_MAGIC_VE};
-        const uint32_t SIZE[14] = {sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3, sizeof proj_old.v4,
+                                           PROJ_MAGIC_VB, PROJ_MAGIC_VC, PROJ_MAGIC_VD, PROJ_MAGIC_VE,
+                                           PROJ_MAGIC_VF};
+        const uint32_t SIZE[15] = {sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3, sizeof proj_old.v4,
                                    sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7, sizeof proj_old.v8,
                                    sizeof proj_old.v9, sizeof proj_old.va, sizeof proj_old.vb, sizeof proj_old.vc,
-                                   sizeof proj_old.vd, sizeof proj_old.ve};
-        for (i = 0; i < 14u; i++)
+                                   sizeof proj_old.vd, sizeof proj_old.ve, sizeof proj_old.vf};
+        for (i = 0; i < 15u; i++)
             printf("%s[%u, %u]", i ? ", " : "", MAGIC[i], SIZE[i]);
     }
     printf("],\n\"layout\": {\n");
 #define OFF(t, f) (unsigned)offsetof(t, f)
     printf(" \"project\": {\"size\": %u, \"magic\": %u, \"sizeField\": %u, \"g\": %u, \"sel\": %u, \"rsv\": %u, "
            "\"t\": %u, \"trk\": %u, \"trkP\": %u, \"trkStep\": %u, \"lk_n\": %u, \"lk_link\": %u, \"var_link\": %u, "
-           "\"var_len\": %u, \"rsv_mo\": %u, \"song\": %u, \"name\": %u, \"pre\": %u, \"pre_ed\": %u, \"sum\": %u},\n",
+           "\"var_len\": %u, \"xp\": %u, \"rsv_mo\": %u, \"song\": %u, \"name\": %u, \"pre\": %u, \"pre_ed\": %u, \"sum\": %u},\n",
            (unsigned)sizeof(project_t), OFF(project_t, magic), OFF(project_t, size), OFF(project_t, g),
            OFF(project_t, sel), OFF(project_t, rsv), OFF(project_t, t), (unsigned)sizeof(proj_trk_t),
            OFF(proj_trk_t, p), OFF(proj_trk_t, step), OFF(project_t, lk_n), OFF(project_t, lk_link),
-           OFF(project_t, var_link), OFF(project_t, var_len), OFF(project_t, rsv_mo), OFF(project_t, song),
+           OFF(project_t, var_link), OFF(project_t, var_len), OFF(project_t, xp), OFF(project_t, rsv_mo), OFF(project_t, song),
            OFF(project_t, name), OFF(project_t, pre), OFF(project_t, pre_ed), OFF(project_t, sum));
     printf(" \"locks\": {\"size\": %u, \"magic\": %u, \"slot\": %u, \"on\": %u, \"count\": %u, \"key\": %u, "
            "\"val\": %u, \"lock\": %u},\n",

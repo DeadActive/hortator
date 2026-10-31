@@ -10,7 +10,7 @@
 // then one INFO at a time backing off 10 s -> 60 s, none after 2 min busy ("asleep": the user's Reconnect asks again;
 // an update in progress holds one SysEx frame on the FM-1, so the page stays out of its way); answered -> "resync":
 // every view reads again). No DOM here: node tests drive it against the mock.
-import { CMD, PUSH, SCOPE, TIMING, checkInfo, classifyPort, has } from "./proto.mjs";
+import { CAP, CMD, ID, PUSH, SCOPE, TIMING, checkInfo, classifyPort, has } from "./proto.mjs";
 import { INFO_ONLY, Link } from "./link.mjs";
 
 export const LINKS = {
@@ -35,7 +35,7 @@ const REFUSAL = {
 /** a refusal to show: { why, message, links } */
 export const refusal = (why, message) => ({ ok: false, why, message: message || REFUSAL[why].message, links: REFUSAL[why]?.links || [] });
 
-export const G_SYNC = 12; // core.h G_SYNC: MIDI clock out (OFF, USB, BLE, BOTH); device_data.json (the tests compare)
+export const G_SYNC = ID.SYNC; // core.h G_SYNC: MIDI clock out (OFF, USB, BLE, BOTH); device_data.json (the tests compare)
 export const JITTER_MSG = "Clock out may jitter during the transfer — stop first?";
 export const JITTER_CHOICES = ["Stop", "Continue", "Cancel"];
 /** Before a big transfer (EDITOR_PROTOCOL.md §4 rule 8: a 306-byte frame holds MIDI clock out ~7 ms): while the FM-1
@@ -143,11 +143,15 @@ export class Session {
   }
   /** what this firmware has (INFO caps) */
   has(cmd) { return !!this.info && has(this.info, cmd); }
+  /** the steps carry NUDGE (minor 1: CAP.NUDGE) */
+  get nudge() { return !!this.info && !!(this.info.caps & CAP.NUDGE); }
   /** a request through the one queue; replies carrying the state block update it */
   request(cmd, args = {}, opt = {}) {
     if (!this.connected) return Promise.reject(new Error("Not connected."));
     if (this.busy) return Promise.reject(new Error(BUSY_MSG));
     if (!this.has(cmd)) return Promise.reject(new Error("Not in this firmware."));
+    if (cmd === CMD.STEPS_SET && !this.nudge) // a firmware before NUDGE takes 3 bytes a step only (it keeps no NUDGE)
+      args = { ...args, steps: args.steps.map(({ flags, cond, note }) => ({ flags, cond, note })) };
     return this.link.request(cmd, args, opt).then((r) => {
       if (r.state) this.setState(r.state);
       if (cmd === CMD.SELECT && !r.rc) this.setState({ ...this.state, sel: r.track });

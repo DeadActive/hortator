@@ -24,7 +24,7 @@
 #define ED_HDR_N 3u                 /* sx_frame holds the bytes between F0 and F7: [0..2] header, [3] cmd, [4] seq */
 #define ED_MIN_FRAME 5u             /* header + cmd + seq; shorter frames are dropped unanswered */
 #define ED_PROTO_MAJOR 1u
-#define ED_PROTO_MINOR 0u
+#define ED_PROTO_MINOR 1u             /* 1: NUDGE (ED_CAP_NUDGE: STEPS_GET / STEPS_SET carry each step's micro) */
 #define ED_MAGIC "HORTATOR"         /* INFO's first field */
 #define ED_SEQ_PUSH 0x7Fu           /* a push's seq; requests use 0..126 */
 #define ED_NONE 0x7Fu               /* "none" / "the current one" in a u7 field (slot, track, variation) */
@@ -63,7 +63,7 @@ enum { ED_P_CHANGED = 0x40, ED_P_STATE, ED_P_STEPS_CHANGED, ED_P_LOCKS_CHANGED }
 #define ED_LEN_NAMES 2u             /* bank, first */
 #define ED_LEN_PRESET_LOAD 3u       /* track, id u14 */
 #define ED_LEN_STEPS_GET 3u         /* slot, var, track */
-#define ED_LEN_STEPS_SET_MIN 5u     /* slot, var, track, first, count; then count x 3 */
+#define ED_LEN_STEPS_SET_MIN 5u     /* slot, var, track, first, count; then count x 3; NUDGE: then count x 1 (micro) */
 #define ED_LEN_LOCKS_GET 4u         /* slot, track, first u14 */
 #define ED_LEN_LOCK_EDIT 6u         /* op, track, step, param, value v14 */
 #define ED_LEN_CUE 2u               /* kind, n */
@@ -96,6 +96,7 @@ enum {
 #define ED_CAP_PATTERNS 0x04u       /* STEPS_GET STEPS_SET LOCKS_GET LOCK_EDIT CUE SAVE, pushes STEPS / LOCKS_CHANGED */
 #define ED_CAP_BACKUP 0x08u         /* BACKUP_LIST BACKUP_GET (editor_backup.c) */
 #define ED_CAP_RESTORE 0x10u        /* RESTORE (editor_backup.c) */
+#define ED_CAP_NUDGE 0x20u          /* STEPS_GET / STEPS_SET carry each step's NUDGE (minor 1, editor_pattern.c) */
 
 /* --------------------------------------------------------------- fields --- */
 enum { ED_SC_TRACK, ED_SC_GLOBAL, ED_SC_MODEL };      /* DESC / GET / SET / TEXT scope (MODEL: DESC only) */
@@ -115,6 +116,7 @@ enum { ED_SC_TRACK, ED_SC_GLOBAL, ED_SC_MODEL };      /* DESC / GET / SET / TEXT
 #define ED_STEP_TIE 0x08u
 #define ED_STEP_RAT_SHIFT 4u        /* bits 4..5: RATCH hits - 1 */
 #define ED_NT_OFFSET 60u
+#define ED_MICRO_OFFSET 64u         /* NUDGE on the wire: micro + 64 (-50..+50: 14..114), after the steps */
 enum { ED_CUE_SLOT, ED_CUE_VAR };
 enum { ED_LK_SET, ED_LK_CLEAR, ED_LK_CLEAR_STEP, ED_LK_CLEAR_TRACK };   /* LOCK_EDIT ops */
 enum { ED_LK_KIND_MOTION = 1, ED_LK_KIND_LOCK = 2 };
@@ -128,7 +130,7 @@ enum { ED_OBJ_PRESETS = 0, ED_OBJ_PROJECT = 1, ED_OBJ_LOCKS = 5, ED_OBJ_VARS = 9
 #define ED_BF_LOST 0x02u            /*   the record links an object no flash copy matches */
 #define ED_BF_OLD 0x04u             /*   a record in an older format (converted at load) */
 #define ED_SZ_PRESETS 1284u         /* upr_rec_t ("UPR1") */
-#define ED_SZ_PROJECT 3840u         /* project_t ("FDRF"); older records: their own sizes (project.c proj_fetch) */
+#define ED_SZ_PROJECT 3840u         /* project_t ("FDRG", "FDRF"); older records: their own sizes (project.c proj_fetch) */
 #define ED_SZ_LOCKS 3208u           /* lk_bank_t ("LKB1") */
 #define ED_SZ_VARS_MIN 22u          /* var_bank_t ("VAR1"): 8 + used, 22 (7 empty entries) .. 3584 */
 #define ED_SZ_VARS_MAX 3584u

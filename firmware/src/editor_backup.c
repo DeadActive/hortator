@@ -14,7 +14,9 @@
  *   the record: storage.c's A/B copies keep the old or the new project whole), stopped only. ABORT, the idle timeout
  *   and update traffic (ed_backup_drop) reload the homes from flash.
  * - RESTORING (BEGIN to its end, edb.on): ui.c ui_locked (ed_restoring) refuses the device's own PLAY, cue keys, LOAD, SAVE, PASTE, NAME
- *   and preset save / delete (main loop only, as the keys are read); editor writes get rc 6 detail 40. */
+ *   and preset save / delete, the TOOLS screen's edits (pastes, DUPLICATE, CLEAR) and a held step's KNOB 1-4 (main
+ *   loop only, as the keys are read); live recording records nothing (seq.c REC_LOCKED); editor writes get rc 6
+ *   detail 40. */
 #include "editor_proto.h"
 #define ED_HAS_BACKUP 1
 #ifndef EDB_MS
@@ -31,24 +33,31 @@
 
 static struct {
     uint8_t on, kind, slot, park, ld, ver;          /* restoring; the target; the park staged into; the target is the
-                                                     * loaded slot; the record's format (15 FDRF, 1..14 older) */
+                                                     * loaded slot; the record's format (16 FDRG, 15 FDRF: with
+                                                     * a lock bank and variations; 1..14 older) */
     uint8_t g_obj, g_copy;                          /* BACKUP_GET: the object its last first piece found (+1; 0 none)
                                                      * and its storage copy, while g_fp (edb_heads) holds */
     uint16_t size[ED_PART_N], got[ED_PART_N], last[ED_PART_N];   /* last: the last piece's offset + 1 (0 none) */
     uint32_t crc[ED_PART_N], magic, t, g_fp;        /* t: the last request (ED_RESTORE_IDLE_MS) */
 } edb;
 
-/* a project record format's size (1..14 FDR1..FDRE, converted at load; 15 FDRF) */
-static const uint16_t EDB_RSZ[16] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3, sizeof proj_old.v4,
+/* a project record format's size (1..15 FDR1..FDRF, converted at load; 16 FDRG). Each fits its RAM home, proj_slot[s]
+ * (a project_t): the staging bound (edb_data writes below a part's size, BEGIN takes no other size) */
+#define EDB_FDRF 15u                                /* FDRF: the oldest with a lock bank and variations (FDRG's layout) */
+#define EDB_FDRG 16u                                /* FDRG: project.c's PROJ_MAGIC */
+static const uint16_t EDB_RSZ[17] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3, sizeof proj_old.v4,
                                      sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7, sizeof proj_old.v8,
                                      sizeof proj_old.v9, sizeof proj_old.va, sizeof proj_old.vb, sizeof proj_old.vc,
-                                     sizeof proj_old.vd, sizeof proj_old.ve, sizeof(project_t)};
-static uint32_t edb_fmt(uint32_t m)                 /* a record magic's format: 1..15, 0 not "FDR1".."FDRF" */
+                                     sizeof proj_old.vd, sizeof proj_old.ve, sizeof proj_old.vf, sizeof(project_t)};
+_Static_assert(sizeof proj_old <= sizeof(project_t) && sizeof proj_old.vf == sizeof(project_t),
+               "every record format fits proj_slot[s]");
+_Static_assert(PROJ_MAGIC == 0x47524446u, "FDRG is the current record (EDB_FDRG)");
+static uint32_t edb_fmt(uint32_t m)                 /* a record magic's format: 1..16, 0 not "FDR1".."FDRG" */
 {
     uint32_t v = m >> 24;
     if ((m & 0xFFFFFFu) != 0x524446u)
         return 0;
-    return v >= '1' && v <= '9' ? v - '0' : v >= 'A' && v <= 'F' ? v - 'A' + 10u : 0u;
+    return v >= '1' && v <= '9' ? v - '0' : v >= 'A' && v <= 'G' ? v - 'A' + 10u : 0u;
 }
 /* a whole record's format: its magic, its size field = n = the format's size, its FNV-1a sum (proj_fetch's checks);
  * 0 not one */
@@ -118,9 +127,9 @@ static void edb_slot(uint32_t s, edb_obj_t o[3], uint32_t want)
         return;
     q = (const project_t *)p;
     o[0].flags = o[1].flags = o[2].flags = slot_dirty(s) ? ED_BF_UNSAVED : 0u;
-    o[0].flags |= v < 15u ? ED_BF_OLD : 0u;
+    o[0].flags |= v < EDB_FDRG ? ED_BF_OLD : 0u;
     edb_found(&o[0], p, &h, copy);
-    for (i = 1; v == 15u && i < 3u; i++) {
+    for (i = 1; v >= EDB_FDRF && i < 3u; i++) {   /* (FDRF, FDRG: linked; an older record holds its motion) */
         if (!(want >> i & 1u) || !(i == 1u ? q->lk_n : q->var_len))
             continue;
         for (c = 0; c < 2u && !o[i].p; c++) {
@@ -234,8 +243,10 @@ static int edb_write(void)
     var_bank_t *vb = &var_buf[edb.park];
     if (edb.kind == ED_RK_PRESETS)
         return st_save(OBJ_UPRESET0 + 1u, &upr, sizeof upr);
-    if (edb.ver != 15u)                             /* an older record: as it is, converted at load */
+    if (edb.ver < EDB_FDRF)                         /* an older record: as it is, converted at load */
         return st_save(OBJ_PROJECT0 + s, q, edb.size[ED_PART_RECORD]);
+    /* FDRG, or FDRF (an editor file from before NUDGE: the same layout, its magic kept, converted at load as flash's
+     * FDRF records are: the steps' spare bytes moved to xp, every micro 0) */
     if (q->lk_n)
         lk_seal(&lk_slot[s], s);
     else
@@ -268,7 +279,7 @@ static int edb_valid(void)
     }
     if (edb_rec_ver(edb_home(ED_PART_RECORD), edb.size[ED_PART_RECORD]) != edb.ver)
         return 0;
-    if (edb.ver != 15u)
+    if (edb.ver < EDB_FDRF)
         return 1;
     return !q->lk_n == !edb.size[ED_PART_LOCKS] && !q->var_len == !edb.size[ED_PART_VARS] &&
            (!q->lk_n || (b->slot < 4u && lk_valid(b, b->slot) && b->count == q->lk_n && proj_link(b) == q->lk_link)) &&
@@ -309,10 +320,10 @@ static void edb_begin(const uint8_t *a, uint32_t n)
         edb.crc[i] = ed_get_u35(a + 10u + 7u * i);
         edb.got[i] = edb.last[i] = 0;
     }
-    if (kind == ED_RK_PROJECT && !v && (m & 0xFFFFFFu) == 0x524446u && (m >> 24) > 'F')
+    if (kind == ED_RK_PROJECT && !v && (m & 0xFFFFFFu) == 0x524446u && (m >> 24) > 'G')
         EDB_NO(ED_RESTORE, ED_E_REFUSED, ED_D_NEWER, "UPDATE THE FM-1 FIRST");
     if (kind == ED_RK_PRESETS ? m != UPR_MAGIC || edb.size[0] != sizeof upr || edb.size[1] || edb.size[2]
-                              : !v || edb.size[0] != EDB_RSZ[v] || (v < 15u && (edb.size[1] || edb.size[2])) ||
+                              : !v || edb.size[0] != EDB_RSZ[v] || (v < EDB_FDRF && (edb.size[1] || edb.size[2])) ||
                                     (edb.size[1] && edb.size[1] != sizeof(lk_bank_t)) ||
                                     (edb.size[2] && (edb.size[2] < ED_SZ_VARS_MIN || edb.size[2] > VAR_BYTES)))
         EDB_NO(ED_RESTORE, ED_E_REFUSED, ED_D_BAD_OBJECT, "NOT A HORTATOR OBJECT");

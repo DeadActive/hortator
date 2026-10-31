@@ -345,7 +345,8 @@ static int32_t knob_turn(uint32_t role, const param_desc_t *d, int32_t v, int32_
 /* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH, KNOB 3: its accent (a detent right ACC on, left off),
  * KNOB 4: its MICRO (-50 .. +50, spec 2026-10-31 §1), from the first detent (the press changed nothing). An edit is no
  * tap: the keys down let go toggle nothing. An off step's first edit turns it on (step_hold_on, as the hold itself:
- * KNOB 3 right at once = on accented). A held key outside LEN takes the turn and does nothing */
+ * KNOB 3 right at once = on accented). A held key outside LEN takes the turn and does nothing, as does any while the
+ * web editor restores (RESTORING: ui_locked) */
 static int step_edit(uint32_t knob, int32_t steps)
 {
     uint32_t k = ui.held, i;
@@ -355,7 +356,8 @@ static int step_edit(uint32_t knob, int32_t steps)
     for (i = 0; i < 16u; i++)                         /* edited: no key down is a tap any more */
         if (ui.step_t0[i])
             ui.step_t0[i] |= 2u;
-    if (ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))   /* outside LEN, or a Grids track */
+    if (ui.step_si[k] >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL) || ui_locked())   /* outside LEN, a Grids
+                                                     * track, a restore */
         return 1;
     s = &TSEL->step[ui.step_si[k]];
     step_hold_on(k);

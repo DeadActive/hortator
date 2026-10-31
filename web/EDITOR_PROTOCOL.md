@@ -52,6 +52,7 @@ push     F0 7D 48 54 <cmd> 7F <fields…> F7                   cmd 0x40..0x4F, o
 | pack | rest | pack7 of the data bytes: groups of up to 7 bytes, each preceded by one byte holding their top bits (bit j = bit 7 of byte j); upstream's `ed_unpack7` format. 256 bytes pack to 293. It runs to the end of the frame |
 | state | 17 | the state block (§3) |
 | step | 3 | `flags, cond, note` (§2.4) |
+| nudge | 1 | a step's NUDGE + 64: −50..+50 as 14..114 (minor 1, §2.4) |
 
 ## 2. Commands
 
@@ -60,7 +61,7 @@ the command needs.
 
 | cmd | Name | Cap | Request | Reply (rc 0) |
 | --- | --- | --- | --- | --- |
-| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"0.28.0"`), major u7 (1), minor u7 (0), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (76), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (128), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
+| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"0.28.0"`), major u7 (1), minor u7 (1), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (76), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (128), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
 | 2 | PAGES | LIVE | first u7 | total u7, first u7, list of {title str, scope u7, graph u7, ids 4 × u14} |
 | 3 | DESC | LIVE | scope u7, track u7, id u14, first u7 | scope u7, track u7, id u14, fmt u7, flags u7, min v14, max v14, def v14, label str, unit str, nnames u7, first u7, list of names str (first = 7F: list of order u7) |
 | 4 | GET | LIVE | scope u7, track u7, id u14, count u7 (1..) | scope u7, track u7, id u14, list of {value v14, text str, unit str} for ids id, id + 1, … |
@@ -70,8 +71,8 @@ the command needs.
 | 8 | WATCH | LIVE | on u7 (0 / 1) | on u7 |
 | 9 | NAMES | PRESETS | bank u7 (0..2), first u7 | bank u7, name str, total u7, first u7, list of {id u14, model u7, name str} |
 | 10 | PRESET_LOAD | PRESETS | track u7 (7F: selected), id u14 | track u7, id u14, model u7 |
-| 11 | STEPS_GET | PATTERNS | slot u7 (7F: loaded), var u7 (0..7), track u7 | slot u7, var u7, track u7, used u7, live u7, timing 4 × u7 (LEN DIV SWG SRC), 64 × step |
-| 12 | STEPS_SET | PATTERNS | slot u7 (7F: loaded), var u7, track u7, first u7, list of step (1..64 − first) | slot u7, var u7, track u7, first u7, count u7 |
+| 11 | STEPS_GET | PATTERNS | slot u7 (7F: loaded), var u7 (0..7), track u7 | slot u7, var u7, track u7, used u7, live u7, timing 4 × u7 (LEN DIV SWG SRC), 64 × step, then (NUDGE) 64 × nudge |
+| 12 | STEPS_SET | PATTERNS | slot u7 (7F: loaded), var u7, track u7, first u7, list of step (1..64 − first), then (NUDGE, optional) count × nudge | slot u7, var u7, track u7, first u7, count u7 |
 | 13 | LOCKS_GET | PATTERNS | slot u7 (7F: loaded), track u7, first u14 | slot u7, track u7, total u14, first u14, list of {step u7, param u7, kind u7, value v14} |
 | 14 | LOCK_EDIT | PATTERNS | op u7, track u7, step u7, param u7, value v14 | op u7, track u7, step u7, param u7, value v14 (as stored), count u14 (the track's LOCKs now) |
 | 15 | CUE | PATTERNS | kind u7 (0 slot, 1 variation), n u7 | kind u7, n u7, state |
@@ -91,7 +92,7 @@ Pushes (only while WATCH is on; seq `7F`; ignore push commands you do not know):
 | 0x43 | LOCKS_CHANGED | slot u7, track u7 (7F: several) | the live lock bank changed for a track (MOTION recording, locks set / cleared on the device, a switch) |
 
 Request argument bytes (for the device's per-command length check, upstream `ed_args_ok`): INFO 0, PAGES 1, DESC 5,
-GET 5, SET 6, DUMP 1, SELECT 1, WATCH 1, NAMES 2, PRESET_LOAD 3, STEPS_GET 3, STEPS_SET 5 + 3 × count, LOCKS_GET 4,
+GET 5, SET 6, DUMP 1, SELECT 1, WATCH 1, NAMES 2, PRESET_LOAD 3, STEPS_GET 3, STEPS_SET 5 + 3 × count (or, NUDGE, 5 + 4 × count), LOCKS_GET 4,
 LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 29, DATA 4 + the pack, COMMIT / ABORT 1.
 
 ### 2.1 INFO and versions
@@ -100,10 +101,13 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
   version. `firmware` is the version as `VERSION.txt` holds it, without the `DRUM-` prefix.
 - **caps** (u14): 0x01 LIVE (PAGES DESC GET SET TEXT DUMP SELECT WATCH; pushes CHANGED STATE), 0x02 PRESETS (NAMES
   PRESET_LOAD), 0x04 PATTERNS (STEPS_GET STEPS_SET LOCKS_GET LOCK_EDIT CUE SAVE; pushes STEPS_CHANGED LOCKS_CHANGED),
-  0x08 BACKUP (BACKUP_LIST BACKUP_GET), 0x10 RESTORE. 0.28.0 has all five (0x1F). The page hides what a missing bit
-  covers.
+  0x08 BACKUP (BACKUP_LIST BACKUP_GET), 0x10 RESTORE, 0x20 NUDGE (minor 1: STEPS_GET's reply ends with each step's
+  NUDGE, STEPS_SET may carry it; §2.4). 0.28.0 has all six (0x3F); an earlier 0.28 build answered minor 0, caps 0x1F.
+  The page hides what a missing bit covers (no NUDGE: it never sends the field and shows no NUDGE).
 - **minor** grows with additions an older page can ignore (commands, push types, flag bits, fields appended at a
-  reply's end). A **major** change breaks the page: it refuses another major (§7).
+  reply's end, optional fields at a request's end). A **major** change breaks the page: it refuses another major (§7).
+  Minor 1 (NUDGE): an older page reads STEPS_GET's 64 steps and stops there; its STEPS_SET without the field leaves
+  each written step's NUDGE as the device has it (§2.4), so it never clears one by accident.
 - INFO also clears the device's memory of the last (cmd, seq) (§4 rule 3): every connection starts with INFO.
 
 ### 2.2 Knobs: PAGES, DESC, GET, SET, TEXT, DUMP, SELECT
@@ -116,7 +120,9 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
   GET, SET's reply, DUMP and CHANGED all report MOTION's base and, on a locked step, the value under the LOCK.
 - **PAGES** lists, in the device's order, the pages of its page table the editor may show, resolved for the
   selected track **now**: the pages of scope track or global except the PROJECT / COPY (slots), MOTION and SONG pages
-  and the pages holding a knob past G_COUNT (TOOLS, GLOBAL 3/3). A column is a parameter id or `3FFF` (empty). SOUND
+  and the pages holding a knob past G_COUNT (TOOLS, GLOBAL 3/7: MUTE, METRO, THRU, QUANT — device settings, not
+  project data). The GLO pages DLY (two), REVERB (TYPE ROOM / SPRNG / HALL, SIZE, DAMP) and CHORUS (RATE, DEPTH) are
+  global pages like GLOBAL and SYSTEM (graphs 17..19: the device's drawings of the echoes, the tail, the sweep). A column is a parameter id or `3FFF` (empty). SOUND
   columns are the selected track's SOUND list (MODEL, P_E0..P_E3, the P_E4..P_E7 whose label does not start with
   `-`, LEVEL, PAN, NOTE, CHOKE, PRIO), a SOUND page past the list's end left out; GRIDS shows G_GLEN1..3 where it has
   G_GX / G_GY / G_GCHAOS while G_GMODE is EUCLID; the LFO DEST page becomes four pages "DEST 1".."DEST 4" (columns:
@@ -170,6 +176,13 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
   (0 = 100 %, 1..20 = 0..95 %, 21 1-SHOT, 22..56 A/B (1/2, 2/2, 1/3 … 8/8), 57 FILL, 58 !FILL; `device_data.json`
   `conds` gives the knob's order and names); `note` = the step's NOTE − C4 + 60 (60 = C4: a drum's transpose, ACID's
   note).
+- **nudge** (NUDGE, minor 1, caps 0x20; `step_t.micro`): the step's hit moved by micro / 100 of the step, −50 (halfway
+  to the previous step) .. +50 (halfway to the next), sent as micro + 64; the device shows it as `+25`, `-10`, `0`
+  (STEP, a step held, KNOB 4). It is part of the step everywhere (projects, variations, copies) but travels after the
+  steps, so the 3-byte step stays as protocol 1.0 had it: STEPS_GET's reply ends with 64 nudge bytes; STEPS_SET takes
+  either `5 + 3 × count` bytes (no NUDGE: each written step keeps the device's NUDGE, except a step written empty —
+  flags, cond 0, note 60 — which gets 0, as a tap turning a step off leaves it) or `5 + 4 × count` (the steps, then
+  count nudge bytes, clamped to ±50). A firmware without NUDGE (minor 0) answers the longer form rc 1 detail 44.
 - **STEPS_GET** reads what the device would play: `live` 1 = the loaded slot's playing variation (the live steps,
   unsaved edits included); other variations of the loaded slot and other slots come from the slot's RAM image (equal
   to flash unless the slot is marked unsaved). `used` 0 = a variation never used (steps all zero, timing 0 0 0 0);
@@ -215,7 +228,7 @@ Objects, read from flash — never RAM: a backup is what the device loads after 
 | obj | Object | Size | Format (little endian; §6) |
 | --- | --- | --- | --- |
 | 0 | user presets | 1,284 | "UPR1" |
-| 1–4 | project record A–D | 3,840 ("FDRF"); an older record its own size (§6) | `project_t` |
+| 1–4 | project record A–D | 3,840 ("FDRG"; an "FDRF" one, saved before NUDGE, the same size); an older record its own size (§6) | `project_t` |
 | 5–8 | lock bank A–D | 3,208 | "LKB1" `lk_bank_t` |
 | 9–12 | variations A–D | 8 + used: 22..3,584 | "VAR1" `var_bank_t` |
 
@@ -223,7 +236,7 @@ Objects, read from flash — never RAM: a backup is what the device loads after 
   lk_n / var_len 0), no user bank saved), size, crc (zlib CRC-32 of the bytes: the storage header's), seq (the
   storage sequence of the copy read), flags 0x01 UNSAVED (the slot or the user bank has changes in RAM that flash
   lacks: the page says "A has unsaved changes — SAVE on the FM-1 to include them"), 0x02 LOST (the record links an
-  object no flash copy holds), 0x04 OLD (a record in an older format; the device converts it at load). A lock bank
+  object no flash copy holds), 0x04 OLD (a record in an older format, FDRF included; the device converts it at load). A lock bank
   and variations are the copies the record links (either A/B copy), as the device loads them.
 - **BACKUP_GET** reads 256 bytes (the last piece: what is left) at `offset` (a multiple of 256, below size) of an
   object whose seq came from BACKUP_LIST. rc 5 detail 33: it changed since (another seq: a SAVE in between): LIST
@@ -242,13 +255,16 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
 | 3 ABORT | — | — |
 
 - **BEGIN**: playing: rc 3 detail 42, nothing changes. Presets: part 0 = 1,284 with magic "UPR1", parts 1 / 2 size 0.
-  Project: part 0 = 3,840 with magic "FDRF", or an older record's magic with its size (§6; then parts 1 / 2 size 0);
-  part 1 = 0 or 3,208; part 2 = 0 or 22..3,584. A record magic "FDR?" newer than "FDRF": rc 2 detail 23 "UPDATE THE
-  FM-1 FIRST"; anything else wrong: rc 2 detail 24. A project with a variations part while the park buffer holds
+  Project: part 0 = 3,840 with magic "FDRG" or "FDRF" (a file made before NUDGE: it has parts 1 / 2 too), or an
+  older record's magic with its size (§6; then parts 1 / 2 size 0); part 1 = 0 or 3,208; part 2 = 0 or 22..3,584. A
+  record magic "FDR?" newer than "FDRG": rc 2 detail 23 "UPDATE THE FM-1 FIRST" (so an FDRG file sent to a device
+  that predates NUDGE is refused by its magic, nothing staged); anything else wrong: rc 2 detail 24. A project with a variations part while the park buffer holds
   another slot c's unsaved variations: rc 2 detail 8 + c "SAVE c FIRST" (as the cue keys). A BEGIN while a restore
   runs drops that one first.
 - From BEGIN to its end the device is **RESTORING** (state flag 0x01): it shows "RESTORING", refuses its own PLAY
-  (start), cue keys, LOAD, SAVE, PASTE, NAME and preset save / delete (showing "RESTORING"), and answers every editor
+  (start), cue keys, LOAD, SAVE, PASTE, NAME, preset save / delete, the TOOLS screen's pastes, DUPLICATE and CLEAR and
+  a held step's KNOB 1–4 (PROB RATCH ACC NUDGE) (showing "RESTORING"; the TOOLS copies still work), records nothing
+  live (QUANT's recording), and answers every editor
   write (SET, PRESET_LOAD, STEPS_SET, LOCK_EDIT, CUE, SAVE) with rc 6 detail 40; reads go on. A queued cue is
   cancelled. Data goes straight into the RAM homes the device has (record → `proj_slot[s]`, lock bank →
   `lk_slot[s]`, variations → the park buffer `var_buf[var_play ^ 1]`, presets → `upr`): the target's unsaved RAM
@@ -258,8 +274,8 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
   A wrong length: rc 1 detail 44. DATA / COMMIT / ABORT with no restore running: rc 1 detail 41.
 - **COMMIT** (allow 2 s): every part complete (else rc 2 detail 27); each part's CRC-32 as BEGIN said (else rc 2
   detail 25, the restore dropped); the objects pass the device's boot checks (else rc 2 detail 26, dropped): presets
-  "UPR1", used 0 / 1, model < nmodels (knobs clamped to the model's ranges); a project `proj_ok` (FDRF, size, sum) or
-  a known older magic + size + sum, `lk_valid` with lk_n = its count and lk_link = its link, `var_valid` with
+  "UPR1", used 0 / 1, model < nmodels (knobs clamped to the model's ranges); a project `proj_ok` (FDRG, size, sum) or
+  a known older magic + size + sum (FDRF as FDRG for its links), `lk_valid` with lk_n = its count and lk_link = its link, `var_valid` with
   var_len = its length and var_link = its link. Then the device **re-seals** the project for the target slot (the
   lock bank's and the variations' slot byte, the record's lk_link / var_link and sum), so a project file restores
   into any slot, and writes in the save order — variations, lock bank, then the record (the commit: with the A/B
@@ -271,7 +287,11 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
 - **ABORT**, an idle restore (3 s without any editor request), update traffic (§4 rule 4): nothing is written, the
   RAM homes are reloaded from flash (`proj_fetch`, `preset_user_boot`), RESTORING ends.
 - An older-format record (FDR1..FDRE carry their motion inside) restores as part 0 alone, written as it is and
-  converted at load as the device always does.
+  converted at load as the device always does. An FDRF record restores with its lock bank and variations, re-sealed
+  for the target slot with its magic kept, and is converted at load as flash's FDRF records are (KEYF, SRR and the
+  INSERT out of steps 0..6's spare bytes, every NUDGE 0; BACKUP_LIST flags it OLD until the slot is saved again).
+- Staging bound: every record format is at most `sizeof(project_t)` (3,840; `editor_backup.c` asserts it), a lock
+  bank is `lk_bank_t`, variations at most `var_bank_t` (3,584): BEGIN accepts no other size and DATA writes below it.
 - "Copy to…" another slot = BACKUP_GET the source's three objects + RESTORE them into the target.
 
 ## 3. The state block (17 bytes)
@@ -400,7 +420,7 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
 
 ```json
 { …envelope, "slot": "A",
-  "summary": { "name": "TECHNO 1", "models": ["BDTRX", …], "variations": [1, 2, 3, 5], "locks": 11, "format": "FDRF", "unsaved": false },
+  "summary": { "name": "TECHNO 1", "models": ["BDTRX", …], "variations": [1, 2, 3, 5], "locks": 11, "format": "FDRG", "unsaved": false },
   "objects": { "record":     { "size": 3840, "crc32": "1a2b3c4d", "data": "<base64>" },
                "locks":      { "size": 3208, "crc32": "…", "data": "…" } | null,
                "variations": { "size": 310,  "crc32": "…", "data": "…" } | null } }
@@ -411,6 +431,10 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
   the file holds flash's version, not the device's unsaved edits.
 - Projects reference user presets by slot number only, so restoring presets together with projects keeps names
   matching.
+- Files keep `version` 1 across NUDGE: the record inside says its format. A file made before NUDGE (its record
+  "FDRF") restores into a device with NUDGE (converted at load, every NUDGE 0) and its variations can be copied (the
+  page reads FDRF as the device converts it). A file made now (record "FDRG") sent to an FM-1 without NUDGE is refused
+  by that device at RESTORE BEGIN (rc 2 detail 23 "UPDATE THE FM-1 FIRST"), nothing written.
 
 **hortator-backup** — "Back up all":
 
@@ -426,26 +450,30 @@ firmware through `tests/editor_ids.c` → `device_data.json` → `test_editor.mj
 
 - **User presets** (1,284): u32 magic "UPR1" (0x31525055), then 128 slots × 10 bytes: used u8 (1 = used; an empty
   slot is 10 zero bytes), model u8, knobs 8 × i8 (P_E0..P_E7).
-- **Project record "FDRF"** (3,840): magic u32 0x46524446 @0; size u32 = 3840 @4; g 41 × i16 @8 (G_BPM..G_RTYPE); sel
+- **Project record "FDRG"** (3,840): magic u32 0x47524446 @0; size u32 = 3840 @4; g 41 × i16 @8 (G_BPM..G_RTYPE); sel
   u8 @90; rsv[3] @91 (rsv[0] = G_DMODE); 8 tracks × 394 B @94, each: p 69 × i16 (P_MODEL..P_LS4DEPTH), then 64 steps
-  × 4 B {flags (bit 0 on, 1 acc, 2 slide, 3 tie, 4..5 ratch), cond u8, nt i8 (NOTE − C4), rsv u8: in steps 0..6
-  P_RKEY + j as (value − its power-on value) mod 256 — RKEY 0, SRR 0, ITYPE 0, IA 64, IB 96, IC 96, IMIX 127}; lk_n
-  u16 @3246; lk_link u32 @3248 (FNV-1a of the 3,208-byte lock bank, | 1); var_link u32 @3252 (FNV-1a of the
-  variations' 8 + used bytes, | 1); var_len u16 @3256; rsv_mo 504 B @3258 (0); song 36 B @3762; name 12 B @3798
+  × 4 B {flags (bit 0 on, 1 acc, 2 slide, 3 tie, 4..5 ratch), cond u8, nt i8 (NOTE − C4), micro i8 (NUDGE, −50..+50)};
+  lk_n u16 @3246; lk_link u32 @3248 (FNV-1a of the 3,208-byte lock bank, | 1); var_link u32 @3252 (FNV-1a of the
+  variations' 8 + used bytes, | 1); var_len u16 @3256; xp 8 × 7 B @3258 (track k's P_RKEY + j as (value − its
+  power-on value) mod 256 — RKEY 0, SRR 0, ITYPE 0, IA 64, IB 96, IC 96, IMIX 127); rsv_mo 448 B @3314 (0); song 36 B @3762; name 12 B @3798
   (characters of `" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/#+"`, 0-padded); pre 8 × u16 @3810 (a factory preset's uid,
   0x8000 | a user slot, 0xFFFF none); pre_ed 8 × u8 @3826; sum u32 @3836 = FNV-1a (32 bit, offset basis 2166136261,
   prime 16777619) of bytes 0..3835 (padding bytes 0). Variation 1 is the record's steps with its tracks' LEN DIV SWG
   SRC.
+- **"FDRF"** (3,840, 0x46524446; saved by every firmware with the lock bank, up to NUDGE): FDRG's layout, but each step's last byte is
+  0 except in steps 0..6, which hold xp's 7 bytes of the track (P_RKEY + j), and @3258.. is reserved (0); no NUDGE.
+  It links a lock bank and variations as FDRG does. Converted at load: those bytes into xp, every NUDGE 0.
 - **Older records** the firmware converts at load (magic → size): FDR1 1564, FDR2 2624, FDR3 2656, FDR4 2912, FDR5
-  3024, FDR6 3024, FDR7 3028, FDR8 3544, FDR9 3592, FDRA 3672, FDRB 3672, FDRC 3688, FDRD 3712, FDRE 3840; each has
-  its size at @4 and ends with the FNV-1a sum of the bytes before it.
+  3024, FDR6 3024, FDR7 3028, FDR8 3544, FDR9 3592, FDRA 3672, FDRB 3672, FDRC 3688, FDRD 3712, FDRE 3840, FDRF 3840;
+  each has its size at @4 and ends with the FNV-1a sum of the bytes before it.
 - **Lock bank "LKB1"** (3,208): magic u32 0x31424B4C @0; slot u8 @4; on u8 @5 (MOTION PLAY bits per track); count u16
   @6; key 1024 × u16 @8 (track << 13 | step << 7 | param, ascending by (key, lock)); val 1024 × i8 @2056 (−64..127);
   lock bits 128 B @3080 (bit i: event i is a LOCK, else MOTION). Everything past `count` is 0.
 - **Variations "VAR1"** (8 + used): magic u32 0x31524156 @0; slot u8 @4; rsv u8 @5; used u16 @6; then variations 2..8
   in order, each n u16 then n bytes (n 0 = never used): per track LEN DIV SWG SRC (4 B) and a 64-bit step map (8 B,
-  bit i = step i set: any field not 0), then 3 B per set step in track and step order: flags, cond, nt (i8).
-  n = 96 + 3 × the set steps.
+  bit i = step i set: any field not 0, NUDGE included), then per set step in track and step order: flags (bit 6: a
+  NUDGE byte follows), cond, nt (i8), and micro (i8) when bit 6 is set (only for a NUDGE ≠ 0; banks from before
+  never set it). n = 96 + 3 × the set steps + the nudged ones.
 
 ## 7. Connecting, and the devices the page refuses
 

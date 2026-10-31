@@ -314,13 +314,15 @@ static void preset_load_cmd(void)
 }
 
 /* ---- STEPS_GET */
-static int steps_are(const step_t *st, const uint8_t *w)   /* 64 wire steps = st, as the reply encodes them */
+static int steps_are(const step_t *st, const uint8_t *w)   /* 64 wire steps = st, as the reply encodes them; then their
+                                                           * NUDGE (micro + 64) */
 {
     uint32_t i;
     for (i = 0; i < NSTEP; i++, w += 3) {
         uint32_t f = (uint32_t)st[i].on | (uint32_t)st[i].acc << 1 | (uint32_t)st[i].slide << 2 | (uint32_t)st[i].tie << 3 |
                      (uint32_t)st[i].rat << 4;
-        if (w[0] != f || w[1] != st[i].cond || w[2] != (uint32_t)(st[i].nt + 60))
+        if (w[0] != f || w[1] != st[i].cond || w[2] != (uint32_t)(st[i].nt + 60) ||
+            w[3u * (NSTEP - i) + i] != (uint32_t)(st[i].micro + 64))
             return 0;
     }
     return 1;
@@ -337,11 +339,13 @@ static void steps_get(void)
     trk[1].step[5].rat = 2;
     trk[1].step[5].cond = 7;
     trk[1].step[5].nt = -3;
+    trk[1].step[5].micro = -41;
     trk[1].p[P_SLEN] = 12;
     trk[1].p[P_SDIV] = 3;
     OK(RQ(ED_STEPS_GET, ED_NONE, 0, 1) == ED_OK && R[7] == 0u && R[8] == 0u && R[9] == 1u && R[10] == 1u && R[11] == 1u);
     OK(R[12] == 12u && R[13] == 3u && R[14] == (uint32_t)trk[1].p[P_SSWING] && R[15] == (uint32_t)trk[1].p[P_SRC]);
-    OK(R[16 + 15] == 0x23u && R[17 + 15] == 7u && R[18 + 15] == 57u && steps_are(trk[1].step, R + 16) && RL == 16u + 192u + 1u);
+    OK(R[16 + 15] == 0x23u && R[17 + 15] == 7u && R[18 + 15] == 57u && steps_are(trk[1].step, R + 16) && R[16 + 192 + 5] == 23u &&
+       RL == 16u + 192u + 64u + 1u);
     OK(RQ(ED_STEPS_GET, 1, 0, 1) == ED_OK && R[7] == 1u && R[10] == 1u && R[11] == 0u &&   /* B: its record (flash's) */
        steps_are(proj_slot[1].t[1].step, R + 16) && R[16 + 3] == 1u && R[16] == 0u);
     OK(RQ(ED_STEPS_GET, 0, 3, 0) == ED_OK && R[10] == 0u && R[11] == 0u && !R[12] && !R[13] && !R[14] && !R[15]);
@@ -361,6 +365,8 @@ static void steps_get(void)
                 trk[k].step[i].slide = (i >> 2) & 1u;
                 trk[k].step[i].cond = (uint8_t)(i % 59u);
                 trk[k].step[i].nt = (int8_t)((int32_t)i - 30);
+                trk[k].step[i].micro = (int8_t)(i % 3u ? (int32_t)((i * 7u + k) % 101u) - 50 : 0);   /* (varpack.c: bit 6
+                                                                                                * and a byte, or none) */
             } else {
                 memset(&trk[k].step[i], 0, sizeof(step_t));
             }
@@ -406,6 +412,19 @@ static void steps_set_live(void)
        trk[2].step[10].cond == COND_MAX && trk[2].step[10].nt == NT_MAX);
     OK(trk[2].step[11].on && !trk[2].step[11].acc && trk[2].step[11].cond == 5u && trk[2].step[11].nt == -12);
     OK(slot_dirty(0) && host_nflog == 0u);             /* (live: the slot's unsaved mark until SAVE) */
+    OK(trk[2].step[10].micro == 0 && trk[2].step[11].micro == 0);
+    {                                                 /* NUDGE (minor 1): count x micro + 64 after the steps, clamped */
+        static const uint8_t nud[] = {ED_NONE, 0, 2, 10, 3, 0x01, 0, 60, 0x01, 0, 60, 0x01, 0, 60, 127, 0, 44};
+        static const uint8_t keep[] = {ED_NONE, 0, 2, 10, 3, 0x03, 0, 60, 0x00, 0, 60, 0x01, 0, 60};
+        OK(rq(ED_STEPS_SET, nud, sizeof nud) == ED_OK && R[11] == 3u && trk[2].step[10].micro == MICRO_MAX &&
+           trk[2].step[11].micro == -MICRO_MAX && trk[2].step[12].micro == -20);
+        OK(rq(ED_STEPS_SET, keep, sizeof keep) == ED_OK && trk[2].step[10].micro == MICRO_MAX && trk[2].step[10].acc &&
+           trk[2].step[11].micro == 0 && !trk[2].step[11].on && trk[2].step[12].micro == -20);   /* (none sent: kept; a step
+                                                                                         * written empty: 0) */
+        OK(refused(rq(ED_STEPS_SET, nud, sizeof nud - 1u), ED_E_BAD, ED_D_LENGTH) && trk[2].step[12].micro == -20);
+        OK(RQ(ED_STEPS_GET, ED_NONE, 0, 2) == ED_OK && R[16 + 192 + 10] == 114u && R[16 + 192 + 11] == 64u &&
+           R[16 + 192 + 12] == 44u && steps_are(trk[2].step, R + 16));
+    }
     OK(steps_set(0, 0, 2, 0, 1, two + 3) == ED_OK && trk[2].step[0].on);   /* the loaded slot named */
     OK(refused(steps_set(1, 0, 2, 0, 1, two), ED_E_STALE, ED_D_CUE_FIRST) && !trk[2].step[0].acc);   /* another slot */
     OK(refused(rq(ED_STEPS_SET, (const uint8_t[]){ED_NONE, 0, 2, 0, 2, 1, 0, 60}, 8), ED_E_BAD, ED_D_LENGTH));
@@ -421,8 +440,9 @@ static void steps_set_live(void)
     fresh();                                          /* the power-on kit: its live steps */
     OK(steps_set(ED_NONE, 0, 1, 4, 1, two + 3) == ED_OK && trk[1].step[4].on);
     OK(refused(steps_set(ED_NONE, 1, 1, 4, 1, two + 3), ED_E_REFUSED, ED_D_NO_SLOT));
-    check("STEPS_SET: the playing variation's live steps, values clamped, the slot marked unsaved, no flash; another "
-          "slot (CUE FIRST), bad lengths / ranges, a song, RESTORING refused", (int)ok);
+    check("STEPS_SET: the playing variation's live steps, values clamped, the slot marked unsaved, no flash; NUDGE sent "
+          "(clamped) or kept (a step written empty: 0); another slot (CUE FIRST), bad lengths / ranges, a song, RESTORING "
+          "refused", (int)ok);
 }
 static void steps_set_switch_stopped(void)
 {

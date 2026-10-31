@@ -456,11 +456,11 @@ static void t_restore_refusals(void)
     ok &= rs_begin(2, 0, &o) == ED_E_BAD && rc_detail == ED_D_RANGE;
     ok &= rs_begin(ED_RK_PROJECT, 4, &o) == ED_E_BAD && rc_detail == ED_D_RANGE;
     ok &= rs_begin(ED_RK_PRESETS, 1, &o) == ED_E_BAD && rc_detail == ED_D_RANGE;
-    ok &= rs_begin(ED_RK_PRESETS, 0, &o) == ED_E_REFUSED && rc_detail == ED_D_BAD_OBJECT;   /* (an FDRF magic) */
+    ok &= rs_begin(ED_RK_PRESETS, 0, &o) == ED_E_REFUSED && rc_detail == ED_D_BAD_OBJECT;   /* (a project's magic) */
     memcpy(bad, B[0], sizeof bad);
     x = o;
     x.d[0] = bad;
-    memcpy(bad, "FDRG", 4);
+    memcpy(bad, "FDRH", 4);
     ok &= rs_begin(ED_RK_PROJECT, 1, &x) == ED_E_REFUSED && rc_detail == ED_D_NEWER;
     memcpy(bad, "FUN3", 4);
     ok &= rs_begin(ED_RK_PROJECT, 1, &x) == ED_E_REFUSED && rc_detail == ED_D_BAD_OBJECT;
@@ -615,6 +615,58 @@ static int keys_refused(const uint8_t *keep, const project_t *staged)
           !memcmp(&proj_slot[1], staged, sizeof *staged) && str_eq(ui.msg, "RESTORING");
     return (int)ok;
 }
+/* the live steps edited on the device while a restore runs (seqtools: the TOOLS screen, a held step's KNOB 1-4, live
+ * recording with QUANT): refused (RESTORING) / nothing recorded; the copies still work. edit 1: no restore, they edit */
+static step_t tl_keep[NTRK][NSTEP];
+static int tools_edit(int edit)
+{
+    uint32_t ok = 1, k, s = song.sel;
+    for (k = 0; k < NTRK; k++)
+        memcpy(tl_keep[k], trk[k].step, sizeof tl_keep[k]);
+    memset(&tl, 0, sizeof tl);
+    ui.msg[0] = 0;
+    ui.confirm = 0;
+    ui.bank = 0;
+    trk[s].p[P_SLEN] = 16;
+    trk[s].p[P_SRC] = 0;
+    trk[s].step[1].on = 1;
+    trk[s].step[1].micro = 9;
+    memcpy(tl_keep[s], trk[s].step, sizeof tl_keep[s]);
+    fm1_in.notes = 1u << TL_K_CPSTEP;                   /* COPY STEP + step 2, COPY PAGE: the buffers (allowed) */
+    tl_keys(1u << STEP_KEY[1]);
+    fm1_in.notes = 0;
+    tl_keys(1u << TL_K_CPPAGE);
+    ok &= tl.st_ok && tl.st.micro == 9 && tl.cn == 16u;
+    fm1_in.notes = 1u << TL_K_PSTEP;                    /* PASTE STEP + step 6, REPLACE, FILL, DUPLICATE, CLEAR */
+    tl_keys(1u << STEP_KEY[5]);
+    fm1_in.notes = 0;
+    ok &= (trk[s].step[5].micro == 9) == edit;
+    tl_keys(1u << TL_K_REPL | 1u << TL_K_FILL | 1u << TL_K_DUP);
+    ok &= !ui.confirm || edit;
+    ui.confirm = 0;
+    tl_keys(1u << TL_K_CLEAR);
+    ok &= edit ? ui.confirm == 1u : !ui.confirm && str_eq(ui.msg, "RESTORING");
+    ui.confirm = 0;
+    ui.held = 2;                                        /* step 3 held, KNOB 4 (NUDGE) turned */
+    ui.step_t0[2] = 1;
+    ui.step_si[2] = 2;
+    ok &= step_edit(3u, 4) == 1 && (trk[s].step[2].micro != 0) == edit;
+    ui.step_t0[2] = 0;
+    song.rec = (uint8_t)(1u << s);                       /* armed, playing: a hit (QUANT's live record) */
+    song.playing = 1;
+    memset(trk[s].step, 0, sizeof trk[s].step);
+    memcpy(tl_keep[s], trk[s].step, sizeof tl_keep[s]);
+    input_hit(&trk[s], 100u);
+    ok &= (memcmp(trk[s].step, tl_keep[s], sizeof tl_keep[s]) != 0) == edit;   /* (recorded: a step on) */
+    song.playing = 0;
+    song.rec = 0;
+    if (edit)
+        ok &= trk[s].p[P_SLEN] == 32;
+    else
+        for (k = 0; k < NTRK; k++)
+            ok &= !memcmp(trk[k].step, tl_keep[k], sizeof tl_keep[k]) && trk[k].p[P_SLEN] == (k == s ? 16 : trk[k].p[P_SLEN]);
+    return (int)ok;
+}
 static int keys_free(void)
 {
     transport_req = 0;
@@ -645,6 +697,15 @@ static void t_restoring_lock(void)
     ok &= rs_op(ED_RS_ABORT) == ED_OK && keys_free();
     check("RESTORING: the device's PLAY, cue keys, LOAD, SAVE, PASTE, NAME, preset save / delete refused with its "
           "message, nothing touched; ABORT releases them", (int)ok);
+
+    transport_req = 0;
+    ok = restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK && ed_restoring();
+    staged = proj_slot[1];
+    ok &= tools_edit(0) && ed_restoring() && !memcmp(&proj_slot[1], &staged, sizeof staged) && same_flash(keep);
+    ok &= rs_op(ED_RS_ABORT) == ED_OK && tools_edit(1);
+    transport_req = 0;
+    check("RESTORING: the TOOLS screen's pastes, DUPLICATE and CLEAR, a held step's KNOB 1-4 refused (RESTORING), live "
+          "recording records nothing, the copies work; after the restore they edit again", (int)ok);
 
     transport_req = 0;
     ok = restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK;
@@ -814,6 +875,48 @@ static void t_old_record(void)
     check("RESTORE an older record (FDRE): written as it is, listed OLD, converted at load as always", (int)ok);
 }
 
+/* an FDRF project (a file the editor made before NUDGE: the record links its lock bank and variations, steps 0..6's
+ * spare bytes hold KEYF, SRR and the INSERT) restores into a FDRG device: written as it is, OLD, converted at load as
+ * flash's FDRF records are (every NUDGE 0, the parameters kept, its locks and variations linked) */
+static void t_fdrf_record(void)
+{
+    static project_t vf;
+    static uint8_t F[3][4096];
+    robj_t o;
+    uint32_t ok, k, i;
+    fresh();
+    trk[1].p[P_SRR] = 40;
+    trk[2].p[P_IMIX] = 10;
+    trk[3].p[P_ITYPE] = 2;
+    make_project(0, 5);
+    o = backup_project(0, F);
+    vf = *(const project_t *)F[0];
+    ok = vf.magic == PROJ_MAGIC && vf.lk_n && vf.var_len;
+    vf.magic = PROJ_MAGIC_VF;                          /* as the editor before NUDGE read it from 0.27.x / 0.28 */
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++)
+            vf.t[k].step[i].rsv = i < PROJ_XP ? vf.xp[k][i] : 0u;
+    memset(vf.xp, 0, sizeof vf.xp);
+    vf.sum = proj_sum(&vf);
+    o.d[0] = (const uint8_t *)&vf;
+    o.crc[0] = st_crc32(&vf, sizeof vf);
+    ok &= restore(ED_RK_PROJECT, 3, &o, 999, 1) == ED_OK && list() == 0 && L[4].present && (L[4].flags & ED_BF_OLD) &&
+          L[8].present && L[12].present && !(L[4].flags & ED_BF_LOST);
+    power_cycle();
+    project_load(3);
+    ok &= str_eq(ui.msg, "LOADED") && mo.b.count == vf.lk_n && trk[1].p[P_SRR] == 40 && trk[2].p[P_IMIX] == 10 &&
+          trk[3].p[P_ITYPE] == 2;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++)
+            ok &= trk[k].step[i].micro == 0 && trk[k].step[i].on == vf.t[k].step[i].on;
+    ok &= cue_var(2) == 0 && var_cur == 2u;            /* its variation 3 */
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++)
+            ok &= trk[k].step[i].on == VS[k][i].on;
+    check("RESTORE an FDRF project (a file from the editor before NUDGE) with its lock bank and variations: written as "
+          "it is, listed OLD, converted at load (NUDGE 0, KEYF / SRR / INSERT kept, locks and variations linked)", (int)ok);
+}
+
 /* the main-loop cost of a full backup, worst case (4 projects, every variation used, full lock banks): host
  * instructions (drum_host.h instr_now) of BACKUP_LIST and of each BACKUP_GET piece, the page's order. A piece after
  * an object's first reuses what the first worked out (edb_get's cache, checked by the storage heads): it must cost a
@@ -895,6 +998,7 @@ int main(int argc, char **argv)
     t_power_cut();
     t_presets();
     t_old_record();
+    t_fdrf_record();
     check("flash: no erase or program outside the map", host_fl_stray == 0);
     printf(fails ? "editor_backup_test: %d FAILED\n" : "editor_backup_test: all passed\n", fails);
     return fails ? 1 : 0;

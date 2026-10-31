@@ -237,10 +237,10 @@ static void t_info(void)
     v[14] = rd_b(&r);
     for (i = 0; i < ED_STATE_N; i++)
         rd_b(&r);
-    check("INFO: HORTATOR, the firmware version without DRUM-, protocol 1.0, LIVE only (no backup / pattern files), the "
+    check("INFO: HORTATOR, the firmware version without DRUM-, protocol 1.1, LIVE only (no backup / pattern files), the "
           "sizes, the state block",
           rc_is(f, 0, 0) && ends_ok(f, &r) && !strcmp(magic, "HORTATOR") && !strcmp(fw, "DEV") && v[0] == 1u &&
-              v[1] == 0u && v[2] == ED_CAP_LIVE && v[3] == 8u && v[4] == 64u && v[5] == P_COUNT && v[6] == G_COUNT &&
+              v[1] == ED_PROTO_MINOR && ED_PROTO_MINOR == 1u && v[2] == ED_CAP_LIVE && v[3] == 8u && v[4] == 64u && v[5] == P_COUNT && v[6] == G_COUNT &&
               v[7] == NMODELS && v[8] == 151u && v[9] == 128u && v[10] == 3u && v[11] == 4u && v[12] == 8u &&
               v[13] == 640u && v[14] == 0u && f->b[f->n - 1u - ED_STATE_N + 1u] == ED_NONE &&
               f->b[f->n - 1u - ED_STATE_N + 5u] == song.sel);

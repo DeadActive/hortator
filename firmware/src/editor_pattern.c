@@ -11,7 +11,10 @@
  * Switch-to-edit (spec owner decision 3): STEPS_SET of a variation of the loaded slot that is not playing presses that
  * variation's key (cue_var): stopped, the switch happens at once and the edit applies (rc 0); playing, the switch is
  * queued as the key queues it (or already is) and the edit is refused with rc 5 detail 32: the page sends it again
- * once the STATE push shows the variation playing. */
+ * once the STATE push shows the variation playing.
+ * NUDGE (minor 1, ED_CAP_NUDGE): STEPS_GET's reply ends with the 64 steps' micro (micro + 64); STEPS_SET takes them
+ * after its steps (count x 1) or not (minor 0's request): then each written step keeps the device's micro, unless it is
+ * written empty (as a tap leaves a step turned off: micro 0 too). */
 #define ED_HAS_PATTERN 1
 
 static struct { uint16_t st[NTRK], lk[NTRK]; } edp_sh;   /* each track's steps / locks as the page last saw them */
@@ -132,6 +135,18 @@ static const var_bank_t *edp_bank(uint32_t s)
     return proj_var_flash(s);
 }
 
+/* a variation entry's set steps from q on: n of them (3 B, + 1 with flags bit 6: the micro; varpack.c) -> the byte
+ * after them, 0 past end (malformed) */
+static uint32_t edp_var_skip(const var_bank_t *b, uint32_t q, uint32_t n, uint32_t end)
+{
+    for (; n; n--) {
+        if (q + 3u > end)
+            return 0;
+        q += 3u + ((b->d[q] >> 6) & 1u);
+    }
+    return q <= end ? q : 0u;
+}
+
 /* NAMES: bank, first */
 static int edp_names(uint32_t cmd, const uint8_t *a)
 {
@@ -184,11 +199,12 @@ static int edp_preset_load(uint32_t cmd, const uint8_t *a)
     return 1;
 }
 
-/* STEPS_GET: slot (7F: loaded), var, track — what the device would play */
+/* STEPS_GET: slot (7F: loaded), var, track — what the device would play; then the steps' NUDGE (minor 1) */
 static int edp_steps_get(uint32_t cmd, const uint8_t *a)
 {
     uint32_t v = a[1], k = a[2], i, j, used = 1;
     int32_t ld = proj_loaded(), s = a[0] == ED_NONE ? ld : (int32_t)a[0];
+    int8_t mic[NSTEP];
     int live;
     if (v >= VAR_N || k >= NTRK || (a[0] != ED_NONE && a[0] > 3u))
         return edp_fail(cmd, ED_E_BAD, ED_D_RANGE, "OUT OF RANGE");
@@ -201,7 +217,7 @@ static int edp_steps_get(uint32_t cmd, const uint8_t *a)
     ed_b(s < 0 ? ED_NONE : (uint32_t)s);
     ed_b(v);
     ed_b(k);
-    if (live || !v) {                            /* the live steps, or variation 1: the slot's record */
+    if (live || !v) {                            /* the live steps, or variation 1: the slot's record (FDRG: rsv the micro) */
         const step_t *st = live ? trk[k].step : proj_slot[s].t[k].step;
         ed_b(1);
         ed_b(live ? 1u : 0u);
@@ -209,24 +225,26 @@ static int edp_steps_get(uint32_t cmd, const uint8_t *a)
             uint32_t id = CHAIN_TIMING[j];
             ed_b((uint32_t)clamp(live ? trk[k].p[id] : proj_slot[s].t[k].p[id], TP[id].min, TP[id].max));
         }
-        for (i = 0; i < NSTEP; i++)
+        for (i = 0; i < NSTEP; i++) {
             edp_step(&st[i]);
+            mic[i] = st[i].micro;
+        }
     } else {                                     /* variations 2..8: track k's part of the entry (varpack.c layout) */
         const var_bank_t *b = edp_bank((uint32_t)s);
-        uint32_t sz = 0, p = 0, q = 0, end = 0, map[2] = {0, 0};
+        uint32_t sz = 0, p = 0, q = 0, end = 0, map[2] = {0, 0}, n;
         int32_t o = b ? var_find(b, v, &sz) : -1;
         static const uint8_t TM_MIN[4] = {1, 0, 0, 0}, TM_MAX[4] = {NSTEP, 9, 100, 3};
         used = o >= 0 && sz > 2u;
         if (used) {
             p = (uint32_t)o + 2u;
-            q = p + NTRK * VAR_TRK;
             end = (uint32_t)o + sz;
-            for (j = 0; j < k; j++)
+            for (j = 0, n = 0; j < k; j++)
                 for (i = 0; i < 8u; i++)
-                    q += 3u * var_pop8(b->d[p + j * VAR_TRK + 4u + i]);
+                    n += var_pop8(b->d[p + j * VAR_TRK + 4u + i]);
             for (i = 0; i < 8u; i++)
                 map[i >> 2] |= (uint32_t)b->d[p + k * VAR_TRK + 4u + i] << 8u * (i & 3u);
-            if (sz < 2u + NTRK * VAR_TRK || q + 3u * (var_pop8(map[0]) + var_pop8(map[1])) > end)
+            q = sz < 2u + NTRK * VAR_TRK ? 0u : edp_var_skip(b, p + NTRK * VAR_TRK, n, end);
+            if (!q || !edp_var_skip(b, q, var_pop8(map[0]) + var_pop8(map[1]), end))
                 map[0] = map[1] = 0;            /* (malformed: as var_get, no steps) */
         }
         ed_b(used);
@@ -245,22 +263,27 @@ static int edp_steps_get(uint32_t cmd, const uint8_t *a)
                 x.rat = (f >> 4) & 3u;
                 x.cond = b->d[q + 1u];
                 x.nt = (int8_t)b->d[q + 2u];
-                q += 3u;
+                if ((f >> 6) & 1u)
+                    x.micro = (int8_t)b->d[q + 3u];
+                q += 3u + ((f >> 6) & 1u);
             }
             edp_step(&x);
+            mic[i] = x.micro;
         }
     }
+    for (i = 0; i < NSTEP; i++)                  /* NUDGE: micro + 64 */
+        ed_b((uint32_t)(clamp(mic[i], -MICRO_MAX, MICRO_MAX) + (int32_t)ED_MICRO_OFFSET));
     ed_send();
     return 1;
 }
 
-/* STEPS_SET: slot (7F: loaded), var, track, first, count, count x step — the playing variation of the loaded slot;
- * another variation of it: its key pressed first (switch-to-edit, above) */
+/* STEPS_SET: slot (7F: loaded), var, track, first, count, count x step[, count x NUDGE] — the playing variation of
+ * the loaded slot; another variation of it: its key pressed first (switch-to-edit, above) */
 static int edp_steps_set(uint32_t cmd, const uint8_t *a, uint32_t n)
 {
-    uint32_t v = a[1], k = a[2], first = a[3], cnt = a[4], i, done = 0;
+    uint32_t v = a[1], k = a[2], first = a[3], cnt = a[4], i, done = 0, mic = n == ED_LEN_STEPS_SET_MIN + 4u * cnt;
     int32_t ld = proj_loaded();
-    if (n != ED_LEN_STEPS_SET_MIN + 3u * cnt)
+    if (n != ED_LEN_STEPS_SET_MIN + 3u * cnt && !mic)
         return edp_fail(cmd, ED_E_BAD, ED_D_LENGTH, "BAD LENGTH");
     if (edp_busy(cmd))
         return 1;
@@ -294,6 +317,11 @@ static int edp_steps_set(uint32_t cmd, const uint8_t *a, uint32_t n)
             x.rat = (w[0] >> ED_STEP_RAT_SHIFT) & 3u;
             x.cond = (uint8_t)(w[1] < COND_MAX ? w[1] : COND_MAX);
             x.nt = (int8_t)clamp((int32_t)w[2] - (int32_t)ED_NT_OFFSET, NT_MIN, NT_MAX);
+            if (mic)                             /* NUDGE sent; else the device's kept (an empty step: 0) */
+                x.micro = (int8_t)clamp((int32_t)a[ED_LEN_STEPS_SET_MIN + 3u * cnt + i] - (int32_t)ED_MICRO_OFFSET,
+                                        -MICRO_MAX, MICRO_MAX);
+            else if (x.on | x.acc | x.slide | x.tie | x.rat | x.cond | x.nt)
+                x.micro = trk[k].step[first + i].micro;
             trk[k].step[first + i] = x;
         }
         done = 1;

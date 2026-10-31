@@ -72,7 +72,9 @@ const fresh = (o) => createMockDevice(data, o);
     [CMD.SAVE, { slot: 0 }, "SAVE"], [CMD.BACKUP_LIST, {}, "BACKUP_LIST"], [CMD.BACKUP_GET, { obj: 0, offset: 0, seq: 0 }, "BACKUP_GET"],
     [CMD.TEXT, { ...k, value: 0 }, "TEXT"]];
   ok(L.every(([c, a, n]) => len(c, a) === E[`ED_LEN_${n}`]), "header: ED_LEN_* = the request lengths");
-  ok(len(CMD.STEPS_SET, { slot: 0, var: 0, track: 0, first: 0, steps: [P.emptyStep()] }) === E.ED_LEN_STEPS_SET_MIN + 3
+  ok(len(CMD.STEPS_SET, { slot: 0, var: 0, track: 0, first: 0, steps: [{ flags: 0, cond: 0, note: 60 }] }) === E.ED_LEN_STEPS_SET_MIN + 3
+    && len(CMD.STEPS_SET, { slot: 0, var: 0, track: 0, first: 0, steps: [P.emptyStep(), P.emptyStep()] }) === E.ED_LEN_STEPS_SET_MIN + 8
+    && E.ED_MICRO_OFFSET === STEP.MICRO_OFFSET && data.consts.MICRO_MAX === STEP.MICRO_MAX && E.ED_CAP_NUDGE === CAP.NUDGE
     && len(CMD.RESTORE, { op: RS.BEGIN, kind: 0, slot: 0, magic: 0, parts: [0, 1, 2].map(() => ({ size: 0, crc: 0 })) }) === E.ED_LEN_RESTORE_BEGIN
     && len(CMD.RESTORE, { op: RS.DATA, part: 0, offset: 0, data: [] }) === E.ED_LEN_RESTORE_DATA_MIN
     && len(CMD.RESTORE, { op: RS.COMMIT }) === E.ED_LEN_RESTORE_OP, "header: variable-length minimums");
@@ -97,6 +99,8 @@ const fresh = (o) => createMockDevice(data, o);
     && same(P.LAYOUT.timing, ["SLEN", "SDIV", "SSWING", "SRC"].map((n) => data.P.indexOf(n))), "layout: the step-byte parameters' defaults, the timing ids");
   ok(P.MAGIC.PROJ === data.magic.PROJ && P.MAGIC.LK === data.magic.LK && P.MAGIC.VAR === data.magic.VAR && P.MAGIC.UPR === data.magic.UPR
     && same([...P.OLD_PROJECTS], data.oldProjects), "layout: magics and the older records' sizes");
+  ok(P.ID.MODEL === data.P.indexOf("MODEL") && P.ID.RMODEL === data.P.indexOf("RMODEL") && P.ID.ITYPE === data.P.indexOf("ITYPE")
+    && P.ID.GMODE === data.G.indexOf("GMODE") && P.ID.SYNC === data.G.indexOf("SYNC"), "ids: the core.h ids the page names = device_data.json's");
   ok(P.LAYOUT.preNone === data.preNone && P.LAYOUT.preRecUser === data.preRecUser && same(data.fmt.slice(0, 3), ["INT", "PCT", "BIPCT"])
     && data.fmt.length === 27, "layout: preset references, the F_ list");
   let gen = "skipped (no cc)";
@@ -146,7 +150,7 @@ m.feed = (f) => { const out = feed0(f); seen.push(...out); return out; };
 const q = (cmd, args) => m.request(cmd, args);
 {
   const info = q(CMD.INFO);
-  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.caps === 0x1f && info.ntrk === 8 && info.pcount === 76
+  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 1 && info.caps === 0x3f && info.ntrk === 8 && info.pcount === 76
     && info.gcount === 42 && info.nmodels === 45 && info.nfact === 151 && info.nuser === 128 && info.maxreq === 640
     && info.state.slot === 0 && info.state.used === 7 && info.state.dirty === 0 && P.checkInfo(info).ok, "INFO: the device, A loaded, nothing unsaved");
   ok(info.state.vmask[0] === 0b10111 && info.state.vmask[1] === 0b11 && info.state.vmask[3] === 1, "INFO: the variations used per slot");
@@ -223,7 +227,7 @@ const q = (cmd, args) => m.request(cmd, args);
   const v3 = q(CMD.STEPS_GET, { slot: 0, var: 2, track: 2 }), v4 = q(CMD.STEPS_GET, { slot: 0, var: 3, track: 0 });
   ok(v3.live === 0 && v3.used === 1 && v3.steps.slice(0, 16).every((s) => s.flags & STEP.ON) && v4.used === 0 && same(v4.timing, [0, 0, 0, 0])
     && q(CMD.STEPS_GET, { slot: 3, var: 0, track: 0 }).detail === DETAIL.EMPTY_SLOT, "STEPS_GET: another variation, an unused one, an empty slot");
-  const st = { flags: STEP.ON | STEP.TIE | (2 << STEP.RAT_SHIFT), cond: 57, note: 67 };
+  const st = { flags: STEP.ON | STEP.TIE | (2 << STEP.RAT_SHIFT), cond: 57, note: 67, micro: -20 };
   m.play();
   const no = q(CMD.STEPS_SET, { slot: 0, var: 1, track: 0, first: 3, steps: [st] }), queued = m.state();
   const again = q(CMD.STEPS_SET, { slot: 0, var: 1, track: 0, first: 3, steps: [st] });
@@ -320,6 +324,37 @@ const q = (cmd, args) => m.request(cmd, args);
 }
 
 /* backup, files, restore ------------------------------------------------------------- */
+/* NUDGE (minor 1, CAP.NUDGE): each step's micro after the steps; a STEPS_SET without it keeps the device's */
+{
+  const d = fresh(), get = () => d.request(CMD.STEPS_GET, { slot: NONE, var: 0, track: 5 }).steps;
+  const set = (first, steps) => d.request(CMD.STEPS_SET, { slot: NONE, var: 0, track: 5, first, steps });
+  set(0, [{ flags: 1, cond: 0, note: 60, micro: 50 }, { flags: 1, cond: 0, note: 60, micro: -50 }, { flags: 1, cond: 3, note: 60, micro: 7 }]);
+  const g1 = get();
+  set(0, [{ flags: 3, cond: 0, note: 60 }, { flags: 0, cond: 0, note: 60 }]);
+  const g2 = get();
+  ok(g1[0].micro === 50 && g1[1].micro === -50 && g1[2].micro === 7 && g1[3].micro === 0 && g2[0].micro === 50 && g2[0].flags === 3
+    && g2[1].micro === 0 && g2[2].micro === 7, "NUDGE: STEPS_SET with it writes it; without it (an older page) keeps the device's, a step written empty gets 0");
+  const o = fresh({ minor: 0, caps: 0x1f }), og = o.request(CMD.STEPS_GET, { slot: NONE, var: 0, track: 0 });
+  ok(og.rc === 0 && og.steps.every((s) => s.micro === undefined)
+    && o.request(CMD.STEPS_SET, { slot: NONE, var: 0, track: 0, first: 0, steps: [P.emptyStep()] }).detail === DETAIL.LENGTH
+    && o.request(CMD.STEPS_SET, { slot: NONE, var: 0, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] }).rc === 0,
+  "NUDGE: a firmware without it (minor 0): no micro in STEPS_GET; a STEPS_SET carrying it is refused (BAD LENGTH), without it works");
+  const rows = Array.from({ length: 8 }, () => Array.from({ length: 64 }, P.emptyStep));
+  rows[0][0] = { flags: 1, cond: 0, note: 60, micro: 0 };
+  rows[0][4] = { flags: 1, cond: 0, note: 60, micro: -25 };
+  rows[3][9] = { flags: 0, cond: 0, note: 60, micro: 12 }; // (a nudge alone makes a step set, as varpack.c)
+  const vb = P.encodeVars({ slot: 1, entries: [{ timing: Array(8).fill([16, 2, 0, 0]), steps: rows }, null, null, null, null, null, null] });
+  const dv = P.decodeVars(vb).entries[0].steps;
+  ok(vb.length === 8 + 2 + 96 + 3 * 3 + 2 + 12 && vb[8 + 2 + 96 + 3] === 0x41 && dv[0][4].micro === -25 && dv[3][9].micro === 12
+    && dv[0][0].micro === 0 && eqb(P.encodeVars(P.decodeVars(vb)), vb), "NUDGE: variations: flags bit 6 + a micro byte only for a nudged step; round trip");
+  const pr = P.decodeProject(d.flashObjects(0).record);
+  pr.tracks[2].steps[3].micro = -33;
+  const rb = P.encodeProject(pr), back = P.decodeProject(rb);
+  ok(back.format === "FDRG" && !back.old && back.tracks[2].steps[3].micro === -33 && same(back.tracks.map((t) => t.p), pr.tracks.map((t) => t.p))
+    && rb[P.LAYOUT.project.t + 2 * P.LAYOUT.project.trk + P.LAYOUT.project.trkStep + 4 * 3 + 3] === 256 - 33,
+  "NUDGE: an FDRG record: every step's spare byte its micro, KEYF / SRR / the INSERT in xp");
+}
+
 function backupAll(dev) {
   const list = dev.request(CMD.BACKUP_LIST).objects, objs = [];
   for (const o of list) {
@@ -405,13 +440,29 @@ function restore(dev, kind, slot, parts) {
   const pr = restore(m, RK.PROJECT, 3, [objs[2], objs[6], objs[10]]);
   m.stop();
   const newer = objs[1].slice();
-  newer[3] = 0x47; // "FDRG"
+  newer[3] = 0x48; // "FDRH"
   const nw = restore(m, RK.PROJECT, 3, [newer]);
   const wrongCrc = m.request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PROJECT, slot: 3, magic: P.MAGIC.PROJ, parts: [{ size: 3840, crc: 1 }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] });
   for (let off = 0; off < 3840; off += 256) m.request(CMD.RESTORE, { op: RS.DATA, part: 0, offset: off, data: objs[2].slice(off, off + 256) });
   const crcBad = m.request(CMD.RESTORE, { op: RS.COMMIT });
   ok(pr.rc === RC.STOP && nw.rc === RC.REFUSED && nw.detail === DETAIL.NEWER && wrongCrc.rc === 0 && crcBad.detail === DETAIL.CRC,
     "RESTORE: refused while playing, a newer record, a CRC mismatch");
+  /* a project file made before NUDGE (an FDRF record with its lock bank and variations) restores: converted at load */
+  {
+    const d = fresh(), A = d.flashObjects(0), pa = P.decodeProject(A.record);
+    pa.tracks[1].p[data.P.indexOf("SRR")] = 40;
+    pa.tracks[2].p[data.P.indexOf("IMIX")] = 10;
+    const f = P.sealProject({ record: P.encodeProject({ ...pa, tracks: pa.tracks.map((t) => ({ ...t })) }, "FDRF"), locks: A.locks, vars: A.vars }, 0);
+    const pf = P.decodeProject(f.record), r = restore(d, RK.PROJECT, 3, [f.record, f.locks, f.vars]), l = d.request(CMD.BACKUP_LIST).objects;
+    const st = d.request(CMD.STEPS_GET, { slot: 3, var: 0, track: 2 });
+    ok(pf.format === "FDRF" && pf.old && pf.ok && r.rc === 0 && (l[4].flags & P.BF.OLD) && l[8].present && l[12].present
+      && d.slots[3].tracks[1].p[data.P.indexOf("SRR")] === 40 && d.slots[3].tracks[2].p[data.P.indexOf("IMIX")] === 10
+      && st.steps.every((s) => s.micro === 0) && same(st.steps.map((s) => s.flags), pa.tracks[2].steps.map((s) => s.flags)),
+    "RESTORE an FDRF project (an editor file before NUDGE) with its parts: written as it is (OLD), KEYF / SRR / INSERT kept, NUDGE 0");
+    ok(P.decodeProject(P.encodeProject(pa)).format === "FDRG" && fresh().request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PROJECT, slot: 0,
+      magic: 0x48524446, parts: [{ size: 3840, crc: 0 }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] }).detail === DETAIL.NEWER,
+    "RESTORE: a record newer than this firmware's (FDRH here, FDRG on an older device) refused by its magic");
+  }
   m.request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PROJECT, slot: 2, magic: P.MAGIC.PROJ, parts: [{ size: 3840, crc: P.crc32(objs[2]) }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] });
   const order = m.request(CMD.RESTORE, { op: RS.DATA, part: 0, offset: 512, data: objs[2].slice(512, 768) });
   const busy = m.request(CMD.SET, { scope: 0, track: 0, id: 9, value: 10 }), rd = m.request(CMD.DUMP, { track: 0 });

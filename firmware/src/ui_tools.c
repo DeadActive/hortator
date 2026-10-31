@@ -250,9 +250,19 @@ static void tl_duplicate(void)
 /* the keys the ISR gave the screen: the tools first, then the white keys (a step: COPY STEP / PASTE STEP held, or
  * PASTE SEL armed) */
 static void tl_close(void);
+#define TL_EDITS (1u << TL_K_REPL | 1u << TL_K_MERGE | 1u << TL_K_FILL | 1u << TL_K_DUP | 1u << TL_K_CLEAR)
+/* the keys: a web editor restore running (RESTORING, ui_locked), the tools that edit (the pastes, DUPLICATE, CLEAR)
+ * are refused with its message; the copies still work (the buffers only) */
 static void tl_keys(uint32_t hits)
 {
-    uint32_t k, held = fm1_in.notes, len = tl_len(TSEL);
+    uint32_t k, held = fm1_in.notes, len = tl_len(TSEL), steps = 0;
+    int rs;
+    for (k = 0; k < 16u; k++)
+        steps |= (hits >> STEP_KEY[k]) & 1u;
+    rs = ((hits & TL_EDITS) || (steps && !((held >> TL_K_CPSTEP) & 1u) &&
+                                (((held >> TL_K_PSTEP) & 1u) || tl.arm))) && ui_locked();
+    if (rs)
+        hits &= ~TL_EDITS;
     if ((hits >> TL_K_PSTEP) & 1u && !tl.st_ok)
         ui_message("NO STEP COPIED");
     if ((hits >> TL_K_CPPAGE) & 1u) {
@@ -300,6 +310,8 @@ static void tl_keys(uint32_t hits)
             continue;                               /* (past LEN: no step, as the STEP grid) */
         if ((held >> TL_K_CPSTEP) & 1u) {
             tl_copy_step(s);
+        } else if (rs) {
+            /* (RESTORING: no paste) */
         } else if ((held >> TL_K_PSTEP) & 1u) {
             if (tl.st_ok)
                 tl_paste_step(s);

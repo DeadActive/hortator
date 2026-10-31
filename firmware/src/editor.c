@@ -373,7 +373,7 @@ static void ed_info(void)
     const char *fw = FELUCCA_VERSION;
     uint32_t caps = ED_CAP_LIVE;
 #ifdef ED_HAS_PATTERN
-    caps |= ED_CAP_PRESETS | ED_CAP_PATTERNS;
+    caps |= ED_CAP_PRESETS | ED_CAP_PATTERNS | ED_CAP_NUDGE;
 #endif
 #ifdef ED_HAS_BACKUP
     caps |= ED_CAP_BACKUP | ED_CAP_RESTORE;
@@ -416,7 +416,7 @@ static int ed_page(uint32_t i, uint32_t s, uint16_t *ids)
         return 0;
     for (c = 0; c < 4u; c++)
         if (pg->scope == SC_GLOBAL && pg->id[c] != 0xFFu && pg->id[c] >= G_COUNT)
-            return 0;                      /* TOOLS, GLOBAL 3/3: past the globals */
+            return 0;                      /* TOOLS, GLOBAL 3/7 (MUTE METRO THRU QUANT): past the globals */
     for (c = 0; c < 4u; c++) {
         uint32_t id = pg->graph == GR_LDEST ? (c < 3u ? LS_ID[s][c] : 0xFFu) : page_id(pg, c);
         ids[c] = (uint16_t)(id == 0xFFu ? ED_U14_NONE : id);

@@ -10,7 +10,8 @@
 //   node tests/editor_wire.mjs build/host/editor_frames.txt [build/host/editor_xcheck]
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { CMD, CUE, NONE, RC, RK, RS, SEQ_PUSH, crc32, decodeFrame, encodePush, encodeReply, encodeRequest, isEditorFrame,
+import { CMD, CUE, NONE, RC, RK, RS, SEQ_PUSH, crc32, decodeFrame, decodeProject, encodePush, encodeProject, encodeReply,
+  encodeRequest, isEditorFrame, sealProject,
 } from "../web/editor/proto.mjs";
 import { UPDATE_HANDSHAKE, createMockDevice } from "../web/editor/mock_device.mjs";
 
@@ -73,9 +74,13 @@ function xcheck(bin) {
   const set = (what, scope, track, id, value, s) => rq(what, CMD.SET, { scope, track, id, value }, s);
   const push = (line, what) => steps.push([what, null, null, line]);   // the pushes since the last such step
   const A = m.flashObjects(0), parts = [A.record, A.locks, A.vars];
-  const begin = (slot) => ({ op: RS.BEGIN, kind: RK.PROJECT, slot, magic: A.record[0] | A.record[1] << 8 | A.record[2] << 16 | (A.record[3] << 24 >>> 0),
-    parts: parts.map((p) => ({ size: p ? p.length : 0, crc: p ? crc32(p) : 0 })) });
-  const pieces = (what) => parts.forEach((p, part) => { for (let o = 0; p && o < p.length; o += 256)
+  /* A as the editor before NUDGE saved it: an FDRF record (KEYF / SRR / INSERT in steps 0..6's spare bytes), its parts */
+  const fa = decodeProject(A.record);
+  fa.tracks[1].p[P.SRR] = 40;
+  const F = sealProject({ record: encodeProject(fa, "FDRF"), locks: A.locks, vars: A.vars }, 0), fparts = [F.record, F.locks, F.vars];
+  const begin = (slot, ps = parts) => ({ op: RS.BEGIN, kind: RK.PROJECT, slot, magic: (ps[0][0] | ps[0][1] << 8 | ps[0][2] << 16 | ps[0][3] << 24) >>> 0,
+    parts: ps.map((p) => ({ size: p ? p.length : 0, crc: p ? crc32(p) : 0 })) });
+  const pieces = (what, ps = parts) => ps.forEach((p, part) => { for (let o = 0; p && o < p.length; o += 256)
     rq(`${what} DATA ${part}@${o}`, CMD.RESTORE, { op: RS.DATA, part, offset: o, data: p.subarray(o, o + 256) }); });
 
   rq("INFO", CMD.INFO);
@@ -121,6 +126,13 @@ function xcheck(bin) {
   push("pushes 100", "WATCH off: no push");
   rq("INFO: the state after the switch", CMD.INFO);
   rq("STEPS_GET variation 2 track 2", CMD.STEPS_GET, { slot: NONE, var: 1, track: 1 });
+  const nud = (flags, micro) => ({ flags, cond: 0, note: 60, ...(micro === undefined ? {} : { micro }) });
+  rq("STEPS_SET with NUDGE (minor 1)", CMD.STEPS_SET, { slot: NONE, var: 1, track: 3, first: 2, steps: [nud(1, -30), nud(1, 50), nud(1, 0)] });
+  rq("STEPS_SET without NUDGE (an older page): kept; a step written empty: 0", CMD.STEPS_SET, { slot: NONE, var: 1, track: 3, first: 2, steps: [nud(3), nud(0)] });
+  rq("STEPS_GET: the steps' NUDGE", CMD.STEPS_GET, { slot: NONE, var: 1, track: 3 });
+  rq("STEPS_GET A variation 1 (the FDRG record's NUDGE)", CMD.STEPS_GET, { slot: 0, var: 0, track: 2 });
+  rq("STEPS_GET A variation 5 (the bank: flags bit 6, a micro byte)", CMD.STEPS_GET, { slot: 0, var: 4, track: 2 });
+  rq("STEPS_GET A variation 5 track 4 (after a track with nudged steps)", CMD.STEPS_GET, { slot: 0, var: 4, track: 3 });
   dev("play", () => m.play());
   rq("STEPS_SET playing, variation 3: queued, rc 5 32", CMD.STEPS_SET, { slot: 0, var: 2, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
   rq("STEPS_SET again before the switch: rc 5 32", CMD.STEPS_SET, { slot: 0, var: 2, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
@@ -152,6 +164,13 @@ function xcheck(bin) {
   pieces("restore D");
   rq("COMMIT into D", CMD.RESTORE, { op: RS.COMMIT });
   rq("STEPS_GET D variation 2", CMD.STEPS_GET, { slot: 3, var: 1, track: 0 });
+  rq("RESTORE BEGIN into C: an FDRF project (a file from the editor before NUDGE) with its parts", CMD.RESTORE, begin(2, fparts));
+  pieces("restore C (FDRF)", fparts);
+  rq("COMMIT into C (FDRF): written as it is", CMD.RESTORE, { op: RS.COMMIT });
+  rq("BACKUP_LIST: C's record OLD, its lock bank and variations linked", CMD.BACKUP_LIST);
+  rq("BACKUP_GET C's record: the FDRF bytes (its storage seq 2: written twice)", CMD.BACKUP_GET, { obj: 3, offset: 0, seq: 2 });
+  rq("STEPS_GET C variation 1: converted at load, NUDGE 0", CMD.STEPS_GET, { slot: 2, var: 0, track: 2 });
+  rq("STEPS_GET C variation 5: its variations (NUDGE kept)", CMD.STEPS_GET, { slot: 2, var: 4, track: 2 });
   rq("INFO at the end", CMD.INFO);
   raw("the installer's update handshake (F0 00 32 45 ...): left for the updater, no reply from the editor", UPDATE_HANDSHAKE);
   rq("INFO during the update silence: unanswered", CMD.INFO);

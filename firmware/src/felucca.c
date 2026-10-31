@@ -60,15 +60,15 @@
 #include "midi_uart.c"
 #endif
 #include "grids.c"           /* Grids pattern engine (M2) */
+#if FELUCCA_OTA && __has_include("editor_backup.c")
+#define ED_RESTORE_LOCK 1          /* seq.c / ui.c refuse the device's own edits while the editor restores (ed_restoring) */
+#endif
 #include "seq.c"
 #include "bench.c"           /* BENCH: the performance cases (console `bench`) */
 #include "audio.c"
 #include "enc.c"           /* the knobs: upstream 1.1.5's decoder (#126) on the scan's frames (led_dim.c hook) */
 #include "panel.c"
 #include "pages.c"
-#if FELUCCA_OTA && __has_include("editor_backup.c")
-#define ED_RESTORE_LOCK 1          /* ui.c refuses the device's own keys while the editor restores (ed_restoring) */
-#endif
 #include "ui.c"
 #include "ui_draw.c"
 #include "ui_menu.c"

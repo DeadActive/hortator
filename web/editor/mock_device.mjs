@@ -28,7 +28,7 @@ import {
   BF, CAP, CMD, CMD_CAP, CUE, DESC_ORDER, DETAIL, DF, LAYOUT, LIMITS, LK, MAGIC, NONE, OLD_PROJECTS, PROTO, PUSH,
   RC, RK, RS, SCOPE, SEQ_PUSH, STEP, SZ, TIMING, U14_NONE, WRITES, crc32, decodeFrame, decodeLocks,
   decodePresets, decodeProject, decodeRequest, decodeVars, emptyStep, encodeLocks, encodePresets, encodeProject,
-  encodePush, encodeReply, encodeRequest, encodeVars, lockLink, lockOrd, sealProject, varLink,
+  encodePush, encodeReply, encodeRequest, encodeVars, isFullRecord, lockLink, lockOrd, sealProject, varLink,
 } from "./proto.mjs";
 
 export async function loadDeviceData() {
@@ -84,7 +84,8 @@ export class MockDevice {
   constructor(data, opts = {}) {
     this.d = data;
     this.o = { name: "Hortator", editor: true, firmware: "0.28.0", major: PROTO.major, minor: PROTO.minor,
-      magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE, latency: 1, seed: 7, ...opts };
+      magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE | CAP.NUDGE, latency: 1, seed: 7,
+      ...opts };
     const P = Object.fromEntries(data.P.map((n, i) => [n, i])), G = Object.fromEntries(data.G.map((n, i) => [n, i]));
     this.P = P;
     this.G = G;
@@ -126,7 +127,7 @@ export class MockDevice {
   }
   seed() {
     const r = mulberry32(this.o.seed), M = this.M, on = (row, idx, f = 0, cond = 0, note = 60) => {
-      for (const i of idx) row[i] = { flags: STEP.ON | f, cond, note };
+      for (const i of idx) row[i] = { flags: STEP.ON | f, cond, note, micro: 0 };
     };
     const range = (a, b, s = 1) => { const x = []; for (let i = a; i < b; i += s) x.push(i); return x; };
     /* user presets: about half used, voices near the factory ones */
@@ -147,6 +148,8 @@ export class MockDevice {
     on(s[5], [3, 11], 1 << STEP.RAT_SHIFT); // 2 hits
     on(s[6], [14, 15], 0, 0, 67);
     on(s[7], [0], 0, 22); // 1/2
+    for (const i of [2, 6, 10, 14]) s[2][i].micro = 25; // NUDGE: the off-beat hats late
+    s[1][12].micro = -10; // .. the second snare early
     const v2 = { timing: Array.from({ length: 8 }, () => [16, 2, 0, 0]), steps: clone(s) };
     on(v2.steps[0], [0, 4, 8, 10, 12], STEP.ACC);
     on(v2.steps[1], [4, 12, 15], 0, 0, 62);
@@ -175,7 +178,7 @@ export class MockDevice {
     /* C: ACID LINE, the 303 on track 1 */
     const c = this.emptyImage("ACID LINE", [M.ACID, M.K808, M.HATC, M.S808, M.HATO, M.CLAVE, M.TOM, M.CYMB], 132);
     const notes = [0, 0, 12, 0, 3, 0, 7, 10, 0, 0, 12, 15, 0, 3, -2, 0];
-    notes.forEach((n, i) => { if (i % 4 !== 1) c.steps1[0][i] = { flags: STEP.ON | (i % 3 ? 0 : STEP.ACC) | (i === 6 ? STEP.SLIDE : 0), cond: 0, note: 60 + n - 24 }; });
+    notes.forEach((n, i) => { if (i % 4 !== 1) c.steps1[0][i] = { flags: STEP.ON | (i % 3 ? 0 : STEP.ACC) | (i === 6 ? STEP.SLIDE : 0), cond: 0, note: 60 + n - 24, micro: 0 }; });
     c.steps1[0][7].flags |= STEP.TIE;
     on(c.steps1[1], [0, 4, 8, 12]);
     on(c.steps1[2], range(2, 16, 4));
@@ -211,7 +214,8 @@ export class MockDevice {
   }
   imageOf({ record, locks, vars }) {
     const p = decodeProject(record);
-    if (p.format !== "FDRF") { // an older record: kept as is in flash; the device converts it at load (not emulated)
+    if (!p.full) { // an older record: kept as is in flash; the device converts it at load (not emulated). FDRF: decoded
+      // as the firmware converts it (proj_xp_move: NUDGE 0), its own bytes kept in flash
       const img = this.emptyImage("", this.kit.tracks.map((t) => t.p[this.P.MODEL]), 120);
       img.old = Uint8Array.from(record);
       return img;
@@ -304,7 +308,8 @@ export class MockDevice {
     const f = this.flashObjects(s);
     if (!f) return true;
     const o = this.objectsOf(s === this.loaded ? this.liveImage() : this.slots[s], s), eq = (a, b) => (!a && !b) || (a && b && a.length === b.length && a.every((x, i) => x === b[i]));
-    return !eq(o.record, f.record) || !eq(o.locks, f.locks) || !eq(o.vars, f.vars);
+    const fp = decodeProject(f.record), fr = fp.old && fp.full ? encodeProject(fp) : f.record; // (FDRF: as converted at load)
+    return !eq(o.record, fr) || !eq(o.locks, f.locks) || !eq(o.vars, f.vars);
   }
   vmask(s) {
     const img = s === this.loaded ? this.img() : this.slots[s];
@@ -589,9 +594,13 @@ export class MockDevice {
             timing = img.vars[a.var - 1].timing[a.track];
           } else { used = 0; steps = Array.from({ length: 64 }, emptyStep); timing = [0, 0, 0, 0]; }
         }
-        return { slot: s < 0 ? NONE : s, var: a.var, track: a.track, used, live: live ? 1 : 0, timing: [...timing], steps: clone(steps) };
+        const nudge = this.o.caps & CAP.NUDGE; // (minor 1: each step's NUDGE after the steps; an older firmware: none)
+        return { slot: s < 0 ? NONE : s, var: a.var, track: a.track, used, live: live ? 1 : 0, timing: [...timing],
+          steps: steps.map(({ flags, cond, note, micro }) => (nudge ? { flags, cond, note, micro: micro | 0 } : { flags, cond, note })) };
       }
       case CMD.STEPS_SET: {
+        const sent = a.steps.length && a.steps[0].micro !== undefined; // NUDGE sent (minor 1)
+        if (sent && !(this.o.caps & CAP.NUDGE)) refuse(RC.BAD, DETAIL.LENGTH); // (an older firmware: 5 + 3 x count only)
         this.busy();
         if (a.track > 7 || a.var > 7 || a.first > 63 || !a.steps.length || a.first + a.steps.length > 64) refuse(RC.BAD, DETAIL.RANGE);
         const s = this.slotArg(a.slot);
@@ -604,7 +613,13 @@ export class MockDevice {
           if (a.var !== this.varCur) refuse(RC.STALE, DETAIL.CUE_FIRST);
         }
         const t = this.tracks[a.track];
-        a.steps.forEach((x, i) => { t.steps[a.first + i] = { flags: x.flags & 0x3f, cond: Math.min(x.cond, this.d.consts.COND_MAX), note: x.note }; });
+        a.steps.forEach((x, i) => { // NUDGE sent, or the device's kept (a step written empty: 0, as a tap off leaves it)
+          const s = { flags: x.flags & 0x3f, cond: Math.min(x.cond, this.d.consts.COND_MAX),
+            note: Math.max(this.d.consts.NT_MIN, Math.min(this.d.consts.NT_MAX, x.note - STEP.NT_OFFSET)) + STEP.NT_OFFSET };
+          const empty = !s.flags && !s.cond && s.note === STEP.NT_OFFSET;
+          s.micro = sent ? Math.max(-STEP.MICRO_MAX, Math.min(STEP.MICRO_MAX, x.micro)) : empty ? 0 : (t.steps[a.first + i].micro | 0);
+          t.steps[a.first + i] = s;
+        });
         this.shadowSteps(a.track);
         return { slot: a.slot, var: a.var, track: a.track, first: a.first, count: a.steps.length };
       }
@@ -751,7 +766,7 @@ export class MockDevice {
       const src = obj === 0 ? this.flash.upr : obj < 5 ? this.flash.rec[s] : obj < 9 ? this.flash.lk[s] : this.flash.vr[s];
       let flags = 0;
       if (obj === 0 ? encodePresets(this.upr).some((x, i) => x !== b[i]) : this.slotDirty(s)) flags |= BF.UNSAVED;
-      if (obj > 0 && obj < 5 && b && decodeProject(b).format !== "FDRF") flags |= BF.OLD;
+      if (obj > 0 && obj < 5 && b && decodeProject(b).old) flags |= BF.OLD; // (FDRF and older: converted at load)
       out.push(b ? { obj, present: 1, size: b.length, crc: crc32(b), seq: src.seq, flags } : { obj, present: 0, size: 0, crc: 0, seq: 0, flags });
     }
     return out;
@@ -776,10 +791,10 @@ export class MockDevice {
         if (a.magic !== MAGIC.UPR || p0.size !== SZ.PRESETS || p1.size || p2.size) refuse(RC.REFUSED, DETAIL.BAD_OBJECT);
       } else {
         const m = a.magic, txt = String.fromCharCode(m & 255, m >> 8 & 255, m >> 16 & 255);
-        if (txt === "FDR" && !OLD_PROJECTS.has(m) && m !== MAGIC.PROJ && (m >>> 24) > 0x46) refuse(RC.REFUSED, DETAIL.NEWER);
+        if (txt === "FDR" && !OLD_PROJECTS.has(m) && m !== MAGIC.PROJ && (m >>> 24) > 0x47) refuse(RC.REFUSED, DETAIL.NEWER);
         const size = m === MAGIC.PROJ ? SZ.PROJECT : OLD_PROJECTS.get(m);
         if (!size || p0.size !== size || (p1.size && p1.size !== SZ.LOCKS) || (p2.size && (p2.size < SZ.VARS_MIN || p2.size > SZ.VARS_MAX))
-          || (m !== MAGIC.PROJ && (p1.size || p2.size))) refuse(RC.REFUSED, DETAIL.BAD_OBJECT);
+          || (!isFullRecord(m) && (p1.size || p2.size))) refuse(RC.REFUSED, DETAIL.BAD_OBJECT);
       }
       this.q = { slot: -1, var: -1, now: false };
       const c = this.faults.cuePark; // the park (var_buf[var_play ^ 1]) holds another slot's unsaved variations
@@ -821,7 +836,7 @@ export class MockDevice {
     }
     const [rec, lk, vr] = r.parts.map((p) => (p.size ? p.buf : null)), p = decodeProject(rec);
     if (!p.ok) bad();
-    if (p.format === "FDRF") {
+    if (p.full) { // FDRG, FDRF: linked
       if (!!p.lk_n !== !!lk || !!p.var_len !== !!vr || (vr && vr.length !== p.var_len)) bad();
       if (lk) {
         const b = decodeLocks(lk);
@@ -841,7 +856,7 @@ export class MockDevice {
   }
 
   /* pushes (WATCH) ----------------------------------------------------------------- */
-  hashSteps(k) { return JSON.stringify(this.tracks[k].steps); }
+  hashSteps(k) { return JSON.stringify(this.tracks[k].steps.map((s) => [s.flags, s.cond, s.note, s.micro | 0])); } // (the bytes)
   hashLocks(k) { return JSON.stringify(this.img().locks.filter((e) => e.track === k)); }
   shadowAll(knobsOnly = false) {
     this.sh = this.sh || {};
