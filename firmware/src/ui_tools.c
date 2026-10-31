@@ -556,7 +556,6 @@ static void draw_tools(void)
         if (!tl_tool_ok(key))
             cv_dither(x, y, xe + md_text_w(&MD_F3, 2, TOOL[k].name) - x, 10, C_BG);
     }
-    md_text(md_text(125, 4 + 4 * 12, &MD_F3, 2, "OCT", C_INK) + 5, 4 + 4 * 12, &MD_F3, 2, "BANK", C_INK);
     cv_hdot(1, 238, 64, C_INK);
     if (ui.msg_t) {                                 /* the last message (over the clipboard's line) */
         str_cpy(b, ui.msg, sizeof b);
@@ -582,5 +581,6 @@ static void draw_tools(void)
         str_cpy(b, "STEP EMPTY", sizeof b);
     }
     md_text(5, 80, &MD_F3, 2, b, C_INK);
+    tl_text_r(234, 80, "OCT BANK", C_INK);         /* (OCT- / OCT+: the bank; the tenth tool slot is CLEAR's) */
     cv_blit(0, TL_Y2);
 }
