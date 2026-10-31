@@ -98,18 +98,34 @@ export async function runPageTests(log = console.log, mods = {}) {
     r.session?.close();
   }
   {
-    const fel = dev({ name: "Felucca" }), r = await connect(access(fel), { timing: FAST });
-    ok(!r.ok && r.why === "felucca" && /Felucca's editor/.test(r.message) && fel.received.length === 0, "upstream Felucca: refused, nothing sent");
+    // macOS keeps the name it first saw for a device (CoreMIDI): a Hortator FM-1 that once ran Felucca shows up as "Felucca"
+    const cached = dev({ name: "Felucca" }), r = await connect(access(cached), { timing: FAST });
+    ok(r.ok && r.port === "Felucca" && isInfo(cached.received[0]), "a Hortator under an old port name (Felucca): INFO answers, connected");
+    r.session?.close();
   }
   {
-    const stock = dev({ name: "FM-1" }), iac = dev({ name: "IAC Driver Bus 1" }), r = await connect(access(stock, iac), { timing: FAST });
-    ok(!r.ok && r.why === "none" && /No Hortator/.test(r.message) && r.links.some((l) => /installer/.test(l.href))
-      && stock.received.length === 0 && iac.received.length === 0, "stock FM-1 and other gear: nothing sent, installer link");
+    const fel = dev({ name: "Felucca", editor: false }), stock = dev({ name: "FM-1", editor: false });
+    const r = await connect(access(fel, stock), { timing: FAST });
+    ok(!r.ok && r.why === "noeditor" && /Felucca/.test(r.message) && r.links.some((l) => /installer/.test(l.href))
+      && fel.received.length === FAST.tries && stock.received.length === FAST.tries
+      && [...fel.received, ...stock.received].every(isInfo), "upstream Felucca / stock FM-1: only INFO asked, no answer, installer link");
+  }
+  {
+    const iac = dev({ name: "IAC Driver Bus 1" }), r = await connect(access(iac), { timing: FAST });
+    ok(!r.ok && r.why === "none" && /No Hortator/.test(r.message) && r.search && iac.received.length === 0,
+      "other gear: nothing sent unasked; the page offers to search the other ports");
+    const r2 = await connect(access(iac), { timing: FAST, all: true });
+    ok(r2.ok && r2.port === "IAC Driver Bus 1" && isInfo(iac.received[0]), "search other ports (the user's click): a Hortator under any name connects");
+    r2.session?.close();
+  }
+  {
+    const upd = dev({ name: "Felucca Update" }), r = await connect(access(upd), { timing: FAST, all: true });
+    ok(!r.ok && r.why === "update" && /update/i.test(r.message) && upd.received.length === 0, "an FM-1 in update mode: never asked, even when searching");
   }
   {
     const old = dev({ editor: false }), r = await connect(access(old), { timing: FAST });
     const seqs = new Set(old.received.map((f) => f[5]));
-    ok(!r.ok && r.why === "noeditor" && /update it/i.test(r.message) && old.received.length === FAST.tries
+    ok(!r.ok && r.why === "noeditor" && /Install Hortator 0\.28/.test(r.message) && old.received.length === FAST.tries
       && old.received.every(isInfo) && seqs.size === 1, "an older Hortator (no editor): INFO x3 (one seq), nothing else, update message");
   }
   {
@@ -125,14 +141,14 @@ export async function runPageTests(log = console.log, mods = {}) {
     r4.session?.close();
   }
   {
-    const fel = dev({ name: "Felucca" }), stock = dev({ name: "M-VAVE FM-1" }), h = dev({ name: "Hortator 8ch MIDI 1" });
+    const fel = dev({ name: "Felucca", editor: false }), stock = dev({ name: "M-VAVE FM-1", editor: false }), h = dev({ name: "Hortator 8ch MIDI 1" });
     const r = await connect(access(fel, stock, h), { timing: FAST });
-    ok(r.ok && r.port === "Hortator 8ch MIDI 1" && fel.received.length === 0 && stock.received.length === 0,
-      "Felucca + stock + Hortator: the Hortator connects, the others get nothing");
+    ok(r.ok && r.port === "Hortator 8ch MIDI 1" && fel.received.length === FAST.tries && stock.received.length === FAST.tries
+      && [...fel.received, ...stock.received].every(isInfo), "Felucca + stock + Hortator: the Hortator connects, the others got INFO only");
     r.session?.close();
     const off = dev();
     for (const p of [...off.access.inputs.values(), ...off.access.outputs.values()]) p.state = "disconnected";
-    ok(!listPorts(access(off)).hortator.length, "a disconnected port is not asked");
+    ok(!listPorts(access(off)).fm1.length, "a disconnected port is not asked");
   }
   {
     const m = dev({ caps: P.CAP.LIVE }), r = await connect(access(m), { timing: FAST });
@@ -155,7 +171,7 @@ export async function runPageTests(log = console.log, mods = {}) {
     l.close();
   }
   {
-    const fel = dev({ name: "Felucca" }), other = dev({ name: "Launchpad X" }), m = dev();
+    const fel = dev({ name: "Felucca", editor: false }), other = dev({ name: "Launchpad X" }), m = dev();
     const r = await connect(access(fel, other, m), { timing: { ...FAST, timeout: 300 } });
     const s = r.session, snd = new SoundModel(s);
     await snd.load();
@@ -170,7 +186,7 @@ export async function runPageTests(log = console.log, mods = {}) {
     ok(all.length > 50 && all.every((f) => editorFrame(f) && P.SCHEMA[P.decodeRequest(f).cmd] && f[5] < 0x7f)
       && isInfo(all[0]) && all.slice(firstReply).every((f) => P.decodeRequest(f).cmd !== CMD.INFO || f === all[0]),
       `a whole session: ${all.length} frames, every one F0 7D 48 54 from the table, INFO first`);
-    ok(fel.received.length === 0 && other.received.length === 0, "the Felucca port and other gear got nothing");
+    ok(fel.received.length > 0 && fel.received.every(isInfo) && other.received.length === 0, "the Felucca port got INFO only, other gear nothing");
     s.close();
     snd.destroy();
     const src = ["app.mjs", "session.mjs", "link.mjs", "header.mjs", "ui.mjs", ...readdirSync(HERE).filter((f) => /^tab_.*\.mjs$/.test(f))]

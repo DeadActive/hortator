@@ -42,6 +42,8 @@ function say(r) { // a message under Connect, with its links
   if (!r) return;
   el.innerHTML = `<p>${esc(r.message)}</p>${(r.links || []).map((l) =>
     `<a class="cta ghost" href="${esc(l.href)}"${/^https?:/.test(l.href) ? ' rel="noopener"' : ""}>${esc(l.text)}</a>`).join(" ")}`;
+  if (r.search) el.append(" ", h("button", { type: "button", class: "cta ghost", onclick: () => onConnect({ all: true }) },
+    "Search other MIDI ports"));
 }
 let toastT;
 function toast(msg) {
@@ -82,13 +84,14 @@ async function access() {
   try { return await navigator.requestMIDIAccess({ sysex: true }); } catch { throw refusal("denied"); }
 }
 
-async function onConnect() {
+/** opts.all: the user asked to search every MIDI port (INFO only, until one answers as a Hortator) */
+async function onConnect(opts = {}) {
   const btn = $("#connect");
   if (!single.held && !(await single.claim())) { taken(TAKEN); return; }
   btn.disabled = true;
-  say({ message: "Looking for a Hortator FM-1…" });
+  say({ message: opts.all ? "Asking every MIDI port for a Hortator FM-1…" : "Looking for a Hortator FM-1…" });
   try {
-    const r = await connect(await access());
+    const r = await connect(await access(), { all: !!opts.all });
     if (!r.ok) { say(r); return; }
     if (!single.held) { r.session.close(); say(null); return; } // another tab took the editor meanwhile
     say(null);
@@ -170,7 +173,7 @@ function mockBar(m) {
   bar.addEventListener("click", (e) => { const a = e.target.closest("button[data-a]"); if (a) acts[a.dataset.a](); });
 }
 
-$("#connect").addEventListener("click", onConnect);
+$("#connect").addEventListener("click", () => onConnect());
 $("#usehere").addEventListener("click", useHere);
 if (!MOCK && !navigator.requestMIDIAccess) say(refusal("nomidi"));
 if (MOCK) $("#mode").textContent = "Mock device: no FM-1 needed.";

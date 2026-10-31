@@ -150,8 +150,9 @@ const q = (cmd, args) => m.request(cmd, args);
     && info.gcount === 42 && info.nmodels === 45 && info.nfact === 151 && info.nuser === 128 && info.maxreq === 640
     && info.state.slot === 0 && info.state.used === 7 && info.state.dirty === 0 && P.checkInfo(info).ok, "INFO: the device, A loaded, nothing unsaved");
   ok(info.state.vmask[0] === 0b10111 && info.state.vmask[1] === 0b11 && info.state.vmask[3] === 1, "INFO: the variations used per slot");
-  ok(P.classifyPort("Hortator") === "hortator" && P.classifyPort("Hortator 8ch MIDI 1") === "hortator" && P.classifyPort("Felucca") === "felucca"
-    && P.classifyPort("FM-1") === null && P.classifyPort("IAC Driver Bus 1") === null, "detect: ports by name (Hortator, Felucca, others)");
+  ok(P.classifyPort("Hortator") === "fm1" && P.classifyPort("Hortator 8ch MIDI 1") === "fm1" && P.classifyPort("Felucca") === "fm1"
+    && P.classifyPort("FM-1") === "fm1" && P.classifyPort("Felucca Update") === "update" && P.classifyPort("FM-1_BLE") === null
+    && P.classifyPort("IAC Driver Bus 1") === null, "detect: a port's name only says whom to ask first (FM-1 names), not who answers");
   const newer = fresh({ major: 2 }).request(CMD.INFO), foreign = fresh({ magic: "SOMETHNG" }).request(CMD.INFO), old = fresh({ editor: false });
   ok(P.checkInfo(newer).why === "newer" && P.checkInfo(foreign).why === "magic" && old.request(CMD.INFO) === undefined
     && P.checkInfo(null).why === "noeditor" && P.checkInfo({ ...info, major: 0 }).why === "older", "detect: refuses a newer major, another magic, no editor, an older major");

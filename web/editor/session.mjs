@@ -16,7 +16,6 @@ import { INFO_ONLY, Link } from "./link.mjs";
 export const LINKS = {
   installer: { text: "Open the installer", href: "../installer/" },
   releases: { text: "Hortator releases", href: "https://github.com/DeadActive/hortator/releases" },
-  felucca: { text: "Felucca", href: "https://github.com/hugelton/Felucca" },
 };
 export const BUSY_MSG = "FM-1 busy (update?)";
 export const ASLEEP_MSG = "FM-1 busy: Reconnect when the update is done";
@@ -24,9 +23,10 @@ const restoreBusy = (l) => `Writing ${l.what} to the FM-1 (${l.owner} tab).`;
 const REFUSAL = {
   nomidi: { message: "This browser has no Web MIDI. Use Chrome, Edge or Opera (desktop or Android), or Firefox.", links: [] },
   denied: { message: "MIDI access was refused. Allow MIDI (with SysEx) for this page, then connect again.", links: [] },
-  none: { message: "No Hortator FM-1 found. Connect it by USB (Bluetooth is not an editor link), then connect again.",
+  none: { message: "No Hortator FM-1 found. Connect it by USB (Bluetooth is not an editor link), then connect again. " +
+    "If it is connected under another name, search the other MIDI ports.", links: [LINKS.installer], search: true },
+  update: { message: "The FM-1 is in update mode: finish the update in the installer, then connect again. Nothing was sent to it.",
     links: [LINKS.installer] },
-  felucca: { message: "This FM-1 runs Felucca: use Felucca's editor. Nothing was sent to it.", links: [LINKS.felucca] },
   noeditor: { links: [LINKS.installer] },
   older: { links: [LINKS.installer] },
   newer: { links: [LINKS.releases] },
@@ -53,34 +53,37 @@ export async function clockGuard(session, choose, notify = () => {}, waitMs = 60
   return stopped;
 }
 const live = (p) => p.state !== "disconnected";
-/** the access' ports by kind: hortator [{ name, input, output }], felucca [names], other [names] */
+/** the access' in/out pairs by kind (classifyPort): fm1 [{ name, input, output }] (FM-1 names, asked first), other [...]
+ * (asked only when the user searches), update [names] (never asked) */
 export function listPorts(access) {
   const ins = [...access.inputs.values()].filter(live), outs = [...access.outputs.values()].filter(live);
-  const out = { hortator: [], felucca: [], other: [] }, used = new Set();
+  const out = { fm1: [], other: [], update: [] }, used = new Set();
   for (const o of outs) {
     const kind = classifyPort(o.name);
-    if (kind !== "hortator") { (kind === "felucca" ? out.felucca : out.other).push(o.name); continue; }
+    if (kind === "update") { out.update.push(o.name); continue; }
     const i = ins.find((x) => !used.has(x) && x.name === o.name)
-      ?? ins.find((x) => !used.has(x) && classifyPort(x.name) === "hortator");
+      ?? (kind === "fm1" ? ins.find((x) => !used.has(x) && classifyPort(x.name) === "fm1") : undefined);
     if (!i) continue;
     used.add(i);
-    out.hortator.push({ name: o.name, input: i, output: o });
+    (kind === "fm1" ? out.fm1 : out.other).push({ name: o.name, input: i, output: o });
   }
-  for (const i of ins) if (!used.has(i) && classifyPort(i.name) === "felucca" && !out.felucca.includes(i.name)) out.felucca.push(i.name);
   return out;
 }
 
-/** connect to the first Hortator port that identifies itself: { ok: true, session } or a refusal */
+/** connect to the first port whose INFO answer identifies a Hortator FM-1: { ok: true, session } or a refusal.
+ * Asked: the FM-1-named ports; with opts.all (the user's "search the other ports") every other port too; never one in
+ * update mode. Only INFO goes out until a port identifies itself. */
 export async function connect(access, opts = {}) {
-  const ports = listPorts(access);
-  if (!ports.hortator.length) return refusal(ports.felucca.length ? "felucca" : "none");
+  const ports = listPorts(access), ask = opts.all ? [...ports.fm1, ...ports.other] : ports.fm1;
+  const search = !opts.all && ports.other.length > 0; // the page offers "Search other MIDI ports"
+  if (!ask.length) return { ...refusal(ports.update.length ? "update" : "none"), search };
   let last;
-  for (const p of ports.hortator) {
+  for (const p of ask) {
     const s = new Session(access, p, opts);
     const r = await s.identify();
     if (r.ok) { await s.start(); return { ok: true, session: s, port: p.name }; }
     s.close();
-    last = { ...refusal(r.why, r.message), port: p.name };
+    last = { ...refusal(r.why, r.message), port: p.name, search };
   }
   return last;
 }

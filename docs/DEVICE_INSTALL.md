@@ -920,8 +920,10 @@ Two FM-1s for the move test, or one FM-1 and two slots. Note the times with a st
 
 - Connect and refuse: Connect with the FM-1 on USB: the browser asks for MIDI with SysEx, then the tabs and the header
   appear (firmware 0.28.0, PLAY / STOP, the loaded slot, the variation, the selected track). With an FM-1 on 0.27.0 or
-  older: "Update this FM-1 to use the editor" and the installer link. With only other MIDI gear plugged in: "No
-  Hortator FM-1 found". With the FM-1 on Bluetooth only: not found (USB only). Unplug while connected: "The FM-1 was
+  older: "This FM-1 does not answer the editor" and the installer link. On a Mac that once knew this FM-1 as
+  "Felucca" (Audio MIDI Setup still shows that name): it connects all the same. With only other MIDI gear plugged in:
+  "No Hortator FM-1 found" and Search other MIDI ports (it finds the FM-1 under any name). With the FM-1 on Bluetooth
+  only: not found (USB only). Unplug while connected: "The FM-1 was
   unplugged."
 - One tab: open the editor in a second tab: "The editor is open in another tab"; Use here: the first tab disconnects,
   the second connects; Use here in the first takes it back.

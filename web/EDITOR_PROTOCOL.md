@@ -450,13 +450,16 @@ firmware through `tests/editor_ids.c` → `device_data.json` → `test_editor.mj
 ## 7. Connecting, and the devices the page refuses
 
 1. Nothing happens before the user clicks Connect (the browser asks for MIDI with SysEx).
-2. A port whose name contains "Hortator" (the USB product string since frozen-base-9: "Hortator", "Hortator MIDI 1",
-   "Hortator 8ch"): send INFO.
-3. A port named "Felucca" and not "Hortator": **upstream Felucca** — "This FM-1 runs Felucca: use Felucca's editor".
-   Nothing is sent. Any other port (a **stock** FM-1, other gear): nothing is sent; with no Hortator port the page
-   says "No Hortator FM-1 found" with the installer link.
-4. INFO unanswered after its tries: **an older Hortator** (0.27.0 and before have no editor) or a device busy
-   updating — "Update this FM-1 to use the editor" with the installer link and a retry.
+2. **A port's name does not identify the device; INFO's answer does.** The name only chooses whom to ask first: macOS
+   (CoreMIDI) keeps the name it first saw for a device, so a Hortator FM-1 that once ran Felucca or the stock firmware
+   shows up as "Felucca" or "FM-1" although its USB product string is "Hortator". Ports named like an FM-1
+   ("Hortator", "Felucca", "FM-1"; not Bluetooth ports): send INFO, one port at a time.
+3. Never asked: a port in update mode ("Felucca Update" — the loader): "The FM-1 is in update mode". Other gear: nothing
+   is sent unless the user clicks **Search other MIDI ports**, which sends INFO (only) to every other port too. With
+   no port to ask: "No Hortator FM-1 found", the installer link and that search button.
+4. INFO unanswered after its tries: **upstream Felucca** (its editor takes only `7D 46 4C` frames and drops this one),
+   **the stock firmware**, **a Hortator before 0.28.0** (no editor), or a device busy updating — "This FM-1 does not
+   answer the editor … Install Hortator 0.28.0 or later" with the installer link. Only INFO frames reached it.
 5. INFO answered with another magic, or rc ≠ 0: "Not a Hortator editor device".
 6. INFO `major` > 1: **a newer Hortator** — "use the editor from its release" with the release link; `major` < 1:
    "Update this FM-1". The same major with any minor: connected; `caps` decides what is shown.

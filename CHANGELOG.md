@@ -6,8 +6,9 @@ released yet are listed under Unreleased (the next version) and, for the version
 ## 0.28.0 (unreleased)
 
 - **Web editor**: edit the FM-1 from the browser, on the Hortator site under Editor, with the FM-1 connected by USB.
-  Click Connect: the page finds the FM-1 and talks to nothing else (an FM-1 with the official firmware or Felucca,
-  and other MIDI gear, get nothing; an FM-1 with an older Hortator gets a link to the installer).
+  Click Connect: the page asks the FM-1 who it is, so it finds it even when the computer still shows it under an
+  old name such as "Felucca" or "FM-1". Other MIDI gear gets nothing unless you click Search other MIDI ports; an
+  FM-1 that does not answer (the official firmware, Felucca or an older Hortator) gets a link to the installer.
   - **Sound**: the selected track's pages (SOUND for its model, LAYER, FILTER, FX, INSERT, SRR, RESON, SLICER, LFO 1
     and 2, DEST) and the globals with DLY MODE, each knob with the FM-1's own text. Both ways: turn a knob on the
     FM-1 and it moves in the page; move it in the page and the FM-1 plays it. Choosing a track in the page selects it

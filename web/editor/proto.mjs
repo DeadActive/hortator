@@ -335,16 +335,20 @@ export const timeoutOf = (cmd, args = {}) => (LONG.has(cmd) || (cmd === CMD.REST
   ? TIMING.longTimeout : TIMING.timeout);
 
 /* --------------------------------------------------------------- detection --- */
-/** a MIDI port by its name: "hortator" (ask it INFO), "felucca" (upstream Felucca: send nothing), null (not ours) */
+/** a MIDI port by its name, only to choose whom to ask: "fm1" (an FM-1 name: ask it INFO), "update" (the loader's
+ * update mode: send nothing), null (other gear: asked only when the user searches). The name proves nothing — macOS
+ * keeps the name it first saw for a device, so a Hortator FM-1 can show up as "Felucca" — INFO's answer decides. */
 export function classifyPort(name = "") {
-  if (/Hortator/i.test(name)) return "hortator";
-  if (/Felucca/i.test(name)) return "felucca";
+  if (/Update/i.test(name) && /Felucca|Hortator|FM-1/i.test(name)) return "update";
+  if (/BLE|Bluetooth/i.test(name)) return null;
+  if (/Hortator|Felucca|FM-1/i.test(name)) return "fm1";
   return null;
 }
 /** an INFO reply (or null: no reply after the tries) -> { ok } or { ok: false, why, message } */
 export function checkInfo(info) {
   if (!info) return { ok: false, why: "noeditor",
-    message: "This FM-1 does not answer the editor: update it to Hortator 0.28.0 or later (or it is busy updating)." };
+    message: "This FM-1 does not answer the editor: it runs Felucca, the stock firmware or a Hortator before 0.28.0 " +
+      "(or it is busy updating). Install Hortator 0.28.0 or later to use the editor." };
   if (info.rc || info.magic !== PROTO.magic) return { ok: false, why: "magic", message: "Not a Hortator editor device." };
   if (info.major > PROTO.major) return { ok: false, why: "newer",
     message: `This FM-1 runs a newer Hortator (editor protocol ${info.major}): use the editor from its release.` };

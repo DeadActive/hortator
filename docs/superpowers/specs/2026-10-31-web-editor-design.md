@@ -37,10 +37,11 @@ chain editing; reading upstream Felucca's backup files; editing anything during 
 
 ## What the user sees
 
-- **Connect**: one button. The browser asks for MIDI (SysEx) permission. The page lists only ports whose name contains
-  "Hortator" (the USB product string since frozen-base-9) and asks the device who it is. A Hortator with the editor:
-  connected, tabs appear. A Hortator without it (0.26.0 and older): "Update this FM-1 to use the editor" + installer
-  link. A port named "Felucca": "This FM-1 runs Felucca — use Felucca's editor". Anything else: nothing is sent.
+- **Connect**: one button. The browser asks for MIDI (SysEx) permission. The page asks the device who it is (INFO):
+  the answer identifies a Hortator, not the port's name (amended 2026-10-31: macOS keeps the name it first saw, so a
+  Hortator can show up as "Felucca"). FM-1-named ports ("Hortator", "Felucca", "FM-1") are asked; other gear only after
+  the user clicks "Search other MIDI ports"; a port in update mode never. A Hortator with the editor: connected, tabs
+  appear. No answer (upstream Felucca, stock, Hortator before 0.28.0): the install message + installer link.
 - **Header bar** (always): PLAY / STOP state, loaded slot and variation, unsaved marks (A*), the selected track 1–8.
   Choosing a track in the page selects it on the FM-1 and the other way round: there is one selection.
 - **Sound tab**: the selected track's pages as on the device (SOUND by model, LAYER, FILTER, FX, INSERT, SRR, RESON,
