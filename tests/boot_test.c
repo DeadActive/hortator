@@ -340,6 +340,59 @@ static int thru_persists(void)
     return ok;
 }
 
+/* QUANT (spec 2026-10-31 §2: seq.c rec_quant) survives a power cycle in bits 16..17 of the stored palette word, the
+ * other bits as they were; a record without it (every older one) and none read 1/16 */
+static int quant_persists(void)
+{
+    int ok = 1;
+    uint32_t q, low = 0;
+    for (q = 0; q < QUANT_N; q++) {
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        settings.magic = SETTINGS_MAGIC;
+        settings.palette = THEME_TAG | 2u;
+        midi_thru = 1;
+        solo_mom = 1;
+        rec_quant = (uint8_t)q;
+        settings_save();
+        st_load(OBJ_SETTINGS, &p, sizeof p);
+        ok &= ((p.palette >> 16) & 3u) == q && p.palette >> 18 == 0u;
+        if (!q)
+            low = p.palette & 0xFFFFu;
+        else
+            ok &= (p.palette & 0xFFFFu) == low;
+        rfill(&settings, sizeof settings);           /* power off */
+        rec_quant = 9;
+        midi_thru = 0;
+        persist_boot();
+        settings_init();
+        ok &= rec_quant == q && midi_thru == 1u && solo_mom == 1u && settings.palette == (THEME_TAG | 2u);
+    }
+    {   /* an older record: 1/16; no record: 1/16 */
+        persist_t p;
+        memset(hflash, 0xFF, sizeof hflash);
+        host_init();
+        persist_boot();
+        memset(&p, 0, sizeof p);
+        p.magic = PERSIST_MAGIC;
+        p.palette = 2u | 1u << 8 | 1u << 14 | 1u << 15;
+        p.panel = PANEL_DEFAULT;
+        st_save(OBJ_SETTINGS, &p, sizeof p);
+        rec_quant = QUANT_OFF;
+        persist_boot();
+        ok &= rec_quant == QUANT_16;
+        memset(hflash, 0xFF, sizeof hflash);
+        rec_quant = QUANT_OFF;
+        persist_boot();
+        ok &= rec_quant == QUANT_16;
+    }
+    solo_mom = 0;
+    midi_thru = 0;
+    return ok;
+}
+
 /* GLO SYNC / ROUT are project globals: a project saved before them (0) loads SYNC OFF, ROUT NOTE; ROUT kept in its
  * range; SYNC as this build has it (without Bluetooth: BLE OFF, BOTH USB) and a loaded slot shows no edit for it */
 static int sync_rout_load(void)
@@ -1267,7 +1320,8 @@ static int fdrb_round_trip(void)
     return trk[2].step[4].on && trk[2].step[4].slide && trk[2].step[4].nt == -12 && trk[2].step[5].tie &&
            !trk[2].step[5].on;
 }
-/* Review Focus 5: a stored step's reserved bits / byte and an out-of-range note: cleared and clamped on load */
+/* Review Focus 5: a stored step's reserved bits and an out-of-range note and MICRO (its byte, FDRG): cleared and
+ * clamped on load */
 static int fdrb_clamps(void)
 {
     project_t *p = &proj_slot[0];
@@ -1276,14 +1330,14 @@ static int fdrb_clamps(void)
     persist_boot();
     project_save(0);
     ((uint8_t *)&p->t[4].step[2])[0] = 0xFFu;        /* every flag, the reserved bits too */
-    ((uint8_t *)&p->t[4].step[2])[3] = 0x5Au;
+    ((uint8_t *)&p->t[4].step[2])[3] = 0x5Au;        /* MICRO +90: +50 */
     p->t[4].step[3].nt = 100;                        /* past NT_MAX (C4 + 67 = G9) */
     p->t[4].step[5].nt = -100;
     p->sum = proj_sum(p);
     (void)proj_load(0, 1);                          /* (the edited slot: as DISCARD EDITS? YES) */
     return trk[4].step[2].on && trk[4].step[2].acc && trk[4].step[2].slide && trk[4].step[2].tie &&
            trk[4].step[2].rat == 3u && ((const uint8_t *)&trk[4].step[2])[0] == 0x3Fu &&
-           ((const uint8_t *)&trk[4].step[2])[3] == 0u && trk[4].step[3].nt == NT_MAX && trk[4].step[5].nt == NT_MIN;
+           trk[4].step[2].micro == MICRO_MAX && trk[4].step[3].nt == NT_MAX && trk[4].step[5].nt == NT_MIN;
 }
 /* an FDR8 record (3544 B): its motion, an empty song, no name */
 static int fdr8_converts(void)
@@ -1480,7 +1534,7 @@ static int fdrc_round_trip(void)
     persist_boot();
     project_load(0);
     return trk[1].p[P_PRIO] == 1 && trk[6].p[P_PRIO] == 1 && trk[0].p[P_PRIO] == 0 && sizeof(project_t) == 3840u &&
-           proj_slot[0].magic == 0x46524446u;       /* "FDRF" (2026-10-24: the lock banks) */
+           proj_slot[0].magic == 0x47524446u;       /* "FDRG" (2026-10-31: MICRO) */
 }
 
 /* one pattern played 2 s from a loaded slot: a hash of the mix */
@@ -1667,7 +1721,7 @@ static int fdre_slots_round_trip(void)
     return trk[5].p[P_LSRC1] == 1 && trk[5].p[P_LSRC2] == 0 && trk[5].p[P_LS3SRC] == 1 && trk[5].p[P_LS3DEST] == 17 &&
            trk[5].p[P_LS3DEPTH] == -64 && trk[5].p[P_LS4SRC] == 0 && trk[5].p[P_LS4DEST] == 2 &&
            trk[5].p[P_LS4DEPTH] == 33 && sizeof(project_t) == 3840u && sizeof(project_t) <= ST_PAYLOAD_MAX &&
-           proj_slot[3].magic == 0x46524446u;       /* "FDRF" (2026-10-24: the lock banks) */
+           proj_slot[3].magic == 0x47524446u;       /* "FDRG" (2026-10-31: MICRO) */
 }
 
 /* RESON KEYF (P_RKEY): FDRE's parameter block is full, so a track's KEYF rides in its first step's spare byte; kept
@@ -1692,7 +1746,7 @@ static int fdre_keyf_round_trip(void)
         for (i = 0; i < NSTEP; i++)
             ok &= trk[k].step[i].rsv == 0;
     }
-    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x46524446u && proj_ok(&proj_slot[2]);
+    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x47524446u && proj_ok(&proj_slot[2]);
 }
 /* an FDRE record from before KEYF (its steps' spare bytes 0, as every earlier firmware wrote them) loads with KEYF
  * off on every track, and plays as it did */
@@ -1740,7 +1794,7 @@ static int fdre_inserts_round_trip(void)
     for (k = 0; k < NTRK; k++)                         /* the tracks left at their power-on values: 0 stored */
         if (k != 1u && k != 4u && k != 6u)
             for (j = 0; j < 6u; j++)
-                ok &= proj_slot[2].t[k].step[ID[j] - P_NSTORED].rsv == 0;
+                ok &= proj_slot[2].xp[k][ID[j] - P_NSTORED] == 0;
     host_init();
     memset(proj_slot, 0, sizeof proj_slot);
     persist_boot();
@@ -1758,7 +1812,7 @@ static int fdre_inserts_round_trip(void)
         for (i = 0; i < NSTEP; i++)
             ok &= trk[k].step[i].rsv == 0;
     }
-    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x46524446u && proj_ok(&proj_slot[2]);
+    return (int)ok && sizeof(project_t) == 3840u && proj_slot[2].magic == 0x47524446u && proj_ok(&proj_slot[2]);
 }
 /* a record from before SRR and the INSERT (its steps' spare bytes 0, as 0.26.0 and every earlier firmware wrote
  * them) loads with SRR 0 and the INSERT OFF on every track (A B C MIX at their power-on values), and plays as it did */
@@ -2313,12 +2367,13 @@ static int fdrf_round_trip(void)
     for (i = 0; i < sizeof proj_slot[2].rsv_mo; i++)
         ok &= proj_slot[2].rsv_mo[i] == 0;
     return (int)ok && bank_events_eq(&mo.b, &want) && proj_slot[2].magic == PROJ_MAGIC && proj_slot[2].lk_n == 5u &&
-           sizeof(project_t) == 3840u && sizeof proj_slot[2].rsv_mo == 504u && !proj_slot[2].var_len &&
+           sizeof(project_t) == 3840u && sizeof proj_slot[2].rsv_mo + sizeof proj_slot[2].xp == 504u &&
+           sizeof proj_slot[2].xp == 56u && !proj_slot[2].var_len &&
            !proj_slot[2].var_link && str_eq(ui.msg, "LOADED");
 }
 static void fdre_of_live(project_ve_t *v)            /* the live state as 0.23.3 saved it ("FDRE") */
 {
-    uint32_t i;
+    uint32_t i, j;
     memset(v, 0, sizeof *v);
     v->magic = PROJ_MAGIC_VE;
     v->size = sizeof *v;
@@ -2328,7 +2383,8 @@ static void fdre_of_live(project_ve_t *v)            /* the live state as 0.23.3
     for (i = 0; i < NTRK; i++) {
         memcpy(v->t[i].p, trk[i].p, sizeof v->t[i].p);
         memcpy(v->t[i].step, trk[i].step, sizeof trk[i].step);
-        proj_xp_put(&v->t[i], trk[i].p);
+        for (j = P_NSTORED; j < P_COUNT; j++)        /* (FDRE / FDRF: the parameters past the block in steps 0..6) */
+            v->t[i].step[j - P_NSTORED].rsv = proj_xp_enc(j, trk[i].p[j]);
         v->pre[i] = (uint16_t)preset_rec_enc(trk[i].pre);
         v->pre_ed[i] = trk[i].pre_ed;
     }
@@ -2367,6 +2423,82 @@ static int fdre_migrates(void)
     ok &= lk_find(&mo.b, lk_key(6, 63, P_RKEY), 0) >= 0 && mo.b.on == 5u && !lk_lost && !(persist_note & PN_LOCKS);
     return (int)ok && sizeof v == 3840u && proj_slot[1].magic == PROJ_MAGIC && str_eq(ui.msg, "LOADED") &&
            str_eq(chain.name, "OLD FDRE");
+}
+/* MICRO (spec 2026-10-31 §1): "FDRG" keeps every step's micro in its spare byte, and the 7 parameters past the block
+ * (KEYF, SRR, the INSERT's TYPE A B C MIX) in the reserved area (7 B a track) */
+static int fdrg_micro_round_trip(void)
+{
+    static step_t want[NTRK][NSTEP];
+    uint32_t k, ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    pattern_kit();
+    trk[0].step[0].micro = -50;
+    trk[0].step[4].micro = 50;
+    trk[3].step[6].micro = 17;
+    trk[7].step[63].micro = -1;                      /* (an off step's micro: kept) */
+    trk[2].p[P_RKEY] = 99;
+    trk[2].p[P_SRR] = 40;
+    trk[5].p[P_ITYPE] = IT_CRUSH;
+    trk[5].p[P_IMIX] = 0;
+    trk[6].p[P_IA] = 3;
+    for (k = 0; k < NTRK; k++)
+        memcpy(want[k], trk[k].step, sizeof want[k]);
+    project_save(2);
+    ok &= proj_slot[2].magic == 0x47524446u && proj_slot[2].t[0].step[4].micro == 50 &&
+          proj_slot[2].t[0].step[0].micro == -50 && proj_slot[2].xp[2][P_RKEY - P_NSTORED] == 99u &&
+          proj_slot[2].xp[5][P_IMIX - P_NSTORED] == (uint8_t)(0 - TP[P_IMIX].def);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    project_load(2);
+    for (k = 0; k < NTRK; k++)
+        ok &= !memcmp(trk[k].step, want[k], sizeof want[k]);
+    ok &= trk[2].p[P_RKEY] == 99 && trk[2].p[P_SRR] == 40 && trk[5].p[P_ITYPE] == IT_CRUSH && trk[5].p[P_IMIX] == 0 &&
+          trk[6].p[P_IA] == 3 && trk[0].p[P_RKEY] == 0 && trk[0].p[P_IMIX] == TP[P_IMIX].def;
+    return (int)ok && proj_ok(&proj_slot[2]) && sizeof(project_t) == 3840u && str_eq(ui.msg, "LOADED");
+}
+/* a 0.26.0 record ("FDRF": the 7 parameters in steps 0..6's spare bytes, no micro) converts on load: the parameters
+ * kept, every micro 0, its lock bank and variations still linked (no LOCKS LOST) */
+static int fdrf_converts(void)
+{
+    static project_t v;
+    static step_t want[NTRK][NSTEP];
+    uint32_t k, j, ok = 1;
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    pattern_kit();
+    trk[1].p[P_RKEY] = 127;
+    trk[1].p[P_SRR] = 1;
+    trk[4].p[P_ITYPE] = IT_CHORUS;
+    trk[4].p[P_IB] = 0;
+    trk[7].p[P_IMIX] = 5;
+    lock_set(3, 2, P_E1, 33);
+    for (k = 0; k < NTRK; k++)
+        memcpy(want[k], trk[k].step, sizeof want[k]);
+    project_save(1);
+    v = proj_slot[1];                                /* as 0.26.0 wrote it */
+    for (k = 0; k < NTRK; k++)
+        for (j = 0; j < P_COUNT - P_NSTORED; j++)
+            v.t[k].step[j].rsv = v.xp[k][j];
+    memset(v.xp, 0, sizeof v.xp);
+    v.magic = 0x46524446u;
+    v.sum = proj_hash(&v, sizeof v - 4u);
+    st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
+    host_init();
+    wipe_ram();
+    persist_boot();
+    project_load(1);
+    for (k = 0; k < NTRK; k++)
+        ok &= !memcmp(trk[k].step, want[k], sizeof want[k]);   /* (micro 0 everywhere: the bytes were parameters) */
+    ok &= trk[1].p[P_RKEY] == 127 && trk[1].p[P_SRR] == 1 && trk[4].p[P_ITYPE] == IT_CHORUS && trk[4].p[P_IB] == 0 &&
+          trk[7].p[P_IMIX] == 5 && trk[0].p[P_RKEY] == 0 && trk[0].p[P_ITYPE] == IT_OFF;
+    ok &= lock_count(3) == 1u && !lk_lost && !(persist_note & PN_LOCKS);
+    return (int)ok && proj_slot[1].magic == 0x47524446u && proj_ok(&proj_slot[1]) && str_eq(ui.msg, "LOADED");
 }
 static int fdre_ram_refetched(void)                  /* after fdre_migrates: unsaved, a reset (RAM slot kept) */
 {
@@ -2652,7 +2784,7 @@ int main(void)
     check("project: an FDRA record in flash converts (NOTE C4, no SLIDE / TIE)", fdra_flash_converts());
     check("project: an FDRA image in a RAM slot (0.15.0's layout) is not read; the flash copy loads", fdra_ram_refetched());
     check("project: FDRB keeps SLIDE, TIE and the note through a save and a load", fdrb_round_trip());
-    check("project: a stored step's reserved bits are cleared, its note clamped", fdrb_clamps());
+    check("project: a stored step's reserved bits are cleared, its note and MICRO clamped", fdrb_clamps());
     check("project: an FDR8 record (3544 B) loads with its motion, no song, no name", fdr8_converts());
     check("project: a broken song or name is dropped, the project loads", fdr9_bad_song_name_dropped());
     check("song: an empty slot refused; a slot's garbage made safe (ASan)", song_garbage_slot());
@@ -2683,6 +2815,8 @@ int main(void)
     check("project: CLK beyond this build's range (BLE, LINK) loads as INT, not TRS", clock_beyond_range_is_int());
     check("settings: MIDI THRU survives a power cycle (palette bit 14, the rest kept); older records, none: OFF",
           thru_persists());
+    check("settings: QUANT survives a power cycle (palette bits 16..17, the rest kept); older records, none: 1/16",
+          quant_persists());
     check("project: SYNC / ROUT load OFF / NOTE from older projects; ROUT in range; SYNC BLE / BOTH without Bluetooth: "
           "OFF / USB", sync_rout_load());
     check("project: an FDRB record (0.16.0) loads with PRIO HIGH, its steps, motion, song and name", fdrb_converts());
@@ -2713,6 +2847,10 @@ int main(void)
     check("FDRF: an FDRE record (0.23.3) migrates: its motion as motion events, PLAY bits, every knob and step",
           fdre_migrates());
     check("FDRF: an FDRE converted in RAM, unsaved, converts again after a reset (no LOCKS LOST)", fdre_ram_refetched());
+    check("FDRG: every step's MICRO and the 7 parameters past the block through a save and a load (3840 B)",
+          fdrg_micro_round_trip());
+    check("FDRG: a 0.26.0 record (FDRF) converts: KEYF, SRR, the INSERT kept, micro 0, its locks still linked",
+          fdrf_converts());
     check("FDRF: 1024 events: every bank sector's +0xF00..+0xF4F stays erased (the loader's scan)", bank_scan_offset_erased());
     check("FDRF: a save torn in the project record, the bank's commit or its payload: the old pair loads together",
           bank_torn_keeps_pair());

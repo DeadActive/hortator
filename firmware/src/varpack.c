@@ -8,8 +8,10 @@
  *
  * The bank's d: variations 2..8 in order, each an entry: u16 n (little endian; 0 = empty, never used: 2 B), then n
  * bytes: per track LEN DIV SWG SRC (a byte each), its 64-bit step map (8 B, little endian, bit i = step i set: any
- * field not 0), then 3 B per set step in step order: flags (on | acc << 1 | slide << 2 | tie << 3 | rat << 4), cond, nt.
- * n = 96 + 3 x the set steps (a used variation keeps its timing even with no step set). */
+ * field not 0), then 3 B per set step in step order: flags (on | acc << 1 | slide << 2 | tie << 3 | rat << 4 | a micro
+ * follows << 6), cond, nt, and the step's MICRO (int8) when bit 6 is set (micro != 0 only: spec 2026-10-31 §1; banks
+ * from before never set it). n = 96 + 3 x the set steps + the nudged ones (a used variation keeps its timing even with
+ * no step set). */
 #define VAR_N 8u                                /* variations a slot: 1 (the record's steps) + 7 in the bank */
 #define VAR_BYTES 3584u                         /* the object, +0xF00 of its sector stays erased */
 #define VAR_MAGIC 0x31524156u                   /* "VAR1" */
@@ -24,7 +26,7 @@ _Static_assert(sizeof(var_bank_t) == VAR_BYTES && VAR_BYTES <= 3584u, "variation
 _Static_assert(NSTEP == 64 && NTRK == 8, "variation entries: a 64-bit step map, 8 tracks");
 #define VAR_CAP (VAR_BYTES - 8u)
 
-static int var_set(const step_t *s) { return (s->on | s->acc | s->slide | s->tie | s->rat | s->cond | s->nt) != 0; }
+static int var_set(const step_t *s) { return (s->on | s->acc | s->slide | s->tie | s->rat | s->cond | s->nt | s->micro) != 0; }
 
 static void var_empty(var_bank_t *b, uint32_t slot)   /* 7 empty entries (14 B), the rest 0 */
 {
@@ -39,7 +41,7 @@ static uint32_t var_need(const step_t *const st[NTRK])   /* the bytes an entry o
     uint32_t k, i, n = 2u + NTRK * VAR_TRK;
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < NSTEP; i++)
-            n += var_set(&st[k][i]) ? 3u : 0u;
+            n += var_set(&st[k][i]) ? 3u + (st[k][i].micro != 0) : 0u;
     return n;
 }
 
@@ -97,9 +99,11 @@ static int var_enc(uint8_t *d, int cmp, const step_t *const st[NTRK], const int1
             const step_t *s = &st[k][i];
             if (!var_set(s))
                 continue;
-            VAR_PUT(s->on | s->acc << 1 | s->slide << 2 | s->tie << 3 | s->rat << 4);
+            VAR_PUT(s->on | s->acc << 1 | s->slide << 2 | s->tie << 3 | s->rat << 4 | (s->micro != 0) << 6);
             VAR_PUT(s->cond);
             VAR_PUT(s->nt);
+            if (s->micro)
+                VAR_PUT(s->micro);
         }
 #undef VAR_PUT
     return 1;
@@ -156,10 +160,11 @@ static int var_get(const var_bank_t *b, uint32_t v, step_t *const st[NTRK], int1
         tm[k][3] = (int16_t)clamp(t[3], 0, 3);
         for (i = 0; i < NSTEP; i++) {
             step_t *s = &st[k][i];
-            uint32_t f;
+            uint32_t f, mb;
             if (!((t[4u + i / 8u] >> (i & 7u)) & 1u))
                 continue;
-            if (q + 3u > (uint32_t)o + sz) {         /* more set steps than the entry holds */
+            mb = q < (uint32_t)o + sz ? (b->d[q] >> 6) & 1u : 0u;   /* its MICRO byte */
+            if (q + 3u + mb > (uint32_t)o + sz) {    /* more set steps than the entry holds */
                 for (k = 0; k < NTRK; k++)
                     memset(st[k], 0, NSTEP * sizeof(step_t));
                 return -1;
@@ -172,7 +177,9 @@ static int var_get(const var_bank_t *b, uint32_t v, step_t *const st[NTRK], int1
             s->rat = (f >> 4) & 3u;
             s->cond = (uint8_t)(b->d[q + 1u] < COND_MAX ? b->d[q + 1u] : COND_MAX);
             s->nt = (int8_t)clamp((int8_t)b->d[q + 2u], NT_MIN, NT_MAX);
-            q += 3u;
+            if (mb)
+                s->micro = (int8_t)clamp((int8_t)b->d[q + 3u], -MICRO_MAX, MICRO_MAX);
+            q += 3u + mb;
         }
     }
     return 1;
@@ -189,10 +196,10 @@ static uint32_t var_pop8(uint32_t x)
 }
 
 /* a bank (from flash) is whole: magic, slot, len == 8 + used, used inside, exactly 7 entries ending at used, each
- * empty or 96 + 3 x its step maps' bits long */
+ * empty or 96 + 3 x its step maps' bits + its MICRO bytes (flags bit 6) long */
 static int var_valid(const var_bank_t *b, uint32_t slot, uint32_t len)
 {
-    uint32_t o = 0, v, n, k, j, bits;
+    uint32_t o = 0, v, n, k, j, bits, q;
     if (b->magic != VAR_MAGIC || b->slot != slot || b->used > VAR_CAP || len != 8u + b->used)
         return 0;
     for (v = 1; v < VAR_N; v++) {
@@ -207,7 +214,9 @@ static int var_valid(const var_bank_t *b, uint32_t slot, uint32_t len)
         for (k = 0, bits = 0; k < NTRK; k++)
             for (j = 0; j < 8u; j++)
                 bits += var_pop8(b->d[o + k * VAR_TRK + 4u + j]);
-        if (n != NTRK * VAR_TRK + 3u * bits)
+        for (q = o + NTRK * VAR_TRK; bits && q + 3u <= o + n; bits--)   /* each set step: 3 B, + 1 with bit 6 */
+            q += 3u + ((b->d[q] >> 6) & 1u);
+        if (bits || q != o + n)
             return 0;
         o += n;
     }

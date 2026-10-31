@@ -604,7 +604,8 @@ static void test_step_hold_on_acc(void)
     turn(EN_K4, 2);
     host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
     ui_frame();
-    check("held: KNOB 4 does nothing (step, bank unchanged)", s->on && !s->acc && ui.bank == 0u);
+    check("held: KNOB 4 is the step's MICRO (+2; step, bank, accent unchanged)", s->on && !s->acc && ui.bank == 0u &&
+          s->micro == 2);
     grid_up(WHITE[5]);
     check("let go: on, PROB / RATCH kept, no accent", s->on && !s->acc && s->cond == cond_store(19) && s->rat == 1);
     memset(&trk[0].step[7], 0, sizeof trk[0].step[7]);
@@ -2481,6 +2482,99 @@ static void test_global_metro_setting(void)
     ui_frame();
     check("the knob follows the setting (as MUTE's)", song.act[3] == 1);
     fx_metro = 0;
+}
+
+static int col_has(uint32_t c, const char *t) { return strstr(ui.col[c], t) != 0; }   /* KNOB c+1's column shows t */
+static int grid_mark(uint32_t i, int side)           /* STEP: a mark beside step i's box (bank 1): left -1, right +1 */
+{
+    int32_t x = 4 + (int32_t)i * 14 + (int32_t)(i / 4u) * 2 + (side < 0 ? -1 : 11), y, n = 0;
+    for (y = 30; y < 30 + 48; y++)
+        n += fb[(uint32_t)(Y_GRAPH + G_OY + y) * 240u + (uint32_t)x] == C_INK;
+    return n > 0;
+}
+/* MICRO (spec 2026-10-31 §1): a held step's KNOB 4, -50 .. +50, its value in the knob column; an off step turned on by
+ * it; a nudged step's mark in the grid (left of its box early, right late); a tap off clears it */
+static void test_step_micro(void)
+{
+    step_t *s = &trk[0].step[3];
+    int32_t i;
+    ui_host_init();
+    open_step_page();
+    memset(&trk[0].step[0], 0, sizeof trk[0].step);
+    grid_down(WHITE[3]);
+    turn(EN_K4, -1);
+    ui_frame();
+    check("MICRO: an off step held + KNOB 4 left: on, micro -1", s->on && s->micro == -1);
+    for (i = 0; i < 80; i++) {
+        turn(EN_K4, -1);
+        host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+    check("MICRO: down to -50 at most", s->micro == -MICRO_MAX);
+    ui.force = 1;
+    ui_frame();
+    check("MICRO: KNOB 4's column shows it", col_has(3, "MICRO") && col_has(3, "-50"));
+    snap_page("seq/26_step_micro_held");
+    for (i = 0; i < 140; i++) {
+        turn(EN_K4, 1);
+        host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
+        ui_frame();
+    }
+    check("MICRO: up to +50 at most", s->micro == MICRO_MAX);
+    ui.force = 1;
+    ui_frame();
+    check("MICRO: shown +50", col_has(3, "+50"));
+    grid_up(WHITE[3]);
+    check("MICRO: let go, kept (on)", s->on && s->micro == MICRO_MAX);
+    trk[0].step[5].on = 1;
+    trk[0].step[5].micro = -20;
+    trk[0].step[8].on = 1;
+    ui.force = 1;
+    ui_frame();
+    snap_page("seq/27_step_micro_marks");
+    check("MICRO: a nudged step's mark beside its box (late: right, early: left), none beside a plain one",
+          grid_mark(3, 1) && !grid_mark(3, -1) && grid_mark(5, -1) && !grid_mark(5, 1) && !grid_mark(8, 1) &&
+          !grid_mark(8, -1));
+    grid_hold(WHITE[3], 0);
+    check("MICRO: a tap turning the step off clears it (plain again)", !s->on && !s->micro);
+}
+
+/* QUANT (spec 2026-10-31 §2): GLOBAL 3/7 KNOB 4, 1/16 (default) 1/8 1/32 OFF, the device setting rec_quant */
+static void test_glo_quant(void)
+{
+    uint32_t k;
+    int16_t *vp;
+    const param_desc_t *d;
+    char v[12];
+    const char *u;
+    ui_host_init();
+    rec_quant = 0;
+    for (k = 0; k < 6u && (ui.home || cur_page()->id[0] != G_MUTEBAR); k++)
+        tap(B_GLO);
+    d = page_desc(cur_page(), 3, &vp);
+    param_format(d, 0, v, &u);
+    check("GLOBAL 3/7: KNOB 4 is QUANT, 1/16", d && str_eq(d->label, "QUANT") && vp && *vp == 0 && str_eq(v, "1/16"));
+    turn(EN_K4, 1);
+    ui_frame();
+    param_format(d, *vp, v, &u);
+    check("QUANT: KNOB 4 -> 1/8 (the setting; the knob shows it)", rec_quant == QUANT_8 && song.act[5] == 1 &&
+          str_eq(v, "1/8"));
+    turn(EN_K4, 1);
+    ui_frame();
+    param_format(d, *vp, v, &u);
+    check("QUANT: -> 1/32", rec_quant == QUANT_32 && str_eq(v, "1/32"));
+    turn(EN_K4, 5);
+    ui_frame();
+    param_format(d, *vp, v, &u);
+    check("QUANT: -> OFF at the end", rec_quant == QUANT_OFF && str_eq(v, "OFF"));
+    snap_page("fixes/global_3_quant");
+    rec_quant = QUANT_32;
+    ui_frame();
+    check("QUANT: the knob follows the setting", song.act[5] == QUANT_32);
+    turn(EN_K4, -5);
+    ui_frame();
+    check("QUANT: back to 1/16; MUTE METRO THRU untouched", rec_quant == QUANT_16 &&
+          song.act[2] == (int16_t)settings.mutebar && song.act[3] == (int16_t)fx_metro && song.act[4] == (int16_t)midi_thru);
 }
 
 /* GLO SYSTEM 2/3: KNOB 2 SYNC (MIDI clock out: OFF USB, + BLE BOTH in the Bluetooth build), KNOB 3 ROUT (MIDI in:
@@ -6540,10 +6634,11 @@ static void test_srec_keys(void)
     check("step record: a REC tap on STEP (KEYS, stopped) starts it at step 1: STEP REC 01, REC lit, still STEP, nothing armed",
           ui.srec && ui.sr_cur == 0u && head_mode(b) && str_eq(b, "STEP REC 01") && led_on(panel.btn[B_REC]) &&
           !ui.home && cur_page()->scope == SC_GRID && song.rec == 0u);
+    t->step[0].micro = 25;                           /* (step record has no timing: micro 0) */
     keys(1u << 7);                                   /* C4 */
     ui_frame();
-    check("step record: a key writes its note to the cursor step (ON, C4), the cursor waits for its release",
-          t->step[0].on && !t->step[0].tie && t->step[0].nt == 0 && ui.sr_cur == 0u);
+    check("step record: a key writes its note to the cursor step (ON, C4, micro 0), the cursor waits for its release",
+          t->step[0].on && !t->step[0].tie && t->step[0].nt == 0 && !t->step[0].micro && ui.sr_cur == 0u);
     keys(0);
     ui_frame();
     check("step record: let go: the cursor moves on (STEP REC 02)", ui.sr_cur == 1u && head_mode(b) &&
@@ -7299,8 +7394,9 @@ static void test_srec_rest_clears(void)
     t->step[0].rat = 2;
     t->step[0].acc = 1;
     t->step[0].slide = 1;
+    t->step[0].micro = 30;
     tap(B_EDIT);
-    check("step record: EDIT's rest clears PROB, RATCH, ACC, SLIDE", !t->step[0].on && !t->step[0].tie &&
+    check("step record: EDIT's rest clears PROB, RATCH, ACC, SLIDE, MICRO", !t->step[0].micro && !t->step[0].on && !t->step[0].tie &&
           !t->step[0].cond && !t->step[0].rat && !t->step[0].acc && !t->step[0].slide && ui.sr_cur == 1u);
     srec_turn(0, -1);
     keys(1u << 7);
@@ -9972,6 +10068,7 @@ int main(void)
     test_grid_step_edit();
     test_step_hold();
     test_step_hold_on_acc();
+    test_step_micro();
     test_grid_hold_track_change();
     test_grids_pages();
     test_src_readonly();
@@ -10010,6 +10107,7 @@ int main(void)
     test_global_mute_setting();
     test_global_metro_setting();
     test_glo_midi_settings();
+    test_glo_quant();
     test_comp_pages();
     test_comp_ghost_knob();
     test_comp_keys();

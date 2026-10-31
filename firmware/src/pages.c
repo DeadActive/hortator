@@ -40,8 +40,9 @@ static const page_t PAGES[] = {
     {"SONG", FAM_SEQ, SC_GLOBAL, GR_SONG, {0xFF, 0xFF, 0xFF, 0xFF}},   /* ROW SLOT REPS LOOP (song.c) */
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_DRCH}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_ROUTE, G_INFO}},
-    {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MUTEBAR, G_METRO, G_THRU, 0xFF}},   /* device settings (settings.mutebar,
-                                                                                  * fx_metro, midi_thru) */
+    {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MUTEBAR, G_METRO, G_THRU, G_QUANT}},   /* device settings
+                                                                       * (settings.mutebar, fx_metro, midi_thru, seq.c
+                                                                       * rec_quant) */
     {"DLY", FAM_GLO, SC_GLOBAL, GR_DLY, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},   /* the send effects' buses: after GLO's
                                                                                 * own pages */
     {"DLY", FAM_GLO, SC_GLOBAL, GR_DLY, {G_DMODE, 0xFF, 0xFF, 0xFF}},   /* MODE: NORMAL / PING-PONG */
@@ -109,10 +110,10 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     *valp = 0;
     if (id == 0xFFu || pg->scope == SC_GRID || pg->scope == SC_MIX)
         return 0;
-    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE, METRO, COPY / PASTE, THRU */
-        id = id - G_COUNT < 7u ? id - G_COUNT : 0u;
-        *valp = &song.act[id < 4u ? id : id < 6u ? id - 4u : 4u];   /* (COPY / PASTE: GO buttons, 0 at rest: CLR* /
-                                                                    * INIT*'s act) */
+    if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE, METRO, COPY / PASTE, THRU, QUANT */
+        id = id - G_COUNT < 8u ? id - G_COUNT : 0u;
+        *valp = &song.act[id < 4u ? id : id < 6u ? id - 4u : id - 2u];   /* (COPY / PASTE: GO buttons, 0 at rest:
+                                                                         * CLR* / INIT*'s act) */
         return &GP_ACT[id];
     }
     if (pg->scope == SC_GLOBAL) {

@@ -412,6 +412,32 @@ static void write_locks(const char *dir, int on)
     memset(&mo, 0, sizeof mo);
 }
 
+/* MICRO (spec 2026-10-31 §1), A/B in one file, 8 bars at 120 BPM: a kit (909 kick four on the floor, snare on 2 and
+ * 4, closed hats on every 1/16) plain for 2 bars, then the off-beat hats +25 (a light shuffle) for 2, +50 (halfway:
+ * triplet-like) for 2 with the snare -10 (pushed early), then plain again for 2 */
+static void micro_bar(uint32_t b)
+{
+    uint32_t k;
+    int8_t h = b >= 2u && b < 4u ? 25 : b >= 4u && b < 6u ? 50 : 0;
+    for (k = 1; k < 16u; k += 2u)
+        trk[2].step[k].micro = h;
+    trk[1].step[4].micro = trk[1].step[12].micro = (int8_t)(b >= 4u && b < 6u ? -10 : 0);
+}
+static void write_micro(const char *dir)
+{
+    uint32_t k;
+    host_init();
+    old_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[1], DM_S909);
+    old_set_model(&trk[2], DM_HATC);
+    for (k = 0; k < 16u; k++) {
+        trk[0].step[k].on = (k & 3u) == 0u;
+        trk[2].step[k].on = 1;
+    }
+    trk[1].step[4].on = trk[1].step[12].on = 1;
+    write_demo(dir, "micro.wav", 8, micro_bar);
+}
+
 /* SONG: A (four on the floor + hats) x2, B (a broken kick + snare) x1, LOOP ON: 6 bars, the rows change on the bar */
 static step_t song_st[2][NTRK][NSTEP];
 static void song_bar(uint32_t b) { (void)b; }
@@ -976,6 +1002,7 @@ int main(int argc, char **argv)
     write_motion(dir);
     write_locks(dir, 0);
     write_locks(dir, 1);
+    write_micro(dir);
     write_song(dir);
     write_phys(dir);
     write_filter(dir);

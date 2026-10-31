@@ -26,8 +26,9 @@ firmware ([below](#back-to-the-official-firmware)).
   rim, clave, conga, ports of Plaits' drum algorithms, and samples. Every model has TUNE, DECAY, TONE and a fourth
   knob of its own.
 - **Step sequencer.** Up to 64 steps per track on the 16 white keys, each track with its own length, division and
-  swing. Accents, PROB and RATCH per step, fills that play every other bar, live recording, mutes that wait for the
-  next bar (the MUTE screen: hold GLO).
+  swing. Accents, PROB, RATCH and MICRO (a hit moved early or late, up to half a step) per step, fills that play
+  every other bar, live recording (QUANT: on the steps, on a finer grid, or as played), mutes that wait for the next
+  bar (the MUTE screen: hold GLO).
 - **Notes and ACID.** Every step holds a note. Drum tracks play their steps transposed (C4 plays as tuned); ACID, a
   303-style bass voice (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE: saw or square into a resonant 24 dB filter, with
   accent, slide and tie), plays them as a bass line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys
@@ -37,7 +38,7 @@ firmware ([below](#back-to-the-official-firmware)).
   its own track wherever the keys play tracks (HOME, SOUND, FX, TRACKS ...), while KEYS, step record and knob motion
   stay the selected track's; a REC tap there again ends it, the tracks armed before it armed again (`T3 REC ARMED`, or
   `REC OFF` when none was). REC never starts the transport: PLAY does, and an armed track records once playing. A key
-  writes the nearest step, a key held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on
+  writes the nearest step (GLOBAL 3/7 QUANT: see [Microtiming](#microtiming-and-quant)), a key held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on
   ACID tracks only). An ACID
   track's STEP page is a piano roll; a step the white keys turn on takes the last KEYS note on an ACID track, C4 on a
   drum. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
@@ -102,7 +103,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | --- | --- |
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
-| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3: PROB / RATCH / ACCENT (right on, left off); hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
+| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3 / 4: PROB / RATCH / ACCENT (right on, left off) / MICRO; hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
 | **FX** | FILTER, FX (the sends), INSERT (and SRR), SLICER and RESON; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
@@ -265,6 +266,8 @@ screen. Unsaved variations of a slot you leave wait in RAM, one slot's at a time
 any slot but C says `SAVE C FIRST` (stop, load C or cue it, and SAVE it).
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
+Since MICRO, projects saved now (format FDRG) show an empty slot on 0.26.0 and older (`LOAD FAILED`; downgrading is
+safe, not supported); every older project loads, its steps at MICRO 0.
 Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
 an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is safe, not supported: nothing breaks, the projects stay for this
 build); every older project loads with its motion. If a project's lock bank can't be read (an upload to USR3 under
@@ -290,9 +293,26 @@ step's values (a locked one inverted). Knobs MOTION can't record (MODEL, FILTER 
 DEST, SRC) do nothing while a step is held. Hold the step and tap OCT- to clear its locks on this page's knobs
 (`STEP 5 LOCKS CLEARED`); hold OCT- 0.6 s to clear all of that step's locks (`STEP 5 ALL CLEARED`). A step turned off
 keeps its locks for when it is on again. Locks and recorded MOTION share 1024 events per project (`LOCKS FULL`); locks
-always play (MOTION's PLAY and CLEAR are for recorded motion only). On SEQ STEP a held step keeps PROB / RATCH / ACC.
+always play (MOTION's PLAY and CLEAR are for recorded motion only). On SEQ STEP a held step keeps PROB / RATCH / ACC / MICRO.
 In STEPS the footer's step strip underlines each locked step of the bank; SEQ > MOTION shows the selected track's
 MOTION (recorded events) and LOCKS counts.
+
+### Microtiming and QUANT
+
+On SEQ STEP, **hold a step and turn KNOB 4 (MICRO)**: -50 to +50, the step's hit moved by that many hundredths of a
+step (+50: halfway to the next step, -50: halfway to the previous one; 0: on the step, as before). It follows the
+track's division and swing: +25 is a quarter of the step as it plays. A late hit plays with its PROB, RATCH and
+locks as always, its RATCH hits spread over what is left of the step; an early hit plays in the step before (the
+sequencer looks one step ahead), its locks from the hit to the end of its own step. A nudged step has a mark against
+its box in the grid: on the left for early, on the right for late. A tap that turns a step off makes it plain again
+(MICRO 0). MICRO is part of the step: copied, saved and played with it everywhere (variations, the live cue, song
+rows, COPY / PASTE of a slot). In a song, an early first step does not reach into the row before it: a new row
+starts on the beat. Step record (KEYS, stopped) writes MICRO 0.
+
+GLOBAL 3/7 **QUANT** sets where live recording puts a hit (keys, MIDI notes, the SMC-Mixer), on the track's own grid
+(exactly the 1/16 grid at DIV 1/16): **1/16** (the default) the nearest step, MICRO 0, as before; **1/8** the
+nearest even step (every other step); **1/32** the nearest half step (MICRO 0 or +-50); **OFF** the nearest step,
+with the hit's own timing as its MICRO (up to +-50). A device setting: saved, not part of projects.
 
 ### Metronome
 

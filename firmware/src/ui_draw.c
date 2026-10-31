@@ -432,7 +432,7 @@ static uint32_t steps_hash(const track_t *t)
     for (i = 0; i < n; i++) {
         step_t s = view_step(t, i);
         h = (h ^ (s.on + s.acc * 2u + s.cond * 4u + s.rat * 256u + s.slide * 1024u + s.tie * 2048u +
-                  (uint32_t)(uint8_t)s.nt * 4096u)) * 16777619u;
+                  (uint32_t)(uint8_t)s.nt * 4096u + (uint32_t)(uint8_t)s.micro * 1048576u)) * 16777619u;
     }
     return h ^ n * 7919u;
 }
@@ -819,6 +819,9 @@ static void graph_grid(const track_t *t, uint16_t c)
             cv_rect(x, y + 46, 11, 3, C_INK);
         if (st->on && st->nt)                         /* a transposed step (NOTE != C4): a small mark under it */
             cv_rect(x + 3, y + 42, 5, 2, C_INK);
+        if (st->on && st->micro)                      /* MICRO: a nudged step's mark against its box, low (early:
+                                                       * left, late: right; the gap's middle column stays free) */
+            cv_rect(st->micro < 0 ? x - 1 : x + 11, y + 30, 1, 10, C_INK);
         if (ui.srec && si == ui.sr_cur)               /* step record's cursor: a frame */
             cv_frame(x - 2, y - 3, 15, 54, C_INK);
     }
@@ -2920,14 +2923,18 @@ static void draw_columns(void)
         draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", HOT(3u), -1);
         return;
     }
-    if (pg->scope == SC_GRID && held_step() < NSTEP) {  /* a step held: KNOB 1 PROB, 2 RATCH, 3 ACC (step_edit) */
+    if (pg->scope == SC_GRID && held_step() < NSTEP) {  /* a step held: KNOB 1 PROB, 2 RATCH, 3 ACC, 4 MICRO
+                                                         * (step_edit) */
         const step_t *st = &TSEL->step[held_step()];
         cond_format(st->cond, val);
         draw_column(0, "PROB", val, "", HOT(0u), -1);
         fmt_int(val, (int32_t)st->rat + 1);
         draw_column(1, "RATCH", val, "", HOT(1u), -1);
         draw_column(2, "ACC", st->acc ? "ON" : "OFF", "", HOT(2u), -1);
-        draw_column(3, "", "", "", CV_NORM, -1);
+        val[0] = st->micro > 0 ? '+' : 0;            /* -50 .. +50 */
+        val[1] = 0;
+        fmt_int(val + str_len(val), st->micro);
+        draw_column(3, "MICRO", val, "", HOT(3u), -1);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */

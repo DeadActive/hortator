@@ -5,6 +5,18 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **MICRO: move a step's hit early or late.** On SEQ STEP, hold a step and turn KNOB 4: -50 to +50 hundredths of a
+  step (+50 halfway to the next step, -50 halfway to the previous one), following the track's division and swing. A
+  late hit keeps its PROB, RATCH and locks (its RATCH hits spread over the rest of the step); an early one plays in
+  the step before it. A nudged step has a mark beside its box in the grid (left: early, right: late). MICRO is saved
+  with the step everywhere: projects, variations, song rows and slot COPY / PASTE. All steps start at 0 and play
+  exactly as before.
+- **QUANT for live recording** on GLOBAL 3/7 KNOB 4: 1/16 (the default: the nearest step, as before), 1/8 (every
+  other step), 1/32 (the nearest half step) or OFF (the nearest step, keeping how early or late you played as its
+  MICRO). It applies to the keys, MIDI notes and the SMC-Mixer; step record still writes on the step. The setting is
+  kept over power-off.
+- **Projects saved now don't load on 0.26.0 and older** (they show an empty slot there). Older projects load as
+  before, every step at MICRO 0.
 - **ROOM reverb: its tail now fades to true silence.** Before, a faint hum and offset stayed behind for ever once a
   ROOM tail had died away: too quiet to hear on the main output, but left on the USB effect channels (10 CH FX). The
   room sounds as before otherwise.

@@ -338,14 +338,14 @@ static int32_t knob_turn(uint32_t role, const param_desc_t *d, int32_t v, int32_
 }
 
 /* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH, KNOB 3: its accent (a detent right ACC on, left off),
- * from the first detent (the press changed nothing). An edit is no tap: the keys down let go toggle nothing. An off
- * step's first edit turns it on (step_hold_on, as the hold itself: KNOB 3 right at once = on accented). A held key
- * outside LEN takes the turn and does nothing. KNOB 4: the page's (nothing on STEP) */
+ * KNOB 4: its MICRO (-50 .. +50, spec 2026-10-31 §1), from the first detent (the press changed nothing). An edit is no
+ * tap: the keys down let go toggle nothing. An off step's first edit turns it on (step_hold_on, as the hold itself:
+ * KNOB 3 right at once = on accented). A held key outside LEN takes the turn and does nothing */
 static int step_edit(uint32_t knob, int32_t steps)
 {
     uint32_t k = ui.held, i;
     step_t *s;
-    if (knob > 2u || k >= 16u || !ui.step_t0[k])
+    if (knob > 3u || k >= 16u || !ui.step_t0[k])
         return 0;
     for (i = 0; i < 16u; i++)                         /* edited: no key down is a tap any more */
         if (ui.step_t0[i])
@@ -356,6 +356,10 @@ static int step_edit(uint32_t knob, int32_t steps)
     step_hold_on(k);
     if (knob == 2u) {
         s->acc = steps > 0;                           /* (absolute: a fast turn's detents never flicker it) */
+        return 1;
+    }
+    if (knob == 3u) {
+        s->micro = (int8_t)clamp(s->micro + accel(EN_K4, steps, 2 * MICRO_MAX), -MICRO_MAX, MICRO_MAX);
         return 1;
     }
     if (knob == 0u)
@@ -601,6 +605,11 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
     if (pg->scope == SC_GLOBAL && id == G_THRU) {     /* THRU: the device setting (midi_out.c), saved */
         midi_thru = (uint8_t)v;
+        settings_save();
+        return;
+    }
+    if (pg->scope == SC_GLOBAL && id == G_QUANT) {    /* QUANT: the device setting (seq.c rec_hit), saved */
+        rec_quant = (uint8_t)v;
         settings_save();
         return;
     }
@@ -982,6 +991,7 @@ static void srec_note(uint32_t key)                    /* a key pressed: its not
     s = &t->step[ui.sr_cur];
     s->on = 1;
     s->tie = 0;
+    s->micro = 0;                                      /* (step record has no timing: on the step) */
     s->nt = (int8_t)clamp(keys_nt(key), NT_MIN, NT_MAX);
     t->key_nt = s->nt;
     ui.sr_key = (uint8_t)(key + 1u);
@@ -999,10 +1009,11 @@ static void srec_keys(uint32_t notes)                  /* the frame's key edges:
         }
 }
 static void srec_rest(void)                            /* EDIT: the cursor step a plain rest (no PROB RATCH ACC SLIDE
-                                                        * left for a later note), the cursor on */
+                                                        * MICRO left for a later note), the cursor on */
 {
     step_t *s = &TSEL->step[ui.sr_cur];
     s->on = 0;
+    s->micro = 0;
     s->tie = 0;
     s->cond = 0;
     s->rat = 0;
@@ -1295,6 +1306,7 @@ static void ui_input(void)
     song.act[2] = (int16_t)settings.mutebar;
     song.act[3] = (int16_t)fx_metro;
     song.act[4] = (int16_t)midi_thru;
+    song.act[5] = (int16_t)rec_quant;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
         while (ui.page > page_first(FAM_SND) && page_hidden(ui.page))

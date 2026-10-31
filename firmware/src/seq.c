@@ -21,6 +21,12 @@ static void bt_fml_adv(void);                           /* .. a MIDI clock's lea
 #define CLK_FOLLOWS() (song.g[G_CLOCK])
 #endif
 static uint32_t kb_prev;
+/* QUANT (GLOBAL 3/7, spec 2026-10-31 §2): where live recording puts a hit (rec_hit); a device setting (the settings
+ * record's palette bits 16..17, project.c), main writes, the ISR reads */
+enum { QUANT_16, QUANT_8, QUANT_32, QUANT_OFF, QUANT_N };
+static volatile uint8_t rec_quant;
+#define MIC_DUE 1u                               /* track_t.mic (MICRO, seq_tick): the playing step's late hit to come */
+#define MIC_EARLY 2u                             /* .. step mic_idx's early hit played (the step before it playing) */
 static volatile uint32_t mute_mask;   /* main: GLO's bit while the MUTE screen may take keys (ui_input.c glo_input), SAVE's
                                        * while the cue map may (cue_input), 0 = none; armed before the button is pressed
                                        * (a key struck with it is the screen's) */
@@ -260,6 +266,7 @@ static void step_fire(track_t *t, uint32_t len_s)
 {
     const step_t *s = &seq_steps(t)[t->seq_idx];
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
+    t->rat_off = 0;                                 /* (a nudged hit's roll: its callers set where it began) */
     if (trk_model(t)->gate) {
         acid_step(t, s, seq_next(t), len_s);
         return;
@@ -275,12 +282,13 @@ static void step_fire(track_t *t, uint32_t len_s)
     t->rat_len = len_s;
 }
 
-/* the roll's hits whose time has come; one not played before the step ends (the tempo changed) is dropped */
+/* the roll's hits whose time has come; one not played before the step ends (the tempo changed) is dropped. MICRO: the
+ * roll began rat_off into the playing step (an early hit's: before it, < 0) */
 static void rat_due(track_t *t, uint32_t cur_len)
 {
     while (t->rat_k < t->rat_n) {
-        uint32_t at = t->rat_k * t->rat_len / t->rat_n;
-        if (at > t->seq_pos || at >= cur_len)
+        int32_t at = t->rat_off + (int32_t)(t->rat_k * t->rat_len / t->rat_n);
+        if (at > (int32_t)t->seq_pos || at >= (int32_t)cur_len)
             break;
         drum_play(t, t->rat_vel, t->rat_nt);
         t->rat_k++;
@@ -289,16 +297,48 @@ static void rat_due(track_t *t, uint32_t cur_len)
     }
 }
 
-/* live recording: into the nearest step, as swung (the playing one, or the next one past its middle); returns the step */
+/* MICRO (spec 2026-10-31 §1): a step's micro, -50..+50 */
+static int32_t step_micro(const step_t *s) { return clamp(s->micro, -MICRO_MAX, MICRO_MAX); }
+
+/* live recording: into a step of the track's own grid, as swung, by QUANT (spec 2026-10-31 §2): 1/16 the nearest step
+ * (the playing one, or the next one past its middle), micro 0; 1/8 the nearest even step (an odd one's neighbours),
+ * micro 0; 1/32 the nearest step, micro 0 or +-50 (the nearest half step); OFF the nearest step, the hit's own offset
+ * as its micro (/ 100 of the playing step). The next step: it sounds now, so it must not hit again (rskip); the playing
+ * one: its late hit still to come is this one (MIC_DUE off). Returns the step */
 static uint32_t rec_hit(track_t *t, uint32_t vel)
 {
-    uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, idx = t->seq_idx % len;
-    uint32_t period = div_period((uint32_t)t->p[P_SDIV], t->seq_rem);
-    if (t->seq_pos > step_samples(t, period, t->seq_cnt) / 2u) {
+    uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u, idx = t->seq_idx % len, pos = t->seq_pos;
+    uint32_t period = div_period((uint32_t)t->p[P_SDIV], t->seq_rem), cur = step_samples(t, period, t->seq_cnt);
+    uint32_t q = rec_quant, ahead;
+    int32_t off, m = 0;
+    if (pos >= 0x7FFFFFFFu) {                       /* PLAY's block: step 0, on it */
+        ahead = 1;
+        off = 0;
+    } else {
+        ahead = pos > cur / 2u;
+        if (q == QUANT_8 && (idx & 1u)) {           /* an odd step: the even one before, or after (nearer) */
+            ahead = 2u * pos + step_samples(t, period, t->seq_cnt - 1u) > cur;
+            if (!ahead) {
+                idx = idx ? idx - 1u : len - 1u;    /* (past: nothing to skip) */
+                pos = 0;
+            }
+        } else if (q == QUANT_8 && (((idx + 1u) % len) & 1u)) {
+            ahead = 0;                              /* an even step, an odd one next: this one */
+        }
+        off = ahead ? (int32_t)pos - (int32_t)cur : (int32_t)pos;
+    }
+    if (q == QUANT_OFF)
+        m = clamp((off * 100 + (off < 0 ? -(int32_t)cur / 2 : (int32_t)cur / 2)) / (int32_t)cur, -MICRO_MAX, MICRO_MAX);
+    else if (q == QUANT_32 && 4 * (off < 0 ? -off : off) > (int32_t)cur)
+        m = off < 0 ? -MICRO_MAX : MICRO_MAX;
+    if (ahead) {
         idx = (idx + 1u) % len;
         t->rskip = 1;                               /* it sounds now: that step must not hit again */
         t->rskip_idx = (uint8_t)idx;
+    } else if (idx == t->seq_idx % len) {
+        t->mic &= (uint8_t)~MIC_DUE;
     }
+    t->step[idx].micro = (int8_t)m;
     t->step[idx].on = 1;
     t->step[idx].tie = 0;                           /* (a TIE is read first: the hit would never play) */
     t->step[idx].cond = 0;                          /* a recorded step always plays, once */
@@ -583,6 +623,7 @@ static void seq_start(void)
     acid_gates_close();                             /* (PLAY while playing: nothing slides into step 0) */
     for (i = 0; i < NTRK; i++) {                    /* every track from its step 0, together */
         track_t *t = &trk[i];
+        t->mic = 0;
         t->seq_idx = (uint16_t)(t->p[P_SLEN] - 1);
         t->seq_pos = 0x7FFFFFFF;                    /* step 0 fires on the first block */
         t->seq_cnt = 0xFFFFFFFFu;                   /* step 0 is count 0 */
@@ -616,6 +657,80 @@ static void seq_stop(void)
     mout_stop();                                    /* midi_out.c: SYNC's Stop */
 }
 
+/* MICRO (spec 2026-10-31 §1): a song's row or a queued cue restarts every track within rem samples (no early hit
+ * across it: the new step 0 plays at the restart) */
+static __attribute__((noinline)) int seq_cut_ahead(uint32_t rem)
+{
+    const track_t *r;
+    uint32_t len, cur;
+    if (chain.running) {
+        if (chain.left > 1u)
+            return 0;                               /* (a repeat: the tracks just loop) */
+        r = &trk[chain.ref];
+    } else if (cue.q_slot || cue.q_var) {
+        if (cue.now)
+            return 1;                               /* (at the soonest next step) */
+        r = &trk[cue_longest()];
+    } else {
+        return 0;
+    }
+    len = (uint32_t)clamp(r->p[P_SLEN], 1, NSTEP);
+    if (r->seq_pos >= 0x7FFFFFFFu || r->seq_idx + 1u != len)
+        return 0;
+    cur = step_samples(r, div_period((uint32_t)r->p[P_SDIV], r->seq_rem), r->seq_cnt);
+    return cur <= r->seq_pos + rem;
+}
+
+/* MICRO: the playing step's late hit (MIC_DUE), micro / 100 of its length cur in (or the step ending: now): its locks,
+ * then the hit (PROB decided then), its roll over the rest of the step */
+static __attribute__((noinline)) void mic_due(track_t *t, uint32_t cur)
+{
+    int32_t m = step_micro(&seq_steps(t)[t->seq_idx]);
+    uint32_t at = m > 0 ? cur * (uint32_t)m / 100u : 0u;
+    if (t->seq_pos < at)
+        return;
+    t->mic &= (uint8_t)~MIC_DUE;
+    motion_step(t, t->seq_idx, MS_LOCK);
+    step_fire(t, cur - at);
+    t->rat_off = (int32_t)at;
+}
+
+/* MICRO: the next step nudged early: its hit (100 + micro) / 100 into the playing step (cur long; -50 halfway), played
+ * as that step (its count: PROB's loop; its next step: ACID's), the playing step's locks let go for its own, its roll
+ * to its own end. Not a step live recording just put there (rskip: it sounded), nor across a restart */
+static __attribute__((noinline)) void mic_early(track_t *t, uint32_t cur)
+{
+    uint32_t div = (uint32_t)t->p[P_SDIV], len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
+    uint32_t cnt = t->seq_cnt + 1u, nx = cnt % len, idx = t->seq_idx, at, nl;
+    int32_t m = step_micro(&seq_steps(t)[nx]);
+    if (m >= 0)
+        return;
+    at = cur * (uint32_t)(100 + m) / 100u;
+    if (t->seq_pos < at || (t->rskip && t->rskip_idx == nx) || seq_cut_ahead(cur - t->seq_pos))
+        return;
+    nl = step_samples(t, div_period(div, div_rem_next(div, t->seq_rem)), cnt);
+    t->mic |= MIC_EARLY;
+    t->mic_idx = (uint8_t)nx;
+    t->seq_idx = (uint16_t)nx;
+    t->seq_cnt = cnt;
+    motion_step(t, nx, MS_REL | MS_LOCK);
+    step_fire(t, cur - at + nl);
+    t->seq_idx = (uint16_t)idx;
+    t->seq_cnt = cnt - 1u;
+    t->rat_off = (int32_t)at;
+}
+
+/* MICRO: t entered the step whose early hit played (prev: the step before's length): its motion (its locks hold since
+ * the hit), its roll goes on in this step's samples; a live hit put into it since (rskip) is spent */
+static __attribute__((noinline)) void mic_enter(track_t *t, uint32_t prev)
+{
+    t->mic = 0;
+    motion_step(t, t->seq_idx, MS_MOT);
+    t->rat_off -= (int32_t)prev;
+    if (t->rskip && t->rskip_idx == t->seq_idx)
+        t->rskip = 0;
+}
+
 static void seq_tick(track_t *t, uint32_t n)
 {
     uint32_t div = (uint32_t)t->p[P_SDIV], len = (uint32_t)t->p[P_SLEN];
@@ -630,9 +745,15 @@ static void seq_tick(track_t *t, uint32_t n)
     t->seq_pos += n;
     for (;;) {
         uint32_t cur_len = step_samples(t, div_period(div, t->seq_rem), t->seq_cnt);
+        int late;
+        if (t->mic & MIC_DUE)
+            mic_due(t, cur_len);                    /* MICRO: the step's late hit */
         rat_due(t, cur_len);
-        if (t->seq_pos < cur_len && t->seq_pos != 0x7FFFFFFFu + n)
+        if (t->seq_pos < cur_len && t->seq_pos != 0x7FFFFFFFu + n) {
+            if (t->seq_pos >= cur_len / 2u && !(t->mic & MIC_EARLY))
+                mic_early(t, cur_len);              /* MICRO: the next step's early hit (-50: halfway) */
             break;
+        }
         if (t->seq_pos >= 0x7FFFFFFFu) {            /* PLAY: step 0 (its remainder 0); following a clock, the advance
                                                      * into it counts (it began on the pulse), else the steps sit that
                                                      * far behind the clock's grid for good */
@@ -645,9 +766,19 @@ static void seq_tick(track_t *t, uint32_t n)
         t->seq_cnt++;                               /* the step: steps since PLAY mod LEN, so a LEN change keeps
                                                      * the track on the shared clock (and LEN back = in sync) */
         t->seq_idx = (uint16_t)(t->seq_cnt % (len ? len : 1u));
-        motion_step(t, t->seq_idx);                 /* motion.c: its knobs at this step (before the hit) */
+        if ((t->mic & MIC_EARLY) && t->mic_idx == t->seq_idx) {
+            mic_enter(t, cur_len);                  /* MICRO: its hit played early */
+            continue;
+        }
+        t->mic = 0;
+        late = seq_steps(t)[t->seq_idx].micro > 0 && !(t->rskip && t->rskip_idx == t->seq_idx);
+        motion_step(t, t->seq_idx, late ? MS_REL | MS_MOT : MS_ALL);   /* motion.c: its knobs at this step (before
+                                                     * the hit; a late hit's locks at the hit) */
         if (t->rskip && t->rskip_idx == t->seq_idx) {
             t->rskip = 0;
+            t->rat_n = 0;
+        } else if (late) {
+            t->mic = MIC_DUE;                       /* MICRO: later in the step (mic_due) */
             t->rat_n = 0;
         } else {
             step_fire(t, step_samples(t, div_period(div, t->seq_rem), t->seq_cnt));

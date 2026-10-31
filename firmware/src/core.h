@@ -91,10 +91,10 @@ enum {                          /* global parameters */
 };
 #define G_NSTORED G_DMODE        /* the globals in a project's block (FDR7 .. FDRF: G_BPM .. G_RTYPE) */
 enum { CG_MUTE, CG_KEEP, CG_HIDE };                 /* GHOST: muted = muted; muted still keys; never heard, keys */
-enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE, G_THRU };   /* TOOLS actions, the MUTE and
-                                                     * METRO settings, COPY / PASTE of a slot (spec 2026-10-26), the
-                                                     * THRU setting (midi_out.c): shown like globals, not stored in
-                                                     * projects */
+enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE, G_THRU, G_QUANT };   /* TOOLS actions, the
+                                                     * MUTE and METRO settings, COPY / PASTE of a slot (spec 2026-10-26),
+                                                     * the THRU setting (midi_out.c), QUANT (seq.c rec_quant, spec
+                                                     * 2026-10-31): shown like globals, not stored in projects */
 #define SY_USB 1u                                   /* G_SYNC: the outputs the clock goes to (OFF 0, USB 1, BLE 2, BOTH 3) */
 #define SY_BLE 2u
 enum { RT_NOTE, RT_SEL, RT_TRACK };                 /* G_ROUTE: a note on CH plays the tracks with its NOTE; on CH, the
@@ -146,8 +146,13 @@ typedef struct {                 /* one sequencer step (4 B, stored as is); all 
     uint8_t : 2;
     uint8_t cond;                /* PROB: 0 = 100 %, 1..20 = 0..95 %, 21 = 1-SHOT, 22..56 = A/B (params.c cond_*) */
     int8_t nt;                   /* NOTE - 60 (C4 = 0): a drum's transpose, ACID's note (NT_MIN..NT_MAX) */
-    uint8_t rsv;                 /* 0 */
+    union {                      /* MICRO (spec 2026-10-31 §1): the hit moved by micro / 100 of a step, -50..+50 (seq.c
+                                  * step_micro); the byte was the spare one (rsv, 0 before): its old name kept */
+        int8_t micro;
+        uint8_t rsv;
+    };
 } step_t;
+#define MICRO_MAX 50
 #define NT_MIN (-60)
 #define NT_MAX 67
 #define GATE_HELD 0xFFFFFFFFu     /* track_t.gate_n: the gate stays open, the next step decides (seq.c acid_step) */
@@ -190,6 +195,10 @@ typedef struct track {
     uint32_t rng;                /* PROB: the track's random sequence (LCG), seeded at PLAY */
     uint32_t rat_len;            /* RATCH: the playing roll's step length (samples) */
     uint8_t rat_n, rat_k, rat_vel;   /* its hits, the next hit, their velocity; rat_n 0 = no roll */
+    int32_t rat_off;             /* MICRO: where the roll's first hit was, in the playing step's samples (0 unnudged;
+                                  * an early hit's < 0 once its own step plays) */
+    uint8_t mic, mic_idx;        /* MICRO (seq.c): MIC_DUE the playing step's late hit is to come, MIC_EARLY step
+                                  * mic_idx's early hit has played (the step before it playing) */
     uint16_t gfade;              /* M3 ghost key: how silenced the COMP source's sound is (0 heard .. 32767 muted) */
     lfo_state_t lfo[2];          /* LFO 1 / 2 runtime (lfo.c) */
     reson_t rs;                  /* RESON runtime (reson.c) */
@@ -223,8 +232,9 @@ typedef struct {
     uint32_t sheds;              /* overload sheds (audio.c shed_voice): the top bar's CPU icon (ui_draw.c) */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
-    int16_t act[5];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
-                                  * copy of settings.mutebar; METRO: of fx_metro; THRU: of midi_thru */
+    int16_t act[6];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
+                                  * copy of settings.mutebar; METRO: of fx_metro; THRU: of midi_thru; QUANT: of
+                                  * rec_quant */
     uint8_t mute_q;              /* mutes to flip on the next bar (bit per track; seq.c) */
     uint8_t solo;                /* SOLO (the SMC-Mixer): bit per track, runtime only (trk_silent) */
     uint8_t lfo_in;              /* lfo.c: inside an audio block, between lfo_apply and lfo_restore */

@@ -3,7 +3,11 @@
  * Drum machine fork: 2026 DEADACTIVE */
 /* Projects: four slots in .noinit RAM, so they survive resets and UBOOT entry. With FELUCCA_FLASH
  * every save also goes to flash through storage.c, and an empty RAM slot is filled from flash.
- * Format "FDRF" (the 15th, 2026-10-24 parameter locks): as "FDRE", but its motion block is gone: the motion and the
+ * Format "FDRG" (the 16th, 2026-10-31 MICRO): as "FDRF", but every step's spare byte is its MICRO (step_t.micro) and
+ * the 7 parameters past the block (below) are in the reserved area (xp: 7 B a track, each as its offset from its
+ * power-on value). An FDRF (or older) record converts on load: its steps' spare bytes are those parameters, every
+ * micro 0. An older firmware reads an FDRG record as no record (LOAD FAILED).
+ * "FDRF" (the 15th, 2026-10-24 parameter locks): as "FDRE", but its motion block is gone: the motion and the
  * parameter locks are the slot's lock bank (lockbank.c), its own flash object (storage.c OBJ_LOCKS0 + slot), saved
  * just before the record; the record links it (lk_link: a hash of the bank, lk_n: its count), so a save torn by a
  * power cut keeps the last whole pair (the record is the pair's commit). An FDRE or older record's motion converts
@@ -25,7 +29,8 @@
  * The globals after its block (G_NSTORED .., the delay's MODE) ride in the record's reserved byte rsv[0] (proj_g; 0 in
  * every earlier record: NORMAL).
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
-#define PROJ_MAGIC 0x46524446u                 /* "FDRF" (the 15th): the lock bank (spec 2026-10-24 parameter locks) */
+#define PROJ_MAGIC 0x47524446u                 /* "FDRG" (the 16th): MICRO (spec 2026-10-31) */
+#define PROJ_MAGIC_VF 0x46524446u              /* "FDRF": the lock bank (spec 2026-10-24 parameter locks); converted on load */
 #define PROJ_MAGIC_VE 0x45524446u              /* "FDRE": + the LFO DEST slots (fixes 2026-10-21 item 3); converted on load */
 #define PROJ_MAGIC_VD 0x44524446u              /* "FDRD": each track's preset and edited mark; converted on load */
 #define PROJ_MAGIC_VC 0x43524446u              /* "FDRC": PRIO per track, no presets; converted on load */
@@ -41,22 +46,13 @@
 #define PROJ_MAGIC_V2 0x32524446u              /* "FDR2": M2 projects, converted on load */
 #define PROJ_MAGIC_V1 0x31524446u              /* "FDR1": M1 projects, converted on load */
 typedef struct {
-    int16_t p[P_NSTORED];                       /* the block; P_NSTORED + j: step[j].rsv (proj_xp_*) */
-    step_t step[NSTEP];
+    int16_t p[P_NSTORED];                       /* the block; P_NSTORED + j: xp[track][j] (FDRE / FDRF: step[j].rsv) */
+    step_t step[NSTEP];                         /* FDRG: rsv = the step's MICRO */
 } proj_trk_t;
-typedef char proj_xp_fit[P_COUNT - P_NSTORED <= NSTEP && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's block: 69) */
-/* the parameters past the block: into / out of a stored track's steps' spare bytes (0 = the power-on value) */
+#define PROJ_XP (P_COUNT - P_NSTORED)           /* the parameters past the block: 7 */
+typedef char proj_xp_fit[PROJ_XP == 7 && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's block: 69; the 56 B of xp) */
+/* a parameter past the block as stored (0 = the power-on value) */
 static uint8_t proj_xp_enc(uint32_t id, int32_t v) { return (uint8_t)(clamp(v, -128, 255) - TP[id].def); }
-static void proj_xp_put(proj_trk_t *s, const int16_t *p)
-{
-    uint32_t i;
-    for (i = P_NSTORED; i < P_COUNT; i++)
-        s->step[i - P_NSTORED].rsv = proj_xp_enc(i, p[i]);
-}
-static int16_t proj_xp_get(const proj_trk_t *s, uint32_t id)
-{
-    return (int16_t)(TP[id].def + (int8_t)s->step[id - P_NSTORED].rsv);
-}
 typedef struct {
     uint32_t magic, size;
     int16_t g[G_NSTORED];
@@ -67,7 +63,8 @@ typedef struct {
     uint32_t lk_link;                           /* FDRF: .. its proj_link */
     uint32_t var_link;                          /* FDRF (2026-10-26): its variations' object (var_link_of; 0: none) */
     uint16_t var_len;                           /* .. its stored length (0: none, variations 2..8 empty: 0.24.0's) */
-    uint8_t rsv_mo[504];                        /* FDRF: reserved, 0 */
+    uint8_t xp[NTRK][PROJ_XP];                  /* FDRG: the parameters past the block (proj_xp_enc; FDRF: 0) */
+    uint8_t rsv_mo[504 - NTRK * PROJ_XP];       /* FDRF: reserved, 0 */
     chain_config_t song;                        /* FDR9: the song (song.c) */
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint16_t pre[NTRK];                         /* FDRD: each track's preset: a factory one's uid, 0x8000 | a user
@@ -76,6 +73,21 @@ typedef struct {
     uint32_t sum;
 } project_t;
 typedef char project_size[sizeof(project_t) == 3840u ? 1 : -1];
+static int16_t proj_xp_get(const project_t *p, uint32_t k, uint32_t id)   /* track k's parameter id past the block */
+{
+    return (int16_t)(TP[id].def + (int8_t)p->xp[k][id - P_NSTORED]);
+}
+/* an FDRF (or older) record's tracks as FDRG's: the parameters out of steps 0..6's spare bytes, every micro 0 */
+static void proj_xp_move(project_t *q)
+{
+    uint32_t k, i;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++) {
+            if (i < PROJ_XP)
+                q->xp[k][i] = q->t[k].step[i].rsv;
+            q->t[k].step[i].rsv = 0;
+        }
+}
 /* global i of a record: the block (G_NSTORED), past it G_DMODE in the reserved byte rsv[0] (0 in every record before
  * it: NORMAL) */
 static int16_t proj_g(const project_t *p, uint32_t i) { return i < G_NSTORED ? p->g[i] : (int16_t)p->rsv[0]; }
@@ -323,7 +335,7 @@ typedef struct {
 static union {
     project_v1_t v1; project_v2_t v2; project_v3_t v3; project_v4_t v4; project_v5_t v5; project_v6_t v6; project_v7_t v7;
     project_v8_t v8; project_v9_t v9; project_va_t va; project_vb_t vb; project_vc_t vc; project_vd_t vd;
-    project_ve_t ve;
+    project_ve_t ve; project_t vf;                   /* (vf: FDRF, FDRG's layout) */
 } proj_old;
 
 /* a converted record's bank (b: its slot's): the old motion (none: m 0, or a broken one: dropped) as motion events,
@@ -340,6 +352,7 @@ static void proj_old_bank(project_t *q, lk_bank_t *b, const motion_store_t *m)
 static void proj_old_done(project_t *q)            /* a converted record: no presets, not edited; its sum */
 {
     uint32_t k;
+    proj_xp_move(q);
     for (k = 0; k < NTRK; k++) {
         q->pre[k] = (uint16_t)PRE_NONE;
         q->pre_ed[k] = 0;
@@ -356,11 +369,19 @@ static void proj_from_old(project_t *q, lk_bank_t *b, uint32_t ver)
 {
     uint32_t i, k;
     uint32_t ng, np;
+    if (ver == 15u) {                                /* FDRF: everything as stored (its bank and variations linked) */
+        memcpy(q, &proj_old.vf, sizeof *q);
+        q->magic = PROJ_MAGIC;
+        proj_xp_move(q);
+        q->sum = proj_sum(q);
+        return;
+    }
     if (ver == 14u) {                                /* FDRE: everything as stored, its motion into the bank */
         memcpy(q, &proj_old.ve, sizeof *q);
         q->magic = PROJ_MAGIC;
         memset(&q->lk_n, 0, sizeof proj_old.ve.motion);
         proj_old_bank(q, b, &proj_old.ve.motion);
+        proj_xp_move(q);
         q->sum = proj_sum(q);
         return;
     }
@@ -386,6 +407,7 @@ static void proj_from_old(project_t *q, lk_bank_t *b, uint32_t ver)
         }
         memcpy(q->pre, o->pre, sizeof q->pre);      /* FDRD: its presets as stored */
         memcpy(q->pre_ed, o->pre_ed, sizeof q->pre_ed);
+        proj_xp_move(q);
         q->sum = proj_sum(q);
         return;
     }
@@ -490,22 +512,24 @@ static int proj_fetch(uint32_t slot)
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), q, sizeof *q);
     lk_dirty &= (uint8_t)~(1u << (slot & 3u));
     if (n > 8 && n <= (int)sizeof proj_old && !proj_ok(q)) {   /* an old record: its marker names it */
-        static const uint32_t MAGIC[15] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
+        static const uint32_t MAGIC[16] = {0, PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
                                            PROJ_MAGIC_V6, PROJ_MAGIC_V7, PROJ_MAGIC_V8, PROJ_MAGIC_V9, PROJ_MAGIC_VA, PROJ_MAGIC_VB,
-                                           PROJ_MAGIC_VC, PROJ_MAGIC_VD, PROJ_MAGIC_VE};
-        static const uint32_t SIZE[15] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
+                                           PROJ_MAGIC_VC, PROJ_MAGIC_VD, PROJ_MAGIC_VE, PROJ_MAGIC_VF};
+        static const uint32_t SIZE[16] = {0, sizeof proj_old.v1, sizeof proj_old.v2, sizeof proj_old.v3,
                                           sizeof proj_old.v4, sizeof proj_old.v5, sizeof proj_old.v6, sizeof proj_old.v7,
                                           sizeof proj_old.v8, sizeof proj_old.v9, sizeof proj_old.va, sizeof proj_old.vb,
-                                          sizeof proj_old.vc, sizeof proj_old.vd, sizeof proj_old.ve};
+                                          sizeof proj_old.vc, sizeof proj_old.vd, sizeof proj_old.ve, sizeof proj_old.vf};
         uint32_t ver, hdr[2], sum;
         memcpy(&proj_old, q, (uint32_t)n);
         memcpy(hdr, &proj_old, sizeof hdr);
         memcpy(&sum, (const uint8_t *)&proj_old + n - 4, 4);
-        for (ver = 1; ver < 15u; ver++)
+        for (ver = 1; ver < 16u; ver++)
             if (hdr[0] == MAGIC[ver] && hdr[1] == (uint32_t)n && SIZE[ver] == (uint32_t)n &&
                 sum == proj_hash(&proj_old, (uint32_t)n - 4u)) {
                 proj_from_old(q, &lk_slot[slot & 3u], ver);
                 proj_fsum[slot & 3u] = q->sum;          /* (converted: as flash's, until edited) */
+                if (ver == 15u)
+                    return proj_bank_fetch(slot);       /* (FDRF: its bank in flash, linked) */
                 return lk_slot[slot & 3u].count ? 1 : 0;
             }
     }
@@ -616,8 +640,8 @@ static __attribute__((noinline)) void proj_image(project_t *p, uint32_t slot, in
         } else {
             memcpy(p->t[k].step, trk[k].step, sizeof p->t[k].step);
         }
-        for (i = P_NSTORED; i < P_COUNT; i++)           /* KEYF, SRR, the INSERT: the steps' spare bytes */
-            p->t[k].step[i - P_NSTORED].rsv = proj_xp_enc(i, motion_rest(k, i));
+        for (i = P_NSTORED; i < P_COUNT; i++)           /* KEYF, SRR, the INSERT: past the block (xp) */
+            p->xp[k][i - P_NSTORED] = proj_xp_enc(i, motion_rest(k, i));
         p->pre[k] = (uint16_t)preset_rec_enc(trk[k].pre);   /* (stable: a uid / a user slot, presets.c) */
         p->pre_ed[k] = trk[k].pre_ed;
     }
@@ -902,7 +926,7 @@ static void proj_steps_to(step_t *d, const step_t *st)
         t->slide = q->slide;
         t->tie = q->tie;
         t->nt = (int8_t)clamp(q->nt, NT_MIN, NT_MAX);
-        t->rsv = 0;
+        t->micro = (int8_t)clamp(q->micro, -MICRO_MAX, MICRO_MAX);
     }
 }
 /* every track's sound, presets, model and steps (variation 1) from record p, values back inside their ranges, the
@@ -921,7 +945,7 @@ static __attribute__((noinline)) void proj_tracks_in(const project_t *p, int cue
         drum_cut(t);
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = i >= P_E0 && i <= P_E7 ? &DMODELS[m].edit[i - P_E0] : &TP[i];
-            t->p[i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(s, i), d->min, d->max);
+            t->p[i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(p, k, i), d->min, d->max);
         }
         if (cue_in)
             t->p[P_MUTE] = mute;                        /* (a cue: the mutes stay the performance's) */
@@ -1113,7 +1137,7 @@ static void cue_stage_knobs(const project_t *p, int16_t o[NTRK][P_COUNT], uint16
         uint32_t m = (uint32_t)clamp(s->p[P_MODEL], 0, NMODELS - 1);
         for (i = 0; i < P_COUNT; i++) {
             const param_desc_t *d = i >= P_E0 && i <= P_E7 ? &DMODELS[m].edit[i - P_E0] : &TP[i];
-            o[k][i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(s, i), d->min, d->max);
+            o[k][i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(p, k, i), d->min, d->max);
         }
         o[k][P_MODEL] = (int16_t)m;
         pre[k] = (uint16_t)preset_ref(preset_rec_dec(p->pre[k]), m);
@@ -1333,8 +1357,8 @@ static void cue_file_out(void)
             }
             if (!ov)
                 memcpy(p->t[k].step, g->st[k], sizeof p->t[k].step);
-            for (i = P_NSTORED; i < P_COUNT; i++)      /* KEYF, SRR, the INSERT: the steps' spare bytes */
-                p->t[k].step[i - P_NSTORED].rsv = proj_xp_enc(i, g->p[k][i]);
+            for (i = P_NSTORED; i < P_COUNT; i++)      /* KEYF, SRR, the INSERT: past the block (xp) */
+                p->xp[k][i - P_NSTORED] = proj_xp_enc(i, g->p[k][i]);
             p->pre[k] = (uint16_t)preset_rec_enc(cue.out_pre[k]);
             p->pre_ed[k] = cue.out_pre_ed[k];
             var_sp[k] = g->st[k];
@@ -1369,7 +1393,7 @@ static void cue_file_out(void)
             for (k = 0; k < NTRK; k++) {
                 memcpy(p->t[k].step, var_sp[k], sizeof p->t[k].step);
                 for (i = P_NSTORED; i < P_COUNT; i++)
-                    p->t[k].step[i - P_NSTORED].rsv = proj_xp_enc(i, motion_rest(k, i));
+                    p->xp[k][i - P_NSTORED] = proj_xp_enc(i, motion_rest(k, i));
                 for (j = 0; j < 4u; j++)
                     p->t[k].p[CHAIN_TIMING[j]] = var_tm[k][j];
             }
@@ -1999,6 +2023,7 @@ static void persist_boot(void)                    /* before settings_init / pane
     fx_metro = 0;                                     /* METRO OFF, as well */
     backlight = 0;                                    /* BACKLIGHT OFF, as well */
     midi_thru = 0;                                    /* MIDI THRU OFF, as well */
+    rec_quant = QUANT_16;                             /* QUANT 1/16, as well */
 #if USB10_BUILD
     usbaud = 0;                                       /* USB AUDIO 2 CH, as well */
 #endif
@@ -2052,6 +2077,8 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
         btset.bt_auto = (p.palette >> 8) & 1u;
         midi_thru = (uint8_t)((p.palette >> 14) & 1u);   /* bit 14 = MIDI THRU (midi_out.c): older records read OFF */
+        rec_quant = (uint8_t)((p.palette >> 16) & 3u);   /* bits 16..17 = QUANT (seq.c rec_hit): older records read
+                                                           * 1/16 */
         solo_mom = (uint8_t)((p.palette >> 15) & 1u);    /* bit 15 = SOLO MOMENTARY (the MUTE screen's F#5, ui_input.c):
                                                            * older records read TOGGLE */
 #if USB10_BUILD
@@ -2219,10 +2246,10 @@ static void settings_save(void)                    /* asked for while playing: w
 #if USB10_BUILD
     p.palette |= (usbaud & 3u) << 12;
 #endif
-    p.palette |= (uint32_t)(midi_thru & 1u) << 14 | (uint32_t)(solo_mom & 1u) << 15;
+    p.palette |= (uint32_t)(midi_thru & 1u) << 14 | (uint32_t)(solo_mom & 1u) << 15 | (uint32_t)(rec_quant & 3u) << 16;
     /* an older Hortator reads a palette out of range from bit 8: its display settings reset; 9..11 BACKLIGHT's level
-     * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it); 14 MIDI THRU, 15 SOLO MOMENTARY (an
-     * older one ignores it) */
+     * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it); 14 MIDI THRU, 15 SOLO MOMENTARY, 16..17
+     * QUANT (an older one ignores them) */
     p.lowcut = lc_pack() | btset.bt_hi << 8;
     p.zoom = (settings.zoom & 1u) | (settings.mutebar & 1u) << 1 | (uint32_t)!settings.accel << 2 | (settings.usbfix & 1u) << 3 |
              (settings.perfpage & 1u) << 4 | (btset.btmode & 3u) << 5 | (btset.bt_type & 1u) << 7 | btset.bt_lo << 8;
