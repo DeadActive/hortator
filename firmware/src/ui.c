@@ -683,7 +683,13 @@ static const param_desc_t *home_param(uint32_t k, int16_t **vp)
 
 /* ---- parameter locks (spec 2026-10-24): in STEPS, off the SEQ pages, a held step + a recordable knob locks it */
 #define LOCK_CLR_MS 600u                               /* step held + OCT- held this long: all its locks cleared */
-static int lock_page(void) { return env_steps() && (ui.home || cur_page()->fam != FAM_SEQ); }   /* HOME TRACKS SOUND
+static int lock_page(void) { return env_steps() && (ui.home || cur_page()->fam != FAM_SEQ); }
+static uint32_t lock_step(void);
+static uint32_t held_step(void);
+/* a step held on a page whose white keys are the steps (TRACKS unarmed, STEP, PATTERN, MOTION, SONG; owner
+ * 2026-11-01): KNOB 1-4 are its PROB RATCH ACC NUDGE (ui_input.c step_edit), the page's own knobs rest; not where
+ * the held step takes locks (ENV's STEPS on TRACKS: lock_step) */
+static int step_edit_page(void) { return (grid_mode() || seq_keys()) && lock_step() >= NSTEP; }   /* HOME TRACKS SOUND
                                                                                                 * LAYER FX LFO COMP */
 /* the step of the last-pressed key still down (from the press: a turn right after it locks), NSTEP none (not a lock
  * page, no key, outside LEN, a Grids track, a song's lock: step_grab) */

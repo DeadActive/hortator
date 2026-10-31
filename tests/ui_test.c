@@ -628,7 +628,8 @@ static void test_step_hold_on_acc(void)
     check("OCT+ + the key: the accent off as before (still on)", trk[0].step[2].on && !trk[0].step[2].acc);
     grid_acc(WHITE[2]);
     check("OCT+ + the key again: accented", trk[0].step[2].on && trk[0].step[2].acc);
-    seq_open("PATTERN");                             /* elsewhere KNOB 3 is the page's (SWING), not the accent */
+    seq_open("PATTERN");                             /* (owner 2026-11-01) a held step's KNOB 3 is its accent on every
+                                                      * steps page: SWING rests */
     {
         int16_t sw = trk[0].p[P_SSWING];
         trk[0].step[2].acc = 0;
@@ -638,7 +639,7 @@ static void test_step_hold_on_acc(void)
         host_ticks += 100u * 1000u * FM1_TICKS_PER_US;
         ui_frame();
         grid_up(WHITE[2]);
-        check("PATTERN: a step held + KNOB 3: SWING turns, no accent", trk[0].p[P_SSWING] != sw && !trk[0].step[2].acc &&
+        check("PATTERN: a step held + KNOB 3: the accent, SWING untouched", trk[0].p[P_SSWING] == sw && trk[0].step[2].acc &&
               trk[0].step[2].on);
     }
 }
@@ -2968,6 +2969,53 @@ static int grid_mark(uint32_t i, int side)           /* STEP: a mark beside step
     for (y = 30; y < 30 + 48; y++)
         n += fb[(uint32_t)(Y_GRAPH + G_OY + y) * 240u + (uint32_t)x] == C_INK;
     return n > 0;
+}
+/* (owner 2026-11-01) a step held on any page whose white keys are the steps (TRACKS unarmed, STEP, PATTERN, MOTION,
+ * SONG): KNOB 1-4 its PROB RATCH ACC NUDGE, shown in the knob columns, and the page's own values untouched */
+static void test_step_hold_every_seq_page(void)
+{
+    static const char *const PG[] = {"TRACKS", "STEP", "PATTERN", "MOTION", "SONG"};
+    uint32_t i;
+    for (i = 0; i < sizeof PG / sizeof PG[0]; i++) {
+        int16_t p0[P_COUNT], g0[G_COUNT];
+        chain_config_t c0;
+        step_t *st = &trk[0].step[3];
+        int ok, cols;
+        char what[96];
+        ui_host_init();
+        song.rec = 0;
+        if (i == 0u)
+            open_tracks();
+        else
+            seq_open(PG[i]);
+        memset(trk[0].step, 0, sizeof trk[0].step);
+        memcpy(p0, trk[0].p, sizeof p0);
+        memcpy(g0, song.g, sizeof g0);
+        c0 = chain.cfg;
+        grid_down(WHITE[3]);
+        grid_wait(400);                              /* held: the step's edit */
+        turn(EN_K1, 3);
+        ui_frame();
+        turn(EN_K2, 1);
+        ui_frame();
+        turn(EN_K3, 1);
+        ui_frame();
+        turn(EN_K4, 7);
+        ui_frame();
+        cols = col_has(0, "PROB") && col_has(1, "RATCH") && col_has(2, "ACC") && col_has(3, "NUDGE");
+        grid_up(WHITE[3]);
+        ui_frame();
+        ok = st->on && st->cond != 0 && st->rat == 1u && st->acc && st->micro == 7 &&
+             !memcmp(p0, trk[0].p, sizeof p0) && !memcmp(g0, song.g, sizeof g0) &&
+             !memcmp(&c0, &chain.cfg, sizeof c0) && song.sel == 0;
+        str_cpy(what, PG[i], sizeof what);
+        str_cpy(what + str_len(what), ": a held step's KNOB 1-4 edit PROB RATCH ACC NUDGE, the page's values untouched",
+                sizeof what - str_len(what));
+        check(what, ok && (i == 0u || str_eq(cur_page()->title, PG[i])));
+        str_cpy(what, PG[i], sizeof what);
+        str_cpy(what + str_len(what), ": the knob columns show PROB RATCH ACC NUDGE while held", sizeof what - str_len(what));
+        check(what, cols);
+    }
 }
 /* MICRO (spec 2026-10-31 §1): a held step's KNOB 4, -50 .. +50, its value in the knob column; an off step turned on by
  * it; a nudged step's mark in the grid (left of its box early, right late); a tap off clears it */
@@ -10549,6 +10597,7 @@ int main(void)
     test_step_hold();
     test_step_hold_on_acc();
     test_step_micro();
+    test_step_hold_every_seq_page();
     test_grid_hold_track_change();
     test_grids_pages();
     test_src_readonly();

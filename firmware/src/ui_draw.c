@@ -2867,6 +2867,25 @@ static void draw_home_strip(void)
     draw_home_lev((int)lev);
 }
 
+/* a step held on a steps page (step_edit_page): KNOB 1 PROB, 2 RATCH, 3 ACC, 4 NUDGE (step_edit); 1: drawn */
+static int held_step_columns(void)
+{
+    char val[12];
+    const step_t *st;
+    if (ui.home || ui.menu || !step_edit_page() || held_step() >= NSTEP)
+        return 0;
+    st = &TSEL->step[held_step()];
+    cond_format(st->cond, val);
+    draw_column(0, "PROB", val, "", HOT(0u), -1);
+    fmt_int(val, (int32_t)st->rat + 1);
+    draw_column(1, "RATCH", val, "", HOT(1u), -1);
+    draw_column(2, "ACC", st->acc ? "ON" : "OFF", "", HOT(2u), -1);
+    val[0] = st->micro > 0 ? '+' : 0;            /* -50 .. +50 */
+    val[1] = 0;
+    fmt_int(val + str_len(val), st->micro);
+    draw_column(3, "NUDGE", val, "", HOT(3u), -1);
+    return 1;
+}
 static void draw_columns(void)
 {
     uint32_t c;
@@ -2877,6 +2896,8 @@ static void draw_columns(void)
         perf_columns();
         return;
     }
+    if (held_step_columns())                          /* a step held on a steps page: its PROB RATCH ACC NUDGE */
+        return;
     if (!ui.home && pg->graph == GR_MOTION) {          /* MOTION: PLAY EVENT - CLEAR */
         motion_columns();
         return;
@@ -2925,20 +2946,6 @@ static void draw_columns(void)
         draw_column(1, "NOTE", val, "", HOT(1u), (st->nt - NT_MIN) * 1000 / (NT_MAX - NT_MIN));
         draw_column(2, "TIME", TM[srec_time(st)], "", HOT(2u), -1);
         draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", HOT(3u), -1);
-        return;
-    }
-    if (pg->scope == SC_GRID && held_step() < NSTEP) {  /* a step held: KNOB 1 PROB, 2 RATCH, 3 ACC, 4 MICRO
-                                                         * (step_edit) */
-        const step_t *st = &TSEL->step[held_step()];
-        cond_format(st->cond, val);
-        draw_column(0, "PROB", val, "", HOT(0u), -1);
-        fmt_int(val, (int32_t)st->rat + 1);
-        draw_column(1, "RATCH", val, "", HOT(1u), -1);
-        draw_column(2, "ACC", st->acc ? "ON" : "OFF", "", HOT(2u), -1);
-        val[0] = st->micro > 0 ? '+' : 0;            /* -50 .. +50 */
-        val[1] = 0;
-        fmt_int(val + str_len(val), st->micro);
-        draw_column(3, "NUDGE", val, "", HOT(3u), -1);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */

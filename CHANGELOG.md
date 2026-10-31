@@ -5,6 +5,9 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **Step editing on every step page**: holding a step now turns KNOB 1–4 into its PROB, RATCH, ACCENT and NUDGE on
+  TRACKS, PATTERN, MOTION and SONG too, not only on STEP, and the knobs no longer change the page's own settings (LEN,
+  DIV, SWING, the song's rows, the track's level) while a step is held.
 - **NUDGE: move a step's hit early or late.** On SEQ STEP, hold a step and turn KNOB 4: -50 to +50 hundredths of a
   step (+50 halfway to the next step, -50 halfway to the previous one), following the track's division and swing. A
   late hit keeps its PROB, RATCH and locks (its RATCH hits spread over the rest of the step); an early one plays in

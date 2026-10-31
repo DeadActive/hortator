@@ -1479,7 +1479,7 @@ static void ui_input(void)
             ui.hot_t = 40;
             continue;
         }
-        if (grid_mode() && step_edit(k, s))
+        if (step_edit_page() && step_edit(k, s))
             continue;
         if (lock_step() < NSTEP) {                      /* STEPS, a step held: a lock (or nothing) */
             lock_knob(k, s);
