@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE */
-/* MIDI out beyond the keys' notes: GLO SYNC (MIDI clock out) and GLOBAL 3/3 THRU. Included from seq.c.
+/* MIDI out beyond the keys' notes: GLO SYNC (MIDI clock out) and GLOBAL 3/7 THRU. Included from seq.c.
  *
  * SYNC (song.g[G_SYNC], a project global: SY_ bits, OFF 0, USB 1, and in the Bluetooth build BLE 2, BOTH 3; the FM-1's
  * TRS jack is MIDI IN only, so there is no TRS out). On the own clock (CLK INT): Start on PLAY (PLAY while playing:
@@ -42,7 +42,7 @@ static int bt_sync_out(uint32_t pkt, int rt);       /* bt_midi.c: to the BLE dev
 #define SY_ALL SY_USB
 #endif
 
-static volatile uint8_t midi_thru;                  /* GLOBAL 3/3 THRU (settings: project.c, the palette word's bit 14) */
+static volatile uint8_t midi_thru;                  /* GLOBAL 3/7 THRU (settings: project.c, the palette word's bit 14) */
 static struct {
     uint32_t due[MOUT_Q];                           /* TIMER4 tick */
     uint8_t st[MOUT_Q];                             /* F8 FA FC */

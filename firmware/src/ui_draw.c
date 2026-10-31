@@ -192,6 +192,10 @@ static int head_mode(char *b)
 {
     uint32_t ls = lock_view_step();
     b[0] = 0;
+    if (ui.tools) {                                   /* SEQ held: the step tools */
+        str_cpy(b, "STEP TOOLS", 16);
+        return 1;
+    }
     if (ui.cue_map) {                                 /* SAVE held (spec 2026-10-26): CUE A1 (* edited), CUE>B3 queued */
         int32_t ld = proj_loaded();
         if (cue.q_slot || cue.q_var) {
@@ -277,7 +281,7 @@ static void draw_head(void)
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
                    (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u +
-                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u + fill_on * 7907u +
+                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u + fill_on * 7907u + ui.tools * 1299709u +
                    (ui.cue_map ? (1u + cue.q_slot + cue.q_var * 7u + var_cur * 61u +
                                   (uint32_t)(proj_loaded() + 1) * 503u +
                                   (proj_loaded() >= 0 && slot_dirty((uint32_t)proj_loaded())) * 4099u) * 2654435761u
@@ -432,7 +436,7 @@ static uint32_t steps_hash(const track_t *t)
     for (i = 0; i < n; i++) {
         step_t s = view_step(t, i);
         h = (h ^ (s.on + s.acc * 2u + s.cond * 4u + s.rat * 256u + s.slide * 1024u + s.tie * 2048u +
-                  (uint32_t)(uint8_t)s.nt * 4096u)) * 16777619u;
+                  (uint32_t)(uint8_t)s.nt * 4096u + (uint32_t)(uint8_t)s.micro * 1048576u)) * 16777619u;
     }
     return h ^ n * 7919u;
 }
@@ -819,6 +823,9 @@ static void graph_grid(const track_t *t, uint16_t c)
             cv_rect(x, y + 46, 11, 3, C_INK);
         if (st->on && st->nt)                         /* a transposed step (NOTE != C4): a small mark under it */
             cv_rect(x + 3, y + 42, 5, 2, C_INK);
+        if (st->on && st->micro)                      /* MICRO: a nudged step's mark against its box, low (early:
+                                                       * left, late: right; the gap's middle column stays free) */
+            cv_rect(st->micro < 0 ? x - 1 : x + 11, y + 30, 1, 10, C_INK);
         if (ui.srec && si == ui.sr_cur)               /* step record's cursor: a frame */
             cv_frame(x - 2, y - 3, 15, 54, C_INK);
     }
@@ -1678,6 +1685,137 @@ static void graph_filter(uint16_t c)
             cv_rect(100 + ex, x, 1, 2, C_INK);
 }
 
+/* GLO > DLY (both pages): the TIME large, its length in ms and the MODE under it; at the right the echo train over
+ * 8 delay periods: the hit (dithered), then the echoes, the first at MIX, each next one FDBK times the last (fx.c
+ * fx_buses' gains), dithered more the darker COLR leaves them; NORM from the floor, PING above (L) and below (R) the
+ * middle line in turn */
+static void graph_delay(void)
+{
+    uint32_t k, ms = delay_samples() * 1000u / FS, ping = song.g[G_DMODE] != 0;
+    int32_t a = song.g[G_DMIX] * 258, fb = song.g[G_DFDBK] * 230, dark = 127 - song.g[G_DCOLOR], mid = 47;
+    char b[16];
+    md_text(4, 4, &MD_F3, 4, N_DTIME[(uint32_t)song.g[G_DTIME] % (sizeof N_DTIME / sizeof N_DTIME[0])], C_INK);
+    fmt_int(b, (int32_t)ms);
+    str_cpy(b + str_len(b), " MS", sizeof b - str_len(b));
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    md_text(4, 60, &MD_F3, 2, ping ? "PING-PONG" : "NORMAL", C_INK);
+    if (ping) {
+        cv_hdot(100, 235, mid, C_INK);
+        md_text(226, 4, &MD_F3, 2, "L", C_INK);
+        md_text(226, 78, &MD_F3, 2, "R", C_INK);
+    } else {
+        cv_hdot(100, 235, 88, C_INK);
+    }
+    cv_dither(101, ping ? mid - 40 : 8, 3, ping ? 80 : 80, C_INK);   /* the hit */
+    for (k = 1; k <= 8u; k++) {
+        int32_t x = 100 + (int32_t)k * 16, h = (a >> 6) * (ping ? 40 : 80) / 512;   /* (a: Q15) */
+        if (h < 1)
+            break;
+        if (ping) {
+            if (k & 1u)
+                cv_rect(x, mid - h, 3, h, C_INK);
+            else
+                cv_rect(x, mid + 1, 3, h, C_INK);
+        } else {
+            cv_rect(x, 88 - h, 3, h, C_INK);
+        }
+        if (k > 1u && dark * (int32_t)(k - 1u) > 96)   /* COLR: the later repeats duller */
+            cv_dither(x - 1, ping ? ((k & 1u) ? mid - h : mid + 1) : 88 - h, 5, h, C_BG);
+        a = mulq15(a, fb);
+    }
+}
+
+/* GLO > REVERB: the TYPE large and its decay time (RT: to -60 dB) under it; at the right the tail over 4 s (a tick a
+ * second) in dB, 60 dB tall: the line is the whole sound's decay (ROOM: the combs' loop gain from SIZE over their mean
+ * length; SPRNG: the spring's, with its drips at every round trip; HALL: its lines' gain (fx.c hall_gain) over their
+ * mean length, at half the rate), the solid under it its top end, which DAMP makes fade sooner. The loop's gain g over L samples: -60 dB after 6.9 L / -ln g samples, -ln g = d + d^2 / 2, d = 1 - g */
+static int32_t rev_t60(int32_t g, int32_t len)           /* g Q15, len samples -> samples to -60 dB */
+{
+    int32_t d = 32768 - g, q = d + ((d * d) >> 16);         /* -ln g, Q15 */
+    return q > 0 ? (int32_t)((uint32_t)len * 226099u / (uint32_t)q) : 1 << 24;   /* (6.9 in Q15) */
+}
+static void graph_reverb(void)
+{
+    uint32_t ty = (uint32_t)clamp(song.g[G_RTYPE], 0, 2), spring = ty == 1u, s = (uint32_t)song.g[G_RSIZE], x, drip;
+    int32_t damp = song.g[G_RDAMP], g, len, t60, tb, px, pb, py = 0;
+    char b[16];
+    if (spring) {
+        g = 19661 + (int32_t)s * 85;
+        len = 1323 + (int32_t)((s * 1323u) >> 7);
+    } else if (ty == 2u) {                                   /* HALL: a line of the mean length (609 at 22.05 kHz) */
+        g = (int32_t)hall_gain(609u, exp2_neg(s * 65536u / 30u));
+        len = 2 * 609;
+    } else {
+        g = 25000 + (int32_t)s * 50;
+        len = (1116 + 1188 + 1277 + 1356) / 4;
+    }
+    t60 = rev_t60(g, len);
+    tb = t60 * (170 - damp) / 170;                           /* DAMP: the top end fades sooner */
+    px = t60 / 1297 > 1 ? t60 / 1297 : 1;                    /* (4 s = 176400 samples over 136 px) */
+    pb = tb / 1297 > 1 ? tb / 1297 : 1;
+    drip = (uint32_t)(len / 1297 + 1);
+    md_text(4, 4, &MD_F3, 4, N_RTYPE[ty], C_INK);
+    str_cpy(b, "RT ", sizeof b);
+    fmt_int(b + 3, t60 / 44100);
+    x = str_len(b);
+    b[x] = '.';
+    b[x + 1] = (char)('0' + t60 * 10 / 44100 % 10);
+    str_cpy(b + x + 2, " S", sizeof b - x - 2);
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, 88, C_INK);
+    for (x = 0; x <= 4u; x++)
+        cv_rect(100 + (int32_t)x * 34, 86, 1, 5, C_INK);
+    for (x = 0; x < 136u; x++) {
+        int32_t h = (int32_t)x < px ? 78 - 78 * (int32_t)x / px : 0, hb = (int32_t)x < pb ? 78 - 78 * (int32_t)x / pb : 0, y;
+        if (spring && h > 6 && x % drip == 0u)
+            h += 6;                                          /* a drip */
+        y = 88 - h;
+        if (x)
+            cv_line(99 + (int32_t)x, py, 100 + (int32_t)x, y, C_INK);
+        py = y;
+        if (hb > 0)
+            cv_rect(100 + (int32_t)x, 88 - hb, 1, hb, C_INK);
+        if (h > hb + 1)
+            cv_dither(100 + (int32_t)x, 89 - h, 1, h - hb - 1, C_INK);
+    }
+}
+
+/* GLO > CHORUS: the RATE large and the delay's swing in ms under it; at the right the chorus' modulated delay over 4 s
+ * (a tick a second): the sine fx.c cho_tick sweeps, from its shortest (the dotted line, DEPTH 0) up by DEPTH, 0 ..
+ * 30 ms tall; past ~8 Hz (over 34 cycles in 136 px) the band it fills, dithered */
+static void graph_chorus(void)
+{
+    uint32_t r = (uint32_t)song.g[G_CRATE] & 127u, hz = LFO_HZ_X100[r], x;
+    int32_t lo = 400, hi = 400 + song.g[G_CDEPTH] * 6, py = 0;   /* (cho_tick: 400 + up to cdepth samples) */
+    int32_t ylo = 88 - lo * 80 / 1323, yhi = 88 - hi * 80 / 1323;   /* (30 ms = 1323 samples over 80 px) */
+    char b[16];
+    const char *u;
+    param_format(&GP[G_CRATE], song.g[G_CRATE], b, &u);
+    x = (uint32_t)md_text(4, 4, &MD_F3, 4, b, C_INK);
+    md_text((int32_t)x + 4, 30, &MD_F3, 2, "HZ", C_INK);
+    fmt_int(b, lo * 1000 / FS);
+    str_cpy(b + str_len(b), "-", sizeof b - str_len(b));
+    fmt_int(b + str_len(b), hi * 1000 / FS);
+    str_cpy(b + str_len(b), " MS", sizeof b - str_len(b));
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, ylo, C_INK);
+    cv_rect(100, 88, 136, 1, C_INK);
+    for (x = 0; x <= 4u; x++)
+        cv_rect(100 + (int32_t)x * 34, 86, 1, 5, C_INK);
+    if (hz > 850u) {                                         /* too fast to draw: the band it sweeps */
+        cv_dither(100, yhi, 136, ylo - yhi + 1, C_INK);
+        cv_rect(100, yhi, 136, 1, C_INK);
+        return;
+    }
+    for (x = 0; x < 136u; x++) {                             /* phase: x / 34 s at hz / 100, 2^32 a cycle */
+        uint32_t ph = x * hz * 1263226u;                     /* (2^32 / 3400, wrapping) */
+        int32_t y = ylo - (((osc_sine(ph - 0x40000000u) + 32768) * (ylo - yhi)) >> 16);
+        if (x)
+            cv_line(99 + (int32_t)x, py, 100 + (int32_t)x, y, C_INK);
+        py = y;
+    }
+}
+
 /* INSERT 1/2 and 2/2 (insert.c): the TYPE in large, MIX and SRR under it; at the right a sine's cycle as the track's
  * chain bends it (SRR's steps, then the drive's / CRUSH's curve at MIX, after Skiff's graph_insert), or for the swept
  * ones their sweep over two cycles (PHASR and FLANG a triangle, FLANG's squared, CHOR a sine, as deep as DEPTH). Both
@@ -1743,6 +1881,13 @@ static uint32_t graph_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)song.g[G_SLOT] * 13u;
+    if (pg->graph == GR_CHO)                           /* the chorus' globals */
+        h = (h ^ (uint32_t)song.g[G_CRATE] * 23u ^ (uint32_t)song.g[G_CDEPTH] * 7919u) * 16777619u;
+    if (pg->graph == GR_DLY || pg->graph == GR_REV)    /* the buses' globals (and the tempo: TIME in ms) */
+        for (i = G_DTIME; i <= G_DMIX; i++)
+            h = (h ^ (uint32_t)song.g[i] + (uint32_t)song.g[G_DMODE] * 7u + (uint32_t)song.g[G_RTYPE] * 11u +
+                 (uint32_t)song.g[G_RSIZE] * 13u + (uint32_t)song.g[G_RDAMP] * 17u + (uint32_t)song.g[G_BPM] * 19u) *
+                16777619u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
     if (pg->graph == GR_SLOTS) {
@@ -1855,13 +2000,15 @@ static void graph_perf(void)
 #define MU_BH 40u
 #define MU_BX(k) (4u + (k) % 4u * 59u)
 #define MU_BY(k) (MU_Y + 4u + (k) / 4u * 60u)
-/* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber); in each the track and its
- * model, under it the key that toggles it; below, the mode and its keys, and G4's MIDI LEARN. The top bar as
+/* filled = audible, outline = muted, a mute waiting for the bar blinks (250 ms, amber), a track another's SOLO
+ * silences: half filled (dithered), a soloed one: an S in its corner; in each the track and its model, under it the
+ * key that toggles it; below, the mute mode and its keys, G4's MIDI LEARN and F#5's SOLO mode. The top bar as
  * everywhere */
 static void draw_mute(void)
 {
     uint32_t k, blink = (fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u;
-    uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u + ui.ml.on * 5003u;
+    uint32_t sig = settings.mutebar * 7u + song.mute_q * 977u + (song.mute_q ? blink + 1u : 0u) * 131u + ui.ml.on * 5003u +
+                   song.solo * 65537u + solo_mom * 1000003u;
     int32_t x, w;
     char b[24];
     for (k = 0; k < NTRK; k++)
@@ -1895,14 +2042,19 @@ static void draw_mute(void)
         int on = !trk[k].p[P_MUTE] ^ (wait && blink);
         const char *mn = N_MODEL[(uint32_t)trk[k].p[P_MODEL] % NMODELS];
         uint16_t pen = on ? C_BG : C_INK;
+        int hushed = on && song.solo && !((song.solo >> k) & 1u);   /* (another track's SOLO) */
         if (on)
             cv_rect(bx, by, MU_BW, MU_BH, C_INK);
         else
             cv_frame(bx, by, MU_BW, MU_BH, C_INK);
+        if (hushed)
+            cv_dither(bx + 1, by + 1, (int32_t)MU_BW - 2, (int32_t)MU_BH - 2, C_BG);
         b[0] = (char)('1' + k);
         b[1] = 0;
         md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, b)) / 2, by + 6, &MD_F3, 2, b, pen);
         md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, mn)) / 2, by + 22, &MD_F3, 2, mn, pen);
+        if ((song.solo >> k) & 1u)
+            md_text(bx + 4, by + 6, &MD_F3, 2, "S", pen);
         note_text(b, 53 + KEY_TRK_KEY[k]);
         md_text(bx + ((int32_t)MU_BW - md_text_w(&MD_F3, 2, b)) / 2, by + (int32_t)MU_BH + 4, &MD_F3, 2, b, C_INK);
     }
@@ -1922,11 +2074,12 @@ static void draw_mute(void)
     k = (uint32_t)md_text(x, 24, &MD_F3, 2, "D# NEXT BAR", C_INK);
     if (!settings.mutebar)
         cv_dither(x, 24, (int32_t)k - x, 10, C_BG);
-    str_cpy(b, ui.ml.on ? "G4 LEARN: ON" : "G4 LEARN: OFF", sizeof b);
-    x = (240 - md_text_w(&MD_F3, 2, b)) / 2;
-    md_text(x, 44, &MD_F3, 2, b, C_INK);
+    w = md_text_w(&MD_F3, 2, "G4 LEARN") + 12 + md_text_w(&MD_F3, 2, solo_mom ? "F# SOLO MOM" : "F# SOLO TGL");
+    x = (240 - w) / 2;
+    k = (uint32_t)md_text(x, 44, &MD_F3, 2, "G4 LEARN", C_INK);
     if (!ui.ml.on)
-        cv_dither(x, 44, md_text_w(&MD_F3, 2, b), 10, C_BG);
+        cv_dither(x, 44, (int32_t)k - x, 10, C_BG);
+    md_text((int32_t)k + 12, 44, &MD_F3, 2, solo_mom ? "F# SOLO MOM" : "F# SOLO TGL", C_INK);
     cv_blit(0, 164);
 }
 /* PERFORM: KNOB 1..4 FILTER CRUSH THROW DEPTH (SHIMMER while OCT UP / DN plays) */
@@ -2156,6 +2309,15 @@ static uint32_t graph_paint(int whole)
         break;
     case GR_INSERT:
         graph_insert();
+        break;
+    case GR_DLY:
+        graph_delay();
+        break;
+    case GR_REV:
+        graph_reverb();
+        break;
+    case GR_CHO:
+        graph_chorus();
         break;
     case GR_SLOTS:
         cv_oy = 0;
@@ -2705,6 +2867,25 @@ static void draw_home_strip(void)
     draw_home_lev((int)lev);
 }
 
+/* a step held on a steps page (step_edit_page): KNOB 1 PROB, 2 RATCH, 3 ACC, 4 NUDGE (step_edit); 1: drawn */
+static int held_step_columns(void)
+{
+    char val[12];
+    const step_t *st;
+    if (ui.home || ui.menu || !step_edit_page() || held_step() >= NSTEP)
+        return 0;
+    st = &TSEL->step[held_step()];
+    cond_format(st->cond, val);
+    draw_column(0, "PROB", val, "", HOT(0u), -1);
+    fmt_int(val, (int32_t)st->rat + 1);
+    draw_column(1, "RATCH", val, "", HOT(1u), -1);
+    draw_column(2, "ACC", st->acc ? "ON" : "OFF", "", HOT(2u), -1);
+    val[0] = st->micro > 0 ? '+' : 0;            /* -50 .. +50 */
+    val[1] = 0;
+    fmt_int(val + str_len(val), st->micro);
+    draw_column(3, "NUDGE", val, "", HOT(3u), -1);
+    return 1;
+}
 static void draw_columns(void)
 {
     uint32_t c;
@@ -2715,6 +2896,8 @@ static void draw_columns(void)
         perf_columns();
         return;
     }
+    if (held_step_columns())                          /* a step held on a steps page: its PROB RATCH ACC NUDGE */
+        return;
     if (!ui.home && pg->graph == GR_MOTION) {          /* MOTION: PLAY EVENT - CLEAR */
         motion_columns();
         return;
@@ -2763,16 +2946,6 @@ static void draw_columns(void)
         draw_column(1, "NOTE", val, "", HOT(1u), (st->nt - NT_MIN) * 1000 / (NT_MAX - NT_MIN));
         draw_column(2, "TIME", TM[srec_time(st)], "", HOT(2u), -1);
         draw_column(3, "FLAG", FL[st->acc | st->slide << 1], "", HOT(3u), -1);
-        return;
-    }
-    if (pg->scope == SC_GRID && held_step() < NSTEP) {  /* a step held: KNOB 1 PROB, 2 RATCH, 3 ACC (step_edit) */
-        const step_t *st = &TSEL->step[held_step()];
-        cond_format(st->cond, val);
-        draw_column(0, "PROB", val, "", HOT(0u), -1);
-        fmt_int(val, (int32_t)st->rat + 1);
-        draw_column(1, "RATCH", val, "", HOT(1u), -1);
-        draw_column(2, "ACC", st->acc ? "ON" : "OFF", "", HOT(2u), -1);
-        draw_column(3, "", "", "", CV_NORM, -1);
         return;
     }
     if (pg->scope == SC_GRID) {                         /* BANK; the rest: the grid on the keys */
@@ -2898,6 +3071,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     }
     if (ui.mute) {                                    /* GLO held: the MUTE screen */
         draw_mute();
+        return;
+    }
+    if (ui.tools) {                                   /* SEQ held: the TOOLS screen (ui_tools.c) */
+        draw_tools();
         return;
     }
     bank_fix();

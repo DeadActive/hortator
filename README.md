@@ -28,8 +28,9 @@ firmware ([below](#back-to-the-official-firmware)).
   rim, clave, conga, ports of Plaits' drum algorithms, and samples. Every model has TUNE, DECAY, TONE and a fourth
   knob of its own.
 - **Step sequencer.** Up to 64 steps per track on the 16 white keys, each track with its own length, division and
-  swing. Accents, PROB and RATCH per step, fills that play every other bar, live recording, mutes that wait for the
-  next bar (the MUTE screen: hold GLO).
+  swing. Accents, PROB, RATCH and NUDGE (a hit moved early or late, up to half a step) per step, fills that play
+  every other bar, live recording (QUANT: on the steps, on a finer grid, or as played), mutes that wait for the next
+  bar (the MUTE screen: hold GLO).
 - **Notes and ACID.** Every step holds a note. Drum tracks play their steps transposed (C4 plays as tuned); ACID, a
   303-style bass voice (TUNE DECAY CUTOF RESO ENVMD ACCNT WAVE GATE: saw or square into a resonant 24 dB filter, with
   accent, slide and tie), plays them as a bass line on up to two tracks ("ACID: 2 TRACKS MAX"). SCL turns the keys
@@ -39,7 +40,7 @@ firmware ([below](#back-to-the-official-firmware)).
   its own track wherever the keys play tracks (HOME, SOUND, FX, TRACKS ...), while KEYS, step record and knob motion
   stay the selected track's; a REC tap there again ends it, the tracks armed before it armed again (`T3 REC ARMED`, or
   `REC OFF` when none was). REC never starts the transport: PLAY does, and an armed track records once playing. A key
-  writes the nearest step, a key held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on
+  writes the nearest step (GLOBAL 3/7 QUANT: see [Nudge](#nudge-and-quant)), a key held into later steps writes TIEs, a legato overlap writes a SLIDE (TIE and SLIDE on
   ACID tracks only). An ACID
   track's STEP page is a piano roll; a step the white keys turn on takes the last KEYS note on an ACID track, C4 on a
   drum. KEYS notes send no MIDI out, and an ACID note (or a tied chain) longer than 5.5 s
@@ -53,8 +54,8 @@ firmware ([below](#back-to-the-official-firmware)).
 - **Compressor.** The Streams compressor keyed by any track, for ducking and pumping; GHOST keeps the pump with the
   key track muted.
 - **Movement.** Two LFOs per track, ten waves with a morph between them, synced to the tempo.
-- **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM or SPRING reverb
-  and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker. RESON is tuned in semitones (TUNE);
+- **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM, SPRING or stereo
+  HALL reverb and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker. RESON is tuned in semitones (TUNE);
   its **KEYF** (KEYFOLLOW, RESON 2/2 KNOB 4, 0 % = off) makes the ring follow the note of each hit from C4: at 100 % a
   step at C5 (or a KEYS note, a ratchet's note) rings an octave above TUNE, at 50 % half an octave; MIDI notes play
   their track at C4, so they ring at TUNE. A new note under a ringing tail glides to it in a few ms, without a click.
@@ -68,15 +69,23 @@ firmware ([below](#back-to-the-official-firmware)).
   without a click; TYPE OFF, MIX 0 and SRR OFF leave the sound exactly as before. SRR and the INSERT's knobs (not its
   TYPE, as the FILTER's) take MOTION, parameter locks and MIDI LEARN (`T3 I.DRIVE`, `T3 SRR`), and are saved with
   each project; projects saved before load them off.
-- **Delay.** One tempo delay for every track's DLY send (FX > DLY: TIME, FDBK, COLR, MIX). TIME runs by length, 4BAR
+- **Delay.** One tempo delay for every track's DLY send (GLO > DLY: TIME, FDBK, COLR, MIX). TIME runs by length, 4BAR
   2BAR 1/1 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T 1/16 16T 1/32 32T (D dotted, T triplet); a time longer than the delay
-  holds (1.49 s) is cut to 1.49 s. DLY 2/2 **MODE**: NORM, or PING (ping-pong): the echoes go left, right, left ...,
+  holds (1.49 s) is cut to 1.49 s. DLY's second page **MODE**: NORM, or PING (ping-pong): the echoes go left, right, left ...,
   with the same FDBK, COLR and longest time; its echoes are a little softer in the top end. Changing MODE clears the
-  delay (the old echoes stop). MODE is saved with the project; older projects load NORM.
+  delay (the old echoes stop). MODE is saved with the project; older projects load NORM. The page's graph draws the
+  echoes after a hit (L and R in PING); REVERB's draws its tail and its decay time (RT).
+- **Reverb.** One reverb for every track's REV send: GLO > REVERB (6/7): **TYPE** ROOM (a small room, mono), SPRNG (a
+  spring tank's chirp and drips, mono) or HALL (Skiff's: smooth and dense, in stereo, the tail fading to exact
+  silence), **SIZE** (the decay: HALL's runs from about half a second to several seconds) and **DAMP** (the top end
+  fading sooner). Changing TYPE fades the old tail out, without a click. TYPE is saved with the project; projects saved
+  before keep ROOM or SPRNG.
+- **Chorus.** One chorus for every track's CHOR send: GLO > CHORUS (7/7, after REVERB): RATE and DEPTH. Its graph
+  draws the chorus' sweep over 4 s: how fast (RATE) and how far (DEPTH, its delay's range in ms) it moves.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
-- **Metronome.** GLOBAL 3/3 METRO: a click on every quarter note while playing, the bar's first higher.
+- **Metronome.** GLOBAL 3/7 METRO: a click on every quarter note while playing, the bar's first higher.
 - **Key backlight.** MENU BACKLIGHT DIM LO / DIM HI: the keys and buttons glow dimly while unlit, the steps 1, 5, 9
   and 13 a little brighter; INV turns the LEDs around. OCT- / OCT+ breathe when pressing them would do something.
 - **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
@@ -96,26 +105,26 @@ firmware ([below](#back-to-the-official-firmware)).
 | --- | --- |
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
-| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3: PROB / RATCH / ACCENT (right on, left off); hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
-| **FX** | FX, SLICER, RESON, delay, reverb and chorus; hold it for PERFORM |
+| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3 / 4: PROB / RATCH / ACCENT (right on, left off) / NUDGE, on STEP, PATTERN, MOTION, SONG and TRACKS alike (the page's own knobs rest while a step is held); hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG (each tap on its release); held: the TOOLS screen ([step tools](#step-tools): copy and paste steps, pages, selections, DUPLICATE, CLEAR) |
+| **FX** | FILTER, FX (the sends), INSERT (and SRR), SLICER and RESON; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
 | **REC** | on TRACKS: arms / disarms the selected track for recording (`T3 REC ARMED` / `T3 REC OFF`; during REC ALL: REC ALL ends, the selected track armed). On every other screen: REC ALL on / off (every track armed, each white key records its own track; off: the arm state from before back). It never starts play: PLAY does. On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
-| **GLO** | a tap: global and system settings; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
+| **GLO** | a tap: global and system settings, then the delay, the reverb and the chorus; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
 | **SAVE** | tap (on the release): projects (save, load, name) and tools; held: the cue map (live cue) |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
 | **ENV** | STEPS / TRACKS (and [parameter locks](#parameter-locks)) (a tap, on its release; its LED lit and a padlock in the top bar, left of the battery, in STEPS). **STEPS**: the white keys are the selected track's steps on every page (HOME, EDIT, FX, LFO, COMP, TRACKS armed ...), tapped and held as on SEQ; hold ENV and press OCT+ / OCT- for the next / previous bank; OCT+ held + a step: its accent; OCT+ alone and OCT- keep their page's job (LAYER, back to SOUND, the LFO's RATE MODE). Finger drumming needs TRACKS (ENV off: the keys as before). ENV turns KEYS off, SCL turns STEPS off. Off at power-on |
 
 With KEYS on, OCT- / OCT+ are the octave: LAYER (from EDIT) and the LFO pages' OCT+ (the RATE MODE of the LFO turned
 last) need KEYS off; the STEP
-bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu, PERFORM (FX held) and the MUTE
-screen (GLO held) keep their keys.
+bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu, PERFORM (FX held), the MUTE
+screen (GLO held) and the TOOLS screen (SEQ held) keep their keys.
 Step record starts in KEYS mode, on the STEP page, with the transport stopped, by a REC tap: the cursor starts at the
 bank's first step and the top bar shows `STEP REC nn`. KNOB 1 to 4 are STEP, NOTE, TIME (NOTE / TIE / REST) and FLAG
 (- / ACC / SLD / A+S); EDIT writes a rest. A REC tap, PLAY or leaving the page ends it.
 
 ALGORITHM picks the track anywhere. SELECT turns the pages of a section and moves the menu's cursor; on HOME's
-TRACKS mode it sets the tempo instead (`CLK USB` / `CLK TRS` when following a clock; GLOBAL 1/3 KNOB 1 sets it on any
+TRACKS mode it sets the tempo instead (`CLK USB` / `CLK TRS` when following a clock; GLOBAL 1/7 KNOB 1 sets it on any
 page). KNOB 1 to 4 edit what the screen shows. PRESETS loads the next / previous preset onto the selected track at
 each detent (a popup shows the bank and the presets around it); EDIT held opens the PRESETS list (LOAD, SAVE into the
 USER bank, DELETE). The SOUND pages show the track's preset, with `*` once a SOUND knob moved.
@@ -125,10 +134,17 @@ USER bank, DELETE). The SOUND pages show the track's preset, with `*` once a SOU
 Hold GLO: the **MUTE screen**, up while GLO is held (a quick GLO tap opens GLOBAL instead; a key pressed while GLO
 is down opens the screen at once). The eight tracks are boxes, **filled = heard, outline = muted**, each with its
 number and model, and under it the key that toggles it (F3 to F4, the white keys; their LEDs lit for the heard
-tracks). The top C# sets `MUTE: NOW`, the top D# `MUTE: NEXT BAR` (the same setting as GLOBAL 3/3 MUTE): with NEXT
+tracks). The top C# sets `MUTE: NOW`, the top D# `MUTE: NEXT BAR` (the same setting as GLOBAL 3/7 MUTE): with NEXT
 BAR, a mute made while playing blinks, then lands on the next downbeat. G4 (the next white key up) turns
 [MIDI LEARN](#midi-learn) on and off. While the screen is up the keys play nothing and the knobs and the other
 buttons rest, PLAY aside. Let go of GLO: back to the page you were on.
+
+**Solo** on the same screen: the black keys F#3 to A#4 solo tracks 1 to 8, their LEDs lit while soloed. While any
+track is soloed only the soloed ones are heard; the others' boxes are half filled, a soloed box has an S in its corner,
+and the mutes stay as they are. The top black key **F#5** flips the solo mode, shown on the screen's last line:
+**TGL** (toggle: a tap solos, another tap unsolos) or **MOM** (momentary: soloed while the key is held, also after
+GLO is let go). The mode is a setting of the FM-1, kept over power-off; solo itself is not saved (INIT and a power-on
+clear it).
 
 ### MIDI LEARN
 
@@ -252,6 +268,8 @@ screen. Unsaved variations of a slot you leave wait in RAM, one slot's at a time
 any slot but C says `SAVE C FIRST` (stop, load C or cue it, and SAVE it).
 
 Projects saved by this build can't be read by 0.16.0 or older; older projects load (every track with PRIO HIGH).
+Since NUDGE, projects saved now (format FDRG) show an empty slot on 0.26.0 and older (`LOAD FAILED`; downgrading is
+safe, not supported); every older project loads, its steps at NUDGE 0.
 Since the parameter locks, a project's motion lives in its own lock bank beside it: projects saved now show
 an empty slot on 0.23.x and older (`LOAD FAILED` at power-on; downgrading is safe, not supported: nothing breaks, the projects stay for this
 build); every older project loads with its motion. If a project's lock bank can't be read (an upload to USR3 under
@@ -267,6 +285,33 @@ under upstream Felucca) is shortened to its first 48 KiB once, at the next power
 upload to USR2 or USR3 under upstream Felucca afterwards overwrites the variations or the lock banks. (If shortening
 USR2 ever fails, `USR2 CLAMP FAILED` shows at power-on and SAVE says `USR2 ERROR: NO SAVE` until the next power-on.)
 
+### Step tools
+
+Hold SEQ: the **TOOLS screen**, up while SEQ is held (a quick SEQ tap turns the SEQ pages as before, on its release;
+a key pressed while SEQ is down opens the screen at once). It works on the selected track. The white keys are the 16
+steps of the bank shown (lit when on), OCT- / OCT+ the bank; the black keys are the tools, written on the screen by
+their keys. The screen shows the bank's steps (a dot under a step with locks), the whole pattern small, what the
+clipboard and the step buffer hold, and each tool's result.
+
+| Key | Tool |
+| --- | --- |
+| **F#3** COPY STEP | hold it and tap a step: that step into the step buffer |
+| **G#3** PASTE STEP | hold it and tap steps: the buffered step into each |
+| **A#3** COPY PAGE | the bank's 16 steps into the clipboard |
+| **C#4** REPLACE | the clipboard over the bank shown |
+| **D#4** MERGE | the clipboard's steps that are on into the bank shown; its other steps stay |
+| **F#4** FILL | the clipboard over the whole pattern, again and again up to its LEN |
+| **G#4** COPY SEL | a selection: KNOB 1 START, KNOB 2 END (1 to 64, lit on the bank's keys); G#4 again copies it |
+| **A#4** PASTE SEL | then tap a step: the clipboard pasted from there (nothing past step 64); hold A#4 to paste at several steps |
+| **C#5** DUPLICATE | every track's pattern doubles: LEN x 2 (64 at most), the new steps a copy of the first ones |
+| **D#5** CLEAR | `CLEAR TRACK n?` for the selected track, as REC held on a SEQ page: OCT+ clears its steps, motion and locks, OCT- keeps them |
+
+A copied step is all of it: on, accent, PROB, ratchet, note, slide and tie, and its parameter locks (a pasted step's
+own locks are replaced). When the project's locks are full a paste brings what fits and says `LOCKS FULL`. The keys
+pressed with SEQ play nothing, send no MIDI and record nothing; the knobs rest (but START / END), PLAY works. Pastes
+are edits like any (SAVE keeps them); a playing song allows none (`STOP TO EDIT`). The clipboard stays until power-off,
+also across projects. Let go of SEQ: back to the page you were on.
+
 ### Parameter locks
 
 In STEPS (ENV lit), on any page whose knobs MOTION can record (HOME's macros, TRACKS' LEVEL and PAN, SOUND, LAYER,
@@ -277,13 +322,30 @@ step's values (a locked one inverted). Knobs MOTION can't record (MODEL, FILTER 
 DEST, SRC) do nothing while a step is held. Hold the step and tap OCT- to clear its locks on this page's knobs
 (`STEP 5 LOCKS CLEARED`); hold OCT- 0.6 s to clear all of that step's locks (`STEP 5 ALL CLEARED`). A step turned off
 keeps its locks for when it is on again. Locks and recorded MOTION share 1024 events per project (`LOCKS FULL`); locks
-always play (MOTION's PLAY and CLEAR are for recorded motion only). On SEQ STEP a held step keeps PROB / RATCH / ACC.
+always play (MOTION's PLAY and CLEAR are for recorded motion only). On SEQ STEP a held step keeps PROB / RATCH / ACC / NUDGE.
 In STEPS the footer's step strip underlines each locked step of the bank; SEQ > MOTION shows the selected track's
 MOTION (recorded events) and LOCKS counts.
 
+### Nudge and QUANT
+
+On SEQ STEP, **hold a step and turn KNOB 4 (NUDGE)**: -50 to +50, the step's hit moved by that many hundredths of a
+step (+50: halfway to the next step, -50: halfway to the previous one; 0: on the step, as before). It follows the
+track's division and swing: +25 is a quarter of the step as it plays. A late hit plays with its PROB, RATCH and
+locks as always, its RATCH hits spread over what is left of the step; an early hit plays in the step before (the
+sequencer looks one step ahead), its locks from the hit to the end of its own step. A nudged step has a mark against
+its box in the grid: on the left for early, on the right for late. A tap that turns a step off makes it plain again
+(NUDGE 0). NUDGE is part of the step: copied, saved and played with it everywhere (variations, the live cue, song
+rows, COPY / PASTE of a slot). In a song, an early first step does not reach into the row before it: a new row
+starts on the beat. Step record (KEYS, stopped) writes NUDGE 0.
+
+GLOBAL 3/7 **QUANT** sets where live recording puts a hit (keys, MIDI notes, the SMC-Mixer), on the track's own grid
+(exactly the 1/16 grid at DIV 1/16): **1/16** (the default) the nearest step, NUDGE 0, as before; **1/8** the
+nearest even step (every other step); **1/32** the nearest half step (NUDGE 0 or +-50); **OFF** the nearest step,
+with the hit's own timing as its NUDGE (up to +-50). A device setting: saved, not part of projects.
+
 ### Metronome
 
-GLOBAL 3/3 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every
+GLOBAL 3/7 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every
 quarter note, higher on the bar's first. It comes after the PERFORM effects (they leave it alone) and follows the
 MASTER volume, on the speaker, the headphones and USB audio. A device setting: saved, not part of projects.
 
@@ -324,8 +386,8 @@ set. A safe start keeps every LED dark, as before.
 
 ### MIDI
 
-GLO's pages hold the MIDI settings: GLOBAL 1/3 **CH** (the drum channel, 10 by default) and **CLK**, SYSTEM 2/3
-**SYNC** and **ROUT**, GLOBAL 3/3 **THRU**. SYNC and ROUT are saved with the project (a project saved before them
+GLO's pages hold the MIDI settings: GLOBAL 1/7 **CH** (the drum channel, 10 by default) and **CLK**, SYSTEM 2/7
+**SYNC** and **ROUT**, GLOBAL 3/7 **THRU**. SYNC and ROUT are saved with the project (a project saved before them
 loads SYNC OFF, ROUT NOTE); THRU is a setting of the FM-1 itself, kept over power-off (OFF until you turn it on).
 
 **ROUT: how MIDI notes in play the tracks** (from USB, the TRS jack and, in MIDI mode, Bluetooth):
@@ -373,7 +435,7 @@ The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI S
   as in 2 CH). The device is **Hortator 8ch**; hosts that read channel names show T1 .. T8, Main L, Main R.
 - **10 CH FX**: the same, but channels 9-10 carry only the **send effects**: what the chorus, delay and reverb return
   (THROW's share too), at the MASTER level. The FM-1's effect buses are mono, so L = R, except the delay in PING,
-  whose echoes go left and right here too. T1 .. T8 panned in the DAW plus this pair make the whole mix, each part on
+  whose echoes go left and right here too, and the HALL reverb, stereo here too. T1 .. T8 panned in the DAW plus this pair make the whole mix, each part on
   its own fader.
 
 What T1 .. T8 + FX cannot give back: the **master chain**, which only channels 9-10 in MIX (and 2 CH) carry: PERFORM's
@@ -597,8 +659,8 @@ FM-1's keys as live record does. While a dialog or NAME is on the screen, the mi
   the mixer blinks its LED. Then it follows. On every connection, and whenever a track's LEVEL changes some other
   way (the FM-1's knob, LOAD, INIT, LEVEL motion), that fader has to be picked up again.
 - **Solo:** while any track is soloed, only the soloed tracks are heard; several can be soloed. A silenced track
-  is dimmed on HOME and TRACKS, as a muted one; the mutes are unchanged. The FM-1 has no SOLO control, so solo
-  clears by itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (every track audible again; nothing
+  is dimmed on HOME and TRACKS, as a muted one; the mutes are unchanged. The FM-1's own solo is on the MUTE screen
+  ([mutes](#mutes)); solo clears by itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (every track audible again; nothing
   is cut). Solo is not saved: INIT and a power-on clear it too.
 - **Leaving SMC DAW** (MODE MIDI or FM-LINK while connected): Hortator turns the mixer's LEDs off once and sends it nothing
   more.
@@ -652,7 +714,7 @@ If it does not start at all and never reaches boot mode, recovering it needs a
 - [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita ([@kurogedelic](https://github.com/kurogedelic)),
   [Hügelton Instruments](https://hugelton.com): the firmware Hortator is built on, its hardware layer, update
   loader, installer, UI and engines; the per-track INSERT effect is Felucca 1.5's, as ported to Skiff (by
-  DEADACTIVE) and from there to Hortator.
+  DEADACTIVE) and from there to Hortator; the HALL reverb is Skiff's (Felucca's stereo HALL, Skiff 1.3.2).
 - [Grids](https://github.com/pichenettes/eurorack/tree/master/grids) by Emilie Gillet, Mutable Instruments: the GRIDS
   pattern engine is a C port (GPL-3.0-or-later).
 - [Streams](https://github.com/pichenettes/eurorack/tree/master/streams) by Emilie Gillet, Mutable Instruments: the

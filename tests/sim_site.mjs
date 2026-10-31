@@ -166,7 +166,7 @@ test('features: eight chapters with a plate each; every panel hint names real co
   assert.doesNotMatch(LANDING, /manual-screen|id="locator"/, 'the old sticky screen is gone');
 });
 
-// ---- the manual: a map of the panel (every control, manual.js lights it on a small FM-1), then ten guides, each telling
+// ---- the manual: a map of the panel (every control, manual.js lights it on a small FM-1), then twelve guides, each telling
 // where it is on the panel
 test('manual: the panel map lists every knob and button, with the keys; every guide names real controls', () => {
   const sec = LANDING.slice(LANDING.indexOf('id="manual"'), LANDING.indexOf('id="features"'));
@@ -179,7 +179,7 @@ test('manual: the panel map lists every knob and button, with the keys; every gu
   for (const c of mapped) assert.ok(labels.has(c) || c === 'white' || c === 'black', `${c} is not on the panel`);
   for (const [, k] of list.matchAll(/<b>([^<]+)<\/b>/g)) assert.ok(labels.has(k), `map: ${k} is not on the panel`);
   const guides = [...sec.matchAll(/<li class="guide" id="m-(\w+)">([\s\S]*?)<\/li>/g)];
-  assert.equal(guides.length, 11, 'eleven guides (Bluetooth the 10th)');
+  assert.equal(guides.length, 12, 'twelve guides (step copy the 3rd, Bluetooth the 11th)');
   for (const [, id, g] of guides) {
     assert.match(g, /<h3>[^<]+<\/h3>/, `${id}: its title`);
     const where = g.match(/<p class="where">([\s\S]*?)<\/p>/)?.[1];

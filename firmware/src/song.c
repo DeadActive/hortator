@@ -101,6 +101,7 @@ static uint32_t seq_restart(uint32_t x, uint32_t b24)
         }
         t->rskip = 0;
         t->rat_n = 0;
+        t->mic = 0;                                /* (MICRO: no early hit pending, seq.c) */
         n = chain_beats(t, &d);
         if (n * bd > bn * d) {                     /* the longest; ties: the lowest track */
             best = k;

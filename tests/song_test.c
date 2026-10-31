@@ -324,8 +324,37 @@ static void test_song_valid(void)
           !name_char_ok('a') && !name_char_ok('!') && !name_char_ok(0));
 }
 
+/* MICRO (spec 2026-10-31 §1) in a song: a row's step 1 nudged early comes early round its repeat (the look-ahead), but
+ * not across a row change (the new row starts on the bar: its step 1 plays there, once) */
+static void test_song_micro(void)
+{
+    static const uint8_t SL[2] = {0, 1}, RP[2] = {2, 1};
+    uint32_t a, b, c, d, p = 5512u;
+    fresh();
+    rows(2, SL, RP, 1);
+    slot_set(0, 0, 16, 2, "x.......x.......");
+    ST[0][0][0].micro = -25;
+    slot_set(1, 0, 16, 2, "x...............");
+    ST[1][0][0].micro = -25;
+    play_song();
+    run_to(BAR - p / 2u);
+    a = dvage;
+    run_to(BAR - CTL);
+    a = dvage - a;                                   /* the repeat's step 1: early, before the bar */
+    b = dvage;
+    run_to(2u * BAR - CTL);
+    b = dvage - b;                                   /* step 9; no early hit before the row change */
+    c = dvage;
+    run_to(2u * BAR + p / 2u);
+    c = dvage - c;                                   /* the new row's step 1 on the bar, once */
+    d = chain.row;
+    check("song + MICRO: an early step 1 comes early round a repeat, not across a row change (no double hit there)",
+          a == 1u && b == 1u && c == 1u && d == 1u);
+}
+
 int main(void)
 {
+    test_song_micro();
     test_song_rows();
     test_song_loop();
     test_song_longest();

@@ -38,6 +38,7 @@ static int pp_on(void);                    /* ui_preset.c: the PRESETS popup sho
 static int pl_on(void);                    /* .. the PRESETS list shows */
 static void draw_popup(void);
 static void draw_plist(void);
+static void draw_tools(void);              /* ui_tools.c: the TOOLS screen (SEQ held) */
 static int preset_user_save(uint32_t slot, const track_t *t);   /* project.c: the user presets' flash record */
 static void preset_user_delete(uint32_t slot);
 
@@ -117,6 +118,8 @@ static struct {
     uint32_t cue_t0;             /* SAVE's press time | CUE_DOWN OPEN DEAD PLAIN (ui_input.c cue_input) */
     uint8_t cue_map;             /* SAVE held: the cue map (white keys the slots, black keys the variations, 2026-10-26) */
     uint8_t mute;                /* the MUTE screen shows (GLO held, spec §5) */
+    uint32_t seq_t0;             /* SEQ's press time | TL_DOWN OPEN DEAD PLAIN (ui_tools.c tools_input) */
+    uint8_t tools;               /* the TOOLS screen shows (SEQ held, spec 2026-10-31 §3: the step copy tools) */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
     uint8_t env;                 /* ENV (spec 2026-10-24 parameter locks): 1 STEPS (the white keys the selected track's
@@ -578,19 +581,28 @@ static void track_mute_toggle(uint32_t k)
         panic_req |= (uint8_t)(1u << k);
 }
 
-/* SOLO (the SMC-Mixer): track k soloed / not; the tracks this silences cut what they play, as a mute does */
-static void track_solo_toggle(uint32_t k)
+/* SOLO (the SMC-Mixer; the MUTE screen's black keys, ui_input.c): track k soloed (on 1) / not (0) / the other (2); the
+ * tracks this silences cut what they play, as a mute does */
+static uint8_t solo_mom;                               /* SOLO on the MUTE screen: 0 TOGGLE, 1 MOMENTARY (F#5; a device
+                                                        * setting: project.c, the palette word's bit 15) */
+static void track_solo_set(uint32_t k, uint32_t on)
 {
     uint32_t i, was = 0;
     if (k >= NTRK)
         return;
     for (i = 0; i < NTRK; i++)
         was |= (uint32_t)trk_silent(&trk[i]) << i;
-    song.solo ^= (uint8_t)(1u << k);
+    if (on == 2u)
+        song.solo ^= (uint8_t)(1u << k);
+    else if (on)
+        song.solo |= (uint8_t)(1u << k);
+    else
+        song.solo &= (uint8_t)~(1u << k);
     for (i = 0; i < NTRK; i++)
         if (trk_silent(&trk[i]) && !((was >> i) & 1u))
             panic_req |= (uint8_t)(1u << i);
 }
+static void track_solo_toggle(uint32_t k) { track_solo_set(k, 2u); }
 
 /* COMP: white key k turns DUCK of track k on / off (not the source's: it is never ducked) */
 static void track_duck_toggle(uint32_t k)
@@ -689,7 +701,13 @@ static const param_desc_t *home_param(uint32_t k, int16_t **vp)
 
 /* ---- parameter locks (spec 2026-10-24): in STEPS, off the SEQ pages, a held step + a recordable knob locks it */
 #define LOCK_CLR_MS 600u                               /* step held + OCT- held this long: all its locks cleared */
-static int lock_page(void) { return env_steps() && (ui.home || cur_page()->fam != FAM_SEQ); }   /* HOME TRACKS SOUND
+static int lock_page(void) { return env_steps() && (ui.home || cur_page()->fam != FAM_SEQ); }
+static uint32_t lock_step(void);
+static uint32_t held_step(void);
+/* a step held on a page whose white keys are the steps (TRACKS unarmed, STEP, PATTERN, MOTION, SONG; owner
+ * 2026-11-01): KNOB 1-4 are its PROB RATCH ACC NUDGE (ui_input.c step_edit), the page's own knobs rest; not where
+ * the held step takes locks (ENV's STEPS on TRACKS: lock_step) */
+static int step_edit_page(void) { return (grid_mode() || seq_keys()) && lock_step() >= NSTEP; }   /* HOME TRACKS SOUND
                                                                                                 * LAYER FX LFO COMP */
 /* the step of the last-pressed key still down (from the press: a turn right after it locks), NSTEP none (not a lock
  * page, no key, outside LEN, a Grids track, a song's lock: step_grab) */

@@ -39,6 +39,50 @@ released yet are listed under Unreleased (the next version) and, for the version
 
 ## Unreleased
 
+- **Step editing on every step page**: holding a step now turns KNOB 1–4 into its PROB, RATCH, ACCENT and NUDGE on
+  TRACKS, PATTERN, MOTION and SONG too, not only on STEP, and the knobs no longer change the page's own settings (LEN,
+  DIV, SWING, the song's rows, the track's level) while a step is held.
+- **NUDGE: move a step's hit early or late.** On SEQ STEP, hold a step and turn KNOB 4: -50 to +50 hundredths of a
+  step (+50 halfway to the next step, -50 halfway to the previous one), following the track's division and swing. A
+  late hit keeps its PROB, RATCH and locks (its RATCH hits spread over the rest of the step); an early one plays in
+  the step before it. A nudged step has a mark beside its box in the grid (left: early, right: late). NUDGE is saved
+  with the step everywhere: projects, variations, song rows and slot COPY / PASTE. All steps start at 0 and play
+  exactly as before.
+- **QUANT for live recording** on GLOBAL 3/7 KNOB 4: 1/16 (the default: the nearest step, as before), 1/8 (every
+  other step), 1/32 (the nearest half step) or OFF (the nearest step, keeping how early or late you played as its
+  NUDGE). It applies to the keys, MIDI notes and the SMC-Mixer; step record still writes on the step. The setting is
+  kept over power-off.
+- **Projects saved now don't load on 0.26.0 and older** (they show an empty slot there). Older projects load as
+  before, every step at NUDGE 0.
+- **Step tools: hold SEQ.** Holding SEQ now opens the TOOLS screen for the selected track (a quick SEQ tap still
+  turns the SEQ pages, now on its release). The white keys are the bank's 16 steps, OCT- / OCT+ the bank, and the
+  black keys copy and paste: F#3 COPY STEP and G#3 PASTE STEP (hold the tool, tap steps), A#3 COPY PAGE, C#4 REPLACE,
+  D#4 MERGE (only the clipboard's steps that are on), F#4 FILL (the clipboard repeated up to LEN), G#4 COPY SEL (KNOB 1
+  START, KNOB 2 END, G#4 again copies), A#4 PASTE SEL (then tap where it starts), D#5 CLEAR (the CLEAR TRACK question, as REC held) and C#5 DUPLICATE (every track's
+  pattern twice as long, up to 64 steps, the new half a copy). A copied step keeps everything: accent, PROB, ratchet,
+  note, slide and tie, its NUDGE and its parameter locks; with the locks full a paste brings what fits and says LOCKS FULL. Keys
+  pressed with SEQ play nothing and record nothing. Holding SEQ while switching on is still the safe start.
+- **ROOM reverb: its tail now fades to true silence.** Before, a faint hum and offset stayed behind for ever once a
+  ROOM tail had died away: too quiet to hear on the main output, but left on the USB effect channels (10 CH FX). The
+  room sounds as before otherwise.
+- **HALL reverb**: GLO > REVERB TYPE has a third value, HALL: a smooth, dense reverb in stereo (from Skiff), its tail
+  wide on headphones and fading to exact silence. SIZE sets its length (from about half a second up to several
+  seconds), DAMP how soon its top end fades. Switching between ROOM, SPRNG and HALL fades the old tail out without a
+  click. On USB AUDIO 10 CH FX its left and right come out on channels 9 and 10. TYPE is saved with the project;
+  projects saved before keep their ROOM or SPRNG and sound as before.
+- **Delay, reverb and chorus graphs** on their GLO pages. DLY draws the echoes after a hit: their spacing, how fast
+  FDBK lets them fade, COLR dulling the later ones, and in PING-PONG the echoes left and right in turn, with TIME's
+  length in milliseconds. REVERB draws the tail over 4 seconds and its decay time (RT), with DAMP's faster-fading top
+  end and the spring's drips. CHORUS draws its sweep over 4 seconds, as fast as RATE and as deep as DEPTH, with the
+  range of its delay in milliseconds.
+- **Solo on the MUTE screen**: hold GLO and press a black key F#3 to A#4 to solo track 1 to 8 (several at once; the
+  soloed keys lit). The other tracks' boxes are half filled, a soloed one shows an S. The top black key F#5 switches
+  solo between TGL (a tap on, a tap off) and MOM (soloed only while the key is held); the choice is kept over
+  power-off.
+- **The delay's, the reverb's and the chorus' settings moved to GLO**: DLY (TIME, FDBK, COLR, MIX, and MODE on its
+  second page), REVERB (TYPE, SIZE, DAMP) and CHORUS (RATE, DEPTH) are now GLO's pages 4–7, after GLOBAL, SYSTEM and
+  GLOBAL; FX keeps the track's own pages. GLO's first three pages are now numbered 1/7 to 3/7. The send knobs (CHOR,
+  DLY, REV) stay on the FX page.
 - **USB AUDIO 10 CH: the tracks come first.** In 10 CH MIX and 10 CH FX, channels 1-8 now carry the tracks T1..T8 and
   channels 9-10 the stereo pair (the master in MIX, the send effects in FX); before, the pair came first. Hosts that
   show channel names list T1..T8, Main L, Main R. If a DAW or AUM had inputs set up for the old order, pick them
@@ -57,7 +101,7 @@ released yet are listed under Unreleased (the next version) and, for the version
   (triplets). The knob runs by length, the new times between their neighbours: 4BAR 2BAR 1/1 1/2 1/4D 1/4 1/8D 4T
   1/8 1/16D 8T 1/16 16T 1/32 32T. A time longer than the delay holds is cut to its longest, 1.49 s, as before.
   Projects keep their delay times. The steps' DIV is unchanged.
-- **Ping-pong delay**: the new DLY 2/2 page has MODE: NORM (the delay as before) or PING (ping-pong). In PING the
+- **Ping-pong delay**: the delay's new second page has MODE: NORM (the delay as before) or PING (ping-pong). In PING the
   echoes alternate between left and right: the first on the left, the next on the right, and so on, with FDBK and
   COLR working as in NORM and the same longest time, 1.49 s. The ping-pong echoes are a little softer in the top
   end. Changing MODE clears the delay, so no old echoes come back. MODE is saved with each project; projects saved

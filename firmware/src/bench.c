@@ -139,6 +139,7 @@ static void bench_reset(void)
     memset(cho_buf, 0, sizeof cho_buf);
     memset(rev_comb, 0, sizeof rev_comb);
     memset(rev_ap, 0, sizeof rev_ap);
+    memset(&hl, 0, sizeof hl);                       /* the reverb's HALL at rest */
     bench_fx_clear();                                /* (not memset(&fx): see there) */
     memset(sl, 0, sizeof sl);
     memset(sl_buf, 0, sizeof sl_buf);

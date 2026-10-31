@@ -135,7 +135,7 @@ int main(void)
     names("rmodel", N_RMODEL, RS_NMODEL);
     names("rchord", N_RCHORD, RS_NCHORD);
     names("ftype", N_FTYPE, FT_N);
-    names("rtype", N_RTYPE, 2);
+    names("rtype", N_RTYPE, sizeof N_RTYPE / sizeof N_RTYPE[0]);
     names("ghost", N_GHOST, 3);
     names("lsync", N_LSYNC, 17);                       /* an LFO's RATE in SYNC: N_LSYNC[k * 17 / 128] */
     printf("},\n\"conds\": [");                       /* a step's PROB knob, position by position: stored code, name */

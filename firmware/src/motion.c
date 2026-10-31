@@ -121,15 +121,22 @@ static void motion_end(void)                      /* seq_stop: the patch back */
     mo.base_ok = 0;
 }
 /* t enters step s: the last step's locks snap back; with PLAY on, at step 0 the base back; then the knobs its
- * events at s name (motion events with PLAY on; locks when the step is on), found by a binary search (lockbank.c) */
-static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
+ * events at s name (motion events with PLAY on; locks when the step is on), found by a binary search (lockbank.c).
+ * what: MS_ALL; a nudged step (MICRO, seq.c) splits it: its locks (MS_LOCK) at its hit, the snap back (MS_REL) at the
+ * step's start or at an early hit, the motion (MS_MOT) at the step's start (a knob a lock holds then: its value under
+ * the lock moves) */
+#define MS_REL 1u
+#define MS_MOT 2u
+#define MS_LOCK 4u
+#define MS_ALL 7u
+static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s, uint32_t what)
 {
     uint32_t k = (uint32_t)(t - trk), i, at = k << 6 | s, moved, play;
     const lk_bank_t *m = mo.src ? mo.src : &mo.b;
     int on;
-    moved = (uint32_t)lock_release(k);
+    moved = what & MS_REL ? (uint32_t)lock_release(k) : 0u;
     play = (m->on >> k) & 1u;
-    if (play) {
+    if (play && (what & MS_MOT)) {
         if (!((mo.base_ok >> k) & 1u))
             motion_take_base(k);
         if (!s) {
@@ -146,10 +153,11 @@ static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s)
         int lock = lk_is_lock(m, i);
         const param_desc_t *d;
         int16_t *slot;
-        if ((lock ? !on : !play) || (mo.model && mo.model[k] != t->p[P_MODEL] && id >= P_E0 && id <= P_E7))
+        if ((lock ? !on || !(what & MS_LOCK) : !play || !(what & MS_MOT)) ||
+            (mo.model && mo.model[k] != t->p[P_MODEL] && id >= P_E0 && id <= P_E7))
             continue;
         d = track_desc(t, id);
-        slot = motion_slot(t, id);
+        slot = !lock && lock_held(k, id) ? &mo.under[k][id] : motion_slot(t, id);   /* (MS_ALL: no lock held yet) */
         if (lock) {
             mo.under[k][id] = *slot;
             mo.lact[k][id >> 5] |= 1u << (id & 31u);

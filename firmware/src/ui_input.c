@@ -41,6 +41,8 @@ static uint8_t acc_oct;
  * variation lit, a queued one blinking, the rest dark (no dim level: the dim layers are MENU BACKLIGHT's). SAVE held
  * (the cue map, every page it opens on): the same keys, of the queued slot if one is (cue_keys) */
 static const uint8_t CUE_BK[8] = {1, 3, 5, 8, 10, 13, 15, 17};
+/* the MUTE screen (GLO held): those black keys SOLO tracks 1..8 (glo_input mute_keys); F#5 the SOLO mode */
+#define KEY_SOLO_MODE 25u                              /* F#5, the top black key: SOLO TOGGLE / MOMENTARY */
 #define CUE_BK_MASK 0x2A52Au                        /* (their bits) */
 static int cue_bk_page(void)
 {
@@ -97,6 +99,7 @@ static int track_keys(void)
 
 #include "ui_name.c"                               /* NAME: naming a project */
 #include "ui_learn.c"                              /* MIDI LEARN: GLO + G4, a knob, a CC */
+#include "ui_tools.c"                              /* the step tools: SEQ held, the TOOLS screen */
 
 /* fixes 2026-10-21 item 5 (upstream Felucca's breath, #119): the OCT LEDs, OCT_LIT_* lit, OCT_BR_* breathing (dark ..
  * ~60 % and back, led_dim.c: it would do something if pressed); a way back (NO, CANCEL, BACK) lit; elsewhere dark.
@@ -113,6 +116,8 @@ static uint32_t oct_leds(void)
 {
     if (ui.mute || ui.layer)
         return 0;
+    if (ui.tools)                                       /* TOOLS: the banks there are, either way */
+        return (ui.bank + 1u < bank_count() ? OCT_BR_UP : 0u) | (ui.bank ? OCT_BR_DN : 0u);
     if (name_on())
         return OCT_LIT_DN | OCT_BR_UP;
     if (pl_on())
@@ -226,6 +231,8 @@ static void ui_leds(void)
             led_put(nb, 14u + key, c == CM_BREATHE);
         }
         led_put(nl, panel.btn[B_SAVE], 1);
+    } else if (ui.tools) {                            /* TOOLS screen (SEQ held): ui_tools.c */
+        tools_leds(nl);
     } else if (ui.mute) {                             /* MUTE screen: the tracks' keys lit while audible, blinking
                                                        * while a mute waits for the bar; top C# (NOW) / D# (NEXT BAR) */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
@@ -234,6 +241,9 @@ static void ui_leds(void)
         led_put(nl, 14u + 20u, !settings.mutebar);
         led_put(nl, 14u + 22u, settings.mutebar);
         led_put(nl, 14u + KEY_LEARN, ui.ml.on);       /* G4: MIDI LEARN */
+        for (k = 0; k < NTRK; k++)                    /* black keys: SOLO 1..8 lit while soloed; F#5: MOMENTARY */
+            led_put(nl, 14u + CUE_BK[k], (song.solo >> k) & 1u);
+        led_put(nl, 14u + KEY_SOLO_MODE, solo_mom);
         led_put(nl, panel.btn[B_GLO], 1);
     } else if (name_on()) {                           /* NAME: the keys that type */
         uint32_t m = name_leds(fm1_ticks());
@@ -333,14 +343,14 @@ static int32_t knob_turn(uint32_t role, const param_desc_t *d, int32_t v, int32_
 }
 
 /* a step key held + KNOB 1: its PROB, KNOB 2: its RATCH, KNOB 3: its accent (a detent right ACC on, left off),
- * from the first detent (the press changed nothing). An edit is no tap: the keys down let go toggle nothing. An off
- * step's first edit turns it on (step_hold_on, as the hold itself: KNOB 3 right at once = on accented). A held key
- * outside LEN takes the turn and does nothing. KNOB 4: the page's (nothing on STEP) */
+ * KNOB 4: its MICRO (-50 .. +50, spec 2026-10-31 §1), from the first detent (the press changed nothing). An edit is no
+ * tap: the keys down let go toggle nothing. An off step's first edit turns it on (step_hold_on, as the hold itself:
+ * KNOB 3 right at once = on accented). A held key outside LEN takes the turn and does nothing */
 static int step_edit(uint32_t knob, int32_t steps)
 {
     uint32_t k = ui.held, i;
     step_t *s;
-    if (knob > 2u || k >= 16u || !ui.step_t0[k])
+    if (knob > 3u || k >= 16u || !ui.step_t0[k])
         return 0;
     for (i = 0; i < 16u; i++)                         /* edited: no key down is a tap any more */
         if (ui.step_t0[i])
@@ -351,6 +361,10 @@ static int step_edit(uint32_t knob, int32_t steps)
     step_hold_on(k);
     if (knob == 2u) {
         s->acc = steps > 0;                           /* (absolute: a fast turn's detents never flicker it) */
+        return 1;
+    }
+    if (knob == 3u) {
+        s->micro = (int8_t)clamp(s->micro + accel(EN_K4, steps, 2 * MICRO_MAX), -MICRO_MAX, MICRO_MAX);
         return 1;
     }
     if (knob == 0u)
@@ -599,6 +613,11 @@ static void edit_param(uint32_t slot, int32_t steps)
         settings_save();
         return;
     }
+    if (pg->scope == SC_GLOBAL && id == G_QUANT) {    /* QUANT: the device setting (seq.c rec_hit), saved */
+        rec_quant = (uint8_t)v;
+        settings_save();
+        return;
+    }
     if (!v || pg->scope != SC_GLOBAL)
         return;
     if ((id == G_CLRSEQ || id == G_CLRALL || id == G_INITALL) && song_lock()) {
@@ -691,7 +710,7 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 #define FX_DOWN 1u
 #define FX_OPEN 2u
 #define FX_DEAD 4u
-static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute && !pl_on(); }
+static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute && !ui.tools && !pl_on(); }
 /* fixes 2026-10-21 item 7: PERFORM has KNOB 1..4 (fx_layer reads them; set each pass): the page's loop leaves them
  * alone, so detents that come in after fx_layer's read wait for its next one instead of reaching the page under it.
  * 1 PERFORM's; 2 the pass it stops being (FX let go): the detents read then are still the macros', the page's loop
@@ -766,13 +785,21 @@ static void fx_layer(uint32_t now, int home_tap)
 #define GLO_OPEN 2u
 #define GLO_DEAD 4u
 #define GLO_PLAIN 8u
-static int glo_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on(); }
+static int glo_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on() || ui.tools; }
 static void mute_keys(uint32_t hits)                   /* the keys the ISR gave the MUTE screen */
 {
     uint32_t k;
-    for (k = 0; k < NTRK; k++)
+    for (k = 0; k < NTRK; k++) {
         if ((hits >> KEY_TRK_KEY[k]) & 1u)
             track_mute_toggle(k);
+        if ((hits >> CUE_BK[k]) & 1u)                  /* black keys F#3 .. A#4: SOLO 1..8 */
+            track_solo_set(k, solo_mom ? 1u : 2u);
+    }
+    if ((hits >> KEY_SOLO_MODE) & 1u) {                /* F#5: the SOLO mode flips */
+        solo_mom ^= 1u;
+        settings_save();
+        ui_message(solo_mom ? "SOLO: MOMENTARY" : "SOLO: TOGGLE");
+    }
     if ((hits >> 20) & 1u)                             /* top C#: NOW */
         mute_bar_set(0);
     if ((hits >> 22) & 1u)                             /* top D#: NEXT BAR */
@@ -780,11 +807,26 @@ static void mute_keys(uint32_t hits)                   /* the keys the ISR gave 
     if ((hits >> KEY_LEARN) & 1u)                      /* G4: MIDI LEARN on / off (ui_learn.c) */
         ml_toggle();
 }
+static void mute_ups(void)                             /* SOLO MOMENTARY: a solo key let go (GLO held or not) unsolos */
+{
+    uint32_t ups, k;
+    if (!kb_mute_up)
+        return;
+    fm1_irq_off();
+    ups = kb_mute_up;
+    kb_mute_up = 0;
+    fm1_irq_on();
+    if (solo_mom)
+        for (k = 0; k < NTRK; k++)
+            if ((ups >> CUE_BK[k]) & 1u)
+                track_solo_set(k, 0u);
+}
 static int cue_owns_keys(void);
 static void glo_input(uint32_t now, uint32_t notes)
 {
     uint32_t bit = 1u << panel.btn[B_GLO], *t0 = &ui.glo_t0, hits = 0;
-    if (kb_mute_hit && !cue_owns_keys()) {             /* (SAVE held: the cue map's, cue_input) */
+    if (kb_mute_hit && !cue_owns_keys() && !tools_owns_keys()) {   /* (SAVE held: the cue map's, cue_input; SEQ
+                                                         * held: the TOOLS screen's, tools_input) */
         fm1_irq_off();
         hits = kb_mute_hit;
         kb_mute_hit = 0;
@@ -815,6 +857,7 @@ static void glo_input(uint32_t now, uint32_t notes)
     }
     if (hits && !glo_dead())
         mute_keys(hits);
+    mute_ups();
     mute_mask = (mute_mask & ~bit) |                   /* (SAVE's bit: cue_input's) */
                 ((*t0 & GLO_OPEN) || (!(*t0 & (GLO_DEAD | GLO_PLAIN)) && !glo_dead() && !ui.layer && !ui.fx_t0) ? bit
                                                                                                                 : 0u);
@@ -839,7 +882,7 @@ static void rec_fill(uint32_t now)
         return;
     }
     if (!fill_on && ui.rec_t0 && !(ui.rec_t0 & 2u) && cur_fam() != FAM_SEQ && !ui.menu && !ui.confirm &&
-        !name_on() && !pl_on() && !ui.mute && !ui.ml.on &&
+        !name_on() && !pl_on() && !ui.mute && !ui.tools && !ui.ml.on &&
         now - (ui.rec_t0 & ~3u) >= FILL_HOLD_MS * 1000u * FM1_TICKS_PER_US) {
         fill_on = 1;
         ui.rec_t0 |= 2u;                                /* (no tap on the release) */
@@ -851,7 +894,7 @@ static void rec_fill(uint32_t now)
 #define CUE_OPEN 2u
 #define CUE_DEAD 4u
 #define CUE_PLAIN 8u
-static int cue_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on() || ui.mute; }
+static int cue_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on() || ui.mute || ui.tools; }
 static int cue_owns_keys(void)                         /* SAVE held (GLO not): the keys pressed now are the map's */
 {
     return ((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u) && !((fm1_in.buttons >> panel.btn[B_GLO]) & 1u) &&
@@ -958,6 +1001,7 @@ static void srec_note(uint32_t key)                    /* a key pressed: its not
     s = &t->step[ui.sr_cur];
     s->on = 1;
     s->tie = 0;
+    s->micro = 0;                                      /* (step record has no timing: on the step) */
     s->nt = (int8_t)clamp(keys_nt(key), NT_MIN, NT_MAX);
     t->key_nt = s->nt;
     ui.sr_key = (uint8_t)(key + 1u);
@@ -975,10 +1019,11 @@ static void srec_keys(uint32_t notes)                  /* the frame's key edges:
         }
 }
 static void srec_rest(void)                            /* EDIT: the cursor step a plain rest (no PROB RATCH ACC SLIDE
-                                                        * left for a later note), the cursor on */
+                                                        * MICRO left for a later note), the cursor on */
 {
     step_t *s = &TSEL->step[ui.sr_cur];
     s->on = 0;
+    s->micro = 0;
     s->tie = 0;
     s->cond = 0;
     s->rat = 0;
@@ -1104,7 +1149,7 @@ static void ocd_poll(uint32_t now)
  * or it was pressed under the menu, NAME, the PRESETS list, the MUTE screen, PERFORM or a dialog */
 static void env_poll(uint32_t now, uint32_t pressed)
 {
-    int busy = ui.menu || name_on() || pl_on() || ui.mute || ui.layer || fx_knobs || ui.confirm;
+    int busy = ui.menu || name_on() || pl_on() || ui.mute || ui.tools || ui.layer || fx_knobs || ui.confirm;
     if ((pressed >> panel.btn[B_ENV]) & 1u)
         ui.env_t0 = ((now | 1u) & ~2u) | (busy ? 2u : 0u);   /* (the clock's own bit 1 cleared: it is the flag) */
     if (ui.env_t0 && !((fm1_in.buttons >> panel.btn[B_ENV]) & 1u)) {
@@ -1137,9 +1182,12 @@ static void ui_input(void)
     cue_input(now, notes);                              /* SAVE: tap / hold, the cue map */
     if (cue_owns_keys())
         notes = 0;                                      /* (the map's keys: no step, no select, no record) */
+    tools_input(now, notes);                            /* SEQ: tap / hold, the TOOLS screen (ui_tools.c) */
+    if (tools_owns_keys())
+        notes = 0;                                      /* (the screen's keys: no step, no select, no record) */
     rec_fill(now);                                      /* REC held off SEQ: FILL */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
-    if (acc_oct && (ui.mute || ui.layer || fx_knobs))
+    if (acc_oct && (ui.mute || ui.tools || ui.layer || fx_knobs))
         acc_oct = 2;                                    /* OCT+ held under MUTE / PERFORM: no bank on its release, there
                                                          * or after (they own the panel: item 7) */
     ml_guard();                                         /* MIDI LEARN: off in the menu, NAME, another confirm */
@@ -1169,6 +1217,11 @@ static void ui_input(void)
         if (ui.rec_t0)
             ui.rec_t0 |= 2u;
         enc_drop();
+        return;
+    }
+    if (ui.tools) {                                     /* the TOOLS screen owns the panel (its keys: tools_input):
+                                                         * PLAY, OCT- / OCT+ the bank, the selection's knobs */
+        tools_panel(pressed);
         return;
     }
     if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE))   /* PERFORM: keys are the layer's */
@@ -1273,6 +1326,7 @@ static void ui_input(void)
     song.act[2] = (int16_t)settings.mutebar;
     song.act[3] = (int16_t)fx_metro;
     song.act[4] = (int16_t)midi_thru;
+    song.act[5] = (int16_t)rec_quant;
     bank_fix();                                         /* LEN may have changed (knob, load) */
     if (!ui.home && page_hidden(ui.page)) {             /* the engine changed: its last EDIT page */
         while (ui.page > page_first(FAM_SND) && page_hidden(ui.page))
@@ -1339,8 +1393,8 @@ static void ui_input(void)
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX && b != B_GLO && b != B_SAVE)   /* (FX, GLO,
-                                                         * SAVE: on the release) */
+                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX && b != B_GLO && b != B_SAVE && b != B_SEQ)
+                                                        /* (FX, GLO, SAVE, SEQ: on the release) */
                     open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }
@@ -1431,7 +1485,7 @@ static void ui_input(void)
             ui.hot_t = 40;
             continue;
         }
-        if (grid_mode() && step_edit(k, s))
+        if (step_edit_page() && step_edit(k, s))
             continue;
         if (lock_step() < NSTEP) {                      /* STEPS, a step held: a lock (or nothing) */
             lock_knob(k, s);

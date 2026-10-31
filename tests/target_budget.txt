@@ -60,3 +60,4 @@ ins_drive 351
 ins_crush 62
 ins_swept 230
 dly_pp 75
+rev_hall 1995

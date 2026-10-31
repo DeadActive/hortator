@@ -32,6 +32,7 @@ static void ptrs(void)
     }
 }
 static void clear_steps(void) { memset(S, 0, sizeof S); }
+static int rnd_micro;                              /* rnd_steps: random MICRO too */
 static void rnd_steps(uint32_t per_mille)          /* random fields on per_mille / 1000 of the steps */
 {
     uint32_t k, i;
@@ -48,7 +49,8 @@ static void rnd_steps(uint32_t per_mille)          /* random fields on per_mille
             s->rat = (rnd() >> 9) & 3u;
             s->cond = (uint8_t)((rnd() >> 8) % (COND_MAX + 1u));
             s->nt = (int8_t)(NT_MIN + (int32_t)((rnd() >> 8) % (uint32_t)(NT_MAX - NT_MIN + 1)));
-            if (!s->on && !s->acc && !s->slide && !s->tie && !s->rat && !s->cond && !s->nt)
+            s->micro = rnd_micro ? (int8_t)((int32_t)((rnd() >> 8) % 101u) - 50) : 0;
+            if (!s->on && !s->acc && !s->slide && !s->tie && !s->rat && !s->cond && !s->nt && !s->micro)
                 s->on = 1;                         /* (a set step: some field not 0) */
         }
 }
@@ -81,14 +83,14 @@ static void timing(uint32_t seed)
         TM[k][3] = (int16_t)((seed + k) % 4u);
     }
 }
-static int steps_equal(void)                       /* every field (rsv 0 in both) */
+static int steps_equal(void)                       /* every field (MICRO too) */
 {
     uint32_t k, i;
     for (k = 0; k < NTRK; k++)
         for (i = 0; i < NSTEP; i++) {
             const step_t *a = &S[k][i], *b = &R[k][i];
             if (a->on != b->on || a->acc != b->acc || a->slide != b->slide || a->tie != b->tie || a->rat != b->rat ||
-                a->cond != b->cond || a->nt != b->nt || b->rsv)
+                a->cond != b->cond || a->nt != b->nt || a->micro != b->micro)
                 return 0;
         }
     return 1;
@@ -102,6 +104,15 @@ static int all_clear(void)
             if (memcmp(&R[k][i], &z, sizeof z))
                 return 0;
     return 1;
+}
+
+static uint32_t var_count(void)                    /* the set steps of S */
+{
+    uint32_t k, i, n = 0;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++)
+            n += var_set(&S[k][i]);
+    return n;
 }
 
 static void var_round_trip(void)
@@ -272,6 +283,144 @@ static void var_valid_rejects(void)
           "0xFF, all 0: rejected; var_get on them bounded (malformed: -1, the steps cleared)", (int)ok);
 }
 
+/* MICRO (spec 2026-10-31 §1): a set step's flags bit 6 = a micro byte follows (micro != 0 only) */
+static void var_micro_round_trip(void)
+{
+    uint32_t ok = 1, k, i, nm = 0, ns = 0;
+    var_empty(&B, 1);
+    rs = 21;
+    rnd_micro = 1;
+    rnd_steps(400);
+    rnd_micro = 0;
+    S[2][7] = (step_t){0};
+    S[2][7].micro = -50;                            /* a step with only its micro: kept */
+    S[5][63] = (step_t){0};
+    S[5][63].micro = 50;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++) {
+            ns += var_set(&S[k][i]);
+            nm += S[k][i].micro != 0;
+        }
+    timing(2);
+    ok &= var_need(SP) == 2u + 96u + 3u * ns + nm && nm > 50u;
+    ok &= var_put(&B, 6, SP, TM) == 0 && var_valid(&B, 1, 8u + B.used);
+    memset(R, 0x55, sizeof R);
+    ok &= var_get(&B, 6, RP, TR) == 1 && steps_equal() && R[2][7].micro == -50 && !R[2][7].on && R[5][63].micro == 50;
+    check("variation MICRO: -50 .. +50 round-trip (a step with only a micro too), 1 B more a nudged step", (int)ok);
+}
+static void var_micro_old_bytes(void)
+{
+    uint32_t ok, k, o, i;
+    var_empty(&B, 0);
+    clear_steps();
+    timing(1);
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < 16u; i++) {
+            S[k][i].on = (uint8_t)(i % 3u == 0u);
+            S[k][i].rat = (uint8_t)(i & 3u);
+            S[k][i].acc = (uint8_t)(i == 4u);
+        }
+    ok = var_put(&B, 1, SP, TM) == 0 && B.used == 12u + var_need(SP) && var_need(SP) == 2u + 96u + 3u * var_count();
+    for (o = 2u + 96u; o + 3u <= 2u + var_need(SP) - 2u; o += 3u)
+        ok &= !(B.d[o] & 0xC0u);                      /* (every step's flags: bits 6, 7 clear, as 0.25 / 0.26 wrote) */
+    check("variation MICRO: all micro 0 = the bytes as before (3 B a set step, bit 6 clear)", (int)ok);
+}
+/* an old bank (0.25 / 0.26: no bit 6 anywhere) reads exactly as before: built by hand, its bytes as they wrote them */
+static void var_micro_old_bank(void)
+{
+    uint32_t ok, o = 0, k, j;
+    var_empty(&B, 3);
+    B.d[o++] = (uint8_t)(96u + 6u);                   /* entry 1: 2 set steps, n = 96 + 6 */
+    B.d[o++] = 0;
+    for (k = 0; k < NTRK; k++) {
+        B.d[o++] = 16;
+        B.d[o++] = 2;
+        B.d[o++] = 0;
+        B.d[o++] = 0;
+        for (j = 0; j < 8u; j++)
+            B.d[o++] = (uint8_t)(k == 0u && j == 0u ? 0x11u : 0u);   /* track 1, steps 0 and 4 */
+    }
+    B.d[o++] = 0x03u;                                 /* step 0: on, acc */
+    B.d[o++] = 0;
+    B.d[o++] = 0;
+    B.d[o++] = 0x31u;                                 /* step 4: on, RATCH 4 */
+    B.d[o++] = 5;
+    B.d[o++] = (uint8_t)-3;
+    for (j = 1; j < 7u; j++) {                        /* entries 2..7 empty */
+        B.d[o++] = 0;
+        B.d[o++] = 0;
+    }
+    B.used = (uint16_t)o;
+    ok = var_valid(&B, 3, 8u + B.used) && var_get(&B, 1, RP, TR) == 1;
+    ok &= R[0][0].on && R[0][0].acc && !R[0][0].micro && R[0][4].on && R[0][4].rat == 3 && R[0][4].cond == 5 &&
+          R[0][4].nt == -3 && !R[0][4].micro;
+    check("variation MICRO: an old bank (no bit 6) reads as before, micro 0", (int)ok);
+}
+static void var_micro_valid(void)
+{
+    uint32_t ok, len;
+    var_empty(&B, 2);
+    clear_steps();
+    timing(1);
+    S[0][0].on = 1;
+    S[0][0].micro = 20;
+    S[0][1].on = 1;
+    ok = var_put(&B, 1, SP, TM) == 0;
+    len = 8u + B.used;
+    ok &= var_valid(&B, 2, len) && B.d[2u + 96u] == 0x41u && B.d[2u + 96u + 3u] == 20u && B.d[2u + 96u + 4u] == 0x01u;
+    C = B; C.d[2u + 96u] &= 0x3Fu;   ok &= !var_valid(&C, 2, len);   /* bit 6 lost: the entry one byte too long */
+    C = B; C.d[2u + 96u + 4u] |= 0x40u; ok &= !var_valid(&C, 2, len);   /* a bit 6 the entry has no byte for */
+    C = B; C.d[2u + 96u + 3u] = 0x80u; ok &= var_get(&C, 1, RP, TR) == 1 && R[0][0].micro == -50;   /* clamped */
+    check("variation MICRO: a bit 6 without its byte, or a byte without its bit: rejected; a micro out of range clamped",
+          (int)ok);
+}
+/* capacity (variations 2..8 of a slot in 3576 B): the spec's grooves, every hit nudged */
+static uint32_t var_fit(void)
+{
+    uint32_t v, n = 0;
+    var_empty(&B, 0);
+    timing(3);
+    for (v = 1; v < VAR_N; v++)
+        n += var_put(&B, v, SP, TM) == 0;
+    return n;
+}
+static void groove(uint32_t steps, uint32_t hits, int nudge)
+{
+    uint32_t k, i, h = 0;
+    clear_steps();
+    for (i = 0; i < steps && h < hits; i++)
+        for (k = 0; k < NTRK && h < hits; k++)
+            if ((i * 7u + k * 3u) % 8u < 3u || hits >= steps * NTRK) {
+                S[k][i].on = 1;
+                S[k][i].micro = (int8_t)(nudge ? (int32_t)(i % 7u) * 5 - 15 : 0);
+                if (nudge && !S[k][i].micro)
+                    S[k][i].micro = 4;
+                h++;
+            }
+}
+static void var_micro_capacity(void)
+{
+    uint32_t ok, a, b;
+    groove(16, 40, 0);
+    a = var_need(SP);
+    ok = a == 218u && var_fit() == 7u;
+    groove(16, 40, 1);
+    b = var_need(SP);
+    ok &= b == 258u && var_fit() == 7u;
+    groove(64, 150, 0);
+    a = var_need(SP);
+    ok &= a == 548u && var_fit() == 6u;
+    groove(64, 150, 1);
+    b = var_need(SP);
+    ok &= b == 698u && var_fit() == 5u;
+    groove(64, 512, 0);
+    ok &= var_need(SP) == 1634u && var_fit() == 2u;
+    groove(64, 512, 1);
+    ok &= var_need(SP) == 2146u && var_fit() == 1u;
+    check("variation MICRO capacity: 16 steps 40 hits 218 -> 258 B (7 fit), 64 steps 150 hits 548 -> 698 B (6 -> 5), "
+          "all 1634 -> 2146 B (2 -> 1)", (int)ok);
+}
+
 int main(void)
 {
     ptrs();
@@ -283,6 +432,11 @@ int main(void)
     var_same_bytes();
     var_clamps();
     var_valid_rejects();
+    var_micro_round_trip();
+    var_micro_old_bytes();
+    var_micro_old_bank();
+    var_micro_valid();
+    var_micro_capacity();
     printf(fails ? "var_test: %d FAILED\n" : "var_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

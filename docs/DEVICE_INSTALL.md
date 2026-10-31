@@ -70,9 +70,10 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 ## 5. Hands-on
 For each: what you should see / hear. Note anything different (page, knob, what happened).
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
-  then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
-  REVERB, CHORUS, COMP (HOME 2/3 and 3/3: SELECT right on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
-  GLOBAL 3/3 (MUTE NOW / BAR, METRO), LFO 1/4..3/4 and DEST 4/4,
+  then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER,
+  COMP (HOME 2/3 and 3/3: SELECT right on the HOME screen), STEP, PATTERN, GLOBAL 1/7, SYSTEM,
+  GLOBAL 3/7 (MUTE NOW / BAR, METRO), DLY 4/7 and 5/7, REVERB 6/7, CHORUS 7/7 (GLO, after GLOBAL 3/7), LFO 1/4..3/4
+  and DEST 4/4,
   PROJECT, TOOLS, TRACKS (HOME's first mode), the MUTE screen (GLO held) — each draws like the screenshots in
   `build/ui_shots/` (the engines' SOUND pages in `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`,
   the new screens in `build/ui_shots/fixes/`).
@@ -133,7 +134,26 @@ Report what you saw first; we'll go through it together.
   quick GLO tap still opens GLOBAL.
 - Mute on the next bar: on the MUTE screen the top D# (POLY): `MUTE: NEXT BAR`; while playing, a mute waits for the
   next bar (its box and key blink) and lands on the downbeat. The top C# (MONO): `MUTE: NOW`. The same setting is
-  GLOBAL 3/3 MUTE NOW / BAR; it survives a power cycle.
+  GLOBAL 3/7 MUTE NOW / BAR; it survives a power cycle.
+- Solo on the MUTE screen: black key F#3 solos track 1 .. A#4 track 8, the key lit, an S in the box, the other boxes
+  half filled and silent while playing; the same key again unsolos (`F# SOLO TGL` on the last line). Top F#5:
+  `SOLO: MOMENTARY` (F#5 lit, `F# SOLO MOM`): a solo key now solos only while held, also when GLO is let go first;
+  F#5 again: `SOLO: TOGGLE`. Power off and on: the mode kept, nothing soloed.
+- Step tools: a quick SEQ tap still turns STEP -> PATTERN -> MOTION -> SONG (on the release). Hold SEQ (0.4 s, or
+  SEQ + a key at once): `STEP TOOLS` in the top bar, the bank's steps on screen and on the white keys, the tools on
+  the black keys (`build/ui_shots/seqtools/01_tools.png`); keys pressed with SEQ play no sound and record nothing,
+  even with REC ALL armed and playing. Let go: the page before. Holding SEQ while switching on is still SAFE START.
+- COPY STEP / PASTE STEP: hold F#3 and tap a step with PROB, RATCH, an accent and a lock (`STEP n COPIED`); hold G#3
+  and tap three other steps: each plays exactly like the first, lock included.
+- COPY PAGE / REPLACE / MERGE / FILL (LEN 64): A#3 on bank 1 (`COPIED 1-16`), OCT+, C#4: bank 2 = bank 1
+  (`PASTED 17-32`); OCT+, D#4 on a bank with other steps: those stay, the copied hits come in (`MERGED 33-48`); F#4:
+  every bank = bank 1 (`FILLED 1-64`).
+- COPY SEL / PASTE SEL: G#4, KNOB 1 START 5, KNOB 2 END 12 (keys 5..12 lit, `build/ui_shots/seqtools/02_copy_sel.png`),
+  G#4 again (`COPIED 5-12`); OCT+ to the last bank, A#4, tap step 60: `PASTED 60-64`, nothing wraps to step 1.
+- TOOLS D#5: `CLEAR TRACK n?` for the selected track; OCT- keeps, OCT+ clears (steps, motion, locks).
+- DUPLICATE: tracks at LEN 16, 40 and 64, C#5 (`DUPLICATED`): LEN 32, 64, 64; the new steps play the first ones
+  again, locks included; the LEN 64 track unchanged. With the project's locks nearly full a paste says `LOCKS FULL`.
+- SAVE after a paste, power off and on, LOAD: the pasted steps and their locks come back.
 - CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
   stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1
@@ -157,7 +177,7 @@ Report what you saw first; we'll go through it together.
 - KEEP: T1 muted (GLO held + F3) is silent and the others pump (as before), GHOST shown.
 - MUTE: T1 muted is silent and nothing pumps (MUTED); unmuted it is heard and pumps (HEARD).
 - HIDE: T1 is never heard, muted or not, and the others pump (GHOST).
-- Turning GHOST while the kick plays: no click. Mute on the next bar (GLOBAL 3/3 MUTE NEXT BAR) in each mode:
+- Turning GHOST while the kick plays: no click. Mute on the next bar (GLOBAL 3/7 MUTE NEXT BAR) in each mode:
   the kick changes on the bar, no click.
 - SAVE / power cycle / LOAD: GHOST comes back; a project saved before (FDR5) loads with KEEP.
 
@@ -199,12 +219,12 @@ Report what you saw first; we'll go through it together.
 
 - MENU (HOME held) > SPEAKER EQ: FLAT, LOWCUT, BASS+ (KNOB 1; OCT+ steps round). On the speaker, BASS+ makes the
   kick's bass audible without the mids getting thinner; the choice survives a power cycle.
-- FX > REVERB: TYPE SPRNG (the spring) on a snare (send on the FX page, REV): the spring's chirp and drip; SIZE and
-  DAMP change it; switching TYPE while it rings: no click. FX > CHORUS: RATE and DEPTH as before.
+- GLO > REVERB: TYPE SPRNG (the spring) on a snare (send on the FX page, REV): the spring's chirp and drip; SIZE and
+  DAMP change it; switching TYPE while it rings: no click. GLO > CHORUS: RATE and DEPTH as before.
 - PATTERN DIV on a hi-hat track: the knob runs 4BAR 2BAR 1/1 1/2 1/4 … 1/32; at 2BAR / 4BAR the hat plays once per
   2 / 4 bars, in time with a 1/16 kick. DLY TIME at 1/2 and slower: long echoes (the longest cut to 1.49 s).
-- FX > DLY: TIME runs … 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T … 1/32 32T; at 1/8D the snare's echoes fall a dotted eighth
-  apart. FX again: DLY 2/2, MODE PING: on headphones the echoes go left, right, left …; back to NORM: centred again.
+- GLO > DLY: TIME runs … 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T … 1/32 32T; at 1/8D the snare's echoes fall a dotted eighth
+  apart. GLO again: DLY's second page, MODE PING: on headphones the echoes go left, right, left …; back to NORM: centred again.
   Turning MODE while the echoes ring: they stop, no burst. SAVE, LOAD: MODE kept. Listen first:
   build/drum_renders/dly_pingpong.wav (4 bars NORM, 4 bars PING), dly_times.wav (1/4D 1/8D 4T 1/16D 32T).
 - A project saved before this build loads with ROOM and sounds as before. With the heaviest kit and SPRNG, the
@@ -536,7 +556,7 @@ Report what you saw first; we'll go through it together.
 - A remembered slot that cannot load asks `LOAD FAILED: SLOT B` / `START NEW PROJECT?` (hard to cause on purpose;
   the host tests cover it, the screen is `build/ui_shots/fixes/load_failed.png`). OCT- (NO): the power-on kit, and
   the question again at the next power-on; OCT+ (YES): the power-on kit, and the next power-on is plain.
-- METRO (GLOBAL 3/3): LOW / MID / HIGH while playing: a click on each quarter, higher on the bar's first, in time
+- METRO (GLOBAL 3/7): LOW / MID / HIGH while playing: a click on each quarter, higher on the bar's first, in time
   with a 1/4 kick; nothing while stopped; the MASTER knob turns it down with the mix; PERFORM's FILTER / CRUSH /
   REPEAT leave it alone; with CLK USB it follows the DAW's beats. OFF: no click. Survives a power cycle; not in
   projects. Listen first on the computer: `metro_120.wav` (2 bars each LOW, MID, HIGH at 120 BPM).
@@ -670,9 +690,8 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   (Unreleased: a hold never turns a step off, see "Step keys: tap or hold" below); held + KNOB 1 / 2 / 3: PROB /
   RATCH / accent. OCT+ tapped alone (32 steps): bank 2 when let go; OCT+ held while
   accenting: the bank stays. The same on PATTERN, MOTION, SONG and TRACKS (unarmed). Play: accented steps louder.
-- Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page, DLY / REVERB / CHORUS
-  too) and LFO the selected track's white key is lit (track 1: F3, track 2: G3 .. track 8: F4); ALGORITHM moves it, a
-  white key selects its track and its key stays lit (on DLY / REVERB / CHORUS, the global FX pages, a white key only
+- Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page) and LFO the selected track's white key is lit (track 1: F3, track 2: G3 .. track 8: F4); ALGORITHM moves it, a
+  white key selects its track and its key stays lit (on CHORUS, DLY and REVERB, the global bus pages on GLO, a white key only
   plays its drum: the selection stays, as before). KEYS on (SCL): no track key, the keyboard as before. COMP: the
   DUCK keys as before; GLOBAL, SAVE, GRIDS: dark.
 - OCT breath (item 5): OCT+ / OCT- fade in and out (~1.1 s, smooth, never a hard blink) where they would act: STEP
@@ -860,7 +879,7 @@ ACC`).
 
 ### MIDI clock out (SYNC), ROUT, THRU (check on the FM-1)
 
-- Old settings: after the update, GLO SYSTEM 2/3 shows SYNC OFF and ROUT NOTE on every project; GLOBAL 3/3 KNOB 3
+- Old settings: after the update, GLO SYSTEM 2/7 shows SYNC OFF and ROUT NOTE on every project; GLOBAL 3/7 KNOB 3
   shows THRU OFF. Notes on the drum channel play as before.
 - SYNC USB into a DAW (Ableton: Preferences > Link/Tempo/MIDI, the Hortator input's Sync on, EXT on; Logic: Project
   Settings > Synchronization > MIDI, sync to MIDI Clock from Hortator): CLK INT, SYNC USB, a 1/16 hat on the FM-1, PLAY.
@@ -912,6 +931,52 @@ The screens: `build/ui_shots/insert/` (each TYPE, and `mix_srr.png`).
 - SAVE / power cycle / LOAD: the INSERT and SRR come back; a project saved with 0.26.0 loads with both off.
 - CPU: the INSERT (FLANG or CHOR) on all 8 tracks plus SRR on all 8, a dense pattern: GLOBAL -> SYSTEM CPU (note the %
   you see), no crackle. Bluetooth version too.
+
+### NUDGE and QUANT (check on the FM-1)
+
+The screens: `build/ui_shots/seq/26_step_micro_held.png`, `27_step_micro_marks.png`,
+`build/ui_shots/fixes/global_3_quant.png`. The sound: `build/drum_renders/micro.wav` (8 bars: plain, the off-beat hats
++25, then +50 with the snare -10, plain again).
+
+- SEQ STEP: hold a step: KNOB 4 reads NUDGE 0; turned right `+1` .. `+50`, left `-1` .. `-50` (it stops there). An
+  off step held and KNOB 4 turned: on. The grid: a late step has a mark on its box's right, an early one on its left.
+- A hat on every 1/16, the off-beats at +25: a light shuffle; at +50 they land halfway (triplet-like). A snare at -10
+  rushes a little. NUDGE 0 everywhere: the groove exactly as before.
+- Step 1 at -25 while playing: its hit comes before the bar line (in the last step), every time round; LEN 5 too.
+- RATCH 4 at +50: four quick hits in the second half of the step. A lock on a step at +50: the knob changes at the
+  hit, not at the step's start, and comes back at the next step.
+- Following a clock (CLK USB from a DAW): NUDGE +-50 hits land half a step off, steady, no drift.
+- A step with NUDGE turned off by a tap and on again: NUDGE 0.
+- GLOBAL 3/7 KNOB 4 QUANT: 1/16 (default), 1/8, 1/32, OFF. Arm a track, play the keys a little late or early: 1/16
+  on the steps as before; 1/8 only on every other step; 1/32 on the steps or halfway (the held step shows NUDGE 0 or
+  +-50); OFF where you played (NUDGE shows how far off). A hit recorded early into the next step sounds once.
+- QUANT after a power cycle: as set. Step record (KEYS, stopped): NUDGE 0 on the steps it writes.
+- SAVE with nudged steps, power cycle, LOAD: NUDGE back, RESON KEYF, SRR and the INSERT as saved. A project saved with
+  0.26.0 loads (NUDGE 0, its KEYF, SRR, INSERT kept). A variation with nudged steps: kept (cue it, SAVE, power cycle).
+- CPU: a busy pattern with nudged steps on all 8 tracks: GLOBAL -> SYSTEM CPU as without, no crackle. Bluetooth
+  version too.
+
+### GLO CHORUS, HALL reverb (check on the FM-1)
+
+The screens: `build/ui_shots/glo_chorus.png`, `glo_chorus_graph.png`, `glo_chorus_graph_fast.png`,
+`glo_reverb_hall.png`, `glo_reverb_graph_hall.png`. The sound: `build/drum_renders/rev_hall.wav` (stereo, on
+headphones: 2 bars each ROOM, SPRNG, then HALL at SIZE 0 / 64 / 90 / 127, and 127 with DAMP 0).
+
+- GLO steps GLOBAL 1/7, SYSTEM 2/7, GLOBAL 3/7, DLY 4/7, DLY 5/7, REVERB 6/7, CHORUS 7/7 and round again. FX has no
+  CHORUS page any more (FILTER .. RESON). On CHORUS a white key plays its drum, the selection stays.
+- CHORUS: RATE and DEPTH as before; the graph's wave runs faster with RATE (a filled band past about 8 Hz) and taller
+  with DEPTH, the delay's range in ms under the rate.
+- REVERB TYPE: ROOM, SPRNG, HALL (KNOB 1 stops at HALL). A snare with REV up, on headphones: HALL's tail is smooth
+  and wide (left and right differ), longer with SIZE, darker with DAMP; ROOM and SPRNG sound as before (centred).
+  The graph shows HALL's tail and its RT.
+- Switching TYPE while a tail rings (ROOM, SPRNG, HALL, either way): no click; the new reverb starts quiet.
+- HALL with the send stopped: the tail ends in silence, no hiss or hum left at high volume.
+- ROOM, SIZE up and DAMP 0, a snare with REV up, then stop: on USB AUDIO 10 CH FX (channels 9-10, the DAW's gain
+  up) the tail fades to true silence, no faint hum or offset left. ROOM otherwise sounds as before.
+- SAVE with HALL, power cycle, LOAD: HALL comes back; a project saved before loads with its ROOM or SPRNG.
+- USB AUDIO 10 CH FX: with HALL, channels 9 and 10 carry its left and right (they differ).
+- CPU: HALL on a busy pattern with every send up: GLOBAL -> SYSTEM CPU about as with ROOM, no crackle. Bluetooth
+  version too.
 
 ### Web editor (0.28.0: check on the FM-1)
 

@@ -51,7 +51,8 @@ SECTIONS
         *(.volatile_ram_code) *(*.rf.text.cache.L2.rf_trim)
         . = ALIGN(4); _rt_end = .;
     } > RAMTEXT AT > XIP
-    /* the variations' two banks (project.c var_buf, 7168 B): no room in .bss; zeroed by persist_boot. After _rt_end
+    /* the variations' two banks (project.c var_buf, 7168 B), the INSERTs' state (insert.c ins) and the step tools'
+     * buffers (ui_tools.c tl): no room in .bss; zeroed by persist_boot. After _rt_end
      * (the PC guard's RAM-code window ends there), below 0x01C06000 */
     .ram_bss (NOLOAD) : { . = ALIGN(4); _rb_start = .; *(.ram_bss*) . = ALIGN(4); _rb_end = .; } > RAMTEXT
     _rt_load = LOADADDR(.ram_text);

@@ -245,9 +245,43 @@ static int mute_follow(double bpm, uint32_t src, int ghost)
     return bad == 0u;
 }
 
+/* MICRO (spec 2026-10-31 §1) on an external clock: step 5 at -50 sounds on the pulse half a step before its own (3
+ * pulses early), step 10 at +50 three pulses late, every loop, at bpm from src */
+static int micro_on_clock(double bpm, uint32_t src)
+{
+    uint32_t k, i, bad = 0;
+    H0 = h0;
+    H1 = h1;
+    CAP = 6000u;
+    setup(src);
+    for (i = 0; i < 16u; i++)
+        trk[0].step[i].on = 0;
+    trk[1].p[P_MUTE] = 1;
+    trk[0].step[4].on = trk[0].step[9].on = 1;
+    trk[0].step[4].micro = -50;
+    trk[0].step[9].micro = 50;
+    clk_send(0xFAu, src, (double)now);
+    run((uint64_t)(20.0 * 96.0 * FS * 60.0 / bpm / 24.0), bpm, src, 1);
+    for (k = 0; k < N0 && k < 40u; k++) {
+        uint32_t p = (k / 2u) * 96u + ((k & 1u) ? 57u : 21u);
+        if (h0[k] < pulse_at[p] || h0[k] > pulse_at[p] + 2u) {
+            if (bad++ < 4u)
+                printf("     %.0f BPM src %u: hit %u at block %u, its pulse (%u) at %u\n", bpm, src, k, h0[k], p,
+                       pulse_at[p]);
+        }
+    }
+    for (i = 0; i < 16u; i++)
+        trk[0].step[i].micro = 0;
+    trk[1].p[P_MUTE] = 0;
+    return bad == 0u && N0 >= 39u;
+}
+
 int main(void)
 {
     uint32_t k, n0;
+    check("MICRO on a clock (USB, 120 BPM): -50 three pulses early, +50 three pulses late, every loop",
+          micro_on_clock(120.0, 1));
+    check("MICRO on a clock (TRS, 97 BPM): the same", micro_on_clock(97.0, 2));
     {
         static const double BPMS[4] = {120.0, 97.0, 180.0, 240.0};
         static const char *const SRC[4] = {"INT", "USB", "TRS", "BLE"};

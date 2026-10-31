@@ -268,8 +268,8 @@ static void test_switch_round_trip_silent(void)
     check("TYPE ROOM -> SPRING -> ROOM, send silent: the wet is exactly 0 (nothing stale plays)", ok);
 }
 
-#define HASH_FLAT 0xd90a35bcu
-#define HASH_LOWCUT 0x118ed45eu
+#define HASH_FLAT 0x4810355eu      /* (re-pinned: ROOM's loops round towards zero, its tail ends in silence) */
+#define HASH_LOWCUT 0x425c7a3cu
 
 int main(void)
 {

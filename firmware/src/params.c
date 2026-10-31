@@ -26,7 +26,8 @@ static const char *const N_SLOT[] = {"-", "A", "B", "C", "D"};   /* G_SLOT 1..4:
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
-static const char *const N_RTYPE[] = {"ROOM", "SPRNG"};              /* G_RTYPE: the reverb bus's model (fx.c); SPRING in 5 */
+static const char *const N_RTYPE[] = {"ROOM", "SPRNG", "HALL"};      /* G_RTYPE: the reverb bus's model (fx.c); SPRING in 5;
+                                                                      * (Skiff) HALL 2 */
 static const char *const N_CHOKE[] = {"OFF", "1", "2", "3", "4"};
 static const char *const N_SRC[] = {"STEP", "G-KCK", "G-SNR", "G-HAT"};   /* P_SRC: its steps or a Grids channel */
 static const char *const N_GMODE[] = {"MAP", "EUCL"};
@@ -158,14 +159,15 @@ static const param_desc_t GP[G_COUNT] = {
     [G_DMODE] = PE("MODE", N_DMODE, 0),
 };
 
-/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/3's MUTE, METRO and THRU (G_MUTEBAR, G_METRO,
- * G_THRU: the device settings settings.mutebar, fx_metro, midi_thru); their knob values are song.act, not song.g /
- * projects */
+/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/7's MUTE, METRO, THRU and QUANT (G_MUTEBAR,
+ * G_METRO, G_THRU, G_QUANT: the device settings settings.mutebar, fx_metro, midi_thru, rec_quant); their knob values
+ * are song.act, not song.g / projects */
 static const char *const N_MUTEBAR[] = {"NOW", "BAR"};
 static const char *const N_METRO[] = {"OFF", "LOW", "MID", "HIGH"};
-static const param_desc_t GP_ACT[7] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0),
+static const char *const N_QUANT[] = {"1/16", "1/8", "1/32", "OFF"};   /* seq.c QUANT_16 .. QUANT_OFF */
+static const param_desc_t GP_ACT[8] = {PE("CLR*", N_GO, 0), PE("INIT*", N_GO, 0), PE("MUTE", N_MUTEBAR, 0),
                                        PE("METRO", N_METRO, 0), PE("COPY", N_GO, 0), PE("PASTE", N_GO, 0),
-                                       PE("THRU", N_ONOFF, 0)};
+                                       PE("THRU", N_ONOFF, 0), PE("QUANT", N_QUANT, 0)};
 
 /* RESON STRCT on CHORD: the chord type, 0..127 split evenly over N_RCHORD (reson.c rs_chord) */
 static const param_desc_t RS_CHORD_DESC = {"CHORD", F_INT, 0, 127, 0, N_RCHORD, 0};

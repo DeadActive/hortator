@@ -87,9 +87,10 @@ static double freq(const int32_t *x)                 /* zero crossings over the 
 
 static double dbfs(int32_t p) { return 20.0 * log10(p / 32767.0); }
 
-/* 0.16.0's render of beat() at 120 BPM, 4 s, through the whole mix (L then R): METRO OFF keeps it */
-#define OFF_HASH_L 0x70ce896au
-#define OFF_HASH_R 0x70ce896au
+/* 0.16.0's render of beat() at 120 BPM, 4 s, through the whole mix (L then R): METRO OFF keeps it (re-pinned when ROOM's
+ * loops came to round towards zero: the kit's reverb tail; 0.16.0's was 0x70ce896a) */
+#define OFF_HASH_L 0xf85a95e6u
+#define OFF_HASH_R 0xf85a95e6u
 
 static void test_off_identical(void)
 {

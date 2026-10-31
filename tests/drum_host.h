@@ -65,6 +65,7 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     memset(rev_ap, 0, sizeof rev_ap);
     memset(&fx, 0, sizeof fx);
     memset(&dpp, 0, sizeof dpp);                    /* the delay's MODE: NORMAL running, nothing to clear */
+    memset(&hl, 0, sizeof hl);                      /* the reverb's HALL at rest */
     memset(sl, 0, sizeof sl);
     memset(sl_buf, 0, sizeof sl_buf);
     memset(ins, 0, sizeof ins);                     /* the INSERTs (insert.c) at rest */

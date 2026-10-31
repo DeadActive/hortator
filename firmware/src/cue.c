@@ -100,6 +100,21 @@ static void cue_fade_tick(uint32_t n)
             cue.fade = 0;
     }
 }
+/* the track whose pattern is the longest (LEN x DIV; ties: the lowest): a queued cue switches at its end */
+static uint32_t cue_longest(void)
+{
+    uint32_t k, best = 0, bn = 0, bd = 1;
+    for (k = 0; k < NTRK; k++) {
+        uint32_t m, d;
+        m = chain_beats(&trk[k], &d);
+        if (m * bd > bn * d) {
+            best = k;
+            bn = m;
+            bd = d;
+        }
+    }
+    return best;
+}
 /* before the block's seq_ticks (events_block), playing, no song: the queued switch's boundary in this block -> the
  * switch. adv: the sequencer's advance this block (following a clock: the clock's), lead: how far ahead a slot
  * switch's fade starts (own clock CUE_LEAD; following, a pulse at least: the boundary's last pulse), n: the block */
@@ -124,17 +139,9 @@ static __attribute__((noinline)) void cue_tick(uint32_t n, uint32_t adv, uint32_
             }
         }
     } else {                                       /* the end of the longest track's pattern */
-        uint32_t bn = 0, bd = 1, len, cur;
+        uint32_t len, cur;
         track_t *t;
-        for (k = 0; k < NTRK; k++) {
-            uint32_t m, d;
-            m = chain_beats(&trk[k], &d);
-            if (m * bd > bn * d) {
-                best = k;
-                bn = m;
-                bd = d;
-            }
-        }
+        best = cue_longest();
         t = &trk[best];
         len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP);
         if (t->seq_pos >= 0x7FFFFFFFu || t->seq_idx + 1u != len)

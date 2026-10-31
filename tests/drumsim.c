@@ -269,7 +269,8 @@ static void reson_none_bar(uint32_t b) { (void)b; }
 /* sound pack demos (120 BPM, whole mix). sp_speaker_eq.wav: the 808 kit, 2 bars each FLAT, LOWCUT, BASS+;
  * sp_reverb.wav: a snare on 2 and 4 into the reverb, 2 bars each ROOM, SPRING at SIZE 0 / 64 / 127 (DAMP 60), SPRING
  * SIZE 127 DAMP 0 and DAMP 127; sp_slow_div.wav: a 1/16 kick with a hat on 2BAR (4 bars) then 4BAR (8 bars), the
- * snare's delay at TIME 1/2 */
+ * snare's delay at TIME 1/2; rev_hall.wav: the same snare (stereo, headphones), 2 bars each ROOM and SPRING (SIZE 90
+ * DAMP 60), then HALL at SIZE 0 / 64 / 90 / 127 (DAMP 60) and SIZE 127 DAMP 0 */
 static void sp_kit(void)
 {
     static const char *const PAT[3] = {"X...x...x...x...", "....X.......X...", "x.x.x.x.x.x.x.x."};
@@ -293,6 +294,15 @@ static void sp_rev_bar(uint32_t b)
     song.g[G_RSIZE] = SIZE[s];
     song.g[G_RDAMP] = DAMP[s];
 }
+static void hall_rev_bar(uint32_t b)
+{
+    static const int16_t TYPE[7] = {0, 1, 2, 2, 2, 2, 2}, SIZE[7] = {90, 90, 0, 64, 90, 127, 127};
+    static const int16_t DAMP[7] = {60, 60, 60, 60, 60, 60, 0};
+    uint32_t s = b / 2u < 7u ? b / 2u : 6u;
+    song.g[G_RTYPE] = TYPE[s];
+    song.g[G_RSIZE] = SIZE[s];
+    song.g[G_RDAMP] = DAMP[s];
+}
 static void sp_div_bar(uint32_t b) { trk[2].p[P_SDIV] = b < 4u ? 8 : 9; }
 static void write_sound_pack(const char *dir)
 {
@@ -305,6 +315,7 @@ static void write_sound_pack(const char *dir)
     memset(trk[2].step, 0, sizeof trk[2].step);
     trk[1].p[P_REV] = 110;
     write_demo(dir, "sp_reverb.wav", 12, sp_rev_bar);
+    write_demo(dir, "rev_hall.wav", 14, hall_rev_bar);
     song.g[G_RTYPE] = 0;
     sp_kit();
     trk[1].p[P_DLY] = 90;
@@ -399,6 +410,32 @@ static void write_locks(const char *dir, int on)
     }
     write_demo(dir, on ? "locks_on.wav" : "locks_off.wav", 4, locks_bar);
     memset(&mo, 0, sizeof mo);
+}
+
+/* MICRO (spec 2026-10-31 §1), A/B in one file, 8 bars at 120 BPM: a kit (909 kick four on the floor, snare on 2 and
+ * 4, closed hats on every 1/16) plain for 2 bars, then the off-beat hats +25 (a light shuffle) for 2, +50 (halfway:
+ * triplet-like) for 2 with the snare -10 (pushed early), then plain again for 2 */
+static void micro_bar(uint32_t b)
+{
+    uint32_t k;
+    int8_t h = b >= 2u && b < 4u ? 25 : b >= 4u && b < 6u ? 50 : 0;
+    for (k = 1; k < 16u; k += 2u)
+        trk[2].step[k].micro = h;
+    trk[1].step[4].micro = trk[1].step[12].micro = (int8_t)(b >= 4u && b < 6u ? -10 : 0);
+}
+static void write_micro(const char *dir)
+{
+    uint32_t k;
+    host_init();
+    old_set_model(&trk[0], DM_K909);
+    old_set_model(&trk[1], DM_S909);
+    old_set_model(&trk[2], DM_HATC);
+    for (k = 0; k < 16u; k++) {
+        trk[0].step[k].on = (k & 3u) == 0u;
+        trk[2].step[k].on = 1;
+    }
+    trk[1].step[4].on = trk[1].step[12].on = 1;
+    write_demo(dir, "micro.wav", 8, micro_bar);
 }
 
 /* SONG: A (four on the floor + hats) x2, B (a broken kick + snare) x1, LOOP ON: 6 bars, the rows change on the bar */
@@ -965,6 +1002,7 @@ int main(int argc, char **argv)
     write_motion(dir);
     write_locks(dir, 0);
     write_locks(dir, 1);
+    write_micro(dir);
     write_song(dir);
     write_phys(dir);
     write_filter(dir);
