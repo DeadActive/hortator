@@ -12,7 +12,9 @@
  *    own, both sides; the new model starts silent; every buffer and state cleared.
  * 6. the master: HALL's left and right differ (its stereo), ROOM's are equal (mono as before); USB 10 CH FX: channels
  *    9 and 10 HALL's left and right.
- * 7. cost: host instructions per sample of rev_hall against rev_room (printed; HALL at most ROOM + 30 %, Skiff's). */
+ * 7. cost: host instructions per sample of rev_hall against rev_room (printed; HALL at most ROOM + 30 %, Skiff's).
+ * 8. ROOM after its send stops: its tail ends in exact silence (no offset, no buzz held by its loops' rounding) at
+ *    SIZE 127 DAMP 0 and other corners, after a loud noise burst and after a quiet chord. */
 #include "drum_host.h"
 #include <stdlib.h>
 #include <math.h>
@@ -366,8 +368,43 @@ static void test_cost(void)
     check(what, c[1] <= c[0] * 13u / 10u);
 }
 
+/* ROOM: 2 s of a send (loud noise, or a quiet chord near the loops' rounding), then 18 s of silence: the last 2 s
+ * exactly 0. (Its loops once rounded down: a DC offset and, at DAMP 0, a buzz held for ever, ~-55 dBFS on USB FX) */
+static void test_room_silence(void)
+{
+    static const int16_t SZ[5] = {127, 127, 90, 64, 0}, DP[5] = {0, 60, 30, 0, 127};
+    static int32_t in[CTL], o[CTL];
+    char what[200];
+    uint32_t k, lv, b, i, held = 0;
+    int32_t worst = 0;
+    host_init();
+    for (k = 0; k < 5u; k++)
+        for (lv = 0; lv < 2u; lv++) {
+            int32_t tail = 0;
+            model_reset(M_ROOM, SZ[k], DP[k]);
+            for (b = 0; b < 20u * FS / CTL; b++) {
+                for (i = 0; i < CTL; i++) {
+                    uint32_t t = b * CTL + i;
+                    in[i] = b >= 2u * FS / CTL ? 0 : lv ? noise(1 << 19)
+                          : (int32_t)(900 * (sin(2 * M_PI * 220 * t / FS) + sin(2 * M_PI * 277 * t / FS)));
+                    o[i] = 0;
+                }
+                rev_room(in, o, CTL);
+                if (b >= 18u * FS / CTL)
+                    for (i = 0; i < CTL; i++)
+                        tail = abs(o[i]) > tail ? abs(o[i]) : tail;
+            }
+            held += tail != 0;
+            worst = tail > worst ? tail : worst;
+        }
+    snprintf(what, sizeof what, "ROOM: silent (exactly 0) once its tail has died, 10 runs (SIZE x DAMP x loud / quiet): "
+             "%u not silent, worst %d", held, worst);
+    check(what, !held);
+}
+
 int main(void)
 {
+    test_room_silence();
     test_types();
     test_hall_decay();
     test_hall_stable();

@@ -25,7 +25,9 @@ static int check(const char *what, int ok)
 }
 
 /* ------------------------------------------------------------------ 1 --- */
-#define PHRASE_0260 0x3c7f2bcfa8133b84ull         /* drum 0.26.0's hash of the phrase (before SRR and the INSERT) */
+#define PHRASE_0260 0x6067d1fa2ff9c57full         /* drum 0.26.0's hash of the phrase (before SRR and the INSERT);
+                                                    * re-pinned when ROOM's loops came to round towards zero (track
+                                                    * 1's reverb tail; 0.26.0's was 0x3c7f2bcfa8133b84) */
 static int32_t ph_srr = -1, ph_ty = -1, ph_a, ph_b, ph_c, ph_mix, ph_trk = 4;   /* ph_trk: the tracks set (4: 0..3) */
 static void set_ins(track_t *t, int32_t ty, int32_t a, int32_t b, int32_t c, int32_t mix)
 {

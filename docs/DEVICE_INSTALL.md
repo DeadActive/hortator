@@ -932,6 +932,8 @@ headphones: 2 bars each ROOM, SPRNG, then HALL at SIZE 0 / 64 / 90 / 127, and 12
   The graph shows HALL's tail and its RT.
 - Switching TYPE while a tail rings (ROOM, SPRNG, HALL, either way): no click; the new reverb starts quiet.
 - HALL with the send stopped: the tail ends in silence, no hiss or hum left at high volume.
+- ROOM, SIZE up and DAMP 0, a snare with REV up, then stop: on USB AUDIO 10 CH FX (channels 9-10, the DAW's gain
+  up) the tail fades to true silence, no faint hum or offset left. ROOM otherwise sounds as before.
 - SAVE with HALL, power cycle, LOAD: HALL comes back; a project saved before loads with its ROOM or SPRNG.
 - USB AUDIO 10 CH FX: with HALL, channels 9 and 10 carry its left and right (they differ).
 - CPU: HALL on a busy pattern with every send up: GLOBAL -> SYSTEM CPU about as with ROOM, no crackle. Bluetooth

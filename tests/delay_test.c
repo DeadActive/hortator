@@ -158,7 +158,7 @@ static void test_normal_bit_identical(void)
 
 /* the kit with the delay busy (hats and the clap into it, high FEEDBACK), 2 bars; its hash pinned from 0.26.0 */
 #define KIT_N (2u * 16u * (FS * 60 / 120 / 4) / CTL * CTL)
-#define HASH_DLY_KIT 0x1cd9612au
+#define HASH_DLY_KIT 0xb944c19cu   /* (re-pinned: the snare's ROOM reverb, its loops rounding towards zero) */
 static int32_t KL[KIT_N], KR[KIT_N];
 static uint32_t kit_hash(int16_t time)
 {

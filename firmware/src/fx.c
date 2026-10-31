@@ -257,41 +257,52 @@ static uint32_t delay_samples(void)
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 
-/* ROOM (G_RTYPE 0): 4 damped combs + 2 allpasses (Freeverb-like, mono), added to out */
+/* m / 2^sh rounded towards zero (Skiff's, HALL's and ROOM's): a product that feeds back must not floor (a loop of
+ * floors holds an offset and a little noise for ever) */
+static inline int32_t sh_tz(int32_t m, uint32_t sh) { return (m + ((m >> 31) & ((1 << sh) - 1))) >> sh; }
+
+/* ROOM's comb k (its line at c, REV_COMB[k] long): a sample of in in, its output out; the low-pass and the feedback
+ * rounded towards zero (below). Inlined 4 times (each comb's length and states at fixed places: the rounding's cost
+ * paid by the loop it saves) */
+static inline __attribute__((always_inline)) int32_t room_comb(int16_t *c, uint32_t k, int32_t in, int32_t size,
+                                                               int32_t damp)
+{
+    uint32_t j = fx.comb_i[k];
+    int32_t o = c[j], l = o + sh_tz((fx.comb_lp[k] - o) * (32767 - damp), 15);
+    fx.comb_lp[k] = l;
+    c[j] = (int16_t)clamp(in + sh_tz(l * size, 15), -32768, 32767);
+    fx.comb_i[k] = (uint16_t)(j + 1u >= REV_COMB[k] ? 0u : j + 1u);
+    return o;
+}
+
+/* ROOM (G_RTYPE 0): 4 damped combs + 2 allpasses (Freeverb-like, mono), added to out. The loops' products (the
+ * combs' low-pass and feedback, the allpasses' half) round towards zero, as SPRING's and HALL's: the tail ends in
+ * exact silence (rounded down, they held a DC offset and, at low DAMP, a faint buzz for ever) */
 static __attribute__((noinline)) void rev_room(const int32_t *rev_in, int32_t *out, uint32_t n)
 {
     uint32_t i, k;
     int32_t size = 25000 + song.g[G_RSIZE] * 50, damp = 32767 - song.g[G_RDAMP] * 200;
     for (i = 0; i < n; i++) {
-        int32_t a = 0;
+        int32_t a;
         int16_t *c = rev_comb;
         int32_t in = mulq15(rev_in[i], 2580);           /* 1/8 at -4 dB */
-        for (k = 0; k < 4u; k++) {
-            int32_t o = c[fx.comb_i[k]];
-            fx.comb_lp[k] = o + mulq15(fx.comb_lp[k] - o, 32767 - damp);
-            c[fx.comb_i[k]] = (int16_t)clamp(in + mulq15(fx.comb_lp[k], size), -32768, 32767);
-            if (++fx.comb_i[k] >= REV_COMB[k])
-                fx.comb_i[k] = 0;
-            a += o;
-            c += REV_COMB[k];
-        }
+        a = room_comb(c, 0, in, size, damp) + room_comb(c + 1116, 1, in, size, damp) +
+            room_comb(c + 1116 + 1188, 2, in, size, damp) + room_comb(c + 1116 + 1188 + 1277, 3, in, size, damp);
         c = rev_ap;
         for (k = 0; k < 2u; k++) {
-            int32_t o = c[fx.ap_i[k]];
-            int32_t v = a + (o >> 1);
-            c[fx.ap_i[k]] = (int16_t)clamp(v, -32768, 32767);
+            uint32_t j = fx.ap_i[k];
+            int32_t o = c[j];
+            int32_t v = a + sh_tz(o, 1);
+            c[j] = (int16_t)clamp(v, -32768, 32767);
             a = o - a;                                  /* Freeverb: out = buf - in (o - v would be a notch comb) */
-            if (++fx.ap_i[k] >= REV_AP[k])
-                fx.ap_i[k] = 0;
+            fx.ap_i[k] = (uint16_t)(j + 1u >= REV_AP[k] ? 0u : j + 1u);
             c += REV_AP[k];
         }
         out[i] += a;
     }
 }
 
-/* (Skiff) HALL's helpers: m / 2^sh rounded towards zero (a product that feeds back must not floor: a loop of floors
- * holds an offset and a little noise for ever) */
-static inline int32_t sh_tz(int32_t m, uint32_t sh) { return (m + ((m >> 31) & ((1 << sh) - 1))) >> sh; }
+/* (Skiff) HALL's helpers (sh_tz above rev_room) */
 /* 2^-x, x Q16 (0 .. 16): Q15 (32768 at x = 0). 2^-x = 2^u / 2^(i + 1), u = 1 - frac(x); 2^u by a cubic (1e-4) */
 static uint32_t exp2_neg(uint32_t x)
 {

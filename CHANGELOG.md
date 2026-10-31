@@ -5,6 +5,9 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **ROOM reverb: its tail now fades to true silence.** Before, a faint hum and offset stayed behind for ever once a
+  ROOM tail had died away: too quiet to hear on the main output, but left on the USB effect channels (10 CH FX). The
+  room sounds as before otherwise.
 - **HALL reverb**: GLO > REVERB TYPE has a third value, HALL: a smooth, dense reverb in stereo (from Skiff), its tail
   wide on headphones and fading to exact silence. SIZE sets its length (from about half a second up to several
   seconds), DAMP how soon its top end fades. Switching between ROOM, SPRNG and HALL fades the old tail out without a
