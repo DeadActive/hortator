@@ -13,6 +13,8 @@ is its drummer.
   to WebAssembly, on a 3D FM-1 you can play with the mouse, a touch screen or the computer keyboard.
 - **Install it on your FM-1:** <https://deadactive.github.io/hortator/webapp/installer/>, in Chrome or Edge, over
   the FM-1's USB cable.
+- **Edit it from your browser** (from 0.28.0): <https://deadactive.github.io/hortator/webapp/editor/>, over USB
+  ([below](#web-editor)).
 
 **Beta.** Hortator is untested on most hardware and may be unstable. You install it at your own risk: the author
 accepts no responsibility if your FM-1 is damaged or misbehaves. M-VAVE's own updater takes you back to the official
@@ -403,6 +405,26 @@ accept 10 CH** (its USB audio 1.0 driver and the channel layout): use 2 CH there
 When an audio block takes more than 95 % of its time, the FM-1 stops one sounding voice to catch up, and the top bar
 shows a red CPU icon for 2 s. A track with **PRIO LOW** loses its voices before a PRIO HIGH one, the oldest first;
 a held ACID note goes last. The same order picks the voice to stop when too many play at once. PRIO is on the track's last EDIT (SOUND) page, after CHOKE: HIGH by default, saved in the project.
+
+## Web editor
+
+From 0.28.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) works on an FM-1 connected by USB:
+
+- **Sound**: every page of the selected track and the globals, both ways: a knob turned on the FM-1 moves in the
+  page, a knob moved in the page plays on the FM-1. Choosing a track in the page selects it on the FM-1.
+- **Presets**: the 151 factory presets, loaded onto a track with a click; the 128 user presets as a list to rename,
+  reorder and delete, backed up to a file and written back (to this FM-1 or another). The names live in the page and
+  its files; the FM-1 keeps showing "MODEL NN".
+- **Projects**: back up a project (A–D, with its locks and variations), or everything with the user presets, to a
+  file; restore it into any slot, on this FM-1 or another; copy a project to another slot. A backup holds what is
+  saved on the FM-1: SAVE first to include unsaved changes (the page tells you when there are some).
+- **Patterns**: every track's steps in each variation, and the locks, editable; click a slot or variation to cue it,
+  exactly as the cue keys do; copy a variation from this slot, another slot or a backup file; SAVE.
+
+Restores happen only while the FM-1 is stopped; meanwhile it shows RESTORING and its PLAY, cue keys, LOAD and SAVE
+wait. USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a
+computer or Android; Firefox after its permission prompt; not Safari (no Web MIDI). A firmware update always comes
+first: while the installer runs, the editor goes quiet. One browser tab runs the editor at a time.
 
 ## Bluetooth MIDI
 

@@ -912,3 +912,57 @@ The screens: `build/ui_shots/insert/` (each TYPE, and `mix_srr.png`).
 - SAVE / power cycle / LOAD: the INSERT and SRR come back; a project saved with 0.26.0 loads with both off.
 - CPU: the INSERT (FLANG or CHOR) on all 8 tracks plus SRR on all 8, a dense pattern: GLOBAL -> SYSTEM CPU (note the %
   you see), no crackle. Bluetooth version too.
+
+### Web editor (0.28.0: check on the FM-1)
+
+The page: `build/site` served as in step 3, then http://localhost:8000/webapp/editor/ in Chrome (Edge or Opera too).
+Two FM-1s for the move test, or one FM-1 and two slots. Note the times with a stopwatch.
+
+- Connect and refuse: Connect with the FM-1 on USB: the browser asks for MIDI with SysEx, then the tabs and the header
+  appear (firmware 0.28.0, PLAY / STOP, the loaded slot, the variation, the selected track). With an FM-1 on 0.27.0 or
+  older: "Update this FM-1 to use the editor" and the installer link. With only other MIDI gear plugged in: "No
+  Hortator FM-1 found". With the FM-1 on Bluetooth only: not found (USB only). Unplug while connected: "The FM-1 was
+  unplugged."
+- One tab: open the editor in a second tab: "The editor is open in another tab"; Use here: the first tab disconnects,
+  the second connects; Use here in the first takes it back.
+- Live edit, both ways: turn a SOUND knob, FILTER CUT, an LFO RATE, INSERT TYPE, SRR and DLY MODE on the FM-1: each
+  moves in the page within a moment, with the FM-1's own text ("1/16.", "1.4k"). Move the same in the page: the
+  FM-1's screen and sound follow. Select track 5 on the FM-1: the page shows track 5; click track 2 in the page: the
+  FM-1 selects track 2. Change a track's MODEL in either place: the SOUND page's knobs change with it.
+- Presets: load a factory preset (MD, MODERN, CLASSIC) onto the selected track: the FM-1 plays it and its PRESETS
+  shows it. Read FM-1 lists the user slots; rename two, move one, delete one, Write to FM-1 (stopped): the FM-1's user
+  presets change to match (its list shows "MODEL NN"); Back up downloads the file; open it again: the names are back.
+- Back up and move: on FM-1 #1 with projects in A–D (SAVE them first), Projects > Back up all (time it). On FM-1 #2
+  (or the same unit, a project into another slot), Restore all from that file (time it), or Restore here… one project
+  into another slot. Load each restored project: it plays the same as on #1 (the same sounds, steps, variations 1–8
+  and locks; FILL, PROB and ratchets as before). Power-cycle #2: still the same.
+- Unsaved changes: change a step on the FM-1 without SAVE: the page marks the slot unsaved and says a backup holds the
+  saved version.
+- Refused while playing: press PLAY, then Restore here… / Restore all / Copy to… / Write to FM-1: the buttons are off
+  or the FM-1's "STOP FIRST" shows; nothing on the FM-1 changes. STOP, and it works.
+- RESTORING lock: start a Restore all and, while the page shows its progress, press PLAY, a cue key, LOAD and SAVE on
+  the FM-1: each shows RESTORING and does nothing; when the restore ends the keys work again. Abort a restore halfway:
+  the slot is as before.
+- Clock out during a transfer: SYNC USB into a DAW, PLAY, then Back up all: the page asks "Clock out may jitter during
+  the transfer — stop first?". Continue: the backup runs while playing (listen for the DAW's tempo wobbling a little).
+  Stop: the page asks you to press STOP on the FM-1 and starts once it stops. Cancel: nothing happens.
+- Remote cue: while playing, click variation 3 in Patterns: it blinks in the page and on the FM-1's key, and switches
+  at the pattern's end; click slot B: the same, as SAVE + white key 2 does. A refusal (an empty slot, VARIATIONS FULL)
+  shows the FM-1's own message.
+- Step and lock edits: click steps on and off, set NOTE, PROB, RATCH, ACC, FILL / !FILL (SLIDE / TIE on an ACID
+  track): the FM-1 plays them at once and its step pages show them. Edit a step in variation 4 while variation 1
+  plays: the FM-1 switches to 4 at the pattern's end and the edit lands there. Set a lock on a step in the page: the
+  step plays with it on the FM-1; clear it, then clear a whole track's locks. SAVE from the page, power-cycle: kept.
+- Copy a variation: copy A variation 2 into variation 6, then B variation 1 into variation 7 with its locks, then a
+  variation from the backup file: each plays as its source (the locks with it when chosen).
+- Update while the editor is open: leave the editor connected (on the Sound tab, with the header updating), open the
+  web installer in another window and install the other version of this build (Hortator + Bluetooth MIDI on the plain
+  version, the plain one on the Bluetooth version). The update succeeds; the editor shows "FM-1 busy (update?)"
+  and sends nothing more while it runs (after about 2 minutes it stops asking and offers Reconnect). After the FM-1
+  restarts, Reconnect (or a new Connect) brings everything back.
+- A DAW's SysEx while connected (e.g. the DAW asks MIDI devices who they are at startup): the editor keeps working
+  and a restore under way is not dropped.
+- Timings (stopwatch, from the click to the page's done message): Back up all with four full projects about 2–4 s,
+  Restore all about 3–6 s; each must stay under 10 s. A knob moved in the page sounds at once; a knob turned on the
+  FM-1 shows in the page well within a second.
+- Bluetooth version: the same over USB with BLUETOOTH ON; the editor never appears on the Bluetooth link.

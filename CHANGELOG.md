@@ -1,7 +1,40 @@
 # Changelog
 
 What changed in each version of Hortator, the drum firmware for the M-VAVE FM-1, newest first. Changes that are not
-released yet are listed under Unreleased.
+released yet are listed under Unreleased (the next version) and, for the version after it, under its number.
+
+## 0.28.0 (unreleased)
+
+- **Web editor**: edit the FM-1 from the browser, on the Hortator site under Editor, with the FM-1 connected by USB.
+  Click Connect: the page finds the FM-1 and talks to nothing else (an FM-1 with the official firmware or Felucca,
+  and other MIDI gear, get nothing; an FM-1 with an older Hortator gets a link to the installer).
+  - **Sound**: the selected track's pages (SOUND for its model, LAYER, FILTER, FX, INSERT, SRR, RESON, SLICER, LFO 1
+    and 2, DEST) and the globals with DLY MODE, each knob with the FM-1's own text. Both ways: turn a knob on the
+    FM-1 and it moves in the page; move it in the page and the FM-1 plays it. Choosing a track in the page selects it
+    on the FM-1, and the other way round.
+  - **Presets**: the 151 factory presets (MACHINEDRUM, MODERN, CLASSIC), loaded onto a track with a click. The 128
+    user presets as a list: rename, reorder, delete, save a track's sound into a slot, back up to a file, open a file
+    and write the list to the FM-1 (this one or another). The names live in the page and its files; the FM-1 keeps
+    showing "MODEL NN".
+  - **Projects**: A–D as saved, with unsaved changes marked. Back up a project (with its locks and variations) or
+    everything (the user presets and all four projects) to a file; restore a project into any slot, on this FM-1 or
+    another; restore everything; copy a project to another slot. A backup holds what is saved on the FM-1: SAVE
+    first to include changes not saved yet (the page says so). Restoring asks first and says what it replaces.
+  - **Patterns**: every track's 64 steps in each variation of a slot (on / off, NOTE, PROB, RATCH, ACC, FILL / !FILL,
+    SLIDE / TIE on ACID), editable; editing another variation makes the FM-1 switch to it, as its key would. The
+    locks of each step, editable and clearable. SAVE from the page.
+  - **Remote cue**: click a slot or a variation to queue it, exactly as the cue keys do, with the same refusals.
+  - **Copy a variation**: from this slot, another slot or a backup file into a variation of the loaded slot, with the
+    source's locks if you want them. Locks the FM-1 cannot hold are refused before anything changes.
+- Restores (user presets, projects) only while the FM-1 is stopped. Meanwhile it shows RESTORING and its PLAY, cue
+  keys, LOAD and SAVE wait. A power cut during a restore leaves the old or the new project whole.
+- While the FM-1 plays with SYNC (MIDI clock out) on, the page asks before a big transfer: clock out may jitter, stop
+  first?
+- USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a
+  computer or Android; Firefox after its permission prompt; not Safari (it has no Web MIDI).
+- A firmware update always comes first: while the web installer runs, the editor goes quiet, and it connects again
+  afterwards (or click Reconnect). Other SysEx a DAW sends does not interrupt the editor. One browser tab runs the
+  editor at a time: another tab offers "Use here".
 
 ## Unreleased
 
