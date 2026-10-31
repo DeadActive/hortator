@@ -47,6 +47,8 @@ elif [ -e "$PKGB" ]; then
     echo "publish: a Bluetooth package without BLE=1"; exit 1
 fi
 [ -f "$S/build/site/fm1sim.wasm" ] || { echo "publish: the site has no landing page (simulator)"; exit 1; }
+grep -q 'id="editor-src"' "$S/build/site/webapp/editor/index.html" 2>/dev/null ||
+    { echo "publish: the site has no editor (webapp/editor/index.html, one file)"; exit 1; }
 
 mkdir -p "$D/files"
 rm -f "$D"/files/*

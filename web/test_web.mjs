@@ -6,12 +6,13 @@
 //   node web/test_web.mjs
 // - editor.html (Hortator's editor, protocol 1): its tab modules, no CDN, and editor/test_page.mjs (the page's
 //   logic against editor/mock_device.mjs). The protocol codec and the mock itself: node web/editor/test_editor.mjs
+// - the editor as the site publishes it (make_site.py: one file, nothing fetched; the landing page links it)
 // - fm1pkg.js: productOf and logicalImage on build/felucca.fwsc (skipped without a build)
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
 // - sim/counter.js: the GoatCounter install count (off without a site code; never blocks or breaks an install)
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { logicalImage, productOf } from "./fm1pkg.js";
 import { Updater, pack7, unpack7 } from "./fm1ota.js";
@@ -42,6 +43,57 @@ async function editorPage() {
   const { runPageTests } = await import("./editor/test_page.mjs");
   const r = await runPageTests((s) => console.log(s));
   ok(!r.failed, `editor: page logic against the mock device (${r.passed} checks)`);
+}
+
+/* ------------------------------------------------------ the editor on the site --- */
+// web/make_site.py publishes the editor as one file, webapp/editor/index.html: its modules and device_data.json
+// inlined (each module a blob: URL at load), the typeface embedded. The built page (make_site.editor_html(), and
+// build/site's when a build made one) fetches nothing but itself; its inlined modules are the sources byte for byte
+// and pass the page tests themselves (linkModules from the page, data: URLs); the landing page links it, not ?mock.
+async function editorSite() {
+  const built = py(`import sys; sys.path.insert(0, ${JSON.stringify(HERE)}); import make_site; sys.stdout.write(make_site.editor_html())`).toString();
+  const site = join(HERE, "../build/site/webapp/editor/index.html");
+  const pages = [["built", built], ...(existsSync(site) ? [["build/site", readFileSync(site, "utf8")]] : [])];
+  const want = readdirSync(join(HERE, "editor")).filter((f) => f.endsWith(".mjs") && !f.startsWith("test_")).sort();
+  for (const [where, page] of pages) {
+    const m = page.match(/<script type="application\/json" id="editor-src">([^<]*)<\/script>/);
+    const src = m ? JSON.parse(m[1]) : { modules: {}, data: null }, rest = m ? page.replace(m[0], "") : page;
+    ok(!!m && Object.keys(src.modules).sort().join() === want.join()
+      && want.every((f) => src.modules[f] === readFileSync(join(HERE, "editor", f), "utf8"))
+      && JSON.stringify(src.data) === JSON.stringify(JSON.parse(readFileSync(join(HERE, "editor/device_data.json"), "utf8"))),
+    `editor site (${where}): one file, every module and device_data.json inlined`);
+    const urls = [...rest.replace(/url\("data:[^"]*"\)/g, "").matchAll(/\b(?:https?:)?\/\/[^\s"'`)<>]+/g)].map((x) => x[0]);
+    const anchors = new Set([...rest.matchAll(/<a [^>]*href="([^"]+)"/g)].map((x) => x[1]));
+    const counter = (u) => /^https:\/\/(gc\.zgo\.at\/count\.js$|(www|\$\{code\})\.goatcounter\.com\b)/.test(u); // sim/counter.js
+    const mods = Object.values(src.modules).join("\n");
+    ok(!/<script[^>]*\ssrc=|<link\b|<iframe|<img|@import/i.test(rest) && [...rest.matchAll(/url\(\s*["']?([^"')]+)/g)].every((x) => x[1].startsWith("data:"))
+      && /font\/woff;base64,/.test(rest) && urls.every((u) => anchors.has(u) || counter(u))
+      && [...mods.matchAll(/\bfetch\(([^)]*)\)/g)].every((x) => x[1] === "url") && /globalThis\.HORTATOR_DEVICE_DATA/.test(mods),
+    `editor site (${where}): fetches nothing but itself (typeface embedded; only the site's guarded visit counter)`);
+    const lm = page.match(/\/\/ link:begin\n([\s\S]*?)\/\/ link:end/);
+    let r = { failed: 1, passed: 0 };
+    if (lm && m) {
+      const linkModules = new Function(`${lm[1]}; return linkModules;`)();
+      const map = linkModules(src.modules, (code) => `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+      globalThis.HORTATOR_DEVICE_DATA = src.data;
+      try {
+        const loaded = Object.fromEntries(await Promise.all(Object.entries(map).filter(([f]) => f !== "app.mjs")
+          .map(async ([f, u]) => [f, await import(u)])));
+        const { runPageTests } = await import("./editor/test_page.mjs");
+        r = await runPageTests((x) => console.log(x), loaded);
+        r.failed += loaded["proto.mjs"] === undefined || (await loaded["mock_device.mjs"].loadDeviceData()).P.length !== src.data.P.length ? 1 : 0;
+      } finally { delete globalThis.HORTATOR_DEVICE_DATA; }
+    }
+    ok(!r.failed && /params\.has\("mock"\)/.test(src.modules["app.mjs"]),
+      `editor site (${where}): the inlined modules pass the page tests (${r.passed} checks); ?mock kept`);
+  }
+  const landing = readFileSync(join(HERE, "sim/index.html"), "utf8"), nav = landing.slice(landing.indexOf('<nav class="hero-nav">'), landing.indexOf("</nav>"));
+  const foot = landing.slice(landing.indexOf('<nav class="foot-nav"'));
+  ok(/<a href="webapp\/editor\/">Editor<\/a>/.test(nav) && /<a href="webapp\/editor\/">[^<]+<\/a>/.test(foot.slice(0, foot.indexOf("</nav>")))
+    && !/editor\/\?mock|[?&]mock\b/.test(landing), "landing page: links the editor (top and foot nav), not ?mock");
+  const front = join(HERE, "../build/site/index.html");
+  if (existsSync(front) && /fm1sim/.test(readFileSync(front, "utf8")))
+    ok(/href="webapp\/editor\/"/.test(readFileSync(front, "utf8")), "build/site: the landing page links the editor");
 }
 
 /* ------------------------------------------------------- packages: JS == Python --- */
@@ -272,6 +324,7 @@ async function simCue() {
 await simLocks();
 await simCue();
 await editorPage();
+await editorSite();
 await (async () => { const r = await (await import("./editor/test_tab_projects.mjs")).runProjectsTests((s) => console.log(s)); ok(!r.failed, `editor: Projects tab against the mock device (${r.passed} checks)`); })();
 await import("./editor/test_tab_presets.mjs").then(async (t) => { const r = await t.runPresetsTests((s) => console.log(s)); ok(!r.failed, `editor: Presets tab against the mock device (${r.passed} checks)`); });
 { const r = await (await import("./editor/test_tab_patterns.mjs")).runPatternTests((x) => console.log(x)); ok(!r.failed, `editor: Patterns tab against the mock device (${r.passed} checks)`); }
