@@ -87,6 +87,7 @@ run "gate 2a: the update path's sources = the last release's" python3 tools/chec
 run "gate 3 tool self-test (BT start-up reachable at boot)" python3 tools/check_ble_boot.py --selftest
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
+    run "web editor: Hortator editor protocol 1 (codec, mock device, files)" node web/editor/test_editor.mjs
 else
     echo "== skip web tests (no node)"
 fi
