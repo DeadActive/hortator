@@ -72,10 +72,12 @@ firmware ([below](#back-to-the-official-firmware)).
   with the same FDBK, COLR and longest time; its echoes are a little softer in the top end. Changing MODE clears the
   delay (the old echoes stop). MODE is saved with the project; older projects load NORM. The page's graph draws the
   echoes after a hit (L and R in PING); REVERB's draws its tail and its decay time (RT).
+- **Chorus.** One chorus for every track's CHOR send: GLO > CHORUS (7/7, after REVERB): RATE and DEPTH. Its graph
+  draws the chorus' sweep over 4 s: how fast (RATE) and how far (DEPTH, its delay's range in ms) it moves.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
-- **Metronome.** GLOBAL 3/6 METRO: a click on every quarter note while playing, the bar's first higher.
+- **Metronome.** GLOBAL 3/7 METRO: a click on every quarter note while playing, the bar's first higher.
 - **Key backlight.** MENU BACKLIGHT DIM LO / DIM HI: the keys and buttons glow dimly while unlit, the steps 1, 5, 9
   and 13 a little brighter; INV turns the LEDs around. OCT- / OCT+ breathe when pressing them would do something.
 - **MIDI LEARN.** Up to 32 controls of any controller: a CC moves one knob of one track, a CC or a note presses PLAY,
@@ -96,11 +98,11 @@ firmware ([below](#back-to-the-official-firmware)).
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
 | **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3: PROB / RATCH / ACCENT (right on, left off); hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
-| **FX** | FILTER, FX (the sends), INSERT (and SRR), SLICER, RESON and chorus; hold it for PERFORM |
+| **FX** | FILTER, FX (the sends), INSERT (and SRR), SLICER and RESON; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
 | **REC** | on TRACKS: arms / disarms the selected track for recording (`T3 REC ARMED` / `T3 REC OFF`; during REC ALL: REC ALL ends, the selected track armed). On every other screen: REC ALL on / off (every track armed, each white key records its own track; off: the arm state from before back). It never starts play: PLAY does. On STEP with KEYS on and stopped: step record. Held on a SEQ page: CLEAR TRACK; on SONG: DELETE ROW / CLEAR SONG |
-| **GLO** | a tap: global and system settings, then the delay and the reverb; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
+| **GLO** | a tap: global and system settings, then the delay, the reverb and the chorus; held: the MUTE screen ([mutes](#mutes); G4: [MIDI LEARN](#midi-learn)) |
 | **SAVE** | tap (on the release): projects (save, load, name) and tools; held: the cue map (live cue) |
 | **SCL** (labelled SEL in the web simulator) | KEYS: the keys play the selected track; OCT- / OCT+ set the octave (-2 to +2); on STEP, stopped, REC starts step record |
 | **ENV** | STEPS / TRACKS (and [parameter locks](#parameter-locks)) (a tap, on its release; its LED lit and a padlock in the top bar, left of the battery, in STEPS). **STEPS**: the white keys are the selected track's steps on every page (HOME, EDIT, FX, LFO, COMP, TRACKS armed ...), tapped and held as on SEQ; hold ENV and press OCT+ / OCT- for the next / previous bank; OCT+ held + a step: its accent; OCT+ alone and OCT- keep their page's job (LAYER, back to SOUND, the LFO's RATE MODE). Finger drumming needs TRACKS (ENV off: the keys as before). ENV turns KEYS off, SCL turns STEPS off. Off at power-on |
@@ -114,7 +116,7 @@ bank's first step and the top bar shows `STEP REC nn`. KNOB 1 to 4 are STEP, NOT
 (- / ACC / SLD / A+S); EDIT writes a rest. A REC tap, PLAY or leaving the page ends it.
 
 ALGORITHM picks the track anywhere. SELECT turns the pages of a section and moves the menu's cursor; on HOME's
-TRACKS mode it sets the tempo instead (`CLK USB` / `CLK TRS` when following a clock; GLOBAL 1/6 KNOB 1 sets it on any
+TRACKS mode it sets the tempo instead (`CLK USB` / `CLK TRS` when following a clock; GLOBAL 1/7 KNOB 1 sets it on any
 page). KNOB 1 to 4 edit what the screen shows. PRESETS loads the next / previous preset onto the selected track at
 each detent (a popup shows the bank and the presets around it); EDIT held opens the PRESETS list (LOAD, SAVE into the
 USER bank, DELETE). The SOUND pages show the track's preset, with `*` once a SOUND knob moved.
@@ -124,7 +126,7 @@ USER bank, DELETE). The SOUND pages show the track's preset, with `*` once a SOU
 Hold GLO: the **MUTE screen**, up while GLO is held (a quick GLO tap opens GLOBAL instead; a key pressed while GLO
 is down opens the screen at once). The eight tracks are boxes, **filled = heard, outline = muted**, each with its
 number and model, and under it the key that toggles it (F3 to F4, the white keys; their LEDs lit for the heard
-tracks). The top C# sets `MUTE: NOW`, the top D# `MUTE: NEXT BAR` (the same setting as GLOBAL 3/6 MUTE): with NEXT
+tracks). The top C# sets `MUTE: NOW`, the top D# `MUTE: NEXT BAR` (the same setting as GLOBAL 3/7 MUTE): with NEXT
 BAR, a mute made while playing blinks, then lands on the next downbeat. G4 (the next white key up) turns
 [MIDI LEARN](#midi-learn) on and off. While the screen is up the keys play nothing and the knobs and the other
 buttons rest, PLAY aside. Let go of GLO: back to the page you were on.
@@ -289,7 +291,7 @@ MOTION (recorded events) and LOCKS counts.
 
 ### Metronome
 
-GLOBAL 3/6 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every
+GLOBAL 3/7 **METRO**: OFF, LOW, MID, HIGH. While playing, on the FM-1's own clock or following one, a click on every
 quarter note, higher on the bar's first. It comes after the PERFORM effects (they leave it alone) and follows the
 MASTER volume, on the speaker, the headphones and USB audio. A device setting: saved, not part of projects.
 
@@ -330,8 +332,8 @@ set. A safe start keeps every LED dark, as before.
 
 ### MIDI
 
-GLO's pages hold the MIDI settings: GLOBAL 1/6 **CH** (the drum channel, 10 by default) and **CLK**, SYSTEM 2/6
-**SYNC** and **ROUT**, GLOBAL 3/6 **THRU**. SYNC and ROUT are saved with the project (a project saved before them
+GLO's pages hold the MIDI settings: GLOBAL 1/7 **CH** (the drum channel, 10 by default) and **CLK**, SYSTEM 2/7
+**SYNC** and **ROUT**, GLOBAL 3/7 **THRU**. SYNC and ROUT are saved with the project (a project saved before them
 loads SYNC OFF, ROUT NOTE); THRU is a setting of the FM-1 itself, kept over power-off (OFF until you turn it on).
 
 **ROUT: how MIDI notes in play the tracks** (from USB, the TRS jack and, in MIDI mode, Bluetooth):

@@ -4298,7 +4298,7 @@ static void test_key_selects_track(void)
     static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
         {"SOUND", B_EDIT, 1, 1},
         {"FILTER", B_FX, 1, 1}, {"FX", B_FX, 3, 1}, {"INSERT", B_FX, 4, 1}, {"SLICER", B_FX, 6, 1}, {"RESON", B_FX, 7, 1},
-        {"DLY", B_GLO, 4, 0},
+        {"DLY", B_GLO, 4, 0}, {"CHORUS", B_GLO, 7, 0},
         {"PATTERN", B_SEQ, 2, 0},
     };
     uint32_t i, ok = 1;
@@ -4379,25 +4379,30 @@ static void glo_open(const char *title)             /* GLO until the page shows 
         ui_frame();
     }
 }
-/* the delay's and the reverb's pages are GLO's, after its own (GLOBAL, SYSTEM, GLOBAL 3/3); FX keeps the per-track
- * pages and CHORUS */
+/* the delay's, the reverb's and the chorus' pages are GLO's, after its own (GLOBAL, SYSTEM, GLOBAL 3/7); FX keeps
+ * the per-track pages */
 static void test_bus_pages_on_glo(void)
 {
     uint32_t k, seen = 0;
-    static const char *const WANT[] = {"GLOBAL", "SYSTEM", "GLOBAL", "DLY", "DLY", "REVERB"};
+    static const char *const WANT[] = {"GLOBAL", "SYSTEM", "GLOBAL", "DLY", "DLY", "REVERB", "CHORUS", "GLOBAL"};
     ui_host_init();
     glo_open("GLOBAL");
-    for (k = 0; k < 6u; k++) {
+    for (k = 0; k < 8u; k++) {
         seen += str_eq(cur_page()->title, WANT[k]) && cur_page()->fam == FAM_GLO;
         press(B_GLO);
         ui_frame();
         release_all();
         ui_frame();
     }
-    check("GLO: GLOBAL, SYSTEM, GLOBAL 3/3, then DLY 1/2, DLY 2/2, REVERB", seen == 6u);
+    check("GLO: GLOBAL, SYSTEM, GLOBAL 3/7, then DLY 4/7, DLY 5/7, REVERB 6/7, CHORUS 7/7, then round to GLOBAL",
+          seen == 8u);
     for (k = 0, seen = 0; k < NPAGES; k++)
-        seen += PAGES[k].fam == FAM_FX && (str_eq(PAGES[k].title, "DLY") || str_eq(PAGES[k].title, "REVERB"));
-    check("FX: no DLY or REVERB page any more (CHORUS stays)", seen == 0u);
+        seen += PAGES[k].fam == FAM_FX && (str_eq(PAGES[k].title, "DLY") || str_eq(PAGES[k].title, "REVERB") ||
+                                           str_eq(PAGES[k].title, "CHORUS"));
+    check("FX: no DLY, REVERB or CHORUS page any more", seen == 0u);
+    for (k = 0, seen = 0; k < NPAGES; k++)
+        seen += PAGES[k].fam == FAM_GLO;
+    check("GLO: 7 pages", seen == 7u);
 }
 /* GLO > DLY / REVERB: their graphs (the echo train; the tail), redrawn when their values change; screens for the user */
 static uint32_t graph_ink(void)                      /* ink pixels in the graph's area (the frame's edges aside) */
@@ -4407,6 +4412,15 @@ static uint32_t graph_ink(void)                      /* ink pixels in the graph'
         for (x = 2; x < 238u; x++)
             n += fb[y * 240u + x] == C_INK;
     return n;
+}
+static uint32_t graph_top(void)                      /* the highest ink row right of the text (x 101 .. 234) */
+{
+    uint32_t x, y;
+    for (y = Y_GRAPH + 2u; y < Y_GRAPH + H_GRAPH - 2u; y++)
+        for (x = 101; x < 235u; x++)
+            if (fb[y * 240u + x] == C_INK)
+                return y;
+    return Y_GRAPH + H_GRAPH;
 }
 static void test_bus_graphs(void)
 {
@@ -4447,6 +4461,22 @@ static void test_bus_graphs(void)
     ui_frame();
     snap_page("glo_reverb_graph_spring");
     song.g[G_RTYPE] = 0;
+    glo_open("CHORUS");
+    song.g[G_CRATE] = 40;
+    song.g[G_CDEPTH] = 100;
+    ui_frame();
+    a = graph_ink();
+    b2 = graph_top();
+    check("GLO > CHORUS: a sweep graph", cur_page()->graph == GR_CHO && a > 300u);
+    snap_page("glo_chorus_graph");
+    song.g[G_CDEPTH] = 10;
+    ui_frame();
+    check("CHORUS graph: less DEPTH, a shallower sweep (redrawn on the change)", graph_top() > b2 + 30u);
+    song.g[G_CDEPTH] = 100;
+    song.g[G_CRATE] = 100;
+    ui_frame();
+    check("CHORUS graph: another RATE redraws", graph_ink() != a);
+    snap_page("glo_chorus_graph_fast");
 }
 static void test_reverb_pages(void)
 {
@@ -4460,10 +4490,11 @@ static void test_reverb_pages(void)
     check("REVERB: the TYPE names fit the 5-character value (ROOM, SPRNG)",
           strlen(N_RTYPE[0]) <= 5u && strlen(N_RTYPE[1]) <= 5u && str_eq(N_RTYPE[1], "SPRNG"));
     snap_page("glo_reverb_spring");
-    fx_open("CHORUS");
-    check("FX reaches CHORUS: RATE DEPTH", str_eq(cur_page()->title, "CHORUS") && cur_page()->id[0] == G_CRATE &&
-          cur_page()->id[1] == G_CDEPTH && cur_page()->id[2] == 0xFF && cur_page()->id[3] == 0xFF);
-    snap_page("fx_chorus");
+    glo_open("CHORUS");
+    check("GLO reaches CHORUS: RATE DEPTH", str_eq(cur_page()->title, "CHORUS") && cur_page()->fam == FAM_GLO &&
+          cur_page()->id[0] == G_CRATE && cur_page()->id[1] == G_CDEPTH && cur_page()->id[2] == 0xFF &&
+          cur_page()->id[3] == 0xFF);
+    snap_page("glo_chorus");
 }
 
 /* the delay's MODE: DLY's second page (after TIME FDBK COLR MIX), KNOB 1 NORM / PING; screens for the user (TIME

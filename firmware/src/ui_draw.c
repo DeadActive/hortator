@@ -1770,6 +1770,42 @@ static void graph_reverb(void)
     }
 }
 
+/* GLO > CHORUS: the RATE large and the delay's swing in ms under it; at the right the chorus' modulated delay over 4 s
+ * (a tick a second): the sine fx.c cho_tick sweeps, from its shortest (the dotted line, DEPTH 0) up by DEPTH, 0 ..
+ * 30 ms tall; past ~8 Hz (over 34 cycles in 136 px) the band it fills, dithered */
+static void graph_chorus(void)
+{
+    uint32_t r = (uint32_t)song.g[G_CRATE] & 127u, hz = LFO_HZ_X100[r], x;
+    int32_t lo = 400, hi = 400 + song.g[G_CDEPTH] * 6, py = 0;   /* (cho_tick: 400 + up to cdepth samples) */
+    int32_t ylo = 88 - lo * 80 / 1323, yhi = 88 - hi * 80 / 1323;   /* (30 ms = 1323 samples over 80 px) */
+    char b[16];
+    const char *u;
+    param_format(&GP[G_CRATE], song.g[G_CRATE], b, &u);
+    x = (uint32_t)md_text(4, 4, &MD_F3, 4, b, C_INK);
+    md_text((int32_t)x + 4, 30, &MD_F3, 2, "HZ", C_INK);
+    fmt_int(b, lo * 1000 / FS);
+    str_cpy(b + str_len(b), "-", sizeof b - str_len(b));
+    fmt_int(b + str_len(b), hi * 1000 / FS);
+    str_cpy(b + str_len(b), " MS", sizeof b - str_len(b));
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, ylo, C_INK);
+    cv_rect(100, 88, 136, 1, C_INK);
+    for (x = 0; x <= 4u; x++)
+        cv_rect(100 + (int32_t)x * 34, 86, 1, 5, C_INK);
+    if (hz > 850u) {                                         /* too fast to draw: the band it sweeps */
+        cv_dither(100, yhi, 136, ylo - yhi + 1, C_INK);
+        cv_rect(100, yhi, 136, 1, C_INK);
+        return;
+    }
+    for (x = 0; x < 136u; x++) {                             /* phase: x / 34 s at hz / 100, 2^32 a cycle */
+        uint32_t ph = x * hz * 1263226u;                     /* (2^32 / 3400, wrapping) */
+        int32_t y = ylo - (((osc_sine(ph - 0x40000000u) + 32768) * (ylo - yhi)) >> 16);
+        if (x)
+            cv_line(99 + (int32_t)x, py, 100 + (int32_t)x, y, C_INK);
+        py = y;
+    }
+}
+
 /* INSERT 1/2 and 2/2 (insert.c): the TYPE in large, MIX and SRR under it; at the right a sine's cycle as the track's
  * chain bends it (SRR's steps, then the drive's / CRUSH's curve at MIX, after Skiff's graph_insert), or for the swept
  * ones their sweep over two cycles (PHASR and FLANG a triangle, FLANG's squared, CHOR a sine, as deep as DEPTH). Both
@@ -1835,6 +1871,8 @@ static uint32_t graph_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)song.g[G_SLOT] * 13u;
+    if (pg->graph == GR_CHO)                           /* the chorus' globals */
+        h = (h ^ (uint32_t)song.g[G_CRATE] * 23u ^ (uint32_t)song.g[G_CDEPTH] * 7919u) * 16777619u;
     if (pg->graph == GR_DLY || pg->graph == GR_REV)    /* the buses' globals (and the tempo: TIME in ms) */
         for (i = G_DTIME; i <= G_DMIX; i++)
             h = (h ^ (uint32_t)song.g[i] + (uint32_t)song.g[G_DMODE] * 7u + (uint32_t)song.g[G_RTYPE] * 11u +
@@ -2267,6 +2305,9 @@ static uint32_t graph_paint(int whole)
         break;
     case GR_REV:
         graph_reverb();
+        break;
+    case GR_CHO:
+        graph_chorus();
         break;
     case GR_SLOTS:
         cv_oy = 0;

@@ -5,17 +5,19 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
-- **Delay and reverb graphs** on their GLO pages. DLY draws the echoes after a hit: their spacing, how fast FDBK lets
-  them fade, COLR dulling the later ones, and in PING-PONG the echoes left and right in turn, with TIME's length in
-  milliseconds. REVERB draws the tail over 4 seconds and its decay time (RT), with DAMP's faster-fading top end and
-  the spring's drips.
+- **Delay, reverb and chorus graphs** on their GLO pages. DLY draws the echoes after a hit: their spacing, how fast
+  FDBK lets them fade, COLR dulling the later ones, and in PING-PONG the echoes left and right in turn, with TIME's
+  length in milliseconds. REVERB draws the tail over 4 seconds and its decay time (RT), with DAMP's faster-fading top
+  end and the spring's drips. CHORUS draws its sweep over 4 seconds, as fast as RATE and as deep as DEPTH, with the
+  range of its delay in milliseconds.
 - **Solo on the MUTE screen**: hold GLO and press a black key F#3 to A#4 to solo track 1 to 8 (several at once; the
   soloed keys lit). The other tracks' boxes are half filled, a soloed one shows an S. The top black key F#5 switches
   solo between TGL (a tap on, a tap off) and MOM (soloed only while the key is held); the choice is kept over
   power-off.
-- **The delay's and the reverb's settings moved to GLO**: DLY (TIME, FDBK, COLR, MIX, and MODE on its second page)
-  and REVERB (TYPE, SIZE, DAMP) are now GLO's pages 4–6, after GLOBAL, SYSTEM and GLOBAL; FX keeps the track's own
-  pages and CHORUS. GLO's first three pages are now numbered 1/6 to 3/6. The send knobs (DLY, REV) stay on the FX page.
+- **The delay's, the reverb's and the chorus' settings moved to GLO**: DLY (TIME, FDBK, COLR, MIX, and MODE on its
+  second page), REVERB (TYPE, SIZE, DAMP) and CHORUS (RATE, DEPTH) are now GLO's pages 4–7, after GLOBAL, SYSTEM and
+  GLOBAL; FX keeps the track's own pages. GLO's first three pages are now numbered 1/7 to 3/7. The send knobs (CHOR,
+  DLY, REV) stay on the FX page.
 - **USB AUDIO 10 CH: the tracks come first.** In 10 CH MIX and 10 CH FX, channels 1-8 now carry the tracks T1..T8 and
   channels 9-10 the stereo pair (the master in MIX, the send effects in FX); before, the pair came first. Hosts that
   show channel names list T1..T8, Main L, Main R. If a DAW or AUM had inputs set up for the old order, pick them

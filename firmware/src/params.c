@@ -158,7 +158,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_DMODE] = PE("MODE", N_DMODE, 0),
 };
 
-/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/6's MUTE, METRO and THRU (G_MUTEBAR, G_METRO,
+/* after G_COUNT: the TOOLS actions (G_CLRALL, G_INITALL) and GLOBAL 3/7's MUTE, METRO and THRU (G_MUTEBAR, G_METRO,
  * G_THRU: the device settings settings.mutebar, fx_metro, midi_thru); their knob values are song.act, not song.g /
  * projects */
 static const char *const N_MUTEBAR[] = {"NOW", "BAR"};

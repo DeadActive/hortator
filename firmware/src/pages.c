@@ -6,7 +6,7 @@
 enum { FAM_HOME, FAM_SND, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS, FAM_LFO, FAM_MIX, FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX };   /* knobs edit: the selected track, song.g, the STEP grid, the mixer */
 enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS, GR_COMP, GR_LFO, GR_RESON, GR_MOTION, GR_SONG, GR_FILTER,
-       GR_LDEST, GR_INSERT, GR_DLY, GR_REV };
+       GR_LDEST, GR_INSERT, GR_DLY, GR_REV, GR_CHO };
 
 #define SND_SLOT 0xC0u                            /* EDIT page ids: SND_SLOT + n = the track's n-th sound knob */
 
@@ -32,7 +32,6 @@ static const page_t PAGES[] = {
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},
     {"RESON", FAM_FX, SC_TRACK, GR_RESON, {P_RMODEL, P_RTUNE, P_RDECAY, P_RMIX}},
     {"RESON", FAM_FX, SC_TRACK, GR_RESON, {P_RTONE, P_RSTRCT, P_RPOS, P_RKEY}},   /* STRCT: CHORD on CHORD; KEYF */
-    {"CHORUS", FAM_FX, SC_GLOBAL, GR_NONE, {G_CRATE, G_CDEPTH, 0xFF, 0xFF}},
     {"COMP", FAM_HOME, SC_GLOBAL, GR_COMP, {G_CSRC, G_CTHR, G_CRAT, G_CREL}},   /* HOME 2/3; keys: DUCK per track */
     {"COMP", FAM_HOME, SC_GLOBAL, GR_COMP, {G_CATK, G_CKNEE, G_CMKUP, G_CGHOST}},   /* HOME 3/3 */
     {"STEP", FAM_SEQ, SC_GRID, GR_GRID, {0xFF, 0xFF, 0xFF, 0xFF}},   /* KNOB 1: bank */
@@ -46,7 +45,8 @@ static const page_t PAGES[] = {
     {"DLY", FAM_GLO, SC_GLOBAL, GR_DLY, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},   /* the send effects' buses: after GLO's
                                                                                 * own pages */
     {"DLY", FAM_GLO, SC_GLOBAL, GR_DLY, {G_DMODE, 0xFF, 0xFF, 0xFF}},   /* MODE: NORMAL / PING-PONG */
-    {"REVERB", FAM_GLO, SC_GLOBAL, GR_REV, {G_RTYPE, G_RSIZE, G_RDAMP, 0xFF}},   /* TYPE: ROOM / SPRING */
+    {"REVERB", FAM_GLO, SC_GLOBAL, GR_REV, {G_RTYPE, G_RSIZE, G_RDAMP, 0xFF}},   /* TYPE: ROOM / SPRING / HALL */
+    {"CHORUS", FAM_GLO, SC_GLOBAL, GR_CHO, {G_CRATE, G_CDEPTH, 0xFF, 0xFF}},   /* GLO 7/7: RATE DEPTH */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_NAME, G_LOAD, G_SAVE}},   /* NAME: rename (ui_name.c) */
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_CLRALL, G_INITALL}},   /* track; all */
     {"COPY", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_COPY, G_PASTE, 0xFF}},   /* a slot's COPY / PASTE (project.c) */
