@@ -916,3 +916,23 @@ The screens: `build/ui_shots/insert/` (each TYPE, and `mix_srr.png`).
 - SAVE / power cycle / LOAD: the INSERT and SRR come back; a project saved with 0.26.0 loads with both off.
 - CPU: the INSERT (FLANG or CHOR) on all 8 tracks plus SRR on all 8, a dense pattern: GLOBAL -> SYSTEM CPU (note the %
   you see), no crackle. Bluetooth version too.
+
+### GLO CHORUS, HALL reverb (check on the FM-1)
+
+The screens: `build/ui_shots/glo_chorus.png`, `glo_chorus_graph.png`, `glo_chorus_graph_fast.png`,
+`glo_reverb_hall.png`, `glo_reverb_graph_hall.png`. The sound: `build/drum_renders/rev_hall.wav` (stereo, on
+headphones: 2 bars each ROOM, SPRNG, then HALL at SIZE 0 / 64 / 90 / 127, and 127 with DAMP 0).
+
+- GLO steps GLOBAL 1/7, SYSTEM 2/7, GLOBAL 3/7, DLY 4/7, DLY 5/7, REVERB 6/7, CHORUS 7/7 and round again. FX has no
+  CHORUS page any more (FILTER .. RESON). On CHORUS a white key plays its drum, the selection stays.
+- CHORUS: RATE and DEPTH as before; the graph's wave runs faster with RATE (a filled band past about 8 Hz) and taller
+  with DEPTH, the delay's range in ms under the rate.
+- REVERB TYPE: ROOM, SPRNG, HALL (KNOB 1 stops at HALL). A snare with REV up, on headphones: HALL's tail is smooth
+  and wide (left and right differ), longer with SIZE, darker with DAMP; ROOM and SPRNG sound as before (centred).
+  The graph shows HALL's tail and its RT.
+- Switching TYPE while a tail rings (ROOM, SPRNG, HALL, either way): no click; the new reverb starts quiet.
+- HALL with the send stopped: the tail ends in silence, no hiss or hum left at high volume.
+- SAVE with HALL, power cycle, LOAD: HALL comes back; a project saved before loads with its ROOM or SPRNG.
+- USB AUDIO 10 CH FX: with HALL, channels 9 and 10 carry its left and right (they differ).
+- CPU: HALL on a busy pattern with every send up: GLOBAL -> SYSTEM CPU about as with ROOM, no crackle. Bluetooth
+  version too.

@@ -13,6 +13,8 @@ cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined 
 "$OUT/sound_pack_test"
 cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/delay_test" tests/delay_test.c -lm   # (the delay: TIME, PING-PONG; UBSan)
 "$OUT/delay_test"
+cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/reverb_test" tests/reverb_test.c -lm   # (the reverb's HALL; UBSan)
+"$OUT/reverb_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
 "$OUT/usb_audio_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/usbmode_test" tests/usbmode_test.c tests/usb8_ref.c -lm   # (MENU > USB AUDIO: the reconnect)

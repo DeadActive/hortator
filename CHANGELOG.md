@@ -5,6 +5,11 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **HALL reverb**: GLO > REVERB TYPE has a third value, HALL: a smooth, dense reverb in stereo (from Skiff), its tail
+  wide on headphones and fading to exact silence. SIZE sets its length (from about half a second up to several
+  seconds), DAMP how soon its top end fades. Switching between ROOM, SPRNG and HALL fades the old tail out without a
+  click. On USB AUDIO 10 CH FX its left and right come out on channels 9 and 10. TYPE is saved with the project;
+  projects saved before keep their ROOM or SPRNG and sound as before.
 - **Delay, reverb and chorus graphs** on their GLO pages. DLY draws the echoes after a hit: their spacing, how fast
   FDBK lets them fade, COLR dulling the later ones, and in PING-PONG the echoes left and right in turn, with TIME's
   length in milliseconds. REVERB draws the tail over 4 seconds and its decay time (RT), with DAMP's faster-fading top

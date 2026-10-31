@@ -4424,7 +4424,7 @@ static uint32_t graph_top(void)                      /* the highest ink row righ
 }
 static void test_bus_graphs(void)
 {
-    uint32_t a, b2;
+    uint32_t a, b2, k;
     ui_host_init();
     song.g[G_DTIME] = 12;                            /* 1/8D */
     song.g[G_DFDBK] = 80;
@@ -4461,6 +4461,22 @@ static void test_bus_graphs(void)
     ui_frame();
     snap_page("glo_reverb_graph_spring");
     song.g[G_RTYPE] = 0;
+    song.g[G_RSIZE] = 90;
+    song.g[G_RDAMP] = 30;
+    ui_frame();
+    a = graph_ink();
+    song.g[G_RTYPE] = 1;
+    ui_frame();
+    k = graph_ink();
+    song.g[G_RTYPE] = 2;
+    ui_frame();
+    b2 = graph_ink();
+    check("REVERB graph: HALL draws its own tail (longer than ROOM's at SIZE 90, not SPRING's)", b2 > a + 100u && b2 != k);
+    snap_page("glo_reverb_graph_hall");
+    song.g[G_RSIZE] = 10;
+    ui_frame();
+    check("REVERB graph: HALL, a smaller SIZE, a shorter tail", graph_ink() + 100u < b2);
+    song.g[G_RTYPE] = 0;
     glo_open("CHORUS");
     song.g[G_CRATE] = 40;
     song.g[G_CDEPTH] = 100;
@@ -4487,9 +4503,19 @@ static void test_reverb_pages(void)
     turn(EN_K1, 1);
     ui_frame();
     check("REVERB: KNOB 1 turns TYPE to SPRING", song.g[G_RTYPE] == 1);
-    check("REVERB: the TYPE names fit the 5-character value (ROOM, SPRNG)",
-          strlen(N_RTYPE[0]) <= 5u && strlen(N_RTYPE[1]) <= 5u && str_eq(N_RTYPE[1], "SPRNG"));
+    check("REVERB: the TYPE names fit the 5-character value (ROOM, SPRNG, HALL)",
+          strlen(N_RTYPE[0]) <= 5u && strlen(N_RTYPE[1]) <= 5u && str_eq(N_RTYPE[1], "SPRNG") &&
+          strlen(N_RTYPE[2]) <= 5u && str_eq(N_RTYPE[2], "HALL"));
     snap_page("glo_reverb_spring");
+    turn(EN_K1, 1);
+    ui_frame();
+    check("REVERB: KNOB 1 on to HALL (TYPE's third value)", song.g[G_RTYPE] == 2);
+    turn(EN_K1, 1);
+    ui_frame();
+    check("REVERB: TYPE stops at HALL", song.g[G_RTYPE] == 2);
+    snap_page("glo_reverb_hall");
+    turn(EN_K1, -2);
+    ui_frame();
     glo_open("CHORUS");
     check("GLO reaches CHORUS: RATE DEPTH", str_eq(cur_page()->title, "CHORUS") && cur_page()->fam == FAM_GLO &&
           cur_page()->id[0] == G_CRATE && cur_page()->id[1] == G_CDEPTH && cur_page()->id[2] == 0xFF &&

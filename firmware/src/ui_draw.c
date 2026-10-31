@@ -1720,8 +1720,8 @@ static void graph_delay(void)
 
 /* GLO > REVERB: the TYPE large and its decay time (RT: to -60 dB) under it; at the right the tail over 4 s (a tick a
  * second) in dB, 60 dB tall: the line is the whole sound's decay (ROOM: the combs' loop gain from SIZE over their mean
- * length; SPRNG: the spring's, with its drips at every round trip), the solid under it its top end, which DAMP makes
- * fade sooner. The loop's gain g over L samples: -60 dB after 6.9 L / -ln g samples, -ln g = d + d^2 / 2, d = 1 - g */
+ * length; SPRNG: the spring's, with its drips at every round trip; HALL: its lines' gain (fx.c hall_gain) over their
+ * mean length, at half the rate), the solid under it its top end, which DAMP makes fade sooner. The loop's gain g over L samples: -60 dB after 6.9 L / -ln g samples, -ln g = d + d^2 / 2, d = 1 - g */
 static int32_t rev_t60(int32_t g, int32_t len)           /* g Q15, len samples -> samples to -60 dB */
 {
     int32_t d = 32768 - g, q = d + ((d * d) >> 16);         /* -ln g, Q15 */
@@ -1729,12 +1729,15 @@ static int32_t rev_t60(int32_t g, int32_t len)           /* g Q15, len samples -
 }
 static void graph_reverb(void)
 {
-    uint32_t spring = song.g[G_RTYPE] != 0, s = (uint32_t)song.g[G_RSIZE], x, drip;
+    uint32_t ty = (uint32_t)clamp(song.g[G_RTYPE], 0, 2), spring = ty == 1u, s = (uint32_t)song.g[G_RSIZE], x, drip;
     int32_t damp = song.g[G_RDAMP], g, len, t60, tb, px, pb, py = 0;
     char b[16];
     if (spring) {
         g = 19661 + (int32_t)s * 85;
         len = 1323 + (int32_t)((s * 1323u) >> 7);
+    } else if (ty == 2u) {                                   /* HALL: a line of the mean length (609 at 22.05 kHz) */
+        g = (int32_t)hall_gain(609u, exp2_neg(s * 65536u / 30u));
+        len = 2 * 609;
     } else {
         g = 25000 + (int32_t)s * 50;
         len = (1116 + 1188 + 1277 + 1356) / 4;
@@ -1744,7 +1747,7 @@ static void graph_reverb(void)
     px = t60 / 1297 > 1 ? t60 / 1297 : 1;                    /* (4 s = 176400 samples over 136 px) */
     pb = tb / 1297 > 1 ? tb / 1297 : 1;
     drip = (uint32_t)(len / 1297 + 1);
-    md_text(4, 4, &MD_F3, 4, N_RTYPE[spring], C_INK);
+    md_text(4, 4, &MD_F3, 4, N_RTYPE[ty], C_INK);
     str_cpy(b, "RT ", sizeof b);
     fmt_int(b + 3, t60 / 44100);
     x = str_len(b);

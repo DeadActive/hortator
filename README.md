@@ -51,8 +51,8 @@ firmware ([below](#back-to-the-official-firmware)).
 - **Compressor.** The Streams compressor keyed by any track, for ducking and pumping; GHOST keeps the pump with the
   key track muted.
 - **Movement.** Two LFOs per track, ten waves with a morph between them, synced to the tempo.
-- **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM or SPRING reverb
-  and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker. RESON is tuned in semitones (TUNE);
+- **Effects.** DIST, the SLICER and RESON (string, pipe or chord resonator) per track; delay, ROOM, SPRING or stereo
+  HALL reverb and chorus sends; a master limiter; SPEAKER EQ with BASS+ for the small speaker. RESON is tuned in semitones (TUNE);
   its **KEYF** (KEYFOLLOW, RESON 2/2 KNOB 4, 0 % = off) makes the ring follow the note of each hit from C4: at 100 % a
   step at C5 (or a KEYS note, a ratchet's note) rings an octave above TUNE, at 50 % half an octave; MIDI notes play
   their track at C4, so they ring at TUNE. A new note under a ringing tail glides to it in a few ms, without a click.
@@ -72,6 +72,11 @@ firmware ([below](#back-to-the-official-firmware)).
   with the same FDBK, COLR and longest time; its echoes are a little softer in the top end. Changing MODE clears the
   delay (the old echoes stop). MODE is saved with the project; older projects load NORM. The page's graph draws the
   echoes after a hit (L and R in PING); REVERB's draws its tail and its decay time (RT).
+- **Reverb.** One reverb for every track's REV send: GLO > REVERB (6/7): **TYPE** ROOM (a small room, mono), SPRNG (a
+  spring tank's chirp and drips, mono) or HALL (Skiff's: smooth and dense, in stereo, the tail fading to exact
+  silence), **SIZE** (the decay: HALL's runs from about half a second to several seconds) and **DAMP** (the top end
+  fading sooner). Changing TYPE fades the old tail out, without a click. TYPE is saved with the project; projects saved
+  before keep ROOM or SPRNG.
 - **Chorus.** One chorus for every track's CHOR send: GLO > CHORUS (7/7, after REVERB): RATE and DEPTH. Its graph
   draws the chorus' sweep over 4 s: how fast (RATE) and how far (DEPTH, its delay's range in ms) it moves.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
@@ -381,7 +386,7 @@ The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI S
   as in 2 CH). The device is **Hortator 8ch**; hosts that read channel names show T1 .. T8, Main L, Main R.
 - **10 CH FX**: the same, but channels 9-10 carry only the **send effects**: what the chorus, delay and reverb return
   (THROW's share too), at the MASTER level. The FM-1's effect buses are mono, so L = R, except the delay in PING,
-  whose echoes go left and right here too. T1 .. T8 panned in the DAW plus this pair make the whole mix, each part on
+  whose echoes go left and right here too, and the HALL reverb, stereo here too. T1 .. T8 panned in the DAW plus this pair make the whole mix, each part on
   its own fader.
 
 What T1 .. T8 + FX cannot give back: the **master chain**, which only channels 9-10 in MIX (and 2 CH) carry: PERFORM's
@@ -640,7 +645,7 @@ If it does not start at all and never reaches boot mode, recovering it needs a
 - [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita ([@kurogedelic](https://github.com/kurogedelic)),
   [Hügelton Instruments](https://hugelton.com): the firmware Hortator is built on, its hardware layer, update
   loader, installer, UI and engines; the per-track INSERT effect is Felucca 1.5's, as ported to Skiff (by
-  DEADACTIVE) and from there to Hortator.
+  DEADACTIVE) and from there to Hortator; the HALL reverb is Skiff's (Felucca's stereo HALL, Skiff 1.3.2).
 - [Grids](https://github.com/pichenettes/eurorack/tree/master/grids) by Emilie Gillet, Mutable Instruments: the GRIDS
   pattern engine is a C port (GPL-3.0-or-later).
 - [Streams](https://github.com/pichenettes/eurorack/tree/master/streams) by Emilie Gillet, Mutable Instruments: the

@@ -269,7 +269,8 @@ static void reson_none_bar(uint32_t b) { (void)b; }
 /* sound pack demos (120 BPM, whole mix). sp_speaker_eq.wav: the 808 kit, 2 bars each FLAT, LOWCUT, BASS+;
  * sp_reverb.wav: a snare on 2 and 4 into the reverb, 2 bars each ROOM, SPRING at SIZE 0 / 64 / 127 (DAMP 60), SPRING
  * SIZE 127 DAMP 0 and DAMP 127; sp_slow_div.wav: a 1/16 kick with a hat on 2BAR (4 bars) then 4BAR (8 bars), the
- * snare's delay at TIME 1/2 */
+ * snare's delay at TIME 1/2; rev_hall.wav: the same snare (stereo, headphones), 2 bars each ROOM and SPRING (SIZE 90
+ * DAMP 60), then HALL at SIZE 0 / 64 / 90 / 127 (DAMP 60) and SIZE 127 DAMP 0 */
 static void sp_kit(void)
 {
     static const char *const PAT[3] = {"X...x...x...x...", "....X.......X...", "x.x.x.x.x.x.x.x."};
@@ -293,6 +294,15 @@ static void sp_rev_bar(uint32_t b)
     song.g[G_RSIZE] = SIZE[s];
     song.g[G_RDAMP] = DAMP[s];
 }
+static void hall_rev_bar(uint32_t b)
+{
+    static const int16_t TYPE[7] = {0, 1, 2, 2, 2, 2, 2}, SIZE[7] = {90, 90, 0, 64, 90, 127, 127};
+    static const int16_t DAMP[7] = {60, 60, 60, 60, 60, 60, 0};
+    uint32_t s = b / 2u < 7u ? b / 2u : 6u;
+    song.g[G_RTYPE] = TYPE[s];
+    song.g[G_RSIZE] = SIZE[s];
+    song.g[G_RDAMP] = DAMP[s];
+}
 static void sp_div_bar(uint32_t b) { trk[2].p[P_SDIV] = b < 4u ? 8 : 9; }
 static void write_sound_pack(const char *dir)
 {
@@ -305,6 +315,7 @@ static void write_sound_pack(const char *dir)
     memset(trk[2].step, 0, sizeof trk[2].step);
     trk[1].p[P_REV] = 110;
     write_demo(dir, "sp_reverb.wav", 12, sp_rev_bar);
+    write_demo(dir, "rev_hall.wav", 14, hall_rev_bar);
     song.g[G_RTYPE] = 0;
     sp_kit();
     trk[1].p[P_DLY] = 90;

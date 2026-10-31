@@ -946,6 +946,19 @@ static int fdr6_converts(void)
     project_load(3);
     return song.g[G_CGHOST] == CG_HIDE && song.g[G_RSIZE] == 33 && song.g[G_RTYPE] == 0 && trk[4].step[7].on;
 }
+/* (Skiff) HALL (TYPE 2) through a save and a load; ROOM / SPRING keep their ids (0 / 1, fdr7_round_trip) */
+static int hall_round_trip(void)
+{
+    memset(hflash, 0xFF, sizeof hflash);
+    host_init();
+    persist_boot();
+    song.g[G_RTYPE] = 2;
+    project_save(1);
+    song.g[G_RTYPE] = 0;
+    memset(proj_slot, 0, sizeof proj_slot);
+    project_load(1);
+    return song.g[G_RTYPE] == 2;
+}
 /* FDR7 keeps TYPE through a save and a load */
 static int fdr7_round_trip(void)
 {
@@ -2624,6 +2637,7 @@ int main(void)
     check("project: an FDR5 record loads with GHOST KEEP", fdr5_converts());
     check("project: an FDR6 record (same size as FDR5) loads with reverb TYPE ROOM", fdr6_converts());
     check("project: the reverb TYPE survives a save and a load", fdr7_round_trip());
+    check("project: TYPE HALL (2) survives a save and a load", hall_round_trip());
     check("project: the delay MODE (PING-PONG) survives a save and a load, in the reserved byte", dmode_round_trip());
     check("project: a record from before the delay MODE loads NORMAL", dmode_old_normal());
     check("project: FDR8 keeps the motion through a save and a load", fdr8_motion_round_trip());
