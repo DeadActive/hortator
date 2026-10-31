@@ -70,9 +70,9 @@ the first 30 s as a failed start, and two in a row send it to the built-in bootl
 ## 5. Hands-on
 For each: what you should see / hear. Note anything different (page, knob, what happened).
 - Every page: SOUND 1/3..3/3 (EDIT: MODEL, the engine's knobs, LVL PAN NOTE CHOKE), LAYER 1/2 and 2/2 (EDIT,
-  then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER, DLY,
-  REVERB, CHORUS, COMP (HOME 2/3 and 3/3: SELECT right on the HOME screen), STEP, PATTERN, GLOBAL 1/3, SYSTEM,
-  GLOBAL 3/3 (MUTE NOW / BAR, METRO), LFO 1/4..3/4 and DEST 4/4,
+  then OCT+; EDIT blinks; EDIT steps, OCT- back), FX, SLICER,
+  CHORUS, COMP (HOME 2/3 and 3/3: SELECT right on the HOME screen), STEP, PATTERN, GLOBAL 1/6, SYSTEM,
+  GLOBAL 3/6 (MUTE NOW / BAR, METRO), DLY 4/6 and 5/6, REVERB 6/6 (GLO, after GLOBAL 3/6), LFO 1/4..3/4 and DEST 4/4,
   PROJECT, TOOLS, TRACKS (HOME's first mode), the MUTE screen (GLO held) — each draws like the screenshots in
   `build/ui_shots/` (the engines' SOUND pages in `build/ui_shots/engines/`, the sequencer in `build/ui_shots/seq/`,
   the new screens in `build/ui_shots/fixes/`).
@@ -133,7 +133,7 @@ Report what you saw first; we'll go through it together.
   quick GLO tap still opens GLOBAL.
 - Mute on the next bar: on the MUTE screen the top D# (POLY): `MUTE: NEXT BAR`; while playing, a mute waits for the
   next bar (its box and key blink) and lands on the downbeat. The top C# (MONO): `MUTE: NOW`. The same setting is
-  GLOBAL 3/3 MUTE NOW / BAR; it survives a power cycle.
+  GLOBAL 3/6 MUTE NOW / BAR; it survives a power cycle.
 - CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
   stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1
@@ -157,7 +157,7 @@ Report what you saw first; we'll go through it together.
 - KEEP: T1 muted (GLO held + F3) is silent and the others pump (as before), GHOST shown.
 - MUTE: T1 muted is silent and nothing pumps (MUTED); unmuted it is heard and pumps (HEARD).
 - HIDE: T1 is never heard, muted or not, and the others pump (GHOST).
-- Turning GHOST while the kick plays: no click. Mute on the next bar (GLOBAL 3/3 MUTE NEXT BAR) in each mode:
+- Turning GHOST while the kick plays: no click. Mute on the next bar (GLOBAL 3/6 MUTE NEXT BAR) in each mode:
   the kick changes on the bar, no click.
 - SAVE / power cycle / LOAD: GHOST comes back; a project saved before (FDR5) loads with KEEP.
 
@@ -199,12 +199,12 @@ Report what you saw first; we'll go through it together.
 
 - MENU (HOME held) > SPEAKER EQ: FLAT, LOWCUT, BASS+ (KNOB 1; OCT+ steps round). On the speaker, BASS+ makes the
   kick's bass audible without the mids getting thinner; the choice survives a power cycle.
-- FX > REVERB: TYPE SPRNG (the spring) on a snare (send on the FX page, REV): the spring's chirp and drip; SIZE and
+- GLO > REVERB: TYPE SPRNG (the spring) on a snare (send on the FX page, REV): the spring's chirp and drip; SIZE and
   DAMP change it; switching TYPE while it rings: no click. FX > CHORUS: RATE and DEPTH as before.
 - PATTERN DIV on a hi-hat track: the knob runs 4BAR 2BAR 1/1 1/2 1/4 … 1/32; at 2BAR / 4BAR the hat plays once per
   2 / 4 bars, in time with a 1/16 kick. DLY TIME at 1/2 and slower: long echoes (the longest cut to 1.49 s).
-- FX > DLY: TIME runs … 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T … 1/32 32T; at 1/8D the snare's echoes fall a dotted eighth
-  apart. FX again: DLY 2/2, MODE PING: on headphones the echoes go left, right, left …; back to NORM: centred again.
+- GLO > DLY: TIME runs … 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T … 1/32 32T; at 1/8D the snare's echoes fall a dotted eighth
+  apart. GLO again: DLY's second page, MODE PING: on headphones the echoes go left, right, left …; back to NORM: centred again.
   Turning MODE while the echoes ring: they stop, no burst. SAVE, LOAD: MODE kept. Listen first:
   build/drum_renders/dly_pingpong.wav (4 bars NORM, 4 bars PING), dly_times.wav (1/4D 1/8D 4T 1/16D 32T).
 - A project saved before this build loads with ROOM and sounds as before. With the heaviest kit and SPRNG, the
@@ -536,7 +536,7 @@ Report what you saw first; we'll go through it together.
 - A remembered slot that cannot load asks `LOAD FAILED: SLOT B` / `START NEW PROJECT?` (hard to cause on purpose;
   the host tests cover it, the screen is `build/ui_shots/fixes/load_failed.png`). OCT- (NO): the power-on kit, and
   the question again at the next power-on; OCT+ (YES): the power-on kit, and the next power-on is plain.
-- METRO (GLOBAL 3/3): LOW / MID / HIGH while playing: a click on each quarter, higher on the bar's first, in time
+- METRO (GLOBAL 3/6): LOW / MID / HIGH while playing: a click on each quarter, higher on the bar's first, in time
   with a 1/4 kick; nothing while stopped; the MASTER knob turns it down with the mix; PERFORM's FILTER / CRUSH /
   REPEAT leave it alone; with CLK USB it follows the DAW's beats. OFF: no click. Survives a power cycle; not in
   projects. Listen first on the computer: `metro_120.wav` (2 bars each LOW, MID, HIGH at 120 BPM).
@@ -670,9 +670,9 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   (Unreleased: a hold never turns a step off, see "Step keys: tap or hold" below); held + KNOB 1 / 2 / 3: PROB /
   RATCH / accent. OCT+ tapped alone (32 steps): bank 2 when let go; OCT+ held while
   accenting: the bank stays. The same on PATTERN, MOTION, SONG and TRACKS (unarmed). Play: accented steps louder.
-- Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page, DLY / REVERB / CHORUS
+- Track keys (item 2): on HOME (the HOME screen), EDIT (SOUND and LAYER pages), FX (every page, CHORUS
   too) and LFO the selected track's white key is lit (track 1: F3, track 2: G3 .. track 8: F4); ALGORITHM moves it, a
-  white key selects its track and its key stays lit (on DLY / REVERB / CHORUS, the global FX pages, a white key only
+  white key selects its track and its key stays lit (on CHORUS, DLY and REVERB, the global FX pages, a white key only
   plays its drum: the selection stays, as before). KEYS on (SCL): no track key, the keyboard as before. COMP: the
   DUCK keys as before; GLOBAL, SAVE, GRIDS: dark.
 - OCT breath (item 5): OCT+ / OCT- fade in and out (~1.1 s, smooth, never a hard blink) where they would act: STEP
@@ -860,7 +860,7 @@ ACC`).
 
 ### MIDI clock out (SYNC), ROUT, THRU (check on the FM-1)
 
-- Old settings: after the update, GLO SYSTEM 2/3 shows SYNC OFF and ROUT NOTE on every project; GLOBAL 3/3 KNOB 3
+- Old settings: after the update, GLO SYSTEM 2/6 shows SYNC OFF and ROUT NOTE on every project; GLOBAL 3/6 KNOB 3
   shows THRU OFF. Notes on the drum channel play as before.
 - SYNC USB into a DAW (Ableton: Preferences > Link/Tempo/MIDI, the Hortator input's Sync on, EXT on; Logic: Project
   Settings > Synchronization > MIDI, sync to MIDI Clock from Hortator): CLK INT, SYNC USB, a 1/16 hat on the FM-1, PLAY.

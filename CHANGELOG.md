@@ -5,6 +5,9 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **The delay's and the reverb's settings moved to GLO**: DLY (TIME, FDBK, COLR, MIX, and MODE on its second page)
+  and REVERB (TYPE, SIZE, DAMP) are now GLO's pages 4–6, after GLOBAL, SYSTEM and GLOBAL; FX keeps the track's own
+  pages and CHORUS. GLO's first three pages are now numbered 1/6 to 3/6. The send knobs (DLY, REV) stay on the FX page.
 - **USB AUDIO 10 CH: the tracks come first.** In 10 CH MIX and 10 CH FX, channels 1-8 now carry the tracks T1..T8 and
   channels 9-10 the stereo pair (the master in MIX, the send effects in FX); before, the pair came first. Hosts that
   show channel names list T1..T8, Main L, Main R. If a DAW or AUM had inputs set up for the old order, pick them
@@ -23,7 +26,7 @@ released yet are listed under Unreleased.
   (triplets). The knob runs by length, the new times between their neighbours: 4BAR 2BAR 1/1 1/2 1/4D 1/4 1/8D 4T
   1/8 1/16D 8T 1/16 16T 1/32 32T. A time longer than the delay holds is cut to its longest, 1.49 s, as before.
   Projects keep their delay times. The steps' DIV is unchanged.
-- **Ping-pong delay**: the new DLY 2/2 page has MODE: NORM (the delay as before) or PING (ping-pong). In PING the
+- **Ping-pong delay**: the delay's new second page has MODE: NORM (the delay as before) or PING (ping-pong). In PING the
   echoes alternate between left and right: the first on the left, the next on the right, and so on, with FDBK and
   COLR working as in NORM and the same longest time, 1.49 s. The ping-pong echoes are a little softer in the top
   end. Changing MODE clears the delay, so no old echoes come back. MODE is saved with each project; projects saved

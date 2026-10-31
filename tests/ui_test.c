@@ -4245,7 +4245,7 @@ static void test_key_selects_track(void)
     static const struct { const char *title; uint32_t btn, presses; int want; } C[] = {
         {"SOUND", B_EDIT, 1, 1},
         {"FILTER", B_FX, 1, 1}, {"FX", B_FX, 3, 1}, {"INSERT", B_FX, 4, 1}, {"SLICER", B_FX, 6, 1}, {"RESON", B_FX, 7, 1},
-        {"DLY", B_FX, 9, 0},
+        {"DLY", B_GLO, 4, 0},
         {"PATTERN", B_SEQ, 2, 0},
     };
     uint32_t i, ok = 1;
@@ -4316,18 +4316,48 @@ static void fx_open(const char *title)              /* FX until the page shows *
         ui_frame();
     }
 }
+static void glo_open(const char *title)             /* GLO until the page shows */
+{
+    uint32_t k;
+    for (k = 0; k < NPAGES && (!str_eq(cur_page()->title, title) || ui.home); k++) {
+        press(B_GLO);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+}
+/* the delay's and the reverb's pages are GLO's, after its own (GLOBAL, SYSTEM, GLOBAL 3/3); FX keeps the per-track
+ * pages and CHORUS */
+static void test_bus_pages_on_glo(void)
+{
+    uint32_t k, seen = 0;
+    static const char *const WANT[] = {"GLOBAL", "SYSTEM", "GLOBAL", "DLY", "DLY", "REVERB"};
+    ui_host_init();
+    glo_open("GLOBAL");
+    for (k = 0; k < 6u; k++) {
+        seen += str_eq(cur_page()->title, WANT[k]) && cur_page()->fam == FAM_GLO;
+        press(B_GLO);
+        ui_frame();
+        release_all();
+        ui_frame();
+    }
+    check("GLO: GLOBAL, SYSTEM, GLOBAL 3/3, then DLY 1/2, DLY 2/2, REVERB", seen == 6u);
+    for (k = 0, seen = 0; k < NPAGES; k++)
+        seen += PAGES[k].fam == FAM_FX && (str_eq(PAGES[k].title, "DLY") || str_eq(PAGES[k].title, "REVERB"));
+    check("FX: no DLY or REVERB page any more (CHORUS stays)", seen == 0u);
+}
 static void test_reverb_pages(void)
 {
     ui_host_init();
-    fx_open("REVERB");
-    check("FX reaches REVERB: TYPE SIZE DAMP", str_eq(cur_page()->title, "REVERB") && cur_page()->id[0] == G_RTYPE &&
+    glo_open("REVERB");
+    check("GLO reaches REVERB: TYPE SIZE DAMP", str_eq(cur_page()->title, "REVERB") && cur_page()->id[0] == G_RTYPE &&
           cur_page()->id[1] == G_RSIZE && cur_page()->id[2] == G_RDAMP && cur_page()->id[3] == 0xFF);
     turn(EN_K1, 1);
     ui_frame();
     check("REVERB: KNOB 1 turns TYPE to SPRING", song.g[G_RTYPE] == 1);
     check("REVERB: the TYPE names fit the 5-character value (ROOM, SPRNG)",
           strlen(N_RTYPE[0]) <= 5u && strlen(N_RTYPE[1]) <= 5u && str_eq(N_RTYPE[1], "SPRNG"));
-    snap_page("fx_reverb_spring");
+    snap_page("glo_reverb_spring");
     fx_open("CHORUS");
     check("FX reaches CHORUS: RATE DEPTH", str_eq(cur_page()->title, "CHORUS") && cur_page()->id[0] == G_CRATE &&
           cur_page()->id[1] == G_CDEPTH && cur_page()->id[2] == 0xFF && cur_page()->id[3] == 0xFF);
@@ -4339,15 +4369,15 @@ static void test_reverb_pages(void)
 static void test_delay_mode_page(void)
 {
     ui_host_init();
-    fx_open("DLY");
-    check("FX reaches DLY: TIME FDBK COLR MIX", str_eq(cur_page()->title, "DLY") && cur_page()->id[0] == G_DTIME);
+    glo_open("DLY");
+    check("GLO reaches DLY: TIME FDBK COLR MIX", str_eq(cur_page()->title, "DLY") && cur_page()->id[0] == G_DTIME);
     song.g[G_DTIME] = 12;                            /* 1/8D */
-    snap_page("fx_delay_time_dotted");
-    press(B_FX);
+    snap_page("glo_delay_time_dotted");
+    press(B_GLO);
     ui_frame();
     release_all();
     ui_frame();
-    check("FX: DLY's second page has MODE (KNOB 1), nothing else", str_eq(cur_page()->title, "DLY") &&
+    check("GLO: DLY's second page has MODE (KNOB 1), nothing else", str_eq(cur_page()->title, "DLY") &&
           cur_page()->id[0] == G_DMODE && cur_page()->id[1] == 0xFF && cur_page()->id[2] == 0xFF &&
           cur_page()->id[3] == 0xFF);
     check("DLY MODE: NORM at power-on", song.g[G_DMODE] == 0);
@@ -4359,9 +4389,9 @@ static void test_delay_mode_page(void)
     check("DLY MODE: (the end)", song.g[G_DMODE] == 1);
     check("DLY MODE: the names fit the value box whole (4 characters: NORM, PING)",
           strlen(N_DMODE[0]) <= 4u && strlen(N_DMODE[1]) <= 4u && str_eq(N_DMODE[1], "PING"));
-    snap_page("fx_delay_mode_pingpong");
-    fx_open("REVERB");
-    check("FX: REVERB after the two DLY pages", str_eq(cur_page()->title, "REVERB"));
+    snap_page("glo_delay_mode_pingpong");
+    glo_open("REVERB");
+    check("GLO: REVERB after the two DLY pages", str_eq(cur_page()->title, "REVERB"));
 }
 
 /* sound pack: division knobs run by length (4BAR .. 1/32), the stored value stays the id; the gauge follows */
@@ -9836,6 +9866,7 @@ int main(void)
     test_project_rejects();
     test_ui_frame_cost();
     test_speaker_eq();
+    test_bus_pages_on_glo();
     test_reverb_pages();
     test_delay_mode_page();
     test_div_order();
