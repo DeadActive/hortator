@@ -1,6 +1,6 @@
 # Web editor for Hortator — design
 
-Date: 2026-10-31. Status: draft for the owner's approval. Credit: DEADACTIVE.
+Date: 2026-10-31. Status: approved by the owner 2026-10-31 (questions answered below). Credit: DEADACTIVE.
 Base: branch `editor` 95b9899 = drum 0.26.0 (4e40f27, released) + fx027 (SRR and INSERT on every track, DLY MODE,
 USB 10 CH order; unreleased). Prior art: upstream Felucca's editor (hugelton/Felucca 5d9694d: `firmware/src/editor.c`,
 `upreset.c`, `web/editor.html`, `web/EDITOR_PROTOCOL.md`; GPL-3.0-only, © Leo Kuroshita / Hügelton Instruments).
@@ -28,7 +28,7 @@ The editor does all of these:
    SAVE + white 1–4 = slots, as of 0.26.0).
 8. **Copy** variations and slots, between slots or from a backup file.
 
-0.26.0 shipped without the editor. The release vehicle is owner question 1.
+0.26.0 shipped without the editor. The editor ships as 0.28.0, after fx027 as 0.27.0 (decision 1 below).
 
 ## Non-goals
 
@@ -239,17 +239,11 @@ source files); 9 any time after 5; 10 last.
 - Clock jitter during large transfers while playing (documented, page warns).
 - Web MIDI availability (no Safari); the published old editor confusing users until replaced.
 
-## Owner questions
+## Owner decisions (2026-10-31)
 
-1. **Release vehicle?** A) fx027 now as 0.27.0, the editor as 0.28.0 (recommended); B) both in 0.27.0; C) editor as
-   0.27.0, fx027 after. Why A: fx027 is finished; the editor touches update-adjacent code and deserves its own
-   release and hardware round.
-2. **User preset names?** A) names live in the page and files; the FM-1 keeps showing "MODEL NN" (recommended);
-   B) the FM-1 stores and shows them (a longer preset record, no extra RAM, but a downgrade to 0.27 or older then
-   shows no user presets until restored); C) no rename in the first release. Why A: no flash-format change in the
-   release that adds the editor; B can follow.
-3. **Editing a variation that is not playing?** A) the FM-1 switches to it (stopped: at once; playing: queued like
-   the cue key), so you always edit what plays (recommended); B) edit it in the background (needs ~2 KB RAM the BLE
-   build lacks); C) other variations read-only. Why A: same model as the device, no RAM.
-4. **The old editor page on the site until the editor ships?** A) remove it from the 0.27.0 site (recommended);
-   B) replace it with a "coming in 0.28" page; C) leave it. Why A: today it is a page that cannot work with Hortator.
+1. **Release:** fx027 ships first as 0.27.0; the editor ships on its own as 0.28.0, with its own hardware round.
+2. **User preset names:** live only in the page and the files. The FM-1 keeps showing "MODEL NN"; no flash-format
+   change in 0.28.0. Storing names on the device can follow later.
+3. **Editing a variation that is not playing:** the FM-1 switches to it (at once when stopped, queued like the cue key
+   when playing), so the page always edits what plays. No extra RAM.
+4. **Upstream Felucca's old editor page:** removed from the site in 0.27.0 (it cannot talk to Hortator).
