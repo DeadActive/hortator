@@ -164,10 +164,10 @@ static void pre_frame(uint32_t now)
     ui.pr.now = now;
     if (!((fm1_in.buttons >> panel.btn[B_EDIT]) & 1u))
         ui.pr.e_st = 0;
-    else if (ui.mute || ui.menu || ui.confirm || name_on() || ui.pr.lst || ui.ml.on)
+    else if (ui.mute || ui.tools || ui.menu || ui.confirm || name_on() || ui.pr.lst || ui.ml.on)
         ui.pr.e_st = 2;                                /* dead until let go (MIDI LEARN: the list would end it) */
     if (ui.pr.pop && (now - ui.pr.pop_t0 >= PP_T(PP_SHOW_MS) || song.sel != ui.pr.pop_trk || ui.pr.lst || ui.menu ||
-                      ui.confirm || name_on() || ui.mute))
+                      ui.confirm || name_on() || ui.mute || ui.tools))
         pp_close();
     if (ui.pr.arm && now - ui.pr.arm_t0 >= PP_T(PP_ARM_MS)) {
         ui.pr.arm = 0;
