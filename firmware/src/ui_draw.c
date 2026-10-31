@@ -192,6 +192,10 @@ static int head_mode(char *b)
 {
     uint32_t ls = lock_view_step();
     b[0] = 0;
+    if (ui.tools) {                                   /* SEQ held: the step tools */
+        str_cpy(b, "STEP TOOLS", 16);
+        return 1;
+    }
     if (ui.cue_map) {                                 /* SAVE held (spec 2026-10-26): CUE A1 (* edited), CUE>B3 queued */
         int32_t ld = proj_loaded();
         if (cue.q_slot || cue.q_var) {
@@ -277,7 +281,7 @@ static void draw_head(void)
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
                    (chain.running ? (chain.row + 1u) * 104729u : 0u) + ui.keys * 7919u +
                    (uint32_t)(song.octave + 2) * 1009u + ui.srec * 3571u + ui.sr_cur * 211u + pfx * 6151u +
-                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u + fill_on * 7907u +
+                   (lock_view_step() + 1u) * 92821u + ui.env * 15485863u + fill_on * 7907u + ui.tools * 1299709u +
                    (ui.cue_map ? (1u + cue.q_slot + cue.q_var * 7u + var_cur * 61u +
                                   (uint32_t)(proj_loaded() + 1) * 503u +
                                   (proj_loaded() >= 0 && slot_dirty((uint32_t)proj_loaded())) * 4099u) * 2654435761u
@@ -3053,6 +3057,10 @@ __attribute__((always_inline)) static inline void ui_draw(void)
     }
     if (ui.mute) {                                    /* GLO held: the MUTE screen */
         draw_mute();
+        return;
+    }
+    if (ui.tools) {                                   /* SEQ held: the TOOLS screen (ui_tools.c) */
+        draw_tools();
         return;
     }
     bank_fix();

@@ -99,6 +99,7 @@ static int track_keys(void)
 
 #include "ui_name.c"                               /* NAME: naming a project */
 #include "ui_learn.c"                              /* MIDI LEARN: GLO + G4, a knob, a CC */
+#include "ui_tools.c"                              /* the step tools: SEQ held, the TOOLS screen */
 
 /* fixes 2026-10-21 item 5 (upstream Felucca's breath, #119): the OCT LEDs, OCT_LIT_* lit, OCT_BR_* breathing (dark ..
  * ~60 % and back, led_dim.c: it would do something if pressed); a way back (NO, CANCEL, BACK) lit; elsewhere dark.
@@ -115,6 +116,8 @@ static uint32_t oct_leds(void)
 {
     if (ui.mute || ui.layer)
         return 0;
+    if (ui.tools)                                       /* TOOLS: the banks there are, either way */
+        return (ui.bank + 1u < bank_count() ? OCT_BR_UP : 0u) | (ui.bank ? OCT_BR_DN : 0u);
     if (name_on())
         return OCT_LIT_DN | OCT_BR_UP;
     if (pl_on())
@@ -228,6 +231,8 @@ static void ui_leds(void)
             led_put(nb, 14u + key, c == CM_BREATHE);
         }
         led_put(nl, panel.btn[B_SAVE], 1);
+    } else if (ui.tools) {                            /* TOOLS screen (SEQ held): ui_tools.c */
+        tools_leds(nl);
     } else if (ui.mute) {                             /* MUTE screen: the tracks' keys lit while audible, blinking
                                                        * while a mute waits for the bar; top C# (NOW) / D# (NEXT BAR) */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
@@ -696,7 +701,7 @@ static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok
 #define FX_DOWN 1u
 #define FX_OPEN 2u
 #define FX_DEAD 4u
-static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute && !pl_on(); }
+static int fx_allowed(void) { return !ui.menu && !ui.confirm && !name_on() && !ui.mute && !ui.tools && !pl_on(); }
 /* fixes 2026-10-21 item 7: PERFORM has KNOB 1..4 (fx_layer reads them; set each pass): the page's loop leaves them
  * alone, so detents that come in after fx_layer's read wait for its next one instead of reaching the page under it.
  * 1 PERFORM's; 2 the pass it stops being (FX let go): the detents read then are still the macros', the page's loop
@@ -771,7 +776,7 @@ static void fx_layer(uint32_t now, int home_tap)
 #define GLO_OPEN 2u
 #define GLO_DEAD 4u
 #define GLO_PLAIN 8u
-static int glo_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on(); }
+static int glo_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on() || ui.tools; }
 static void mute_keys(uint32_t hits)                   /* the keys the ISR gave the MUTE screen */
 {
     uint32_t k;
@@ -811,7 +816,8 @@ static int cue_owns_keys(void);
 static void glo_input(uint32_t now, uint32_t notes)
 {
     uint32_t bit = 1u << panel.btn[B_GLO], *t0 = &ui.glo_t0, hits = 0;
-    if (kb_mute_hit && !cue_owns_keys()) {             /* (SAVE held: the cue map's, cue_input) */
+    if (kb_mute_hit && !cue_owns_keys() && !tools_owns_keys()) {   /* (SAVE held: the cue map's, cue_input; SEQ
+                                                         * held: the TOOLS screen's, tools_input) */
         fm1_irq_off();
         hits = kb_mute_hit;
         kb_mute_hit = 0;
@@ -867,7 +873,7 @@ static void rec_fill(uint32_t now)
         return;
     }
     if (!fill_on && ui.rec_t0 && !(ui.rec_t0 & 2u) && cur_fam() != FAM_SEQ && !ui.menu && !ui.confirm &&
-        !name_on() && !pl_on() && !ui.mute && !ui.ml.on &&
+        !name_on() && !pl_on() && !ui.mute && !ui.tools && !ui.ml.on &&
         now - (ui.rec_t0 & ~3u) >= FILL_HOLD_MS * 1000u * FM1_TICKS_PER_US) {
         fill_on = 1;
         ui.rec_t0 |= 2u;                                /* (no tap on the release) */
@@ -879,7 +885,7 @@ static void rec_fill(uint32_t now)
 #define CUE_OPEN 2u
 #define CUE_DEAD 4u
 #define CUE_PLAIN 8u
-static int cue_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on() || ui.mute; }
+static int cue_dead(void) { return ui.menu || ui.confirm || name_on() || pl_on() || ui.mute || ui.tools; }
 static int cue_owns_keys(void)                         /* SAVE held (GLO not): the keys pressed now are the map's */
 {
     return ((fm1_in.buttons >> panel.btn[B_SAVE]) & 1u) && !((fm1_in.buttons >> panel.btn[B_GLO]) & 1u) &&
@@ -1128,7 +1134,7 @@ static void ocd_poll(uint32_t now)
  * or it was pressed under the menu, NAME, the PRESETS list, the MUTE screen, PERFORM or a dialog */
 static void env_poll(uint32_t now, uint32_t pressed)
 {
-    int busy = ui.menu || name_on() || pl_on() || ui.mute || ui.layer || fx_knobs || ui.confirm;
+    int busy = ui.menu || name_on() || pl_on() || ui.mute || ui.tools || ui.layer || fx_knobs || ui.confirm;
     if ((pressed >> panel.btn[B_ENV]) & 1u)
         ui.env_t0 = ((now | 1u) & ~2u) | (busy ? 2u : 0u);   /* (the clock's own bit 1 cleared: it is the flag) */
     if (ui.env_t0 && !((fm1_in.buttons >> panel.btn[B_ENV]) & 1u)) {
@@ -1161,9 +1167,12 @@ static void ui_input(void)
     cue_input(now, notes);                              /* SAVE: tap / hold, the cue map */
     if (cue_owns_keys())
         notes = 0;                                      /* (the map's keys: no step, no select, no record) */
+    tools_input(now, notes);                            /* SEQ: tap / hold, the TOOLS screen (ui_tools.c) */
+    if (tools_owns_keys())
+        notes = 0;                                      /* (the screen's keys: no step, no select, no record) */
     rec_fill(now);                                      /* REC held off SEQ: FILL */
     fx_layer(now, home == BT_TAP);                      /* PERFORM: FX tap / hold, the PAGE screen */
-    if (acc_oct && (ui.mute || ui.layer || fx_knobs))
+    if (acc_oct && (ui.mute || ui.tools || ui.layer || fx_knobs))
         acc_oct = 2;                                    /* OCT+ held under MUTE / PERFORM: no bank on its release, there
                                                          * or after (they own the panel: item 7) */
     ml_guard();                                         /* MIDI LEARN: off in the menu, NAME, another confirm */
@@ -1193,6 +1202,11 @@ static void ui_input(void)
         if (ui.rec_t0)
             ui.rec_t0 |= 2u;
         enc_drop();
+        return;
+    }
+    if (ui.tools) {                                     /* the TOOLS screen owns the panel (its keys: tools_input):
+                                                         * PLAY, OCT- / OCT+ the bank, the selection's knobs */
+        tools_panel(pressed);
         return;
     }
     if ((fm1_in.buttons & perf_mask) || (perf_mask & PERF_PAGE))   /* PERFORM: keys are the layer's */
@@ -1361,8 +1375,8 @@ static void ui_input(void)
         default: {
             uint32_t f;
             for (f = FAM_HOME + 1u; f < FAM_COUNT; f++)
-                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX && b != B_GLO && b != B_SAVE)   /* (FX, GLO,
-                                                         * SAVE: on the release) */
+                if (FAM_BTN[f] == b && f != FAM_LAY && b != B_FX && b != B_GLO && b != B_SAVE && b != B_SEQ)
+                                                        /* (FX, GLO, SAVE, SEQ: on the release) */
                     open_family(f == FAM_SND && cur_fam() == FAM_LAY ? FAM_LAY : f);   /* in the layer: its pages */
             break;
         }

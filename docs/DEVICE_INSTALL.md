@@ -139,6 +139,20 @@ Report what you saw first; we'll go through it together.
   half filled and silent while playing; the same key again unsolos (`F# SOLO TGL` on the last line). Top F#5:
   `SOLO: MOMENTARY` (F#5 lit, `F# SOLO MOM`): a solo key now solos only while held, also when GLO is let go first;
   F#5 again: `SOLO: TOGGLE`. Power off and on: the mode kept, nothing soloed.
+- Step tools: a quick SEQ tap still turns STEP -> PATTERN -> MOTION -> SONG (on the release). Hold SEQ (0.4 s, or
+  SEQ + a key at once): `STEP TOOLS` in the top bar, the bank's steps on screen and on the white keys, the tools on
+  the black keys (`build/ui_shots/seqtools/01_tools.png`); keys pressed with SEQ play no sound and record nothing,
+  even with REC ALL armed and playing. Let go: the page before. Holding SEQ while switching on is still SAFE START.
+- COPY STEP / PASTE STEP: hold F#3 and tap a step with PROB, RATCH, an accent and a lock (`STEP n COPIED`); hold G#3
+  and tap three other steps: each plays exactly like the first, lock included.
+- COPY PAGE / REPLACE / MERGE / FILL (LEN 64): A#3 on bank 1 (`COPIED 1-16`), OCT+, C#4: bank 2 = bank 1
+  (`PASTED 17-32`); OCT+, D#4 on a bank with other steps: those stay, the copied hits come in (`MERGED 33-48`); F#4:
+  every bank = bank 1 (`FILLED 1-64`).
+- COPY SEL / PASTE SEL: G#4, KNOB 1 START 5, KNOB 2 END 12 (keys 5..12 lit, `build/ui_shots/seqtools/02_copy_sel.png`),
+  G#4 again (`COPIED 5-12`); OCT+ to the last bank, A#4, tap step 60: `PASTED 60-64`, nothing wraps to step 1.
+- DUPLICATE: tracks at LEN 16, 40 and 64, C#5 (`DUPLICATED`): LEN 32, 64, 64; the new steps play the first ones
+  again, locks included; the LEN 64 track unchanged. With the project's locks nearly full a paste says `LOCKS FULL`.
+- SAVE after a paste, power off and on, LOAD: the pasted steps and their locks come back.
 - CPU: a dense pattern (Grids on 3 tracks, the rest with RATCH 4 and PROB, FX on) at 240 BPM: GLOBAL -> SYSTEM CPU
   stays well under 100 % and the sound does not crackle.
 - SAVE a project, power off and on, LOAD: PROB / RATCH / SRC / GRIDS come back. A project saved with the M1

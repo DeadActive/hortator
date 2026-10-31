@@ -38,6 +38,7 @@ static int pp_on(void);                    /* ui_preset.c: the PRESETS popup sho
 static int pl_on(void);                    /* .. the PRESETS list shows */
 static void draw_popup(void);
 static void draw_plist(void);
+static void draw_tools(void);              /* ui_tools.c: the TOOLS screen (SEQ held) */
 static int preset_user_save(uint32_t slot, const track_t *t);   /* project.c: the user presets' flash record */
 static void preset_user_delete(uint32_t slot);
 
@@ -117,6 +118,8 @@ static struct {
     uint32_t cue_t0;             /* SAVE's press time | CUE_DOWN OPEN DEAD PLAIN (ui_input.c cue_input) */
     uint8_t cue_map;             /* SAVE held: the cue map (white keys the slots, black keys the variations, 2026-10-26) */
     uint8_t mute;                /* the MUTE screen shows (GLO held, spec §5) */
+    uint32_t seq_t0;             /* SEQ's press time | TL_DOWN OPEN DEAD PLAIN (ui_tools.c tools_input) */
+    uint8_t tools;               /* the TOOLS screen shows (SEQ held, spec 2026-10-31 §3: the step copy tools) */
     uint8_t song_row;            /* SONG: the row selected (count = the + row) */
     uint8_t keys;                /* KEYS (spec §5): an SCL tap; off at power-on, never stored */
     uint8_t env;                 /* ENV (spec 2026-10-24 parameter locks): 1 STEPS (the white keys the selected track's

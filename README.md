@@ -102,7 +102,7 @@ firmware ([below](#back-to-the-official-firmware)).
 | --- | --- |
 | **HOME** | two modes: **TRACKS** (levels, lengths, pans; the selected track's steps on the keys) and **HOME** (the scope, the selected track's first four knobs, the keys play the tracks; SELECT on to the compressor's pages). A HOME tap on HOME switches between them; from any other screen it opens the one last shown. Power-on: TRACKS. Hold HOME for the menu |
 | **EDIT** | the selected track's sound: its model and knobs (on HOME, EDIT, FX and LFO the selected track's key is lit; a white key F3..F4 selects its track) |
-| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3: PROB / RATCH / ACCENT (right on, left off); hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG |
+| **SEQ** | the steps on the white keys (a short tap: on / off, on the release; hold a step 0.3 s: an off step turns on at once, an on step stays as it is; while held KNOB 1 / 2 / 3: PROB / RATCH / ACCENT (right on, left off); hold OCT+ and tap a step: its accent; OCT+ alone / OCT-: the bank), then PATTERN, MOTION and SONG (each tap on its release); held: the TOOLS screen ([step tools](#step-tools): copy and paste steps, pages, selections, DUPLICATE) |
 | **FX** | FILTER, FX (the sends), INSERT (and SRR), SLICER and RESON; hold it for PERFORM |
 | **ARP** | Grids |
 | **LFO** | the track's two LFOs, side by side on every page (LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4), then DEST: 4 slots, each a source (LFO 1 / LFO 2), a destination knob and its own depth |
@@ -114,8 +114,8 @@ firmware ([below](#back-to-the-official-firmware)).
 
 With KEYS on, OCT- / OCT+ are the octave: LAYER (from EDIT) and the LFO pages' OCT+ (the RATE MODE of the LFO turned
 last) need KEYS off; the STEP
-bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu, PERFORM (FX held) and the MUTE
-screen (GLO held) keep their keys.
+bank stays on KNOB 1; TRACKS keeps OCT as its bank. TRACKS, COMP, NAME, the menu, PERFORM (FX held), the MUTE
+screen (GLO held) and the TOOLS screen (SEQ held) keep their keys.
 Step record starts in KEYS mode, on the STEP page, with the transport stopped, by a REC tap: the cursor starts at the
 bank's first step and the top bar shows `STEP REC nn`. KNOB 1 to 4 are STEP, NOTE, TIME (NOTE / TIE / REST) and FLAG
 (- / ACC / SLD / A+S); EDIT writes a rest. A REC tap, PLAY or leaving the page ends it.
@@ -279,6 +279,32 @@ under upstream Felucca) is shortened to its first 48 KiB once, at the next power
 `USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Hortator has no sample upload: an 80 KiB
 upload to USR2 or USR3 under upstream Felucca afterwards overwrites the variations or the lock banks. (If shortening
 USR2 ever fails, `USR2 CLAMP FAILED` shows at power-on and SAVE says `USR2 ERROR: NO SAVE` until the next power-on.)
+
+### Step tools
+
+Hold SEQ: the **TOOLS screen**, up while SEQ is held (a quick SEQ tap turns the SEQ pages as before, on its release;
+a key pressed while SEQ is down opens the screen at once). It works on the selected track. The white keys are the 16
+steps of the bank shown (lit when on), OCT- / OCT+ the bank; the black keys are the tools, written on the screen by
+their keys. The screen shows the bank's steps (a dot under a step with locks), the whole pattern small, what the
+clipboard and the step buffer hold, and each tool's result.
+
+| Key | Tool |
+| --- | --- |
+| **F#3** COPY STEP | hold it and tap a step: that step into the step buffer |
+| **G#3** PASTE STEP | hold it and tap steps: the buffered step into each |
+| **A#3** COPY PAGE | the bank's 16 steps into the clipboard |
+| **C#4** REPLACE | the clipboard over the bank shown |
+| **D#4** MERGE | the clipboard's steps that are on into the bank shown; its other steps stay |
+| **F#4** FILL | the clipboard over the whole pattern, again and again up to its LEN |
+| **G#4** COPY SEL | a selection: KNOB 1 START, KNOB 2 END (1 to 64, lit on the bank's keys); G#4 again copies it |
+| **A#4** PASTE SEL | then tap a step: the clipboard pasted from there (nothing past step 64); hold A#4 to paste at several steps |
+| **C#5** DUPLICATE | every track's pattern doubles: LEN x 2 (64 at most), the new steps a copy of the first ones |
+
+A copied step is all of it: on, accent, PROB, ratchet, note, slide and tie, and its parameter locks (a pasted step's
+own locks are replaced). When the project's locks are full a paste brings what fits and says `LOCKS FULL`. The keys
+pressed with SEQ play nothing, send no MIDI and record nothing; the knobs rest (but START / END), PLAY works. Pastes
+are edits like any (SAVE keeps them); a playing song allows none (`STOP TO EDIT`). The clipboard stays until power-off,
+also across projects. Let go of SEQ: back to the page you were on.
 
 ### Parameter locks
 
