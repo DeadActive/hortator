@@ -4,11 +4,10 @@
 // (new pages and knobs in the firmware appear here by themselves), each value with the device's own text, edited
 // live both ways: SET from the page, CHANGED / STATE pushes from the device (web/EDITOR_PROTOCOL.md §2.2, §4 rule 5).
 // SoundModel holds no DOM (node tests drive it against the mock device); mountSound draws it.
-import { CAP, CMD, DF, GR, NONE, SCOPE, U14_NONE } from "./proto.mjs";
+import { CAP, CMD, DF, GR, ID, NONE, SCOPE, U14_NONE } from "./proto.mjs";
 import { esc } from "./ui.mjs";
 
-/** core.h ids the page needs by name (protocol 1; the tests check them against device_data.json) */
-export const ID = { MODEL: 0, RMODEL: 48, ITYPE: 71, GMODE: 22 };
+export { ID }; // (proto.mjs: the core.h ids the page names, checked against device_data.json)
 const FMT_ENUM = 8, FMT_LDEST = 21;
 /** a change of these re-reads the track: pages, the CONTEXT knobs' descriptions, the values */
 const TRACK_CONTEXT = new Set([ID.MODEL, ID.RMODEL, ID.ITYPE]);

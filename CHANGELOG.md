@@ -10,7 +10,8 @@ released yet are listed under Unreleased (the next version) and, for the version
   old name such as "Felucca" or "FM-1". Other MIDI gear gets nothing unless you click Search other MIDI ports; an
   FM-1 that does not answer (the official firmware, Felucca or an older Hortator) gets a link to the installer.
   - **Sound**: the selected track's pages (SOUND for its model, LAYER, FILTER, FX, INSERT, SRR, RESON, SLICER, LFO 1
-    and 2, DEST) and the globals with DLY MODE, each knob with the FM-1's own text. Both ways: turn a knob on the
+    and 2, DEST) and the globals, among them the DLY, REVERB (ROOM, SPRNG, HALL) and CHORUS pages, each knob with the
+    FM-1's own text. Both ways: turn a knob on the
     FM-1 and it moves in the page; move it in the page and the FM-1 plays it. Choosing a track in the page selects it
     on the FM-1, and the other way round.
   - **Presets**: the 151 factory presets (MACHINEDRUM, MODERN, CLASSIC), loaded onto a track with a click. The 128
@@ -21,14 +22,21 @@ released yet are listed under Unreleased (the next version) and, for the version
     everything (the user presets and all four projects) to a file; restore a project into any slot, on this FM-1 or
     another; restore everything; copy a project to another slot. A backup holds what is saved on the FM-1: SAVE
     first to include changes not saved yet (the page says so). Restoring asks first and says what it replaces.
-  - **Patterns**: every track's 64 steps in each variation of a slot (on / off, NOTE, PROB, RATCH, ACC, FILL / !FILL,
-    SLIDE / TIE on ACID), editable; editing another variation makes the FM-1 switch to it, as its key would. The
-    locks of each step, editable and clearable. SAVE from the page.
+  - **Patterns**: every track's 64 steps in each variation of a slot (on / off, NOTE, PROB, RATCH, ACC, NUDGE,
+    FILL / !FILL, SLIDE / TIE on ACID), editable; editing another variation makes the FM-1 switch to it, as its key
+    would. NUDGE is a slider from -50 to +50 with the FM-1's own reading (+25, -10), and a nudged step has a mark in
+    the grid on the side it moves to, as on the FM-1. The locks of each step, editable and clearable. SAVE from the
+    page.
   - **Remote cue**: click a slot or a variation to queue it, exactly as the cue keys do, with the same refusals.
   - **Copy a variation**: from this slot, another slot or a backup file into a variation of the loaded slot, with the
-    source's locks if you want them. Locks the FM-1 cannot hold are refused before anything changes.
+    source's locks if you want them; every step's NUDGE comes along. Locks the FM-1 cannot hold are refused before
+    anything changes.
 - Restores (user presets, projects) only while the FM-1 is stopped. Meanwhile it shows RESTORING and its PLAY, cue
-  keys, LOAD and SAVE wait. A power cut during a restore leaves the old or the new project whole.
+  keys, LOAD, SAVE, the TOOLS screen's pastes, DUPLICATE and CLEAR and a held step's knobs wait, and nothing is
+  recorded. A power cut during a restore leaves the old or the new project whole.
+- Backup files made by an earlier test build of the editor (before NUDGE) still restore, every step at NUDGE 0, and
+  their variations can still be copied. Files made now hold the new project format: an FM-1 still on an older
+  firmware refuses them with "UPDATE THE FM-1 FIRST" and keeps what it has.
 - While the FM-1 plays with SYNC (MIDI clock out) on, the page asks before a big transfer: clock out may jitter, stop
   first?
 - USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a

@@ -1020,6 +1020,18 @@ Two FM-1s for the move test, or one FM-1 and two slots. Note the times with a st
   track): the FM-1 plays them at once and its step pages show them. Edit a step in variation 4 while variation 1
   plays: the FM-1 switches to 4 at the pattern's end and the edit lands there. Set a lock on a step in the page: the
   step plays with it on the FM-1; clear it, then clear a whole track's locks. SAVE from the page, power-cycle: kept.
+- NUDGE edit: select a step in the page, move NUDGE to +25: the FM-1 plays it late and its STEP page (the step held)
+  reads NUDGE +25, its box marked on the right; -10 in the page: early, marked left. Hold a step on the FM-1, turn
+  KNOB 4: the page's slider and reading follow. Turn a nudged step off and on in the page: NUDGE 0, as on the FM-1.
+  Copy a variation with nudged steps: the copy plays nudged the same.
+- Backup files and the new project format: Back up a project with nudged steps, Restore it into another slot, load
+  it: the steps play nudged as before. Restore a project file saved with an editor build from before NUDGE (keep one
+  from the earlier test build): it restores, plays as it did (KEYF, SRR, INSERT as saved), every step at NUDGE 0, its
+  card says it is in the older format until SAVE. Restore a file made now onto an FM-1 still on an older 0.28 test
+  build or 0.27: "UPDATE THE FM-1 FIRST", nothing changes there.
+- RESTORING and the step tools: start a Restore all and, while it runs, hold SEQ and press C#4 (PASTE REPLACE), C#5
+  (DUPLICATE), D#5 (CLEAR), hold a step and turn KNOB 4: each shows RESTORING and changes nothing; COPY STEP / COPY
+  PAGE still copy. After the restore they work again.
 - Copy a variation: copy A variation 2 into variation 6, then B variation 1 into variation 7 with its locks, then a
   variation from the backup file: each plays as its source (the locks with it when chosen).
 - Update while the editor is open: leave the editor connected (on the Sound tab, with the header updating), open the

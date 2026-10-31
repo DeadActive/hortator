@@ -8,12 +8,14 @@
 //   for the STATE push and sends the edit again, never CUE; a song playing -> "STOP TO EDIT"; other slots read-only
 // - STEPS_CHANGED / LOCKS_CHANGED keep it live; LOCK_EDIT set / clear one / step / track
 // - the cue keys: CUE sent, queued -> playing from STATE, refusals shown; copy variation = the source; SAVE refusals
+// - NUDGE (minor 1): shown and edited per step as the FM-1 shows it; copies carry it; a firmware without it: not sent
 
 import { pathToFileURL } from "node:url";
 import * as P from "./proto.mjs";
 import { createMockDevice, loadDeviceData } from "./mock_device.mjs";
 import { connect } from "./session.mjs";
-import { CONDS, PatternsModel, cueKeys, fileProjects, fileVariation, noteName, plain, stepGlyph, withRatch } from "./tab_patterns.mjs";
+import { CONDS, PatternsModel, cueKeys, fileProjects, fileVariation, noteName, nudgeText, plain, stepGlyph, stepTitle, withRatch,
+} from "./tab_patterns.mjs";
 
 const { CMD, CUE, LK, NONE, RC, DETAIL, STEP } = P;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -286,6 +288,37 @@ export async function runPatternTests(log = console.log) {
     ok(await pm.copy({ slot: 1, var: 0 }, 6, { locks: true }) && aLocks() !== a0, "... and a copy that fits goes through");
     s.close();
     pm.destroy();
+  }
+  /* NUDGE: per step, -50..+50 as the FM-1 shows it; copies (from the FM-1, from FDRG / FDRF files) carry it */
+  {
+    ok(nudgeText(25) === "+25" && nudgeText(-10) === "-10" && nudgeText(0) === "0" && /NUDGE \+25/.test(stepTitle({ flags: 1, cond: 0, note: 60, micro: 25 }, 2))
+      && !/NUDGE/.test(stepTitle({ flags: 1, cond: 0, note: 60, micro: 0 }, 2)), "NUDGE: the FM-1's text (+25, -10, 0), in the step's title when not 0");
+    const { m, s, pm } = await start();
+    ok(pm.nudge && pm.tracks[2].steps[2].micro === 25 && pm.tracks[2].steps[3].micro === 0, "NUDGE: the grid's steps carry it (A's off-beat hats +25)");
+    const n0 = m.received.length;
+    ok(await pm.setStep(4, 12, { micro: -37 }) && m.tracks[4].steps[12].micro === -37 && m.tracks[4].steps[12].flags & STEP.ON
+      && cmds(m, n0).some((x) => x.cmd === CMD.STEPS_SET && x.args.steps[0].micro === -37), "NUDGE edited: STEPS_SET carries it, the device's step has it");
+    await pm.setStep(4, 12, { note: 64 });
+    ok(m.tracks[4].steps[12].micro === -37 && m.tracks[4].steps[12].note === 64, "another field edited: NUDGE kept");
+    const src = J(m.tracks[2].steps);
+    ok(await pm.copy({ slot: 0, var: 0 }, 6) && m.varCur === 6 && J(m.tracks[2].steps) === src, "copy A VAR 1 -> A VAR 7: NUDGE copied");
+    const fa = P.decodeProject(m.flashObjects(0).record), A = m.flashObjects(0);
+    const g = fileProjects(JSON.parse(J(P.makeProjectFile(A, 0))))[0];
+    ok(fileVariation(g.objs, 0).rows[2].steps[2].micro === 25 && fileVariation(g.objs, 4).rows[2].steps[6].micro === 25,
+      "a file's FDRG record and its variations (flags bit 6): NUDGE read");
+    const f = fileProjects(JSON.parse(J(P.makeProjectFile(P.sealProject({ ...A, record: P.encodeProject(fa, "FDRF") }, 0), 0))))[0];
+    ok(!f.old && f.vars.length > 1 && await pm.copy({ file: f.objs, name: "old.json", var: 0 }, 5) && m.varCur === 5
+      && m.tracks[2].steps.every((x) => x.micro === 0) && (m.tracks[2].steps[2].flags & STEP.ON),
+    "a file from the editor before NUDGE (FDRF): its variations copyable, NUDGE 0 (as the FM-1 loads it)");
+    s.close();
+    pm.destroy();
+    const o = await start({ minor: 0, caps: P.CAP.LIVE | P.CAP.PRESETS | P.CAP.PATTERNS | P.CAP.BACKUP | P.CAP.RESTORE });
+    const n1 = o.m.received.length;
+    ok(!o.pm.nudge && o.pm.tracks[2].steps[2].micro === undefined && await o.pm.setStep(4, 12, { flags: STEP.ON, note: 62 })
+      && o.m.tracks[4].steps[12].note === 62 && cmds(o.m, n1).every((x) => x.cmd !== CMD.STEPS_SET || x.args.steps[0].micro === undefined)
+      && await o.pm.copy({ slot: 0, var: 0 }, 6), "a firmware without NUDGE (minor 0): no NUDGE shown or sent; edits and copies work");
+    o.s.close();
+    o.pm.destroy();
   }
   {
     const { s, pm } = await start({ powerOnKit: true });

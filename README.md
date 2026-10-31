@@ -480,11 +480,12 @@ From 0.28.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) w
 - **Projects**: back up a project (A–D, with its locks and variations), or everything with the user presets, to a
   file; restore it into any slot, on this FM-1 or another; copy a project to another slot. A backup holds what is
   saved on the FM-1: SAVE first to include unsaved changes (the page tells you when there are some).
-- **Patterns**: every track's steps in each variation, and the locks, editable; click a slot or variation to cue it,
-  exactly as the cue keys do; copy a variation from this slot, another slot or a backup file; SAVE.
+- **Patterns**: every track's steps in each variation (NUDGE included), and the locks, editable; click a slot or
+  variation to cue it, exactly as the cue keys do; copy a variation from this slot, another slot or a backup file;
+  SAVE.
 
-Restores happen only while the FM-1 is stopped; meanwhile it shows RESTORING and its PLAY, cue keys, LOAD and SAVE
-wait. USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a
+Restores happen only while the FM-1 is stopped; meanwhile it shows RESTORING and its PLAY, cue keys, LOAD, SAVE and
+the step tools wait. USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a
 computer or Android; Firefox after its permission prompt; not Safari (no Web MIDI). A firmware update always comes
 first: while the installer runs, the editor goes quiet. One browser tab runs the editor at a time.
 

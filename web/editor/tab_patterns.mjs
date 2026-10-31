@@ -2,7 +2,7 @@
 // Drum machine fork: 2026 DEADACTIVE
 // The Patterns tab (web/EDITOR_PROTOCOL.md §2.4): the cue keys (slots A-D, variations 1-8: CUE, exactly the FM-1's
 // keys; playing lit, queued blinking, from STATE), an 8 x 64 step grid of a slot's variation (STEPS_GET; edits with
-// STEPS_SET; live from STEPS_CHANGED), a step's NOTE / PROB / RATCH / ACC / SLIDE / TIE, the slot's locks (LOCKS_GET,
+// STEPS_SET; live from STEPS_CHANGED), a step's NOTE / PROB / RATCH / ACC / SLIDE / TIE / NUDGE, the slot's locks (LOCKS_GET,
 // LOCK_EDIT; live from LOCKS_CHANGED), "Copy variation" (from a slot on the FM-1, or from a hortator-project /
 // hortator-backup file) and the device's SAVE.
 // Owner decision 3: editing a variation that is not playing makes the FM-1 switch to it. STEPS_SET itself presses the
@@ -11,7 +11,7 @@
 // second press of a queued key means "at the next step").
 // PatternsModel holds no DOM (node tests drive it against the mock device: test_tab_patterns.mjs); mountPatterns draws.
 import {
-  CAP, CMD, CUE, DETAIL, DF, FileError, LAYOUT, LK, NONE, RC, SCOPE, STEP, decodeLocks, decodeProject, decodeVars,
+  CAP, CMD, CUE, DETAIL, DF, FileError, ID, LAYOUT, LK, NONE, RC, SCOPE, STEP, decodeLocks, decodeProject, decodeVars,
   readBackupFile, readProjectFile,
 } from "./proto.mjs";
 import { DeviceError } from "./link.mjs";
@@ -44,10 +44,13 @@ export function stepGlyph(s) {
   if (ratchOf(s) > 1) return String(ratchOf(s));
   return s.cond ? "%" : "";
 }
+/** NUDGE as the FM-1 shows it (ui_draw.c: "+25", "-10", "0"); -50 .. +50 hundredths of a step */
+export const nudgeText = (m) => (m > 0 ? `+${m}` : String(m | 0));
 export function stepTitle(s, step, nlocks = 0) {
   const on = s.flags & STEP.ON;
   return `Step ${step + 1}: ${on ? "on" : "off"}${on ? `, ${noteName(s.note)}, PROB ${condName(s.cond)}, RATCH ${ratchOf(s)}`
-    + `${s.flags & STEP.ACC ? ", ACC" : ""}${s.flags & STEP.SLIDE ? ", SLIDE" : ""}${s.flags & STEP.TIE ? ", TIE" : ""}` : ""}`
+    + `${s.flags & STEP.ACC ? ", ACC" : ""}${s.flags & STEP.SLIDE ? ", SLIDE" : ""}${s.flags & STEP.TIE ? ", TIE" : ""}`
+    + `${s.micro ? `, NUDGE ${nudgeText(s.micro)}` : ""}` : ""}`
     + (nlocks ? `, ${nlocks} lock${nlocks > 1 ? "s" : ""}` : "");
 }
 
@@ -86,7 +89,7 @@ export function plain(e) {
 export function fileProjects(f) {
   const one = (label, p) => {
     const d = decodeProject(p.record);
-    if (d.format !== "FDRF") return { label, objs: p, vars: [], old: d.format };
+    if (!d.full) return { label, objs: p, vars: [], old: d.format }; // (FDRG, and FDRF: NUDGE 0, as the FM-1 loads it)
     const used = [0];
     if (p.vars) decodeVars(p.vars).entries.forEach((e, i) => e && used.push(i + 1));
     return { label: label + (d.name ? ` (${d.name})` : ""), objs: p, vars: used };
@@ -102,7 +105,7 @@ export function fileProjects(f) {
  * not copied: LOCK_EDIT writes LOCKs only) } */
 export function fileVariation(objs, v) {
   const p = decodeProject(objs.record);
-  if (p.format !== "FDRF") throw new Error(`The file's project is in an older format (${p.format}): restore it into a slot on the FM-1, then copy from that slot.`);
+  if (!p.full) throw new Error(`The file's project is in an older format (${p.format}): restore it into a slot on the FM-1, then copy from that slot.`);
   let rows;
   if (!v) rows = p.tracks.map((t) => ({ steps: t.steps, timing: LAYOUT.timing.map((id) => t.p[id]), used: 1 }));
   else {
@@ -140,7 +143,7 @@ export class PatternsModel {
       session.on("state", (x) => this.stateChanged(x.state, x.prev)),
       session.on("steps", (p) => this.stepsPushed(p)),
       session.on("locks", (p) => this.locksPushed(p)),
-      session.on("changed", (p) => { if (p.scope === SCOPE.TRACK && [0, 48, 71].includes(p.id)) this.forget(p.track); }),
+      session.on("changed", (p) => { if (p.scope === SCOPE.TRACK && [ID.MODEL, ID.RMODEL, ID.ITYPE].includes(p.id)) this.forget(p.track); }),
       session.on("resync", () => { this.forget(); this.reload(); }),
       session.on("reload", (w) => { if (w.slot !== undefined) { this.forget(); this.reload(); } else if (w.track !== undefined) this.forget(w.track); }),
       session.on("busy", (on) => on && this.wait?.rej(new Error("FM-1 busy (update?): the edit was not applied."))),
@@ -249,7 +252,9 @@ export class PatternsModel {
   }
 
   /* -------------------------------------------------------------- editing steps --- */
-  /** a step's fields (patch: flags / cond / note): shown at once, the FM-1 gets STEPS_SET */
+  /** the FM-1's steps carry NUDGE (minor 1) */
+  get nudge() { return this.s.nudge; }
+  /** a step's fields (patch: flags / cond / note / micro): shown at once, the FM-1 gets STEPS_SET */
   async setStep(track, step, patch) {
     if (!this.editable) { this.say(`Slot ${SLOTS[this.view.slot] ?? "?"} is shown read-only: cue it to edit.`); return false; }
     const v = { ...this.view }, t = this.tracks[track], nw = { ...t.steps[step], ...patch };
@@ -484,6 +489,9 @@ const CSS = `
 .pt-c.acc { background: var(--w); }
 .pt-c.out { opacity: .3; }
 .pt-c.lk::after { content: ""; position: absolute; top: 2px; right: 2px; width: 4px; height: 4px; background: var(--c4); }
+.pt-c.nl::before, .pt-c.nr::before { content: ""; position: absolute; bottom: 2px; width: 2px; height: 12px; background: var(--k); }
+.pt-c.nl::before { left: 1px; }
+.pt-c.nr::before { right: 1px; }
 .pt-c.on.lk::after { background: var(--k); }
 .pt-c.sel { outline: 2px solid var(--w); outline-offset: 1px; z-index: 1; }
 .pt-grid.ro .pt-c { cursor: default; }
@@ -560,7 +568,7 @@ export function mountPatterns(el, ctx) {
   const cell = (t, i) => {
     const tr = m.tracks[t], x = tr.steps[i], len = tr.timing[0] || NSTEP, nl = m.stepLocks(t, i).length, on = x.flags & STEP.ON;
     const cls = `pt-c${on ? " on" : ""}${on && x.flags & STEP.ACC ? " acc" : ""}${i >= len ? " out" : ""}${i && i % 4 === 0 ? " beat" : ""}`
-      + `${nl ? " lk" : ""}${m.sel.track === t && m.sel.step === i ? " sel" : ""}`;
+      + `${nl ? " lk" : ""}${on && x.micro ? (x.micro < 0 ? " nl" : " nr") : ""}${m.sel.track === t && m.sel.step === i ? " sel" : ""}`;
     return `<button type="button" class="${cls}" data-t="${t}" data-s="${i}" title="${esc(stepTitle(x, i, nl))}" role="gridcell">${stepGlyph(x)}</button>`;
   };
   const drawGrid = () => {
@@ -589,6 +597,7 @@ export function mountPatterns(el, ctx) {
         `<option value="${c.code}"${c.code === x.cond ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select><span></span></div>
       <div class="pt-f"><span>RATCH</span><select data-f="ratch" aria-label="RATCH"${dis}>${[1, 2, 3, 4].map((n) =>
         `<option value="${n}"${n === ratchOf(x) ? " selected" : ""}>${n}</option>`).join("")}</select><span></span></div>
+      ${m.nudge ? `<div class="pt-f" title="-50 halfway to the previous step, +50 halfway to the next (hundredths of the step)"><span>NUDGE</span><input type="range" min="${-STEP.MICRO_MAX}" max="${STEP.MICRO_MAX}" value="${x.micro | 0}" data-f="micro" aria-label="NUDGE"${dis}><b>${esc(nudgeText(x.micro | 0))}</b></div>` : ""}
       <span class="pt-empty">${ro ? "Read-only: cue this slot to edit it." : "Click a step: on / off. Shift-click: select only."}</span></div>`;
   };
 
@@ -759,6 +768,7 @@ export function mountPatterns(el, ctx) {
   });
   el.addEventListener("input", (e) => {
     if (e.target.dataset.f === "note") e.target.nextElementSibling.textContent = noteName(Number(e.target.value));
+    if (e.target.dataset.f === "micro") e.target.nextElementSibling.textContent = nudgeText(Number(e.target.value));
   });
   el.addEventListener("focusin", async (e) => { // the lockable knobs, read when first needed
     const sel = e.target.closest?.(".pt-add");
