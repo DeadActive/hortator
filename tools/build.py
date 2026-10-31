@@ -42,6 +42,7 @@ LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 SDK_MOUNT = None                    # BLE builds: the JieLi BT SDK (tools/ble_libs.py), mounted read-only at /sdk
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
+BLE_RAM_MAX = 94160                 # the Bluetooth build's .data + .bss at most (web editor spec 2026-10-31, Numbers)
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
 # SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
@@ -384,6 +385,20 @@ def check(img, syms, dis, rt, ble=False, measure=False):
     notes.append(f"image {len(img)} B; RAM .data+.bss {bss} B of 98304; pool {pool} B of {0x54000}")
     if bss > 96 * 1024:
         errors.append("RAM region overflow")
+    # the web editor's share (editor*.c: its statics are ed, ed_*; spec 2026-10-31 web editor, Numbers)
+    share = {"ram": 0, "pool": 0}
+    for mm in re.finditer(r"^[0-9a-f]+ [^\t\n]*?(\.[\w.]+)\t+\s*([0-9a-f]+) (ed|ed_\w+|ed\.\w+)$", syms, re.M):
+        if mm.group(1) in (".bss", ".data", ".sbss", ".sdata", ".ram_bss"):
+            share["ram"] += int(mm.group(2), 16)
+        elif mm.group(1).startswith(".pool"):
+            share["pool"] += int(mm.group(2), 16)
+    notes.append(f"web editor: .data+.bss {share['ram']} B, pool {share['pool']} B")
+    if ble:                         # the Bluetooth build's RAM gate (web editor spec: 0.28.0's limit)
+        if bss > BLE_RAM_MAX:
+            (notes if measure else errors).append(f"BLE RAM gate: .data+.bss {bss} B > {BLE_RAM_MAX} B" +
+                                                  (" (BLE_MEASURE: measuring only)" if measure else ""))
+        else:
+            notes.append(f"BLE RAM gate: .data+.bss {bss} B <= {BLE_RAM_MAX} B ({BLE_RAM_MAX - bss} B left)")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
         (notes if measure else errors).append(f"pool headroom {0x54000 - pool} B < 8192 B" +
                                               (" (BLE_MEASURE: measuring only)" if measure else ""))

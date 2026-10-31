@@ -189,16 +189,17 @@ static void ota_commit(const uint8_t *parm)
 #include "bt_page.c"                 /* the Bluetooth page (MENU > BLUETOOTH, ui_menu.c ui.menu 3); bt_service */
 #endif
 #if FELUCCA_OTA
-/* the web editor returns in M5; main.c still calls this. Safe as a no-op: ota_take() (ota_service)
- * frees every SysEx frame, so editor frames cannot block the update handshake. FELUCCA_BLE: the BT stack's slice,
- * every main-loop pass and in its 15 ms wait (spec amendment 3) */
-static void ed_service(void)
-{
-#if FELUCCA_BLE
-    bt_service();                                       /* bt_page.c: the BT stack's slice, then the core's Bluetooth
-                                                         * work (cheap: no change) */
+/* the web editor (Hortator editor protocol 1, web/EDITOR_PROTOCOL.md): main.c calls ed_service() every pass and in its
+ * 15 ms wait. The optional parts plug in when present (editor_proto.h: ED_HAS_BACKUP / ED_HAS_PATTERN), the core last.
+ * FELUCCA_BLE: ed_service gives the BT stack its slice first (spec amendment 3) */
+#include "editor_proto.h"
+#if __has_include("editor_backup.c")
+#include "editor_backup.c"           /* BACKUP_LIST / GET, RESTORE */
 #endif
-}
+#if __has_include("editor_pattern.c")
+#include "editor_pattern.c"          /* STEPS, LOCKS, CUE, SAVE, NAMES / PRESET_LOAD */
+#endif
+#include "editor.c"                  /* framing, INFO .. WATCH, TEXT, pushes, the update-silence rule */
 #endif
 #if FELUCCA_CDC
 #include "console.c"

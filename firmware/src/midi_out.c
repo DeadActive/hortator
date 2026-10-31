@@ -24,7 +24,9 @@
  * Bluetooth: the same packets go to bt_midi.c's out queue (bt_sync_out, the keys' notes' queue too), which the main
  * loop hands to the BLE unit: one clock for USB and Bluetooth, no second Bluetooth clock sender. MODE FM-LINK, SMC
  * DAW or no link: nothing to Bluetooth.
- * An update (SysEx on USB, ota.c) pauses all of it: nothing is sent while SysEx moves and for 3 s after. */
+ * An update (SysEx on USB, ota.c) pauses all of it: nothing is sent while its SysEx moves and for 3 s after. The web
+ * editor's frames (F0 7D ..., editor.c) do not pause it (web/EDITOR_PROTOCOL.md rule 8): a frame whose first data byte
+ * is 7D, and the out ring while it holds only the editor's replies (mout.ed_end / ed_tx), are not update traffic. */
 #define MOUT_Q 16u                                  /* the scheduled Start / Clock / Stop */
 #define MOUT_TPS_Q16 35665605u                      /* TIMER4 ticks a sample (24 MHz / 44.1 kHz), Q16 */
 #define MOUT_HALF_TICKS ((uint32_t)(((uint64_t)HALF_FRAMES * MOUT_TPS_Q16) >> 16))
@@ -52,6 +54,8 @@ static struct {
     uint8_t sx_seen;
     uint32_t fw, sx_ms;                             /* the input ring read up to here; the last SysEx seen */
     uint32_t sent, drops, fwd;                      /* console: packets out, refused, forwarded */
+    volatile uint32_t ed_end;                       /* editor.c: the SysEx out ring's write index after its last frame */
+    volatile uint8_t ed_tx;                         /* editor.c: writing a frame into that ring now */
 } mout;
 
 static uint32_t mout_port(uint32_t src)            /* the output an input's port is (midi_in_source) */
@@ -162,10 +166,14 @@ static __attribute__((noinline)) void mout_stop(void)   /* seq_stop */
 }
 
 /* ---- TIMER5, outside the render ---- */
-static int mout_paused(void)                        /* an update: SysEx moving, or within 3 s of it */
+static int mout_paused(void)                        /* an update: its SysEx moving, or within 3 s of it */
 {
 #if FELUCCA_OTA
-    if (usb.sx_on || sx_collect || sx_ready || sx_busy || so_w != so_r || usb.ota_req) {
+    /* update traffic: the upgrade command; a frame (arriving, or waiting for ota_take) whose first data byte is not
+     * the editor's 7D (not known yet: as an update's); the out ring holding anything but the editor's replies */
+    if (usb.ota_req || (usb.sx_on && (usb.sx_len < 2u || usb.sysex[1] != 0x7Du)) ||
+        (sx_collect && (!sx_pos || sx_frame[0] != 0x7Du)) || (sx_ready && sx_frame[0] != 0x7Du) ||
+        (sx_busy && !mout.ed_tx) || (so_w != so_r && so_w != mout.ed_end && !mout.ed_tx)) {
         mout.sx_ms = fm1_ms;
         mout.sx_seen = 1;
         return 1;
