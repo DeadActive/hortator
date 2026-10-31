@@ -12,7 +12,9 @@
   firmware/felucca-VER-ble.fwsc  with a second package (the Bluetooth build, FELUCCA_BLE=1): the installer offers
                               both, the plain one first (2026-10-09)
   webapp/installer/index.html index_pkg.html with fm1pkg.js, fm1ota.js, sim/counter.js and the metadata inlined
-  webapp/editor/index.html    editor.html with sim/counter.js's visit count (+ fukiai.ttf, FUKIAI-LICENSE.txt)
+  webapp/editor/index.html    editor.html (Hortator's editor) with sim/counter.js's visit count, its modules in
+                              webapp/editor/editor/ (editor/*.mjs but the tests; device_data.json for ?mock)
+                              (+ fukiai.ttf, FUKIAI-LICENSE.txt)
   src/                        not touched
 
   web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR [build/felucca-ble-X.Y.fwsc]
@@ -103,6 +105,10 @@ def main(pkg, version, out, ble_pkg=None):
     for doc in ("LICENSE", "LICENSING.md"):
         shutil.copy(HERE.parent / doc, fw / doc)
     (ed / "index.html").write_text(editor_html(), encoding="utf-8")
+    (ed / "editor").mkdir(exist_ok=True)              # its modules (until they are inlined into one file)
+    for f in (HERE / "editor").iterdir():
+        if f.suffix in (".mjs", ".json") and not f.name.startswith("test_"):
+            shutil.copy(f, ed / "editor" / f.name)
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
         if (HERE / f).exists():
             shutil.copy(HERE / f, ed / f)
