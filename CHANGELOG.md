@@ -5,6 +5,10 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **Delay and reverb graphs** on their GLO pages. DLY draws the echoes after a hit: their spacing, how fast FDBK lets
+  them fade, COLR dulling the later ones, and in PING-PONG the echoes left and right in turn, with TIME's length in
+  milliseconds. REVERB draws the tail over 4 seconds and its decay time (RT), with DAMP's faster-fading top end and
+  the spring's drips.
 - **Solo on the MUTE screen**: hold GLO and press a black key F#3 to A#4 to solo track 1 to 8 (several at once; the
   soloed keys lit). The other tracks' boxes are half filled, a soloed one shows an S. The top black key F#5 switches
   solo between TGL (a tap on, a tap off) and MOM (soloed only while the key is held); the choice is kept over

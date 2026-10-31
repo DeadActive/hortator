@@ -1678,6 +1678,98 @@ static void graph_filter(uint16_t c)
             cv_rect(100 + ex, x, 1, 2, C_INK);
 }
 
+/* GLO > DLY (both pages): the TIME large, its length in ms and the MODE under it; at the right the echo train over
+ * 8 delay periods: the hit (dithered), then the echoes, the first at MIX, each next one FDBK times the last (fx.c
+ * fx_buses' gains), dithered more the darker COLR leaves them; NORM from the floor, PING above (L) and below (R) the
+ * middle line in turn */
+static void graph_delay(void)
+{
+    uint32_t k, ms = delay_samples() * 1000u / FS, ping = song.g[G_DMODE] != 0;
+    int32_t a = song.g[G_DMIX] * 258, fb = song.g[G_DFDBK] * 230, dark = 127 - song.g[G_DCOLOR], mid = 47;
+    char b[16];
+    md_text(4, 4, &MD_F3, 4, N_DTIME[(uint32_t)song.g[G_DTIME] % (sizeof N_DTIME / sizeof N_DTIME[0])], C_INK);
+    fmt_int(b, (int32_t)ms);
+    str_cpy(b + str_len(b), " MS", sizeof b - str_len(b));
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    md_text(4, 60, &MD_F3, 2, ping ? "PING-PONG" : "NORMAL", C_INK);
+    if (ping) {
+        cv_hdot(100, 235, mid, C_INK);
+        md_text(226, 4, &MD_F3, 2, "L", C_INK);
+        md_text(226, 78, &MD_F3, 2, "R", C_INK);
+    } else {
+        cv_hdot(100, 235, 88, C_INK);
+    }
+    cv_dither(101, ping ? mid - 40 : 8, 3, ping ? 80 : 80, C_INK);   /* the hit */
+    for (k = 1; k <= 8u; k++) {
+        int32_t x = 100 + (int32_t)k * 16, h = (a >> 6) * (ping ? 40 : 80) / 512;   /* (a: Q15) */
+        if (h < 1)
+            break;
+        if (ping) {
+            if (k & 1u)
+                cv_rect(x, mid - h, 3, h, C_INK);
+            else
+                cv_rect(x, mid + 1, 3, h, C_INK);
+        } else {
+            cv_rect(x, 88 - h, 3, h, C_INK);
+        }
+        if (k > 1u && dark * (int32_t)(k - 1u) > 96)   /* COLR: the later repeats duller */
+            cv_dither(x - 1, ping ? ((k & 1u) ? mid - h : mid + 1) : 88 - h, 5, h, C_BG);
+        a = mulq15(a, fb);
+    }
+}
+
+/* GLO > REVERB: the TYPE large and its decay time (RT: to -60 dB) under it; at the right the tail over 4 s (a tick a
+ * second) in dB, 60 dB tall: the line is the whole sound's decay (ROOM: the combs' loop gain from SIZE over their mean
+ * length; SPRNG: the spring's, with its drips at every round trip), the solid under it its top end, which DAMP makes
+ * fade sooner. The loop's gain g over L samples: -60 dB after 6.9 L / -ln g samples, -ln g = d + d^2 / 2, d = 1 - g */
+static int32_t rev_t60(int32_t g, int32_t len)           /* g Q15, len samples -> samples to -60 dB */
+{
+    int32_t d = 32768 - g, q = d + ((d * d) >> 16);         /* -ln g, Q15 */
+    return q > 0 ? (int32_t)((uint32_t)len * 226099u / (uint32_t)q) : 1 << 24;   /* (6.9 in Q15) */
+}
+static void graph_reverb(void)
+{
+    uint32_t spring = song.g[G_RTYPE] != 0, s = (uint32_t)song.g[G_RSIZE], x, drip;
+    int32_t damp = song.g[G_RDAMP], g, len, t60, tb, px, pb, py = 0;
+    char b[16];
+    if (spring) {
+        g = 19661 + (int32_t)s * 85;
+        len = 1323 + (int32_t)((s * 1323u) >> 7);
+    } else {
+        g = 25000 + (int32_t)s * 50;
+        len = (1116 + 1188 + 1277 + 1356) / 4;
+    }
+    t60 = rev_t60(g, len);
+    tb = t60 * (170 - damp) / 170;                           /* DAMP: the top end fades sooner */
+    px = t60 / 1297 > 1 ? t60 / 1297 : 1;                    /* (4 s = 176400 samples over 136 px) */
+    pb = tb / 1297 > 1 ? tb / 1297 : 1;
+    drip = (uint32_t)(len / 1297 + 1);
+    md_text(4, 4, &MD_F3, 4, N_RTYPE[spring], C_INK);
+    str_cpy(b, "RT ", sizeof b);
+    fmt_int(b + 3, t60 / 44100);
+    x = str_len(b);
+    b[x] = '.';
+    b[x + 1] = (char)('0' + t60 * 10 / 44100 % 10);
+    str_cpy(b + x + 2, " S", sizeof b - x - 2);
+    md_text(4, 44, &MD_F3, 2, b, C_INK);
+    cv_hdot(100, 235, 88, C_INK);
+    for (x = 0; x <= 4u; x++)
+        cv_rect(100 + (int32_t)x * 34, 86, 1, 5, C_INK);
+    for (x = 0; x < 136u; x++) {
+        int32_t h = (int32_t)x < px ? 78 - 78 * (int32_t)x / px : 0, hb = (int32_t)x < pb ? 78 - 78 * (int32_t)x / pb : 0, y;
+        if (spring && h > 6 && x % drip == 0u)
+            h += 6;                                          /* a drip */
+        y = 88 - h;
+        if (x)
+            cv_line(99 + (int32_t)x, py, 100 + (int32_t)x, y, C_INK);
+        py = y;
+        if (hb > 0)
+            cv_rect(100 + (int32_t)x, 88 - hb, 1, hb, C_INK);
+        if (h > hb + 1)
+            cv_dither(100 + (int32_t)x, 89 - h, 1, h - hb - 1, C_INK);
+    }
+}
+
 /* INSERT 1/2 and 2/2 (insert.c): the TYPE in large, MIX and SRR under it; at the right a sine's cycle as the track's
  * chain bends it (SRR's steps, then the drive's / CRUSH's curve at MIX, after Skiff's graph_insert), or for the swept
  * ones their sweep over two cycles (PHASR and FLANG a triangle, FLANG's squared, CHOR a sine, as deep as DEPTH). Both
@@ -1743,6 +1835,11 @@ static uint32_t graph_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)song.g[G_SLOT] * 13u;
+    if (pg->graph == GR_DLY || pg->graph == GR_REV)    /* the buses' globals (and the tempo: TIME in ms) */
+        for (i = G_DTIME; i <= G_DMIX; i++)
+            h = (h ^ (uint32_t)song.g[i] + (uint32_t)song.g[G_DMODE] * 7u + (uint32_t)song.g[G_RTYPE] * 11u +
+                 (uint32_t)song.g[G_RSIZE] * 13u + (uint32_t)song.g[G_RDAMP] * 17u + (uint32_t)song.g[G_BPM] * 19u) *
+                16777619u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
     if (pg->graph == GR_SLOTS) {
@@ -2164,6 +2261,12 @@ static uint32_t graph_paint(int whole)
         break;
     case GR_INSERT:
         graph_insert();
+        break;
+    case GR_DLY:
+        graph_delay();
+        break;
+    case GR_REV:
+        graph_reverb();
         break;
     case GR_SLOTS:
         cv_oy = 0;

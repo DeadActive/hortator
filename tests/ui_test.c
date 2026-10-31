@@ -4399,6 +4399,55 @@ static void test_bus_pages_on_glo(void)
         seen += PAGES[k].fam == FAM_FX && (str_eq(PAGES[k].title, "DLY") || str_eq(PAGES[k].title, "REVERB"));
     check("FX: no DLY or REVERB page any more (CHORUS stays)", seen == 0u);
 }
+/* GLO > DLY / REVERB: their graphs (the echo train; the tail), redrawn when their values change; screens for the user */
+static uint32_t graph_ink(void)                      /* ink pixels in the graph's area (the frame's edges aside) */
+{
+    uint32_t x, y, n = 0;
+    for (y = Y_GRAPH + 2u; y < Y_GRAPH + H_GRAPH - 2u; y++)
+        for (x = 2; x < 238u; x++)
+            n += fb[y * 240u + x] == C_INK;
+    return n;
+}
+static void test_bus_graphs(void)
+{
+    uint32_t a, b2;
+    ui_host_init();
+    song.g[G_DTIME] = 12;                            /* 1/8D */
+    song.g[G_DFDBK] = 80;
+    song.g[G_DMIX] = 100;
+    glo_open("DLY");
+    ui_frame();
+    a = graph_ink();
+    check("GLO > DLY: an echo-train graph", cur_page()->graph == GR_DLY && a > 400u);
+    snap_page("glo_delay_graph");
+    song.g[G_DFDBK] = 20;
+    ui_frame();
+    b2 = graph_ink();
+    check("DLY graph: less FDBK, fewer echoes drawn (redrawn on the change)", b2 + 40u < a);
+    song.g[G_DFDBK] = 80;
+    song.g[G_DMODE] = 1;
+    ui_frame();
+    snap_page("glo_delay_graph_ping");
+    check("DLY graph: PING-PONG redraws", graph_ink() != a);
+    song.g[G_DMODE] = 0;
+    glo_open("REVERB");
+    song.g[G_RTYPE] = 0;
+    song.g[G_RSIZE] = 90;
+    song.g[G_RDAMP] = 30;
+    ui_frame();
+    a = graph_ink();
+    check("GLO > REVERB: a decay graph", cur_page()->graph == GR_REV && a > 400u);
+    snap_page("glo_reverb_graph_room");
+    song.g[G_RSIZE] = 10;
+    ui_frame();
+    check("REVERB graph: a smaller SIZE, a shorter tail", graph_ink() + 100u < a);
+    song.g[G_RTYPE] = 1;
+    song.g[G_RSIZE] = 100;
+    song.g[G_RDAMP] = 90;
+    ui_frame();
+    snap_page("glo_reverb_graph_spring");
+    song.g[G_RTYPE] = 0;
+}
 static void test_reverb_pages(void)
 {
     ui_host_init();
@@ -9922,6 +9971,7 @@ int main(void)
     test_speaker_eq();
     test_bus_pages_on_glo();
     test_reverb_pages();
+    test_bus_graphs();
     test_delay_mode_page();
     test_div_order();
     test_usb_level();

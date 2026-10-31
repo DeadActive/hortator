@@ -70,7 +70,8 @@ firmware ([below](#back-to-the-official-firmware)).
   2BAR 1/1 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T 1/16 16T 1/32 32T (D dotted, T triplet); a time longer than the delay
   holds (1.49 s) is cut to 1.49 s. DLY's second page **MODE**: NORM, or PING (ping-pong): the echoes go left, right, left ...,
   with the same FDBK, COLR and longest time; its echoes are a little softer in the top end. Changing MODE clears the
-  delay (the old echoes stop). MODE is saved with the project; older projects load NORM.
+  delay (the old echoes stop). MODE is saved with the project; older projects load NORM. The page's graph draws the
+  echoes after a hit (L and R in PING); REVERB's draws its tail and its decay time (RT).
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
   octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
   until you turn them back.
