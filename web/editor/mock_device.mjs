@@ -14,7 +14,8 @@
 //   m.request(cmd, args) -> obj   encode, feed, decode (tests); m.poll() -> push frames of one main-loop pass
 //   device side: m.turn(track, id, v) m.turnGlobal(id, v) m.select(t) m.play() m.stop() m.boundary()
 //                m.editStep(track, step, s) m.lockOnDevice(track, step, param, v) m.setSong(on) m.advance(ms)
-//   faults:      m.faults.noReply = n (the next n requests unanswered), m.faults.refuse[cmd] = { rc, detail, msg },
+//   faults:      m.faults.noReply = n (the next n requests unanswered), m.faults.refuse[cmd] = { rc, detail, msg, after }
+//                (once, after `after` more requests of cmd),
 //                m.faults.flashError, m.faults.cueFull, m.faults.cuePark = slot (the park holds that slot's unsaved
 //                variations), m.faults.noFlash (no flash this boot), m.faults.updateAtCommit (the upgrade command lands
 //                just before a COMMIT's writes), m.updateFrame(), m.otaReq()
@@ -58,6 +59,15 @@ const MSG = {
 };
 class Refusal { constructor(rc, detail, msg) { this.rc = rc; this.detail = detail; this.msg = msg ?? MSG[detail] ?? ""; } }
 const refuse = (rc, detail, msg) => { throw new Refusal(rc, detail, msg); };
+/** the installer's update handshake (web/fm1ota.js HS_QUERY: pack7(00 59 11 00 00 00 FF)) and upgrade command */
+export const UPDATE_HANDSHAKE = Object.freeze([0xf0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7f, 0xf7]);
+export const OTA_REQ = Object.freeze([0xf0, 0x22, 0x24, 0x35, 0x7f, 0xf7]);
+/** update traffic, as editor.c tells it (ed_ota_frame, usb.ota_req): an update frame's packed header (wire 00 32, then
+ * a byte whose low two bits are 01: ota.c decodes 00 59), or the upgrade command. Other SysEx is not. */
+export function isUpdateTraffic(f) {
+  if (f.length === OTA_REQ.length && OTA_REQ.every((x, i) => f[i] === x)) return true;
+  return f.length >= 5 && f[1] === 0x00 && f[2] === 0x32 && (f[3] & 3) === 1;
+}
 
 function mulberry32(a) {
   return () => {
@@ -417,7 +427,10 @@ export class MockDevice {
     this.received.push(f);
     if (!this.o.editor) return [];
     if (f[0] !== 0xf0) return [];
-    if (f[1] !== 0x7d) { this.silence(); return []; } // update traffic (F0 00 ..., the keys)
+    if (f[1] !== 0x7d) { // update traffic silences (editor.c ed_ota_frame, usb.ota_req); other SysEx (F0 7E ...) not
+      if (isUpdateTraffic(f)) this.silence();
+      return [];
+    }
     if (f[2] !== 0x48 || f[3] !== 0x54) return []; // another 7D frame: not ours, freed
     if (this.t < this.silentUntil) return []; // silent: freed, unanswered
     if (f.length < 7) return [];
@@ -431,8 +444,8 @@ export class MockDevice {
     if (this.restore) this.abortRestore();
     this.watchUntil = -1;
   }
-  updateFrame() { return this.feed([0xf0, 0x00, 0x59, 0x11, 0, 0, 0, 0x6e, 0xf7]); }
-  otaReq() { this.received.push(Uint8Array.from([0xf0, 0x22, 0x24, 0x35, 0x7f, 0xf7])); this.silence(); }
+  updateFrame() { return this.feed(UPDATE_HANDSHAKE); }
+  otaReq() { return this.feed(OTA_REQ); }
   advance(ms) {
     this.t += ms;
     if (this.restore && this.t - this.restore.at > TIMING.restoreIdle) this.abortRestore();
@@ -457,7 +470,8 @@ export class MockDevice {
       if (req.unknown) refuse(RC.BAD, DETAIL.UNKNOWN);
       if ((this.o.caps & CMD_CAP[cmd]) !== CMD_CAP[cmd]) refuse(RC.BAD, DETAIL.NO_CAP);
       const fx = this.faults.refuse[cmd];
-      if (fx) { delete this.faults.refuse[cmd]; throw new Refusal(fx.rc ?? RC.REFUSED, fx.detail ?? 0, fx.msg); }
+      if (fx && fx.after > 0) fx.after--; // (refuse the request after `after` more of this command)
+      else if (fx) { delete this.faults.refuse[cmd]; throw new Refusal(fx.rc ?? RC.REFUSED, fx.detail ?? 0, fx.msg); }
       if (cmd === CMD.INFO) this.last = null;
       if (this.restore && cmd !== CMD.RESTORE) this.restore.at = this.t;
       const body = this.exec(cmd, req.args);
@@ -470,8 +484,9 @@ export class MockDevice {
     return reply;
   }
   fit(cmd, seq, body) { // a reply's list cut to fit ED_REPLY_MAX (the device answers what fits; the page asks on)
-    let f = encodeReply(cmd, seq, RC.OK, body);
     const key = body.$list;
+    if (key && body[key].length > 127) body[key].length = 127; // (a u7 count; what fits is far fewer)
+    let f = encodeReply(cmd, seq, RC.OK, body);
     while (f.length > LIMITS.reply && key && body[key].length) { body[key].pop(); f = encodeReply(cmd, seq, RC.OK, body); }
     if (f.length > LIMITS.reply) throw new Error(`mock: reply ${cmd} ${f.length} B`);
     return f;

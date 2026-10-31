@@ -13,7 +13,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as P from "./proto.mjs";
-import { createMockDevice, loadDeviceData } from "./mock_device.mjs";
+import { OTA_REQ, UPDATE_HANDSHAKE, createMockDevice, isUpdateTraffic, loadDeviceData } from "./mock_device.mjs";
 
 const { CMD, PUSH, RC, DETAIL, CAP, NONE, LK, RS, RK, SCOPE, STEP, U14_NONE } = P;
 let failed = 0, passed = 0;
@@ -451,6 +451,15 @@ function restore(dev, kind, slot, parts) {
   ok(u[0].rc === RC.BAD && u[0].detail === DETAIL.UNKNOWN && u[0].seq === 3 && caps.rc === RC.BAD && caps.detail === DETAIL.NO_CAP,
     "unknown command -> rc 1 (43); a missing capability -> rc 1 (46)");
   ok(d.feed(Uint8Array.from([0xf0, 0x7d, 0x46, 0x4c, 1, 0xf7])).length === 0 && !d.silent, "another 7D frame (upstream Felucca's) is ignored, no silence");
+  const r = fresh();
+  r.request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PRESETS, slot: 0, magic: P.MAGIC.UPR, parts: [{ size: 1284, crc: 0 }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] });
+  const others = [[0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7], [0xf0, 0x7f, 0x7f, 0x04, 0x01, 0x00, 0x40, 0xf7], [0xf0, 0x00, 0x20, 0x29, 0x02, 0xf7],
+    [0xf0, 0x00, 0x32, 0x44, 0, 0, 0, 0x40, 0x7f, 0xf7], [0xf0, 0x22, 0x24, 0x35, 0x7d, 0x00, 0xf7]];
+  ok(others.every((f) => r.feed(Uint8Array.from(f)).length === 0) && !r.silent && r.restore && r.request(CMD.INFO).rc === 0,
+    "other SysEx (a DAW's F0 7E identity request, F0 7F, another maker's, a near miss): no silence, the restore kept");
+  const all = Array.from({ length: 32 }, (_, c) => { const f = [...UPDATE_HANDSHAKE]; f[3] = 1 | c << 2; return f; });
+  ok(all.every((f) => { const x = fresh(); x.feed(Uint8Array.from(f)); return x.silent; }) && isUpdateTraffic(OTA_REQ)
+    && (() => { const x = fresh(); x.otaReq(); return x.silent; })(), "every update frame (wire 00 32 xx, xx & 3 = 1) and the upgrade command silence it");
 }
 
 /* Web MIDI access ------------------------------------------------------------------- */

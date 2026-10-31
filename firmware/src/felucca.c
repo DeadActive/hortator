@@ -66,6 +66,9 @@
 #include "enc.c"           /* the knobs: upstream 1.1.5's decoder (#126) on the scan's frames (led_dim.c hook) */
 #include "panel.c"
 #include "pages.c"
+#if FELUCCA_OTA && __has_include("editor_backup.c")
+#define ED_RESTORE_LOCK 1          /* ui.c refuses the device's own keys while the editor restores (ed_restoring) */
+#endif
 #include "ui.c"
 #include "ui_draw.c"
 #include "ui_menu.c"

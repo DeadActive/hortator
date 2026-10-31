@@ -12,8 +12,8 @@ import {
   BF, CAP, CMD, DETAIL, FileError, LIMITS, NONE, OBJ, RC, RK, RS, SCOPE, crc32, decodePresets, encodePresets,
   makeBackupFile, makeProjectFile, readBackupFile, readProjectFile, summarize,
 } from "./proto.mjs";
-import { BUSY_MSG } from "./session.mjs";
-import { SLOTS, esc } from "./ui.mjs";
+import { BUSY_MSG, clockGuard } from "./session.mjs";
+import { SLOTS, chooser, esc } from "./ui.mjs";
 
 const PIECE = LIMITS.piece;
 const pieces = (n) => Math.ceil(n / PIECE);
@@ -440,6 +440,7 @@ export function mountProjects(el, ctx) {
     $('[data-a="abort"]').disabled = !op.abortable || m.aborting;
   };
   const ask = async (t) => !!(await ctx.confirm(t));
+  const clockOk = () => clockGuard(m.s, chooser(ctx), (t) => ctx.toast?.(t)); // playing, SYNC out on: stop first?
   const fileOf = async (want) => {
     const j = await pickJson();
     if (j && want === "hortator-project" && j.format === "hortator-backup") throw new FileError("format", "This is a hortator-backup file: use Restore all….");
@@ -447,22 +448,22 @@ export function mountProjects(el, ctx) {
   };
   const act = async (a, slot, val) => {
     try {
-      if (a === "backup") { const r = await m.backupProject(slot); download(r.file, r.name); }
-      else if (a === "backup-all") { const r = await m.backupAll(); download(r.file, r.name); }
+      if (a === "backup") { if (!(await clockOk())) return; const r = await m.backupProject(slot); download(r.file, r.name); }
+      else if (a === "backup-all") { if (!(await clockOk())) return; const r = await m.backupAll(); download(r.file, r.name); }
       else if (a === "reload") { m.cache.clear(); m.cards.forEach((c) => { c.summary = null; }); m.say(""); await m.refresh(); }
       else if (a === "abort") m.abort();
       else if (a === "restore") {
         const j = await fileOf("hortator-project");
         if (!j) return;
         const p = readProjectFile(j);
-        if (await ask(`Restore ${p.summary.name || "the project"} from the file into ${SLOTS[slot]}? ${m.replaces(slot)}`)) await m.restoreProjectFile(j, slot);
+        if (await ask(`Restore ${p.summary.name || "the project"} from the file into ${SLOTS[slot]}? ${m.replaces(slot)}`) && await clockOk()) await m.restoreProjectFile(j, slot);
       } else if (a === "restore-all") {
         const j = await fileOf("hortator-backup");
         if (!j) return;
-        if (await ask(`Restore everything from the file? ${m.replacesAll(readBackupFile(j))}`)) await m.restoreAll(j);
+        if (await ask(`Restore everything from the file? ${m.replacesAll(readBackupFile(j))}`) && await clockOk()) await m.restoreAll(j);
       } else if (a === "copy") {
         const to = Number(val);
-        if (await ask(`Copy ${SLOTS[slot]} (as saved in flash) to ${SLOTS[to]}? ${m.replaces(to)}`)) await m.copySlot(slot, to);
+        if (await ask(`Copy ${SLOTS[slot]} (as saved in flash) to ${SLOTS[to]}? ${m.replaces(to)}`) && await clockOk()) await m.copySlot(slot, to);
       }
     } catch (e) {
       if (m.message !== e.message) m.say(e.message, true);

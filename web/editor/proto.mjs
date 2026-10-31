@@ -18,7 +18,9 @@ export const TIMING = {
   timeout: 300, tries: 3, // every request (one in flight)
   longTimeout: 2000, // SAVE, RESTORE COMMIT (flash writes)
   silence: 10000, // update traffic: the device answers nothing this long
-  retryInfo: 2000, // after a silence: INFO this often until it answers
+  // after a silence: INFO once, then backing off (10 s doubling to 60 s), and no more after 2 min busy (an update may
+  // still run: during ota_session the FM-1 holds one SysEx frame, a probe could cost the update a retry): Reconnect
+  backoff: 10000, backoffMax: 60000, giveUp: 120000,
   watch: 3000, keepAlive: 1000, // WATCH ends 3 s after the last request; the page sends WATCH 1 every 1 s
   restoreIdle: 3000, dup: 3000,
 };

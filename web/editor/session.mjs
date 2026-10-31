@@ -6,9 +6,11 @@
 // Connecting (web/EDITOR_PROTOCOL.md §7): only ports named "Hortator" are asked anything, and only INFO until the
 // answer says Hortator editor protocol 1; a "Felucca" port, a stock FM-1 or other gear get nothing. A Session is one
 // identified FM-1: its state block (STATE pushes, replies that carry it), the pushes as events, the WATCH keep-alive,
-// and the update silence (§4 rule 4: a request unanswered -> "FM-1 busy (update?)", nothing for 10 s, then INFO every
-// 2 s until it answers, then "resync": every view reads again). No DOM here: node tests drive it against the mock.
-import { CMD, PUSH, TIMING, checkInfo, classifyPort, has } from "./proto.mjs";
+// and the update silence (§4 rule 4: a request unanswered -> "FM-1 busy (update?)", nothing for the device's 10 s,
+// then one INFO at a time backing off 10 s -> 60 s, none after 2 min busy ("asleep": the user's Reconnect asks again;
+// an update in progress holds one SysEx frame on the FM-1, so the page stays out of its way); answered -> "resync":
+// every view reads again). No DOM here: node tests drive it against the mock.
+import { CMD, PUSH, SCOPE, TIMING, checkInfo, classifyPort, has } from "./proto.mjs";
 import { INFO_ONLY, Link } from "./link.mjs";
 
 export const LINKS = {
@@ -17,6 +19,7 @@ export const LINKS = {
   felucca: { text: "Felucca", href: "https://github.com/hugelton/Felucca" },
 };
 export const BUSY_MSG = "FM-1 busy (update?)";
+export const ASLEEP_MSG = "FM-1 busy: Reconnect when the update is done";
 const restoreBusy = (l) => `Writing ${l.what} to the FM-1 (${l.owner} tab).`;
 const REFUSAL = {
   nomidi: { message: "This browser has no Web MIDI. Use Chrome, Edge or Opera (desktop or Android), or Firefox.", links: [] },
@@ -32,6 +35,23 @@ const REFUSAL = {
 /** a refusal to show: { why, message, links } */
 export const refusal = (why, message) => ({ ok: false, why, message: message || REFUSAL[why].message, links: REFUSAL[why]?.links || [] });
 
+export const G_SYNC = 12; // core.h G_SYNC: MIDI clock out (OFF, USB, BLE, BOTH); device_data.json (the tests compare)
+export const JITTER_MSG = "Clock out may jitter during the transfer — stop first?";
+export const JITTER_CHOICES = ["Stop", "Continue", "Cancel"];
+/** Before a big transfer (EDITOR_PROTOCOL.md §4 rule 8: a 306-byte frame holds MIDI clock out ~7 ms): while the FM-1
+ * plays with SYNC out on, ask choose(JITTER_MSG, JITTER_CHOICES). Stop: protocol 1 has no transport command, so the
+ * player is told to press STOP on the FM-1 (notify) and the transfer starts once a STATE push says it stopped (none
+ * within waitMs: cancelled). Resolves true to go on, false to drop the transfer. */
+export async function clockGuard(session, choose, notify = () => {}, waitMs = 60000) {
+  if (!(await session.clockAtRisk())) return true;
+  const c = await choose(JITTER_MSG, JITTER_CHOICES);
+  if (c === "Continue") return true;
+  if (c !== "Stop") return false;
+  notify("Press STOP on the FM-1: the transfer starts when it stops.");
+  const stopped = await session.untilStopped(waitMs);
+  if (!stopped) notify("The FM-1 kept playing: nothing was transferred.");
+  return stopped;
+}
 const live = (p) => p.state !== "disconnected";
 /** the access' ports by kind: hortator [{ name, input, output }], felucca [names], other [names] */
 export function listPorts(access) {
@@ -75,6 +95,7 @@ export class Session {
     this.info = null;
     this.state = null;
     this.busy = false;
+    this.asleep = false; // busy, and the page stopped asking (TIMING.giveUp): only reconnect() asks again
     this.connected = false;
     this.restoring = null; // the restore lock: { owner, what } while a tab runs RESTORE BEGIN .. COMMIT / ABORT
     this.link = new Link((f) => port.output.send(f), { timer: this.timer, timeout: this.timing.timeout,
@@ -146,6 +167,24 @@ export class Session {
    * it), { slot } (the slot restored and loaded again) or { presets: true } (the user presets restored). Views showing
    * it read it again (event "reload"). */
   reloaded(what) { if (this.connected && !this.busy) this.emit("reload", what); }
+  /** playing with SYNC (MIDI clock out) on: a big transfer may make the clock jitter (clockGuard) */
+  async clockAtRisk() {
+    if (!this.state?.playing || !this.connected || this.busy) return false;
+    try {
+      const r = await this.request(CMD.GET, { scope: SCOPE.GLOBAL, track: 0, id: G_SYNC, count: 1 });
+      return !!r.values?.[0]?.value;
+    } catch { return false; }
+  }
+  /** true once the FM-1 is stopped (now or by a STATE push), false after ms or when the session ends */
+  untilStopped(ms = 60000) {
+    if (!this.state?.playing) return Promise.resolve(true);
+    return new Promise((res) => {
+      const done = (v) => { offS(); offC(); this.timer.clearTimeout(t); res(v); };
+      const offS = this.on("state", ({ state }) => { if (!state.playing) done(true); });
+      const offC = this.on("closed", () => done(false));
+      const t = this.timer.setTimeout(() => done(false), ms);
+    });
+  }
   /** one selection, the device's: choosing a track here selects it on the FM-1 */
   select(track) { return this.request(CMD.SELECT, { track }); }
   setState(st) {
@@ -161,29 +200,53 @@ export class Session {
     else if (p.cmd === PUSH.STEPS_CHANGED) this.emit("steps", p);
     else if (p.cmd === PUSH.LOCKS_CHANGED) this.emit("locks", p);
   }
-  /** a request went unanswered after its tries: the update silence (or the FM-1 went away) */
+  /** a request went unanswered after its tries: the update silence (or the FM-1 went away). Nothing goes out for the
+   * device's silence, then one INFO (one try) at a time, the waits doubling from TIMING.backoff to backoffMax, the
+   * last at TIMING.giveUp after the silence began; then nothing ("asleep") until reconnect() */
   silent() {
     if (!this.connected || this.busy) return;
     this.busy = true;
     this.link.allow = INFO_ONLY;
     this.link.clear(BUSY_MSG);
     this.emit("busy", true);
-    this.probeAt(this.timing.silence);
+    this.backoffFrom(this.timing.silence);
+  }
+  backoffFrom(first) {
+    this.asleep = false;
+    this.busyFor = 0; // ms of waits scheduled since the silence (or a Reconnect) began
+    this.backoffMs = this.timing.backoff;
+    this.probeAt(first);
   }
   probeAt(ms) {
     this.timer.clearTimeout(this.probeT);
+    this.busyFor += ms;
     this.probeT = this.timer.setTimeout(() => this.probe(), ms);
   }
+  /** "Reconnect": the page stopped asking (asleep) or the user does not want to wait: INFO now, then backing off again */
+  reconnect() {
+    if (!this.connected || !this.busy || this.probing) return;
+    if (this.asleep) this.emit("asleep", false);
+    this.backoffFrom(0);
+  }
   async probe() {
-    if (!this.connected) return;
+    if (!this.connected || this.probing) return;
     let info = null;
+    this.probing = true;
     try { info = await this.link.request(CMD.INFO, {}, { raw: true, quiet: true, tries: 1 }); } catch { /* still silent */ }
+    this.probing = false;
     if (!this.connected) return;
-    if (!info) { this.probeAt(this.timing.retryInfo); return; }
+    if (!info) {
+      const next = Math.min(this.backoffMs, this.timing.backoffMax, this.timing.giveUp - this.busyFor);
+      if (next <= 0) { this.asleep = true; this.emit("asleep", true); return; } // no more: Reconnect asks again
+      this.backoffMs = Math.min(this.backoffMs * 2, this.timing.backoffMax);
+      this.probeAt(next);
+      return;
+    }
     const c = checkInfo(info);
     if (!c.ok) { this.emit("refused", refusal(c.why, c.message)); this.close("refused"); return; } // updated to another major
     this.info = info;
     this.busy = false;
+    this.asleep = false;
     this.link.allow = null;
     this.emit("busy", false);
     this.setState(info.state);

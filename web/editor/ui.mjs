@@ -17,3 +17,6 @@ export function h(tag, attrs = {}, ...kids) {
   return e;
 }
 export const SLOTS = ["A", "B", "C", "D"];
+/** ctx.choose(message, options) -> the option chosen (app.mjs: a dialog with a button each); without it, ctx.confirm:
+ * OK = options[1] (Continue), Cancel = options[2] (Cancel) */
+export const chooser = (ctx) => ctx.choose || (async (msg, opts) => (await ctx.confirm?.(`${msg}\n\nOK: ${opts[1]}. Cancel: ${opts[2]}.`) ? opts[1] : opts[2]));

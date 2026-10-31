@@ -16,7 +16,7 @@ import { connect } from "./session.mjs";
 import { PresetsModel, explain } from "./tab_presets.mjs";
 
 const { CMD, RS, LAYOUT, SF } = P;
-const FAST = { timeout: 40, longTimeout: 120, tries: 3, silence: 60, retryInfo: 25, keepAlive: 100000 };
+const FAST = { timeout: 40, longTimeout: 120, tries: 3, silence: 60, backoff: 25, backoffMax: 100, giveUp: 100000, keepAlive: 100000 };
 const eqB = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 export async function runPresetsTests(log = console.log) {

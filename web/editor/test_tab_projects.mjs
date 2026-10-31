@@ -22,7 +22,7 @@ async function until(cond, ms = 3000) {
   for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(2)) if (cond()) return true;
   return cond();
 }
-const FAST = { timeout: 25, longTimeout: 60, tries: 3, silence: 60, retryInfo: 25, keepAlive: 100000 };
+const FAST = { timeout: 25, longTimeout: 60, tries: 3, silence: 60, backoff: 25, backoffMax: 100, giveUp: 100000, keepAlive: 100000 };
 const eqb = (a, b) => (!a && !b) || (!!a && !!b && a.length === b.length && a.every((x, i) => x === b[i]));
 const json = (f) => JSON.parse(JSON.stringify(f)); // through a file and back
 

@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { CMD, CUE, NONE, RC, RK, RS, SEQ_PUSH, crc32, decodeFrame, encodePush, encodeReply, encodeRequest, isEditorFrame,
 } from "../web/editor/proto.mjs";
-import { createMockDevice } from "../web/editor/mock_device.mjs";
+import { UPDATE_HANDSHAKE, createMockDevice } from "../web/editor/mock_device.mjs";
 
 const data = JSON.parse(readFileSync(new URL("../web/editor/device_data.json", import.meta.url), "utf8"));
 const lines = readFileSync(process.argv[2], "utf8").split("\n").filter(Boolean)
@@ -69,6 +69,7 @@ function xcheck(bin) {
   lines.push("boot", "load 0");
   const dev = (line, fn) => steps.push([line, null, fn]);
   const rq = (what, cmd, args = {}, s) => steps.push([what, encodeRequest(cmd, s ?? (seq = (seq + 1) % SEQ_PUSH), args), null]);
+  const raw = (what, bytes) => steps.push([what, Uint8Array.from(bytes), null]);   // any SysEx, not the editor's
   const set = (what, scope, track, id, value, s) => rq(what, CMD.SET, { scope, track, id, value }, s);
   const push = (line, what) => steps.push([what, null, null, line]);   // the pushes since the last such step
   const A = m.flashObjects(0), parts = [A.record, A.locks, A.vars];
@@ -145,10 +146,19 @@ function xcheck(bin) {
   rq("COMMIT with the upgrade command pending: rc 6 0, dropped", CMD.RESTORE, { op: RS.COMMIT });
   rq("COMMIT again: rc 1 41 (no restore)", CMD.RESTORE, { op: RS.COMMIT });
   rq("RESTORE BEGIN into D", CMD.RESTORE, begin(3));
+  raw("a DAW's identity request (F0 7E) while restoring: not answered, not update traffic", [0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7]);
+  raw("another maker's SysEx (F0 00 20 29) while restoring: the same", [0xf0, 0x00, 0x20, 0x29, 0x02, 0x0c, 0x0e, 0x01, 0xf7]);
+  rq("GET after them: answered (no silence)", CMD.GET, { scope: 1, track: 0, id: G.BPM, count: 1 });
   pieces("restore D");
   rq("COMMIT into D", CMD.RESTORE, { op: RS.COMMIT });
   rq("STEPS_GET D variation 2", CMD.STEPS_GET, { slot: 3, var: 1, track: 0 });
   rq("INFO at the end", CMD.INFO);
+  raw("the installer's update handshake (F0 00 32 45 ...): left for the updater, no reply from the editor", UPDATE_HANDSHAKE);
+  rq("INFO during the update silence: unanswered", CMD.INFO);
+  dev("advance 9990", () => m.advance(9990));
+  rq("INFO at 9.99 s: still silent", CMD.INFO);
+  dev("advance 10", () => m.advance(10));
+  rq("INFO 10 s after the update frame: answered", CMD.INFO);
 
   for (const [what, frame, , line] of steps) lines.push(line || (frame ? `frame ${hex(frame)}` : what));
   const r = spawnSync(bin, { input: lines.join("\n") + "\n", encoding: "utf8", maxBuffer: 1 << 24 });

@@ -8,7 +8,10 @@
 //   from encodeRequest (F0 7D 48 54)
 // - the request queue: one in flight, seq, timeout and retries with the same seq, coalescing, wrap-around
 // - the Sound tab follows the device: pages from PAGES (SRR, INSERT, DLY MODE), the device's texts, pushes, selection,
-//   model changes both ways, refusals; the header; the update silence and the resync after it
+//   model changes both ways, refusals; the header; the update silence and the resync after it, the back-off and
+//   Reconnect
+// - one editor per browser (instance.mjs): a second tab finds it open, "Use here" takes it over and the first tab
+//   disconnects (Web Locks, or a BroadcastChannel alone), two sessions on one mock FM-1
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -19,6 +22,39 @@ import * as linkMod from "./link.mjs";
 import * as sessionMod from "./session.mjs";
 import * as tabSound from "./tab_sound.mjs";
 import * as headerMod from "./header.mjs";
+import * as instanceMod from "./instance.mjs";
+
+/** a LockManager in memory (navigator.locks: exclusive locks, ifAvailable, steal, signal), shared by the "tabs" */
+export function fakeLocks() {
+  const held = new Map(), queue = new Map(); // name -> { rej } ; name -> [{ grant, rej }]
+  const abortError = () => Object.assign(new Error("aborted"), { name: "AbortError" });
+  const next = (name) => { const q = queue.get(name) || []; const w = q.shift(); if (w) w.grant(); };
+  return {
+    request(name, opt, cb) {
+      return new Promise((res, rej) => {
+        const grant = () => {
+          const me = { rej };
+          held.set(name, me);
+          Promise.resolve(cb({ name, mode: "exclusive" })).then((v) => {
+            if (held.get(name) !== me) return; // stolen meanwhile: already rejected
+            held.delete(name);
+            res(v);
+            next(name);
+          });
+        };
+        const cur = held.get(name);
+        if (!cur) { grant(); return; }
+        if (opt.steal) { held.delete(name); cur.rej(abortError()); grant(); return; }
+        if (opt.ifAvailable) { Promise.resolve(cb(null)).then(res); return; }
+        const w = { grant, rej };
+        if (!queue.has(name)) queue.set(name, []);
+        queue.get(name).push(w);
+        opt.signal?.addEventListener("abort", () => { const q = queue.get(name); const i = q.indexOf(w); if (i >= 0) { q.splice(i, 1); rej(abortError()); } });
+      });
+    },
+    held: (name) => held.has(name),
+  };
+}
 
 const HERE = new URL(".", import.meta.url).pathname;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -26,12 +62,13 @@ async function until(cond, ms = 3000) {
   for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(2)) if (cond()) return true;
   return cond();
 }
-const FAST = { timeout: 25, longTimeout: 60, tries: 3, silence: 60, retryInfo: 25, keepAlive: 100000 };
+const FAST = { timeout: 25, longTimeout: 60, tries: 3, silence: 60, backoff: 25, backoffMax: 100, giveUp: 100000, keepAlive: 100000 };
 
 /** mods: the modules to test by file name (the inlined page's: web/test_web.mjs); default: these sources */
 export async function runPageTests(log = console.log, mods = {}) {
   const M = { "proto.mjs": proto, "mock_device.mjs": mockDevice, "link.mjs": linkMod, "session.mjs": sessionMod,
-    "tab_sound.mjs": tabSound, "header.mjs": headerMod, ...mods };
+    "tab_sound.mjs": tabSound, "header.mjs": headerMod, "instance.mjs": instanceMod, ...mods };
+  const { SingleTab } = M["instance.mjs"];
   const P = M["proto.mjs"], { createMockDevice, loadDeviceData } = M["mock_device.mjs"];
   const { DeviceError, INFO_ONLY, Link, TimeoutError } = M["link.mjs"], { BUSY_MSG, Session, connect, listPorts } = M["session.mjs"];
   const { ID, SoundModel } = M["tab_sound.mjs"], { headerModel } = M["header.mjs"];
@@ -317,6 +354,115 @@ export async function runPageTests(log = console.log, mods = {}) {
     ok(!s.busy && busy.join() === "true,false" && resync.length === 1 && valuesMatch(), "the FM-1 answers again: resync, WATCH, values read again");
     s.close();
     snd.destroy();
+  }
+
+  /* big transfers while playing with SYNC out on (EDITOR_PROTOCOL.md §4 rule 8): Stop / Continue / Cancel */
+  {
+    const { G_SYNC, JITTER_MSG, JITTER_CHOICES, clockGuard } = M["session.mjs"];
+    const m = dev(), r = await connect(access(m), { timing: FAST }), s = r.session, asked = [], notes = [];
+    const answer = (a) => async (msg, opts) => { asked.push([msg, opts.join()]); return a; };
+    ok(G_SYNC === data.G.indexOf("SYNC") && JITTER_MSG === "Clock out may jitter during the transfer — stop first?"
+      && JITTER_CHOICES.join() === "Stop,Continue,Cancel", "SYNC is core.h's G_SYNC; the question and its three answers");
+    m.g[G_SYNC] = 1;
+    ok(await clockGuard(s, answer("Cancel")) && !asked.length, "stopped (SYNC on): no question, the transfer goes");
+    m.play();
+    m.g[G_SYNC] = 0;
+    await until(() => s.state.playing);
+    ok(await clockGuard(s, answer("Cancel")) && !asked.length, "playing, SYNC off: no question");
+    m.g[G_SYNC] = 3;
+    ok(!(await clockGuard(s, answer("Cancel"))) && asked.length === 1 && asked[0][0] === JITTER_MSG && asked[0][1] === "Stop,Continue,Cancel",
+      "playing, SYNC out on: asked; Cancel drops the transfer");
+    ok(await clockGuard(s, answer("Continue")), "Continue: the transfer goes while playing");
+    const n = m.received.length, g = clockGuard(s, answer("Stop"), (t) => notes.push(t), 2000);
+    await until(() => notes.length);
+    const sent = m.received.slice(n).map((f) => P.decodeRequest(f).cmd);
+    ok(/Press STOP on the FM-1/.test(notes[0]) && sent.every((c) => c === CMD.GET || c === CMD.WATCH), "Stop: the player is told to press STOP on the FM-1 (protocol 1 has no stop command): nothing else sent");
+    m.stop();
+    ok(await g && !s.state.playing, "... the transfer starts once the FM-1 stopped (STATE)");
+    m.play();
+    await until(() => s.state.playing);
+    ok(!(await clockGuard(s, answer("Stop"), (t) => notes.push(t), 80)) && /kept playing/.test(notes.at(-1)), "Stop, but it keeps playing: dropped after the wait");
+    m.stop();
+    s.close();
+    const src = (f) => readFileSync(join(HERE, f), "utf8");
+    const pr = src("tab_presets.mjs"), pj = src("tab_projects.mjs"), pt = src("tab_patterns.mjs");
+    const guarded = (t, re) => re.test(t);
+    ok(guarded(pr, /read: async[\s\S]{0,300}clockOk\(\)[\s\S]{0,80}readDevice/) && guarded(pr, /write: async[\s\S]{0,400}clockOk\(\)[\s\S]{0,400}m\.write\(/)
+      && ["backupProject", "backupAll", "restoreProjectFile", "restoreAll", "copySlot"].every((f) => new RegExp(`clockOk\\(\\)\\)?\\)? ?(return; const r = )?(await )?m\\.${f}\\(`).test(pj))
+      && /clockGuard\(s, chooser\(ctx\)[^\n]*\n[^\n]*\n\s*await m\.copy\(/.test(pt),
+    "the tabs ask before their big transfers: Presets Read / Write, Projects Back up / Back up all / Restore / Restore all / Copy, Patterns Copy");
+  }
+
+  /* one editor per browser: two tabs, one FM-1 ------------------------------------------------------------------ */
+  for (const mode of ["locks", "channel"]) {
+    const locks = mode === "locks" ? fakeLocks() : null, name = `hortator-editor-test-${mode}`, m = dev();
+    const tab = (id) => { // what app.mjs does with a SingleTab: connect while it holds it, disconnect when it is taken
+      const t = { id, session: null, notices: [], sent: 0 };
+      t.single = new SingleTab({ locks, name, id, onLost: () => { t.session?.close("taken"); t.session = null; t.notices.push("taken"); } });
+      t.connect = async () => { const r = await connect(access(m), { timing: { ...FAST, keepAlive: 20 }, onSend: () => t.sent++ }); t.session = r.session; return r; };
+      return t;
+    };
+    const one = tab("one"), two = tab("two");
+    ok(await one.single.claim() && (await one.connect()).ok && one.single.mode === mode, `${mode}: the first tab takes the editor and connects`);
+    ok(!(await two.single.claim()) && !two.single.held, `${mode}: a second tab finds it open in another tab (it shows "Use here")`);
+    await sleep(30);
+    ok(one.sent > 2 && one.session.connected, `${mode}: (the first tab's WATCH keep-alive runs)`);
+    ok(await two.single.takeOver(500) && two.single.held && !one.single.held && one.notices.join() === "taken" && !one.session,
+      `${mode}: "Use here": the first tab disconnects and lets go, the second has it`);
+    const n = m.received.length, r2 = await two.connect();
+    const later = m.received.slice(n).map((f) => P.decodeRequest(f));
+    ok(r2.ok && later[0].cmd === CMD.INFO && two.session.connected, `${mode}: the second tab connects (INFO first): one session on the FM-1`);
+    const s1 = one.sent;
+    await sleep(60);
+    ok(one.sent === s1 && two.sent > 2, `${mode}: the first tab sends nothing more; the second's keep-alive runs`);
+    ok(!(await one.single.claim()) && await one.single.takeOver(500) && !two.session && two.notices.join() === "taken",
+      `${mode}: and back: the first tab's "Use here" takes it again`);
+    one.single.close();
+    two.single.close();
+  }
+  { // a holder that does not answer (frozen): after the wait its lock is taken anyway (steal), and it learns it
+    const locks = fakeLocks(), lost = [];
+    const a = new SingleTab({ locks, name: "frozen", id: "a", Channel: null, onLost: () => lost.push("a") });
+    const b = new SingleTab({ locks, name: "frozen", id: "b", Channel: null });
+    ok(await a.claim() && !(await b.claim()), "a frozen holder: the second tab finds it held");
+    const t0 = Date.now();
+    ok(await b.takeOver(60) && b.held && Date.now() - t0 >= 55, "... Use here waits, then takes the lock");
+    await sleep(5);
+    ok(lost.join() === "a" && !a.held, "... and the frozen tab, when it runs again, disconnects");
+    const none = new SingleTab({ locks: null, Channel: null });
+    ok(await none.claim() && none.mode === "none", "no Web Locks, no BroadcastChannel: every tab may connect (as before)");
+  }
+
+  /* busy for long (an update session: the FM-1 holds one SysEx frame, a probe could cost the update a retry): the page
+   * waits the device's silence, then backs off, then stops asking until Reconnect */
+  {
+    const T = { ...FAST, silence: 120, backoff: 40, backoffMax: 160, giveUp: 600 };
+    const sends = [], m = dev(), r = await connect(access(m), { timing: T, onSend: (f) => sends.push([Date.now(), f]) });
+    const s = r.session, asleep = [];
+    s.on("asleep", (x) => asleep.push(x));
+    await until(() => s.link.idle);
+    m.updateFrame(); // silent from now (mock time stands still: it never answers by itself)
+    const n0 = sends.length;
+    await s.request(CMD.SELECT, { track: 1 }).catch(() => {});
+    const t0 = Date.now();
+    ok(s.busy && !s.asleep, "an update: busy");
+    await until(() => s.asleep, 3000);
+    const probes = sends.slice(n0 + FAST.tries).map(([t, f]) => [t - t0, f]);
+    const gaps = probes.map(([t], i) => t - (i ? probes[i - 1][0] : 0));
+    const want = [120, 40, 80, 160, 160, 40]; // the silence, then 40 80 160 160 (the cap), the last at 600 ms (giveUp)
+    ok(s.asleep && asleep.join() === "true" && probes.every(([, f]) => isInfo(f)) && probes.length === want.length
+      && gaps.every((g, i) => g >= want[i] - 2 && g <= want[i] + T.timeout + 60),
+    `busy: nothing for the silence, then one INFO at a time backing off (gaps ${gaps.join(" ")} ms), then asleep`);
+    ok(headerModel(s).status === sessionMod.ASLEEP_MSG && headerModel(s).asleep, "asleep: the header says Reconnect");
+    const n1 = sends.length;
+    await sleep(400);
+    ok(sends.length === n1, "asleep: nothing more goes out, however long");
+    m.advance(P.TIMING.silence); // the update ended, the FM-1 answers again
+    s.reconnect();
+    await until(() => !s.busy && s.link.idle, 2000);
+    ok(!s.busy && !s.asleep && asleep.join() === "true,false" && isInfo(sends[n1][1]) && sends[n1][0] - Date.now() < 50,
+      "Reconnect: INFO at once, answered: connected again");
+    s.close();
   }
   return { passed, failed };
 }

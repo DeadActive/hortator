@@ -4,9 +4,11 @@
 // session (session.mjs) asks only "Hortator" ports, only INFO, until one identifies itself. `?mock` runs the page
 // against the mock device (mock_device.mjs) for development; `?mock=auto` also connects at once.
 // The tabs, one module each: tab_sound.mjs (live sound), tab_presets.mjs, tab_projects.mjs, tab_patterns.mjs.
+// One editor per browser (instance.mjs): a second tab says "The editor is open in another tab" and offers "Use here".
 import { connect, refusal } from "./session.mjs";
+import { SingleTab } from "./instance.mjs";
 import { mountHeader } from "./header.mjs";
-import { esc } from "./ui.mjs";
+import { esc, h } from "./ui.mjs";
 import { tab as sound } from "./tab_sound.mjs";
 import { tab as presets } from "./tab_presets.mjs";
 import { tab as projects } from "./tab_projects.mjs";
@@ -18,6 +20,21 @@ const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 const MOCK = params.has("mock");
 let session = null, views = [], header = null, mock = null;
+const TAKEN = "The editor is open in another tab. Use it there, or use it here (the other tab disconnects).";
+const single = new SingleTab({ name: MOCK ? "hortator-editor-mock" : undefined, onLost: () => {
+  if (session) session.close("taken"); // its views torn down by "closed"; then the lock goes to the other tab
+  else taken(TAKEN);
+} });
+function taken(msg) { // another tab has the editor: Connect waits for "Use here"
+  $("#taken").hidden = !msg;
+  $("#taken p").textContent = msg || "";
+  $("#connect").disabled = !!msg;
+}
+async function useHere() {
+  const b = $("#usehere");
+  b.disabled = true;
+  try { await single.takeOver(); taken(null); say(null); } finally { b.disabled = false; }
+}
 
 function say(r) { // a message under Connect, with its links
   const el = $("#msg");
@@ -33,6 +50,22 @@ function toast(msg) {
   el.hidden = false;
   clearTimeout(toastT);
   toastT = setTimeout(() => { el.hidden = true; }, 4000);
+}
+
+/** a question with a button per option (the clock-out warning: Stop / Continue / Cancel): the option chosen; Escape or
+ * closing it: the last option */
+function choose(msg, opts) {
+  const d = $("#choose");
+  if (!d || typeof d.showModal !== "function") return Promise.resolve(window.confirm(`${msg}\n\nOK: ${opts[1]}. Cancel: ${opts[2]}.`) ? opts[1] : opts[2]);
+  d.querySelector("p").textContent = msg;
+  const acts = d.querySelector(".acts");
+  acts.replaceChildren(...opts.map((o, i) => h("button", { type: "button", class: i === opts.length - 1 ? "cta ghost" : "cta",
+    onclick: () => d.close(o) }, o)));
+  return new Promise((res) => {
+    d.addEventListener("close", () => res(opts.includes(d.returnValue) ? d.returnValue : opts[opts.length - 1]), { once: true });
+    d.returnValue = "";
+    d.showModal();
+  });
 }
 
 async function access() {
@@ -51,16 +84,18 @@ async function access() {
 
 async function onConnect() {
   const btn = $("#connect");
+  if (!single.held && !(await single.claim())) { taken(TAKEN); return; }
   btn.disabled = true;
   say({ message: "Looking for a Hortator FM-1…" });
   try {
     const r = await connect(await access());
     if (!r.ok) { say(r); return; }
+    if (!single.held) { r.session.close(); say(null); return; } // another tab took the editor meanwhile
     say(null);
     started(r.session);
   } catch (e) {
     say(e.why ? e : { message: e.message, links: [] });
-  } finally { btn.disabled = false; }
+  } finally { btn.disabled = !single.held; }
 }
 
 function started(s) {
@@ -68,7 +103,7 @@ function started(s) {
   $("#start").hidden = true;
   $("#app").hidden = false;
   header = mountHeader($("#hb"), s, { onError: toast });
-  const ctx = { session: s, toast, confirm: (m) => window.confirm(m) };
+  const ctx = { session: s, toast, confirm: (m) => window.confirm(m), choose };
   const nav = $("#tabs"), panels = $("#panels");
   nav.innerHTML = "";
   panels.innerHTML = "";
@@ -93,8 +128,12 @@ function started(s) {
   try { last = last || localStorage.getItem(TAB_KEY) || ""; } catch { /* storage off */ }
   show(views.some((v) => v.id === last) ? last : views[0]?.id);
   s.on("busy", (on) => on && toast("FM-1 busy (update?): the editor waits and reconnects by itself."));
+  s.on("asleep", (on) => on && toast("The FM-1 stayed busy (an update?): the editor stopped asking. Click Reconnect when it is done."));
   s.on("refused", (r) => stopped(r));
-  s.on("closed", (why) => why !== "refused" && stopped({ message: why === "unplugged" ? "The FM-1 was unplugged." : "Disconnected.", links: [] }));
+  s.on("closed", (why) => {
+    if (why === "taken") { stopped(null); taken("The editor was opened in another tab: this one disconnected. Use here takes it back."); return; }
+    if (why !== "refused") stopped({ message: why === "unplugged" ? "The FM-1 was unplugged." : "Disconnected.", links: [] });
+  });
 }
 
 function show(id) {
@@ -132,6 +171,11 @@ function mockBar(m) {
 }
 
 $("#connect").addEventListener("click", onConnect);
+$("#usehere").addEventListener("click", useHere);
 if (!MOCK && !navigator.requestMIDIAccess) say(refusal("nomidi"));
 if (MOCK) $("#mode").textContent = "Mock device: no FM-1 needed.";
-if (params.get("mock") === "auto") onConnect();
+single.claim().then((mine) => { // the editor is this tab's from the start, unless another tab has it
+  if (!mine) taken(TAKEN);
+  else if (params.get("mock") === "auto") onConnect();
+});
+addEventListener("pagehide", () => single.release());

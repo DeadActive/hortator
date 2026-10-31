@@ -49,6 +49,8 @@
   #msg { margin: 24px 0; padding: 16px; border: 2px solid var(--c2); max-width: 70ch; }
   #msg p { margin: 0 0 12px; color: var(--w); }
   #msg p:last-child { margin: 0; }
+  #taken { margin: 24px 0; padding: 16px; border: 2px solid var(--w); max-width: 70ch; }
+  #taken p { margin: 0 0 12px; color: var(--w); }
 
   /* the header bar */
   .hb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 8px 0; border-bottom: 2px solid var(--c1);
@@ -64,6 +66,8 @@
   .hb-var { color: var(--c4); }
   .hb-status { color: var(--c3); }
   .hb-status.alert { background: var(--w); color: var(--k); padding: 0 8px; }
+  .hb-re { background: var(--k); color: var(--w); border: 2px solid var(--w); cursor: pointer; padding: 0 8px; }
+  .hb-re:hover { background: var(--w); color: var(--k); }
   .hb-tracks { display: flex; gap: 4px; margin-left: auto; }
   .trk { width: 32px; height: 32px; border: 2px solid var(--c2); background: var(--k); color: var(--c4); cursor: pointer; padding: 0; }
   .trk:hover { border-color: var(--w); color: var(--w); }
@@ -104,6 +108,10 @@
   .knob input[type=range]::-moz-range-thumb { width: 8px; height: 16px; background: var(--w); border: 0; border-radius: 0; }
   .knob select { width: 100%; margin-top: 4px; background: var(--k); color: var(--c5); border: 2px solid var(--c2); border-radius: 0; padding: 0 2px; }
 
+  #choose { background: var(--k); color: var(--c5); border: 2px solid var(--w); padding: 16px; max-width: min(90vw, 60ch); }
+  #choose::backdrop { background: rgba(0, 0, 0, .7); }
+  #choose p { margin: 0 0 16px; color: var(--w); }
+  #choose .acts { display: flex; flex-wrap: wrap; gap: 8px; }
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--w); color: var(--k);
     padding: 8px 16px; max-width: min(90vw, 60ch); z-index: 5; }
   #mockbar { position: fixed; right: 16px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
@@ -132,6 +140,7 @@
       firmware 0.28.0 or later.</p>
     <button type="button" id="connect" class="cta">Connect</button><span id="mode"></span>
     <div id="msg" role="status" hidden></div>
+    <div id="taken" role="status" hidden><p></p><button type="button" id="usehere" class="cta ghost">Use here</button></div>
     <p class="fine">Chrome, Edge or Opera (desktop or Android); Firefox asks for a site permission first; Safari has no
       Web MIDI. The browser asks for MIDI with SysEx. Nothing is sent before you click Connect, and only to ports named
       "Hortator": an FM-1 running Felucca or the stock firmware, and other MIDI gear, get nothing.</p>
@@ -147,6 +156,7 @@
   <button type="button" data-a="track">Next track</button><button type="button" data-a="play">Play / stop</button>
   <button type="button" data-a="update">Update traffic</button></div>
 <div id="toast" role="status" hidden></div>
+<dialog id="choose" aria-label="Question"><p></p><div class="acts"></div></dialog>
 <footer class="foot wrap">
   <p>Hortator, drum-machine firmware for the M-VAVE FM-1 by DEADACTIVE. GPL-3.0.</p>
   <p>The editor's protocol shape follows Felucca's editor by Leo Kuroshita (Hügelton Instruments), GPL-3.0.</p>

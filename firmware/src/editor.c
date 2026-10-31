@@ -12,8 +12,9 @@
  * Frames come through usb_app.c's one received frame (sx_frame, ota_frame_get) and leave through its SysEx out ring
  * (ota_wire_send). main.c (frozen) calls ed_service() before ota_service() every pass and again in its 15 ms wait:
  * a 7D 48 54 frame is taken and freed in the same pass (a short one copied first, so the slot is free while the reply
- * goes out; a long one read in place); anything not starting 7D is update traffic, left for ota_take(), and silences
- * the editor for ED_SILENCE_MS (no replies, no pushes, WATCH off, an uncommitted restore dropped). Main loop only:
+ * goes out; a long one read in place); anything else is left for ota_take(), and an update's own frame (its packed
+ * header, ed_ota_frame) or the upgrade command silences the editor for ED_SILENCE_MS (no replies, no pushes, WATCH
+ * off, an uncommitted restore dropped); other SysEx (a DAW's F0 7E identity request) does not. Main loop only:
  * knob writes go as a learned MIDI CC's (midi_learn.c ml_set: motion's base, a lock's value under it), a MODEL as the
  * MODEL knob's (drum_set_model), with the audio IRQ off for the moment of the write. */
 #define ED_NV (P_COUNT + G_COUNT)          /* push shadows: the selected track's knobs, then the globals */
@@ -739,6 +740,14 @@ static void ed_sync(uint32_t now)
 }
 
 /* ------------------------------------------------------- the main loop's --- */
+/* an update's frame (ota.c): F0 pack7(00 59 cmd len24 body chk) F7, pack7 a bit stream LSB first, so its first three
+ * wire bytes are 00, 32 and 01 | cmd << 2 (the installer's handshake: F0 00 32 45 ...). ota_take() decodes byte 0 =
+ * w0 | (w1 & 1) << 7 and byte 1 = w1 >> 1 | (w2 & 3) << 6 and wants 00 59: exactly these three bytes, so every frame
+ * ota_take() could accept matches (and frames under 3 bytes decode to under 7: never one) */
+static int ed_ota_frame(const uint8_t *p, uint32_t n)
+{
+    return n >= 3u && p[0] == 0x00u && p[1] == 0x32u && (p[2] & 3u) == 1u;
+}
 static void ed_hush(uint32_t now)          /* update traffic: silent ED_SILENCE_MS from now */
 {
     if (!ed.hush) {
@@ -768,7 +777,9 @@ static void ed_service(void)
         ed_hush(now);                      /* the upgrade command (main.c takes it after this) */
     if (ota_frame_get(&p, &n)) {
         if (p[0] != ED_H0) {
-            ed_hush(now);                  /* update traffic: left for ota_take() */
+            if (ed_ota_frame(p, n))
+                ed_hush(now);              /* update traffic: left for ota_take() */
+                                           /* (other SysEx, F0 7E ...: not ours, ota_take frees it, no silence) */
         } else if (n >= ED_HDR_N && p[1] == ED_H1 && p[2] == ED_H2) {
             if (ed.hush || n < ED_MIN_FRAME) {
                 ota_frame_done();          /* silent, or too short: freed unanswered */

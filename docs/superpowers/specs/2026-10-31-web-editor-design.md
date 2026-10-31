@@ -75,9 +75,11 @@ variations are shown read-only from flash. Editing a variation that is not playi
      the update host retries. main.c (frozen) calls `ed_service()` then `ota_service()` each pass, and `ed_service()`
      again in its 15 ms wait. `ed_service` takes only `7D 48 54` frames and frees them in the same pass; anything else
      is left for `ota_take()`. During `ota_session()` the editor never runs and `ota_take()` discards its frames.
-   - Any update traffic (a frame not starting `7D`, or the upgrade command `usb.ota_req`) makes the editor go silent
-     for 10 s: no replies, no pushes, a restore not yet committed is dropped. The page sees silence and shows
-     "FM-1 busy (update?)".
+   - Any update traffic (an update frame — on the wire `00 32 xx`, `xx & 3 = 1`, the frames `ota_take()` can decode
+     to `00 59`; amended after review: at first any frame not starting `7D` — or the upgrade command `usb.ota_req`)
+     makes the editor go silent for 10 s: no replies, no pushes, a restore not yet committed is dropped. Other SysEx (a
+     DAW's `F0 7E` identity request) does not. The page sees silence and shows "FM-1 busy (update?)", then asks with
+     one INFO at a time, backing off 10 s → 60 s, and stops after 2 min until the user's Reconnect.
    - The page keeps at most one request in flight (300 ms timeout, 3 tries), so it can hold the frame slot for one
      main-loop pass at most.
    - Today any SysEx pauses MIDI clock / THRU out for 3 s (midi_out.c `mout_paused`). Change: only update traffic

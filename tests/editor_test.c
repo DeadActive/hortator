@@ -727,12 +727,56 @@ static void t_watch(void)
     pass();
     check("WATCH kept on by requests; WATCH 0 ends the pushes", ok && rc_is(f, 0, 0) && f->b[7] == 0u && !nout);
 }
-static const uint8_t UPD[] = {0xF0, 0x00, 0x59, 0x11, 0x00, 0x00, 0x00, 0x6E, 0xF7};   /* an update handshake */
+/* an update handshake as the installer sends it (web/fm1ota.js HS_QUERY): pack7(00 59 11 00 00 00 FF) */
+static const uint8_t UPD[] = {0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7};
 static void t_silence(void)
 {
-    uint32_t ok;
+    uint32_t ok, c;
     const frame_t *f;
     ed_reset();
+    {   /* other SysEx is not update traffic: a DAW's identity request, another maker's frame, a near miss */
+        static const uint8_t OTHER[][10] = {
+            {0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7},                         /* universal identity request */
+            {0xF0, 0x7F, 0x7F, 0x04, 0x01, 0x00, 0x40, 0xF7},             /* universal realtime (master volume) */
+            {0xF0, 0x00, 0x20, 0x29, 0x02, 0x0C, 0x0E, 0x01, 0xF7},       /* another maker's (00 20 29) */
+            {0xF0, 0x00, 0x32, 0x44, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7}, /* 00 32, byte 2's low bits 00: decodes to 00 19 */
+            {0xF0, 0x00, 0x32, 0xF7},                                     /* too short to be one */
+            {0xF0, 0x01, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7}, /* byte 0 decodes to 01 */
+        };
+        static const uint8_t NOT_OURS[] = {6, 8, 9, 10, 4, 10};
+        ok = 1;
+        req1(ED_WATCH, 1);
+        for (c = 0; c < sizeof NOT_OURS; c++) {
+            sx_in(OTHER[c], NOT_OURS[c]);
+            pass();
+            ok &= !nout && sx_ready && !ed.hush && ed.on;   /* left for ota_take (it frees them), no silence */
+            ota_frame_done();
+        }
+        f = req0(ED_INFO);
+        check("other SysEx (F0 7E identity request, F0 7F, another maker's 00 20 29, near misses of the update's header): "
+              "not update traffic, left for ota_take, the editor not silenced, WATCH kept, the next request answered",
+              ok && rc_is(f, 0, 0));
+        ok = 1;
+        for (c = 0; c < 32u; c++) {                     /* any update command: 00 32 (01 | cmd << 2) */
+            uint8_t u[sizeof UPD];
+            memcpy(u, UPD, sizeof u);
+            u[3] = (uint8_t)(1u | c << 2);
+            ed.hush = 0;
+            sx_in(u, sizeof u);
+            pass();
+            ok &= ed.hush && !nout && sx_ready;
+            ota_frame_done();
+        }
+        ed.hush = 0;
+        for (c = 0; c < 1u << 21; c++) {                /* every 3-byte start: ota.c ota_unpack7's first two bytes */
+            const uint8_t w[3] = {(uint8_t)(c & 127u), (uint8_t)(c >> 7 & 127u), (uint8_t)(c >> 14)};
+            uint32_t acc = w[0] | (uint32_t)w[1] << 7 | (uint32_t)w[2] << 14;
+            ok &= ((acc & 0xFFu) == 0x00u && (acc >> 8 & 0xFFu) == 0x59u) == ed_ota_frame(w, 3);
+        }
+        check("every frame ota_take could accept (wire 00 32 xx, xx & 3 = 1: decoded 00 59 cmd) silences the editor; "
+              "of all 2^21 three-byte starts, exactly those that decode to 00 59", ok);
+        ed_reset();
+    }
     req1(ED_WATCH, 1);
     rq_begin(ED_INFO, 50);                             /* an editor frame waits in the slot (not serviced yet) */
     rq_end();

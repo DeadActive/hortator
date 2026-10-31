@@ -15,7 +15,8 @@ import {
   readBackupFile, readProjectFile,
 } from "./proto.mjs";
 import { DeviceError } from "./link.mjs";
-import { SLOTS, esc } from "./ui.mjs";
+import { clockGuard } from "./session.mjs";
+import { SLOTS, chooser, esc } from "./ui.mjs";
 
 const NTRK = 8, NSTEP = 64, RATCH_MASK = 3 << STEP.RAT_SHIFT;
 /** the PROB codes in the knob's order on the device (device_data.json `conds`: the tests compare) */
@@ -370,16 +371,15 @@ export class PatternsModel {
       }
       const lks = locks && (src || from.slot !== slot) ? (src ? src.locks : []) : null;
       if (lks && !src) for (let k = 0; k < NTRK; k++) lks.push((await this.readLocks(from.slot, k)).filter((e) => e.kind === LK.LOCK));
+      const chk = lks ? await this.checkLocks(slot, lks) : null; // before the first write: refused whole, or it fits
       // the first STEPS_SET makes the FM-1 switch; rc 0 means `to` plays now, so the timing knobs below are its own
       for (let k = 0; k < NTRK; k++) await this.writeSteps(slot, to, k, 0, rows[k].steps);
       for (let k = 0; k < NTRK; k++) for (let j = 0; j < 4; j++)
         await this.s.request(CMD.SET, { scope: SCOPE.TRACK, track: k, id: LAYOUT.timing[j], value: rows[k].timing[j] });
-      if (lks) for (let k = 0; k < NTRK; k++) {
-        await this.s.request(CMD.LOCK_EDIT, { op: LK.CLEAR_TRACK, track: k, step: 0, param: 0, value: 0 });
-        for (const e of lks[k]) await this.s.request(CMD.LOCK_EDIT, { op: LK.SET, track: k, step: e.step, param: e.param, value: e.value });
-      }
+      if (lks) await this.writeLocks(slot, lks, chk.before);
       const motion = src && locks && src.motion ? ` (its ${src.motion} MOTION event${src.motion > 1 ? "s were" : " was"} not copied)` : "";
-      this.say(`Copied ${what} to ${SLOTS[slot]} VAR ${to + 1}${lks ? ` with its locks${motion}` : ""} (unsaved: SAVE keeps it).`);
+      const clamped = chk?.clamped ? `; ${chk.clamped} lock value${chk.clamped > 1 ? "s" : ""} kept within the knob's range here` : "";
+      this.say(`Copied ${what} to ${SLOTS[slot]} VAR ${to + 1}${lks ? ` with its locks${motion}${clamped}` : ""} (unsaved: SAVE keeps it).`);
       this.forget();
       this.follow = true;
       if (!same(this.view, { slot, var: to })) { this.view = { slot, var: to }; this.emit("view"); }
@@ -392,6 +392,51 @@ export class PatternsModel {
     } finally {
       this.working = false;
       this.emit("working", false);
+    }
+  }
+  /** a copy's LOCKs (lks[track]: { step, param, value }) checked against this FM-1 before anything is written: every
+   * step 0..63, every knob lockable here (DESC flag LOCK, not read-only: as LOCK_EDIT would answer), every value a
+   * lock bank holds (-64..127; a value past the knob's range on the target track is kept within it, as the FM-1 does:
+   * counted), and the slot's bank (1024 events) holding its MOTION events plus these. Throws a plain Error (nothing
+   * written); returns { before (the slot's LOCKs now, per track: the snapshot a failed copy puts back), clamped } */
+  async checkLocks(slot, lks) {
+    const name = SLOTS[slot], pcount = this.s.info?.pcount ?? LAYOUT.pcount, before = [];
+    let motion = 0, n = 0, clamped = 0;
+    for (let k = 0; k < NTRK; k++) {
+      const ev = await this.readLocks(slot, k);
+      motion += ev.filter((e) => e.kind !== LK.LOCK).length;
+      before.push(ev.filter((e) => e.kind === LK.LOCK));
+    }
+    for (let k = 0; k < NTRK; k++) for (const e of lks[k] || []) {
+      n++;
+      const at = `track ${k + 1} step ${Number(e.step) + 1}`, int = (x) => Number.isInteger(x);
+      if (!int(e.step) || e.step < 0 || e.step >= NSTEP || !int(e.param) || e.param < 1 || e.param >= pcount)
+        throw new Error(`The source has a lock this FM-1 cannot hold (${at}, knob ${e.param}): nothing was copied.`);
+      const d = await this.descOf(k, e.param).catch(() => null);
+      if (!d || !(d.flags & DF.LOCK) || d.flags & DF.RO)
+        throw new Error(`The source locks ${d?.label || `knob ${e.param}`} (${at}), which this FM-1 cannot lock: nothing was copied.`);
+      if (!int(e.value) || e.value < -64 || e.value > 127)
+        throw new Error(`The source's lock of ${d.label} (${at}) holds ${e.value}, outside what a lock holds (-64..127): nothing was copied.`);
+      if (e.value < d.min || e.value > d.max) clamped++;
+    }
+    if (motion + n > LAYOUT.lkMax)
+      throw new Error(`The source's ${n} locks and slot ${name}'s ${motion} MOTION events do not fit its lock bank (${LAYOUT.lkMax}): nothing was copied.`);
+    return { before, clamped };
+  }
+  /** the LOCKs of every track replaced by lks; a write refused midway: the slot's LOCKs from before (the snapshot)
+   * put back, and the error says what happened */
+  async writeLocks(slot, lks, before) {
+    const put = async (sets) => {
+      for (let k = 0; k < NTRK; k++) {
+        await this.s.request(CMD.LOCK_EDIT, { op: LK.CLEAR_TRACK, track: k, step: 0, param: 0, value: 0 });
+        for (const e of sets[k] || []) await this.s.request(CMD.LOCK_EDIT, { op: LK.SET, track: k, step: e.step, param: e.param, value: e.value });
+      }
+    };
+    try { await put(lks); } catch (e) {
+      const back = await put(before).then(() => true, () => false);
+      throw new Error(`The steps were copied, but writing the locks failed (${plain(e).replace(/\.$/, "")}): ${back
+        ? `slot ${SLOTS[slot]}'s locks were put back as they were`
+        : `slot ${SLOTS[slot]}'s locks could not all be put back: check them, or LOAD the slot again on the FM-1 without saving`}.`);
     }
   }
   /** the device's SAVE of the loaded slot (stopped only); its refusals in plain words */
@@ -652,6 +697,7 @@ export function mountPatterns(el, ctx) {
       + (locks ? `, and every LOCK of slot ${SLOTS[st.slot]} (all its variations) is replaced by ${name}'s (MOTION events are not copied)` : "")
       + `. The FM-1 switches to VAR ${to + 1}${st.playing ? " at the pattern's end" : ""}. Nothing is saved until SAVE.`;
     if (!(await ctx.confirm(msg))) return;
+    if (!(await clockGuard(s, chooser(ctx), (t) => m.say(t)))) return; // playing, SYNC out on: stop first?
     copyEl.hidden = true;
     await m.copy(from, to, { locks });
   };

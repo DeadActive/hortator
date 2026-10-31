@@ -10,6 +10,7 @@
 static uint8_t hflash[0x100000];
 #define SMP_USER_XIP(k) ((const uint8_t *)hflash + 0xA0000u + (k) * 0x14000u)
 #define VAR_XIP(off) ((const void *)(hflash + (off)))
+#define ED_RESTORE_LOCK 1                             /* (ui.c asks editor_backup.c, as felucca.c builds it) */
 #include "ui_host.h"
 static uint32_t host_ms;
 #define EDB_MS() host_ms
@@ -233,7 +234,6 @@ static void wipe_ram(void)                            /* a power cycle's RAM */
     memset(var_buf, 0, sizeof var_buf);
     memset(var_who, 0, sizeof var_who);
     memset(&edb, 0, sizeof edb);
-    ed_lock_on = 0;
     var_play = 0;
     var_dirty = 0;
     var_lost = 0;
@@ -385,6 +385,34 @@ static void t_list_get(void)
     ok &= req(ED_BACKUP_GET) == ED_E_STALE && rc_detail == ED_D_CHANGED;
     check("BACKUP_GET / LIST refusals: object out of range, not present, changed since LIST (a SAVE), bad offset, bad "
           "length, no flash; other commands are not this file's", (int)ok);
+    {   /* pieces after an object's first reuse it (edb_get's cache): a SAVE in between is still seen */
+        uint32_t obj, saves, seq, moved = 0;
+        ok = 1;
+        for (obj = 1; obj < ED_OBJ_N; obj += 4u)       /* A's record, lock bank, variations */
+            for (saves = 1; saves <= 2u; saves++) {     /* 2: the copy piece 0 read is overwritten too */
+                ok &= list() == 0 && L[obj].present;
+                seq = L[obj].seq;
+                a_put(obj); a_u14(0); a_u35(seq);
+                ok &= req(ED_BACKUP_GET) == ED_OK;
+                a_put(obj); a_u14(ED_PIECE); a_u35(seq);
+                ok &= req(ED_BACKUP_GET) == ED_OK && edb.g_obj == obj + 1u;
+                for (i = 0; i < saves; i++) {
+                    trk[1].p[P_E2] = (int16_t)(trk[1].p[P_E2] + 1);
+                    lk_put(&mo.b, lk_key(5, 9, P_E1), (int32_t)(30 + i), 1);
+                    project_save(0);
+                }
+                ok &= list() == 0;                      /* the truth: did the object move? */
+                a_put(obj); a_u14(ED_PIECE); a_u35(seq);
+                if (L[obj].seq != seq) {
+                    moved++;
+                    ok &= req(ED_BACKUP_GET) == ED_E_STALE && rc_detail == ED_D_CHANGED;
+                } else
+                    ok &= req(ED_BACKUP_GET) == ED_OK;
+            }
+        check("BACKUP_GET: a piece after the first reuses its object, yet a SAVE (one, or two: the copy read overwritten) "
+              "between pieces answers CHANGED (the record, the lock bank), and an object the SAVE left alone (the "
+              "variations) reads on", (int)ok && moved == 4u);
+    }
 
     {                                                 /* both copies of A's lock bank damaged */
         uint32_t c;
@@ -562,9 +590,9 @@ static void t_abort_timeout_drop(void)
           "reloaded", (int)ok);
 }
 
-/* RESTORING on the device (ui.c ed_lock_on): its own PLAY, cue keys, LOAD, SAVE, PASTE, NAME and preset save / delete
- * are refused with "RESTORING" and touch nothing (the staged homes, flash, the transport); COMMIT, ABORT, the idle
- * timeout and update traffic release them */
+/* RESTORING on the device (ui.c ui_locked asks ed_restoring = edb.on): its own PLAY, cue keys, LOAD, SAVE, PASTE, NAME
+ * and preset save / delete are refused with "RESTORING" and touch nothing (the staged homes, flash, the transport);
+ * COMMIT, ABORT, the idle timeout and update traffic release them */
 static int keys_refused(const uint8_t *keep, const project_t *staged)
 {
     uint32_t ok = 1, ld = (uint32_t)proj_loaded(), vc = var_cur;
@@ -592,7 +620,7 @@ static int keys_free(void)
     transport_req = 0;
     ui.msg[0] = 0;
     play_press();
-    return !ed_lock_on && transport_req == 1u && !str_eq(ui.msg, "RESTORING");
+    return !ed_restoring() && transport_req == 1u && !str_eq(ui.msg, "RESTORING");
 }
 static void t_restoring_lock(void)
 {
@@ -611,7 +639,7 @@ static void t_restoring_lock(void)
     ok = keys_free();
     transport_req = 0;
     memcpy(keep, hflash, sizeof keep);
-    ok &= restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK && ed_lock_on;
+    ok &= restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK && ed_restoring() && ui_locked();
     staged = proj_slot[1];
     ok &= keys_refused(keep, &staged) && ed_restoring();
     ok &= rs_op(ED_RS_ABORT) == ED_OK && keys_free();
@@ -626,7 +654,7 @@ static void t_restoring_lock(void)
     ed_backup_poll();
     ok &= keys_free();
     transport_req = 0;
-    ok &= restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK && ed_lock_on;
+    ok &= restore(ED_RK_PROJECT, 1, &o, 3, 0) == ED_OK && ed_restoring() && ui_locked();
     ed_backup_drop();                                 /* update traffic */
     ok &= keys_free();
     transport_req = 0;
@@ -786,8 +814,79 @@ static void t_old_record(void)
     check("RESTORE an older record (FDRE): written as it is, listed OLD, converted at load as always", (int)ok);
 }
 
-int main(void)
+/* the main-loop cost of a full backup, worst case (4 projects, every variation used, full lock banks): host
+ * instructions (drum_host.h instr_now) of BACKUP_LIST and of each BACKUP_GET piece, the page's order. A piece after
+ * an object's first reuses what the first worked out (edb_get's cache, checked by the storage heads): it must cost a
+ * small part of a first piece. `editor_backup_test bench` prints the figures only. */
+static void t_backup_cost(int print_only)
 {
+    static uint8_t out[4096];
+    uint64_t a, c, list_c, first = 0, rest = 0, max_rest = 0, first_max = 0;
+    uint32_t s, v, k, i, obj, off, nfirst = 0, nrest = 0, ok = 1, bytes = 0;
+    static int16_t kv[P_COUNT];
+    fresh();
+    for (i = 0; i < PRE_NUSER; i++)                     /* the user presets saved */
+        upr_set(i, 1, kv);
+    upr_write();
+    for (s = 0; s < 4u; s++) {
+        make_project(s, 3u + s);
+        memset(&mo.b, 0, sizeof mo.b);
+        for (i = 0; i < 1000u; i++)                     /* a lock bank nearly full */
+            lk_put(&mo.b, lk_key(i % NTRK, (i / NTRK) % NSTEP, P_E0 + i % 8u), (int32_t)(i % 100u), (int)(i & 1u));
+        for (v = 1; v < VAR_N; v++) {                   /* every variation used */
+            for (k = 0; k < NTRK; k++)
+                for (i = 0; i < NSTEP; i++)
+                    VS[k][i].on = (i + k + v + s) % 4u == 0u;
+            var_put(&var_buf[var_play], v, VSP, VTM);
+        }
+        project_save(s);
+    }
+    a = instr_now();
+    ok &= list() == 0u;
+    list_c = instr_now() - a;
+    for (obj = 0; obj < ED_OBJ_N; obj++) {
+        if (!L[obj].present)
+            continue;
+        bytes += L[obj].size;
+        for (off = 0; off < L[obj].size; off += ED_PIECE) {
+            a_put(obj);
+            a_u14(off);
+            a_u35(L[obj].seq);
+            a = instr_now();
+            ok &= req(ED_BACKUP_GET) == 0u;
+            c = instr_now() - a;
+            ok &= ed_unpack7(rp + 12, rp_n - 13u, out + off, ED_PIECE) > 0u;
+            if (!off) {
+                first += c;
+                nfirst++;
+                first_max = c > first_max ? c : first_max;
+            } else {
+                rest += c;
+                nrest++;
+                max_rest = c > max_rest ? c : max_rest;
+            }
+        }
+        ok &= st_crc32(out, L[obj].size) == L[obj].crc;
+    }
+    printf("cost  backup, worst case (%u B, %u pieces): BACKUP_LIST %llu host instructions; BACKUP_GET first pieces "
+           "%llu on average (max %llu), the others %llu on average (max %llu); all pieces %llu\n", bytes,
+           nfirst + nrest, (unsigned long long)list_c, (unsigned long long)(nfirst ? first / nfirst : 0),
+           (unsigned long long)first_max, (unsigned long long)(nrest ? rest / nrest : 0),
+           (unsigned long long)max_rest, (unsigned long long)(first + rest));
+    if (print_only)
+        return;
+    check("backup cost: the 13 objects read whole (CRCs right); a piece after an object's first costs under a quarter "
+          "of a first piece (it reuses its object, checked by the storage heads)",
+          (int)ok && nfirst == ED_OBJ_N && nrest > 100u && (!instr_now() || max_rest * 4u < first / nfirst));
+}
+
+int main(int argc, char **argv)
+{
+    if (argc > 1 && !strcmp(argv[1], "bench")) {
+        t_backup_cost(1);
+        return 0;
+    }
+    t_backup_cost(0);
     t_list_get();
     t_restore_refusals();
     t_abort_timeout_drop();

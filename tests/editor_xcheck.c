@@ -19,6 +19,7 @@
 static uint8_t hflash[0x100000];
 #define SMP_USER_XIP(k) ((const uint8_t *)hflash + 0xA0000u + (k) * 0x14000u)
 #define VAR_XIP(off) ((const void *)(hflash + (off)))
+#define ED_RESTORE_LOCK 1                             /* (ui.c asks editor_backup.c, as felucca.c builds it) */
 #include "ui_host.h"
 #undef FELUCCA_OTA
 #define FELUCCA_OTA 1
@@ -101,7 +102,6 @@ static void power_on(void)
     settings_init();
     memset(&ed, 0, sizeof ed);
     memset(&edb, 0, sizeof edb);
-    ed_lock_on = 0;
     memset(&mout, 0, sizeof mout);
     usb.config = 1;
     usb.ota_req = 0;
@@ -185,6 +185,8 @@ int main(void)
                 sysex_byte(b[c]);
             ed_service();
             take(1);
+            if (sx_ready)
+                ota_frame_done();                   /* (main.c's ota_service: ota_take frees what the editor left) */
             ota_race = 0;
         }
     }

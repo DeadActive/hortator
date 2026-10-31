@@ -27,7 +27,9 @@ push     F0 7D 48 54 <cmd> 7F <fields…> F7                   cmd 0x40..0x4F, o
 ```
 
 - `7D` is the non-commercial SysEx id, `48 54` is "HT". Upstream Felucca uses `7D 46 4C`; the update path uses
-  `F0 00 …` (ota.c's bit-stream frames) and the keys `F0 22 24 35 7D|7F F7`. They never share the first data bytes.
+  `F0 00 32 xx …` (ota.c's frames: pack7 of `00 59 cmd …` as a bit stream, so the wire starts `00 32` and a byte whose
+  low two bits are `01`; the installer's handshake is `F0 00 32 45 00 00 00 40 7F F7`) and the keys
+  `F0 22 24 35 7D|7F F7`. They never share the first data bytes.
 - Every data byte is 7 bit. A request is at most **640 bytes between F0 and F7** (usb_app.c `sx_frame`; longer ones
   are dropped by the USB driver, unanswered). A reply or push is at most **400 bytes, F0 and F7 included** (the
   editor's reply buffer): lists in replies are cut to fit and say where they stopped (`first`, the list's count,
@@ -299,12 +301,17 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
    first reply again, byte for byte (an rc 0 reply carries the data as it was then, its state block included). Reads
    are answered anew. The memory holds the last request only (any request replaces it); it is cleared by INFO and
    after 3 s without requests.
-4. **Update silence (10 s).** Update traffic — a received SysEx frame whose first byte after F0 is not `7D`, or the
-   upgrade command `F0 22 24 35 7F F7` (`usb.ota_req`) — makes the editor silent for 10 s after the last such frame:
-   no replies, no pushes, WATCH off, an uncommitted restore dropped (as ABORT). Editor frames arriving meanwhile are
-   freed unanswered. During `ota_session()` the editor never runs and `ota_take()` discards its frames. The page sees
-   timeouts: it shows "FM-1 busy (update?)", sends nothing for 10 s, then INFO every 2 s until it answers, then reads
-   everything again (INFO's state, PAGES, DUMP, the steps on screen).
+4. **Update silence (10 s).** Update traffic — an update frame (its first three bytes after F0 are `00 32 xx` with
+   `xx & 3 = 1`: exactly the frames ota.c's `ota_take()` can decode to `00 59`, whatever the command), or the upgrade
+   command `F0 22 24 35 7F F7` (`usb.ota_req`) — makes the editor silent for 10 s after the last such frame: no
+   replies, no pushes, WATCH off, an uncommitted restore dropped (as ABORT). Editor frames arriving meanwhile are freed
+   unanswered. Other SysEx (a DAW's `F0 7E` identity request, another maker's frames, upstream Felucca's `7D 46 4C`)
+   is not update traffic: left for `ota_take()`, which frees it; the editor goes on. During `ota_session()` the editor
+   never runs and `ota_take()` discards its frames; the device then holds one SysEx frame, and a page frame packed in
+   the same USB packet as an updater frame can cost the update a retry. So the page, seeing timeouts, shows "FM-1 busy
+   (update?)", sends nothing for the device's 10 s, then one INFO (one try) at a time with waits doubling from 10 s to
+   60 s, and none after 2 minutes busy until the user clicks **Reconnect**; once INFO answers it reads everything again
+   (INFO's state, PAGES, DUMP, the steps on screen).
 5. **WATCH.** `WATCH 1` starts the pushes; they end 3 s after the last request of any kind (the page sends `WATCH 1`
    about every second when idle), on update traffic and on `WATCH 0`. At most 4 pushes per main-loop pass, only into
    a half-empty SysEx out ring, so a push never delays a reply. Pushes report device-side changes, never the
@@ -319,8 +326,15 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
    header (a web test checks it). Nothing is sent before the user clicks Connect; only INFO to a "Hortator" port;
    nothing else until INFO answered.
 8. **MIDI clock.** Editor frames do not pause MIDI clock / THRU out; only update traffic does (3 s, as before). A
-   306-byte frame holds clock out for ~7 ms (SysEx is never split): the page suggests stopping first for big
-   transfers when SYNC out is on.
+   306-byte frame holds clock out for ~7 ms (SysEx is never split): before a big transfer (Presets Read / Write,
+   Projects Back up / Back up all / Restore / Restore all / Copy, Patterns Copy) while the FM-1 plays with SYNC
+   (`G_SYNC`) not OFF, the page asks "Clock out may jitter during the transfer — stop first?" with Stop / Continue /
+   Cancel. Protocol 1 has no transport command: Stop tells the player to press STOP on the FM-1 and the transfer
+   starts when a STATE push shows it stopped.
+9. **One page per browser.** Two pages on one FM-1 would each believe they own it (the restore lock is per page, the
+   duplicate rule is keyed by (cmd, seq) alone). The page holds a Web Lock (`navigator.locks`, "hortator-editor"),
+   with a BroadcastChannel fallback; a second tab shows "The editor is open in another tab" and "Use here", which
+   makes the first tab disconnect and let go.
 
 ### Result codes
 

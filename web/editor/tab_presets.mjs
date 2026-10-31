@@ -11,7 +11,8 @@ import {
   BF, CAP, CMD, DETAIL, FileError, LAYOUT, LIMITS, MAGIC, NONE, RC, RK, RS, SCOPE, SZ, crc32, crcHex, decodePresets,
   encodePresets, makePresetsFile, readPresetsFile, userPresetName,
 } from "./proto.mjs";
-import { esc } from "./ui.mjs";
+import { clockGuard } from "./session.mjs";
+import { esc, chooser } from "./ui.mjs";
 
 const P_MODEL = 0, P_E0 = 1; // core.h: P_MODEL, P_E0..P_E7 (DUMP's p list)
 const NAME_MAX = 24;
@@ -336,6 +337,7 @@ export function mountPresets(el, ctx) {
     </div>`;
   const q = (c) => el.querySelector(c), fac = q(".pr-fac"), usr = q(".pr-usr"), st = q(".pr-st"), file = q("input[type=file]");
   const prog = q(".pr-prog"), busy = () => !!m.job;
+  const clockOk = () => clockGuard(s, chooser(ctx), say); // playing with SYNC out on: Stop / Continue / Cancel
   const fail = (e) => { if (!e?.cancelled) say(explain(e)); };
 
   const drawBanks = () => {
@@ -404,6 +406,7 @@ export function mountPresets(el, ctx) {
   const actions = {
     read: async () => {
       if (m.device && m.differs && !(await ask(ctx, "Read the FM-1's user presets again? This list's changes are dropped."))) return;
+      if (!(await clockOk())) return;
       try { await m.readDevice(); } catch (e) { fail(e); }
     },
     open: () => file.click(),
@@ -412,6 +415,7 @@ export function mountPresets(el, ctx) {
       const bad = m.check();
       if (bad.length) { say(bad[0]); return; }
       if (!(await ask(ctx, m.confirmText()))) return;
+      if (!(await clockOk())) return;
       const bar = prog.querySelector("progress"), lbl = prog.querySelector("span");
       bar.value = 0;
       lbl.textContent = "";

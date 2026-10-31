@@ -21,7 +21,7 @@ async function until(cond, ms = 3000) {
   for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep(2)) if (cond()) return true;
   return cond();
 }
-const FAST = { timeout: 25, longTimeout: 60, tries: 3, silence: 60, retryInfo: 25, keepAlive: 100000 };
+const FAST = { timeout: 25, longTimeout: 60, tries: 3, silence: 60, backoff: 25, backoffMax: 100, giveUp: 100000, keepAlive: 100000 };
 const J = JSON.stringify;
 
 export async function runPatternTests(log = console.log) {
@@ -251,6 +251,39 @@ export async function runPatternTests(log = console.log) {
     const unused = [1, 2, 3, 4, 5, 6, 7].find((v) => !A.vars.includes(v)), n0 = m.received.length;
     ok(!(await pm.copy({ file: A.objs, name: "a.json", var: unused }, 1)) && /not used/.test(pm.note)
       && !cmds(m, n0).some((x) => x.cmd === CMD.STEPS_SET), "copy from a file's unused variation: refused, nothing written");
+    s.close();
+    pm.destroy();
+  }
+  /* copy with locks: every lock checked before the first write; a write refused midway puts the slot's locks back */
+  {
+    const { m, s, pm } = await start();
+    const aLocks = () => J(m.img().locks.map((e) => [e.track, e.step, e.param, e.kind, e.value]).sort());
+    const writes = (n0) => cmds(m, n0).filter((x) => [CMD.STEPS_SET, CMD.LOCK_EDIT, CMD.SET].includes(x.cmd)).length;
+    const B = m.slots[1], keep = B.locks.slice(), a0 = aLocks(), steps0 = J(m.tracks.map((t) => t.steps)), nonLock = data.tp.findIndex((t, i) => i > 0 && !t.lock);
+    const refused = async (what, extra, re, only = false) => {
+      B.locks = only ? extra : keep.concat(extra);
+      const n0 = m.received.length, r = await pm.copy({ slot: 1, var: 0 }, 5, { locks: true });
+      ok(!r && re.test(pm.note) && /nothing was copied/.test(pm.note) && writes(n0) === 0 && aLocks() === a0
+        && J(m.tracks.map((t) => t.steps)) === steps0, `copy with locks, ${what}: refused before any write (${pm.note})`);
+    };
+    await refused("a knob this FM-1 cannot lock", [{ track: 2, step: 3, param: nonLock, kind: LK.LOCK, value: 1 }], /cannot lock/);
+    await refused("a value no lock holds", [{ track: 2, step: 3, param: m.P.E0, kind: LK.LOCK, value: 500 }], /outside what a lock holds/);
+    await refused("a step past 64", [{ track: 2, step: 70, param: m.P.E0, kind: LK.LOCK, value: 5 }], /cannot hold/);
+    const motion = m.img().locks.filter((e) => e.kind === LK.MOTION).length, room = P.LAYOUT.lkMax - motion;
+    const many = Array.from({ length: room + 1 }, (_, i) => ({ track: i % 8, step: (i >> 3) % 64, param: m.P.E0 + (i >> 9), kind: LK.LOCK, value: 1 }));
+    await refused(`${room + 1} locks where ${room} fit beside A's MOTION`, many, /do not fit/, true);
+    B.locks = keep.concat(many.slice(0, 40));
+    m.faults.refuse[CMD.LOCK_EDIT] = { rc: RC.REFUSED, detail: DETAIL.LOCKS_FULL, msg: "LOCKS FULL", after: 12 };
+    const r = await pm.copy({ slot: 1, var: 0 }, 5, { locks: true });
+    ok(!r && /writing the locks failed \(LOCKS FULL/.test(pm.note) && /put back as they were/.test(pm.note) && aLocks() === a0
+      && m.tracks.every((t, k) => J(t.steps) === J(B.steps1[k])), `a lock write refused midway: the steps copied, A's locks put back as they were (${pm.note})`);
+    B.locks = keep;
+    const fobjs = m.flashObjects(1), fl = P.decodeLocks(fobjs.locks);
+    const bad = { ...fobjs, locks: P.encodeLocks({ ...fl, events: [...fl.events, { track: 0, step: 1, param: nonLock, kind: LK.LOCK, value: 0 }] }) };
+    const n1 = m.received.length;
+    ok(!(await pm.copy({ file: bad, name: "b.json", var: 0 }, 5, { locks: true })) && /cannot lock/.test(pm.note) && writes(n1) === 0
+      && aLocks() === a0, "copy from a file whose locks this FM-1 cannot hold: refused, nothing written");
+    ok(await pm.copy({ slot: 1, var: 0 }, 6, { locks: true }) && aLocks() !== a0, "... and a copy that fits goes through");
     s.close();
     pm.destroy();
   }

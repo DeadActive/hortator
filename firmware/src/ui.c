@@ -170,15 +170,22 @@ static void ui_say(const char *a, const char *b)     /* transient message in the
 
 static void ui_message(const char *s) { ui_say(s, ""); }
 
-/* the web editor restores a project or the user presets (editor_backup.c sets it from BEGIN to COMMIT / ABORT / the
- * idle timeout / update traffic): the device's own PLAY, cue keys, LOAD, SAVE, PASTE, NAME and preset save / delete
- * are refused meanwhile, as other refusals are (a message), so nothing touches the RAM homes the restore stages in */
-static uint8_t ed_lock_on;
+/* the web editor restores a project or the user presets (editor_backup.c ed_restoring: from BEGIN to COMMIT / ABORT /
+ * the idle timeout / update traffic): the device's own PLAY, cue keys, LOAD, SAVE, PASTE, NAME and preset save /
+ * delete are refused meanwhile, as other refusals are (a message), so nothing touches the RAM homes the restore stages
+ * in. ED_RESTORE_LOCK (felucca.c, the editor's host tests): the editor's restore is built in; else never locked */
+#ifdef ED_RESTORE_LOCK
+static int ed_restoring(void);                      /* editor_backup.c (edb.on: no copy of it here) */
+#define UI_RESTORING() ed_restoring()
+#else
+#define UI_RESTORING() 0
+#endif
 static int ui_locked(void)
 {
-    if (ed_lock_on)
-        ui_message("RESTORING");
-    return ed_lock_on;
+    if (!UI_RESTORING())
+        return 0;
+    ui_message("RESTORING");
+    return 1;
 }
 
 static int song_lock(void)                          /* a song plays (or is armed): its patterns stay as they are */
