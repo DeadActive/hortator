@@ -258,6 +258,7 @@ export class PatternsModel {
   async setStep(track, step, patch) {
     if (!this.editable) { this.say(`Slot ${SLOTS[this.view.slot] ?? "?"} is shown read-only: cue it to edit.`); return false; }
     const v = { ...this.view }, t = this.tracks[track], nw = { ...t.steps[step], ...patch };
+    if (this.nudge && t.steps[step].flags & STEP.ON && !(nw.flags & STEP.ON) && patch.micro === undefined) nw.micro = 0; // off: NUDGE 0, as a tap on the FM-1
     t.steps[step] = nw;
     this.emit("step", { track, step });
     try {

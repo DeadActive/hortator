@@ -300,6 +300,11 @@ export async function runPatternTests(log = console.log) {
       && cmds(m, n0).some((x) => x.cmd === CMD.STEPS_SET && x.args.steps[0].micro === -37), "NUDGE edited: STEPS_SET carries it, the device's step has it");
     await pm.setStep(4, 12, { note: 64 });
     ok(m.tracks[4].steps[12].micro === -37 && m.tracks[4].steps[12].note === 64, "another field edited: NUDGE kept");
+    await pm.toggle(4, 12);
+    await pm.toggle(4, 12);
+    ok(m.tracks[4].steps[12].flags & STEP.ON && m.tracks[4].steps[12].micro === 0 && pm.tracks[4].steps[12].micro === 0,
+      "a nudged step turned off and on: NUDGE 0, as on the FM-1");
+    await pm.setStep(4, 12, { micro: -37 });
     const src = J(m.tracks[2].steps);
     ok(await pm.copy({ slot: 0, var: 0 }, 6) && m.varCur === 6 && J(m.tracks[2].steps) === src, "copy A VAR 1 -> A VAR 7: NUDGE copied");
     const fa = P.decodeProject(m.flashObjects(0).record), A = m.flashObjects(0);
