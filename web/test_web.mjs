@@ -273,6 +273,7 @@ await simLocks();
 await simCue();
 await editorPage();
 await (async () => { const r = await (await import("./editor/test_tab_projects.mjs")).runProjectsTests((s) => console.log(s)); ok(!r.failed, `editor: Projects tab against the mock device (${r.passed} checks)`); })();
+await import("./editor/test_tab_presets.mjs").then(async (t) => { const r = await t.runPresetsTests((s) => console.log(s)); ok(!r.failed, `editor: Presets tab against the mock device (${r.passed} checks)`); });
 await packages();
 await updater();
 await counter();
