@@ -272,3 +272,25 @@ export function parseBackup(b, slot) {
   if (loaderWindows(data).length) throw new SampleError("This file cannot be written safely to the FM-1 (it holds bytes its updater could take for an update record).");
   return { header, data, info };
 }
+
+/* ---------------------------------------------------------- a file's own rate --- */
+/** the sample rate a WAV ("fmt ") or AIFF / AIFC ("COMM", 80-bit float) file states, 0 unknown: the page decodes
+ * at that rate (an OfflineAudioContext of it), so decodeAudioData does not resample the file to the sound card's */
+export function sniffRate(b) {
+  const tag = (o) => String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
+  if (b.length < 12) return 0;
+  const le = (o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0;
+  const be = (o) => (b[o] << 24 | b[o + 1] << 16 | b[o + 2] << 8 | b[o + 3]) >>> 0;
+  if (tag(0) === "RIFF" && tag(8) === "WAVE") {
+    for (let o = 12; o + 8 <= b.length; o += 8 + le(o + 4) + (le(o + 4) & 1)) if (tag(o) === "fmt " && o + 16 <= b.length) return le(o + 12);
+    return 0;
+  }
+  if (tag(0) === "FORM" && (tag(8) === "AIFF" || tag(8) === "AIFC")) {
+    for (let o = 12; o + 8 <= b.length; o += 8 + be(o + 4) + (be(o + 4) & 1)) {
+      if (tag(o) !== "COMM" || o + 26 > b.length) continue;
+      const e = o + 16, exp = ((b[e] & 0x7f) << 8 | b[e + 1]) - 16383, hi = be(e + 2);
+      return Math.round(hi * 2 ** (exp - 31));
+    }
+  }
+  return 0;
+}

@@ -3,7 +3,8 @@
 // The editor page's shell (web/editor.html): Connect, the header bar, the tabs. Nothing is sent before Connect; the
 // session (session.mjs) asks only "Hortator" ports, only INFO, until one identifies itself. `?mock` runs the page
 // against the mock device (mock_device.mjs) for development; `?mock=auto` also connects at once.
-// The tabs, one module each: tab_sound.mjs (live sound), tab_presets.mjs, tab_projects.mjs, tab_patterns.mjs.
+// The tabs, one module each: tab_sound.mjs (live sound), tab_presets.mjs, tab_projects.mjs, tab_patterns.mjs,
+// tab_samples.mjs (the user sample slots).
 // One editor per browser (instance.mjs): a second tab says "The editor is open in another tab" and offers "Use here".
 import { connect, refusal } from "./session.mjs";
 import { SingleTab } from "./instance.mjs";
@@ -13,8 +14,9 @@ import { tab as sound } from "./tab_sound.mjs";
 import { tab as presets } from "./tab_presets.mjs";
 import { tab as projects } from "./tab_projects.mjs";
 import { tab as patterns } from "./tab_patterns.mjs";
+import { tab as samples } from "./tab_samples.mjs";
 
-export const TABS = [sound, presets, projects, patterns];
+export const TABS = [sound, presets, projects, patterns, samples];
 const TAB_KEY = "hortator-editor-tab";
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
@@ -75,6 +77,7 @@ async function access() {
     if (!mock) {
       const { createMockDevice, loadDeviceData } = await import("./mock_device.mjs");
       mock = createMockDevice(await loadDeviceData(), { latency: 2 });
+      await seedMockSample(mock);
       setInterval(() => mock.deliver(mock.advance(100)), 100); // the device's clock runs (WATCH, the update silence)
       mockBar(mock);
     }
@@ -159,6 +162,12 @@ function stopped(r) {
 }
 
 /* ?mock: the FM-1's side, by hand -------------------------------------------------------- */
+async function seedMockSample(m) { // USR1 holds a short decaying tone, so the Samples tab has something to show
+  const S = await import("./sample.mjs"), hz = 22050;
+  const x = Float32Array.from({ length: hz }, (_, i) => Math.exp(-i / 4000) * Math.sin(2 * Math.PI * 110 * i / hz * (1 + 2 * Math.exp(-i / 800))));
+  const e = S.encodeSample(S.toPcm16(S.normalize(x)), hz, "MOCK BD");
+  m.seedSample(0, e.header, e.data);
+}
 function mockBar(m) {
   const bar = $("#mockbar");
   bar.hidden = false;

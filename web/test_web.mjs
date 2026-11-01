@@ -32,9 +32,9 @@ async function editorPage() {
   const html = readFileSync(join(HERE, "editor.html"), "utf8"), app = readFileSync(join(HERE, "editor/app.mjs"), "utf8");
   const tabs = [...app.matchAll(/import \{ tab as (\w+) \} from "\.\/(tab_\w+\.mjs)"/g)];
   const mods = await Promise.all(tabs.map(([, , f]) => import(`./editor/${f}`)));
-  ok(tabs.map((x) => x[1]).join() === "sound,presets,projects,patterns" && /TABS = \[sound, presets, projects, patterns\]/.test(app)
+  ok(tabs.map((x) => x[1]).join() === "sound,presets,projects,patterns,samples" && /TABS = \[sound, presets, projects, patterns, samples\]/.test(app)
     && mods.every((m, i) => m.tab.id === tabs[i][1] && typeof m.tab.mount === "function" && m.tab.cap > 0),
-    "editor: tabs Sound / Presets / Projects / Patterns, one module each");
+    "editor: tabs Sound / Presets / Projects / Patterns / Samples, one module each");
   ok(/<script type="module" src="editor\/app\.mjs"><\/script>/.test(html) && html.split("</body>").length === 2
     && !/<script[^>]+src="(https?:)?\/\/|<link[^>]+href="(https?:)?\/\/|@import|googleapis/.test(html),
     "editor: one local module, no CDN (works offline once loaded)");
@@ -328,6 +328,7 @@ await editorSite();
 await (async () => { const r = await (await import("./editor/test_tab_projects.mjs")).runProjectsTests((s) => console.log(s)); ok(!r.failed, `editor: Projects tab against the mock device (${r.passed} checks)`); })();
 await import("./editor/test_tab_presets.mjs").then(async (t) => { const r = await t.runPresetsTests((s) => console.log(s)); ok(!r.failed, `editor: Presets tab against the mock device (${r.passed} checks)`); });
 { const r = await (await import("./editor/test_tab_patterns.mjs")).runPatternTests((x) => console.log(x)); ok(!r.failed, `editor: Patterns tab against the mock device (${r.passed} checks)`); }
+{ const r = await (await import("./editor/test_tab_samples.mjs")).runSamplesTests((x) => console.log(x)); ok(!r.failed, `editor: Samples tab against the mock device (${r.passed} checks)`); }
 await packages();
 await updater();
 await counter();

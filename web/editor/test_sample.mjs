@@ -192,6 +192,21 @@ x = json.loads(sys.stdin.read()); b, st = s.ima_encode(x, 0); sys.stdout.write(b
     ok(/^hortator-sample-USR2-KICK-01-\d{4}-\d\d-\d\d\.fsmp$/.test(S.backupName(1, "KICK 01")), "backup file name");
   }
 
+  /* ---- a file's own rate (WAV / AIFF headers), so decoding keeps it */
+  {
+    const wav = new Uint8Array(44), dv = new DataView(wav.buffer);
+    wav.set(new TextEncoder().encode("RIFF"), 0); dv.setUint32(4, 36, true); wav.set(new TextEncoder().encode("WAVEfmt "), 8);
+    dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true); dv.setUint32(24, 22050, true);
+    wav.set(new TextEncoder().encode("data"), 36);
+    const aif = new Uint8Array(54), da = new DataView(aif.buffer);
+    aif.set(new TextEncoder().encode("FORM"), 0); da.setUint32(4, 46); aif.set(new TextEncoder().encode("AIFFCOMM"), 8); da.setUint32(16, 18);
+    da.setUint16(20, 1); da.setUint32(22, 100); da.setUint16(26, 16);
+    aif.set([0x40, 0x0e, 0xac, 0x44, 0, 0, 0, 0, 0, 0], 28); // 44100 as an 80-bit float
+    const aif48 = Uint8Array.from(aif); aif48.set([0x40, 0x0e, 0xbb, 0x80, 0, 0, 0, 0, 0, 0], 28);
+    ok(S.sniffRate(wav) === 22050 && S.sniffRate(aif) === 44100 && S.sniffRate(aif48) === 48000 && S.sniffRate(new Uint8Array(10)) === 0,
+      "a file's rate: WAV fmt, AIFF COMM (80-bit), else 0 (unknown)");
+  }
+
   /* ---- the mock device ------------------------------------------------------------------------------------- */
   const data = await loadDeviceData();
   const m = createMockDevice(data);
