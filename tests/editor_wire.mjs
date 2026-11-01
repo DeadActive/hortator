@@ -14,6 +14,7 @@ import { CMD, CUE, NONE, RC, RK, RS, SEQ_PUSH, crc32, decodeFrame, decodeProject
   encodeRequest, isEditorFrame, sealProject,
 } from "../web/editor/proto.mjs";
 import { UPDATE_HANDSHAKE, createMockDevice } from "../web/editor/mock_device.mjs";
+import { SLOT_MAX, encodeSample } from "../web/editor/sample.mjs";
 
 const data = JSON.parse(readFileSync(new URL("../web/editor/device_data.json", import.meta.url), "utf8"));
 const lines = readFileSync(process.argv[2], "utf8").split("\n").filter(Boolean)
@@ -107,6 +108,45 @@ function xcheck(bin) {
   rq("STEPS_SET while a song plays: rc 2 2 STOP TO EDIT", CMD.STEPS_SET, { slot: NONE, var: 0, track: 0, first: 0, steps: [{ flags: 1, cond: 0, note: 60 }] });
   rq("CUE while a song plays: rc 2 2", CMD.CUE, { kind: CUE.VAR, n: 1 });
   dev("song 0", () => m.setSong(false));
+  { /* the user sample slots (minor 3): an upload, its refusals, READ, RENAME, CLEAR */
+    const pcm = Int16Array.from({ length: 2600 }, (_, i) => Math.round(9000 * Math.sin(i / 7) + 3000 * Math.sin(i / 2.3)));
+    const S = encodeSample(pcm, 22050, "XKICK"), d = S.data, h = S.header, crc = crc32(d);
+    const up = (what, k) => { for (let o = 0; o < d.length; o += 256)
+      rq(`${what} DATA @${o}`, CMD.SMP_DATA, { slot: k, offset: o, data: d.subarray(o, o + 256) }); };
+    for (let k = 0; k < 3; k++) rq(`SMP_INFO USR${k + 1}: empty`, CMD.SMP_INFO, { slot: k });
+    rq("SMP_INFO slot 3: rc 1 45", CMD.SMP_INFO, { slot: 3 });
+    rq("SMP_BEGIN USR2 one byte too big: rc 2 31", CMD.SMP_BEGIN, { slot: 1, len: SLOT_MAX[1] + 1, crc: 0 });
+    rq("SMP_DATA with no upload: rc 1 41", CMD.SMP_DATA, { slot: 0, offset: 0, data: d.subarray(0, 256) });
+    dev("play", () => m.play());
+    rq("SMP_BEGIN while playing: rc 3 STOP TO UPLOAD", CMD.SMP_BEGIN, { slot: 0, len: d.length, crc });
+    dev("stop", () => m.stop());
+    dev("otarace", () => { m.faults.updateAtCommit = true; });
+    rq("SMP_BEGIN with the upgrade command pending: rc 6 0", CMD.SMP_BEGIN, { slot: 0, len: d.length, crc });
+    rq("SMP_BEGIN USR1", CMD.SMP_BEGIN, { slot: 0, len: d.length, crc });
+    rq("SMP_DATA out of order: rc 5 34", CMD.SMP_DATA, { slot: 0, offset: 256, data: d.subarray(256, 512) });
+    rq("SMP_DATA too short: rc 1 44", CMD.SMP_DATA, { slot: 0, offset: 0, data: d.subarray(0, 200) });
+    up("upload USR1", 0);
+    rq("SMP_DATA the last piece again (a retry): answered", CMD.SMP_DATA, { slot: 0, offset: Math.floor((d.length - 1) / 256) * 256,
+      data: d.subarray(Math.floor((d.length - 1) / 256) * 256) });
+    rq("SMP_INFO during the upload: empty", CMD.SMP_INFO, { slot: 0 });
+    rq("SMP_END", CMD.SMP_END, { slot: 0, header: h });
+    rq("SMP_INFO USR1: the sample", CMD.SMP_INFO, { slot: 0 });
+    for (let o = 0; o < 512 + d.length; o += 256) rq(`SMP_READ USR1 @${o}`, CMD.SMP_READ, { slot: 0, offset: o, crc });
+    rq("SMP_READ with another CRC: rc 5 33", CMD.SMP_READ, { slot: 0, offset: 0, crc: (crc ^ 1) >>> 0 });
+    rq("SMP_READ past the end: rc 1 45", CMD.SMP_READ, { slot: 0, offset: 512 + Math.ceil(d.length / 256) * 256, crc });
+    rq("SMP_RENAME USR1", CMD.SMP_RENAME, { slot: 0, name: "BD 2" });
+    rq("SMP_INFO USR1: renamed", CMD.SMP_INFO, { slot: 0 });
+    rq("SMP_RENAME an empty slot: rc 2 30", CMD.SMP_RENAME, { slot: 2, name: "X" });
+    rq("SMP_BEGIN USR3", CMD.SMP_BEGIN, { slot: 2, len: d.length, crc: (crc ^ 1) >>> 0 });
+    up("upload USR3 (a wrong CRC announced)", 2);
+    rq("SMP_END USR3: the header's CRC is not BEGIN's: rc 2 26", CMD.SMP_END, { slot: 2, header: h });
+    rq("SMP_INFO USR3: empty", CMD.SMP_INFO, { slot: 2 });
+    dev("play", () => m.play());
+    rq("SMP_CLEAR while playing: rc 3", CMD.SMP_CLEAR, { slot: 0 });
+    dev("stop", () => m.stop());
+    rq("SMP_CLEAR USR1", CMD.SMP_CLEAR, { slot: 0 });
+    rq("SMP_INFO USR1: empty again", CMD.SMP_INFO, { slot: 0 });
+  }
   rq("WATCH on", CMD.WATCH, { on: 1 });
   push("pushes 100", "WATCH on: nothing changed, no push");
   rq("STEPS_SET stopped, variation 2: switched, written", CMD.STEPS_SET, { slot: 0, var: 1, track: 1, first: 5, steps: [{ flags: 3, cond: 11, note: 64 }] });

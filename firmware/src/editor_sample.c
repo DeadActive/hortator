@@ -135,7 +135,7 @@ static void ed_sample_poll(void)
 }
 
 /* flash may be written now for slot k (BEGIN, END, CLEAR, RENAME): 1, else refused (replied) */
-static int eds_can_write(uint32_t cmd, uint32_t k, const char *stop)
+static int eds_can_write(uint32_t cmd, uint32_t k, const char *stop)   /* k 3: no slot's clamp asked */
 {
     if (transport_busy() || chain_busy())
         ed_fail(cmd, ED_E_STOP, ED_D_STOP, stop);
@@ -176,10 +176,10 @@ static void eds_begin(const uint8_t *a)
     uint32_t k = a[0], len = ed_get_u35(a + 1), crc = ed_get_u35(a + 6);
     if (k >= SMP_USER_SLOTS || !len)
         EDS_NO(ED_SMP_BEGIN, ED_E_BAD, ED_D_RANGE, "OUT OF RANGE");
-    if (!eds_can_write(ED_SMP_BEGIN, k, "STOP TO UPLOAD"))
-        return;
     if (len > eds_max(k))
         EDS_NO(ED_SMP_BEGIN, ED_E_REFUSED, ED_D_TOO_BIG, "TOO BIG");
+    if (!eds_can_write(ED_SMP_BEGIN, k, "STOP TO UPLOAD"))
+        return;
     eds_drop();                                     /* an upload running: dropped (its slot stays empty) */
     cue_cancel();                                   /* (st_buf: END's scratch) */
     eds_silence(k);
@@ -204,10 +204,13 @@ static void eds_data(const uint8_t *a, uint32_t n)
     uint8_t *p = usr_head;
     if (!eds.on || k != eds.slot)
         EDS_NO(ED_SMP_DATA, ED_E_BAD, ED_D_NOT_RESTORING, "NO UPLOAD");
-    if (off % ED_PIECE || off >= eds.len)
-        EDS_NO(ED_SMP_DATA, ED_E_BAD, ED_D_RANGE, "OUT OF RANGE");
-    if (off != eds.got && off + 1u != eds.last)
+    if (transport_busy() || chain_busy())
+        EDS_NO(ED_SMP_DATA, ED_E_STOP, ED_D_STOP, "STOP TO UPLOAD");
+    if (off != eds.got && off + 1u != eds.last)     /* (only the next piece or the last one again: below the length,
+                                                     * on a piece's offset) */
         EDS_NO(ED_SMP_DATA, ED_E_STALE, ED_D_ORDER, "OUT OF ORDER");
+    if (off % ED_PIECE || off >= eds.len)
+        EDS_NO(ED_SMP_DATA, ED_E_BAD, ED_D_LENGTH, "BAD LENGTH");
     len = eds.len - off < ED_PIECE ? eds.len - off : ED_PIECE;
     if (n - ED_LEN_SMP_DATA_MIN != len + (len + 6u) / 7u ||
         ed_unpack7(a + ED_LEN_SMP_DATA_MIN, n - ED_LEN_SMP_DATA_MIN, p, len) != len)
@@ -217,8 +220,6 @@ static void eds_data(const uint8_t *a, uint32_t n)
         if (memcmp(smp_user_xip(k) + so, p, len))
             EDS_NO(ED_SMP_DATA, ED_E_STALE, ED_D_ORDER, "OUT OF ORDER");
     } else {
-        if (transport_busy() || chain_busy())
-            EDS_NO(ED_SMP_DATA, ED_E_STOP, ED_D_STOP, "STOP TO UPLOAD");
         if ((so & 0xFFFu) == 0xF00u) {              /* a sector's loader window: as flash will hold it */
             for (i = len; i < 80u; i++)
                 p[i] = 0xFFu;
@@ -304,7 +305,7 @@ static void eds_clear(uint32_t k)
 {
     if (k >= SMP_USER_SLOTS)
         EDS_NO(ED_SMP_CLEAR, ED_E_BAD, ED_D_RANGE, "OUT OF RANGE");
-    if (!eds_can_write(ED_SMP_CLEAR, k, "STOP FIRST"))
+    if (!eds_can_write(ED_SMP_CLEAR, SMP_USER_SLOTS, "STOP FIRST"))   /* (a slot whose clamp failed: emptied) */
         return;
     if (eds.on && eds.slot == k)
         eds_drop();
@@ -333,7 +334,7 @@ static void eds_rename(const uint8_t *a, uint32_t n)
             EDS_NO(ED_SMP_RENAME, ED_E_BAD, ED_D_RANGE, "OUT OF RANGE");
     }
     nm[8] = 0;
-    if (!eds_can_write(ED_SMP_RENAME, k, "STOP FIRST"))
+    if (!eds_can_write(ED_SMP_RENAME, SMP_USER_SLOTS, "STOP FIRST"))
         return;
     if (!usr_nz[k] || (eds.on && eds.slot == k))
         EDS_NO(ED_SMP_RENAME, ED_E_REFUSED, ED_D_NOT_PRESENT, "NO DATA");

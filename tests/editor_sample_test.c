@@ -420,9 +420,9 @@ static void t_limits(void)
     fresh();
     make_sample(1000, 5, "S");
     ok &= begin(1, 1000, st_crc32(D, 1000)) == 0;
-    ok &= piece(1, 1024, D, 256) == ED_E_BAD && rc_detail == ED_D_RANGE;          /* past the length */
-    ok &= piece(1, 0xFFFFFF00u, D, 256) == ED_E_BAD && rc_detail == ED_D_RANGE;   /* far past it */
-    ok &= piece(1, 100, D, 256) == ED_E_BAD && rc_detail == ED_D_RANGE;           /* not a piece's offset */
+    ok &= piece(1, 1024, D, 256) == ED_E_STALE && rc_detail == ED_D_ORDER;        /* past the length */
+    ok &= piece(1, 0xFFFFFF00u, D, 256) == ED_E_STALE && rc_detail == ED_D_ORDER; /* far past it */
+    ok &= piece(1, 100, D, 256) == ED_E_STALE && rc_detail == ED_D_ORDER;         /* not a piece's offset */
     ok &= piece(1, 256, D, 256) == ED_E_STALE && rc_detail == ED_D_ORDER;          /* not the next one */
     ok &= piece(1, 0, D, 255) == ED_E_BAD && rc_detail == ED_D_LENGTH;             /* short */
     ok &= piece(1, 768, D, 256) == ED_E_STALE;                                    /* (the last one, too early) */
