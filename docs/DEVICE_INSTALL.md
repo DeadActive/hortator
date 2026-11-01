@@ -1062,6 +1062,33 @@ Two FM-1s for the move test, or one FM-1 and two slots. Note the times with a st
   FM-1 shows in the page well within a second.
 - Bluetooth version: the same over USB with BLUETOOTH ON; the editor never appears on the Bluetooth link.
 
+### Web editor: Samples (check on the FM-1)
+
+Have at hand: a short mono WAV (a kick, under a second), a long stereo WAV at 48 kHz (a loop of 10 s or more), an
+AIFF if the browser opens it. Before uploading, note what USR1..USR3 hold (Samples tab) and save a project with a
+track on SAMPLE, SET USR2.
+
+- The Samples tab lists USR1 (80 KiB), USR2 and USR3 (48 KiB each): name, length in seconds, a bar of how full, or
+  "empty". A slot shortened at an earlier power-on (USR2 / USR3 SHORTENED TO 48K) shows its 48 KiB.
+- Upload the kick to USR1: the waveform shows, trim a little of its start, Preview plays it trimmed; Upload: the FM-1
+  shows UPLOAD USR1 while the bar moves, then the slot shows the name and length. On the FM-1, SAMPLE SET USR1 plays
+  it, sounding as the page's preview did (A/B by ear). Same on the LAYER page (SET USR1).
+- The long loop into USR2: the page says it does not fit at its own rate and offers lower ones with the length each
+  gives; pick one, upload, play it on the FM-1: the length the page said, no clicks at the start or end. Its project
+  (saved before) still loads and plays; its variations and locks are all there (USR2's limit kept them).
+- Press PLAY on the FM-1 during an upload: the page says to stop the FM-1 and waits; STOP, and the upload goes on.
+  Start an upload while playing: "STOP TO UPLOAD", nothing changes.
+- Cancel an upload halfway, and (another try) unplug the USB cable halfway: the slot shows empty afterwards (power the
+  FM-1 off and on: still empty, the SAMPLE track on it silent, nothing else changed). Upload again: it plays.
+- Read a slot (Listen): the page plays what the FM-1 holds. Back up USR1 to a file, Clear USR1 (empty; the track on it
+  silent), restore the file into USR3: it plays there as it did in USR1. Restore the long USR2 backup into USR3 if it
+  is over 48 KiB: refused before anything is sent ("too big").
+- Rename USR3: the FM-1's SET list still reads USR1..USR3; the page shows the new name after a reload, the sound
+  unchanged.
+- After the uploads, install this build again with the web installer (an update): it succeeds, and every slot still
+  plays what it held (the update's cleanup leaves the samples alone).
+- Timings: an 80 KiB upload about 5–15 s, its backup about 3–6 s; each must stay under 30 s.
+
 ### USER presets with FX, 96 slots (check on the FM-1)
 
 Before installing, on the old firmware: save a few USER presets, among them some in slots 97 to 128 (scroll the list

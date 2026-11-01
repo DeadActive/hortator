@@ -305,9 +305,11 @@ USR2 under upstream Felucca overwrote them), the project loads without them and 
 **User sample slots 2 and 3 (USR2, USR3) hold up to 48 KiB each** (USR1: 80 KiB, as before): the rest of USR3's
 flash holds the projects' lock banks, the rest of USR2's the projects' variations. A longer USR2 or USR3 (uploaded
 under upstream Felucca) is shortened to its first 48 KiB once, at the next power-on (`USR2 SHORTENED TO 48K`,
-`USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Hortator has no sample upload: an 80 KiB
-upload to USR2 or USR3 under upstream Felucca afterwards overwrites the variations or the lock banks. (If shortening
-USR2 ever fails, `USR2 CLAMP FAILED` shows at power-on and SAVE says `USR2 ERROR: NO SAVE` until the next power-on.)
+`USR3 SHORTENED TO 48K`); it keeps playing, minus what was past 48 KiB. Load your own samples with the web editor's
+Samples tab ([below](#web-editor)): it never writes past a slot's limit. Don't upload to USR2 or USR3 with upstream
+Felucca's tools: an 80 KiB upload there overwrites the variations or the lock banks. (If shortening USR2 ever fails,
+`USR2 CLAMP FAILED` shows at power-on and SAVE says `USR2 ERROR: NO SAVE` until the next power-on; the editor then
+refuses uploads to that slot too.)
 
 ### Step tools
 
@@ -510,8 +512,17 @@ From 0.28.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) w
 - **Patterns**: every track's steps in each variation (NUDGE included), and the locks, editable; click a slot or
   variation to cue it, exactly as the cue keys do; copy a variation from this slot, another slot or a backup file;
   SAVE.
+- **Samples**: the three user sample slots (USR1 80 KiB, USR2 and USR3 48 KiB each) with each one's name, length and
+  how full it is. Load a WAV (or AIFF, if your browser opens it) into a slot: the page mixes it to mono, lets you trim
+  its start and end on the waveform, normalize it and pick the sample rate (its own up to 44.1 kHz, lower ones when the
+  slot needs them, with the resulting length), encodes it as the FM-1 stores it and plays you exactly what the FM-1
+  will play before you send it. The upload shows its progress and can be cancelled. Each slot holds one sample over
+  all keys: pick it with SET = USR1..USR3 on the SAMPLE model or the LAYER page. Back up a slot to a file (`.fsmp`)
+  and restore it into any slot, listen to what a slot holds, rename it, or clear it. Uploads happen only while the
+  FM-1 is stopped (the FM-1 shows UPLOAD USR1 meanwhile); a slot being written reads as empty until the upload is
+  complete, so a cancelled upload, an unplugged cable or a power cut leaves it empty, never half a sample.
 
-Restores happen only while the FM-1 is stopped; meanwhile it shows RESTORING and its PLAY, cue keys, LOAD, SAVE and
+Restores and sample uploads happen only while the FM-1 is stopped; during a restore it shows RESTORING and its PLAY, cue keys, LOAD, SAVE and
 the step tools wait. USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a
 computer or Android; Firefox after its permission prompt; not Safari (no Web MIDI). A firmware update always comes
 first: while the installer runs, the editor goes quiet. One browser tab runs the editor at a time.

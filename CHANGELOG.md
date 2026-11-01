@@ -47,6 +47,16 @@ released yet are listed under Unreleased (the next version) and, for the version
 
 ## Unreleased
 
+- **Web editor: Samples.** A new Samples tab loads your own sounds into the three user sample slots (USR1 holds 80
+  KiB, USR2 and USR3 48 KiB each) and shows what each one holds: its name, length and how full it is. Open a WAV (or
+  an AIFF your browser can open), trim its start and end on the waveform, normalize it if you like and choose the
+  sample rate (the file's own up to 44.1 kHz, or a lower one when the sound is too long for the slot; the page shows
+  the length you get). The preview plays exactly what the FM-1 will play. The upload shows its progress and can be
+  cancelled; the FM-1 shows UPLOAD USR1 meanwhile and must be stopped. Until an upload is complete the slot reads as
+  empty, so a cancelled upload, a pulled cable or a power cut leaves the slot empty, never half a sample. Each slot
+  can also be listened to, backed up to a file and restored (into any slot), renamed and cleared. A sample never
+  spills past its slot: the projects' variations and lock banks next to USR2 and USR3 stay safe, and the firmware
+  update leaves the samples alone.
 - **Web editor: user presets with their FX.** The Presets page lists the 96 user slots; each preset is marked +FX
   (it sets the track's FX when loaded) or SOUND (the sound only), and its FX button shows and edits the FX it holds
   (sends, FILTER, INSERT, SRR, RESON) or switches them off. Save track N here takes the track's FX too, and loading a
