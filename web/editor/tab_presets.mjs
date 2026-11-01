@@ -425,7 +425,7 @@ export function mountPresets(el, ctx) {
     if (m.deviceOld && m.device) t += `This FM-1's firmware keeps 128 presets without FX: the list shows them as the new firmware moves them${m.lost && m.source === "FM-1" ? ` (${m.lost} would not fit)` : ""}; update the FM-1 to write presets. `;
     if (m.fileNote) t += `${m.fileNote} `;
     if (!m.device) t += "The FM-1's list is not read yet.";
-    else if (n) t += `${n} slot${n === 1 ? "" : "s"} differ from the FM-1 (*): Write to FM-1 to send them.`;
+    else if (n) t += `${n} slot${n === 1 ? " differs" : "s differ"} from the FM-1 (*): Write to FM-1 to send ${n === 1 ? "it" : "them"}.`;
     else t += "Same as the FM-1.";
     if (m.deviceInfo && m.deviceInfo.flags & BF.UNSAVED) t += " The FM-1 has user preset changes not saved to flash.";
     if (s.state?.playing && m.canWrite) t += " Stop the FM-1 to write.";
