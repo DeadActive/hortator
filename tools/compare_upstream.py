@@ -356,12 +356,16 @@ def selftest(ours, up):
     print(f"compare_upstream selftest: a store deleted from fm1_cstart is {'caught' if why else 'NOT caught'}")
     ok &= bool(why)
     for key, obj in list(PTR_ARG.items()):           # a pointer binding to the wrong object (PTR_ARG) must fail
+        if key[0] in exact:                          # (identical to upstream's text: the strictest pass, the binding
+            print(f"compare_upstream selftest: {key[1]}'s pointer binding in {key[0]}: n/a (identical to "
+                  f"upstream, the binding is not used)")   # is never consulted: nothing to catch; owner 2026-11-01)
+            continue
         PTR_ARG[key] = "ota_msg"
         why = key[0] in ours.funcs and judge(ours, up, key[0])
         PTR_ARG[key] = obj
         print(f"compare_upstream selftest: {key[1]}'s pointer bound to the wrong object in {key[0]} is "
               f"{'caught' if why else 'NOT caught'}")
-    ok &= bool(why)
+        ok &= bool(why)
     return 0 if ok else 1
 
 
