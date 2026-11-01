@@ -19,7 +19,10 @@
 //                (once, after `after` more requests of cmd),
 //                m.faults.flashError, m.faults.cueFull, m.faults.cuePark = slot (the park holds that slot's unsaved
 //                variations), m.faults.noFlash (no flash this boot), m.faults.updateAtCommit (the upgrade command lands
-//                just before a COMMIT's writes), m.updateFrame(), m.otaReq()
+//                just before a COMMIT's writes; a sample BEGIN / END's), m.faults.blocked = [1] (USR2's 48 KiB clamp
+//                failed this boot; 2: USR3's), m.updateFrame(), m.otaReq()
+//   samples:     m.smp.flash[k] (the slot's flash bytes), m.smp.up (the upload running), m.smp.writes (every erase /
+//                program: { slot, off, n }), m.seedSample(k, header, data), m.powerCut({ inHeader: header })
 //   m.g[G.CLOCK] (following an external clock: BPM stays the clock's) and m.song (a song plays) as the firmware
 // tests/editor_wire.mjs runs one request script through this mock and the firmware's (tests/editor_xcheck.c) and
 // compares the replies byte for byte.
@@ -31,6 +34,7 @@ import {
   decodePresets, decodeProject, decodeRequest, decodeVars, emptyStep, encodeLocks, encodePresets, encodePresetsV1, encodeProject,
   encodePush, encodeReply, encodeRequest, encodeVars, isFullRecord, lockLink, lockOrd, sealProject, varLink,
 } from "./proto.mjs";
+import { DATA_OFF, HDR_SIZE, SECTOR, SLOT_MAX, SLOT_SIZE, WINDOW, WINDOW_N, crc16, headerProblem, parseHeader } from "./sample.mjs";
 
 export async function loadDeviceData() {
   const inlined = globalThis.HORTATOR_DEVICE_DATA; // the published page carries it (web/make_site.py inlines it)
@@ -56,7 +60,8 @@ const MSG = {
   [DETAIL.NOT_PRESENT]: "NO DATA", [DETAIL.CUE_FIRST]: "CUE FIRST", [DETAIL.CHANGED]: "CHANGED: READ AGAIN",
   [DETAIL.ORDER]: "OUT OF ORDER", [DETAIL.RESTORING]: "RESTORING", [DETAIL.NOT_RESTORING]: "NO RESTORE",
   [DETAIL.STOP]: "STOP FIRST", [DETAIL.UNKNOWN]: "UNKNOWN COMMAND", [DETAIL.LENGTH]: "BAD LENGTH",
-  [DETAIL.RANGE]: "OUT OF RANGE", [DETAIL.NO_CAP]: "NOT IN THIS FIRMWARE",
+  [DETAIL.RANGE]: "OUT OF RANGE", [DETAIL.NO_CAP]: "NOT IN THIS FIRMWARE", [DETAIL.TOO_BIG]: "TOO BIG",
+  [DETAIL.REFUSED_DATA]: "DATA REFUSED",
 };
 class Refusal { constructor(rc, detail, msg) { this.rc = rc; this.detail = detail; this.msg = msg ?? MSG[detail] ?? ""; } }
 const refuse = (rc, detail, msg) => { throw new Refusal(rc, detail, msg); };
@@ -85,7 +90,7 @@ export class MockDevice {
   constructor(data, opts = {}) {
     this.d = data;
     this.o = { name: "Hortator", editor: true, firmware: "0.28.0", major: PROTO.major, minor: PROTO.minor,
-      magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE | CAP.NUDGE | CAP.UPR2, latency: 1,
+      magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE | CAP.NUDGE | CAP.UPR2 | CAP.SAMPLES, latency: 1,
       seed: 7, ...opts };
     this.uprOld = !(this.o.caps & CAP.UPR2); // an FM-1 before minor 2: "UPR1", 128 voices
     this.nuser = this.uprOld ? LAYOUT.nuserOld : LAYOUT.nuser;
@@ -96,7 +101,8 @@ export class MockDevice {
     this.M = Object.fromEntries(data.models.map((m, i) => [m.name, i]));
     this.roG = new Set(RO_G.map((n) => G[n]));
     this.t = 0; // the virtual clock (advance)
-    this.faults = { noReply: 0, refuse: {}, flashError: false, cueFull: false, cuePark: -1, noFlash: false, updateAtCommit: false };
+    this.faults = { noReply: 0, refuse: {}, flashError: false, cueFull: false, cuePark: -1, noFlash: false, updateAtCommit: false, blocked: [] };
+    this.smp = { flash: SLOT_SIZE.map((n) => new Uint8Array(n).fill(255)), up: null, writes: [] }; // the user sample slots (erased)
     this.received = []; // every frame fed (the whitelist test)
     this.silentUntil = -1;
     this.watchUntil = -1;
@@ -487,6 +493,7 @@ export class MockDevice {
   silence() {
     this.silentUntil = this.t + TIMING.silence;
     if (this.restore) this.abortRestore();
+    this.smp.up = null; // an upload running: dropped (its slot stays empty)
     this.watchUntil = -1;
   }
   updateFrame() { return this.feed(UPDATE_HANDSHAKE); }
@@ -494,6 +501,7 @@ export class MockDevice {
   advance(ms) {
     this.t += ms;
     if (this.restore && this.t - this.restore.at > TIMING.restoreIdle) this.abortRestore();
+    if (this.smp.up && this.t - this.smp.up.at > TIMING.restoreIdle) this.smp.up = null;
     return this.poll();
   }
   get silent() { return this.t < this.silentUntil; }
@@ -519,6 +527,7 @@ export class MockDevice {
       else if (fx) { delete this.faults.refuse[cmd]; throw new Refusal(fx.rc ?? RC.REFUSED, fx.detail ?? 0, fx.msg); }
       if (cmd === CMD.INFO) this.last = null;
       if (this.restore && cmd !== CMD.RESTORE) this.restore.at = this.t;
+      if (this.smp.up) this.smp.up.at = this.t; // any request keeps an upload alive
       const body = this.exec(cmd, req.args);
       reply = this.fit(cmd, seq, body);
     } catch (e) {
@@ -713,6 +722,8 @@ export class MockDevice {
         return { obj: a.obj, offset: a.offset, len: data.length, data };
       }
       case CMD.RESTORE: this.flashOk(); return this.restoreOp(a);
+      case CMD.SMP_INFO: case CMD.SMP_BEGIN: case CMD.SMP_DATA: case CMD.SMP_END: case CMD.SMP_READ: case CMD.SMP_CLEAR:
+      case CMD.SMP_RENAME: return this.sampleOp(cmd, a);
       default: refuse(RC.BAD, DETAIL.UNKNOWN);
     }
   }
@@ -904,6 +915,135 @@ export class MockDevice {
     this.slots[r.slot] = this.imageOf(this.flashObjects(r.slot));
     if (r.slot === this.loaded) this.loadLive(r.slot); // the loaded slot: loaded again, as LOAD
     return { op: a.op, kind: r.kind, slot: r.slot, state: this.state() };
+  }
+
+  /* the user sample slots (§2.7) ------------------------------------------------------ */
+  smpErase(k, off) { // one 4 KiB sector of slot k (never past it)
+    if (off % SECTOR || off < 0 || off + SECTOR > SLOT_SIZE[k]) throw new Error(`mock: erase outside USR${k + 1}`);
+    this.smp.flash[k].fill(255, off, off + SECTOR);
+    this.smp.writes.push({ slot: k, off, n: SECTOR });
+  }
+  smpProg(k, off, b) {
+    if (off < 0 || off + b.length > SLOT_SIZE[k]) throw new Error(`mock: write outside USR${k + 1}`);
+    const f = this.smp.flash[k];
+    for (let i = 0; i < b.length; i++) f[off + i] &= b[i];
+    this.smp.writes.push({ slot: k, off, n: b.length });
+  }
+  smpHeader(k) { const p = parseHeader(this.smp.flash[k].subarray(0, HDR_SIZE)); return headerProblem(p, SLOT_MAX[k]) ? null : p; }
+  smpWriteHeader(k, h) { this.smpProg(k, 4, h.subarray(4, HDR_SIZE)); this.smpProg(k, 0, h.subarray(0, 4)); } // the magic last
+  /** a slot holding a sample (development, screenshots): flash written as an upload leaves it */
+  seedSample(k, header, data) {
+    for (let off = 0; off < DATA_OFF + data.length; off += SECTOR) this.smpErase(k, off);
+    this.smpProg(k, DATA_OFF, data);
+    this.smpWriteHeader(k, header);
+  }
+  /** power lost: RAM state gone (an upload running, a restore); opts.inHeader: END's header write torn after its bytes
+   * 4..479, before the magic */
+  powerCut(opts = {}) {
+    if (opts.inHeader && this.smp.up) this.smpProg(this.smp.up.slot, 4, opts.inHeader.subarray(4, HDR_SIZE));
+    this.smp.up = null;
+    this.restore = null;
+  }
+  sampleOp(cmd, a) {
+    const k = a.slot, STOP_UP = "STOP TO UPLOAD";
+    if (k > 2) refuse(RC.BAD, DETAIL.RANGE);
+    const up = this.smp.up, f = this.smp.flash[k], max = SLOT_MAX[k];
+    const drop = () => { this.smp.up = null; };
+    const mine = () => { if (!up || up.slot !== k) refuse(RC.BAD, DETAIL.NOT_RESTORING, "NO UPLOAD"); };
+    const update = () => {
+      if (!this.faults.updateAtCommit) return;
+      this.faults.updateAtCommit = false;
+      drop();
+      refuse(RC.BUSY, DETAIL.NONE, "UPDATE");
+    };
+    switch (cmd) {
+      case CMD.SMP_INFO: {
+        const p = this.smpHeader(k);
+        return p ? { slot: k, valid: 1, name: p.name, len: p.dataLen, crc: p.crc, max, nz: p.nz, n: p.zones[0].n, rate: p.zones[0].rate }
+          : { slot: k, valid: 0, name: "", len: 0, crc: 0, max, nz: 0, n: 0, rate: 0 };
+      }
+      case CMD.SMP_BEGIN: {
+        if (!a.len) refuse(RC.BAD, DETAIL.RANGE);
+        if (a.len > max) refuse(RC.REFUSED, DETAIL.TOO_BIG);
+        this.flashOk();
+        if (this.playing) refuse(RC.STOP, DETAIL.STOP, STOP_UP);
+        this.busy();
+        update();
+        if (this.faults.blocked.includes(k)) refuse(RC.REFUSED, DETAIL.BLOCKED, k === 1 ? "USR2 ERROR: NO SAVE" : "USR3 CLAMP FAILED");
+        drop();
+        this.smpErase(k, 0); // the header sector: the slot reads empty from here
+        this.smp.up = { slot: k, len: a.len, crc: a.crc, next: 0, last: -1, at: this.t };
+        return { slot: k, max };
+      }
+      case CMD.SMP_DATA: {
+        mine();
+        if (this.playing) refuse(RC.STOP, DETAIL.STOP, STOP_UP);
+        const at = DATA_OFF + a.offset, want = Math.min(LIMITS.piece, up.len - a.offset);
+        if (a.offset !== up.next && a.offset !== up.last) refuse(RC.STALE, DETAIL.ORDER);
+        if (a.offset % LIMITS.piece || a.offset >= up.len || a.data.length !== want) refuse(RC.BAD, DETAIL.LENGTH);
+        if (a.offset === up.last) { // a retry of the last piece: answered again when flash holds it
+          if (a.data.some((x, i) => f[at + i] !== x)) refuse(RC.STALE, DETAIL.ORDER);
+          return { slot: k, offset: a.offset, len: want };
+        }
+        if (at % SECTOR === WINDOW) { // the update loader's sweep: this piece holds the sector's +0xF00..+0xF4F
+          const w = new Uint8Array(WINDOW_N).fill(255);
+          w.set(a.data.subarray(0, WINDOW_N));
+          const v = w[0] | w[1] << 8;
+          if (v && v === crc16(w.subarray(2))) { drop(); refuse(RC.REFUSED, DETAIL.REFUSED_DATA); }
+        }
+        if (at % SECTOR === 0) this.smpErase(k, at); // the first piece into a sector erases it
+        this.smpProg(k, at, a.data);
+        up.last = a.offset;
+        up.next = a.offset + want;
+        return { slot: k, offset: a.offset, len: want };
+      }
+      case CMD.SMP_END: {
+        mine();
+        if (this.playing) refuse(RC.STOP, DETAIL.STOP, STOP_UP);
+        if (a.header.length !== HDR_SIZE) refuse(RC.BAD, DETAIL.LENGTH);
+        if (up.next !== up.len) refuse(RC.REFUSED, DETAIL.INCOMPLETE);
+        const p = parseHeader(a.header);
+        if (headerProblem(p, max) || p.dataLen !== up.len || p.crc !== up.crc) { drop(); refuse(RC.REFUSED, DETAIL.INVALID); }
+        if (crc32(f.subarray(DATA_OFF, DATA_OFF + up.len)) !== up.crc) { drop(); refuse(RC.REFUSED, DETAIL.CRC); }
+        update();
+        if (this.faults.flashError) { drop(); refuse(RC.FLASH, DETAIL.NONE, "SAVE ERROR"); }
+        this.smpWriteHeader(k, a.header);
+        drop();
+        return { slot: k, valid: this.smpHeader(k) ? 1 : 0 };
+      }
+      case CMD.SMP_READ: {
+        const p = this.smpHeader(k);
+        if (!p) refuse(RC.REFUSED, DETAIL.NOT_PRESENT);
+        if (a.crc !== p.crc) refuse(RC.STALE, DETAIL.CHANGED);
+        const total = DATA_OFF + p.dataLen;
+        if (a.offset % LIMITS.piece || a.offset >= total) refuse(RC.BAD, DETAIL.RANGE);
+        const data = f.slice(a.offset, Math.min(total, a.offset + LIMITS.piece));
+        return { slot: k, offset: a.offset, len: data.length, data };
+      }
+      case CMD.SMP_CLEAR: {
+        this.flashOk();
+        if (this.playing) refuse(RC.STOP, DETAIL.STOP);
+        this.busy();
+        if (up && up.slot === k) drop();
+        this.smpErase(k, 0);
+        return { slot: k };
+      }
+      case CMD.SMP_RENAME: {
+        if (!a.name.length || a.name.length > 8) refuse(RC.BAD, DETAIL.RANGE);
+        this.flashOk();
+        if (this.playing) refuse(RC.STOP, DETAIL.STOP);
+        this.busy();
+        if (!this.smpHeader(k)) refuse(RC.REFUSED, DETAIL.NOT_PRESENT);
+        const sec = f.slice(0, SECTOR); // the header sector read, rewritten with the new name (the magic last)
+        sec.fill(0, 8, 16);
+        for (let i = 0; i < a.name.length; i++) sec[8 + i] = a.name.charCodeAt(i);
+        this.smpErase(k, 0);
+        this.smpProg(k, DATA_OFF, sec.subarray(DATA_OFF));
+        this.smpWriteHeader(k, sec);
+        return { slot: k, name: this.smpHeader(k).name };
+      }
+      default: return refuse(RC.BAD, DETAIL.UNKNOWN);
+    }
   }
 
   /* pushes (WATCH) ----------------------------------------------------------------- */

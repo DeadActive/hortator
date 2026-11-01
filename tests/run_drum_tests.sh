@@ -149,6 +149,15 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-re
     tests/editor_sample_test.c -lm   # (the web editor's user sample slots: ASan + UBSan)
 "$OUT/editor_sample_test" > "$OUT/editor_sample_test.txt" 2>&1 || { grep -v "^ok" "$OUT/editor_sample_test.txt" | tail -30; exit 1; }
 tail -1 "$OUT/editor_sample_test.txt"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/sample_xcheck" \
+    tests/sample_xcheck.c -lm   # (the firmware's sample decoder; no sanitizer: zones index SMP_DATA past its end, as XIP)
+if command -v node >/dev/null 2>&1; then
+    # the web editor's samples decoded by the firmware = the page's preview, bit for bit
+    node tests/sample_xcheck.mjs "$OUT/sample_xcheck" > "$OUT/sample_xcheck.txt" 2>&1 || { grep -v "^ok" "$OUT/sample_xcheck.txt" | tail -30; exit 1; }
+    tail -1 "$OUT/sample_xcheck.txt"
+else
+    echo "sample_xcheck: SKIPPED (no node)"
+fi
 XF="-O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src"   # (the variations across the two builds)
 cc $XF -o "$OUT/xbuild_std" tests/xbuild_test.c -lm

@@ -367,6 +367,7 @@ projects, the presets, the variations or the lock banks.
   detail 30 "NO DATA".
 - **CLEAR** (allow 2 s): stopped only (rc 3 detail 42 "STOP FIRST"); the voices playing the slot stop and its
   header sector is erased: the slot is empty (its other sectors keep their bytes until the next upload reaches them).
+  An upload running into that slot is dropped (the page's Cancel sends CLEAR).
 - **RENAME** (allow 2 s): name = 1..8 characters, ASCII 32..126 (else rc 1 detail 45). Stopped only. An empty slot:
   rc 2 detail 30. The device rewrites the header sector (header and the first 3,584 data bytes, read first; the
   magic last): a power cut in its ~0.1 s can leave the slot empty, never garbage.
