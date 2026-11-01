@@ -7,7 +7,8 @@
 // - restore a file into its slot (byte-exact) and into another slot (re-sealed by the device); copy a slot
 // - refusals shown as the device words them: STOP FIRST while playing, SAVE c FIRST, UPDATE at the commit, NO FLASH
 // - abort mid-restore and update traffic mid-restore: nothing written, the restore dropped, the page says so
-// - "Back up all" / "Restore all": the hortator-backup file round trip
+// - "Back up all" / "Restore all": the hortator-backup file round trip; a version 1 backup's 128 presets moved in;
+//   an FM-1 before UPR2: backed up (its presets as it will move them), not restored onto
 
 import { pathToFileURL } from "node:url";
 import * as P from "./proto.mjs";
@@ -118,7 +119,7 @@ export async function runProjectsTests(log = console.log) {
   /* back up everything / restore everything */
   const all = await pm.backupAll();
   const file = json(all.file), rb = P.readBackupFile(file);
-  ok(file.format === "hortator-backup" && all.name.startsWith("hortator-backup-") && eqb(P.encodePresets(rb.slots), m.flash.upr.bytes)
+  ok(file.format === "hortator-backup" && all.name.startsWith("hortator-backup-") && eqb(P.encodePresets(rb.slots, rb.moved), m.flash.upr.bytes)
     && [0, 1, 2, 3].every((k) => sameObjs(rb.projects[k], flash(k))) && all.unsaved.join() === "A"
     && file.presets.slots.some((x) => x && /\d\d$/.test(x.name)), "back up all: presets + A–D, byte-exact; unsaved listed");
   const before = [0, 1, 2, 3].map(flash), upr0 = m.flash.upr.bytes;
@@ -129,7 +130,23 @@ export async function runProjectsTests(log = console.log) {
   await pm.restoreAll(file);
   ok(eqb(m.flash.upr.bytes, upr0) && [0, 1, 2, 3].every((k) => sameObjs(flash(k), before[k])) && /Everything restored/.test(pm.message)
     && !m.restore, "restore all: presets and A–D byte-exact as backed up");
-  ok(/128 user presets and projects A, B, C, D/.test(pm.replacesAll(rb)), "restore all: the confirmation names what is replaced");
+  ok(/96 user presets and projects A, B, C, D/.test(pm.replacesAll(rb)), "restore all: the confirmation names what is replaced");
+  {
+    /* a version 1 backup (the editor before UPR2: 128 voices, no FX): moved in as the firmware moves its own */
+    const v1 = json(file);
+    v1.version = 1;
+    const k8 = [0, 0, 0, 0, 0, 0, 0, 0];
+    v1.presets = { slots: Array.from({ length: 128 }, (_, i) => (i < 95 || i === 100 || i === 120 ? { name: `P${i}`, model: 1, knobs: k8 } : null)) };
+    const b1 = P.readBackupFile(v1);
+    ok(b1.lost === 1 && /96 user presets/.test(pm.replacesAll(b1)) && /1 preset .*not fit/.test(pm.replacesAll(b1)),
+      "restore all, a version 1 backup: the confirmation says what does not fit");
+    await pm.restoreAll(v1);
+    const got = P.decodePresets(m.flash.upr.bytes);
+    ok(got.slots[95] && got.slots[95].voiceOnly && got.moved[4] === 96 && got.moved[24] === 0 && m.upr[95].voiceOnly
+      && [0, 1, 2, 3].every((k) => sameObjs(flash(k), before[k])) && /Everything restored/.test(pm.message),
+    "restore all, a version 1 backup: 97..128 moved in (the voice only, the moves written for the projects), A–D as saved");
+    await pm.restoreAll(file);
+  }
 
   /* one restore at a time across the tabs: the session's restore lock */
   {
@@ -165,6 +182,19 @@ export async function runProjectsTests(log = console.log) {
   ok(/NO FLASH/.test(pm.message) && pm.error, "no flash this boot: the device's NO FLASH shown");
   m.faults.noFlash = false;
 
+  {
+    /* an FM-1 before UPR2: backed up as it will move its presets; Restore all refused before anything is sent */
+    const o = createMockDevice(await loadDeviceData(), { seed: 3, caps: P.CAP.LIVE | P.CAP.PRESETS | P.CAP.PATTERNS | P.CAP.BACKUP | P.CAP.RESTORE | P.CAP.NUDGE });
+    const ro = await connect(o.access, { timing: FAST }), po = new ProjectsModel(ro.session);
+    await po.refresh();
+    const ab = await po.backupAll(), fb = P.readBackupFile(json(ab.file));
+    const n0 = o.received.length, eo = await fail(po.restoreAll(json(ab.file)));
+    ok(fb.slots.length === 96 && fb.slots.filter(Boolean).length + P.decodePresets(o.flash.upr.bytes).lost === o.upr.filter(Boolean).length
+      && eo && /Update the FM-1/.test(eo.message) && !o.received.slice(n0).some((f) => f[4] === CMD.RESTORE),
+    "an FM-1 before UPR2: backed up (its 128 presets as it will move them), Restore all refused before sending");
+    po.destroy();
+    ro.session.close();
+  }
   const notEditor = m.received.filter((f) => !(f[0] === 0xf0 && f[1] === 0x7d && f[2] === 0x48 && f[3] === 0x54 && f[f.length - 1] === 0xf7));
   ok(notEditor.length === 1 && notEditor[0][1] === 0x00, "every frame the page sent is an editor frame (the one F0 00 frame is the test's update)");
   pm.destroy();

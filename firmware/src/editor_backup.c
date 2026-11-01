@@ -52,6 +52,7 @@ static const uint16_t EDB_RSZ[17] = {0, sizeof proj_old.v1, sizeof proj_old.v2, 
 _Static_assert(sizeof proj_old <= sizeof(project_t) && sizeof proj_old.vf == sizeof(project_t),
                "every record format fits proj_slot[s]");
 _Static_assert(PROJ_MAGIC == 0x47524446u, "FDRG is the current record (EDB_FDRG)");
+_Static_assert(sizeof upr == ED_SZ_PRESETS && UPR_MAGIC == 0x32525055u, "the user presets are \"UPR2\" (ED_SZ_PRESETS)");
 static uint32_t edb_fmt(uint32_t m)                 /* a record magic's format: 1..16, 0 not "FDR1".."FDRG" */
 {
     uint32_t v = m >> 24;
@@ -161,7 +162,7 @@ static void edb_obj(uint32_t obj, edb_obj_t *o)
     memset(o, 0, sizeof *o);                        /* the user presets (preset_user_boot's record) */
     o->flags = upr_pending ? ED_BF_UNSAVED : 0u;
     b = edb_current(OBJ_UPRESET0 + 1u, &h, &copy);
-    if (b && h.len == sizeof upr && !memcmp(b, "UPR1", 4))
+    if (b && h.len == sizeof upr && !memcmp(b, "UPR2", 4))
         edb_found(o, b, &h, copy);
 }
 /* the storage heads backup object obj's bytes depend on (its own object's two copies; a lock bank's / variations'
@@ -272,8 +273,11 @@ static int edb_valid(void)
     if (memcmp(edb_home(ED_PART_RECORD), &edb.magic, 4))
         return 0;
     if (edb.kind == ED_RK_PRESETS) {
-        for (i = 0; i < PRE_NUSER; i++)
-            if (upr.s[i].used > 1u || (upr.s[i].used && upr.s[i].model >= NMODELS))
+        for (i = 0; i < PRE_NUSER; i++)             /* used 0, 1 (the voice and its FX), 3 (the voice only) */
+            if ((upr.s[i].used && !upr_used(i)) || (upr.s[i].used && upr.s[i].model >= NMODELS))
+                return 0;
+        for (i = 0; i < UPR_NOLD - PRE_NUSER; i++)  /* UPR1's moves: a slot of the bank or none */
+            if (upr.mv[i] > PRE_NUSER)
                 return 0;
         return 1;
     }

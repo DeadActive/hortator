@@ -498,9 +498,12 @@ From 0.28.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) w
 
 - **Sound**: every page of the selected track and the globals, both ways: a knob turned on the FM-1 moves in the
   page, a knob moved in the page plays on the FM-1. Choosing a track in the page selects it on the FM-1.
-- **Presets**: the 151 factory presets, loaded onto a track with a click; the 128 user presets as a list to rename,
-  reorder and delete, backed up to a file and written back (to this FM-1 or another). The names live in the page and
-  its files; the FM-1 keeps showing "MODEL NN".
+- **Presets**: the 151 factory presets, loaded onto a track with a click; the 96 user presets as a list to rename,
+  reorder and delete, backed up to a file and written back (to this FM-1 or another). Each user preset's FX (sends,
+  FILTER, INSERT, SRR, RESON) show under its FX button and can be changed there, or switched off so the preset loads
+  the sound only. The names live in the page and its files; the FM-1 keeps showing "MODEL NN". Files and backups made
+  by the editor before the FX (128 presets, the sound only) still open: their presets move into the 96 slots the way
+  the FM-1 moves its own, and the page says how many did not fit.
 - **Projects**: back up a project (A–D, with its locks and variations), or everything with the user presets, to a
   file; restore it into any slot, on this FM-1 or another; copy a project to another slot. A backup holds what is
   saved on the FM-1: SAVE first to include unsaved changes (the page tells you when there are some).

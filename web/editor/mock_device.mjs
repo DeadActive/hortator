@@ -5,8 +5,9 @@
 //
 // A Hortator FM-1 in memory, speaking Hortator editor protocol 1 (web/EDITOR_PROTOCOL.md): the page's tests and its
 // offline development run against it. Its tables are the firmware's (device_data.json, tools/gen_editor_data.sh); its
-// flash holds the objects byte for byte as the firmware lays them out (proto.mjs). Seeded: 128 user presets (some
-// used), projects A-C (D empty) with variations and locks, A loaded, stopped.
+// flash holds the objects byte for byte as the firmware lays them out (proto.mjs). Seeded: 96 user presets (some
+// used, most with their FX, some the voice only), projects A-C (D empty) with variations and locks, A loaded, stopped.
+// caps without CAP.UPR2: an FM-1 before minor 2 (its user presets "UPR1": 128 voices).
 //
 //   const m = createMockDevice(await loadDeviceData(), opts)
 //   m.access                      a Web MIDI access: one input and one output named "Hortator" (opts.name)
@@ -27,7 +28,7 @@
 import {
   BF, CAP, CMD, CMD_CAP, CUE, DESC_ORDER, DETAIL, DF, LAYOUT, LIMITS, LK, MAGIC, NONE, OLD_PROJECTS, PROTO, PUSH,
   RC, RK, RS, SCOPE, SEQ_PUSH, STEP, SZ, TIMING, U14_NONE, WRITES, crc32, decodeFrame, decodeLocks,
-  decodePresets, decodeProject, decodeRequest, decodeVars, emptyStep, encodeLocks, encodePresets, encodeProject,
+  decodePresets, decodeProject, decodeRequest, decodeVars, emptyStep, encodeLocks, encodePresets, encodePresetsV1, encodeProject,
   encodePush, encodeReply, encodeRequest, encodeVars, isFullRecord, lockLink, lockOrd, sealProject, varLink,
 } from "./proto.mjs";
 
@@ -84,8 +85,11 @@ export class MockDevice {
   constructor(data, opts = {}) {
     this.d = data;
     this.o = { name: "Hortator", editor: true, firmware: "0.28.0", major: PROTO.major, minor: PROTO.minor,
-      magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE | CAP.NUDGE, latency: 1, seed: 7,
-      ...opts };
+      magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE | CAP.NUDGE | CAP.UPR2, latency: 1,
+      seed: 7, ...opts };
+    this.uprOld = !(this.o.caps & CAP.UPR2); // an FM-1 before minor 2: "UPR1", 128 voices
+    this.nuser = this.uprOld ? LAYOUT.nuserOld : LAYOUT.nuser;
+    this.uprMoved = Array(LAYOUT.nuserOld - LAYOUT.nuser).fill(0); // UPR1's slots 97..128: where they moved (+1)
     const P = Object.fromEntries(data.P.map((n, i) => [n, i])), G = Object.fromEntries(data.G.map((n, i) => [n, i]));
     this.P = P;
     this.G = G;
@@ -118,6 +122,21 @@ export class MockDevice {
     return { p, pre: pre >= 0 ? pre : LAYOUT.preNone, preEd: 0 };
   }
   clampKnob(model, i, v) { const e = this.d.models[model].edit[i]; return clamp(v, e.min, e.max); }
+  clampFx(k, v) { const t = this.d.tp[LAYOUT.uprFx[k]]; return clamp(v, t.min, t.max); }
+  /** preset id's FX (a used user slot that holds them, presets.c upr_fx), else null */
+  uprFx(id) {
+    const s = id >= this.d.presets.length && id !== LAYOUT.preNone && !this.uprOld ? this.upr[id - this.d.presets.length] : null;
+    return s && !s.voiceOnly ? s.fx : null;
+  }
+  /** reson.c reson_refused: RESON MODEL from -> v on track ti, the caps; the message, or null */
+  resonRefused(ti, from, v) {
+    const c = this.d.consts, P = this.P, others = (f) => this.tracks.filter((x, i) => i !== ti && f(x.p[P.RMODEL])).length;
+    if (v === from) return null;
+    if (v !== c.RS_OFF && from === c.RS_OFF && others((m) => m !== c.RS_OFF) >= c.RS_MAXTRK) return "RESON: 4 TRACKS MAX";
+    if (v === c.RS_CHORD && from !== c.RS_CHORD && others((m) => m === c.RS_CHORD) >= 2) return "CHORD: 2 TRACKS MAX";
+    if (v === c.RS_MODAL && from !== c.RS_MODAL && others((m) => m === c.RS_MODAL) >= c.RS_MAXMODAL) return "MODAL: 2 TRACKS MAX";
+    return null;
+  }
   emptySteps() { return Array.from({ length: 8 }, () => Array.from({ length: 64 }, emptyStep)); }
   emptyImage(name, models, bpm) {
     const g = this.d.gp.map((x) => x.def);
@@ -130,11 +149,15 @@ export class MockDevice {
       for (const i of idx) row[i] = { flags: STEP.ON | f, cond, note, micro: 0 };
     };
     const range = (a, b, s = 1) => { const x = []; for (let i = a; i < b; i += s) x.push(i); return x; };
-    /* user presets: about half used, voices near the factory ones */
-    this.upr = Array.from({ length: LAYOUT.nuser }, () => {
+    /* user presets: about half used, voices near the factory ones, most with their FX (a few changed; not RESON's
+     * model), some the voice only */
+    this.upr = Array.from({ length: this.nuser }, () => {
       if (r() > 0.45) return null;
       const f = this.d.presets[Math.floor(r() * this.d.presets.length)];
-      return { model: f.model, knobs: f.k.map((k, i) => this.clampKnob(f.model, i, k + Math.round((r() - 0.5) * 16))) };
+      const knobs = f.k.map((k, i) => this.clampKnob(f.model, i, k + Math.round((r() - 0.5) * 16)));
+      if (this.uprOld) return { model: f.model, knobs };
+      const fx = LAYOUT.uprFx.map((id, k) => (id !== this.P.RMODEL && r() < 0.3 ? this.clampFx(k, this.d.tp[id].def + Math.round((r() - 0.5) * 60)) : this.d.tp[id].def));
+      return { model: f.model, knobs, fx, voiceOnly: r() < 0.2 };
     });
     /* A: TECHNO 1, four variations, locks and motion */
     const a = this.emptyImage("TECHNO 1", [M.BDTRX, M.SDTRX, M.CHTRX, M.OHTRX, M.CPTRX, M.RSTRX, M.TMTRX, M.CYTRX], 128);
@@ -198,7 +221,11 @@ export class MockDevice {
   }
   preDec(rec) {
     if (rec === LAYOUT.preNone) return LAYOUT.preNone;
-    if (rec & LAYOUT.preRecUser) return (rec & 0x7fff) < LAYOUT.nuser ? this.d.presets.length + (rec & 0x7fff) : LAYOUT.preNone;
+    if (rec & LAYOUT.preRecUser) { // (an older bank's slot 97..128: where it moved, presets.c preset_rec_dec_in)
+      let u = rec & 0x7fff;
+      if (!this.uprOld && u >= LAYOUT.nuser && u < LAYOUT.nuserOld) u = this.uprMoved[u - LAYOUT.nuser] - 1;
+      return u >= 0 && u < this.nuser ? this.d.presets.length + u : LAYOUT.preNone;
+    }
     const i = this.d.presets.findIndex((p) => p.uid === rec);
     return i < 0 ? LAYOUT.preNone : i;
   }
@@ -236,7 +263,21 @@ export class MockDevice {
     if (o.locks) this.flashWrite("lk", s, o.locks);
     this.flashWrite("rec", s, o.record);
   }
-  writeUpr() { this.flashWrite("upr", -1, encodePresets(this.upr)); }
+  uprBytes() { return this.uprOld ? encodePresetsV1(this.upr) : encodePresets(this.upr, this.uprMoved); }
+  writeUpr() { this.flashWrite("upr", -1, this.uprBytes()); }
+  /** the bank from flash, as preset_user_boot reads it: the knobs inside the model's ranges, the FX inside theirs */
+  readUpr() {
+    const b = this.flash.upr.bytes;
+    if (this.uprOld) {
+      this.upr = Array.from({ length: LAYOUT.nuserOld }, (_, i) => (b[4 + 10 * i] === 1 && b[5 + 10 * i] < this.d.models.length
+        ? { model: b[5 + 10 * i], knobs: [...b.subarray(6 + 10 * i, 14 + 10 * i)].map((x, k) => this.clampKnob(b[5 + 10 * i], k, (x << 24) >> 24)) } : null));
+      return;
+    }
+    const bank = decodePresets(b);
+    this.upr = bank.slots.map((s) => s && s.model < this.d.models.length ? { model: s.model, knobs: s.knobs.map((k, i) => this.clampKnob(s.model, i, k)),
+      fx: s.fx.map((x, k) => this.clampFx(k, x)), voiceOnly: s.voiceOnly } : null);
+    this.uprMoved = bank.moved.map((x) => (x > LAYOUT.nuser ? 0 : x));
+  }
   flashObjects(s) {
     const r = this.flash.rec[s];
     if (!r) return null;
@@ -415,13 +456,12 @@ export class MockDevice {
       return v;
     }
     if (id === P.RMODEL && v !== t.p[id]) { // reson.c reson_refused: the caps
-      const others = (f) => this.tracks.filter((x, i) => i !== ti && f(x.p[P.RMODEL])).length, from = t.p[id];
-      if (v !== c.RS_OFF && from === c.RS_OFF && others((m) => m !== c.RS_OFF) >= c.RS_MAXTRK) refuse(RC.REFUSED, DETAIL.NONE, "RESON: 4 TRACKS MAX");
-      if (v === c.RS_CHORD && from !== c.RS_CHORD && others((m) => m === c.RS_CHORD) >= 2) refuse(RC.REFUSED, DETAIL.NONE, "CHORD: 2 TRACKS MAX");
-      if (v === c.RS_MODAL && from !== c.RS_MODAL && others((m) => m === c.RS_MODAL) >= c.RS_MAXMODAL) refuse(RC.REFUSED, DETAIL.NONE, "MODAL: 2 TRACKS MAX");
+      const why = this.resonRefused(ti, t.p[id], v);
+      if (why) refuse(RC.REFUSED, DETAIL.NONE, why);
     }
     if (((id >= P.SLEN && id <= P.SSWING) || id === P.SRC) && this.song) return t.p[id]; // a song's rows set PATTERN
-    if (id >= P.E0 && id <= P.E7 && t.p[id] !== v) t.preEd = 1;
+    // presets.c preset_marks: a SOUND knob; an FX knob of a user preset that holds them
+    if (((id >= P.E0 && id <= P.E7) || (LAYOUT.uprFx.includes(id) && this.uprFx(t.pre))) && t.p[id] !== v) t.preEd = 1;
     t.p[id] = v;
     return v;
   }
@@ -510,7 +550,7 @@ export class MockDevice {
       case CMD.INFO:
         return { magic: this.o.magic, firmware: this.o.firmware, major: this.o.major, minor: this.o.minor, caps: this.o.caps,
           ntrk: 8, nstep: 64, pcount: this.d.tp.length, gcount: this.d.gp.length, nmodels: this.d.models.length,
-          nfact: this.d.presets.length, nuser: LAYOUT.nuser, nbanks: this.d.banks.length, nslot: 4, nvar: 8,
+          nfact: this.d.presets.length, nuser: this.nuser, nbanks: this.d.banks.length, nslot: 4, nvar: 8,
           maxreq: LIMITS.req, ble: 0, state: this.state() };
       case CMD.PAGES: {
         const pages = this.pages();
@@ -570,13 +610,23 @@ export class MockDevice {
       case CMD.PRESET_LOAD: {
         this.busy();
         const ti = a.track === NONE ? this.sel : a.track, nf = this.d.presets.length;
-        if (ti > 7 || a.id >= nf + LAYOUT.nuser) refuse(RC.BAD, DETAIL.RANGE);
+        if (ti > 7 || a.id >= nf + this.nuser) refuse(RC.BAD, DETAIL.RANGE);
         const p = a.id < nf ? { model: this.d.presets[a.id].model, knobs: this.d.presets[a.id].k } : this.upr[a.id - nf];
         if (!p) refuse(RC.REFUSED, DETAIL.PRESET_EMPTY);
         const t = this.tracks[ti];
         if (p.model === this.d.consts.ACID && this.acidOthers(ti) >= this.d.consts.ACID_MAXTRK) refuse(RC.REFUSED, DETAIL.ACID_CAP);
+        const fx = this.uprFx(a.id);
         t.p[P.MODEL] = p.model;
         p.knobs.forEach((k, i) => { t.p[P.E0 + i] = this.clampKnob(p.model, i, k); });
+        if (fx) LAYOUT.uprFx.forEach((id, k) => { // presets.c preset_fx_put: RESON within its caps (STRNG, else OFF)
+          let v = fx[k];
+          if (id === P.RMODEL) {
+            const c = this.d.consts, strng = this.d.tp[P.RMODEL].names.indexOf("STRNG");
+            if (this.resonRefused(ti, t.p[id], v)) v = strng;
+            if (this.resonRefused(ti, t.p[id], v)) v = c.RS_OFF;
+          }
+          t.p[id] = v;
+        });
         t.pre = a.id;
         t.preEd = 0; // (no shadow update, as editor_pattern.c: the selected track's moved knobs are pushed as CHANGED)
         return { track: ti, id: a.id, model: p.model };
@@ -765,7 +815,7 @@ export class MockDevice {
       const b = this.objBytes(obj), s = (obj - 1) % 4;
       const src = obj === 0 ? this.flash.upr : obj < 5 ? this.flash.rec[s] : obj < 9 ? this.flash.lk[s] : this.flash.vr[s];
       let flags = 0;
-      if (obj === 0 ? encodePresets(this.upr).some((x, i) => x !== b[i]) : this.slotDirty(s)) flags |= BF.UNSAVED;
+      if (obj === 0 ? this.uprBytes().some((x, i) => x !== b[i]) : this.slotDirty(s)) flags |= BF.UNSAVED;
       if (obj > 0 && obj < 5 && b && decodeProject(b).old) flags |= BF.OLD; // (FDRF and older: converted at load)
       out.push(b ? { obj, present: 1, size: b.length, crc: crc32(b), seq: src.seq, flags } : { obj, present: 0, size: 0, crc: 0, seq: 0, flags });
     }
@@ -778,7 +828,7 @@ export class MockDevice {
     if (r.kind === RK.PROJECT) { // the RAM homes back from flash (proj_fetch): unsaved edits of that slot are gone
       const f = this.flashObjects(r.slot);
       this.slots[r.slot] = f ? this.imageOf(f) : r.slot === this.loaded ? this.slots[r.slot] : null;
-    } else this.upr = decodePresets(this.flash.upr.bytes);
+    } else this.readUpr();
   }
   restoreOp(a) {
     const r = this.restore;
@@ -788,7 +838,8 @@ export class MockDevice {
       if (a.kind > RK.PROJECT || a.slot > 3) refuse(RC.BAD, DETAIL.RANGE);
       const [p0, p1, p2] = a.parts;
       if (a.kind === RK.PRESETS) {
-        if (a.magic !== MAGIC.UPR || p0.size !== SZ.PRESETS || p1.size || p2.size) refuse(RC.REFUSED, DETAIL.BAD_OBJECT);
+        if (a.magic !== (this.uprOld ? MAGIC.UPR1 : MAGIC.UPR) || p0.size !== (this.uprOld ? SZ.PRESETS_V1 : SZ.PRESETS) || p1.size || p2.size)
+          refuse(RC.REFUSED, DETAIL.BAD_OBJECT);
       } else {
         const m = a.magic, txt = String.fromCharCode(m & 255, m >> 8 & 255, m >> 16 & 255);
         if (txt === "FDR" && !OLD_PROJECTS.has(m) && m !== MAGIC.PROJ && (m >>> 24) > 0x47) refuse(RC.REFUSED, DETAIL.NEWER);
@@ -825,12 +876,12 @@ export class MockDevice {
       if (this.faults.flashError) { this.abortRestore(); refuse(RC.FLASH, DETAIL.NONE, "SAVE ERROR"); }
     };
     if (r.kind === RK.PRESETS) {
-      let slots;
-      try { slots = decodePresets(r.parts[0].buf); } catch { bad(); }
-      if (slots.some((s) => s && s.model >= this.d.models.length)) bad();
+      let bank;
+      try { bank = decodePresets(r.parts[0].buf); } catch { bad(); }
+      if (bank.bad || bank.old !== this.uprOld || bank.slots.some((s) => s && s.model >= this.d.models.length)) bad();
       writes();
-      this.upr = slots.map((s) => s && { model: s.model, knobs: s.knobs.map((k, i) => this.clampKnob(s.model, i, k)) });
-      this.writeUpr();
+      this.flashWrite("upr", -1, r.parts[0].buf); // (written as sent; the bank then read back as the boot does)
+      this.readUpr();
       this.restore = null;
       return { op: a.op, kind: r.kind, slot: 0, state: this.state() };
     }

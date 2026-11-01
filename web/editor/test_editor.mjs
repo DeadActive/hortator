@@ -92,6 +92,11 @@ const fresh = (o) => createMockDevice(data, o);
   ok(Object.entries(P.LAYOUT.project).every(([n, v]) => lay.project[n] === v) && Object.entries(P.LAYOUT.locks).every(([n, v]) => lay.locks[n] === v)
     && Object.entries(P.LAYOUT.vars).every(([n, v]) => lay.vars[n] === v) && lay.presets.size === P.LAYOUT.presets.size
     && lay.presets.slot === P.LAYOUT.presets.slot && lay.songSize === 36, "layout: object offsets = the firmware's structs");
+  ok(same(lay.presets, P.LAYOUT.presets) && P.SZ.PRESETS === lay.presets.size && P.SZ.PRESETS_V1 === lay.presets.sizeV1
+    && same(data.uprFx, P.LAYOUT.uprFx) && same(P.LAYOUT.uprFxDef, data.uprFx.map((id) => data.tp[id].def))
+    && P.LAYOUT.nuserOld === c.UPR_NOLD && P.LAYOUT.uprFx.length === c.UPR_NFX && P.UPR.USED === c.UPR_USED
+    && P.UPR.VOICE === c.UPR_VOICE && P.MAGIC.UPR1 === data.magic.UPR1 && P.UPR_FX_LABELS.length === c.UPR_NFX
+    && P.CAP.UPR2 === 0x40 && P.PROTO.minor === 2, "layout: the user presets (UPR2: 96 slots with their FX, the moves; UPR1's size) = the firmware's");
   ok(P.LAYOUT.pcount === c.P_COUNT && P.LAYOUT.gcount === c.G_COUNT && P.LAYOUT.pStored === c.P_NSTORED && P.LAYOUT.gStored === c.G_NSTORED
     && P.LAYOUT.nuser === c.PRE_NUSER && P.LAYOUT.lkMax === c.LK_MAX && P.LAYOUT.nameLen === c.NAME_LEN && P.SZ.VARS_MAX === c.VAR_BYTES
     && P.NAME_SET === data.nameSet, "layout: counts = the firmware's");
@@ -150,8 +155,8 @@ m.feed = (f) => { const out = feed0(f); seen.push(...out); return out; };
 const q = (cmd, args) => m.request(cmd, args);
 {
   const info = q(CMD.INFO);
-  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 1 && info.caps === 0x3f && info.ntrk === 8 && info.pcount === 76
-    && info.gcount === 42 && info.nmodels === 45 && info.nfact === 151 && info.nuser === 128 && info.maxreq === 640
+  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 2 && info.caps === 0x7f && info.ntrk === 8 && info.pcount === 76
+    && info.gcount === 42 && info.nmodels === 45 && info.nfact === 151 && info.nuser === 96 && info.maxreq === 640
     && info.state.slot === 0 && info.state.used === 7 && info.state.dirty === 0 && P.checkInfo(info).ok, "INFO: the device, A loaded, nothing unsaved");
   ok(info.state.vmask[0] === 0b10111 && info.state.vmask[1] === 0b11 && info.state.vmask[3] === 1, "INFO: the variations used per slot");
   ok(P.classifyPort("Hortator") === "fm1" && P.classifyPort("Hortator 8ch MIDI 1") === "fm1" && P.classifyPort("Felucca") === "fm1"
@@ -382,7 +387,8 @@ function restore(dev, kind, slot, parts) {
   "BACKUP: 13 objects listed, read in pieces, CRCs match; D empty, C without variations");
   ok(eqb(objs[0], m.flash.upr.bytes) && eqb(objs[1], m.flash.rec[0].bytes) && eqb(objs[5], m.flash.lk[0].bytes) && eqb(objs[9], m.flash.vr[0].bytes),
     "BACKUP: the bytes are flash's");
-  ok(eqb(P.encodePresets(P.decodePresets(objs[0])), objs[0]) && eqb(P.encodeProject(P.decodeProject(objs[1])), objs[1])
+  const bank0 = P.decodePresets(objs[0]);
+  ok(eqb(P.encodePresets(bank0.slots, bank0.moved), objs[0]) && !bank0.old && !bank0.bad && eqb(P.encodeProject(P.decodeProject(objs[1])), objs[1])
     && eqb(P.encodeLocks(P.decodeLocks(objs[5])), objs[5]) && eqb(P.encodeVars(P.decodeVars(objs[9])), objs[9]),
   "objects: presets, record, lock bank, variations decode -> encode byte for byte");
   const stale = m.request(CMD.BACKUP_GET, { obj: 1, offset: 0, seq: list[1].seq + 1 }), absent = m.request(CMD.BACKUP_GET, { obj: 4, offset: 0, seq: 0 });
@@ -394,35 +400,116 @@ function restore(dev, kind, slot, parts) {
   /* files */
   const modelNames = data.models.map((x) => x.name), meta = { firmware: "0.28.0", created: "2026-10-31T00:00:00.000Z" };
   const projects = [0, 1, 2, 3].map((s) => (objs[1 + s] ? { record: objs[1 + s], locks: objs[5 + s], vars: objs[9 + s], unsaved: s === 0 } : null));
-  const slots = P.decodePresets(objs[0]);
+  const bank = P.decodePresets(objs[0]), slots = bank.slots;
   const file = JSON.parse(JSON.stringify(makeBackup()));
-  function makeBackup() { return P.makeBackupFile(slots, projects, meta, modelNames); }
+  function makeBackup() { return P.makeBackupFile(bank, projects, meta, modelNames); }
   const back = P.readBackupFile({ ...file, unknownKey: 1 });
-  ok(file.version === 1 && file.format === "hortator-backup" && file.projects.A.summary.name === "TECHNO 1" && same(file.projects.A.summary.variations, [1, 2, 3, 5])
+  ok(file.version === 2 && file.format === "hortator-backup" && file.presets.slots.length === 96 && file.presets.moved.length === 32 && file.projects.A.summary.name === "TECHNO 1" && same(file.projects.A.summary.variations, [1, 2, 3, 5])
     && file.projects.A.summary.locks === P.decodeLocks(objs[5]).events.filter((e) => e.kind === LK.LOCK).length && file.projects.A.summary.unsaved && file.projects.D === null && file.presets.slots[slots.findIndex(Boolean)].name.endsWith(String(slots.findIndex(Boolean) + 1).padStart(2, "0")),
   "files: backup-all with summaries, device-style names");
   ok(back.projects.every((p, s) => (!p && !projects[s]) || (eqb(p.record, projects[s].record) && eqn(p.locks, projects[s].locks) && eqn(p.vars, projects[s].vars)))
-    && eqb(P.encodePresets(back.slots), objs[0]), "files: backup -> JSON -> read: byte-exact, unknown keys ignored");
+    && eqb(P.encodePresets(back.slots, back.moved), objs[0]) && back.lost === 0, "files: backup -> JSON -> read: byte-exact, unknown keys ignored");
   const refuseWhy = (f, fn) => { try { fn(f); return "accepted"; } catch (e) { return e.why; } };
   const damaged = JSON.parse(JSON.stringify(file));
   damaged.projects.A.objects.record.crc32 = "00000000";
-  ok(refuseWhy({ ...file, version: 2 }, P.readBackupFile) === "newer" && refuseWhy({ ...file, format: "hortator-project" }, P.readBackupFile) === "format"
+  ok(refuseWhy({ ...file, version: 3 }, P.readBackupFile) === "newer" && refuseWhy({ ...file, format: "hortator-project" }, P.readBackupFile) === "format"
     && refuseWhy(damaged, P.readBackupFile) === "damaged", "files: newer version, wrong format, damaged CRC refused");
   const pf = JSON.parse(JSON.stringify(P.makeProjectFile(projects[1], 1, meta, modelNames)));
   const rp = P.readProjectFile(pf);
   ok(pf.slot === "B" && rp.slot === 1 && eqb(rp.record, projects[1].record) && refuseWhy({ ...pf, version: 9 }, P.readProjectFile) === "newer",
     "files: a project file round trip");
-  /* presets: rename, reorder, delete in the list -> the UPR1 record */
-  const pfile = JSON.parse(JSON.stringify(P.makePresetsFile(slots, modelNames, meta)));
+  /* presets: rename, reorder, delete in the list -> the UPR2 record */
+  const pfile = JSON.parse(JSON.stringify(P.makePresetsFile(bank, modelNames, meta)));
   const used = pfile.slots.map((s, i) => (s ? i : -1)).filter((i) => i >= 0);
   pfile.slots[used[0]].name = "MY KICK";
-  [pfile.slots[used[1]], pfile.slots[127]] = [pfile.slots[127], pfile.slots[used[1]]];
+  [pfile.slots[used[1]], pfile.slots[95]] = [pfile.slots[95], pfile.slots[used[1]]];
   pfile.slots[used[2]] = null;
-  const edited = P.readPresetsFile(pfile).slots, rec = P.encodePresets(edited), dec = P.decodePresets(rec);
-  ok(edited[used[0]].name === "MY KICK" && same(dec[127], slots[used[1]]) && dec[used[2]] === null && same(dec[used[0]], slots[used[0]]),
-    "files: presets renamed / reordered / deleted -> the right UPR1 record");
+  const pread = P.readPresetsFile(pfile), edited = pread.slots, rec = P.encodePresets(edited, pread.moved), dec = P.decodePresets(rec).slots;
+  ok(edited[used[0]].name === "MY KICK" && same(dec[95], slots[used[1]]) && dec[used[2]] === null && same(dec[used[0]], slots[used[0]])
+    && pfile.version === 2 && pfile.slots.length === 96 && pfile.slots[used[0]].fx.length === 23,
+    "files: presets renamed / reordered / deleted -> the right UPR2 record, each slot's FX kept");
   const wr = restore(m, RK.PRESETS, 0, [rec]);
-  ok(wr.rc === 0 && eqb(m.flash.upr.bytes, rec) && same(m.upr[127], slots[used[1]]), "RESTORE presets: the edited list written");
+  ok(wr.rc === 0 && eqb(m.flash.upr.bytes, rec) && same(m.upr[95], slots[used[1]]), "RESTORE presets: the edited list written");
+
+  /* UPR2: the voice and its FX, a voice-only slot, the moves; UPR1 and version 1 files moved in as the firmware does */
+  {
+    const fx = P.fxDefaults().map((x, k) => (k === 13 ? 33 : k === 2 ? 90 : x));
+    const s2 = Array(96).fill(null), mv = Array(32).fill(0);
+    s2[0] = { model: 3, knobs: [1, 2, 3, 4, 5, 6, 7, -8], fx, voiceOnly: false };
+    s2[95] = { model: 4, knobs: [0, 0, 0, 0, 0, 0, 0, 0], fx: P.fxDefaults(), voiceOnly: true };
+    mv[4] = 2;
+    const r2 = P.encodePresets(s2, mv), d2 = P.decodePresets(r2);
+    ok(r2.length === 3204 && r2[4] === 1 && r2[4 + 33 * 95] === 3 && r2[4 + 10 + 13] === 33 && r2[3172 + 4] === 2
+      && same(d2.slots, s2) && same(d2.moved, mv) && !d2.bad && eqb(P.encodePresets(d2.slots, d2.moved), r2),
+    "UPR2: used 1 with its FX, 3 the voice only, the moves: encode / decode byte for byte");
+    const r3 = Uint8Array.from(r2);
+    r3[4 + 33 * 5] = 2;
+    const r4 = Uint8Array.from(r2);
+    r4[3172] = 97;
+    ok(P.decodePresets(r3).bad && P.decodePresets(r4).bad, "UPR2: a used byte 2, a move past the bank: bad (the FM-1 refuses them)");
+    const old = Array(128).fill(null), k8 = [0, 1, 2, 3, 4, 5, 6, 7];
+    for (const i of [0, 5, 96, 100, 127]) old[i] = { model: i % 40, knobs: k8 };
+    const mg = P.decodePresets(P.encodePresetsV1(old));
+    ok(mg.old && mg.lost === 0 && mg.slots[0].model === 0 && mg.slots[5].model === 5 && mg.slots[1].model === 96 % 40
+      && mg.slots[2].model === 100 % 40 && mg.slots[3].model === 127 % 40 && mg.moved[0] === 2 && mg.moved[4] === 3 && mg.moved[31] === 4
+      && mg.moved[1] === 0 && mg.slots.filter(Boolean).every((x) => x.voiceOnly && same(x.fx, P.fxDefaults())),
+    "UPR1 (an FM-1 before minor 2): 1..96 stay, 97 / 101 / 128 into the lowest empty slots, the voice only, the moves noted");
+    const full = Array.from({ length: 128 }, (_, i) => ({ model: 1, knobs: k8 }));
+    full[10] = null;
+    const mf = P.migratePresets(full);
+    ok(mf.lost === 31 && mf.slots[10] && mf.moved[0] === 11 && mf.moved[1] === 0, "UPR1, a full bank: one fits, 31 lost (counted)");
+    /* a version 1 backup (the editor before UPR2): its 128 presets moved in, names given kept, automatic ones follow */
+    const v1 = JSON.parse(JSON.stringify(file));
+    v1.version = 1;
+    v1.presets = { slots: old.map((x, i) => x && { name: i === 100 ? "MY HAT" : P.userPresetName(i, modelNames[x.model]),
+      model: x.model, modelName: modelNames[x.model], knobs: x.knobs }) };
+    const b1 = P.readBackupFile(v1);
+    ok(b1.lost === 0 && b1.slots[2].name === "MY HAT" && b1.slots[1].name === "" && b1.slots[0].name === "" && b1.slots[1].voiceOnly
+      && b1.moved[4] === 3 && b1.projects.every((p, s) => (!p && !projects[s]) || eqb(p.record, projects[s].record)),
+    "files: a version 1 backup read: presets moved in as the firmware does, given names kept, the projects as they are");
+    const pv1 = { format: "hortator-presets", version: 1, slots: v1.presets.slots, upr1: { size: 1284, crc32: P.crcHex(P.crc32(P.encodePresetsV1(old))) } };
+    const rv1 = P.readPresetsFile(pv1);
+    const bad1 = JSON.parse(JSON.stringify(pv1));
+    bad1.slots[0].knobs[0] = 9;
+    ok(rv1.slots[3].model === 127 % 40 && rv1.moved[31] === 4 && refuseWhy(bad1, P.readPresetsFile) === "damaged",
+      "files: a version 1 presets file read (its upr1 checksum checked), moved in");
+    const pf2 = P.makePresetsFile({ slots: s2, moved: mv }, modelNames, meta);
+    const hand = JSON.parse(JSON.stringify(pf2));
+    delete hand.slots[0].fx;
+    delete hand.moved;
+    const rh = P.readPresetsFile(hand);
+    ok(same(P.readPresetsFile(JSON.parse(JSON.stringify(pf2))).slots.map((x) => x && { ...x, name: "" }), s2.map((x) => x && { name: "", ...x }))
+      && pf2.slots[95].voiceOnly === true && pf2.slots[0].voiceOnly === undefined && rh.slots[0].voiceOnly && same(rh.moved, Array(32).fill(0)),
+    "files: version 2 presets round trip (FX, voice only); a slot without fx reads as the voice only, no moves as none");
+    const badFx = JSON.parse(JSON.stringify(pf2));
+    badFx.slots[0].fx = [1, 2];
+    const badMv = JSON.parse(JSON.stringify(pf2));
+    badMv.moved[0] = 97;
+    ok(refuseWhy(badFx, P.readPresetsFile) === "damaged" && refuseWhy(badMv, P.readPresetsFile) === "damaged",
+      "files: damaged FX or moves refused");
+  }
+
+  /* the mock as the firmware: a user preset's FX load with it, its FX knobs mark it edited; a voice-only one neither */
+  {
+    const d = fresh(), nf = data.presets.length, Pi = d.P;
+    const fx = P.fxDefaults().map((x, k) => (k === 13 ? 33 : k === 2 ? 90 : x));
+    d.upr[7] = { model: d.M.K909, knobs: [0, 60, 60, 60, 60, 60, 60, 60], fx, voiceOnly: false };
+    d.upr[8] = { model: d.M.K808, knobs: [0, 60, 60, 60, 60, 60, 60, 60], fx: P.fxDefaults(), voiceOnly: true };
+    d.tracks[1].p[Pi.FCUT] = 100;
+    d.tracks[1].p[Pi.LEVEL] = 55;
+    const l1 = d.request(CMD.PRESET_LOAD, { track: 1, id: nf + 7 });
+    ok(l1.rc === 0 && d.tracks[1].p[Pi.FCUT] === 33 && d.tracks[1].p[Pi.DLY] === 90 && d.tracks[1].p[Pi.LEVEL] === 55 && d.tracks[1].preEd === 0,
+      "mock PRESET_LOAD: a user preset's FX too, LEVEL kept");
+    d.request(CMD.SET, { scope: 0, track: 1, id: Pi.FCUT, value: 40 });
+    const e1 = d.tracks[1].preEd;
+    d.tracks[1].preEd = 0;
+    d.request(CMD.SET, { scope: 0, track: 1, id: Pi.SLCR, value: 1 });
+    const e2 = d.tracks[1].preEd;
+    d.request(CMD.PRESET_LOAD, { track: 1, id: nf + 8 });
+    d.request(CMD.SET, { scope: 0, track: 1, id: Pi.FCUT, value: 50 });
+    ok(e1 === 1 && e2 === 0 && d.tracks[1].p[Pi.DLY] === 90 && d.tracks[1].preEd === 0,
+      "mock SET: CUT marks a user preset with FX edited, the SLICER not; a voice-only preset leaves the FX and is not marked");
+  }
 
   /* project restore: A -> D (copy to another slot), re-sealed */
   const before = m.request(CMD.BACKUP_LIST).objects;
@@ -484,7 +571,7 @@ function restore(dev, kind, slot, parts) {
 /* the update path: silence, faults ----------------------------------------------------- */
 {
   const d = fresh();
-  d.request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PRESETS, slot: 0, magic: P.MAGIC.UPR, parts: [{ size: 1284, crc: 0 }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] });
+  d.request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PRESETS, slot: 0, magic: P.MAGIC.UPR, parts: [{ size: P.SZ.PRESETS, crc: 0 }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] });
   d.updateFrame();
   ok(d.request(CMD.INFO) === undefined && !d.restore, "silence: an update frame -> no reply, the restore dropped");
   d.advance(9000);
@@ -504,7 +591,7 @@ function restore(dev, kind, slot, parts) {
     "unknown command -> rc 1 (43); a missing capability -> rc 1 (46)");
   ok(d.feed(Uint8Array.from([0xf0, 0x7d, 0x46, 0x4c, 1, 0xf7])).length === 0 && !d.silent, "another 7D frame (upstream Felucca's) is ignored, no silence");
   const r = fresh();
-  r.request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PRESETS, slot: 0, magic: P.MAGIC.UPR, parts: [{ size: 1284, crc: 0 }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] });
+  r.request(CMD.RESTORE, { op: RS.BEGIN, kind: RK.PRESETS, slot: 0, magic: P.MAGIC.UPR, parts: [{ size: P.SZ.PRESETS, crc: 0 }, { size: 0, crc: 0 }, { size: 0, crc: 0 }] });
   const others = [[0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7], [0xf0, 0x7f, 0x7f, 0x04, 0x01, 0x00, 0x40, 0xf7], [0xf0, 0x00, 0x20, 0x29, 0x02, 0xf7],
     [0xf0, 0x00, 0x32, 0x44, 0, 0, 0, 0x40, 0x7f, 0xf7], [0xf0, 0x22, 0x24, 0x35, 0x7d, 0x00, 0xf7]];
   ok(others.every((f) => r.feed(Uint8Array.from(f)).length === 0) && !r.silent && r.restore && r.request(CMD.INFO).rc === 0,

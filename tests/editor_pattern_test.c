@@ -299,8 +299,20 @@ static void preset_load_cmd(void)
     upr.s[0].used = 0;
     OK(refused(RQ(ED_PRESET_LOAD, 1, LO(PRE_NFACT), HI(PRE_NFACT)), ED_E_REFUSED, ED_D_PRESET_EMPTY));
     upr_set(1, DM_K909, trk[3].p);
+    trk[3].p[P_FCUT] = 33;                            /* the FX the user preset holds (presets.c UPR_FX) */
+    trk[3].p[P_DLY] = 77;
+    trk[3].p[P_ITYPE] = 2;
+    upr_set(1, DM_K909, trk[3].p);
+    trk[1].p[P_FCUT] = 100;
+    trk[1].p[P_DLY] = 0;
+    trk[1].p[P_ITYPE] = 0;
+    trk[1].p[P_LEVEL] = 55;
     OK(RQ(ED_PRESET_LOAD, 1, LO(PRE_NFACT + 1u), HI(PRE_NFACT + 1u)) == ED_OK && trk[1].pre == PRE_NFACT + 1u &&
-       trk[1].p[P_MODEL] == DM_K909);
+       trk[1].p[P_MODEL] == DM_K909 && trk[1].p[P_FCUT] == 33 && trk[1].p[P_DLY] == 77 && trk[1].p[P_ITYPE] == 2 &&
+       trk[1].p[P_LEVEL] == 55 && !trk[1].pre_ed);
+    upr.s[1].used = UPR_USED | UPR_VOICE;            /* a voice-only (migrated) user preset: the track's FX stay */
+    trk[1].p[P_FCUT] = 100;
+    OK(RQ(ED_PRESET_LOAD, 1, LO(PRE_NFACT + 1u), HI(PRE_NFACT + 1u)) == ED_OK && trk[1].p[P_FCUT] == 100);
     for (i = 0; i < PRE_NFACT && acid == PRE_NONE; i++)
         if (PRE_FACTORY[i].model == DM_ACID)
             acid = i;
@@ -309,8 +321,8 @@ static void preset_load_cmd(void)
     OK(refused(RQ(ED_PRESET_LOAD, 0, LO(acid), HI(acid)), ED_E_REFUSED, ED_D_ACID_CAP) && trk[0].p[P_MODEL] != DM_ACID);
     OK(refused(RQ(ED_PRESET_LOAD, 0, LO(PRE_NID), HI(PRE_NID)), ED_E_BAD, ED_D_RANGE));
     OK(refused(RQ(ED_PRESET_LOAD, 8, 0, 0), ED_E_BAD, ED_D_RANGE));
-    check("PRESET_LOAD: a factory / user preset onto a track as the PRESETS list loads it (7F: the selected one); an "
-          "empty user slot, a third ACID, bad ids refused", (int)ok);
+    check("PRESET_LOAD: a factory / user preset onto a track as the PRESETS list loads it (7F: the selected one; a user "
+          "preset's FX too, a voice-only one leaves them); an empty user slot, a third ACID, bad ids refused", (int)ok);
 }
 
 /* ---- STEPS_GET */

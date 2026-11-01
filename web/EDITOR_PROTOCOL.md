@@ -61,7 +61,7 @@ the command needs.
 
 | cmd | Name | Cap | Request | Reply (rc 0) |
 | --- | --- | --- | --- | --- |
-| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"0.28.0"`), major u7 (1), minor u7 (1), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (76), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (128), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
+| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"0.28.0"`), major u7 (1), minor u7 (2), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (76), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (96), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
 | 2 | PAGES | LIVE | first u7 | total u7, first u7, list of {title str, scope u7, graph u7, ids 4 × u14} |
 | 3 | DESC | LIVE | scope u7, track u7, id u14, first u7 | scope u7, track u7, id u14, fmt u7, flags u7, min v14, max v14, def v14, label str, unit str, nnames u7, first u7, list of names str (first = 7F: list of order u7) |
 | 4 | GET | LIVE | scope u7, track u7, id u14, count u7 (1..) | scope u7, track u7, id u14, list of {value v14, text str, unit str} for ids id, id + 1, … |
@@ -102,12 +102,16 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
 - **caps** (u14): 0x01 LIVE (PAGES DESC GET SET TEXT DUMP SELECT WATCH; pushes CHANGED STATE), 0x02 PRESETS (NAMES
   PRESET_LOAD), 0x04 PATTERNS (STEPS_GET STEPS_SET LOCKS_GET LOCK_EDIT CUE SAVE; pushes STEPS_CHANGED LOCKS_CHANGED),
   0x08 BACKUP (BACKUP_LIST BACKUP_GET), 0x10 RESTORE, 0x20 NUDGE (minor 1: STEPS_GET's reply ends with each step's
-  NUDGE, STEPS_SET may carry it; §2.4). 0.28.0 has all six (0x3F); an earlier 0.28 build answered minor 0, caps 0x1F.
-  The page hides what a missing bit covers (no NUDGE: it never sends the field and shows no NUDGE).
+  NUDGE, STEPS_SET may carry it; §2.4), 0x40 UPR2 (minor 2: the user presets are "UPR2", 96 slots each holding the
+  voice and its FX; backup object 0 is that record, nuser 96; §2.3, §6). 0.28.0 has all seven (0x7F); earlier 0.28
+  builds answered minor 0, caps 0x1F, then minor 1, caps 0x3F (user presets "UPR1": 128 voices). The page hides what a
+  missing bit covers (no NUDGE: it never sends the field and shows no NUDGE; no UPR2: it reads that FM-1's presets as
+  the new firmware will move them, but never writes them, and says to update the FM-1 first).
 - **minor** grows with additions an older page can ignore (commands, push types, flag bits, fields appended at a
   reply's end, optional fields at a request's end). A **major** change breaks the page: it refuses another major (§7).
   Minor 1 (NUDGE): an older page reads STEPS_GET's 64 steps and stops there; its STEPS_SET without the field leaves
-  each written step's NUDGE as the device has it (§2.4), so it never clears one by accident.
+  each written step's NUDGE as the device has it (§2.4), so it never clears one by accident. Minor 2 (UPR2): an older
+  page's preset restore (1,284 B, "UPR1") is refused (rc 2 detail 24, nothing written); it cannot read the new record.
 - INFO also clears the device's memory of the last (cmd, seq) (§4 rule 3): every connection starts with INFO.
 
 ### 2.2 Knobs: PAGES, DESC, GET, SET, TEXT, DUMP, SELECT
@@ -149,7 +153,10 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
   before RESTORING). MODEL loads the model with its **first factory preset**, as the MODEL knob does (DUMP then shows
   that preset id, not edited; a model without one: its default sound, no preset); ACID onto a third track: rc 2
   detail 18. RESON MODEL past its caps: rc 2 detail 0 with the device's message ("RESON: 4 TRACKS MAX", "CHORD: 2
-  TRACKS MAX", "MODAL: 2 TRACKS MAX"). A SOUND knob that changes marks the track's preset edited; MOTION's base (and a
+  TRACKS MAX", "MODAL: 2 TRACKS MAX"). A knob the track's preset holds marks it edited when it changes, as on the
+  device: a SOUND knob always; one of the FX a user preset holds (§6: the sends, RESON, FILTER, INSERT, SRR) when the
+  track was loaded from a user preset that holds its FX (not a factory or voice-only one; the SLICER, LEVEL, PAN, the
+  LFOs never). MOTION's base (and a
   locked step's value under the LOCK) moves when MOTION plays that knob. Two knobs answer rc 0 **unchanged**, as their
   knobs on the device do: G_BPM while following an external clock (G_CLOCK not INT: the clock's tempo), and the
   PATTERN knobs (P_SLEN P_SDIV P_SSWING P_SRC) while a song plays (its rows set them). The reply is always the value
@@ -162,13 +169,16 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
 ### 2.3 Presets: NAMES, PRESET_LOAD
 
 - Preset ids: 0..150 the factory presets in bank order (bank 0 MACHINEDRUM 0..54, 1 MODERN 55..94, 2 CLASSIC
-  95..150), then 151..278 the user slots 0..127. **NAMES** lists a factory bank, from `first`, as many as fit (bank
-  3 = the user bank: rc 1; user presets are read as backup object 0, their names live only in the page and files).
-- **PRESET_LOAD** loads a preset onto a track as the device's PRESETS list does (MODEL and the 8 SOUND knobs,
-  nothing else). rc 2 detail 17: an empty user slot; detail 18: ACID onto a third track. The push shadows are not
-  updated (editor_pattern.c): on the **selected** track the knobs that moved arrive as CHANGED pushes (MODEL and the
-  SOUND knobs, as if turned on the device; at most 4 a pass); another track: no push. Neither carries the preset id
-  (DUMP): the page re-reads the track it shows.
+  95..150), then 151..246 the user slots 0..95 (minor 1 and before: 151..278, slots 0..127). **NAMES** lists a
+  factory bank, from `first`, as many as fit (bank 3 = the user bank: rc 1; user presets are read as backup object 0,
+  their names live only in the page and files).
+- **PRESET_LOAD** loads a preset onto a track as the device's PRESETS list does: MODEL and the 8 SOUND knobs; a user
+  preset that holds its FX (used 1, §6) sets them too (RESON MODEL within its caps: a third CHORD / MODAL becomes
+  STRNG, RESON on a fifth track OFF); a factory or voice-only preset leaves the track's FX. Never LEVEL, PAN, NOTE,
+  CHOKE, the SLICER, LAYER, the LFOs or the steps. rc 2 detail 17: an empty user slot; detail 18: ACID onto a third
+  track. The push shadows are not updated (editor_pattern.c): on the **selected** track the knobs that moved arrive
+  as CHANGED pushes (as if turned on the device; at most 4 a pass); another track: no push. Neither carries the
+  preset id (DUMP): the page re-reads the track it shows.
 
 ### 2.4 Patterns: STEPS_GET, STEPS_SET, LOCKS_GET, LOCK_EDIT, CUE, SAVE
 
@@ -227,7 +237,7 @@ Objects, read from flash — never RAM: a backup is what the device loads after 
 
 | obj | Object | Size | Format (little endian; §6) |
 | --- | --- | --- | --- |
-| 0 | user presets | 1,284 | "UPR1" |
+| 0 | user presets | 3,204 | "UPR2" (minor 1 and before: 1,284, "UPR1") |
 | 1–4 | project record A–D | 3,840 ("FDRG"; an "FDRF" one, saved before NUDGE, the same size); an older record its own size (§6) | `project_t` |
 | 5–8 | lock bank A–D | 3,208 | "LKB1" `lk_bank_t` |
 | 9–12 | variations A–D | 8 + used: 22..3,584 | "VAR1" `var_bank_t` |
@@ -241,7 +251,7 @@ Objects, read from flash — never RAM: a backup is what the device loads after 
 - **BACKUP_GET** reads 256 bytes (the last piece: what is left) at `offset` (a multiple of 256, below size) of an
   object whose seq came from BACKUP_LIST. rc 5 detail 33: it changed since (another seq: a SAVE in between): LIST
   again and read that object again from 0. rc 2 detail 30: not present. Check the CRC-32 of each complete object.
-- A full backup, worst case: 1,284 + 4 × (3,840 + 3,208 + 3,584) = 43,812 B = 174 pieces, about 2–4 s.
+- A full backup, worst case: 3,204 + 4 × (3,840 + 3,208 + 3,584) = 45,732 B = 181 pieces, about 2–4 s.
 
 ### 2.6 RESTORE
 
@@ -254,7 +264,8 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
 | 2 COMMIT | — | kind u7, slot u7, state |
 | 3 ABORT | — | — |
 
-- **BEGIN**: playing: rc 3 detail 42, nothing changes. Presets: part 0 = 1,284 with magic "UPR1", parts 1 / 2 size 0.
+- **BEGIN**: playing: rc 3 detail 42, nothing changes. Presets: part 0 = 3,204 with magic "UPR2", parts 1 / 2 size 0
+  (a "UPR1" record: rc 2 detail 24; the page moves an older bank into 96 slots itself, §5).
   Project: part 0 = 3,840 with magic "FDRG" or "FDRF" (a file made before NUDGE: it has parts 1 / 2 too), or an
   older record's magic with its size (§6; then parts 1 / 2 size 0); part 1 = 0 or 3,208; part 2 = 0 or 22..3,584. A
   record magic "FDR?" newer than "FDRG": rc 2 detail 23 "UPDATE THE FM-1 FIRST" (so an FDRG file sent to a device
@@ -274,7 +285,8 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
   A wrong length: rc 1 detail 44. DATA / COMMIT / ABORT with no restore running: rc 1 detail 41.
 - **COMMIT** (allow 2 s): every part complete (else rc 2 detail 27); each part's CRC-32 as BEGIN said (else rc 2
   detail 25, the restore dropped); the objects pass the device's boot checks (else rc 2 detail 26, dropped): presets
-  "UPR1", used 0 / 1, model < nmodels (knobs clamped to the model's ranges); a project `proj_ok` (FDRG, size, sum) or
+  "UPR2", used 0 / 1 / 3, model < nmodels, each move 0..96 (knobs clamped to the model's ranges, FX to theirs);
+  a project `proj_ok` (FDRG, size, sum) or
   a known older magic + size + sum (FDRF as FDRG for its links), `lk_valid` with lk_n = its count and lk_link = its link, `var_valid` with
   var_len = its length and var_link = its link. Then the device **re-seals** the project for the target slot (the
   lock bank's and the variations' slot byte, the record's lk_link / var_link and sum), so a project file restores
@@ -389,32 +401,49 @@ The page shows `msg` and branches on rc / detail.
 JSON, UTF-8, one envelope:
 
 ```json
-{ "format": "hortator-presets" | "hortator-project" | "hortator-backup", "version": 1,
+{ "format": "hortator-presets" | "hortator-project" | "hortator-backup", "version": 2,
   "firmware": "0.28.0", "protocol": 1, "created": "2026-10-31T12:00:00.000Z", … }
 ```
 
 Readers ignore unknown keys; another `format` is refused ("Not a hortator-project file."); a higher `version` is
-refused ("This file was made by a newer editor."). `summary` is informational: readers recompute it from the objects.
+refused ("This file was made by a newer editor."). Version 2 (minor 2): user presets are 96 slots with their FX
+(below); version 1 files (128 slots, the voice only) are still read. `summary` is informational: readers recompute it from the objects.
 File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json`, `hortator-backup-<date>.json`
 (`<date>` = YYYY-MM-DD).
 
 **hortator-presets** — readable, so rename / reorder / delete is list editing:
 
 ```json
-{ …envelope, "slots": [ null | { "name": "K808 01", "model": 0, "modelName": "K808", "knobs": [0, 80, 40, 40, 30, 0, 0, 0] }, … 128 ],
-  "upr1": { "size": 1284, "crc32": "1a2b3c4d" } }
+{ …envelope, "slots": [ null | { "name": "K808 01", "model": 0, "modelName": "K808", "knobs": [0, 80, 40, 40, 30, 0, 0, 0],
+                                 "fx": [0, 0, 20, 0, 0, 48, 72, 64, 100, 0, 64, 0, 1, 90, 0, 0, 40, 0, 64, 96, 96, 127, 0],
+                                 "voiceOnly": true }, … 96 ],
+  "moved": [0, 3, …32],
+  "upr2": { "size": 3204, "crc32": "1a2b3c4d" } }
 ```
 
-- The position is the device's user slot 0..127. `model` (the id) is authoritative, `modelName` informational,
-  `knobs` = P_E0..P_E7 as int8. `name` (≤ 24 characters) lives only in the page and the files (owner decision 2: the
-  FM-1 keeps showing its "MODEL NN"); a backup from the device names slots as the device does ("K808 01",
-  "SDTRX128": `proto.mjs userPresetName`).
-- "Write to FM-1" builds the UPR1 record (§6) from the list and restores it as object 0 (kind 0) with its CRC-32.
-- `upr1` (top level, written by the page): `size` and `crc32` (as below: 8 lowercase hex digits) of the UPR1 record
-  the file's `slots` build — the bytes "Write to FM-1" would send. A reader that finds it builds the record from
-  `slots` and refuses the file when either differs ("damaged"); a file without `upr1` (hand-made, or older) is read
-  as it is. Names do not enter the record, so renaming in a text editor keeps the file valid; changing a model or a
-  knob there makes it damaged. The presets of a hortator-backup carry no `upr1`.
+- The position is the device's user slot 0..95. `model` (the id) is authoritative, `modelName` informational,
+  `knobs` = P_E0..P_E7 as int8, `fx` = the 23 FX the preset holds as int8, in §6's order (DIST CHO DLY REV, RESON
+  MODEL TUNE DECAY MIX TONE STRCT POS KEYF, FILTER TYPE CUT RESO ENV DECAY, INSERT TYPE A B C MIX, SRR).
+  `voiceOnly: true` (absent: false): the preset is the voice only (used 3: loading it leaves the track's FX; its `fx`
+  are kept but not used). A slot without `fx` reads as the voice only. `name` (≤ 24 characters) lives only in the page
+  and the files (owner decision 2: the FM-1 keeps showing its "MODEL NN"); a backup from the device names slots as the
+  device does ("K808 01": `proto.mjs userPresetName`).
+- `moved` (32 × 0..96, absent: all 0): where the device's older slots 97..128 went when it moved them in (slot + 1,
+  0 none); the record keeps it so projects that name an old slot find its preset (§6). The page keeps it as read.
+- "Write to FM-1" builds the UPR2 record (§6) from the list and restores it as object 0 (kind 0) with its CRC-32.
+- `upr2` (top level, written by the page): `size` and `crc32` (as below: 8 lowercase hex digits) of the UPR2 record
+  the file's `slots` and `moved` build — the bytes "Write to FM-1" would send. A reader that finds it builds the
+  record and refuses the file when either differs ("damaged"); a file without it (hand-made) is read as it is. Names
+  do not enter the record, so renaming in a text editor keeps the file valid; changing a model, a knob or an FX there
+  makes it damaged. The presets of a hortator-backup carry no `upr2`.
+- **Version 1** (before minor 2): 128 slots `{ name, model, modelName, knobs }`, checksum `upr1` (the 1,284-byte
+  "UPR1" record). The page reads it as the firmware moves an older bank at its first start: slots 1..96 stay, the
+  used ones of 97..128 go into the lowest empty slots (`moved` records where), each the voice only, its FX the
+  power-on values; what finds no empty slot is left out and the page says how many. A slot's automatic name follows
+  it to its new slot; a name given stays. The same for a version 1 backup's presets; its projects are as they are
+  (their references to slots 97..128 follow `moved` when the device loads them).
+- An FM-1 before minor 2 (no UPR2 cap) is read the same way (its "UPR1" record moved in for the list) but never
+  written: the page says to update it first.
 
 **hortator-project** — the device's objects byte for byte, plus a readable summary:
 
@@ -431,7 +460,7 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
   the file holds flash's version, not the device's unsaved edits.
 - Projects reference user presets by slot number only, so restoring presets together with projects keeps names
   matching.
-- Files keep `version` 1 across NUDGE: the record inside says its format. A file made before NUDGE (its record
+- Files kept `version` 1 across NUDGE (the record inside says its format); version 2 changed only the presets. A file made before NUDGE (its record
   "FDRF") restores into a device with NUDGE (converted at load, every NUDGE 0) and its variations can be copied (the
   page reads FDRF as the device converts it). A file made now (record "FDRG") sent to an FM-1 without NUDGE is refused
   by that device at RESTORE BEGIN (rc 2 detail 23 "UPDATE THE FM-1 FIRST"), nothing written.
@@ -439,7 +468,7 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
 **hortator-backup** — "Back up all":
 
 ```json
-{ …envelope, "presets": { "slots": [ … as hortator-presets … ] },
+{ …envelope, "presets": { "slots": [ … as hortator-presets … ], "moved": [ … ] },
   "projects": { "A": { "slot": "A", "summary": …, "objects": … } | null, "B": …, "C": …, "D": … } }
 ```
 
@@ -448,8 +477,14 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
 Little endian; the firmware's structs (`presets.c`, `project.c`, `lockbank.c`, `varpack.c`), checked against the
 firmware through `tests/editor_ids.c` → `device_data.json` → `test_editor.mjs`.
 
-- **User presets** (1,284): u32 magic "UPR1" (0x31525055), then 128 slots × 10 bytes: used u8 (1 = used; an empty
-  slot is 10 zero bytes), model u8, knobs 8 × i8 (P_E0..P_E7).
+- **User presets "UPR2"** (3,204): u32 magic "UPR2" (0x32525055), then 96 slots × 33 bytes: used u8 (0 empty: 33
+  zero bytes; 1 the voice and its FX; 3 the voice only, a preset moved from UPR1), model u8, knobs 8 × i8
+  (P_E0..P_E7), fx 23 × i8 @+10 (P_DIST P_CHOR P_DLY P_REV, P_RMODEL P_RTUNE P_RDECAY P_RMIX P_RTONE P_RSTRCT P_RPOS
+  P_RKEY, P_FTYPE P_FCUT P_FRESO P_FENV P_FDEC, P_ITYPE P_IA P_IB P_IC P_IMIX, P_SRR: `LAYOUT.uprFx`); then mv 32 × u8
+  @3172: older slot 97 + i moved into slot mv[i] − 1 (0 none / dropped). A project's user reference (`pre`,
+  0x8000 | slot) to an old slot 96..127 reads through mv.
+- **User presets "UPR1"** (1,284; minor 1 and before): u32 magic "UPR1" (0x31525055), then 128 slots × 10 bytes:
+  used u8 (1 = used; an empty slot is 10 zero bytes), model u8, knobs 8 × i8 (P_E0..P_E7).
 - **Project record "FDRG"** (3,840): magic u32 0x47524446 @0; size u32 = 3840 @4; g 41 × i16 @8 (G_BPM..G_RTYPE); sel
   u8 @90; rsv[3] @91 (rsv[0] = G_DMODE); 8 tracks × 394 B @94, each: p 69 × i16 (P_MODEL..P_LS4DEPTH), then 64 steps
   × 4 B {flags (bit 0 on, 1 acc, 2 slide, 3 tie, 4..5 ratch), cond u8, nt i8 (NOTE − C4), micro i8 (NUDGE, −50..+50)};

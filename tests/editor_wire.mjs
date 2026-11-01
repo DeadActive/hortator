@@ -115,6 +115,18 @@ function xcheck(bin) {
   push("pushes 100", "PRESET_LOAD onto the selected track: CHANGED for MODEL and the SOUND knobs that moved");
   rq("PRESET_LOAD onto another track", CMD.PRESET_LOAD, { track: 6, id: 9 });
   push("pushes 100", "PRESET_LOAD onto another track: no push");
+  { /* user presets (UPR2): one with its FX, one the voice only (moved from UPR1); the FX knobs' edited mark */
+    const nf = data.presets.length, withFx = m.upr.findIndex((x) => x && !x.voiceOnly && x.fx.some((v, k) => v !== data.tp[data.uprFx[k]].def));
+    const voice = m.upr.findIndex((x) => x && x.voiceOnly);
+    if (withFx < 0 || voice < 0) throw new Error("the mock's seed has no user preset with FX / voice only");
+    rq("PRESET_LOAD a user preset with FX onto track 6", CMD.PRESET_LOAD, { track: 5, id: nf + withFx });
+    rq("DUMP: the user preset's FX on the track, not edited", CMD.DUMP, { track: 5 });
+    set("SET DIST on it", 0, 5, P.DIST, 21);
+    rq("DUMP: edited (an FX knob of a user preset with FX)", CMD.DUMP, { track: 5 });
+    rq("PRESET_LOAD a voice-only user preset onto track 6", CMD.PRESET_LOAD, { track: 5, id: nf + voice });
+    set("SET DLY on it", 0, 5, P.DLY, 99);
+    rq("DUMP: its FX kept, not edited", CMD.DUMP, { track: 5 });
+  }
   rq("SET MODEL of the selected track", CMD.SET, { scope: 0, track: NONE, id: P.MODEL, value: M.K909 });
   push("pushes 100", "SET MODEL: no push (the editor's own write)");
   rq("CUE variation 3, stopped", CMD.CUE, { kind: CUE.VAR, n: 2 });

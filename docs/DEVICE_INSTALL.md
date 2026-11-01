@@ -1007,6 +1007,14 @@ Two FM-1s for the move test, or one FM-1 and two slots. Note the times with a st
 - Presets: load a factory preset (MD, MODERN, CLASSIC) onto the selected track: the FM-1 plays it and its PRESETS
   shows it. Read FM-1 lists the user slots; rename two, move one, delete one, Write to FM-1 (stopped): the FM-1's user
   presets change to match (its list shows "MODEL NN"); Back up downloads the file; open it again: the names are back.
+- Presets with FX: the user list has 96 slots, each marked +FX or SOUND. Save track N here on a track with FILTER LP,
+  an INSERT and DLY up: its FX button shows those values. Change CUT there, Write to FM-1, load that preset onto
+  another track on the FM-1: the voice, CUT as set in the page and the other FX. Untick "Loading it sets these FX",
+  Write, load it again over a track with other FX: the track keeps its own. On a track loaded from a +FX preset,
+  turning CUT in the Sound page marks the preset `*` on the FM-1 (a SLICER knob does not). Back up all, then Restore
+  all on the same FM-1: the presets and their FX as before. Open a presets file and a backup made by the earlier test
+  build of the editor (128 presets): they open, those past 96 in the first empty slots, and the page says how many
+  did not fit; Restore all from that old backup: projects that used a preset past 96 load it from its new slot.
 - Back up and move: on FM-1 #1 with projects in A–D (SAVE them first), Projects > Back up all (time it). On FM-1 #2
   (or the same unit, a project into another slot), Restore all from that file (time it), or Restore here… one project
   into another slot. Load each restored project: it plays the same as on #1 (the same sounds, steps, variations 1–8

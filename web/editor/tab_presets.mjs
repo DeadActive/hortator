@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
 // The Presets tab (web/EDITOR_PROTOCOL.md §2.3, §2.5, §2.6, §5): left, the factory banks (MACHINEDRUM / MODERN /
-// CLASSIC, NAMES) loaded onto the selected track (PRESET_LOAD); right, the 128 user slots as a list the page edits
-// (rename, delete, reorder, "Save track N here" from DUMP), read from the FM-1 (BACKUP_LIST / BACKUP_GET of object 0),
-// kept in "hortator-presets" files and written back whole (RESTORE kind 0: BEGIN, DATA, COMMIT; ABORT on cancel).
+// CLASSIC, NAMES) loaded onto the selected track (PRESET_LOAD); right, the 96 user slots as a list the page edits
+// (rename, delete, reorder, "Save track N here" from DUMP, each preset's FX shown and edited or dropped), read from the
+// FM-1 (BACKUP_LIST / BACKUP_GET of object 0), kept in "hortator-presets" files and written back whole (RESTORE kind 0:
+// BEGIN, DATA, COMMIT; ABORT on cancel). An FM-1 before UPR2 (128 voices) is read, not written.
 // Owner decision 2: the names live only in the page and the files; the FM-1 keeps showing "MODEL NN".
 // PresetsModel holds no DOM (web/editor/test_tab_presets.mjs drives it against the mock device); mountPresets draws it.
 // A tab module exports `tab = { id, title, cap, mount(el, ctx) }` (app.mjs); mount returns { show, destroy }.
 import {
-  BF, CAP, CMD, DETAIL, FileError, LAYOUT, LIMITS, MAGIC, NONE, RC, RK, RS, SCOPE, SZ, crc32, crcHex, decodePresets,
-  encodePresets, makePresetsFile, readPresetsFile, userPresetName,
+  BF, CAP, CMD, DETAIL, FileError, LAYOUT, LIMITS, MAGIC, NONE, RC, RK, RS, SCOPE, SZ, UPR_FX_LABELS, crc32, crcHex,
+  decodePresets, encodePresets, makePresetsFile, readPresetsFile, userPresetName,
 } from "./proto.mjs";
 import { clockGuard } from "./session.mjs";
 import { esc, chooser } from "./ui.mjs";
@@ -17,8 +18,13 @@ import { esc, chooser } from "./ui.mjs";
 const P_MODEL = 0, P_E0 = 1; // core.h: P_MODEL, P_E0..P_E7 (DUMP's p list)
 const NAME_MAX = 24;
 const NAMES_KEY = "hortator-preset-names"; // the page's memory of the names given, by sound (this browser only)
-const same = (a, b) => (!a && !b) || (!!a && !!b && a.model === b.model && a.knobs.every((k, i) => k === b.knobs[i]));
-const soundKey = (s) => `${s.model}:${s.knobs.join(",")}`;
+const NFX = LAYOUT.uprFx.length;
+const noMoves = () => Array(LAYOUT.nuserOld - LAYOUT.nuser).fill(0);
+const sameFx = (a, b) => !!a.voiceOnly === !!b.voiceOnly && (!!a.voiceOnly || a.fx.every((x, i) => x === b.fx[i]));
+const same = (a, b) => (!a && !b) || (!!a && !!b && a.model === b.model && a.knobs.every((k, i) => k === b.knobs[i]) && sameFx(a, b));
+// (the names given, by sound: the voice, and the FX when the preset holds them)
+const soundKey = (s) => `${s.model}:${s.knobs.join(",")}${s.voiceOnly ? "" : `:${s.fx.join(",")}`}`;
+const slotOf = (s, name) => s && { name, model: s.model, knobs: [...s.knobs], fx: [...s.fx], voiceOnly: !!s.voiceOnly };
 const pad3 = (n) => String(n).padStart(3, "0");
 
 /** an error to show: the device's own message and what it means */
@@ -44,8 +50,13 @@ export class PresetsModel {
     this.handlers = new Map();
     this.modelNames = [];
     this.banks = []; // [{ bank, name, presets: [{ id, model, name }] }]
-    this.slots = Array(LAYOUT.nuser).fill(null); // the list: null | { name, model, knobs[8] }
-    this.device = null; // the FM-1's 128 slots as last read / written (null: not read)
+    this.slots = Array(LAYOUT.nuser).fill(null); // the list: null | { name, model, knobs[8], fx[23], voiceOnly }
+    this.moved = noMoves(); // UPR1's slots 97..128: where they moved (the record's, kept as read; a file's)
+    this.lost = 0; // presets an older file (128 slots) held that did not fit the 96
+    this.fileNote = ""; // what opening a file says beyond the list (what was moved, lost)
+    this.fxDesc = UPR_FX_LABELS.map((label) => ({ label, min: -128, max: 127, names: [] })); // DESC of each FX
+    this.device = null; // the FM-1's 96 slots as last read / written (null: not read)
+    this.deviceOld = false; // the FM-1 runs a firmware before UPR2 (128 voices): read (moved in), never written
     this.deviceInfo = null; // BACKUP_LIST's entry of object 0
     this.source = ""; // "FM-1" or a file's name
     this.job = null; // a write running: { cancelled, committing }
@@ -54,13 +65,14 @@ export class PresetsModel {
   on(ev, fn) { if (!this.handlers.has(ev)) this.handlers.set(ev, new Set()); this.handlers.get(ev).add(fn); return () => this.handlers.get(ev).delete(fn); }
   emit(ev, x) { for (const fn of this.handlers.get(ev) || []) fn(x); }
   get canRead() { return this.s.has(CMD.BACKUP_GET); }
-  get canWrite() { return this.s.has(CMD.RESTORE); }
+  get canWrite() { return this.s.has(CMD.RESTORE) && !!((this.s.info?.caps ?? 0) & CAP.UPR2); }
   get track() { return this.s.state?.sel ?? 0; }
   get nfact() { return this.s.info?.nfact ?? 151; }
 
   /** what the tab shows: the model names, the factory banks, the FM-1's user slots */
   async load() {
     await this.readModelNames();
+    await this.readFxDescs().catch(() => {});
     await this.readFactory();
     if (this.canRead) await this.readDevice();
     this.loaded = true;
@@ -76,6 +88,23 @@ export class PresetsModel {
     }
     this.modelNames = names;
   }
+  /** each FX's range and names (DESC of the selected track's knob: INSERT A..C's labels follow its TYPE) */
+  async readFxDescs() {
+    const out = [];
+    for (let k = 0; k < NFX; k++) {
+      const a = { scope: SCOPE.TRACK, track: NONE, id: LAYOUT.uprFx[k] };
+      const r = await this.s.request(CMD.DESC, { ...a, first: 0 }), names = [...r.items];
+      while (names.length < r.nnames) {
+        const more = await this.s.request(CMD.DESC, { ...a, first: names.length });
+        if (!more.items.length) break;
+        names.push(...more.items);
+      }
+      out.push({ label: UPR_FX_LABELS[k], min: r.min, max: r.max, names });
+    }
+    this.fxDesc = out;
+  }
+  /** FX k's value as the FM-1 shows it: an enum's name, else the number */
+  fxText(k, v) { const d = this.fxDesc[k]; return d && d.names.length && v >= d.min && v - d.min < d.names.length ? d.names[v - d.min] : String(v); }
   async readFactory() {
     const banks = [];
     for (let bank = 0; bank < (this.s.info?.nbanks ?? 3); bank++) {
@@ -97,7 +126,7 @@ export class PresetsModel {
     return this.banks.filter((b) => bank < 0 || b.bank === bank).flatMap((b) => b.presets.map((p) => ({ ...p, bank: b.bank })))
       .filter((p) => !t || p.name.toUpperCase().includes(t) || (this.modelNames[p.model] || "").toUpperCase().includes(t));
   }
-  /** PRESET_LOAD onto a track (the selected one): MODEL and the 8 SOUND knobs, as the FM-1's PRESETS list */
+  /** PRESET_LOAD onto a track (the selected one): MODEL and the 8 SOUND knobs (a user preset: its FX too), as the FM-1's PRESETS list */
   async loadPreset(id, track = this.track) {
     const r = await this.s.request(CMD.PRESET_LOAD, { track, id });
     // the selected track's knobs that moved come as CHANGED pushes (as a knob turned on the FM-1); the preset id and
@@ -107,12 +136,12 @@ export class PresetsModel {
   }
 
   /* ------------------------------------------------------------------ the user list --- */
-  /** the FM-1's 128 user slots (flash: object 0) into the list */
+  /** the FM-1's 96 user slots (flash: object 0) into the list (an FM-1 before UPR2: its 128 moved in, as it will) */
   async readDevice() {
     for (let tries = 0; ; tries++) {
       const list = await this.s.request(CMD.BACKUP_LIST);
       const o = list.objects.find((x) => x.obj === 0);
-      let slots;
+      let slots, bank = null;
       if (!o || !o.present) slots = Array(LAYOUT.nuser).fill(null); // no user bank saved yet
       else {
         const b = new Uint8Array(o.size);
@@ -126,11 +155,17 @@ export class PresetsModel {
           throw e;
         }
         if (crc32(b) !== o.crc) { if (tries < 3) continue; throw new Error("The FM-1's user presets read back damaged (CRC)."); }
-        slots = decodePresets(b);
+        bank = decodePresets(b);
+        slots = bank.slots;
       }
       this.deviceInfo = o || null;
+      this.deviceOld = !((this.s.info?.caps ?? 0) & CAP.UPR2);
       this.device = slots;
-      this.slots = slots.map((s, i) => s && { name: this.nameOf(s, i), model: s.model, knobs: [...s.knobs] });
+      this.moved = bank ? [...bank.moved] : noMoves();
+      this.deviceFrom = bank && bank.from ? bank.from : []; // (an FM-1 before UPR2: the older slot each came from)
+      this.lost = bank ? bank.lost : 0;
+      this.fileNote = "";
+      this.slots = slots.map((s, i) => slotOf(s, s && this.nameOf(s, i)));
       this.source = "FM-1";
       this.emit("render");
       return this.slots;
@@ -149,7 +184,9 @@ export class PresetsModel {
   changed() { return this.device ? this.slots.map((s, i) => !same(s, this.device[i])) : null; }
   get differs() { const c = this.changed(); return !c || c.some(Boolean); }
   /** user slot i can be loaded onto a track: the FM-1 holds the same sound there */
-  canLoadUser(i) { return !!this.slots[i] && !!this.device && same(this.slots[i], this.device[i]); }
+  canLoadUser(i) {
+    return !!this.slots[i] && !!this.device && same(this.slots[i], this.device[i]) && (!this.deviceOld || this.deviceFrom[i] === i);
+  }
   loadUser(i, track = this.track) { return this.loadPreset(this.nfact + i, track); }
 
   rename(i, name) {
@@ -168,42 +205,56 @@ export class PresetsModel {
     this.slots.splice(to, 0, x);
     this.emit("render");
   }
-  /** "Save track N here": the track's MODEL and SOUND knobs (DUMP) into the list's slot i (sent by Write to FM-1) */
+  /** FX k of slot i (a preset that holds its FX), inside the FX's range */
+  setFx(i, k, v) {
+    const s = this.slots[i], d = this.fxDesc[k];
+    if (!s || s.voiceOnly || !d || !Number.isFinite(Number(v))) return;
+    s.fx[k] = Math.max(d.min, Math.min(d.max, Math.round(Number(v))));
+    this.emit("render");
+  }
+  /** slot i keeps its FX (loading it sets them) or is the voice only (loading it leaves the track's FX) */
+  keepFx(i, on) {
+    const s = this.slots[i];
+    if (!s) return;
+    s.voiceOnly = !on;
+    this.emit("render");
+  }
+  /** "Save track N here": the track's MODEL, SOUND knobs and FX (DUMP) into the list's slot i (sent by Write to FM-1) */
   async saveTrack(i, track = this.track) {
-    const d = await this.s.request(CMD.DUMP, { track });
-    const s = { model: d.model, knobs: d.p.slice(P_E0, P_E0 + 8).map((k) => Math.max(-128, Math.min(127, k))) };
+    const d = await this.s.request(CMD.DUMP, { track }), c8 = (k) => Math.max(-128, Math.min(127, k));
+    const s = { model: d.model, knobs: d.p.slice(P_E0, P_E0 + 8).map(c8), fx: LAYOUT.uprFx.map((id) => c8(d.p[id])), voiceOnly: false };
     s.name = this.memory()[soundKey(s)] || `${(this.modelNames[d.model] || "USER").slice(0, 5)} T${d.track + 1}`;
     this.slots[i] = s;
     this.emit("render");
     return s;
   }
-  /** the UPR1 record the list makes (what Write to FM-1 sends) */
-  record() { return encodePresets(this.slots); }
+  /** the UPR2 record the list makes (what Write to FM-1 sends; the moves as read) */
+  record() { return encodePresets(this.slots, this.moved); }
 
   /* ------------------------------------------------------------------------ files --- */
-  /** a "hortator-presets" file (§5) of the list, plus `upr1`: size and CRC-32 of the record its slots make (checked
+  /** a "hortator-presets" file (§5) of the list, plus `upr2`: size and CRC-32 of the record its slots make (checked
    * on reading when present) */
   toFile(meta = {}) {
-    const f = makePresetsFile(this.slots, this.modelNames, { firmware: this.s.info?.firmware || "", ...meta });
-    const rec = encodePresets(f.slots);
-    f.upr1 = { size: rec.length, crc32: crcHex(crc32(rec)) };
+    const f = makePresetsFile({ slots: this.slots, moved: this.moved }, this.modelNames, { firmware: this.s.info?.firmware || "", ...meta });
+    const rec = this.record();
+    f.upr2 = { size: rec.length, crc32: crcHex(crc32(rec)) };
     return f;
   }
   fileName(d = new Date()) {
     return `hortator-presets-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}.json`;
   }
-  /** a file (text or parsed: hortator-presets, or the presets of a hortator-backup) into the list; FileError if not */
+  /** a file (text or parsed: hortator-presets, or the presets of a hortator-backup) into the list; FileError if not.
+   * A version 1 file (128 voices) is moved into the 96 slots as the FM-1 moves its own (fileNote says what) */
   fromFile(text, name = "file") {
     let f;
     try { f = typeof text === "string" ? JSON.parse(text) : text; } catch { throw new FileError("format", "Not a JSON file."); }
-    if (f && f.format === "hortator-backup" && f.presets) f = { ...f, format: "hortator-presets", slots: f.presets.slots };
-    const { slots } = readPresetsFile(f);
-    if (f.upr1 !== undefined) {
-      const rec = encodePresets(slots);
-      if (!f.upr1 || f.upr1.size !== rec.length || String(f.upr1.crc32).toLowerCase() !== crcHex(crc32(rec)))
-        throw new FileError("damaged", "The presets file is damaged (CRC mismatch): nothing was opened.");
-    }
+    if (f && f.format === "hortator-backup" && f.presets) f = { ...f, format: "hortator-presets", slots: f.presets.slots, moved: f.presets.moved };
+    const { slots, moved, lost } = readPresetsFile(f); // (its checksum checked: upr2, or a version 1 file's upr1)
     this.slots = slots.map((s, i) => s && { ...s, name: s.name || this.defaultName(s, i) });
+    this.moved = moved;
+    this.lost = lost;
+    this.fileNote = f.version < 2 ? `An older file: its presets past 96 moved into empty slots, the sound only${lost
+      ? `; ${lost} preset${lost === 1 ? "" : "s"} did not fit the 96 slots (lost)` : ""}.` : "";
     this.source = name;
     this.remember();
     this.emit("render");
@@ -211,10 +262,10 @@ export class PresetsModel {
   }
 
   /* ------------------------------------------------------------- write to the FM-1 --- */
-  /** what the confirmation says before the FM-1's 128 slots are replaced */
+  /** what the confirmation says before the FM-1's 96 slots are replaced */
   confirmText() {
     const used = this.slots.filter(Boolean).length, c = this.changed(), n = c ? c.filter(Boolean).length : 0;
-    let t = `Replace the FM-1's 128 user presets with this list (${used} used)?${c ? ` ${n} slot${n === 1 ? "" : "s"} change.` : ""}`;
+    let t = `Replace the FM-1's ${LAYOUT.nuser} user presets with this list (${used} used)?${c ? ` ${n} slot${n === 1 ? "" : "s"} change.` : ""}`;
     if (this.deviceInfo && this.deviceInfo.flags & BF.UNSAVED) t += " The FM-1's user preset changes not saved to flash are replaced too.";
     return `${t} Names stay in this page and its files; the FM-1 shows "MODEL NN".`;
   }
@@ -228,6 +279,8 @@ export class PresetsModel {
    * written. onProgress({ done, total }) in bytes. The FM-1's refusals reject with its message (explain()). */
   async write(onProgress = () => {}) {
     if (this.job) throw new Error("A write is already running.");
+    if (!this.canWrite) throw new Error(this.s.has(CMD.RESTORE) ? "Update the FM-1 first: its firmware keeps 128 presets "
+      + "without FX (the new one moves them into 96 at its first start)." : "Not in this firmware.");
     const bad = this.check();
     if (bad.length) throw new Error(bad[0]);
     const release = this.s.lockRestore("Presets", "the user presets"); // (another tab's restore: throws, nothing sent)
@@ -248,7 +301,7 @@ export class PresetsModel {
       await this.s.request(CMD.RESTORE, { op: RS.COMMIT });
       begun = false;
       this.remember();
-      this.device = decodePresets(rec);
+      this.device = decodePresets(rec).slots;
       const names = this.slots.map((s) => s && s.name);
       await this.readDevice().catch(() => {}); // what flash holds now
       this.slots.forEach((s, i) => { if (s && names[i] && same(s, this.device[i])) s.name = names[i]; });
@@ -301,6 +354,14 @@ const CSS = `
 .pr-st.alert { color: var(--k); background: var(--w); }
 .pr-prog { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-bottom: 2px solid var(--c1); }
 .pr-prog progress { flex: 1; height: 8px; accent-color: var(--w); }
+.pr-usr li .fxb { color: var(--c3); width: 5ch; flex: none; font-size: .85em; }
+.pr-usr li.pr-fx { display: block; padding: 4px 8px 8px 5ch; background: var(--k); }
+.pr-fx .keep { display: flex; gap: 8px; align-items: center; color: var(--c5); margin-bottom: 4px; }
+.pr-fx .keep input { flex: none; width: auto; border: 0; }
+.pr-fx .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11ch, 1fr)); gap: 4px 8px; }
+.pr-fx .grid label { display: flex; flex-direction: column; color: var(--c3); font-size: .85em; min-width: 0; }
+.pr-fx .grid input, .pr-fx .grid select { width: 100%; background: var(--k); color: var(--c5); border: 1px solid var(--c2); border-radius: 0; font: inherit; padding: 0 2px; }
+.pr-fx .grid :disabled { opacity: .5; }
 @media (max-width: 760px) { .pr { grid-template-columns: 1fr; } .pr-list { max-height: 50vh; } }
 `;
 
@@ -318,6 +379,7 @@ export function mountPresets(el, ctx) {
   const s = ctx.session, m = new PresetsModel(s), say = (msg) => ctx.toast?.(msg);
   if (!document.getElementById("pr-css")) document.head.append(Object.assign(document.createElement("style"), { id: "pr-css", textContent: CSS }));
   let bank = -1, query = "", pick = null, drag = -1;
+  const open = new Set(); // the user slots whose FX are shown
   el.innerHTML = `<div class="snd-head"><h2>Presets</h2><span class="snd-sub pr-sub"></span>
       <span class="snd-load" hidden>Reading the FM-1…</span></div>
     <div class="pr">
@@ -327,7 +389,7 @@ export function mountPresets(el, ctx) {
         <div class="pr-bar"><button type="button" class="main pr-load" disabled>Load onto track 1</button>
           <span class="snd-sub">pick one, or double-click</span></div>
         <ul class="pr-list pr-fac" role="listbox" aria-label="Factory presets"></ul></section>
-      <section class="pr-col" aria-label="User presets"><h3>User · 128 slots</h3>
+      <section class="pr-col" aria-label="User presets"><h3>User · ${LAYOUT.nuser} slots</h3>
         <div class="pr-bar"><button type="button" data-a="read">Read FM-1</button><button type="button" data-a="open">Open file…</button>
           <button type="button" data-a="backup">Back up</button><button type="button" class="main" data-a="write">Write to FM-1</button>
           <input type="file" accept=".json,application/json" hidden></div>
@@ -359,7 +421,9 @@ export function mountPresets(el, ctx) {
   };
   const drawStatus = () => {
     const chg = m.changed(), n = chg ? chg.filter(Boolean).length : 0, used = m.slots.filter(Boolean).length;
-    let t = `${used} of 128 used · from ${m.source || "—"}. `;
+    let t = `${used} of ${LAYOUT.nuser} used · from ${m.source || "—"}. `;
+    if (m.deviceOld && m.device) t += `This FM-1's firmware keeps 128 presets without FX: the list shows them as the new firmware moves them${m.lost && m.source === "FM-1" ? ` (${m.lost} would not fit)` : ""}; update the FM-1 to write presets. `;
+    if (m.fileNote) t += `${m.fileNote} `;
     if (!m.device) t += "The FM-1's list is not read yet.";
     else if (n) t += `${n} slot${n === 1 ? "" : "s"} differ from the FM-1 (*): Write to FM-1 to send them.`;
     else t += "Same as the FM-1.";
@@ -375,17 +439,30 @@ export function mountPresets(el, ctx) {
       if (a === "write") b.title = other || "";
     }
   };
+  const fxPanel = (x, i, w, dis) => {
+    const cells = m.fxDesc.map((d, k) => {
+      const v = x.fx[k], off = dis(w || x.voiceOnly);
+      const ctl = d.names.length
+        ? `<select data-k="${k}" aria-label="${esc(d.label)} of slot ${i + 1}"${off}>${d.names.map((n, j) => `<option value="${d.min + j}"${d.min + j === v ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`
+        : `<input type="number" data-k="${k}" min="${d.min}" max="${d.max}" value="${v}" aria-label="${esc(d.label)} of slot ${i + 1}"${off}>`;
+      return `<label><span>${esc(d.label)}</span>${ctl}</label>`;
+    }).join("");
+    return `<li class="pr-fx" data-i="${i}"><label class="keep"><input type="checkbox" data-k="keep"${x.voiceOnly ? "" : " checked"}${dis(w)}>
+      Loading it sets these FX (off: the sound only, the track keeps its own FX)</label><div class="grid">${cells}</div></li>`;
+  };
   const drawUser = () => {
     const chg = m.changed(), t = m.track + 1, w = busy(), dis = (c) => (c ? " disabled" : "");
     usr.innerHTML = m.slots.map((x, i) => `<li data-i="${i}" draggable="${!!x && !w}" class="${x ? "" : "empty"}${chg?.[i] ? " chg" : ""}">
       <span class="n">${pad3(i + 1)}</span>${x ? `<span class="grip" title="Drag to reorder" aria-hidden="true">::</span>
       <input value="${esc(x.name)}" maxlength="${NAME_MAX}" aria-label="Name of slot ${i + 1}"${dis(w)}>
       <span class="md">${esc(m.modelNames[x.model] || x.model)}</span>
+      <span class="fxb" title="${x.voiceOnly ? "The sound only: loading it leaves the track's FX" : "The sound and its FX"}">${x.voiceOnly ? "SOUND" : "+FX"}</span>
+      <button type="button" data-a="fx" aria-expanded="${open.has(i)}" title="Show / edit the FX this preset holds">FX</button>
       <button type="button" data-a="up" title="Move up"${dis(w || !i)}>↑</button><button type="button" data-a="down" title="Move down"${dis(w || i === LAYOUT.nuser - 1)}>↓</button>
       <button type="button" data-a="load" title="Load onto track ${t}"${dis(w || !m.canLoadUser(i))}>Load</button>`
       : '<span class="nm">— empty —</span>'}
-      <button type="button" data-a="save" title="Save track ${t}'s sound here"${dis(w)}>Save T${t}</button>
-      ${x ? `<button type="button" data-a="del" title="Delete" aria-label="Delete slot ${i + 1}"${dis(w)}>×</button>` : ""}</li>`).join("");
+      <button type="button" data-a="save" title="Save track ${t}'s sound and FX here"${dis(w)}>Save T${t}</button>
+      ${x ? `<button type="button" data-a="del" title="Delete" aria-label="Delete slot ${i + 1}"${dis(w)}>×</button>` : ""}</li>${x && open.has(i) ? fxPanel(x, i, w, dis) : ""}`).join("");
     drawStatus();
   };
   const render = () => { drawBanks(); drawFactory(); drawUser(); };
@@ -443,18 +520,26 @@ export function mountPresets(el, ctx) {
     if (!b || !li) return;
     const i = Number(li.dataset.i), a = b.dataset.a;
     try {
-      if (a === "up") m.move(i, i - 1);
-      else if (a === "down") m.move(i, i + 1);
-      else if (a === "del") m.remove(i);
+      if (a === "fx") {
+        if (open.has(i)) open.delete(i); else open.add(i);
+        drawUser();
+      } else if (a === "up" || a === "down") { open.clear(); m.move(i, a === "up" ? i - 1 : i + 1); } else if (a === "del") { open.delete(i); m.remove(i); }
       else if (a === "load") await load(m.nfact + i);
       else if (a === "save") {
-        if (m.slots[i] && !(await ask(ctx, `Replace slot ${i + 1} (${m.slots[i].name}) in the list with track ${m.track + 1}'s sound?`))) return;
+        if (m.slots[i] && !(await ask(ctx, `Replace slot ${i + 1} (${m.slots[i].name}) in the list with track ${m.track + 1}'s sound and FX?`))) return;
         await m.saveTrack(i);
-        say(`Slot ${i + 1}: track ${m.track + 1}'s sound. Write to FM-1 to send it.`);
+        say(`Slot ${i + 1}: track ${m.track + 1}'s sound and FX. Write to FM-1 to send it.`);
       }
     } catch (err) { fail(err); }
   });
-  usr.addEventListener("change", (e) => { const li = e.target.closest("li[data-i]"); if (li && e.target.matches("input")) m.rename(Number(li.dataset.i), e.target.value); });
+  usr.addEventListener("change", (e) => {
+    const li = e.target.closest("li[data-i]"), k = e.target.dataset.k;
+    if (!li) return;
+    const i = Number(li.dataset.i);
+    if (k === "keep") m.keepFx(i, e.target.checked);
+    else if (k !== undefined) m.setFx(i, Number(k), e.target.value);
+    else if (e.target.matches("input")) m.rename(i, e.target.value);
+  });
   usr.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("input")) e.target.blur(); });
   usr.addEventListener("dragstart", (e) => { const li = e.target.closest("li[data-i]"); if (!li) return; drag = Number(li.dataset.i); e.dataTransfer.effectAllowed = "move"; });
   usr.addEventListener("dragover", (e) => {
@@ -464,7 +549,7 @@ export function mountPresets(el, ctx) {
     for (const x of usr.querySelectorAll(".over")) if (x !== li) x.classList.remove("over");
     li.classList.add("over");
   });
-  usr.addEventListener("drop", (e) => { const li = e.target.closest("li[data-i]"); if (drag >= 0 && li) { e.preventDefault(); m.move(drag, Number(li.dataset.i)); } drag = -1; });
+  usr.addEventListener("drop", (e) => { const li = e.target.closest("li[data-i]"); if (drag >= 0 && li) { e.preventDefault(); open.clear(); m.move(drag, Number(li.dataset.i)); } drag = -1; });
   usr.addEventListener("dragend", () => { drag = -1; for (const x of usr.querySelectorAll(".over")) x.classList.remove("over"); });
 
   m.on("render", render);

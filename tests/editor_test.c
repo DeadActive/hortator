@@ -237,11 +237,11 @@ static void t_info(void)
     v[14] = rd_b(&r);
     for (i = 0; i < ED_STATE_N; i++)
         rd_b(&r);
-    check("INFO: HORTATOR, the firmware version without DRUM-, protocol 1.1, LIVE only (no backup / pattern files), the "
+    check("INFO: HORTATOR, the firmware version without DRUM-, protocol 1.2, LIVE and UPR2 only (no backup / pattern files), the "
           "sizes, the state block",
           rc_is(f, 0, 0) && ends_ok(f, &r) && !strcmp(magic, "HORTATOR") && !strcmp(fw, "DEV") && v[0] == 1u &&
-              v[1] == ED_PROTO_MINOR && ED_PROTO_MINOR == 1u && v[2] == ED_CAP_LIVE && v[3] == 8u && v[4] == 64u && v[5] == P_COUNT && v[6] == G_COUNT &&
-              v[7] == NMODELS && v[8] == 151u && v[9] == 128u && v[10] == 3u && v[11] == 4u && v[12] == 8u &&
+              v[1] == ED_PROTO_MINOR && ED_PROTO_MINOR == 2u && v[2] == (ED_CAP_LIVE | ED_CAP_UPR2) && v[3] == 8u && v[4] == 64u && v[5] == P_COUNT && v[6] == G_COUNT &&
+              v[7] == NMODELS && v[8] == 151u && v[9] == 96u && v[10] == 3u && v[11] == 4u && v[12] == 8u &&
               v[13] == 640u && v[14] == 0u && f->b[f->n - 1u - ED_STATE_N + 1u] == ED_NONE &&
               f->b[f->n - 1u - ED_STATE_N + 5u] == song.sel);
     rq_begin(ED_INFO, 3);
@@ -426,6 +426,27 @@ static void t_get_set(void)
     trk[1].pre_ed = 0;
     req_knob(ED_SET, ED_SC_TRACK, 1, P_E1, trk[1].p[P_E1] == 10 ? 11 : 10);
     check("SET a SOUND knob: the track's preset marked edited", trk[1].pre_ed == 1u);
+    {                                                 /* the FX a user preset holds (presets.c preset_marks) */
+        static int16_t kv[P_COUNT];
+        memcpy(kv, trk[1].p, sizeof kv);
+        upr_set(5, (uint32_t)trk[1].p[P_MODEL], kv);
+        trk[1].pre = (uint16_t)(PRE_NFACT + 5u);
+        trk[1].pre_ed = 0;
+        req_knob(ED_SET, ED_SC_TRACK, 1, P_FCUT, trk[1].p[P_FCUT] == 40 ? 41 : 40);
+        check("SET FILTER CUT on a track loaded from a user preset with FX: edited", trk[1].pre_ed == 1u);
+        trk[1].pre_ed = 0;
+        req_knob(ED_SET, ED_SC_TRACK, 1, P_SLCR, trk[1].p[P_SLCR] ? 0 : 1);
+        req_knob(ED_SET, ED_SC_TRACK, 1, P_LEVEL, trk[1].p[P_LEVEL] == 90 ? 91 : 90);
+        check(".. the SLICER, LEVEL: not edited", trk[1].pre_ed == 0u);
+        upr.s[5].used = UPR_USED | UPR_VOICE;           /* a voice-only (migrated) preset */
+        req_knob(ED_SET, ED_SC_TRACK, 1, P_DLY, trk[1].p[P_DLY] == 30 ? 31 : 30);
+        check(".. a voice-only user preset: DLY not edited", trk[1].pre_ed == 0u);
+        trk[1].pre = 0;                                 /* a factory preset */
+        req_knob(ED_SET, ED_SC_TRACK, 1, P_FCUT, trk[1].p[P_FCUT] == 50 ? 51 : 50);
+        check(".. a factory preset: FILTER CUT not edited", trk[1].pre_ed == 0u);
+        memset(&upr.s[5], 0, sizeof upr.s[5]);
+        trk[1].pre = PRE_NONE;
+    }
     {
         int16_t m = TSEL->p[P_MODEL];
         f = req_knob(ED_SET, ED_SC_TRACK, 0x7F, P_MODEL, m == DM_K909 ? DM_K808 : DM_K909);

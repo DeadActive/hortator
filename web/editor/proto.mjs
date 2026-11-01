@@ -11,7 +11,7 @@
 
 /* ------------------------------------------------------------------ constants --- */
 export const HDR = [0x7d, 0x48, 0x54]; // F0 7D 48 54 <cmd> <seq> ... F7
-export const PROTO = { major: 1, minor: 1, magic: "HORTATOR" }; // minor 1: NUDGE (CAP.NUDGE)
+export const PROTO = { major: 1, minor: 2, magic: "HORTATOR" }; // minor 1: NUDGE (CAP.NUDGE); 2: UPR2 (CAP.UPR2)
 export const SEQ_PUSH = 0x7f, NONE = 0x7f, U14_NONE = 0x3fff, DESC_ORDER = 0x7f;
 export const LIMITS = { req: 640, reply: 400, piece: 256, state: 17 };
 export const TIMING = {
@@ -38,7 +38,7 @@ export const DETAIL = {
   CUE_FIRST: 32, CHANGED: 33, ORDER: 34, RESTORING: 40, NOT_RESTORING: 41, STOP: 42,
   UNKNOWN: 43, LENGTH: 44, RANGE: 45, NO_CAP: 46,
 };
-export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10, NUDGE: 0x20 };
+export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10, NUDGE: 0x20, UPR2: 0x40 };
 export const CMD_CAP = {
   [CMD.INFO]: 0, [CMD.PAGES]: CAP.LIVE, [CMD.DESC]: CAP.LIVE, [CMD.GET]: CAP.LIVE, [CMD.SET]: CAP.LIVE,
   [CMD.DUMP]: CAP.LIVE, [CMD.SELECT]: CAP.LIVE, [CMD.WATCH]: CAP.LIVE, [CMD.TEXT]: CAP.LIVE,
@@ -67,8 +67,9 @@ export const RK = { PRESETS: 0, PROJECT: 1 };
 export const PART = { RECORD: 0, LOCKS: 1, VARS: 2 };
 export const OBJ = { PRESETS: 0, PROJECT: 1, LOCKS: 5, VARS: 9, N: 13 }; // + slot
 export const BF = { UNSAVED: 0x01, LOST: 0x02, OLD: 0x04 };
-export const SZ = { PRESETS: 1284, PROJECT: 3840, LOCKS: 3208, VARS_MIN: 22, VARS_MAX: 3584 };
-export const MAGIC = { PROJ: 0x47524446, PROJ_F: 0x46524446, LK: 0x31424b4c, VAR: 0x31524156, UPR: 0x31525055 }; // FDRG FDRF LKB1 VAR1 UPR1
+export const SZ = { PRESETS: 3204, PRESETS_V1: 1284, PROJECT: 3840, LOCKS: 3208, VARS_MIN: 22, VARS_MAX: 3584 };
+// FDRG FDRF LKB1 VAR1 UPR2; UPR1: the user presets before minor 2 (128 voices)
+export const MAGIC = { PROJ: 0x47524446, PROJ_F: 0x46524446, LK: 0x31424b4c, VAR: 0x31524156, UPR: 0x32525055, UPR1: 0x31525055 };
 /** a record in the current layout: FDRG, or FDRF (the same bytes, but steps 0..6's spare bytes hold the parameters
  * past the block, no NUDGE; it links a lock bank and variations as FDRG does) */
 export const isFullRecord = (m) => m === MAGIC.PROJ || m === MAGIC.PROJ_F;
@@ -78,14 +79,17 @@ export const OLD_PROJECTS = new Map([[0x31524446, 1564], [0x32524446, 2624], [0x
   [0x41524446, 3672], [0x42524446, 3672], [0x43524446, 3688], [0x44524446, 3712], [0x45524446, 3840], [0x46524446, 3840]]);
 /** byte layouts (little endian) of the objects as flash stores them; checked against the firmware by the tests */
 export const LAYOUT = {
-  ntrk: 8, nstep: 64, pcount: 76, gcount: 42, pStored: 69, gStored: 41, nuser: 128, nvar: 8, lkMax: 1024, nameLen: 12,
+  ntrk: 8, nstep: 64, pcount: 76, gcount: 42, pStored: 69, gStored: 41, nuser: 96, nuserOld: 128, nvar: 8, lkMax: 1024, nameLen: 12,
   xpDef: [0, 0, 0, 64, 96, 96, 127], // P_RKEY P_SRR P_ITYPE P_IA P_IB P_IC P_IMIX: their power-on values (xp; FDRF: step rsv)
   timing: [22, 23, 24, 30], // P_SLEN P_SDIV P_SSWING P_SRC: a variation's own timing
   project: { size: 3840, g: 8, sel: 90, rsv: 91, t: 94, trk: 394, trkStep: 138, lk_n: 3246, lk_link: 3248, var_link: 3252,
     var_len: 3256, xp: 3258, song: 3762, name: 3798, pre: 3810, pre_ed: 3826, sum: 3836 },
   locks: { size: 3208, slot: 4, on: 5, count: 6, key: 8, val: 2056, lock: 3080 },
   vars: { slot: 4, used: 6, d: 8 },
-  presets: { size: 1284, slot: 10 },
+  presets: { size: 3204, slot: 33, fx: 10, mv: 3172, sizeV1: 1284 },
+  // the FX a user preset holds (presets.c UPR_FX), in the record's order, and their power-on values (a voice-only slot's)
+  uprFx: [14, 15, 16, 17, 48, 49, 50, 51, 52, 53, 54, 69, 55, 56, 57, 58, 59, 71, 72, 73, 74, 75, 70],
+  uprFxDef: [0, 0, 0, 0, 0, 48, 72, 64, 100, 0, 64, 0, 0, 127, 0, 0, 40, 0, 64, 96, 96, 127, 0],
   preNone: 0xffff, preRecUser: 0x8000,
 };
 export const NAME_SET = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/#+";
@@ -420,28 +424,92 @@ export const stepIsSet = (s) => (s.flags | s.cond | (s.micro | 0)) !== 0 || s.no
 export const emptyStep = () => ({ flags: 0, cond: 0, note: STEP.NT_OFFSET, micro: 0 });
 const microOf = (s) => Math.max(-STEP.MICRO_MAX, Math.min(STEP.MICRO_MAX, s.micro | 0));
 
-/** the user presets record ("UPR1", 1284 B) <-> 128 slots: null or { model, knobs[8] } (int8) */
-export function decodePresets(b) {
-  if (b.length !== SZ.PRESETS) throw new Error(`user presets: ${b.length} bytes, ${SZ.PRESETS} expected`);
-  const v = dv(b);
-  if (v.getUint32(0, true) !== MAGIC.UPR) throw new Error("user presets: no UPR1 magic");
-  const slots = [];
-  for (let i = 0; i < LAYOUT.nuser; i++) {
-    const o = 4 + i * LAYOUT.presets.slot;
-    slots.push(b[o] === 1 ? { model: b[o + 1], knobs: [...b.subarray(o + 2, o + 10)].map((x) => (x << 24) >> 24) } : null);
-  }
-  return slots;
+/** the user presets: UPR = the slot's used byte (1: the voice and its FX; 1 | 2: the voice only, a preset moved from
+ * UPR1: it loads as a factory preset does) */
+export const UPR = { USED: 1, VOICE: 2 };
+/** the labels of the FX a user preset holds (LAYOUT.uprFx's order), as the FM-1's pages name them */
+export const UPR_FX_LABELS = ["DIST", "CHO", "DLY", "REV", "RESON", "R.TUNE", "R.DECAY", "R.MIX", "R.TONE", "R.STRCT",
+  "R.POS", "R.KEYF", "FILTER", "CUT", "RESO", "F.ENV", "F.DECAY", "INSERT", "INS A", "INS B", "INS C", "INS MIX", "SRR"];
+export const fxDefaults = () => [...LAYOUT.uprFxDef];
+const i8 = (x) => (x << 24) >> 24;
+const c8 = (x) => Math.max(-128, Math.min(127, x | 0));
+const noMoves = () => Array(LAYOUT.nuserOld - LAYOUT.nuser).fill(0);
+/** an older record ("UPR1", 1284 B) <-> 128 slots: null or { model, knobs[8] } */
+export function decodePresetsV1(b) {
+  if (b.length !== SZ.PRESETS_V1 || dv(b).getUint32(0, true) !== MAGIC.UPR1) throw new Error("user presets: not a UPR1 record");
+  return Array.from({ length: LAYOUT.nuserOld }, (_, i) => {
+    const o = 4 + i * 10;
+    return b[o] === 1 ? { model: b[o + 1], knobs: [...b.subarray(o + 2, o + 10)].map(i8) } : null;
+  });
 }
-export function encodePresets(slots) {
-  const b = new Uint8Array(SZ.PRESETS), v = dv(b);
-  v.setUint32(0, MAGIC.UPR, true);
-  for (let i = 0; i < LAYOUT.nuser; i++) {
-    const s = slots[i], o = 4 + i * LAYOUT.presets.slot;
+export function encodePresetsV1(slots) {
+  const b = new Uint8Array(SZ.PRESETS_V1), v = dv(b);
+  v.setUint32(0, MAGIC.UPR1, true);
+  for (let i = 0; i < LAYOUT.nuserOld; i++) {
+    const s = slots[i], o = 4 + i * 10;
     if (!s) continue;
     b[o] = 1;
     b[o + 1] = s.model;
-    for (let k = 0; k < 8; k++) v.setInt8(o + 2 + k, Math.max(-128, Math.min(127, s.knobs[k] | 0)));
+    for (let k = 0; k < 8; k++) v.setInt8(o + 2 + k, c8(s.knobs[k]));
   }
+  return b;
+}
+/** 128 older slots (UPR1's, or a version 1 file's) into the 96 of now, as the firmware moves them at its first start
+ * (project.c upr_migrate): slots 1..96 stay, the used ones of 97..128 go into the lowest empty slots (moved: where
+ * each went, slot + 1, 0 none: the projects' references follow), the rest are lost (counted). Each the voice only,
+ * its FX the power-on values. from[i]: the older slot new slot i came from. nmodels: a slot naming no model is empty */
+export function migratePresets(old, nmodels = 128) {
+  const slots = Array(LAYOUT.nuser).fill(null), moved = noMoves(), from = Array(LAYOUT.nuser).fill(-1);
+  let to = 0, lost = 0;
+  old.forEach((s, i) => {
+    if (!s || s.model >= nmodels) return;
+    let j = i;
+    if (i >= LAYOUT.nuser) {
+      while (to < LAYOUT.nuser && slots[to]) to++;
+      if (to >= LAYOUT.nuser) { lost++; return; }
+      j = to;
+      moved[i - LAYOUT.nuser] = j + 1;
+    }
+    slots[j] = { ...s, knobs: [...s.knobs], fx: fxDefaults(), voiceOnly: true };
+    from[j] = i;
+  });
+  return { slots, moved, lost, from };
+}
+/** the user presets record ("UPR2", 3204 B) -> { slots: 96 x (null | { model, knobs[8], fx[23], voiceOnly }), moved:
+ * [32] (UPR1's slots 97..128: new slot + 1, 0 none), lost: 0, old: false, bad: a slot or move the FM-1 refuses }. An
+ * older "UPR1" record (1284 B, an FM-1 before minor 2) is moved into 96 slots as the firmware does (migratePresets:
+ * old: true, lost: how many did not fit) */
+export function decodePresets(b) {
+  if (b.length === SZ.PRESETS_V1 && dv(b).getUint32(0, true) === MAGIC.UPR1) return { ...migratePresets(decodePresetsV1(b)), old: true, bad: false };
+  if (b.length !== SZ.PRESETS) throw new Error(`user presets: ${b.length} bytes, ${SZ.PRESETS} expected`);
+  const v = dv(b), L = LAYOUT.presets;
+  if (v.getUint32(0, true) !== MAGIC.UPR) throw new Error("user presets: no UPR2 magic");
+  let bad = false;
+  const slots = Array.from({ length: LAYOUT.nuser }, (_, i) => {
+    const o = 4 + i * L.slot, u = b[o];
+    if (u !== UPR.USED && u !== (UPR.USED | UPR.VOICE)) { bad ||= u !== 0; return null; }
+    return { model: b[o + 1], knobs: [...b.subarray(o + 2, o + 10)].map(i8),
+      fx: [...b.subarray(o + L.fx, o + L.fx + LAYOUT.uprFx.length)].map(i8), voiceOnly: u !== UPR.USED };
+  });
+  const moved = [...b.subarray(L.mv, L.mv + LAYOUT.nuserOld - LAYOUT.nuser)];
+  bad ||= moved.some((x) => x > LAYOUT.nuser);
+  return { slots, moved, lost: 0, old: false, bad };
+}
+/** 96 slots (null | { model, knobs[8], fx[23], voiceOnly }) and the moves -> the UPR2 record. A slot without fx: the
+ * FX's power-on values, the voice only */
+export function encodePresets(slots, moved = noMoves()) {
+  const b = new Uint8Array(SZ.PRESETS), v = dv(b), L = LAYOUT.presets;
+  v.setUint32(0, MAGIC.UPR, true);
+  for (let i = 0; i < LAYOUT.nuser; i++) {
+    const s = slots[i], o = 4 + i * L.slot;
+    if (!s) continue;
+    const fx = Array.isArray(s.fx) ? s.fx : null;
+    b[o] = fx && !s.voiceOnly ? UPR.USED : UPR.USED | UPR.VOICE;
+    b[o + 1] = s.model;
+    for (let k = 0; k < 8; k++) v.setInt8(o + 2 + k, c8(s.knobs[k]));
+    (fx || LAYOUT.uprFxDef).forEach((x, k) => v.setInt8(o + L.fx + k, c8(x)));
+  }
+  for (let i = 0; i < LAYOUT.nuserOld - LAYOUT.nuser; i++) b[L.mv + i] = Math.max(0, Math.min(LAYOUT.nuser, moved[i] | 0));
   return b;
 }
 
@@ -621,7 +689,7 @@ export function sealProject({ record, locks, vars }, slot) {
 }
 
 /* ------------------------------------------------------------------- files --- */
-export const FILE_VERSION = 1;
+export const FILE_VERSION = 2; // 2: user presets are 96 slots with their FX (UPR2); 1 files are still read
 export class FileError extends Error { constructor(why, msg) { super(msg); this.why = why; } }
 const envelope = (format, meta = {}) => ({ format, version: FILE_VERSION, firmware: meta.firmware || "", protocol: PROTO.major,
   created: meta.created || new Date().toISOString() });
@@ -636,29 +704,59 @@ export function userPresetName(slot, modelName) {
   const m = modelName.slice(0, 5), nn = slot + 1;
   return m + (nn < 100 || m.length < 5 ? " " : "") + String(nn).padStart(2, "0");
 }
-/** slots: 128 x (null | { name, model, knobs[8] }); modelNames: the device's model names (DESC of MODEL) */
-export function makePresetsFile(slots, modelNames = [], meta) {
-  return { ...envelope("hortator-presets", meta), slots: presetsBody(slots, modelNames) };
+const bankOf = (p) => (Array.isArray(p) ? { slots: p, moved: noMoves() } : { slots: p.slots, moved: p.moved || noMoves() });
+/** bank: { slots: 96 x (null | { name, model, knobs[8], fx[23], voiceOnly }), moved } (or the slots alone);
+ * modelNames: the device's model names (DESC of MODEL) */
+export function makePresetsFile(bank, modelNames = [], meta) {
+  const { slots, moved } = bankOf(bank);
+  return { ...envelope("hortator-presets", meta), slots: presetsBody(slots, modelNames), moved: [...moved] };
 }
 function presetsBody(slots, modelNames) {
   return Array.from({ length: LAYOUT.nuser }, (_, i) => {
     const s = slots[i];
-    return s ? { name: s.name || userPresetName(i, modelNames[s.model] || "USER"), model: s.model,
-      modelName: modelNames[s.model] || "", knobs: [...s.knobs] } : null;
+    if (!s) return null;
+    const fx = Array.isArray(s.fx) ? s.fx : fxDefaults();
+    return { name: s.name || userPresetName(i, modelNames[s.model] || "USER"), model: s.model,
+      modelName: modelNames[s.model] || "", knobs: [...s.knobs], fx: [...fx], ...(s.voiceOnly || !Array.isArray(s.fx) ? { voiceOnly: true } : {}) };
   });
 }
-function readPresetSlots(a) {
-  if (!Array.isArray(a) || a.length !== LAYOUT.nuser) throw new FileError("damaged", "The file needs 128 preset slots.");
-  return a.map((s) => {
-    if (s === null) return null;
-    if (!s || !Number.isInteger(s.model) || s.model < 0 || s.model > 127 || !Array.isArray(s.knobs) || s.knobs.length !== 8
-      || !s.knobs.every((k) => Number.isInteger(k) && k >= -128 && k <= 127)) throw new FileError("damaged", "A preset slot is damaged.");
-    return { name: typeof s.name === "string" ? s.name.slice(0, 24) : "", model: s.model, knobs: [...s.knobs] };
-  });
+const int8s = (a, n) => Array.isArray(a) && a.length === n && a.every((k) => Number.isInteger(k) && k >= -128 && k <= 127);
+function readSlot(s, withFx) {
+  if (s === null) return null;
+  if (!s || !Number.isInteger(s.model) || s.model < 0 || s.model > 127 || !int8s(s.knobs, 8)
+    || (withFx && s.fx !== undefined && s.fx !== null && !int8s(s.fx, LAYOUT.uprFx.length))) throw new FileError("damaged", "A preset slot is damaged.");
+  const fx = withFx && Array.isArray(s.fx) ? [...s.fx] : null;
+  return { name: typeof s.name === "string" ? s.name.slice(0, 24) : "", model: s.model, modelName: s.modelName,
+    knobs: [...s.knobs], fx: fx || fxDefaults(), voiceOnly: !fx || s.voiceOnly === true };
 }
+/** a file's presets -> { slots (96), moved, lost, raw }. Version 1 (128 voices, before UPR2): moved into 96 slots as
+ * the firmware moves an older bank (migratePresets: the voice only; a slot's automatic name follows it to its new
+ * slot, a name given stays); raw: the 128 as read (their UPR1 checksum) */
+function readPresetBank(a, version, moved) {
+  const strip = (s) => s && { name: s.name, model: s.model, knobs: s.knobs, fx: s.fx, voiceOnly: s.voiceOnly };
+  if (version < 2) {
+    if (!Array.isArray(a) || a.length !== LAYOUT.nuserOld) throw new FileError("damaged", "The file needs 128 preset slots.");
+    const raw = a.map((s) => readSlot(s, false)), m = migratePresets(raw);
+    m.slots.forEach((s, j) => { if (s && s.name === userPresetName(m.from[j], s.modelName || "")) s.name = ""; });
+    return { slots: m.slots.map(strip), moved: m.moved, lost: m.lost, raw };
+  }
+  if (!Array.isArray(a) || a.length !== LAYOUT.nuser) throw new FileError("damaged", `The file needs ${LAYOUT.nuser} preset slots.`);
+  const mv = moved === undefined || moved === null ? noMoves() : moved;
+  if (!Array.isArray(mv) || mv.length !== LAYOUT.nuserOld - LAYOUT.nuser || !mv.every((x) => Number.isInteger(x) && x >= 0 && x <= LAYOUT.nuser))
+    throw new FileError("damaged", "The presets' moves are damaged.");
+  return { slots: a.map((s) => strip(readSlot(s, true))), moved: [...mv], lost: 0, raw: null };
+}
+/** a hortator-presets file -> { slots, moved, lost, firmware }. Its checksum (upr2; upr1 in a version 1 file), when
+ * there, must match the record its slots make */
 export function readPresetsFile(f) {
   checkEnvelope(f, "hortator-presets");
-  return { slots: readPresetSlots(f.slots), firmware: f.firmware };
+  const b = readPresetBank(f.slots, f.version, f.moved), sum = f.version < 2 ? f.upr1 : f.upr2;
+  if (sum !== undefined) {
+    const rec = f.version < 2 ? encodePresetsV1(b.raw) : encodePresets(b.slots, b.moved);
+    if (!sum || sum.size !== rec.length || String(sum.crc32).toLowerCase() !== crcHex(crc32(rec)))
+      throw new FileError("damaged", "The presets file is damaged (CRC mismatch): nothing was opened.");
+  }
+  return { slots: b.slots, moved: b.moved, lost: b.lost, firmware: f.firmware };
 }
 const objOut = (b, seq) => (b ? { size: b.length, crc32: crcHex(crc32(b)), ...(seq !== undefined ? { seq } : {}), data: toBase64(b) } : null);
 function objIn(o, what) {
@@ -698,18 +796,22 @@ export function readProjectFile(f) {
   checkEnvelope(f, "hortator-project");
   return readProjectBody(f, "Project");
 }
-/** presets: 128 slots; projects: [4] x (null | { record, locks, vars, unsaved }) */
+/** presets: the bank ({ slots, moved }, or the 96 slots alone); projects: [4] x (null | { record, locks, vars, unsaved }) */
 export function makeBackupFile(presets, projects, meta = {}, modelNames = []) {
-  const out = { ...envelope("hortator-backup", meta), presets: { slots: presetsBody(presets, modelNames) }, projects: {} };
+  const { slots, moved } = bankOf(presets);
+  const out = { ...envelope("hortator-backup", meta), presets: { slots: presetsBody(slots, modelNames), moved: [...moved] }, projects: {} };
   SLOT_NAMES.forEach((n, s) => {
     const p = projects[s];
     out.projects[n] = p ? projectBody(p, s, p.unsaved, modelNames) : null;
   });
   return out;
 }
+/** -> { slots, moved, lost, projects }: a version 1 backup's 128 presets moved into 96 as the firmware does (lost: how
+ * many did not fit; its projects' references to slots 97..128 follow them through moved) */
 export function readBackupFile(f) {
   checkEnvelope(f, "hortator-backup");
   if (!f.presets || !f.projects) throw new FileError("damaged", "The backup has no presets or projects.");
-  return { slots: readPresetSlots(f.presets.slots),
+  const b = readPresetBank(f.presets.slots, f.version, f.presets.moved);
+  return { slots: b.slots, moved: b.moved, lost: b.lost,
     projects: SLOT_NAMES.map((n) => (f.projects[n] ? readProjectBody(f.projects[n], `Project ${n}`) : null)) };
 }

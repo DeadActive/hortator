@@ -3,13 +3,13 @@
 // The Projects tab: projects A–D as the FM-1 keeps them in flash (BACKUP_LIST: saved / unsaved changes, size, and a
 // summary read from the objects), one project to a `hortator-project` file and back into any slot, "Copy to…"
 // another slot (BACKUP_GET the three objects, RESTORE them into the target), and "Back up all" / "Restore all" with a
-// `hortator-backup` file (the 128 user presets + the four projects). web/EDITOR_PROTOCOL.md §2.5, §2.6, §5.
+// `hortator-backup` file (the 96 user presets with their FX + the four projects). web/EDITOR_PROTOCOL.md §2.5, §2.6, §5.
 // Backups read flash, never RAM: unsaved changes on the FM-1 are flagged and not in the file. Restores run only while
 // stopped (the device answers STOP FIRST otherwise), ask first, show progress, can be aborted until the commit, and
 // show the device's refusals as it words them. ProjectsModel holds no DOM (node tests drive it against the mock:
 // web/editor/test_tab_projects.mjs).
 import {
-  BF, CAP, CMD, DETAIL, FileError, LIMITS, NONE, OBJ, RC, RK, RS, SCOPE, crc32, decodePresets, encodePresets,
+  BF, CAP, CMD, DETAIL, FileError, LAYOUT, LIMITS, NONE, OBJ, RC, RK, RS, SCOPE, crc32, decodePresets, encodePresets,
   makeBackupFile, makeProjectFile, readBackupFile, readProjectFile, summarize,
 } from "./proto.mjs";
 import { BUSY_MSG, clockGuard } from "./session.mjs";
@@ -270,7 +270,8 @@ export class ProjectsModel {
     await this.modelNames();
     return this.run("Backing up everything", this.sizeOf([OBJ.PRESETS, ...[0, 1, 2, 3].flatMap(objs3)]), async () => {
       const [upr] = await this.readFresh([OBJ.PRESETS]);
-      const presets = upr ? decodePresets(upr) : Array(128).fill(null);
+      // (an FM-1 before UPR2: its 128 voices as the new firmware will move them into 96, decodePresets)
+      const presets = upr ? decodePresets(upr) : { slots: Array(LAYOUT.nuser).fill(null) };
       const projects = [];
       for (let s = 0; s < 4; s++) projects.push(await this.readProject(s));
       const unsaved = [...(this.presets.unsaved ? ["user presets"] : []),
@@ -284,14 +285,17 @@ export class ProjectsModel {
   replacesAll(b) {
     const has = b.projects.flatMap((p, s) => (p ? [SLOTS[s]] : [])), keep = b.projects.flatMap((p, s) => (p ? [] : [SLOTS[s]]));
     const lost = [...(this.presets.unsaved ? ["user presets"] : []), ...b.projects.flatMap((p, s) => (p && this.cards[s].unsaved ? [SLOTS[s]] : []))];
-    return `This replaces the 128 user presets${has.length ? ` and projects ${has.join(", ")}` : ""} on the FM-1.`
+    return `This replaces the ${LAYOUT.nuser} user presets${has.length ? ` and projects ${has.join(", ")}` : ""} on the FM-1.`
+      + (b.lost ? ` The file is from an older editor: ${b.lost} preset${b.lost === 1 ? "" : "s"} past slot 96 did not fit and ${b.lost === 1 ? "is" : "are"} left out.` : "")
       + (keep.length ? ` The file has no ${keep.join(", ")}: the FM-1 keeps ${keep.length > 1 ? "them" : "it"}.` : "")
       + (lost.length ? ` Unsaved changes on the FM-1 are lost (${lost.join(", ")}).` : "")
       + (b.projects.some((p, s) => p && this.s.state?.slot === s) ? " The loaded slot is loaded again from the file." : "");
   }
   /** "Restore all": a parsed hortator-backup file; the user presets first, then each project into its slot */
   async restoreAll(json) {
-    const b = readBackupFile(json), upr = encodePresets(b.slots);
+    if (this.s.has(CMD.RESTORE) && !((this.s.info?.caps ?? 0) & CAP.UPR2))
+      throw new Error("Update the FM-1 first: its firmware keeps 128 user presets without FX, this backup holds 96 with their FX.");
+    const b = readBackupFile(json), upr = encodePresets(b.slots, b.moved);
     const total = pieces(upr.length) + b.projects.reduce((n, p) => n + (p ? this.partsPieces([p.record, p.locks, p.vars]) : 0), 0);
     const done = [], slots = [];
     return this.run("Restoring everything", total, async () => {
@@ -410,7 +414,7 @@ export function mountProjects(el, ctx) {
     <div class="prj-acts"><button type="button" class="prj-btn main" data-a="backup-all">Back up all</button>
       <button type="button" class="prj-btn" data-a="restore-all">Restore all…</button>
       <button type="button" class="prj-btn" data-a="reload">Read again</button></div>
-    <p class="prj-note">A backup holds what the FM-1 loads after a power cycle: the 128 user presets and the projects with
+    <p class="prj-note">A backup holds what the FM-1 loads after a power cycle: the 96 user presets (with their FX) and the projects with
       their lock banks and variations. Restores and copies need the FM-1 stopped.</p>
     <div class="prj-run" hidden><span class="what"></span><span class="bar"><i></i></span><span class="cnt"></span>
       <button type="button" class="prj-btn" data-a="abort">Abort</button></div>

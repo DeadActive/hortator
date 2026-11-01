@@ -96,11 +96,17 @@ int main(void)
            "\"G_NSTORED\": %u, \"NMODELS\": %u, \"PRE_NFACT\": %u, \"PRE_NUSER\": %u, \"COND_MAX\": %u, "
            "\"NT_MIN\": %d, \"NT_MAX\": %d, \"LK_MAX\": %u, \"VAR_BYTES\": %u, \"VAR_N\": %u, \"NAME_LEN\": %u, "
            "\"ACID\": %u, \"ACID_MAXTRK\": %u, \"RS_OFF\": %u, \"RS_CHORD\": %u, \"RS_MODAL\": %u, \"RS_MAXTRK\": %u, "
-           "\"RS_MAXMODAL\": %u, \"MICRO_MAX\": %u},\n",
+           "\"RS_MAXMODAL\": %u, \"MICRO_MAX\": %u, \"UPR_NOLD\": %u, \"UPR_NFX\": %u, \"UPR_USED\": %u, "
+           "\"UPR_VOICE\": %u},\n",
            NTRK, NSTEP, P_COUNT, G_COUNT, P_NSTORED, G_NSTORED, NMODELS, (unsigned)PRE_NFACT, (unsigned)PRE_NUSER,
            (unsigned)COND_MAX, NT_MIN, NT_MAX, (unsigned)LK_MAX, (unsigned)VAR_BYTES, (unsigned)VAR_N,
            (unsigned)NAME_LEN, (unsigned)DM_ACID, (unsigned)ACID_MAXTRK, (unsigned)RS_OFF, (unsigned)RS_CHORD,
-           (unsigned)RS_MODAL, (unsigned)RS_MAXTRK, (unsigned)RS_MAXMODAL, (unsigned)MICRO_MAX);
+           (unsigned)RS_MODAL, (unsigned)RS_MAXTRK, (unsigned)RS_MAXMODAL, (unsigned)MICRO_MAX, (unsigned)UPR_NOLD,
+           (unsigned)UPR_NFX, (unsigned)UPR_USED, (unsigned)UPR_VOICE);
+    printf("\"uprFx\": [");                         /* the FX a user preset holds (presets.c UPR_FX), in its order */
+    for (i = 0; i < UPR_NFX; i++)
+        printf("%s%u", i ? ", " : "", (unsigned)UPR_FX[i]);
+    printf("],\n");
     printf("\"nameSet\": "), str(NAME_SET), printf(",\n");
     printf("\"fmt\": [");
     for (i = 0; i <= F_SRR; i++)
@@ -181,8 +187,8 @@ int main(void)
         str(s);
         printf("}");
     }
-    printf("],\n\"magic\": {\"PROJ\": %u, \"LK\": %u, \"VAR\": %u, \"UPR\": %u, \"ST\": %u},\n", PROJ_MAGIC, LK_MAGIC,
-           VAR_MAGIC, UPR_MAGIC, ST_MAGIC);
+    printf("],\n\"magic\": {\"PROJ\": %u, \"LK\": %u, \"VAR\": %u, \"UPR\": %u, \"UPR1\": %u, \"ST\": %u},\n",
+           PROJ_MAGIC, LK_MAGIC, VAR_MAGIC, UPR_MAGIC, UPR1_MAGIC, ST_MAGIC);
     printf("\"oldProjects\": [");                   /* the older records the firmware converts at load: magic, size */
     {
         static const uint32_t MAGIC[15] = {PROJ_MAGIC_V1, PROJ_MAGIC_V2, PROJ_MAGIC_V3, PROJ_MAGIC_V4, PROJ_MAGIC_V5,
@@ -213,8 +219,9 @@ int main(void)
     printf(" \"vars\": {\"size\": %u, \"magic\": %u, \"slot\": %u, \"used\": %u, \"d\": %u},\n",
            (unsigned)sizeof(var_bank_t), OFF(var_bank_t, magic), OFF(var_bank_t, slot), OFF(var_bank_t, used),
            OFF(var_bank_t, d));
-    printf(" \"presets\": {\"size\": %u, \"slot\": %u},\n \"songSize\": %u\n}\n}\n", (unsigned)sizeof(upr_rec_t),
-           (unsigned)sizeof(upr_slot_t), (unsigned)sizeof(chain_config_t));
+    printf(" \"presets\": {\"size\": %u, \"slot\": %u, \"fx\": %u, \"mv\": %u, \"sizeV1\": %u},\n \"songSize\": %u\n}\n}\n",
+           (unsigned)sizeof(upr_rec_t), (unsigned)sizeof(upr_slot_t), OFF(upr_slot_t, f), OFF(upr_rec_t, mv),
+           (unsigned)UPR1_SIZE, (unsigned)sizeof(chain_config_t));
 #undef OFF
     return 0;
 }

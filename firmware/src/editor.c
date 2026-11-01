@@ -349,8 +349,8 @@ static int ed_set(uint32_t cmd, const ed_knob_t *x, uint32_t scope, uint32_t id,
             return 0;                      /* PATTERN while a song plays: its rows' */
     }
     fm1_irq_off();
-    if (PRE_SOUND(id) && motion_rest(x->k, id) != v)
-        preset_touch(t);                   /* presets.c: the voice edited */
+    if (preset_marks(t, id) && motion_rest(x->k, id) != v)
+        preset_touch(t);                   /* presets.c: the preset edited (a SOUND knob; its FX: a user one) */
     if ((mo.base_ok >> x->k) & 1u)
         mo.base[x->k][id] = (int16_t)v;    /* while motion plays: the new base */
     if (lock_held(x->k, id))
@@ -371,7 +371,7 @@ static int ed_len(uint32_t cmd, uint32_t n, uint32_t want)   /* upstream's ed_ar
 static void ed_info(void)
 {
     const char *fw = FELUCCA_VERSION;
-    uint32_t caps = ED_CAP_LIVE;
+    uint32_t caps = ED_CAP_LIVE | ED_CAP_UPR2;
 #ifdef ED_HAS_PATTERN
     caps |= ED_CAP_PRESETS | ED_CAP_PATTERNS | ED_CAP_NUDGE;
 #endif

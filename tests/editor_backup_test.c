@@ -17,12 +17,12 @@ static uint32_t host_ms;
 #include "../firmware/src/editor_proto.h"
 
 /* ---- editor.c's framing API, test-only: one reply buffer */
-static uint8_t rp[ED_REPLY_MAX + 16];
+static uint8_t erp[ED_REPLY_MAX + 16];
 static uint32_t rp_n, rp_sends, rp_i, q_seq;
 static void ed_put(uint32_t b)
 {
-    if (rp_n < sizeof rp)
-        rp[rp_n++] = (uint8_t)b;
+    if (rp_n < sizeof erp)
+        erp[rp_n++] = (uint8_t)b;
 }
 static void ed_reply(uint32_t cmd, uint32_t rc)
 {
@@ -136,16 +136,16 @@ static uint32_t req(uint32_t cmd)
     rp_n = rp_sends = 0;
     h = ed_backup_cmd(cmd, ra, ra_n);
     ra_n = 0;
-    if (!h || rp_sends != 1u || rp_n < 8u || rp_n > ED_REPLY_MAX || rp[4] != cmd || rp[5] != q_seq ||
-        rp[rp_n - 1u] != 0xF7)
+    if (!h || rp_sends != 1u || rp_n < 8u || rp_n > ED_REPLY_MAX || erp[4] != cmd || erp[5] != q_seq ||
+        erp[rp_n - 1u] != 0xF7)
         return 0x100;
     rp_i = 7;
-    rc_detail = rp[6] ? rp[7] : 0u;
-    return rp[6];
+    rc_detail = erp[6] ? erp[7] : 0u;
+    return erp[6];
 }
-static uint32_t r_b(void) { return rp[rp_i++]; }
-static uint32_t r_u14(void) { rp_i += 2; return ed_get_u14(rp + rp_i - 2); }
-static uint32_t r_u35(void) { rp_i += 5; return ed_get_u35(rp + rp_i - 5); }
+static uint32_t r_b(void) { return erp[rp_i++]; }
+static uint32_t r_u14(void) { rp_i += 2; return ed_get_u14(erp + rp_i - 2); }
+static uint32_t r_u35(void) { rp_i += 5; return ed_get_u35(erp + rp_i - 5); }
 
 static struct { uint32_t present, size, crc, seq, flags; } L[ED_OBJ_N];
 static uint32_t list(void)
@@ -177,7 +177,7 @@ static int backup(uint32_t obj, uint8_t *out)       /* a whole object through LI
             return -1;
         len = r_u14();
         if (len != (L[obj].size - off < ED_PIECE ? L[obj].size - off : ED_PIECE) ||
-            ed_unpack7(rp + rp_i, rp_n - 1u - rp_i, out + off, ED_PIECE) != len)
+            ed_unpack7(erp + rp_i, rp_n - 1u - rp_i, out + off, ED_PIECE) != len)
             return -1;
     }
     return st_crc32(out, L[obj].size) == L[obj].crc ? (int)L[obj].size : -1;
@@ -505,7 +505,7 @@ static void t_restore_refusals(void)
     ok &= rs_op(ED_RS_COMMIT) == ED_E_STOP && rc_detail == ED_D_STOP && ed_restoring() && same_flash(keep);
     transport_req = 0;
     ok &= rs_op(ED_RS_COMMIT) == ED_OK && r_b() == ED_RS_COMMIT && r_b() == ED_RK_PROJECT && r_b() == 1u &&
-          rp[rp_i + 6u] == 0u && !ed_restoring();
+          erp[rp_i + 6u] == 0u && !ed_restoring();
     check("RESTORE BEGIN / DATA / COMMIT: replies; DATA out of order (rc 5 34), unknown part, wrong length, a retry "
           "accepted; COMMIT incomplete (rc 2 27, still restoring), playing (rc 3, flash untouched, still restoring), "
           "then stopped: written", (int)ok);
@@ -819,34 +819,64 @@ static void t_presets(void)
     static upr_rec_t u, b;
     robj_t o;
     preset_t p;
-    uint32_t ok;
+    const int8_t *f;
+    uint32_t ok, i;
     st_hdr_t h;
     fresh();
     memset(&u, 0, sizeof u);
     u.magic = UPR_MAGIC;
-    u.s[0].used = 1;
+    u.s[0].used = UPR_USED | UPR_VOICE;              /* a voice-only slot (moved from UPR1) */
     u.s[0].model = 1;
     u.s[0].k[2] = 17;
-    u.s[127].used = 1;
-    u.s[127].model = NMODELS - 1u;
+    for (i = 0; i < UPR_NFX; i++)
+        u.s[0].f[i] = (int8_t)TP[UPR_FX[i]].def;
+    u.s[95].used = UPR_USED;                         /* the last slot, with its FX */
+    u.s[95].model = NMODELS - 1u;
+    for (i = 0; i < UPR_NFX; i++)
+        u.s[95].f[i] = (int8_t)clamp(TP[UPR_FX[i]].min + 1, TP[UPR_FX[i]].min, TP[UPR_FX[i]].max);
+    u.mv[3] = 1;                                     /* old slot 100 moved into slot 1 */
     memset(&o, 0, sizeof o);
     o.d[0] = (const uint8_t *)&u;
     o.n[0] = sizeof u;
     o.crc[0] = st_crc32(&u, sizeof u);
-    ok = restore(ED_RK_PRESETS, 0, &o, 999, 1) == ED_OK && r_b() == ED_RS_COMMIT && r_b() == ED_RK_PRESETS &&
-         st_current(OBJ_UPRESET0 + 1u, &h) >= 0 && h.len == sizeof u && !memcmp(st_buf, &u, sizeof u) &&
-         preset_get(PRE_NFACT + 0u, &p) && p.model == 1u && preset_get(PRE_NFACT + 127u, &p) &&
-         !preset_get(PRE_NFACT + 1u, &p) && backup(0, (uint8_t *)&b) == (int)sizeof b && !memcmp(&b, &u, sizeof u);
-    check("RESTORE user presets: the UPR1 record written as sent, the user bank reloaded, its backup = the bytes", (int)ok);
+    ok = sizeof u == ED_SZ_PRESETS && ED_SZ_PRESETS == 3204u;
+    ok &= restore(ED_RK_PRESETS, 0, &o, 999, 1) == ED_OK && r_b() == ED_RS_COMMIT && r_b() == ED_RK_PRESETS &&
+          st_current(OBJ_UPRESET0 + 1u, &h) >= 0 && h.len == sizeof u && !memcmp(st_buf, &u, sizeof u) &&
+          preset_get(PRE_NFACT + 0u, &p) && p.model == 1u && preset_get(PRE_NFACT + 95u, &p) &&
+          !preset_get(PRE_NFACT + 1u, &p) && backup(0, (uint8_t *)&b) == (int)sizeof b && !memcmp(&b, &u, sizeof u);
+    f = upr_fx(PRE_NFACT + 95u);
+    ok &= f && !memcmp(f, u.s[95].f, UPR_NFX) && !upr_fx(PRE_NFACT + 0u) && upr.mv[3] == 1u &&
+          preset_rec_dec_in(PRE_REC_USER | 99u, PRE_UID, PRE_NFACT) == PRE_NFACT + 0u;
+    ok &= list() == 0 && L[0].present && L[0].size == ED_SZ_PRESETS;
+    check("RESTORE user presets: the UPR2 record written as sent (a voice-only slot, a slot with FX, the moves), the "
+          "user bank reloaded, listed, its backup = the bytes", (int)ok);
     u.s[4].used = 2;
     o.crc[0] = st_crc32(&u, sizeof u);
     ok = restore(ED_RK_PRESETS, 0, &o, 999, 1) == ED_E_REFUSED && rc_detail == ED_D_INVALID;
     u.s[4].used = 1;
     u.s[4].model = NMODELS;
     o.crc[0] = st_crc32(&u, sizeof u);
+    ok &= restore(ED_RK_PRESETS, 0, &o, 999, 1) == ED_E_REFUSED && rc_detail == ED_D_INVALID;
+    u.s[4].used = 0;
+    u.s[4].model = 0;
+    u.mv[5] = PRE_NUSER + 1u;
+    o.crc[0] = st_crc32(&u, sizeof u);
     ok &= restore(ED_RK_PRESETS, 0, &o, 999, 1) == ED_E_REFUSED && rc_detail == ED_D_INVALID && !ed_restoring() &&
-          upr.s[0].used == 1u && !upr.s[4].used;
-    check("RESTORE user presets refused: a slot neither used nor empty, a model past the table (rc 2 26)", (int)ok);
+          upr.s[0].used == (UPR_USED | UPR_VOICE) && !upr.s[4].used && !upr.mv[5];
+    check("RESTORE user presets refused: a slot neither used, voice only nor empty, a model past the table, a move "
+          "past the bank (rc 2 26)", (int)ok);
+    {                                                 /* an older UPR1 record: not this firmware's object */
+        static uint8_t old[UPR1_SIZE];
+        uint32_t m = UPR1_MAGIC;
+        memset(old, 0, sizeof old);
+        memcpy(old, &m, 4);
+        memset(&o, 0, sizeof o);
+        o.d[0] = old;
+        o.n[0] = sizeof old;
+        o.crc[0] = st_crc32(old, sizeof old);
+        ok = restore(ED_RK_PRESETS, 0, &o, 999, 1) == ED_E_REFUSED && rc_detail == ED_D_BAD_OBJECT && !ed_restoring();
+        check("RESTORE an older UPR1 record: refused (rc 2 24), the page converts it first", (int)ok);
+    }
 }
 
 static void t_old_record(void)
@@ -958,7 +988,7 @@ static void t_backup_cost(int print_only)
             a = instr_now();
             ok &= req(ED_BACKUP_GET) == 0u;
             c = instr_now() - a;
-            ok &= ed_unpack7(rp + 12, rp_n - 13u, out + off, ED_PIECE) > 0u;
+            ok &= ed_unpack7(erp + 12, rp_n - 13u, out + off, ED_PIECE) > 0u;
             if (!off) {
                 first += c;
                 nfirst++;

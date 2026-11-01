@@ -14,8 +14,8 @@ released yet are listed under Unreleased (the next version) and, for the version
     FM-1's own text. Both ways: turn a knob on the
     FM-1 and it moves in the page; move it in the page and the FM-1 plays it. Choosing a track in the page selects it
     on the FM-1, and the other way round.
-  - **Presets**: the 151 factory presets (MACHINEDRUM, MODERN, CLASSIC), loaded onto a track with a click. The 128
-    user presets as a list: rename, reorder, delete, save a track's sound into a slot, back up to a file, open a file
+  - **Presets**: the 151 factory presets (MACHINEDRUM, MODERN, CLASSIC), loaded onto a track with a click. The user
+    presets as a list: rename, reorder, delete, save a track's sound into a slot, back up to a file, open a file
     and write the list to the FM-1 (this one or another). The names live in the page and its files; the FM-1 keeps
     showing "MODEL NN".
   - **Projects**: A–D as saved, with unsaved changes marked. Back up a project (with its locks and variations) or
@@ -47,6 +47,15 @@ released yet are listed under Unreleased (the next version) and, for the version
 
 ## Unreleased
 
+- **Web editor: user presets with their FX.** The Presets page lists the 96 user slots; each preset is marked +FX
+  (it sets the track's FX when loaded) or SOUND (the sound only), and its FX button shows and edits the FX it holds
+  (sends, FILTER, INSERT, SRR, RESON) or switches them off. Save track N here takes the track's FX too, and loading a
+  user preset from the page sets them, as on the FM-1. Turning an FX knob in the page marks a track loaded from a +FX
+  preset as edited (`*`), as its own knobs do. Back up and Restore all keep the presets' FX. Preset files and backups
+  made by the editor before this change (128 presets, the sound only) still open and restore: the presets past 96 move
+  into the first empty slots, as the FM-1 moves its own, and the page says how many did not fit. Files made now say
+  they need this editor; an older editor refuses them. An FM-1 still on a firmware with 128 presets is read but not
+  written: the page asks you to update it first.
 - **USER presets keep the track's FX, in 96 slots (was 128).** SAVE in the PRESETS list now stores the track's sound
   and its FX: the DIST, CHO, DLY and REV sends, FILTER, INSERT, SRR and RESON, everything on the FX pages but the
   SLICER. Loading a USER preset (or trying one in the list) sets them all; LEVEL, PAN, NOTE, CHOKE, PRIO, the SLICER,
