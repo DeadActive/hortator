@@ -125,7 +125,13 @@ ALGORITHM picks the track anywhere. SELECT turns the pages of a section and move
 TRACKS mode it sets the tempo instead (`CLK USB` / `CLK TRS` when following a clock; GLOBAL 1/7 KNOB 1 sets it on any
 page). KNOB 1 to 4 edit what the screen shows. PRESETS loads the next / previous preset onto the selected track at
 each detent (a popup shows the bank and the presets around it); EDIT held opens the PRESETS list (LOAD, SAVE into the
-USER bank, DELETE). The SOUND pages show the track's preset, with `*` once a SOUND knob moved.
+USER bank, DELETE). A factory preset is the sound only (MODEL and the 8 SOUND knobs): loading one leaves the track's FX
+as they are. A USER preset (96 slots) keeps the sound and the track's FX: the DIST / CHO / DLY / REV sends, FILTER,
+INSERT, SRR and RESON, not the SLICER (nor LAYER, the LFOs, LEVEL, PAN, NOTE, CHOKE, PRIO or the steps); loading it
+sets them all. The SOUND pages show the track's preset, with `*` once a knob the preset holds moved (a SOUND knob; on a
+USER preset an FX knob too). USER presets saved by an earlier version (the voice only, up to 128) move into slots 1
+to 96 at the first start (those past 96 into the first empty slots; if all are full, the rest are lost and the screen
+says how many) and keep loading as the voice only.
 
 ### Mutes
 

@@ -148,6 +148,8 @@ static struct {
         uint8_t sv_model, sv_ed; /* .. that sound: MODEL, the 8 SOUND knobs (motion's base while it plays), the preset */
         uint16_t sv_pre;         /*    and its edited mark, put back unless LOAD keeps the audition */
         int16_t sv_k[8];
+        int8_t sv_f[UPR_NFX];    /* .. its FX (presets.c UPR_FX), put back when pv_fx: an audition changed them */
+        uint8_t pv_fx;
     } pr;
 } ui;
 

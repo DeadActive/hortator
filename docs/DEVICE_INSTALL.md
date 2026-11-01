@@ -985,3 +985,28 @@ headphones: 2 bars each ROOM, SPRNG, then HALL at SIZE 0 / 64 / 90 / 127, and 12
 - USB AUDIO 10 CH FX: with HALL, channels 9 and 10 carry its left and right (they differ).
 - CPU: HALL on a busy pattern with every send up: GLOBAL -> SYSTEM CPU about as with ROOM, no crackle. Bluetooth
   version too.
+
+### USER presets with FX, 96 slots (check on the FM-1)
+
+Before installing, on the old firmware: save a few USER presets, among them some in slots 97 to 128 (scroll the list
+past 96), and save a project with a track loaded from one of those (note its slot and sound).
+
+- First start: USER has 96 slots. Slots 1 to 96 hold what they held; the presets from 97 to 128 sit in the first
+  empty slots, named after the new slot (`K909 04`). No message unless all 96 were full: then `N PRESETS LOST`, once
+  (power off and on: not again).
+- LOAD the project: the track loaded from a moved preset shows its new name, the sound as saved. A track whose preset
+  was lost shows `PRESET -`, its sound unchanged.
+- A moved (old) preset loads the sound only: set FILTER LP, CUT low and an INSERT on a track, load it: the FILTER and
+  INSERT stay; turning CUT then leaves no `*`.
+- SAVE a track with FILTER, INSERT (e.g. FOLD), SRR, RESON STRNG and DLY / REV sends up, and a SLICER pattern. On
+  another track with other FX, LOAD it: the voice and every FX as saved (the INSERT fades in, no click), its own
+  SLICER, LEVEL, PAN, NOTE, CHOKE, LFOs untouched. Power off and on, LOAD again: the same.
+- Scrub the list over that USER preset and then a factory one: the FX follow the USER preset, then go back to the
+  track's own for the factory one; EDIT out of the list: the track's own sound and FX, exactly as before.
+- On a track loaded from a USER preset, turning CUT, an INSERT knob, a send or a RESON knob shows `*`; turning a
+  SLICER knob does not. On a factory preset only the SOUND knobs do, as before.
+- RESON on four other tracks: a USER preset with RESON loads with RESON OFF; a third CHORD loads as STRNG.
+- SAVE while playing with MOTION moving CUT: the preset holds CUT as you set it. LOAD while it plays: no click beyond
+  a voice change's; STOP: CUT the preset's.
+- Bluetooth version: the same, and the variations, the INSERTs and the TOOLS' copy still work (they share the memory
+  the USER bank moved into).

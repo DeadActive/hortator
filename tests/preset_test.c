@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE */
 /* Presets (spec docs/superpowers/specs/2026-10-19-presets-design.md, plan 2026-10-19-presets.md Task 2) on the host,
- * with the host flash: a preset is the voice only (MODEL + the 8 SOUND knobs), the banks' order and the step through
- * them (wrapping, empty user slots and a capped ACID skipped), the 128 user slots (save, load, delete, overwrite, the
- * flash record, the deferred save while playing, a power cut, MIDI LEARN's map untouched), no default choke (a MODEL
- * change or a load never touches CHOKE), the project's reference (FDRD, FDRC converted) and the edited mark. */
+ * with the host flash: a factory preset is the voice only (MODEL + the 8 SOUND knobs), a user preset the voice and the
+ * track's FX but the SLICER (2026-11-01), the banks' order and the step through them (wrapping, empty user slots and a
+ * capped ACID skipped), the 96 user slots (save, load, delete, overwrite, the flash record "UPR2", the deferred save
+ * while playing, a power cut, MIDI LEARN's map untouched, an older "UPR1" bank of 128 moved into 96), no default choke
+ * (a MODEL change or a load never touches CHOKE), the project's reference (FDRD, FDRC converted) and the edited mark. */
 #define FELUCCA_FLASH 1
 #include <stdint.h>
 static uint8_t hflash[0x100000];
@@ -62,6 +63,54 @@ static const char *name_of(uint32_t id)
     return b;
 }
 
+/* the FX a user preset holds (2026-11-01: every FX of the track but the SLICER), listed here on their own */
+static const uint8_t FXI[] = {P_DIST, P_CHOR, P_DLY, P_REV, P_RMODEL, P_RTUNE, P_RDECAY, P_RMIX, P_RTONE, P_RSTRCT,
+                              P_RPOS, P_RKEY, P_FTYPE, P_FCUT, P_FRESO, P_FENV, P_FDEC, P_ITYPE, P_IA, P_IB, P_IC,
+                              P_IMIX, P_SRR};
+#define NFXI (sizeof FXI)
+static int is_fx(uint32_t id)
+{
+    uint32_t i;
+    for (i = 0; i < NFXI; i++)
+        if (FXI[i] == id)
+            return 1;
+    return 0;
+}
+static void fx_fill(track_t *t, uint32_t seed)          /* each FX knob a value in its range, by seed (RESON: STRNG) */
+{
+    uint32_t i;
+    for (i = 0; i < NFXI; i++) {
+        const param_desc_t *d = &TP[FXI[i]];
+        t->p[FXI[i]] = (int16_t)(d->min + (int32_t)((seed * 13u + i * 29u + 5u) % (uint32_t)(d->max - d->min + 1)));
+    }
+    t->p[P_RMODEL] = RS_STRNG;
+}
+static int fx_same(const int16_t *a, const int16_t *b)   /* two tracks' p[]: the same FX */
+{
+    uint32_t i;
+    for (i = 0; i < NFXI; i++)
+        if (a[FXI[i]] != b[FXI[i]])
+            return 0;
+    return 1;
+}
+static int said(const char *m, uint32_t n)               /* the top bar shows m within n frames */
+{
+    while (n--) {
+        ui_frame();
+        if (ui.msg_t && !strcmp(ui.msg, m))
+            return 1;
+    }
+    return 0;
+}
+static int8_t slot_fx(uint32_t slot, uint32_t id)       /* user slot's stored FX knob id */
+{
+    uint32_t i;
+    for (i = 0; i < UPR_NFX; i++)
+        if (UPR_FX[i] == id)
+            return upr.s[slot].f[i];
+    return -128;
+}
+
 /* the banks (plan 2026-10-19-presets Task 5, tools/presets.json -> preset_bank.h): every voice's default = its first
  * preset (MATRX, CLTRX: none, their defaults kept); MACHINEDRUM 55, CLASSIC 56, MODERN 40; names unique, 1..8
  * characters; every knob within its model's range; at most 4 per voice, each in its voice's bank */
@@ -94,9 +143,9 @@ static void test_defaults_are_first_presets(void)
     for (i = 0; i < PRE_NFACT; i++)
         ok &= preset_get(i, &p) && preset_bank_of(i) == (i < 55u ? (uint32_t)PB_MD : i < 95u ? (uint32_t)PB_MODERN
                                                                                               : (uint32_t)PB_CLASSIC);
-    ok &= preset_bank_of(user_id(0)) == PB_USER && preset_bank_of(user_id(127)) == PB_USER &&
-          !preset_get(user_id(128), &p) && !preset_get(PRE_NONE, &p);
-    check("banks: MACHINEDRUM 55, MODERN 40, CLASSIC 56, then USER 128; a bad id: none", ok);
+    ok &= PRE_NUSER == 96u && preset_bank_of(user_id(0)) == PB_USER && preset_bank_of(user_id(95)) == PB_USER &&
+          preset_bank_of(user_id(96)) == PB_N && !preset_get(user_id(96), &p) && !preset_get(PRE_NONE, &p);
+    check("banks: MACHINEDRUM 55, MODERN 40, CLASSIC 56, then USER 96; a bad id: none", ok);
     for (i = 0, ok = 1; i < PRE_NFACT; i++) {
         uint32_t len = (uint32_t)strnlen(PRE_FACTORY[i].name, sizeof PRE_FACTORY[i].name);
         p = PRE_FACTORY[i];
@@ -141,6 +190,8 @@ static void test_load_sets_voice_only(void)
     trk[2].p[P_LFO1 + LF_DEST] = 2;
     trk[2].step[5].on = 1;
     trk[2].step[9].acc = 1;
+    fx_fill(&trk[2], 5);                               /* the FX a user preset would carry: a factory one keeps them */
+    trk[2].p[P_SLCR] = 1;
     before = trk[2];
     id = preset_first_of(DM_KTRX);
     ok = preset_load(&trk[2], id) == 0;
@@ -150,7 +201,8 @@ static void test_load_sets_voice_only(void)
         if (i < P_MODEL || i > P_E7)
             ok &= trk[2].p[i] == before.p[i];
     ok &= !memcmp(trk[2].step, before.step, sizeof before.step);
-    check("a load: MODEL + 8 knobs = the preset's; FILTER, LEVEL, PAN, CHOKE 3, NOTE, LFO, steps unchanged", ok);
+    check("a factory load: MODEL + 8 knobs = the preset's; FX (FILTER, INSERT, RESON, sends, SRR), SLICER, LEVEL, PAN, "
+          "CHOKE 3, NOTE, LFO, steps unchanged", ok);
     check("a bad id or an empty user slot: refused, nothing changes",
           preset_load(&trk[2], user_id(4)) == -1 && preset_load(&trk[2], PRE_NONE) == -1 && trk[2].pre == id &&
               knobs_are(&trk[2], &p));
@@ -246,51 +298,47 @@ static void test_user_save_load_delete(void)
     check("loads onto another track", preset_load(&trk[4], user_id(0)) == 0 && knobs_are(&trk[4], &p) &&
           trk[4].pre == user_id(0));
     drum_set_model(&trk[1], DM_SDTRX);
-    preset_user_save(98, &trk[1]);
-    preset_user_save(99, &trk[0]);
-    preset_user_save(127, &trk[1]);
-    check("names: \"SDTRX 99\", \"K909 100\", \"SDTRX128\" (8 characters at most)",
-          !strcmp(name_of(user_id(98)), "SDTRX 99") && !strcmp(name_of(user_id(99)), "K909 100") &&
-              !strcmp(name_of(user_id(127)), "SDTRX128"));
+    preset_user_save(93, &trk[1]);
+    preset_user_save(94, &trk[0]);
+    preset_user_save(95, &trk[1]);
+    check("names: \"SDTRX 94\", \"K909 95\", \"SDTRX 96\" (8 characters at most)",
+          !strcmp(name_of(user_id(93)), "SDTRX 94") && !strcmp(name_of(user_id(94)), "K909 95") &&
+              !strcmp(name_of(user_id(95)), "SDTRX 96"));
     drum_set_model(&trk[2], DM_KBOOM);                 /* the renamed models (owner, fixes 9): 4 characters, the space */
     drum_set_model(&trk[3], DM_XCTRX);
     preset_user_save(6, &trk[2]);
-    preset_user_save(100, &trk[2]);
-    preset_user_save(101, &trk[3]);
-    check("renamed models' slots: \"BOOM 07\", \"BOOM 101\", \"CGTRX102\"",
-          !strcmp(name_of(user_id(6)), "BOOM 07") && !strcmp(name_of(user_id(100)), "BOOM 101") &&
-              !strcmp(name_of(user_id(101)), "CGTRX102"));
+    preset_user_save(90, &trk[2]);
+    preset_user_save(91, &trk[3]);
+    check("renamed models' slots: \"BOOM 07\", \"BOOM 91\", \"CGTRX 92\"",
+          !strcmp(name_of(user_id(6)), "BOOM 07") && !strcmp(name_of(user_id(90)), "BOOM 91") &&
+              !strcmp(name_of(user_id(91)), "CGTRX 92"));
     preset_user_delete(6);
-    preset_user_delete(100);
-    preset_user_delete(101);
-    check("a slot out of range: refused", preset_user_save(128, t) == -1);
+    preset_user_delete(90);
+    preset_user_delete(91);
+    check("a slot out of range: refused", preset_user_save(96, t) == -1 && preset_user_save(128, t) == -1);
     preset_user_delete(0);
     check("DELETE: the slot empty, free again", !preset_get(user_id(0), &p) && preset_user_free() == 0);
     power_cycle();
     check("power cycle: still deleted, the others kept", !preset_get(user_id(0), &p) &&
-          preset_get(user_id(98), &p) && p.model == DM_SDTRX && preset_get(user_id(127), &p));
+          preset_get(user_id(93), &p) && p.model == DM_SDTRX && preset_get(user_id(95), &p));
     {
         uint32_t i;
         for (i = 0; i < PRE_NUSER; i++)
             preset_user_save(i, &trk[i & 7u]);
-        check("all 128 slots used: no free slot", preset_user_free() == -1);
+        check("all 96 slots used: no free slot", preset_user_free() == -1);
         power_cycle();
-        check("128 slots: all back after a power cycle", preset_user_free() == -1 && preset_get(user_id(127), &p) &&
+        check("96 slots: all back after a power cycle", preset_user_free() == -1 && preset_get(user_id(95), &p) &&
               p.model == (uint32_t)trk[7].p[P_MODEL]);
     }
 }
 
-typedef struct {
-    uint32_t magic;
-    struct { uint8_t used, model; int8_t k[8]; } s[PRE_NUSER];
-} upr_test_rec_t;
-static int flash_has(uint32_t slot)                   /* the user record in flash holds slot */
+static int flash_has(uint32_t slot)                   /* the user record in flash ("UPR2") holds slot */
 {
-    upr_test_rec_t r;
+    static upr_rec_t r;
     memset(&r, 0, sizeof r);
-    if (st_load(OBJ_UPRESET0 + 1u, &r, sizeof r) != (int)sizeof r || r.magic != 0x31525055u)
+    if (st_load(OBJ_UPRESET0 + 1u, &r, sizeof r) != (int)sizeof r || r.magic != 0x32525055u)
         return 0;
-    return r.s[slot].used == 1u;
+    return r.s[slot].used == 1u || r.s[slot].used == 3u;   /* (3: the voice only, moved from UPR1) */
 }
 static void learn_sectors(uint8_t *d) { memcpy(d, hflash + 0xDC000u, 0x2000u); }
 
@@ -304,7 +352,7 @@ static void test_user_save_deferred_and_cut(void)
     learn_save();
     learn_sectors(ml0);
     preset_user_save(0, &trk[0]);
-    check("saved while stopped: in flash at once (\"UPR1\" in its own object)", flash_has(0));
+    check("saved while stopped: in flash at once (\"UPR2\" in its own object)", flash_has(0));
     transport_req = 1;
     render_mix(0, 0, CTL * 4);
     check("(playing)", song.playing);
@@ -344,14 +392,19 @@ static void test_user_save_deferred_and_cut(void)
     check("power cycle: the learn map (2 entries) and the user bank (slots 2, 3) intact",
           ml_count() == 2u && preset_get(user_id(1), &p) && preset_get(user_id(2), &p) && p.model == DM_TOM);
     {
-        uint8_t junk[1284];
+        static uint8_t junk[sizeof(upr_rec_t)];
         uint32_t i;
         for (i = 0; i < sizeof junk; i++)
             junk[i] = (uint8_t)(i * 29u + 3u);
+        st_save(OBJ_UPRESET0 + 1u, junk, 1284u);
+        power_cycle();
+        check("another record in the object (UPR1's size): no user preset", preset_user_free() == 0 &&
+              !preset_get(user_id(1), &p) && ml_count() == 2u);
+        preset_user_save(1, &trk[3]);
         st_save(OBJ_UPRESET0 + 1u, junk, sizeof junk);
         power_cycle();
-        check("another record in the object: no user preset", preset_user_free() == 0 && !preset_get(user_id(1), &p) &&
-              ml_count() == 2u);
+        check("another record in the object (UPR2's size): no user preset", preset_user_free() == 0 &&
+              !preset_get(user_id(1), &p) && ml_count() == 2u);
     }
 }
 
@@ -633,6 +686,300 @@ static void test_bank_order_old_refs(void)
           ok && trk[6].p[P_E1] == 3);
 }
 
+
+/* 2026-11-01: a user preset holds the voice and the track's FX but the SLICER: the record "UPR2", 96 slots */
+static void test_record_layout(void)
+{
+    uint32_t i, j, ok = UPR_NFX == NFXI;
+    for (i = 0; ok && i < NFXI; i++) {
+        for (j = 0; j < UPR_NFX && UPR_FX[j] != FXI[i]; j++)
+            ;
+        ok &= j < UPR_NFX && TP[FXI[i]].min >= -128 && TP[FXI[i]].max <= 127;
+    }
+    check("the FX stored: DIST CHO DLY REV, RESON (MODEL TUNE DECAY MIX TONE STRCT POS KEYF), FILTER (TYPE CUT RESO ENV "
+          "DECAY), INSERT (TYPE A B C MIX), SRR; each fits a byte", ok);
+    check("not stored: SLICER, LAYER, LFOs and their DEST slots, LEVEL, PAN, NOTE, CHOKE, PRIO",
+          !is_fx(P_SLCR) && !is_fx(P_SLPAT) && !is_fx(P_LSET) && !is_fx(P_LFO1 + LF_DEST) && !is_fx(P_LS3DEST) &&
+              !is_fx(P_LEVEL) && !is_fx(P_PAN) && !is_fx(P_NOTE) && !is_fx(P_CHOKE) && !is_fx(P_PRIO));
+    check("the record: 4 + 96 x 33 + 32 = 3204 B, <= 3584 (one sector, below the loader's scan)",
+          sizeof(upr_rec_t) == 3204u && sizeof(upr_rec_t) <= 3584u && sizeof(upr_rec_t) <= ST_PAYLOAD_MAX &&
+              PRE_NUSER == 96u);
+}
+
+static void test_user_fx_round_trip(void)
+{
+    static int16_t want[P_COUNT];
+    track_t before, *u = &trk[2];
+    preset_t p;
+    uint32_t i, ok;
+    fresh();
+    fx_fill(&trk[1], 1);
+    trk[1].p[P_SLCR] = 2;
+    trk[1].p[P_LEVEL] = 50;
+    trk[1].p[P_E1] = 33;
+    memcpy(want, trk[1].p, sizeof want);
+    check("SAVE: the voice and the FX into the slot", preset_user_save(4, &trk[1]) == 0 && upr.s[4].used == 1u &&
+          slot_fx(4, P_FCUT) == trk[1].p[P_FCUT] && slot_fx(4, P_ITYPE) == trk[1].p[P_ITYPE] && flash_has(4));
+    fx_fill(u, 2);
+    u->p[P_SLCR] = 1;
+    u->p[P_LEVEL] = 77;
+    u->p[P_PAN] = -20;
+    u->p[P_NOTE] = 50;
+    u->p[P_CHOKE] = 3;
+    u->p[P_PRIO] = 1;
+    u->p[P_LFO1 + LF_DEST] = 2;
+    u->p[P_LS3DEST] = 4;
+    u->p[P_LSET] = 1;
+    before = *u;
+    ok = preset_load(u, user_id(4)) == 0 && preset_get(user_id(4), &p) && knobs_are(u, &p) && fx_same(u->p, want);
+    for (i = 0; i < P_COUNT; i++)
+        if ((i < P_MODEL || i > P_E7) && !is_fx(i))
+            ok &= u->p[i] == before.p[i];
+    check("a user load: the voice and the FX = the slot's; SLICER, LAYER, LFOs, slots, LEVEL, PAN, NOTE, CHOKE, PRIO "
+          "unchanged", ok && u->pre == user_id(4) && !u->pre_ed);
+    power_cycle();
+    fx_fill(&trk[3], 7);
+    check("power cycle: the FX back from flash, loaded onto another track", preset_load(&trk[3], user_id(4)) == 0 &&
+          fx_same(trk[3].p, want) && trk[3].p[P_E1] == 33 && trk[3].p[P_SLCR] == 0 && trk[3].p[P_LEVEL] != 50);
+}
+
+/* RESON's caps on a user load (as a project load: CHORD / MODAL over their cap STRNG, RESON past 4 tracks OFF) */
+static void test_user_fx_caps(void)
+{
+    uint32_t k;
+    fresh();
+    fx_fill(&trk[6], 3);
+    trk[6].p[P_RMODEL] = RS_CHORD;
+    preset_user_save(0, &trk[6]);
+    trk[6].p[P_RMODEL] = RS_OFF;
+    for (k = 0; k < 4u; k++)
+        trk[k].p[P_RMODEL] = RS_STRNG;
+    preset_load(&trk[7], user_id(0));
+    check("RESON on 4 other tracks: a user load leaves RESON OFF (the rest of its FX loaded)",
+          trk[7].p[P_RMODEL] == RS_OFF && trk[7].p[P_FCUT] == trk[6].p[P_FCUT]);
+    trk[0].p[P_RMODEL] = trk[1].p[P_RMODEL] = RS_CHORD;
+    trk[2].p[P_RMODEL] = trk[3].p[P_RMODEL] = RS_OFF;
+    preset_load(&trk[7], user_id(0));
+    check("CHORD on 2 other tracks: the preset's CHORD loads as STRNG", trk[7].p[P_RMODEL] == RS_STRNG);
+    trk[0].p[P_RMODEL] = trk[1].p[P_RMODEL] = RS_OFF;
+    preset_load(&trk[7], user_id(0));
+    check("room again: CHORD", trk[7].p[P_RMODEL] == RS_CHORD);
+}
+
+/* MOTION playing an FX knob: a user load makes the preset's value the knob's base (STOP keeps it); SAVE stores the
+ * base, not motion's value */
+static void test_user_fx_motion(void)
+{
+    track_t *t = &trk[0];
+    fresh();
+    trk[1].p[P_FCUT] = 30;
+    preset_user_save(2, &trk[1]);
+    t->p[P_FCUT] = 100;
+    motion_add(0, 0, P_FCUT, 10);
+    mo.b.on = 1u;
+    transport_req = 1;
+    render_mix(0, 0, CTL * 8);
+    check("(playing, motion moved CUT off its base)", song.playing && t->p[P_FCUT] == 10 && mo.base[0][P_FCUT] == 100);
+    preset_user_save(3, t);
+    check("SAVE while motion plays: CUT as set (100), not motion's 10", slot_fx(3, P_FCUT) == 100);
+    preset_load(t, user_id(2));
+    check("a user load while motion plays: CUT the preset's, and its base", t->p[P_FCUT] == 30 &&
+          mo.base[0][P_FCUT] == 30);
+    transport_req = 2;
+    render_mix(0, 0, CTL * 4);
+    check("STOP: CUT back to the base, the preset's", !song.playing && t->p[P_FCUT] == 30);
+    memset(&mo.b, 0, sizeof mo.b);
+}
+
+/* the PRESETS list: the audition of a user preset plays its FX too; a factory one after it the track's own; leaving the
+ * list puts the track's FX back; LOAD keeps them */
+static void test_user_fx_audition(void)
+{
+    static int16_t own[P_COUNT], up[P_COUNT];
+    track_t *t = &trk[0];
+    fresh();
+    track_select(0);
+    fx_fill(&trk[1], 1);
+    memcpy(up, trk[1].p, sizeof up);
+    preset_user_save(0, &trk[1]);
+    fx_fill(t, 9);
+    memcpy(own, t->p, sizeof own);
+    preset_list_open();
+    pl_move((int32_t)user_id(0));
+    check("the list's audition of a user preset: its voice and FX", ui.pr.pv && fx_same(t->p, up) &&
+          t->p[P_MODEL] == up[P_MODEL]);
+    pl_move(0);
+    check("then a factory preset: its voice, the track's own FX", fx_same(t->p, own) && t->pre == 0u);
+    pl_move((int32_t)user_id(0));
+    pl_close();
+    check("the list left (no LOAD): the track's own voice and FX back", !pl_on() && fx_same(t->p, own) &&
+          !memcmp(t->p, own, sizeof own));
+    preset_list_open();
+    pl_move((int32_t)user_id(0));
+    pl_load();
+    check("LOAD: the user preset's FX kept", !pl_on() && fx_same(t->p, up) && t->pre == user_id(0) && !t->pre_ed);
+}
+
+/* the edited mark: a track loaded from a user preset (it holds the FX) is edited by an FX knob too; from a factory
+ * preset (or an older user preset that holds no FX) by the SOUND knobs only */
+static void fx_page(uint32_t first)
+{
+    uint32_t n;
+    for (n = 0; n < 12u && (ui.home || cur_page()->fam != FAM_FX || page_id(cur_page(), 0) != first); n++)
+        open_family(FAM_FX);
+    frames(1);
+}
+static void test_edit_marks_fx(void)
+{
+    track_t *t = &trk[0];
+    fresh();
+    track_select(0);
+    t->p[P_FCUT] = 60;
+    t->p[P_SLCR] = 0;
+    preset_user_save(0, t);
+    preset_load(t, user_id(0));
+    fx_page(P_FTYPE);
+    turn(EN_K1 + 1, -3);                             /* FILTER CUT */
+    frames(1);
+    check("loaded from a user preset: FILTER CUT turned: edited", t->pre_ed && t->p[P_FCUT] != 60);
+    preset_load(t, user_id(0));
+    check("loaded again: not edited, CUT the preset's", !t->pre_ed && t->p[P_FCUT] == 60);
+    fx_page(P_SLCR);
+    turn(EN_K1 + 0, 1);                              /* SLICER: not in a preset */
+    frames(1);
+    check("SLICER turned: not edited", !t->pre_ed && t->p[P_SLCR] != 0);
+    fx_page(P_RMODEL);
+    turn(EN_K1 + 3, 2);                              /* RESON MIX */
+    frames(1);
+    check("RESON MIX turned: edited", t->pre_ed);
+    preset_load(t, user_id(0));
+    ml_set(t, P_DLY, 90);
+    check("a learned CC on DLY: edited", t->pre_ed);
+    preset_load(t, user_id(0));
+    ml_set(t, P_LEVEL, 10);
+    check("a learned CC on LEVEL: not edited", !t->pre_ed);
+    preset_load(t, preset_first_of((uint32_t)t->p[P_MODEL]));
+    fx_page(P_FTYPE);
+    turn(EN_K1 + 1, -3);
+    frames(1);
+    check("loaded from a factory preset: FILTER CUT turned: not edited", !t->pre_ed);
+    ml_set(t, P_DLY, 20);
+    check(".. a learned CC on DLY: not edited", !t->pre_ed);
+}
+
+/* an older bank ("UPR1": 128 slots, the voice only) at the first boot: slots 1..96 stay, 97..128's used ones move into
+ * the lowest empty slots (named by their new slot), what cannot fit is dropped and said once; they all load as the
+ * voice only (the track's FX kept); projects' references follow the moves */
+typedef struct {
+    uint32_t magic;
+    struct { uint8_t used, model; int8_t k[8]; } s[128];
+} upr1_t;
+static upr1_t u1;
+static void u1_use(uint32_t i)                       /* old slot i: a K909, DECAY = i (its mark) */
+{
+    uint32_t k;
+    u1.s[i].used = 1;
+    u1.s[i].model = DM_K909;
+    for (k = 0; k < 8u; k++)
+        u1.s[i].k[k] = (int8_t)DMODELS[DM_K909].edit[k].def;
+    u1.s[i].k[1] = (int8_t)i;
+}
+static void u1_put(void)
+{
+    u1.magic = 0x31525055u;
+    check("(the UPR1 record: 1284 B)", sizeof u1 == 1284u && st_save(OBJ_UPRESET0 + 1u, &u1, sizeof u1) == 0);
+}
+static int slot_is_old(uint32_t slot, uint32_t old)  /* user slot holds old slot `old`, the voice only */
+{
+    preset_t p;
+    return preset_get(user_id(slot), &p) && p.model == DM_K909 && p.k[1] == (int8_t)old && upr.s[slot].used == 3u;
+}
+static void test_migrate_fits(void)
+{
+    static const uint32_t OLD[6] = {0, 2, 5, 96, 100, 127};
+    static int16_t own[P_COUNT];
+    uint32_t i, ok;
+    preset_t p;
+    fresh();
+    memset(&u1, 0, sizeof u1);
+    for (i = 0; i < 6u; i++)
+        u1_use(OLD[i]);
+    u1.s[50].used = 1;                               /* a broken slot (no such model): empty */
+    u1.s[50].model = 200;
+    u1_put();
+    power_cycle();
+    ok = slot_is_old(0, 0) && slot_is_old(2, 2) && slot_is_old(5, 5) && slot_is_old(1, 96) && slot_is_old(3, 100) &&
+         slot_is_old(4, 127) && !preset_get(user_id(50), &p) && preset_user_free() == 6;
+    check("UPR1 migrated: 1..96 kept; 97, 101, 128 into the lowest empty slots (2, 4, 5); a broken slot empty", ok);
+    check("their names follow the new slot (\"K909 02\", \"K909 05\")", !strcmp(name_of(user_id(1)), "K909 02") &&
+          !strcmp(name_of(user_id(4)), "K909 05"));
+    check("nothing dropped: no PRESETS LOST", !said("1 PRESET LOST", 120) && !(persist_note & PN_UPR));
+    check("written as UPR2 at once", flash_has(1) && flash_has(4) && !flash_has(6));
+    check("project references follow: old 101 -> 4, 97 -> 2, 128 -> 5, 6 stays, an empty old 98 -> none, 129 -> none",
+          preset_rec_dec(0x8000u | 100u) == user_id(3) && preset_rec_dec(0x8000u | 96u) == user_id(1) &&
+              preset_rec_dec(0x8000u | 127u) == user_id(4) && preset_rec_dec(0x8000u | 5u) == user_id(5) &&
+              preset_rec_dec(0x8000u | 97u) == PRE_NONE && preset_rec_dec(0x8000u | 128u) == PRE_NONE);
+    fx_fill(&trk[2], 4);
+    memcpy(own, trk[2].p, sizeof own);
+    check("a migrated preset loads as the voice only: the track's FX kept", preset_load(&trk[2], user_id(3)) == 0 &&
+          trk[2].p[P_E1] == 100 && fx_same(trk[2].p, own));
+    track_select(2);
+    fx_page(P_FTYPE);
+    turn(EN_K1 + 1, -3);
+    frames(1);
+    check(".. its FX turned: not edited (it holds none)", !trk[2].pre_ed);
+    for (i = 0; i < NTRK; i++)                       /* a project saved before: old slots 101 and 98, 6 */
+        drum_set_model(&trk[i], DM_K909);
+    project_save(1);
+    proj_slot[1].pre[3] = 0x8000u | 100u;
+    proj_slot[1].pre[4] = 0x8000u | 97u;
+    proj_slot[1].pre[5] = 0x8000u | 5u;
+    proj_slot[1].sum = proj_sum(&proj_slot[1]);
+    check("a project of the older bank loads (from RAM)", proj_load(1, 1) == 1);
+    check(".. its tracks on the moved slot (old 101: \"K909 04\"), none (old 98, empty), 6 as it was",
+          trk[3].pre == user_id(3) && !strcmp(name_of(preset_of(&trk[3])), "K909 04") && trk[4].pre == PRE_NONE &&
+              trk[5].pre == user_id(5));
+    power_cycle();
+    check("power cycle: the moves kept (no second migration), references still follow",
+          slot_is_old(1, 96) && slot_is_old(4, 127) && preset_rec_dec(0x8000u | 100u) == user_id(3) &&
+              preset_user_free() == 6);
+    fx_fill(&trk[1], 2);
+    preset_user_save(1, &trk[1]);
+    check("a new SAVE over a migrated slot holds the FX", upr.s[1].used == 1u && slot_fx(1, P_FCUT) == trk[1].p[P_FCUT]);
+}
+static void test_migrate_overflow(void)
+{
+    uint32_t i;
+    preset_t p;
+    fresh();
+    memset(&u1, 0, sizeof u1);
+    for (i = 0; i < 101u; i++)                       /* 1..96 used but 11 and 21; 97..101 used */
+        if (i != 10u && i != 20u)
+            u1_use(i);
+    u1_put();
+    power_cycle();
+    check("a full older bank: 97 and 98 into 11 and 21, 99..101 dropped, every slot used",
+          slot_is_old(10, 96) && slot_is_old(20, 97) && preset_user_free() == -1 && slot_is_old(95, 95));
+    check("said once: 3 PRESETS LOST", said("3 PRESETS LOST", 200));
+    check("references: old 98 -> 21, a dropped one (99) -> none", preset_rec_dec(0x8000u | 97u) == user_id(20) &&
+          preset_rec_dec(0x8000u | 98u) == PRE_NONE && preset_rec_dec(0x8000u | 100u) == PRE_NONE);
+    power_cycle();
+    check("power cycle: not said again, the bank as migrated", !said("3 PRESETS LOST", 200) &&
+          slot_is_old(20, 97) && preset_get(user_id(95), &p));
+    memset(&u1, 0, sizeof u1);
+    u1_use(97);
+    u1_use(110);
+    u1_put();
+    power_cycle();
+    check("an older bank with only 98 and 111: into slots 1 and 2", slot_is_old(0, 97) && slot_is_old(1, 110));
+    memset(&u1, 0, sizeof u1);
+    for (i = 0; i < 97u; i++)
+        u1_use(i);
+    u1_put();
+    power_cycle();
+    check("one dropped: \"1 PRESET LOST\"", said("1 PRESET LOST", 200));
+}
+
 int main(void)
 {
     test_defaults_are_first_presets();
@@ -650,6 +997,14 @@ int main(void)
     test_save_during_lock();
     test_edit_marks();
     test_bank_order_old_refs();
+    test_record_layout();
+    test_user_fx_round_trip();
+    test_user_fx_caps();
+    test_user_fx_motion();
+    test_user_fx_audition();
+    test_edit_marks_fx();
+    test_migrate_fits();
+    test_migrate_overflow();
     printf(fails ? "preset_test: %d FAILED\n" : "preset_test: all passed\n", fails);
     return fails ? 1 : 0;
 }

@@ -376,7 +376,7 @@ const words = html => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#8209;/g, '
 test('the engine count is the firmware\'s, in the hero and the voices chapter: 45 in three banks, MD first', () => {
   assert.deepEqual([FW.names.length, FW.md.length, FW.trx.length, FW.efm.length, FW.modern.length, FW.classic.length],
     [45, 21, 13, 8, 10, 14], 'the firmware changed: update the page and this line');
-  assert.deepEqual([FW.factory, FW.user, FW.mdPresets], [151, 128, 55]);
+  assert.deepEqual([FW.factory, FW.user, FW.mdPresets], [151, 96, 55]);
   const hero = words(LANDING.slice(LANDING.indexOf('id="hero-copy"'), LANDING.indexOf('id="scroll-cue"')));
   assert.match(hero, new RegExp(`\\b${FW.names.length} (drum |sound )?engines\\b`), 'the hero tells the count');
   assert.match(hero, new RegExp(`\\b${FW.md.length}\\b[^.]*Machinedrum`), 'and the MD bank\'s');

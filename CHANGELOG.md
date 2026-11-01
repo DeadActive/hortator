@@ -5,6 +5,19 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **USER presets keep the track's FX, in 96 slots (was 128).** SAVE in the PRESETS list now stores the track's sound
+  and its FX: the DIST, CHO, DLY and REV sends, FILTER, INSERT, SRR and RESON, everything on the FX pages but the
+  SLICER. Loading a USER preset (or trying one in the list) sets them all; LEVEL, PAN, NOTE, CHOKE, PRIO, the SLICER,
+  LAYER, the LFOs and the steps stay as they are. RESON keeps its limits: on a fifth track it stays OFF, a third CHORD
+  or MODAL becomes STRNG. Factory presets still change only the sound, the track's FX stay. On a track loaded from a
+  USER preset, turning an FX knob marks the preset edited (`*`) as a SOUND knob does. **To make room the USER bank has
+  96 slots now.** Your presets move over at the first start: slots 1 to 96 stay where they are, used slots 97 to 128
+  move into the first empty slots (and are named after their new slot); only if all 96 are full are the rest lost,
+  and the screen says how many once (`3 PRESETS LOST`). Projects that used a moved preset find it in its new slot; one
+  that used a lost preset shows `PRESET -` with its sound unchanged. Presets saved before this version hold no FX:
+  they keep loading as the sound only until you save over them. An earlier firmware shows the new USER bank empty, and
+  a preset saved there replaces the whole bank.
+
 - **REPEAT STEP on the PERFORM keys (replaces the track mutes there).** With FX held (or on the PERFORM page), the
   white keys F3 to F4 no longer mute tracks 1 to 8: holding one makes that track repeat the step it was on, again and
   again, while its own steps pause; let go and its pattern carries on in time. The repeat plays the step's note, loud

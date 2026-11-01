@@ -60,6 +60,8 @@ static uint8_t persist_note;
 static uint8_t lk_lost;                             /* project.c: slots whose lock bank was lost (LOCKS LOST, once) */
 #define PN_VARS 32u                                 /* a slot's variations lost (spec 2026-10-26 cue / variations) */
 static uint8_t var_lost;                            /* project.c: slots whose variations were lost (VARIATIONS LOST) */
+#define PN_UPR 64u                                  /* an older user bank moved into 96 slots dropped some (2026-11-01) */
+static uint8_t upr_lost;                            /* project.c upr_migrate: how many (N PRESETS LOST, once) */
 static void persist_note_show(void)                 /* every frame: with no message up, the lowest note's, once */
 {
     if (!persist_note || ui.msg_t)
@@ -83,6 +85,18 @@ static void persist_note_show(void)                 /* every frame: with no mess
         if (var_lost)
             ui_message("VARIATIONS LOST");
         var_lost = 0;
+    } else if (persist_note & PN_UPR) {             /* "3 PRESETS LOST", "1 PRESET LOST" */
+        char nb[4];
+        uint32_t n = 0;
+        persist_note &= (uint8_t)~PN_UPR;
+        if (upr_lost >= 100u)
+            nb[n++] = (char)('0' + upr_lost / 100u);
+        if (upr_lost >= 10u)
+            nb[n++] = (char)('0' + upr_lost / 10u % 10u);
+        nb[n++] = (char)('0' + upr_lost % 10u);
+        nb[n] = 0;
+        ui_say(nb, upr_lost == 1u ? " PRESET LOST" : " PRESETS LOST");
+        upr_lost = 0;
     } else {
         persist_note &= (uint8_t)~PN_USR3F;
         ui_message("USR3 CLAMP FAILED");
@@ -121,7 +135,7 @@ static uint32_t oct_leds(void)
     if (name_on())
         return OCT_LIT_DN | OCT_BR_UP;
     if (pl_on())
-        return OCT_BR_UP | (preset_bank_of(ui.pr.cur) == PB_USER && upr.s[ui.pr.cur - PRE_NFACT].used == 1u ? OCT_BR_DN
+        return OCT_BR_UP | (preset_bank_of(ui.pr.cur) == PB_USER && upr_used(ui.pr.cur - PRE_NFACT) ? OCT_BR_DN
                                                                                                           : 0u);
     if (ui.confirm)
         return OCT_LIT_DN | OCT_BR_UP;
@@ -592,8 +606,9 @@ static void edit_param(uint32_t slot, int32_t steps)
         }
     }
 
-    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT && PRE_SOUND(vp - TSEL->p) && v != *vp)
-        preset_touch(TSEL);                           /* presets.c: the voice edited (not a turn at its limit) */
+    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT && preset_marks(TSEL, (uint32_t)(vp - TSEL->p)) &&
+        v != *vp)
+        preset_touch(TSEL);                           /* presets.c: the preset edited (not a turn at its limit) */
     *vp = (int16_t)v;
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
         motion_capture(TSEL, (uint32_t)(vp - TSEL->p));   /* motion.c: recorded when armed and playing */

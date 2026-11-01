@@ -609,7 +609,7 @@ test('lab ids: the models by their shown names, each in its bank, the MODEL list
   assert.deepEqual([0, 1, 2].map(b => banks.filter(x => x === b).length), [21, 10, 14]);
   assert.deepEqual(banks, [...banks].sort((a, b) => a - b), 'the list runs bank by bank');
   assert.equal(ids.models[ids.list[0]].name, 'BDTRX');
-  assert.deepEqual([ids.presets.factory, ids.presets.user], [151, 128]);
+  assert.deepEqual([ids.presets.factory, ids.presets.user], [151, 96]);
   for (const f of readdirSync('web/sim').filter(f => f.endsWith('.js')))
     for (const [, n] of readFileSync(`web/sim/${f}`, 'utf8').matchAll(/\bDM\.(\w+)/g))
       assert.ok(n in ids.DM, `${f}: DM.${n} is not a model`);
