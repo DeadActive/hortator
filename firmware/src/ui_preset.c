@@ -9,14 +9,16 @@
  * EDIT held PP_HOLD_MS (as GLO_HOLD_MS): the PRESETS list. The press still acts at once, as a tap (SOUND, its next
  * page); the hold puts the page before the press back under the list. Step record keeps EDIT for its rest (no list);
  * while MIDI LEARN is on the hold does nothing (the list would end LEARN: ui_learn.c ml_guard).
- * The list: every preset by bank (MACHINEDRUM, MODERN, CLASSIC, USER with its 128 slots, empty ones too), the track's
+ * The list: every preset by bank (MACHINEDRUM, MODERN, CLASSIC, USER with its 96 slots, empty ones too), the track's
  * own marked. KNOB 1 / PRESETS the cursor, KNOB 2 / SELECT the bank (its first), ALGORITHM / a white key the track (the
  * keys play, as on HOME). Each cursor move auditions the preset under it (owner, 2026-10-19): the track takes its MODEL
- * and 8 knobs for now and is hit once (its key and the pattern play it too; an empty slot or a capped ACID: said, the
- * last audition kept); OCT+ LOAD keeps it and closes the list; any other way out (EDIT, HOME) puts the track's own sound
- * back (MODEL, knobs, preset, its edited mark), as another track picked in the list does before that one auditions.
- * SAVE: the track's own sound (not the audition) into the user slot under the cursor (a used one: SAVE again within
- * PP_ARM_MS saves over it), elsewhere into the first free one; OCT- DELETE a used user slot (OCT- again); PLAY plays.
+ * and 8 knobs for now, a user preset's FX too (a factory one: the track's own FX), and is hit once (its key and the
+ * pattern play it too; an empty slot or a capped ACID: said, the last audition kept); OCT+ LOAD keeps it and closes the
+ * list; any other way out (EDIT, HOME) puts the track's own sound back (MODEL, knobs, FX, preset, its edited mark), as
+ * another track picked in the list does before that one auditions.
+ * SAVE: the track's own sound and FX (not the audition) into the user slot under the cursor (a used one: SAVE again
+ * within PP_ARM_MS saves over it), elsewhere into the first free one; OCT- DELETE a used user slot (OCT- again); PLAY
+ * plays.
  * A save while playing is in the list at once, in flash at the next STOP (project.c). */
 #define PP_HOLD_MS GLO_HOLD_MS                          /* EDIT held: the list */
 #define PP_SHOW_MS 1500u                                /* the popup after the last detent */
@@ -67,12 +69,15 @@ static void pl_restore(void)
     if (!ui.pr.pv)
         return;
     ui.pr.pv = 0;
-    preset_put(&trk[ui.pr.pv_trk % NTRK], ui.pr.sv_model, ui.pr.sv_k, ui.pr.sv_pre, ui.pr.sv_ed);
+    preset_put(&trk[ui.pr.pv_trk % NTRK], ui.pr.sv_model, ui.pr.sv_k, ui.pr.sv_pre, ui.pr.sv_ed,
+               ui.pr.pv_fx ? ui.pr.sv_f : 0);
+    ui.pr.pv_fx = 0;
 }
 
 /* the preset under the cursor on the selected track for now: MODEL and the 8 knobs as a load (presets.c preset_apply:
- * the audio IRQ off, another voice cut first, motion's base follows), the track's own sound kept first (the knobs as
- * motion's base while it plays: what SAVE stores). hit 1: hit once at its NOTE, velocity 100, as its key (no MIDI, no
+ * the audio IRQ off, another voice cut first, motion's base follows), a user preset's FX (preset_fx_put; a factory one
+ * after it: the track's own FX back), the track's own sound kept first (the knobs as motion's base while it plays: what
+ * SAVE stores). hit 1: hit once at its NOTE, velocity 100, as its key (no MIDI, no
  * recording); 2: only if the audio IRQ already played white key `key` (seq.c keyboard_block: else that press plays the
  * audition itself). Refused (an empty slot, a capped ACID): said, the track as it is */
 static void pl_audition(uint32_t hit, uint32_t key)
@@ -80,6 +85,7 @@ static void pl_audition(uint32_t hit, uint32_t key)
     track_t *t = TSEL;
     uint32_t k = song.sel, i;
     preset_t p;
+    const int8_t *f = upr_fx(ui.pr.cur);
     if (ui.pr.pv && ui.pr.pv_trk != k)
         pl_restore();                                  /* (the track changed elsewhere) */
     if (!preset_ok(t, ui.pr.cur, &p)) {
@@ -93,12 +99,19 @@ static void pl_audition(uint32_t hit, uint32_t key)
         ui.pr.sv_model = (uint8_t)t->p[P_MODEL];
         for (i = 0; i < 8u; i++)
             ui.pr.sv_k[i] = motion_rest(k, P_E0 + i);   /* (motion's base, a lock's value under it) */
+        for (i = 0; i < UPR_NFX; i++)
+            ui.pr.sv_f[i] = (int8_t)motion_rest(k, UPR_FX[i]);
+        ui.pr.pv_fx = 0;
         ui.pr.sv_pre = t->pre;
         ui.pr.sv_ed = t->pre_ed;
     }
     preset_apply(t, &p, ui.pr.cur);                    /* (another voice: no full redraw, the list is its own
                                                         * screen; its pages are drawn anew as it closes) */
     motion_rebase(k);
+    if (f || ui.pr.pv_fx) {
+        preset_fx_put(t, f ? f : ui.pr.sv_f);          /* (a factory preset after a user one: the track's own FX) */
+        ui.pr.pv_fx = f != 0;
+    }
     if (hit == 1u || (hit == 2u && ((kb_prev >> key) & 1u)))
         drum_hit(t, 100u);
     fm1_irq_on();
@@ -236,7 +249,7 @@ static void pl_save(void)
     char nb[9];
     if (preset_bank_of(ui.pr.cur) == PB_USER) {
         slot = ui.pr.cur - PRE_NFACT;
-        if (upr.s[slot].used == 1u && !pl_armed(1u)) {
+        if (upr_used(slot) && !pl_armed(1u)) {
             pl_arm(1u);
             return;
         }
@@ -273,7 +286,7 @@ static void pl_delete(void)
         ui_message("ONLY USER PRESETS");
         return;
     }
-    if (upr.s[slot].used != 1u) {
+    if (!upr_used(slot)) {
         ui.pr.arm = 0;
         ui_message("EMPTY SLOT");
         return;
@@ -421,7 +434,7 @@ static void draw_plist(void)
     uint32_t i, top, bank = preset_bank_of(ui.pr.cur) % PB_N, sig, used, own = pl_own();
     int32_t x;
     top = (uint32_t)clamp((int32_t)ui.pr.cur - 3, 0, (int32_t)(PRE_NID - PL_ROWS));
-    used = bank == PB_USER && upr.s[ui.pr.cur - PRE_NFACT].used == 1u;
+    used = bank == PB_USER && upr_used(ui.pr.cur - PRE_NFACT);
     sig = 37199u + ui.pr.cur * 31u + song.sel * 7919u + own * 131u + ui.pr.arm * 104729u + used * 3u +
           (ui.msg_t ? str_hash(5u, ui.msg) : 0u);
     for (i = 0; i < PL_ROWS; i++) {

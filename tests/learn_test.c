@@ -772,12 +772,12 @@ static void test_storage(void)
         r.e[7] = (ml_ent_t){20, 0, ML_A_PLAY, ML_CC};         /* PLAY twice */
         r.e[8] = (ml_ent_t){0, 0, ML_A_REC, ML_CC};           /* CC0 */
         r.e[9] = (ml_ent_t){36, 0, ML_A_MAC + 1u, ML_CC};     /* good: CC36 (not NOTE36) -> CRUSH */
-        r.e[31] = (ml_ent_t){37, 0, ML_A_FX + PF_M1 + 7u, ML_NOTE};   /* good: the last entry, T8's mute */
+        r.e[31] = (ml_ent_t){37, 0, ML_A_FX + PF_T1 + 7u, ML_NOTE};   /* good: the last entry, T8 REPEAT STEP */
         st_save(OBJ_UPRESET0, &r, sizeof r);
         power_cycle();
         check("version 2: broken entries dropped, the good ones kept (the 32nd too)", count() == 3u &&
               ml_src_of(0, ML_A_PLAY) == (ML_NOTE << 8 | 36u) + 1u && ml_src_of(0, ML_A_MAC + 1u) == 37u &&
-              ml_src_of(0, ML_A_FX + PF_M1 + 7u) == (ML_NOTE << 8 | 37u) + 1u);
+              ml_src_of(0, ML_A_FX + PF_T1 + 7u) == (ML_NOTE << 8 | 37u) + 1u);
     }
     memset(hflash, 0xFF, sizeof hflash);
     learn_toggle();
@@ -824,7 +824,7 @@ static void fx_key(uint32_t key)                     /* FX held, a key tapped, F
     ui_frame();
 }
 #define KEY_GS3 3u                                   /* G#3: the second black key, REPEAT 1/16 */
-#define KEY_A3 4u                                    /* A3: the third white key, track 3's mute */
+#define KEY_A3 4u                                    /* A3: the third white key, track 3's REPEAT STEP */
 #define KEY_D4 10u                                   /* D#4: TAPE */
 static void test_act_learn(void)
 {
@@ -886,10 +886,10 @@ static void test_act_learn(void)
     send_cc(22, 0);
     check("(its release after: nothing held)", !perf_held);
     fx_key(KEY_A3);
-    check("FX held + A3: FX MUTE T3 picked, T3 not muted", ui.ml.act == ML_A_FX + PF_M1 + 2u && !perf_held);
+    check("FX held + A3: FX RPT T3 picked, T3 not repeating", ui.ml.act == ML_A_FX + PF_T1 + 2u && !perf_held);
     send_note(41, 100);
-    check("NOTE41 -> FX MUTE T3", ml_src_of(0, ML_A_FX + PF_M1 + 2u) == SRC_NOTE(41u) &&
-          same(ui.msg, "NOTE41 -> FX MUTE T3"));
+    check("NOTE41 -> FX RPT T3", ml_src_of(0, ML_A_FX + PF_T1 + 2u) == SRC_NOTE(41u) &&
+          same(ui.msg, "NOTE41 -> FX RPT T3"));
     usb_noff(0, 41);
     frames(1);
     press(B_FX);
@@ -966,7 +966,7 @@ static void test_act_learn(void)
     check("(let go: nothing held)", !perf_held);
 }
 
-/* bindings made directly: NOTE36 PLAY, CC20 REC, CC21 NEXT, NOTE40 PREV, CC22 R1/16, NOTE41 T3's mute, CC23 FILTER,
+/* bindings made directly: NOTE36 PLAY, CC20 REC, CC21 NEXT, NOTE40 PREV, CC22 R1/16, NOTE41 T3's REPEAT STEP, CC23 FILTER,
  * CC24 THROW, CC25 PLAY (a second test) */
 static void act_map(void)
 {
@@ -975,7 +975,7 @@ static void act_map(void)
     ml_bind(21, 0, ML_A_NEXT);
     ml_bind(ML_NOTE << 8 | 40u, 0, ML_A_PREV);
     ml_bind(22, 0, ML_A_FX + PF_R16);
-    ml_bind(ML_NOTE << 8 | 41u, 0, ML_A_FX + PF_M1 + 2u);
+    ml_bind(ML_NOTE << 8 | 41u, 0, ML_A_FX + PF_T1 + 2u);
     ml_bind(23, 0, ML_A_MAC);
     ml_bind(24, 0, ML_A_MAC + 2u);
 }
@@ -1048,8 +1048,10 @@ static void test_act_trigger(void)
           ((perf_act >> PF_R16) & 1u));
     send_cc(22, 0);
     check("CC22 < 64: let go", !perf_held);
+    a = hit_age(&trk[2]);
     send_note(41, 100);
-    check("NOTE41: T3 muted while held", perf_held == PF_BIT(PF_M1 + 2u));
+    check("NOTE41: T3 repeats its step while held (the id once T3's mute)", perf_held == PF_BIT(PF_T1 + 2u) &&
+          ML_A_FX + PF_T1 + 2u == 0x9Cu && hit_age(&trk[2]) != a);
     usb_noff(0, 41);
     frames(2);
     check("its note off: open again", !perf_held);
@@ -1144,7 +1146,7 @@ static void test_act_render(void)
 {
     static const uint8_t KEY[3] = {KEY_GS3, KEY_A3, KEY_D4};
     static const char *const WHAT[3] = {"REPEAT 1/16 held by a CC renders bit for bit as its key",
-                                        "T3's mute held by a note: as its key", "TAPE held by a CC: as its key"};
+                                        "T3's REPEAT STEP held by a note: as its key", "TAPE held by a CC: as its key"};
     uint32_t i;
     for (i = 0; i < 3u; i++) {
         act_render(0, KEY[i], 0, AL, AR);

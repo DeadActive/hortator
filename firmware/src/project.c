@@ -1862,10 +1862,12 @@ static void learn_save(void)
 }
 
 /* the user presets (presets.c upr): their own flash object OBJ_UPRESET0 + 1 (storage.c's second user-preset object,
- * unused before; 0xDE000..0xDFFFF; MIDI LEARN's map keeps OBJ_UPRESET0): "UPR1", 128 slots {used, model, k[8]} (1284 B).
- * Another record there (none, Felucca's presets, another version) reads as no user preset; a slot that is not used 1
- * or names no model is empty, its knobs are put inside the model's ranges. A storage.c save is two copies and a commit
- * record: a power cut keeps the last record whole */
+ * unused before; 0xDE000..0xDFFFF; MIDI LEARN's map keeps OBJ_UPRESET0): "UPR2", 96 slots {used, model, k[8], f[23]}
+ * and UPR1's moves mv[32] (3204 B). "UPR1" (0.20.0 .. 2026-11-01: 128 slots {used, model, k[8]}, 1284 B) is moved into
+ * it at boot (preset_user_boot) and written at once. Another record there (none, Felucca's presets, another version)
+ * reads as no user preset; a slot that is not used 1 / 3 or names no model is empty, its knobs are put inside the
+ * model's ranges, its FX inside theirs. A storage.c save is two copies and a commit record: a power cut keeps the last
+ * record whole */
 static void upr_write(void)                         /* the bank to flash: now when stopped, else at the next STOP */
 {
     if (transport_busy()) {
@@ -1881,9 +1883,9 @@ static void upr_write(void)                         /* the bank to flash: now wh
         ui_message("SAVE ERROR");
 #endif
 }
-/* t's voice into user slot (0..127, over what it holds): in the list at once, in flash as upr_write. 0, -1 a bad slot.
- * The knobs as set: while MOTION plays the track, its base (motion.c), not the value motion moved a knob to. The track
- * is not changed (the caller points its reference at PRE_NFACT + slot) */
+/* t's voice and FX (presets.c UPR_FX) into user slot (0..95, over what it holds): in the list at once, in flash as
+ * upr_write. 0, -1 a bad slot. The knobs as set: while MOTION plays the track, its base (motion.c), not the value motion
+ * moved a knob to. The track is not changed (the caller points its reference at PRE_NFACT + slot) */
 static int preset_user_save(uint32_t slot, const track_t *t)
 {
     static int16_t kv[P_COUNT];                     /* (static: off the main path's deepest stack) */
@@ -1898,31 +1900,82 @@ static int preset_user_save(uint32_t slot, const track_t *t)
 }
 static void preset_user_delete(uint32_t slot)       /* user slot emptied (tracks loaded from it keep their knobs) */
 {
-    if (slot >= PRE_NUSER || upr.s[slot].used != 1u || ui_locked())
+    if (slot >= PRE_NUSER || !upr_used(slot) || ui_locked())
         return;
     memset(&upr.s[slot], 0, sizeof upr.s[slot]);
     upr_write();
 }
+#if FELUCCA_FLASH
+/* an older bank (o: UPR1's payload) into upr (cleared): slots 1..96 where they were, the used ones of 97..128 into the
+ * lowest empty slots (upr.mv: where each went, projects' references follow; named by the new slot, presets.c
+ * upr_name), what finds none dropped (upr_lost: N PRESETS LOST, once). Each the voice only (UPR_VOICE: it never held
+ * FX, it loads as a factory preset does; its f[] the FX's power-on values) */
+static void upr_migrate(const uint8_t *o)
+{
+    uint32_t i, j, k, to = 0;
+    for (i = 0; i < UPR_NOLD; i++) {
+        const uint8_t *q = o + 4u + 10u * i;          /* {used, model, k[8]} */
+        upr_slot_t *u;
+        if (q[0] != 1u || q[1] >= NMODELS)
+            continue;
+        if (i < PRE_NUSER) {
+            j = i;
+        } else {
+            while (to < PRE_NUSER && upr_used(to))     /* (1..96 placed first: theirs are taken) */
+                to++;
+            if (to >= PRE_NUSER) {
+                if (upr_lost < 255u)
+                    upr_lost++;
+                continue;
+            }
+            j = to;
+            upr.mv[i - PRE_NUSER] = (uint8_t)(j + 1u);
+        }
+        u = &upr.s[j];
+        u->used = UPR_USED | UPR_VOICE;
+        u->model = q[1];
+        for (k = 0; k < 8u; k++)
+            u->k[k] = (int8_t)clamp((int8_t)q[2u + k], DMODELS[u->model].edit[k].min, DMODELS[u->model].edit[k].max);
+        for (k = 0; k < UPR_NFX; k++)
+            u->f[k] = (int8_t)TP[UPR_FX[k]].def;
+    }
+}
+#endif
 static void preset_user_boot(void)                  /* persist_boot (after flash_ok): the bank from flash */
 {
     memset(&upr, 0, sizeof upr);
     upr_pending = 0;
+    upr_lost = 0;
 #if FELUCCA_FLASH
     {
         uint32_t i, k;
-        if (!flash_ok || st_load(OBJ_UPRESET0 + 1u, &upr, sizeof upr) != (int)sizeof upr || upr.magic != UPR_MAGIC) {
+        int got = flash_ok ? st_load(OBJ_UPRESET0 + 1u, &upr, sizeof upr) : -1;
+        if (got == (int)UPR1_SIZE && upr.magic == UPR1_MAGIC) {
+            memset(&upr, 0, sizeof upr);
+            upr_migrate(st_buf);                        /* (st_load leaves the payload in st_buf: storage.c) */
+            if (upr_lost)
+                persist_note |= PN_UPR;
+            upr_write();                                /* (stopped: now; the moves stay as made) */
+            return;
+        }
+        if (got != (int)sizeof upr || upr.magic != UPR_MAGIC) {
             memset(&upr, 0, sizeof upr);
             return;
         }
         for (i = 0; i < PRE_NUSER; i++) {
             upr_slot_t *u = &upr.s[i];
-            if (u->used != 1u || u->model >= NMODELS) {
+            if (!upr_used(i) || u->model >= NMODELS) {
                 memset(u, 0, sizeof *u);
                 continue;
             }
             for (k = 0; k < 8u; k++)
                 u->k[k] = (int8_t)clamp(u->k[k], DMODELS[u->model].edit[k].min, DMODELS[u->model].edit[k].max);
+            for (k = 0; k < UPR_NFX; k++)
+                u->f[k] = (int8_t)clamp(u->f[k], TP[UPR_FX[k]].min, TP[UPR_FX[k]].max);
         }
+        for (i = 0; i < UPR_NOLD - PRE_NUSER; i++)
+            if (upr.mv[i] > PRE_NUSER)
+                upr.mv[i] = 0;
     }
 #endif
 }

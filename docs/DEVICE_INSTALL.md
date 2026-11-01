@@ -282,13 +282,21 @@ Report what you saw first; we'll go through it together.
 ### PERFORM (check on the FM-1)
 - MENU > PERFORM PAGE: hold FX, let go: the PERFORM screen stays; the keys and knobs work without FX; PLAY / OCT±
   keep it; an FX tap, another page button or HOME leaves it (the knob effects stay on). Set it back to HOLD after.
-- Hold FX alone: after a moment the map shows (two rows of effects, eight tracks); let go: back to the page.
+- Hold FX alone: after a moment the map shows (two rows of effects, T1..T8, RPT with 1/4 1/8 1/16 1/32, 1/16
+  marked); let go: back to the page.
 - Tap FX: the FX pages, as before.
 - Playing, FX held: each black key's effect while held — F#3 G#3 A#3 REPEAT 1/8 1/16 1/32 (starting on the next
   1/16), C#4 REVERSE, D#4 TAPE STOP, F#4 LPF, G#4 HPF (sweeping over a bar), A#4 FREEZE, C#5 OCT UP, D#5 OCT DN;
   let go: back to the dry sound without a click. Two buffer effects held: the last pressed plays, letting it go
   returns to the other.
-- FX + a white track key (F3 .. F4): that track silent while held; no note plays, nothing is recorded.
+- REPEAT STEP, playing, FX held: hold A3 (track 3): from the next 1/16 it repeats the step it was on, every 1/16, its
+  own steps silent; let go: its pattern goes on in time. Tap G5 (1/32, lit; F5 dark) while A3 is held: twice as fast
+  from the next 1/32; D5 1/4 on the beats, E5 1/8. Hold A3 and F3 together: both repeat. A step with an accent
+  repeats loud. No note is played by the key itself, nothing is recorded, no MIDI goes out.
+- REPEAT STEP stopped: hold a track key: it starts at once and repeats at the tempo; let go: silence.
+- REPEAT STEP with SWING up (GLOBAL): the 1/16 and 1/32 repeats swing with the hats; with CLK USB they follow the
+  DAW's tempo.
+- A controller button learned to a PERFORM mute in an older version: it now holds that track's REPEAT STEP.
 - FX + KNOB 1..4: FILTER (left LPF, right HPF), CRUSH, THROW (into the delay / reverb), DEPTH (SHIMMER while OCT
   plays); let go of FX: they stay on and keep working on every page (amber `FX` in the top bar); back to 0 on the
   PERFORM screen: off, the `FX` mark goes.
@@ -586,9 +594,9 @@ Report what you saw first; we'll go through it together.
 - Learn while playing, stop, power off and on: the CCs still work (LEARN itself off). No audio glitch from moving a
   learned knob quickly while a dense pattern plays (`status`: `audio_late 0`).
 - Actions: with LEARN on, press PLAY (nothing plays; `PLAY: SEND CC/NOTE`), hit a pad: `NOTE36 -> PLAY`. Do the same
-  for REC, ALGORITHM right, FX + G#3 (`FX R1/16`) and FX + A3 (`FX MUTE T3`) with buttons, and FX + KNOB 1 with a
+  for REC, ALGORITHM right, FX + G#3 (`FX R1/16`) and FX + A3 (`FX RPT T3`) with buttons, and FX + KNOB 1 with a
   knob (`FX FILTER`). OCT+: the pad starts / stops, its drum silent; the buttons arm, step the track, hold REPEAT and
-  the mute while held; HOME held (the menu) ends a held REPEAT, which stays off after the menu.
+  track 3's REPEAT STEP while held; HOME held (the menu) ends a held REPEAT, which stays off after the menu.
 
 ### PRESETS (check on the FM-1)
 
@@ -1045,3 +1053,28 @@ Two FM-1s for the move test, or one FM-1 and two slots. Note the times with a st
   Restore all about 3–6 s; each must stay under 10 s. A knob moved in the page sounds at once; a knob turned on the
   FM-1 shows in the page well within a second.
 - Bluetooth version: the same over USB with BLUETOOTH ON; the editor never appears on the Bluetooth link.
+
+### USER presets with FX, 96 slots (check on the FM-1)
+
+Before installing, on the old firmware: save a few USER presets, among them some in slots 97 to 128 (scroll the list
+past 96), and save a project with a track loaded from one of those (note its slot and sound).
+
+- First start: USER has 96 slots. Slots 1 to 96 hold what they held; the presets from 97 to 128 sit in the first
+  empty slots, named after the new slot (`K909 04`). No message unless all 96 were full: then `N PRESETS LOST`, once
+  (power off and on: not again).
+- LOAD the project: the track loaded from a moved preset shows its new name, the sound as saved. A track whose preset
+  was lost shows `PRESET -`, its sound unchanged.
+- A moved (old) preset loads the sound only: set FILTER LP, CUT low and an INSERT on a track, load it: the FILTER and
+  INSERT stay; turning CUT then leaves no `*`.
+- SAVE a track with FILTER, INSERT (e.g. FOLD), SRR, RESON STRNG and DLY / REV sends up, and a SLICER pattern. On
+  another track with other FX, LOAD it: the voice and every FX as saved (the INSERT fades in, no click), its own
+  SLICER, LEVEL, PAN, NOTE, CHOKE, LFOs untouched. Power off and on, LOAD again: the same.
+- Scrub the list over that USER preset and then a factory one: the FX follow the USER preset, then go back to the
+  track's own for the factory one; EDIT out of the list: the track's own sound and FX, exactly as before.
+- On a track loaded from a USER preset, turning CUT, an INSERT knob, a send or a RESON knob shows `*`; turning a
+  SLICER knob does not. On a factory preset only the SOUND knobs do, as before.
+- RESON on four other tracks: a USER preset with RESON loads with RESON OFF; a third CHORD loads as STRNG.
+- SAVE while playing with MOTION moving CUT: the preset holds CUT as you set it. LOAD while it plays: no click beyond
+  a voice change's; STOP: CUT the preset's.
+- Bluetooth version: the same, and the variations, the INSERTs and the TOOLS' copy still work (they share the memory
+  the USER bank moved into).

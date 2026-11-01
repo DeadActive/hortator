@@ -159,7 +159,7 @@ static void ml_pick_act(uint32_t code)
 }
 /* the picked one's name: "T3 DECAY", a section's knob with its section ("T3 L1.RATE", a DEST slot's "T3 D2.DEPTH",
  * "T3 F.DECAY", "T3 R.TUNE", "T3 S.RATE": the same labels are on other pages); an action "PLAY", "REC", "NEXT TRACK", "PREV TRACK", "FX R1/16",
- * "FX MUTE T3", "FX FILTER"; b: 16 bytes */
+ * "FX RPT T3", "FX FILTER"; b: 16 bytes */
 static const char *const ML_ACT_NAME[4] = {"PLAY", "REC", "NEXT TRACK", "PREV TRACK"};
 static const char *const ML_MAC_NAME[4] = {"FX FILTER", "FX CRUSH", "FX THROW", "FX DEPTH"};
 static void ml_name(char *b)
@@ -177,12 +177,12 @@ static void ml_name(char *b)
             str_cpy(b, ML_ACT_NAME[c - ML_A_PLAY], 16);
         } else if (c >= ML_A_MAC) {
             str_cpy(b, ML_MAC_NAME[(c - ML_A_MAC) & 3u], 16);
-        } else if (c - ML_A_FX < PF_M1) {
+        } else if (c - ML_A_FX < PF_T1) {
             str_cpy(b, "FX ", 16);
             str_cpy(b + 3, PF_NAME[c - ML_A_FX], 8);
-        } else {
-            str_cpy(b, "FX MUTE T1", 16);
-            b[9] = (char)('1' + (c - ML_A_FX - PF_M1) % NTRK);
+        } else {                                      /* REPEAT STEP of a track (its id: once its mute) */
+            str_cpy(b, "FX RPT T1", 16);
+            b[8] = (char)('1' + (c - ML_A_FX - PF_T1) % NTRK);
         }
         return;
     }

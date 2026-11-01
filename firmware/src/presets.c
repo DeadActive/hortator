@@ -1,17 +1,21 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Drum machine fork: 2026 DEADACTIVE */
-/* Presets (spec docs/superpowers/specs/2026-10-19-presets-design.md): a preset is a voice, MODEL + the 8 SOUND knobs
- * P_E0..P_E7, nothing else (not the FILTER, LFOs, sends, LEVEL, PAN, NOTE, CHOKE, steps). One id for every preset: the
- * factory banks in order (MACHINEDRUM, MODERN, CLASSIC: const tables, preset_bank.h), then the 128 USER slots
- * (PRE_NFACT + slot). A track remembers the id it was loaded from (track_t.pre, PRE_NONE none) and whether a SOUND knob
- * moved since (pre_ed: preset_touch); projects store both (project.c, FDRD: the reference by a stable key, a factory
- * preset's uid or a user slot, preset_rec_enc, never the positional id). The user bank lives in RAM here; its flash
- * record ("UPR1" in OBJ_UPRESET0 + 1, MIDI LEARN's map keeps OBJ_UPRESET0) is project.c's: preset_user_save /
- * preset_user_delete (written at once when stopped, at the next STOP while playing: preset_user_tick), preset_user_boot.
+/* Presets (spec docs/superpowers/specs/2026-10-19-presets-design.md): a factory preset is a voice, MODEL + the 8 SOUND
+ * knobs P_E0..P_E7, nothing else (loading one leaves the track's FX, LFOs, LEVEL, PAN, NOTE, CHOKE, steps as they are).
+ * A user preset (user decision 2026-11-01) is the voice and the track's FX but the SLICER: UPR_FX (sends, RESON, FILTER,
+ * INSERT, SRR); not the SLICER, LAYER, LFOs / DEST slots, LEVEL, PAN, NOTE, CHOKE, PRIO, steps. One id for every
+ * preset: the factory banks in order (MACHINEDRUM, MODERN, CLASSIC: const tables, preset_bank.h), then the 96 USER
+ * slots (PRE_NFACT + slot). A track remembers the id it was loaded from (track_t.pre, PRE_NONE none) and whether a knob
+ * the preset holds moved since (pre_ed: preset_marks, preset_touch); projects store both (project.c, FDRD: the
+ * reference by a stable key, a factory preset's uid or a user slot, preset_rec_enc, never the positional id). The user
+ * bank lives in RAM here; its flash record ("UPR2" in OBJ_UPRESET0 + 1, MIDI LEARN's map keeps OBJ_UPRESET0; an older
+ * "UPR1" bank of 128 voices is moved into it at boot) is project.c's: preset_user_save / preset_user_delete (written at
+ * once when stopped, at the next STOP while playing: preset_user_tick), preset_user_boot.
  * Included after dmodels.c (the model table) and before drum_core.c (drum_set_model: a voice's first preset). */
 typedef struct { uint8_t model; int8_t k[8]; char name[9]; } preset_t;
 #define PRE_NONE 0xFFFFu                                /* no preset (track_t.pre) */
-#define PRE_NUSER 128u                                  /* user slots */
+#define PRE_NUSER 96u                                   /* user slots (128 before 2026-11-01: UPR1, UPR_NOLD) */
+#define UPR_NOLD 128u                                   /* .. UPR1's slots (preset_user_boot moves them in) */
 enum { PB_MD, PB_MODERN, PB_CLASSIC, PB_USER, PB_N };   /* (the order shown; MODERN before CLASSIC since fix 8: a
                                                           * project's reference is a uid, never an id or a bank) */
 static const char *const N_PBANK[PB_N] = {"MACHINEDRUM", "MODERN", "CLASSIC", "USER"};
@@ -19,16 +23,39 @@ static const char *const N_PBANK[PB_N] = {"MACHINEDRUM", "MODERN", "CLASSIC", "U
 #define PRE_NID (PRE_NFACT + PRE_NUSER)                 /* ids 0 .. PRE_NID - 1 */
 #define ACID_MAXTRK 2u                                  /* ACID is the model of 2 tracks at most (CPU), by user decision */
 
-/* the user bank: the flash record's payload as it is (project.c), 1284 B. A slot: used 1, else empty */
-typedef struct { uint8_t used, model; int8_t k[8]; } upr_slot_t;
-typedef struct { uint32_t magic; upr_slot_t s[PRE_NUSER]; } upr_rec_t;
-typedef char upr_rec_size[sizeof(upr_rec_t) == 4u + 10u * PRE_NUSER ? 1 : -1];
+/* the FX a user preset holds, in the record's order (append only): every value fits a byte (params.c TP: -64..127;
+ * tests/preset_test.c checks) */
+#define UPR_NFX 23u
+static const uint8_t UPR_FX[UPR_NFX] = {
+    P_DIST, P_CHOR, P_DLY, P_REV,                                                   /* the sends */
+    P_RMODEL, P_RTUNE, P_RDECAY, P_RMIX, P_RTONE, P_RSTRCT, P_RPOS, P_RKEY,         /* RESON */
+    P_FTYPE, P_FCUT, P_FRESO, P_FENV, P_FDEC,                                       /* FILTER */
+    P_ITYPE, P_IA, P_IB, P_IC, P_IMIX, P_SRR,                                       /* INSERT, SRR */
+};
+/* the user bank: the flash record's payload as it is (project.c), "UPR2", 3204 B. A slot: used UPR_USED (the voice
+ * and its FX f[], UPR_FX's order), UPR_USED | UPR_VOICE (the voice only: moved from UPR1, it loads as a factory preset
+ * does), else empty. mv: where UPR1's slots 97..128 moved (new slot + 1, 0 none / dropped): a project's reference to
+ * one follows it (preset_rec_dec) */
+#define UPR_USED 1u
+#define UPR_VOICE 2u
+typedef struct { uint8_t used, model; int8_t k[8]; int8_t f[UPR_NFX]; } upr_slot_t;
+typedef struct { uint32_t magic; upr_slot_t s[PRE_NUSER]; uint8_t mv[UPR_NOLD - PRE_NUSER]; } upr_rec_t;
+typedef char upr_rec_size[sizeof(upr_rec_t) == 4u + 33u * PRE_NUSER + 32u && sizeof(upr_rec_t) <= 3584u ? 1 : -1];
+                                                        /* (one sector; below 3584: the loader's erase scan) */
 typedef char pre_id_fits[PRE_NID < PRE_NONE ? 1 : -1];
-#define UPR_MAGIC 0x31525055u                           /* "UPR1" */
+#define UPR_MAGIC 0x32525055u                           /* "UPR2" */
+#define UPR1_MAGIC 0x31525055u                          /* "UPR1": 128 slots {used, model, k[8]}, 1284 B */
+#define UPR1_SIZE 1284u
+#if defined(FELUCCA_BLE) && FELUCCA_BLE                 /* (the Bluetooth build: no .bss room; the RAM-code region's
+                                                         * spare, as the variations' banks: persist_boot zeroes it) */
+static upr_rec_t upr __attribute__((section(".ram_bss"), aligned(4)));
+#else
 static upr_rec_t upr;
+#endif
 static uint8_t upr_pending;                             /* changed while playing: written at the next STOP */
 
 static void drum_cut(track_t *t);                       /* drum_core.c */
+static const char *reson_refused(const track_t *t, int32_t from, int32_t to);   /* reson.c */
 static uint32_t acid_tracks(const track_t *except);
 static void motion_rebase(uint32_t k);                  /* motion.c */
 
@@ -49,6 +76,20 @@ static void upr_name(char *d, uint32_t slot, uint32_t model)
     d[n] = 0;
 }
 
+static int upr_used(uint32_t slot)                      /* user slot holds a preset */
+{
+    uint32_t u = upr.s[slot % PRE_NUSER].used;
+    return u == UPR_USED || u == (UPR_USED | UPR_VOICE);
+}
+/* preset id's FX (UPR_FX's order): a used user slot that holds them; 0 for a factory preset, an older user preset
+ * (the voice only), an empty slot, a bad id */
+static const int8_t *upr_fx(uint32_t id)
+{
+    if (id < PRE_NFACT || id >= PRE_NID || upr.s[id - PRE_NFACT].used != UPR_USED)
+        return 0;
+    return upr.s[id - PRE_NFACT].f;
+}
+
 /* preset id -> *out; 1, or 0 for an empty user slot or a bad id */
 static int preset_get(uint32_t id, preset_t *out)
 {
@@ -60,7 +101,7 @@ static int preset_get(uint32_t id, preset_t *out)
     if (id >= PRE_NID)
         return 0;
     s = &upr.s[id - PRE_NFACT];
-    if (s->used != 1u || s->model >= NMODELS)
+    if (!upr_used(id - PRE_NFACT) || s->model >= NMODELS)
         return 0;
     out->model = s->model;
     memcpy(out->k, s->k, sizeof out->k);
@@ -95,7 +136,8 @@ static uint32_t preset_of(const track_t *t)
 
 /* a project's preset reference (project.c, FDRD): stable across firmwares whose banks grow or are reordered, unlike the
  * ids (positions). A factory preset: its uid (PRE_UID, append-only: tools/gen_presets.py), 1..0x7FFF; a user slot:
- * PRE_REC_USER | slot; none: PRE_NONE. The _in forms take the bank's uids and size (tests: another firmware's) */
+ * PRE_REC_USER | slot (an older bank's slot 97..128: where it moved, upr.mv, none if dropped); none: PRE_NONE. The _in
+ * forms take the bank's uids and size (tests: another firmware's) */
 #define PRE_REC_USER 0x8000u
 static uint32_t preset_rec_enc_in(uint32_t id, const uint16_t *uid, uint32_t nfact)
 {
@@ -108,8 +150,12 @@ static uint32_t preset_rec_enc_in(uint32_t id, const uint16_t *uid, uint32_t nfa
 static uint32_t preset_rec_dec_in(uint32_t rec, const uint16_t *uid, uint32_t nfact)   /* PRE_NONE: unknown */
 {
     uint32_t i;
-    if (rec & PRE_REC_USER)
-        return (rec & 0x7FFFu) < PRE_NUSER ? nfact + (rec & 0x7FFFu) : PRE_NONE;
+    if (rec & PRE_REC_USER) {
+        uint32_t s = rec & 0x7FFFu;
+        if (s >= PRE_NUSER && s < UPR_NOLD)
+            s = upr.mv[s - PRE_NUSER] - 1u;             /* (moved by the migration; 0: none, s wraps past the bank) */
+        return s < PRE_NUSER ? nfact + s : PRE_NONE;
+    }
     for (i = 0; rec && i < nfact; i++)
         if (uid[i] == rec)
             return i;
@@ -158,24 +204,47 @@ static void preset_apply(track_t *t, const preset_t *p, uint32_t id)
     t->pre_ed = 0;
 }
 
+/* FX f (UPR_FX's order) onto t, as their knobs turned (an INSERT TYPE fades, insert.c), after its voice and
+ * motion_rebase (its locks let go, the knobs motion moved back): then motion's base again, the new values in it. RESON
+ * MODEL within its caps, as a project load: CHORD / MODAL over theirs STRNG, RESON on 4 other tracks OFF. The IRQ off */
+static void preset_fx_put(track_t *t, const int8_t *f)
+{
+    uint32_t i;
+    for (i = 0; i < UPR_NFX; i++) {
+        int32_t v = f[i];
+        if (UPR_FX[i] == P_RMODEL) {
+            if (reson_refused(t, t->p[P_RMODEL], v))
+                v = RS_STRNG;
+            if (reson_refused(t, t->p[P_RMODEL], v))
+                v = RS_OFF;
+        }
+        t->p[UPR_FX[i]] = (int16_t)v;
+    }
+    motion_rebase((uint32_t)(t - trk));
+}
+
 /* load preset id onto t (the main loop: the audio IRQ off meanwhile, motion's base follows, as a MODEL change; CHOKE
- * and everything but the voice untouched): 0, or -1 refused (an empty slot, a bad id, ACID on ACID_MAXTRK others) */
+ * and everything but the voice untouched, but a user preset's FX): 0, or -1 refused (an empty slot, a bad id, ACID on
+ * ACID_MAXTRK others) */
 static int preset_load(track_t *t, uint32_t id)
 {
     preset_t p;
+    const int8_t *f = upr_fx(id);
     if (!preset_ok(t, id, &p))
         return -1;
     fm1_irq_off();
     preset_apply(t, &p, id);
     motion_rebase((uint32_t)(t - trk));
+    if (f)
+        preset_fx_put(t, f);
     fm1_irq_on();
     return 0;
 }
 
 /* t's voice put back as it was (the PRESETS list's audition ended, ui_preset.c): MODEL, the 8 SOUND knobs k, the
- * reference pre and its edited mark ed, as they were (no clamp); the audio IRQ off, another voice cut first, motion's
- * base follows, as preset_load */
-static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pre, uint32_t ed)
+ * reference pre and its edited mark ed, as they were (no clamp), and FX f when the audition changed them (0: as they
+ * are); the audio IRQ off, another voice cut first, motion's base follows, as preset_load */
+static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pre, uint32_t ed, const int8_t *f)
 {
     uint32_t i;
     fm1_irq_off();
@@ -188,6 +257,8 @@ static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pr
     t->pre = (uint16_t)pre;
     t->pre_ed = (uint8_t)ed;
     motion_rebase((uint32_t)(t - trk));
+    if (f)
+        preset_fx_put(t, f);
     fm1_irq_on();
 }
 
@@ -213,27 +284,46 @@ static uint32_t preset_step(const track_t *t, uint32_t from, int dir)
     return from;
 }
 
-/* a user edit of t's voice (a SOUND knob: the panel, MIDI LEARN, the SMC knobs; not LFOs or MOTION playback) */
+/* a user edit of what t's preset holds (a SOUND knob: the panel, MIDI LEARN, the SMC knobs; an FX knob as well when
+ * the preset holds FX: preset_marks; not LFOs or MOTION playback) */
 static void preset_touch(track_t *t) { t->pre_ed = 1; }
 #define PRE_SOUND(id) ((uint32_t)(id) - P_E0 < 8u)      /* a parameter id is one of the 8 SOUND knobs */
+static int upr_fx_index(uint32_t id)                    /* id's place in UPR_FX, -1 not an FX a user preset holds */
+{
+    uint32_t i;
+    for (i = 0; i < UPR_NFX; i++)
+        if (UPR_FX[i] == id)
+            return (int)i;
+    return -1;
+}
+/* turning knob id marks t's preset edited: what loading it again would put back. The 8 SOUND knobs always; an FX knob
+ * (UPR_FX) when t was loaded from a user preset that holds FX (a factory preset, an older user preset: the voice only;
+ * the SLICER, LEVEL, ...: never) */
+static int preset_marks(const track_t *t, uint32_t id)
+{
+    return PRE_SOUND(id) || (upr_fx_index(id) >= 0 && upr_fx(t->pre));
+}
 
 static int preset_user_free(void)                      /* the first free user slot, -1 none */
 {
     uint32_t i;
     for (i = 0; i < PRE_NUSER; i++)
-        if (upr.s[i].used != 1u)
+        if (!upr_used(i))
             return (int)i;
     return -1;
 }
 
-/* the user bank in RAM: slot <- a voice, model and the 8 SOUND knobs from kv[P_E0..P_E7] (a track's p[], or motion's
- * base while it plays: project.c preset_user_save; preset_user_delete empties one; both write the flash) */
+/* the user bank in RAM: slot <- a voice, model and the 8 SOUND knobs from kv[P_E0..P_E7], and the FX kv[UPR_FX] (a
+ * track's p[], or motion's base while it plays: project.c preset_user_save; preset_user_delete empties one; both write
+ * the flash) */
 static void upr_set(uint32_t slot, uint32_t model, const int16_t *kv)
 {
     upr_slot_t *s = &upr.s[slot];
     uint32_t i;
-    s->used = 1;
+    s->used = UPR_USED;
     s->model = (uint8_t)(model % NMODELS);
     for (i = 0; i < 8u; i++)
         s->k[i] = (int8_t)clamp(kv[P_E0 + i], -128, 127);
+    for (i = 0; i < UPR_NFX; i++)
+        s->f[i] = (int8_t)clamp(kv[UPR_FX[i]], -128, 127);
 }

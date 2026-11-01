@@ -804,8 +804,6 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
     else if ((!t->tail || !(t->p[P_DIST] | ins_on(t)) || !--t->tail) && !slicer_busy(t)) {
         ins_idle(t);                                    /* (insert.c: TYPE OFF / MIX 0 meanwhile: at rest) */
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
-        if ((pf.mute >> (t - trk)) & 1u)
-            perf_mute_idle((uint32_t)(t - trk));        /* perform.c: a white key in the FX layer */
         if (is_src) {
             comp_block(0, n);                           /* silence: the detector decays */
             t->gfade = trk_silent(t) || song.g[G_CGHOST] == CG_HIDE ? 32767u : 0u;   /* nothing sounds: at once */
@@ -821,8 +819,6 @@ static void mix_part(track_t *t, uint32_t n, uint32_t src)
         track_dist(t, b, n);
         track_insert(t, b, n);                          /* insert.c: after DIST, before the SLICER (OFF: nothing) */
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
-        if ((pf.mute >> (t - trk)) & 1u)
-            perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a white key in the FX layer */
         if (is_src) {
             int sil = trk_silent(t), hide = sil || song.g[G_CGHOST] == CG_HIDE;
             comp_block(sil && song.g[G_CGHOST] == CG_MUTE ? 0 : b, n);   /* GHOST MUTE: muted keys nothing */
