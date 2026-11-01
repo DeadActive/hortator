@@ -58,7 +58,6 @@ static int proj_cue_apply(void) { return CUE_E_NOSLOT; }
 
 static void host_reset_fx(void)                     /* FX buses, master, slicer, metal: as at power-on */
 {
-    uint32_t k;
     memset(dly_buf, 0, sizeof dly_buf);
     memset(cho_buf, 0, sizeof cho_buf);
     memset(rev_comb, 0, sizeof rev_comb);
@@ -87,8 +86,8 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     memset(&pf, 0, sizeof pf);                      /* PERFORM (perform.c): nothing held, idle */
     pf.src = pf.next = PF_N;
     pf.lc = PF_TOP;
-    for (k = 0; k < NTRK; k++)
-        pf.mg[k] = 32768;
+    memset(&rp, 0, sizeof rp);                      /* REPEAT STEP (seq.c): no track, the rate 1/16 */
+    perf_rate = PR_16;
     perf_mask = kb_layer = perf_held = perf_act = perf_kh = perf_mh = 0;
     ml_down = 0;                                    /* MIDI LEARN (midi_learn.c): no button down, nothing queued */
     ml_qr = ml_qw;

@@ -85,7 +85,7 @@ int main(void)
     printf("},\n\"PF\": {");
     first = 1;
     ID(PF_, R8); ID(PF_, R16); ID(PF_, R32); ID(PF_, REV); ID(PF_, LPF); ID(PF_, HPF); ID(PF_, TAPE); ID(PF_, FRZ);
-    ID(PF_, OUP); ID(PF_, ODN); ID(PF_, M1);
+    ID(PF_, OUP); ID(PF_, ODN); ID(PF_, T1);
     printf("},\n\"RS\": {");
     first = 1;
     ID(RS_, OFF); ID(RS_, STRNG); ID(RS_, PIPE); ID(RS_, CHORD); ID(RS_, MODAL);

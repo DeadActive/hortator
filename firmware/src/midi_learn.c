@@ -20,7 +20,8 @@
 #define ML_A_REC 0x81u
 #define ML_A_NEXT 0x82u                            /* NEXT TRACK / PREV TRACK */
 #define ML_A_PREV 0x83u
-#define ML_A_FX 0x90u                              /* + PF_*: a PERFORM effect (PF_R8 .. PF_ODN), a mute (PF_M1 + k) */
+#define ML_A_FX 0x90u                              /* + PF_*: a PERFORM effect (PF_R8 .. PF_ODN), REPEAT STEP of track
+                                                    * k + 1 (PF_T1 + k: its mute until 2026-11, the same id) */
 #define ML_A_MAC 0xB0u                             /* + 0..3: a PERFORM macro FILTER CRUSH THROW DEPTH */
 typedef struct { uint8_t num, trk, code, src; } ml_ent_t;
 typedef char ml_ent_size[sizeof(ml_ent_t) == 4u ? 1 : -1];
@@ -28,7 +29,7 @@ typedef char ml_ids_pinned[P_E0 == 1 && P_LEVEL == 9 && P_SLEN == 22 && P_LFO1 =
                            P_FTYPE == 55 && P_PRIO == 60 && P_LSRC1 == 61 && P_LS3SRC == 63 && P_LS4DEPTH == 68 &&
                            P_COUNT < 0x80 ? 1 : -1];
 typedef char ml_pf_pinned[PF_R8 == 0 && PF_REV == 3 && PF_LPF == 4 && PF_TAPE == 6 && PF_OUP == 8 && PF_ODN == 9 &&
-                          PF_M1 == 10 && PF_N == 18 && ML_A_FX + PF_N <= ML_A_MAC && ML_N <= 32u ? 1 : -1];
+                          PF_T1 == 10 && PF_N == 18 && ML_A_FX + PF_N <= ML_A_MAC && ML_N <= 32u ? 1 : -1];
 static ml_ent_t ml_map[ML_N];
 static volatile uint8_t ml_arm;                    /* the UI waits for a source: 1 a CC (a parameter or a macro
                                                     * picked), 2 a CC or a note (a button action picked) */

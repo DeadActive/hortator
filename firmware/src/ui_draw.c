@@ -1947,35 +1947,33 @@ static uint32_t graph_signature(void)
 }
 
 /* PERFORM (perform.c), while FX is held: the black keys' effects in two rows of five (as on the keys: 1/8 1/16 1/32
- * REV TAPE, LPF HPF FRZ OCT+ OCT-) and the white keys' tracks; held: lit, running: inverted, unavailable at the
- * tempo: dim, a track muted (by its key or its MUTE): amber */
-static const char *const PF_NAME[PF_M1] = {"R1/8", "R1/16", "R1/32", "REV", "LPF", "HPF", "TAPE", "FRZ", "OCT+", "OCT-"};
-static void perf_cell(int32_t x, int32_t y, int32_t w, const char *s, uint32_t st)   /* st: 0 off 1 held 2 run 3 dim 4 mute */
+ * REV TAPE, LPF HPF FRZ OCT+ OCT-), the white track keys' REPEAT STEP (T1 .. T8), its rates (the keys D5 .. G5: 1/4
+ * 1/8 1/16 1/32) beside RPT; held: lit, running: inverted, unavailable at the tempo: dim, the rate selected: lit */
+static const char *const PF_NAME[PF_T1] = {"R1/8", "R1/16", "R1/32", "REV", "LPF", "HPF", "TAPE", "FRZ", "OCT+", "OCT-"};
+static const char *const PR_NAME[PR_N] = {"1/4", "1/8", "1/16", "1/32"};
+#define PF_CH 27                                      /* a cell's height; the rows 29 apart */
+static void perf_cell(int32_t x, int32_t y, int32_t w, const char *s, uint32_t st)   /* st: 0 off 1 held 2 run 3 dim */
 {
-    int32_t tx = x + (w - md_text_w(&MD_F3, 2, s)) / 2;
-    if (st == 1u || st == 2u || st == 4u) {          /* held / running / muted: solid, the name in BG */
-        cv_rect(x, y, w, 34, C_INK);
-        md_text(tx, y + 12, &MD_F3, 2, s, C_BG);
-        if (st == 4u)                                /* muted: struck through */
-            cv_rect(x + 3, y + 16, w - 6, 1, C_BG);
+    int32_t tx = x + (w - md_text_w(&MD_F3, 2, s)) / 2, ty = y + (PF_CH - 10) / 2;
+    if (st == 1u || st == 2u) {                      /* held / running: solid, the name in BG */
+        cv_rect(x, y, w, PF_CH, C_INK);
+        md_text(tx, ty, &MD_F3, 2, s, C_BG);
         return;
     }
     if (st == 3u) {                                  /* not available: a dotted outline */
         cv_hdot(x, x + w - 1, y, C_INK);
-        cv_hdot(x, x + w - 1, y + 33, C_INK);
-        cv_vdot(x, y, y + 33, C_INK);
-        cv_vdot(x + w - 1, y, y + 33, C_INK);
+        cv_hdot(x, x + w - 1, y + PF_CH - 1, C_INK);
+        cv_vdot(x, y, y + PF_CH - 1, C_INK);
+        cv_vdot(x + w - 1, y, y + PF_CH - 1, C_INK);
     } else {
-        cv_frame(x, y, w, 34, C_INK);
+        cv_frame(x, y, w, PF_CH, C_INK);
     }
-    md_text(tx, y + 12, &MD_F3, 2, s, C_INK);
+    md_text(tx, ty, &MD_F3, 2, s, C_INK);
 }
 static void graph_perf(void)
 {
-    uint32_t held = perf_kill ? 0u : perf_held, act = perf_act, ok = perf_avail(), i, nw, wi;
-    uint32_t sig = held * 31u + act * 7u + ok;
-    for (i = 0; i < NTRK; i++)
-        sig = sig * 3u + (uint32_t)(trk[i].p[P_MUTE] != 0);
+    uint32_t held = perf_kill ? 0u : perf_held, act = perf_act, ok = perf_avail(), i, nw, wi, rate = perf_rate;
+    uint32_t sig = held * 31u + act * 7u + ok + rate * 0x9E3779B9u;
     for (nw = rg_plan(&ui.graph_sig, sig, 0, Y_GRAPH, 240, H_GRAPH), wi = 0; wi < nw; wi++) {
         rg_win(wi, Y_GRAPH, C_BG);
         cv_oy = 0;
@@ -1983,14 +1981,16 @@ static void graph_perf(void)
         cv_rect(239, 0, 1, H_GRAPH, C_INK);
         for (i = 0; i < 10u; i++) {
             uint32_t e = PF_BLACK[i];
-            perf_cell(4 + (int32_t)(i % 5u) * 47, i < 5u ? 4 : 44, 44, PF_NAME[e],
+            perf_cell(4 + (int32_t)(i % 5u) * 47, i < 5u ? 3 : 32, 44, PF_NAME[e],
                       !((ok >> e) & 1u) ? 3u : (act >> e) & 1u ? 2u : (held >> e) & 1u ? 1u : 0u);
         }
         for (i = 0; i < NTRK; i++) {
-            char n[2] = {(char)('1' + i), 0};
-            perf_cell(4 + (int32_t)i * 29, 84, 27, n,
-                      (held >> (PF_M1 + i)) & 1u || trk[i].p[P_MUTE] ? 4u : 0u);
+            char n[3] = {'T', (char)('1' + i), 0};
+            perf_cell(4 + (int32_t)i * 29, 61, 27, n, (held >> (PF_T1 + i)) & 1u);
         }
+        md_text(4 + (44 - md_text_w(&MD_F3, 2, "RPT")) / 2, 90 + (PF_CH - 10) / 2, &MD_F3, 2, "RPT", C_INK);
+        for (i = 0; i < PR_N; i++)
+            perf_cell(4 + (int32_t)(i + 1u) * 47, 90, 44, PR_NAME[i], i == rate);
         cv_blit(0, Y_GRAPH);
     }
 }

@@ -5,6 +5,16 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **REPEAT STEP on the PERFORM keys (replaces the track mutes there).** With FX held (or on the PERFORM page), the
+  white keys F3 to F4 no longer mute tracks 1 to 8: holding one makes that track repeat the step it was on, again and
+  again, while its own steps pause; let go and its pattern carries on in time. The repeat plays the step's note, loud
+  when the step has an accent; a step that is off repeats the track's last note. While playing, the repeats land on
+  the beat grid of the rate (following swing, the tempo and an incoming MIDI clock), starting on the next grid point;
+  while stopped they start at once at the tempo. Several tracks can repeat together. The last four white keys pick
+  the rate: D5 1/4, E5 1/8, F5 1/16 (the default after power-on) and G5 1/32; the chosen one is lit, and a change
+  takes over at the next grid point. The PERFORM screen shows T1 to T8 and the four rates. **If you used FX + a
+  white key to mute a track, that is gone:** use the MUTE screen (hold GLO) instead. A controller button learned to
+  a PERFORM mute now holds that track's REPEAT STEP. The black keys and the knobs work as before.
 - **Step editing on every step page**: holding a step now turns KNOB 1–4 into its PROB, RATCH, ACCENT and NUDGE on
   TRACKS, PATTERN, MOTION and SONG too, not only on STEP, and the knobs no longer change the page's own settings (LEN,
   DIV, SWING, the song's rows, the track's level) while a step is held.

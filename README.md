@@ -81,8 +81,8 @@ firmware ([below](#back-to-the-official-firmware)).
 - **Chorus.** One chorus for every track's CHOR send: GLO > CHORUS (7/7, after REVERB): RATE and DEPTH. Its graph
   draws the chorus' sweep over 4 s: how fast (RATE) and how far (DEPTH, its delay's range in ms) it moves.
 - **PERFORM.** Hold FX: the black keys play live master effects (repeat, reverse, tape stop, filters, freeze,
-  octave), the white keys mute tracks while held, the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on
-  until you turn them back.
+  octave), the white keys F3..F4 repeat their track's step on the beat grid while held (REPEAT STEP; D5..G5 pick its
+  rate), the knobs become FILTER / CRUSH / THROW / DEPTH, which stay on until you turn them back.
 - **Metronome.** GLOBAL 3/7 METRO: a click on every quarter note while playing, the bar's first higher.
 - **Key backlight.** MENU BACKLIGHT DIM LO / DIM HI: the keys and buttons glow dimly while unlit, the steps 1, 5, 9
   and 13 a little brighter; INV turns the LEDs around. OCT- / OCT+ breathe when pressing them would do something.
@@ -155,7 +155,7 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
 | REC | press REC (nothing arms) | a CC or a note | a press = a REC tap, as the button: TRACKS the selected track, elsewhere REC ALL (step record as the button) |
 | NEXT TRACK / PREV TRACK | turn ALGORITHM right / left (the track stays) | a CC or a note | a press selects the next / previous track |
 | a PERFORM effect | hold FX, press its black key (nothing plays) | a CC or a note | held while the controller's button is held, as the key (FX need not be held) |
-| a track's PERFORM mute | hold FX, press its white key F3..F4 | a CC or a note | the track silent while held |
+| a track's REPEAT STEP | hold FX, press its white key F3..F4 | a CC or a note | the track repeats its step while held, as the key (a control learned to a PERFORM mute before now does this) |
 | a PERFORM macro | on the PERFORM screen, turn KNOB 1..4 (it turns as usual) | a CC | FILTER (0 at 64: left LPF, right HPF), CRUSH, THROW, DEPTH; stays on, as the knob |
 
 - **Turn it on:** hold GLO (the MUTE screen) and press **G4**: `G4 LEARN: ON`, and `MIDI LEARN ON` in the top bar.
@@ -165,7 +165,7 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
   `T3 DECAY: SEND A CC`.
 - **Or pick an action:** while LEARN is on, PLAY, REC, ALGORITHM and the PERFORM keys pick their action instead of
   doing their job (they work again after OCT+): the footer says `PLAY: SEND CC/NOTE`, `FX R1/16: SEND CC/NOTE`,
-  `FX MUTE T3: SEND CC/NOTE`; a PERFORM knob `FX FILTER: SEND A CC`.
+  `FX RPT T3: SEND CC/NOTE`; a PERFORM knob `FX FILTER: SEND A CC`.
 - **Move the controller's knob, or press its button or pad:** the first CC (or, for an action, note) that arrives
   (any channel; over USB, the TRS jack, or Bluetooth in MIDI mode) is learned: `CC74 -> T3 DECAY`,
   `NOTE36 -> PLAY`, `CC20 -> FX FILTER`. Then pick the next one. One already learned shows `T3 DECAY = CC74` or
@@ -195,12 +195,30 @@ A controller's knobs, faders, buttons and pads can each be learned: up to 32 of 
 ### PERFORM
 
 Hold FX for the PERFORM screen. The black keys are buffer effects while held (REPEAT 1/8 1/16 1/32, REVERSE, TAPE
-STOP, LPF and HPF sweeps, FREEZE, OCT UP / DN), the white keys silence their tracks while held, and KNOB 1 to 4 are
-FILTER (left LPF, right HPF), CRUSH, THROW and DEPTH: while the PERFORM screen is up the knobs are only these, and
-SELECT turns no page under it. **The knob effects stay on** after FX is let go (or the PERFORM
+STOP, LPF and HPF sweeps, FREEZE, OCT UP / DN), the white keys F3..F4 are **REPEAT STEP** for tracks 1..8, and KNOB 1
+to 4 are FILTER (left LPF, right HPF), CRUSH, THROW and DEPTH: while the PERFORM screen is up the knobs are only these,
+and SELECT turns no page under it. **The knob effects stay on** after FX is let go (or the PERFORM
 page closes) and keep working on every page; the top bar shows an amber `FX` in place of the tempo icon while any
 is on. To switch one off, turn it back to 0 on the PERFORM screen; TOOLS `INIT*` switches them all off. The
 buffer effects stop when their key is let go.
+
+**REPEAT STEP.** Hold a track key (F3 = track 1 .. F4 = track 8): the track plays the step it was on when you pressed
+again and again at the rate (its note, loud if the step has an accent; a step that is off repeats the track's last
+note), while its own steps pause; let go and its pattern carries on in time, as if it had played all along. Playing,
+the repeats land on the song's grid of the rate (with the swing and the tempo, or the MIDI clock you follow), the
+first on the next grid point; stopped, they start at once at the tempo. Several tracks can repeat at once. The rate
+is the last four white keys: **D5 1/4, E5 1/8, F5 1/16, G5 1/32**: a tap picks it (lit; 1/16 at power-on, not saved);
+a change while repeating takes over at the next grid point. These are drum hits from the sequencer, not a recording:
+the master effects work on top of them.
+
+| PERFORM key | What it does |
+| --- | --- |
+| F#3 G#3 A#3 | REPEAT 1/8, 1/16, 1/32 (the whole mix) |
+| C#4 D#4 F#4 G#4 A#4 | REVERSE, TAPE STOP, LPF, HPF, FREEZE |
+| C#5 D#5 | OCT UP, OCT DN |
+| F3 G3 A3 B3 C4 D4 E4 F4 | REPEAT STEP of tracks 1..8 while held |
+| D5 E5 F5 G5 | REPEAT STEP's rate: 1/4, 1/8, 1/16, 1/32 |
+| G4 A4 B4 C5, F#5 | nothing |
 
 ### Projects
 
@@ -437,7 +455,7 @@ The FM-1 is a USB audio input as well as a MIDI port: a DAW, AUM or Audio MIDI S
   its own fader.
 
 What T1 .. T8 + FX cannot give back: the **master chain**, which only channels 9-10 in MIX (and 2 CH) carry: PERFORM's
-master effects (REPEAT, REVERSE, TAPE STOP, FREEZE, OCT, LPF, HPF, CRUSH; its track mutes and THROW are in the
+master effects (REPEAT, REVERSE, TAPE STOP, FREEZE, OCT, LPF, HPF, CRUSH; its REPEAT STEP and THROW are in the
 channels), METRO, SPEAKER EQ (LOWCUT, BASS+), the DC blocker, the limiter and the soft clip. COMP's ducking is a gain
 on each ducked track, so the T channels and their sends are already ducked. The FM-1 pans with full level on both
 sides at the centre: set the DAW's pan law to 0 dB to match it. Each channel is 16-bit: a single track or the sum may

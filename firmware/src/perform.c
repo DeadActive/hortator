@@ -5,8 +5,16 @@
  * layer (seq.c keyboard_block): it plays no note, sends no MIDI, records nothing, and holds its effect until
  * it is let go (ui_input.c fx_layer opens the layer, ui_draw.c shows the map). The keys (user, 2026-10-07):
  *   the black keys from F#3: REPEAT 1/8 1/16 1/32, REVERSE, TAPE STOP, LPF, HPF, FREEZE, OCT UP, OCT DN (F#5: none);
- *   the white keys F3 .. F4 (the track keys): tracks 1..8 muted while held (not P_MUTE, never saved); the white keys
- *   G4 .. G5: none.
+ *   the white keys F3 .. F4 (the track keys): REPEAT STEP of tracks 1..8 while held (user, 2026-11-01: they muted
+ *   before; MIDI LEARN's ids kept, PF_T1 + k); the white keys D5 E5 F5 G5 (the last four): its rate 1/4 1/8 1/16 1/32,
+ *   a tap selects (perf_rate, not saved: 1/16 at power-on); G4 .. C5: none.
+ * REPEAT STEP (seq.c rep_*): sequencer retriggers, no audio buffer. While a track key is held its track plays the step
+ * under its playhead at the press again and again (its note, 127 with its accent else 96; no PROB, no RATCH; a step
+ * off, a TIE or a track following Grids: the track's last note at 96), its own steps (and Grids' hits) paused, its
+ * position running on: let go, the pattern goes on in time. Playing: on the grid of the rate on the Grids clock's
+ * 1/16s (seq.c grids_tick: 1/4 every 4th 1/16 from PLAY, 1/8 every 2nd, 1/16 each, 1/32 each and its half: SWING,
+ * the tempo and an external clock as the steps), the first on the next grid point; stopped: free-running at the
+ * tempo, the first at once. A rate change applies from the next grid point. Several tracks at once.
  * REPEAT and REVERSE start with the Grids clock's next 1/16 (seq.c seq_16th: the block its hits sound from; at once
  * while stopped); the others at once; all end when let go, with a 2.9 ms ramp. Effects of different kinds stack;
  * of the buffer ones (REPEAT, REVERSE, TAPE STOP, FREEZE, OCT UP, OCT DN) the last pressed plays, and letting it
@@ -24,15 +32,16 @@
  * sends), DEPTH (the buffer effects' level; OCT UP / DN: the shimmer). They stay on after the PERFORM screen closes,
  * until turned back to 0 on it (ui_input.c fx_layer); perf_kill (the menu, a dialog) stops only the buffer effects.
  * Chain: [REPEAT / REVERSE / TAPE / FREEZE / OCT] -> LPF -> HPF -> CRUSH, after the master level and before
- * master_out (the limiter); THROW and the mutes act before the buses (fx.c mix_block / mix_part).
+ * master_out (the limiter); THROW acts before the buses (fx.c mix_block).
  * Idle (no key, no knob, no ramp left) every stage is skipped: the output is bit-identical. */
-enum { PF_R8, PF_R16, PF_R32, PF_REV, PF_LPF, PF_HPF, PF_TAPE, PF_FRZ, PF_OUP, PF_ODN, PF_M1, PF_N = PF_M1 + NTRK };
+enum { PF_R8, PF_R16, PF_R32, PF_REV, PF_LPF, PF_HPF, PF_TAPE, PF_FRZ, PF_OUP, PF_ODN, PF_T1, PF_N = PF_T1 + NTRK };
 #define PF_BIT(e) (1u << (e))
 #define PF_REPEAT 0x7u                                         /* the three REPEAT rates */
 #define PF_Q (PF_REPEAT | PF_BIT(PF_REV))                      /* start on the 1/16 */
 #define PF_HARM (PF_BIT(PF_OUP) | PF_BIT(PF_ODN))
 #define PF_BUF (PF_REPEAT | PF_BIT(PF_REV) | PF_BIT(PF_TAPE) | PF_BIT(PF_FRZ) | PF_HARM)
-#define PF_MUTE (((1u << NTRK) - 1u) << PF_M1)
+#define PF_TRK (((1u << NTRK) - 1u) << PF_T1)            /* REPEAT STEP's tracks (seq.c rep_keys) */
+enum { PR_4, PR_8, PR_16, PR_32, PR_N };                 /* REPEAT STEP's rates (D5 E5 F5 G5) */
 #define PB_FRAMES (NTRK * SL_LEN / 2u)        /* stereo frames in sl_buf: 16384, 743 ms at 22.05 kHz */
 #define PB_MAX (2u * PB_FRAMES)               /* the longest loop, 44.1 kHz samples */
 #define PB_TAPE 32000u                        /* TAPE STOP takes 1 beat, at most this (it lags a quarter of it) */
@@ -57,6 +66,7 @@ static volatile uint32_t perf_kh;     /* ISR: .. by the layer's keys */
 static volatile uint32_t perf_mh;     /* ISR: .. by learned MIDI buttons (midi_learn.c ml_holds) */
 static volatile uint32_t perf_act;    /* ISR: .. running (a 1/16 one from its start on) */
 static uint32_t perf_ord[PF_N], perf_seq;   /* press order: the last pressed buffer effect plays */
+static volatile uint8_t perf_rate = PR_16;   /* ISR: REPEAT STEP's rate (a rate key; the UI reads it) */
 
 /* the ZDF state-variable filter at cutoff index i (30 Hz * 2^(i / 7), 0..63: up to 15.4 kHz), k = 1:
  * a1 a2 a3 in Q14 (tools: g = tan(pi fc / fs), a1 = 1 / (1 + g (g + k)), a2 = g a1, a3 = g a2) */
@@ -78,7 +88,7 @@ static const int16_t PF_SVF[64][3] = {
 static struct {
     uint32_t P, split;                 /* the 1/16 (the LPF / HPF sweep's bar); this block: where the 1/16 effects start */
     uint32_t act, act0;                /* running after / before split */
-    uint8_t busy, mute;                /* mute: tracks to ramp */
+    uint8_t busy;
     /* the buffer */
     uint8_t mode, src, next, rev;      /* BM_*, the effect it plays (PF_N none), one waiting for the fade, REVERSE */
     uint8_t state, odd, xrev;          /* LOOP: 0 recording, 1 playing; the sample of a pair; the old loop's */
@@ -89,7 +99,7 @@ static struct {
     uint32_t hph, hinc;                /* OCT UP / DN: tap A's place in the sweep (Q32), its step a sample */
     int32_t hfb;                       /* .. the shimmer now, Q15 (glides to KNOB 4's a block at a time) */
     int32_t w, tw, hl, hr;             /* the buffer's share and its target, Q15; the first of a pair */
-    /* the filters, CRUSH, THROW, mutes */
+    /* the filters, CRUSH, THROW */
     int32_t lc, hc, la, ha;            /* cutoffs (Q8 index) and shares (Q15) of LPF and HPF */
     int32_t lz[4], hz[4];              /* their states: L ic1 ic2, R ic1 ic2 */
     int16_t lk[3], hk[3];              /* their coefficients this block */
@@ -97,9 +107,7 @@ static struct {
     int32_t cw, cc, chl, chr;          /* CRUSH share, amount, held sample */
     uint32_t cn;
     int32_t td;                        /* THROW: the share of the dry mix sent, Q15 */
-    int32_t mg[NTRK];                  /* mute gains, Q15 (32768 = open) */
-} pf = {.src = PF_N, .next = PF_N, .lc = PF_TOP, .mg = {32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768}};
-typedef char pf_mg_ntrk[NTRK == 8 ? 1 : -1];          /* (the initializer above opens 8 tracks) */
+} pf = {.src = PF_N, .next = PF_N, .lc = PF_TOP};
 
 /* the loop length of a REPEAT / REVERSE (1/8) at the tempo, 44.1 kHz samples; 0 = not one */
 static const uint8_t PF_DEN[PF_REV + 1] = {2, 4, 8, 2};
@@ -130,7 +138,7 @@ static void perf_press(uint32_t e, int down)
 }
 
 /* the layer's keys (user, 2026-10-07): the black keys from F#3 the effects in this order, the white keys F3 .. F4
- * (seq.c KEY_TRK_KEY) the mutes of tracks 1..8; the rest none. Key 0 = F3 */
+ * (seq.c KEY_TRK_KEY) REPEAT STEP of tracks 1..8 (2026-11-01), D5 .. G5 its rates; the rest none. Key 0 = F3 */
 static const uint8_t PF_BLACK[10] = {PF_R8, PF_R16, PF_R32, PF_REV, PF_TAPE, PF_LPF, PF_HPF, PF_FRZ, PF_OUP, PF_ODN};
 static int key_black(uint32_t k) { return (int)((0x54Au >> ((k + 5u) % 12u)) & 1u); }
 static uint32_t key_place(uint32_t k)                 /* k's place among the keys of its colour, from F3 */
@@ -143,7 +151,23 @@ static uint32_t key_place(uint32_t k)                 /* k's place among the key
 static uint32_t perf_key(uint32_t k)                  /* the effect of key k in the layer, PF_N none */
 {
     uint32_t p = key_place(k);
-    return key_black(k) ? (p < 10u ? PF_BLACK[p] : PF_N) : p < NTRK ? PF_M1 + p : PF_N;
+    return key_black(k) ? (p < 10u ? PF_BLACK[p] : PF_N) : p < NTRK ? PF_T1 + p : PF_N;
+}
+/* REPEAT STEP's rate of key k in the layer: the last four white keys D5 E5 F5 G5 (seq.c STEP_KEY 12..15) 1/4 1/8 1/16
+ * 1/32 (PR_*), PR_N none */
+static uint32_t perf_rate_key(uint32_t k)
+{
+    uint32_t p = key_place(k);
+    return !key_black(k) && p >= 12u && p < 16u ? p - 12u : PR_N;
+}
+/* seq.c keyboard_block: a layer key down: a rate key selects its rate (held: nothing), any other holds its effect */
+static void perf_key_down(uint32_t k)
+{
+    uint32_t r = perf_rate_key(k);
+    if (r < PR_N)
+        perf_rate = (uint8_t)r;
+    else
+        perf_press(perf_key(k), 1);
 }
 
 /* the SLICER's recordings dropped (when the buffer is taken and given back) */
@@ -159,7 +183,7 @@ static uint32_t perf_pick(uint32_t a)
 {
     uint32_t e, best = PF_N;
     a &= PF_BUF;
-    for (e = 0; e < PF_M1; e++)
+    for (e = 0; e < PF_T1; e++)
         if (((a >> e) & 1u) && (best == PF_N || perf_ord[e] - perf_ord[best] < 0x80000000u))
             best = e;
     return best;
@@ -237,11 +261,11 @@ static void perf_buf_select(uint32_t e)
 
 static uint32_t seq_16th(void);                       /* seq.c: 1 when a 1/16 of the Grids clock started this block */
 
-/* each block, after the keys (seq.c) and before the parts: what runs, the 1/16, the filters, the mutes.
- * Returns 1 when a stage has something to do */
+/* each block, after the keys (seq.c) and before the parts: what runs, the 1/16, the filters. REPEAT STEP's keys are
+ * the sequencer's (seq.c rep_keys): not here. Returns 1 when a stage has something to do */
 static __attribute__((noinline)) int perf_begin(uint32_t n)
 {
-    uint32_t held = perf_kill || !perf_held ? 0u : perf_held & perf_avail();   /* (idle: no divide) */
+    uint32_t fx = perf_held & ~PF_TRK, held = perf_kill || !fx ? 0u : fx & perf_avail();   /* (idle: no divide) */
     uint32_t q, k, on16 = seq_16th();                 /* (read every block: it is this block's) */
     int32_t m;
     if (!held && !pf.busy && !(perf_k[0] | perf_k[1] | perf_k[2])) {   /* idle */
@@ -287,29 +311,9 @@ static __attribute__((noinline)) int perf_begin(uint32_t n)
             pf.hk[k] = (int16_t)(PF_SVF[j][k] + (((PF_SVF[j < 63 ? j + 1 : 63][k] - PF_SVF[j][k]) * g) >> 8));
         }
     }
-    pf.mute = 0;
-    for (k = 0; k < NTRK; k++)
-        if (((held >> (PF_M1 + k)) & 1u) || pf.mg[k] != 32768)
-            pf.mute |= (uint8_t)(1u << k);
     pf.busy = 1;
     return 1;
 }
-
-/* a track muted by its white key: its signal ramps to 0 and back (fx.c mix_part, after the SLICER) */
-static __attribute__((noinline)) void perf_mute(uint32_t k, int32_t *b, uint32_t n)
-{
-    uint32_t i;
-    int32_t g = pf.mg[k], t = (pf.act >> (PF_M1 + k)) & 1u ? 0 : 32768;
-    for (i = 0; i < n; i++) {
-        g += clamp(t - g, -SL_SLOPE, SL_SLOPE);
-        b[i] = mulq16(b[i], (uint32_t)g << 1);
-    }
-    pf.mg[k] = g;
-}
-
-/* a track silent this block (fx.c mix_part's early return): its gain where the key says, at once (no fade-in on
- * its next hit when the key was let go meanwhile) */
-static void perf_mute_idle(uint32_t k) { pf.mg[k] = (pf.act >> (PF_M1 + k)) & 1u ? 0 : 32768; }
 
 /* before the buses: THROW (KNOB 3) adds the dry mix to the delay and reverb sends */
 static __attribute__((noinline)) void perf_pre(const int32_t *ml, const int32_t *mr, int32_t *sd, int32_t *sr,
@@ -595,6 +599,6 @@ static __attribute__((noinline)) void perf_block(int32_t *bl, int32_t *br, uint3
         bl[i] = l;
         br[i] = r;
     }
-    pf.busy = pf.act || pf.mode != BM_NONE || pf.w || pf.la || pf.ha || pf.cw || pf.td || pf.mute || perf_k[0] ||
+    pf.busy = pf.act || pf.mode != BM_NONE || pf.w || pf.la || pf.ha || pf.cw || pf.td || perf_k[0] ||
               perf_k[1] || perf_k[2];
 }

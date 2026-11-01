@@ -252,14 +252,14 @@ static void ui_leds(void)
     } else if (pl_on()) {                             /* the PRESETS list: the keys play (lit while held) */
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((fm1_in.notes >> k) & 1u));
-    } else if (ui.layer) {                            /* PERFORM: effects blink, held lit, unavailable dark; the
-                                                       * track keys lit while their track sounds */
+    } else if (ui.layer) {                            /* PERFORM: effects and REPEAT STEP's track keys blink, held
+                                                       * lit, unavailable dark; the rate keys: the selected one lit */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
         uint32_t held = perf_kill ? 0u : perf_held, ok = perf_avail();
         for (k = 0; k < 27u; k++) {
-            uint32_t e = perf_key(k);
-            led_put(nl, 14u + k, e < PF_M1 ? (int)(((ok >> e) & 1u) && (((held >> e) & 1u) || blink))
-                               : e < PF_N ? (int)(!((held >> e) & 1u) && !trk[e - PF_M1].p[P_MUTE]) : 0);
+            uint32_t e = perf_key(k), r = perf_rate_key(k);
+            led_put(nl, 14u + k, e < PF_N ? (int)(((ok >> e) & 1u) && (((held >> e) & 1u) || blink))
+                                          : (int)(r == perf_rate));
         }
     } else if (step_keys()) {                         /* the bank's steps; the playhead inverted */
         const track_t *t = TSEL;

@@ -83,6 +83,9 @@ static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t cnt)
 #define MUTE_LEAD 256u   /* samples ahead of the bar: the COMP source mute fade (5 ms) and a declick end there */
 static struct { uint32_t pos, cnt; uint8_t half, rem, at; } gclk;   /* samples into the 1/16, 1/16s since PLAY, odd 1/32
                                                                       * done; at: a 1/16 started this block (perform.c) */
+/* REPEAT STEP (perform.c, the PERFORM layer's track keys): on, the tracks repeating (their steps paused); free, those
+ * free-running (stopped), at fpos samples since their last hit; nt / vel, the sound each repeats */
+static struct { uint8_t on, free; int8_t nt[NTRK]; uint8_t vel[NTRK]; uint32_t fpos[NTRK]; } rp;
 static uint32_t grids_l16(uint32_t cnt)
 {
     uint32_t p16 = div_period(2u, gclk.rem);
@@ -93,12 +96,14 @@ static uint32_t grids_l16(uint32_t cnt)
 static void grids_fire(void)                        /* one Grids step: the tracks on a channel that fired play */
 {
     uint32_t bits = grids_step(), i;
-    for (i = 0; bits & 7u && i < NTRK; i++) {       /* accent 127, else 96 */
+    for (i = 0; bits & 7u && i < NTRK; i++) {       /* accent 127, else 96; not a track REPEAT STEP holds */
         uint32_t ch = (uint32_t)trk[i].p[P_SRC];
-        if (ch >= 1u && ch <= 3u && ((bits >> (ch - 1u)) & 1u))
+        if (ch >= 1u && ch <= 3u && ((bits >> (ch - 1u)) & 1u) && !((rp.on >> i) & 1u))
             drum_hit(&trk[i], ((bits >> (ch + 2u)) & 1u) ? 127u : 96u);
     }
 }
+
+static void rep_grid(uint32_t cnt, uint32_t half);   /* REPEAT STEP on the grid (below) */
 
 static void grids_tick(uint32_t n)
 {
@@ -111,6 +116,8 @@ static void grids_tick(uint32_t n)
         if (!start && !gclk.half && gclk.pos >= l16 / 2u) {
             gclk.half = 1;                          /* the odd 1/32 */
             grids_fire();
+            if (rp.on)
+                rep_grid(gclk.cnt, 1);
             continue;
         }
         if (gclk.pos < l16 && !start)
@@ -127,6 +134,8 @@ static void grids_tick(uint32_t n)
             metro.bar = !(gclk.cnt & 15u);
         }
         grids_fire();                               /* the even 1/32, on the 1/16 */
+        if (rp.on)
+            rep_grid(gclk.cnt, 0);
     }
 }
 
@@ -180,6 +189,77 @@ static void acid_gate_off(track_t *t)
     t->gate_n = 0;
     if (m->gate && t->v[0].active)
         m->gate(t, &t->v[0], 0);
+}
+
+/* REPEAT STEP: track k's hit (as drum_hit, at its note and velocity; a gated model's gate closes after GATE) */
+static void rep_hit(uint32_t k)
+{
+    track_t *t = &trk[k];
+    drum_play(t, rp.vel[k], rp.nt[k]);
+    if (trk_model(t)->gate) {
+        t->gate_n = hit_gate_len(t);
+        t->slide_in = 0;
+    }
+}
+
+/* REPEAT STEP, the press: the sound of the step under the playhead (its note, 127 with an accent else 96; PROB and
+ * RATCH not looked at); a step off, a TIE, a track following Grids: the last note it played at 96. Its roll stops, a
+ * gate its steps held closes (they are paused) */
+static __attribute__((noinline)) void rep_take(track_t *t, uint32_t k)
+{
+    uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
+    const step_t *s = &seq_steps(t)[t->seq_idx % len];
+    int on = !t->p[P_SRC] && s->on && !s->tie;
+    rp.nt[k] = (int8_t)(on ? clamp(s->nt, NT_MIN, NT_MAX) : t->nt);
+    rp.vel[k] = (uint8_t)(on && s->acc ? 127u : 96u);
+    t->rat_n = 0;
+    if (t->gate_n == GATE_HELD)
+        acid_gate_off(t);
+}
+
+/* REPEAT STEP, each block after the keys and MIDI, before the steps (events_block): the tracks whose key (or learned
+ * button) is held, PERFORM on (perf_kill: none). Stopped: free-running at the tempo, the first hit at once (a track
+ * held over STOP: a period after it); playing, the grid's (rep_grid). n: the block */
+static __attribute__((noinline)) void rep_keys(uint32_t n)
+{
+    uint32_t want = perf_kill ? 0u : (perf_held >> PF_T1) & 0xFFu, nw = want & ~(uint32_t)rp.on, k, per;
+    rp.on = (uint8_t)want;
+    for (k = 0; k < NTRK; k++)
+        if ((nw >> k) & 1u)
+            rep_take(&trk[k], k);
+    if (song.playing) {
+        rp.free = 0;
+        return;
+    }
+    per = beat_samples() >> perf_rate;              /* 1/4 1/8 1/16 1/32 of the beat */
+    for (k = 0; k < NTRK; k++) {
+        if (!((want >> k) & 1u))
+            continue;
+        if ((nw >> k) & 1u) {
+            rep_hit(k);
+            rp.fpos[k] = 0;
+        } else if (!((rp.free >> k) & 1u)) {
+            rp.fpos[k] = 0;
+        }
+        rp.fpos[k] += n;                            /* (as seq_tick: the block's end) */
+        if (rp.fpos[k] >= per) {
+            rp.fpos[k] = rp.fpos[k] - per < per ? rp.fpos[k] - per : 0u;   /* (a shorter rate: from now) */
+            rep_hit(k);
+        }
+    }
+    rp.free = (uint8_t)want;
+}
+
+/* REPEAT STEP while playing (grids_tick): the Grids clock's 1/16 number cnt started (half 0) or its half (1); 1/4 on
+ * every 4th 1/16 from PLAY, 1/8 every 2nd, 1/16 each, 1/32 each and each half */
+static __attribute__((noinline)) void rep_grid(uint32_t cnt, uint32_t half)
+{
+    uint32_t r = perf_rate, k;
+    if (half ? r != PR_32 : (cnt & (r >= PR_16 ? 0u : (4u >> r) - 1u)) != 0u)
+        return;
+    for (k = 0; k < NTRK; k++)
+        if ((rp.on >> k) & 1u)
+            rep_hit(k);
 }
 
 /* STOP, PLAY again, a song's row change: every gated track's note ends, nothing slides into the next step */
@@ -267,6 +347,10 @@ static void step_fire(track_t *t, uint32_t len_s)
     const step_t *s = &seq_steps(t)[t->seq_idx];
     uint32_t len = t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u;
     t->rat_off = 0;                                 /* (a nudged hit's roll: its callers set where it began) */
+    if ((rp.on >> trk_index(t)) & 1u) {             /* REPEAT STEP holds the track: its steps paused */
+        t->rat_n = 0;
+        return;
+    }
     if (trk_model(t)->gate) {
         acid_step(t, s, seq_next(t), len_s);
         return;
@@ -475,7 +559,7 @@ static void keyboard_block(void)
                     ml_kb_hit |= bit;                   /* MIDI LEARN: the key picks its effect (ui_learn.c), plays
                                                          * none (its release: perf_press of an effect not held) */
                 else
-                    perf_press(perf_key(key), 1);
+                    perf_key_down(key);                 /* (a rate key: REPEAT STEP's rate) */
                 ch &= ~bit;
             } else if (fm1_in.buttons & mute_mask) {   /* GLO held: the MUTE screen's until let go (ui_input.c
                                                          * glo_input takes kb_mute_hit): no note, no MIDI */
@@ -895,6 +979,8 @@ static void events_block(uint32_t n)
         bt_fml_adv();                                /* (bt_fml.c: FM-Link's leader moves with the clock) */
 #endif
     }
+    if (rp.on | ((perf_held >> PF_T1) & 0xFFu))
+        rep_keys(n);                                 /* REPEAT STEP: the held tracks (their steps paused below) */
     run = !clock_mode || midi_clock.have_pulse || !song.playing;   /* following: step 0 / the resumed step on the first
                                                      * pulse; stopped, seq_tick counts ACID's gates in real time */
     cue_block(n, seq_n, run);                        /* cue.c: this block's fade; a queued switch's boundary */

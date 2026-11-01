@@ -282,13 +282,21 @@ Report what you saw first; we'll go through it together.
 ### PERFORM (check on the FM-1)
 - MENU > PERFORM PAGE: hold FX, let go: the PERFORM screen stays; the keys and knobs work without FX; PLAY / OCT±
   keep it; an FX tap, another page button or HOME leaves it (the knob effects stay on). Set it back to HOLD after.
-- Hold FX alone: after a moment the map shows (two rows of effects, eight tracks); let go: back to the page.
+- Hold FX alone: after a moment the map shows (two rows of effects, T1..T8, RPT with 1/4 1/8 1/16 1/32, 1/16
+  marked); let go: back to the page.
 - Tap FX: the FX pages, as before.
 - Playing, FX held: each black key's effect while held — F#3 G#3 A#3 REPEAT 1/8 1/16 1/32 (starting on the next
   1/16), C#4 REVERSE, D#4 TAPE STOP, F#4 LPF, G#4 HPF (sweeping over a bar), A#4 FREEZE, C#5 OCT UP, D#5 OCT DN;
   let go: back to the dry sound without a click. Two buffer effects held: the last pressed plays, letting it go
   returns to the other.
-- FX + a white track key (F3 .. F4): that track silent while held; no note plays, nothing is recorded.
+- REPEAT STEP, playing, FX held: hold A3 (track 3): from the next 1/16 it repeats the step it was on, every 1/16, its
+  own steps silent; let go: its pattern goes on in time. Tap G5 (1/32, lit; F5 dark) while A3 is held: twice as fast
+  from the next 1/32; D5 1/4 on the beats, E5 1/8. Hold A3 and F3 together: both repeat. A step with an accent
+  repeats loud. No note is played by the key itself, nothing is recorded, no MIDI goes out.
+- REPEAT STEP stopped: hold a track key: it starts at once and repeats at the tempo; let go: silence.
+- REPEAT STEP with SWING up (GLOBAL): the 1/16 and 1/32 repeats swing with the hats; with CLK USB they follow the
+  DAW's tempo.
+- A controller button learned to a PERFORM mute in an older version: it now holds that track's REPEAT STEP.
 - FX + KNOB 1..4: FILTER (left LPF, right HPF), CRUSH, THROW (into the delay / reverb), DEPTH (SHIMMER while OCT
   plays); let go of FX: they stay on and keep working on every page (amber `FX` in the top bar); back to 0 on the
   PERFORM screen: off, the `FX` mark goes.
@@ -586,9 +594,9 @@ Report what you saw first; we'll go through it together.
 - Learn while playing, stop, power off and on: the CCs still work (LEARN itself off). No audio glitch from moving a
   learned knob quickly while a dense pattern plays (`status`: `audio_late 0`).
 - Actions: with LEARN on, press PLAY (nothing plays; `PLAY: SEND CC/NOTE`), hit a pad: `NOTE36 -> PLAY`. Do the same
-  for REC, ALGORITHM right, FX + G#3 (`FX R1/16`) and FX + A3 (`FX MUTE T3`) with buttons, and FX + KNOB 1 with a
+  for REC, ALGORITHM right, FX + G#3 (`FX R1/16`) and FX + A3 (`FX RPT T3`) with buttons, and FX + KNOB 1 with a
   knob (`FX FILTER`). OCT+: the pad starts / stops, its drum silent; the buttons arm, step the track, hold REPEAT and
-  the mute while held; HOME held (the menu) ends a held REPEAT, which stays off after the menu.
+  track 3's REPEAT STEP while held; HOME held (the menu) ends a held REPEAT, which stays off after the menu.
 
 ### PRESETS (check on the FM-1)
 

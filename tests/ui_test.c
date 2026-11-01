@@ -4053,16 +4053,16 @@ static void test_mute_boxes(void)
 
 static void test_perform_buttons(void)
 {
-    uint32_t x = 4u + 47u, y = Y_GRAPH + 4u, on, off;
+    uint32_t x = 4u + 47u, y = Y_GRAPH + 3u, on, off;
     ui_host_init();
     press(B_FX);
     fx_hold_frames(500);
-    off = fb_count(x + 2u, y + 2u, 40, 30, C_INK);
+    off = fb_count(x + 2u, y + 2u, 40, 23, C_INK);
     perf_held |= 1u << PF_BLACK[1];
     ui.force = 1;
     fx_hold_frames(1);
-    on = fb_count(x + 2u, y + 2u, 40, 30, C_INK);
-    check("PERFORM: a button an outline, held: solid (ink with its name in BG)", ui.layer && off < 200u && on > 900u);
+    on = fb_count(x + 2u, y + 2u, 40, 23, C_INK);
+    check("PERFORM: a button an outline, held: solid (ink with its name in BG)", ui.layer && off < 200u && on > 690u);
     perf_held = 0;
     release_all();
     ui_frame();
@@ -5340,9 +5340,17 @@ static void test_perform_keys(void)
     ui_frame();
     keys(1u << 4);                                    /* A3: track 3's key */
     fx_hold_frames(2);                                /* (the render takes the key after the UI's pass) */
-    check("FX + a track key: no track select, the layer open, track 3 muted",
-          song.sel == sel && ui.layer == 1u && ((perf_held >> (PF_M1 + 2u)) & 1u));
-    check("LEDs: the muted track's key dark", !led_on(14u + 4u));
+    check("FX + a track key: no track select, the layer open, track 3 repeating",
+          song.sel == sel && ui.layer == 1u && ((perf_held >> (PF_T1 + 2u)) & 1u));
+    check("LEDs: the repeating track's key lit; the rate keys: F5 (1/16) lit, D5 E5 G5 dark", led_on(14u + 4u) &&
+          led_on(14u + 24u) && !led_on(14u + 21u) && !led_on(14u + 23u) && !led_on(14u + 26u));
+    keys(1u << 4 | 1u << 23);                         /* E5: 1/8, the track key still held */
+    fx_hold_frames(2);
+    check("FX + E5: the rate 1/8, its key lit, F5's dark; the track still repeating", perf_rate == PR_8 &&
+          led_on(14u + 23u) && !led_on(14u + 24u) && ((perf_held >> (PF_T1 + 2u)) & 1u));
+    keys(1u << 4);
+    fx_hold_frames(2);
+    check("E5 let go: the rate stays 1/8", perf_rate == PR_8 && led_on(14u + 23u));
     keys(0);
     fx_hold_frames(1);
     release_all();
@@ -5460,7 +5468,7 @@ static void test_perform_page(void)
     render_mix(0, 0, CTL);
 }
 
-/* PERFORM screens: the map held alone, with keys held (REPEAT 1/16 running, track 2 muted), an unavailable REPEAT
+/* PERFORM screens: the map held alone, with keys held (REPEAT 1/16 running, track 2 repeating), an unavailable REPEAT
  * (40 BPM), OCT UP with the SHIMMER knob */
 static void test_perform_screens(void)
 {
@@ -5472,6 +5480,13 @@ static void test_perform_screens(void)
     keys(1u << 3 | 1u << 2);                          /* G#3 REPEAT 1/16, G3 track 2 */
     fx_hold_frames(2);
     snap_page("perform/keys");
+    keys(1u << 26);                                   /* G5: REPEAT STEP 1/32 */
+    fx_hold_frames(2);
+    keys(1u << 4 | 1u << 7);                          /* A3 C4: tracks 3 and 5 repeating */
+    fx_hold_frames(2);
+    snap_page("perform/repeat_step");
+    check("the map: G5 selects 1/32, tracks 3 and 5 held", perf_rate == PR_32 &&
+          perf_held == (PF_BIT(PF_T1 + 2u) | PF_BIT(PF_T1 + 4u)));
     keys(0);
     fx_hold_frames(2);
     song.g[G_BPM] = 40;
@@ -5608,15 +5623,17 @@ static void test_perform_knobs_stay(void)
 /* review: FX pressed and a key at once, before the UI's pass has seen FX: still the layer's (no note) */
 static void test_perform_fast_key(void)
 {
-    uint32_t age;
+    uint32_t mo;
     ui_host_init();
     ui_frame();
-    age = hit_age(&trk[0]);
+    usb.config = 1;
+    mo = mo_w;
     fm1_in.buttons |= fx_bit();                       /* FX down, the UI has not run since */
     keys(1u << 0);                                    /* F3 in the same moment */
     render_mix(0, 0, CTL);                            /* the audio render first */
-    check("FX + a key before the UI's pass: the key is the layer's, no note",
-          (kb_layer & 1u) && hit_age(&trk[0]) == age);
+    check("FX + a key before the UI's pass: the key is the layer's (track 1's REPEAT STEP), no note (no MIDI)",
+          (kb_layer & 1u) && ((perf_held >> PF_T1) & 1u) && mo_w == mo);
+    usb.config = 0;
     keys(0);
     release_all();
     ui_frame();
@@ -6777,8 +6794,8 @@ static void test_keys_owners(void)
     ui_frame();
     keys(1u << 4);                                   /* A3 with FX held */
     fx_hold_frames(2);
-    check("KEYS + FX held: the key is PERFORM's (track 3 muted while held), no note",
-          ((perf_held >> (PF_M1 + 2u)) & 1u) && !trk[0].v[0].active);
+    check("KEYS + FX held: the key is PERFORM's (track 3 repeating while held), no note",
+          ((perf_held >> (PF_T1 + 2u)) & 1u) && !trk[0].v[0].active);
     keys(0);
     fx_hold_frames(1);
     release_all();
