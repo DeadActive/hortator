@@ -11,12 +11,12 @@
 
 /* ------------------------------------------------------------------ constants --- */
 export const HDR = [0x7d, 0x48, 0x54]; // F0 7D 48 54 <cmd> <seq> ... F7
-export const PROTO = { major: 1, minor: 2, magic: "HORTATOR" }; // minor 1: NUDGE (CAP.NUDGE); 2: UPR2 (CAP.UPR2)
+export const PROTO = { major: 1, minor: 3, magic: "HORTATOR" }; // minor 1: NUDGE (CAP.NUDGE); 2: UPR2 (CAP.UPR2); 3: SAMPLES
 export const SEQ_PUSH = 0x7f, NONE = 0x7f, U14_NONE = 0x3fff, DESC_ORDER = 0x7f;
 export const LIMITS = { req: 640, reply: 400, piece: 256, state: 17 };
 export const TIMING = {
   timeout: 300, tries: 3, // every request (one in flight)
-  longTimeout: 2000, // SAVE, RESTORE COMMIT (flash writes)
+  longTimeout: 2000, // SAVE, RESTORE COMMIT, the sample writes (flash writes)
   silence: 10000, // update traffic: the device answers nothing this long
   // after a silence: INFO once, then backing off (10 s doubling to 60 s), and no more after 2 min busy (an update may
   // still run: during ota_session the FM-1 holds one SysEx frame, a probe could cost the update a retry): Reconnect
@@ -28,6 +28,7 @@ export const CMD = {
   INFO: 1, PAGES: 2, DESC: 3, GET: 4, SET: 5, DUMP: 6, SELECT: 7, WATCH: 8, NAMES: 9, PRESET_LOAD: 10,
   STEPS_GET: 11, STEPS_SET: 12, LOCKS_GET: 13, LOCK_EDIT: 14, CUE: 15, SAVE: 16, BACKUP_LIST: 17, BACKUP_GET: 18,
   RESTORE: 19, TEXT: 20,
+  SMP_INFO: 21, SMP_BEGIN: 22, SMP_DATA: 23, SMP_END: 24, SMP_READ: 25, SMP_CLEAR: 26, SMP_RENAME: 27, // minor 3 (§2.7)
 };
 export const PUSH = { CHANGED: 0x40, STATE: 0x41, STEPS_CHANGED: 0x42, LOCKS_CHANGED: 0x43 };
 export const RC = { OK: 0, BAD: 1, REFUSED: 2, STOP: 3, FLASH: 4, STALE: 5, BUSY: 6 };
@@ -35,10 +36,10 @@ export const DETAIL = {
   NONE: 0, CUE_FULL: 1, CUE_SONG: 2, CUE_NOSLOT: 3, CUE_EMPTY: 4, CUE_PARK: 8, // CUE_PARK + slot
   EMPTY_SLOT: 16, PRESET_EMPTY: 17, ACID_CAP: 18, NOT_LOCKABLE: 19, LOCKS_FULL: 20, VARS_FULL: 21, NO_SLOT: 22,
   NEWER: 23, BAD_OBJECT: 24, CRC: 25, INVALID: 26, INCOMPLETE: 27, NO_FLASH: 28, BLOCKED: 29, NOT_PRESENT: 30,
-  CUE_FIRST: 32, CHANGED: 33, ORDER: 34, RESTORING: 40, NOT_RESTORING: 41, STOP: 42,
+  TOO_BIG: 31, CUE_FIRST: 32, CHANGED: 33, ORDER: 34, REFUSED_DATA: 35, RESTORING: 40, NOT_RESTORING: 41, STOP: 42,
   UNKNOWN: 43, LENGTH: 44, RANGE: 45, NO_CAP: 46,
 };
-export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10, NUDGE: 0x20, UPR2: 0x40 };
+export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10, NUDGE: 0x20, UPR2: 0x40, SAMPLES: 0x80 };
 export const CMD_CAP = {
   [CMD.INFO]: 0, [CMD.PAGES]: CAP.LIVE, [CMD.DESC]: CAP.LIVE, [CMD.GET]: CAP.LIVE, [CMD.SET]: CAP.LIVE,
   [CMD.DUMP]: CAP.LIVE, [CMD.SELECT]: CAP.LIVE, [CMD.WATCH]: CAP.LIVE, [CMD.TEXT]: CAP.LIVE,
@@ -46,11 +47,14 @@ export const CMD_CAP = {
   [CMD.STEPS_GET]: CAP.PATTERNS, [CMD.STEPS_SET]: CAP.PATTERNS, [CMD.LOCKS_GET]: CAP.PATTERNS,
   [CMD.LOCK_EDIT]: CAP.PATTERNS, [CMD.CUE]: CAP.PATTERNS, [CMD.SAVE]: CAP.PATTERNS,
   [CMD.BACKUP_LIST]: CAP.BACKUP, [CMD.BACKUP_GET]: CAP.BACKUP, [CMD.RESTORE]: CAP.RESTORE,
+  [CMD.SMP_INFO]: CAP.SAMPLES, [CMD.SMP_BEGIN]: CAP.SAMPLES, [CMD.SMP_DATA]: CAP.SAMPLES, [CMD.SMP_END]: CAP.SAMPLES,
+  [CMD.SMP_READ]: CAP.SAMPLES, [CMD.SMP_CLEAR]: CAP.SAMPLES, [CMD.SMP_RENAME]: CAP.SAMPLES,
 };
 /** commands that change the device: a repeated (cmd, seq) is not executed twice (the duplicate rule) */
 export const WRITES = new Set([CMD.SET, CMD.SELECT, CMD.PRESET_LOAD, CMD.STEPS_SET, CMD.LOCK_EDIT, CMD.CUE, CMD.SAVE,
-  CMD.RESTORE]);
-export const LONG = new Set([CMD.SAVE]); // + RESTORE COMMIT: TIMING.longTimeout
+  CMD.RESTORE, CMD.SMP_BEGIN, CMD.SMP_DATA, CMD.SMP_END, CMD.SMP_CLEAR, CMD.SMP_RENAME]);
+/** TIMING.longTimeout (+ RESTORE COMMIT): flash writes */
+export const LONG = new Set([CMD.SAVE, CMD.SMP_BEGIN, CMD.SMP_DATA, CMD.SMP_END, CMD.SMP_CLEAR, CMD.SMP_RENAME]);
 export const SCOPE = { TRACK: 0, GLOBAL: 1, MODEL: 2 };
 /** the core.h ids the page names (protocol 1: ids are the firmware's enums, §2.2; test_editor.mjs checks them against
  * device_data.json): P_MODEL P_RMODEL P_ITYPE (scope 0); G_GMODE G_SYNC (scope 1). Everything else comes from PAGES /
@@ -225,6 +229,16 @@ export const SCHEMA = {
       [RS.COMMIT]: [["kind", "u7"], ["slot", "u7"], ["state", "state"]], [RS.ABORT]: [] } },
   },
   [CMD.TEXT]: { req: [...KNOB, ["value", "v14"]], rep: [...KNOB, ...VALUE] },
+  /* the user sample slots (minor 3, §2.7): slot 0..2 = USR1..USR3; offsets and lengths in bytes */
+  [CMD.SMP_INFO]: { req: [["slot", "u7"]], rep: [["slot", "u7"], ["valid", "u7"], ["name", "str"], ["len", "u35"], ["crc", "u35"],
+    ["max", "u35"], ["nz", "u7"], ["n", "u35"], ["rate", "u35"]] },
+  [CMD.SMP_BEGIN]: { req: [["slot", "u7"], ["len", "u35"], ["crc", "u35"]], rep: [["slot", "u7"], ["max", "u35"]] },
+  [CMD.SMP_DATA]: { req: [["slot", "u7"], ["offset", "u35"], ["data", "pack"]], rep: [["slot", "u7"], ["offset", "u35"], ["len", "u14"]] },
+  [CMD.SMP_END]: { req: [["slot", "u7"], ["header", "pack"]], rep: [["slot", "u7"], ["valid", "u7"]] },
+  [CMD.SMP_READ]: { req: [["slot", "u7"], ["offset", "u35"], ["crc", "u35"]],
+    rep: [["slot", "u7"], ["offset", "u35"], ["len", "u14"], ["data", "pack"]] },
+  [CMD.SMP_CLEAR]: { req: [["slot", "u7"]], rep: [["slot", "u7"]] },
+  [CMD.SMP_RENAME]: { req: [["slot", "u7"], ["name", "str"]], rep: [["slot", "u7"], ["name", "str"]] },
 };
 export const PUSH_SCHEMA = {
   [PUSH.CHANGED]: [...KNOB, ...VALUE],

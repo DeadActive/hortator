@@ -39,7 +39,7 @@ const fresh = (o) => createMockDevice(data, o);
   }
   for (const m of h.matchAll(/#define\s+(ED_\w+)\s+(0x[0-9A-Fa-f]+|\d+)u?\b/g)) E[m[1]] = Number(m[2]);
   const toC = (k) => k.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
-  ok(Object.entries(CMD).every(([k, v]) => E[`ED_${k}`] === v) && E.ED_CMD_N === 21, "header: command ids = proto.mjs CMD");
+  ok(Object.entries(CMD).every(([k, v]) => E[`ED_${k}`] === v) && E.ED_CMD_N === 28, "header: command ids = proto.mjs CMD");
   ok(Object.entries(PUSH).every(([k, v]) => E[`ED_P_${k}`] === v), "header: push ids");
   const rcName = { OK: "ED_OK", BAD: "ED_E_BAD", REFUSED: "ED_E_REFUSED", STOP: "ED_E_STOP", FLASH: "ED_E_FLASH", STALE: "ED_E_STALE", BUSY: "ED_E_BUSY" };
   ok(Object.entries(RC).every(([k, v]) => E[rcName[k]] === v), "header: rc codes");
@@ -70,14 +70,19 @@ const fresh = (o) => createMockDevice(data, o);
     [CMD.LOCKS_GET, { slot: 0, track: 0, first: 0 }, "LOCKS_GET"],
     [CMD.LOCK_EDIT, { op: 0, track: 0, step: 0, param: 0, value: 0 }, "LOCK_EDIT"], [CMD.CUE, { kind: 0, n: 0 }, "CUE"],
     [CMD.SAVE, { slot: 0 }, "SAVE"], [CMD.BACKUP_LIST, {}, "BACKUP_LIST"], [CMD.BACKUP_GET, { obj: 0, offset: 0, seq: 0 }, "BACKUP_GET"],
-    [CMD.TEXT, { ...k, value: 0 }, "TEXT"]];
+    [CMD.TEXT, { ...k, value: 0 }, "TEXT"], [CMD.SMP_INFO, { slot: 0 }, "SMP_INFO"],
+    [CMD.SMP_BEGIN, { slot: 0, len: 1, crc: 0 }, "SMP_BEGIN"], [CMD.SMP_END, { slot: 0, header: new Uint8Array(480) }, "SMP_END"],
+    [CMD.SMP_READ, { slot: 0, offset: 0, crc: 0 }, "SMP_READ"], [CMD.SMP_CLEAR, { slot: 0 }, "SMP_CLEAR"]];
   ok(L.every(([c, a, n]) => len(c, a) === E[`ED_LEN_${n}`]), "header: ED_LEN_* = the request lengths");
   ok(len(CMD.STEPS_SET, { slot: 0, var: 0, track: 0, first: 0, steps: [{ flags: 0, cond: 0, note: 60 }] }) === E.ED_LEN_STEPS_SET_MIN + 3
     && len(CMD.STEPS_SET, { slot: 0, var: 0, track: 0, first: 0, steps: [P.emptyStep(), P.emptyStep()] }) === E.ED_LEN_STEPS_SET_MIN + 8
     && E.ED_MICRO_OFFSET === STEP.MICRO_OFFSET && data.consts.MICRO_MAX === STEP.MICRO_MAX && E.ED_CAP_NUDGE === CAP.NUDGE
     && len(CMD.RESTORE, { op: RS.BEGIN, kind: 0, slot: 0, magic: 0, parts: [0, 1, 2].map(() => ({ size: 0, crc: 0 })) }) === E.ED_LEN_RESTORE_BEGIN
     && len(CMD.RESTORE, { op: RS.DATA, part: 0, offset: 0, data: [] }) === E.ED_LEN_RESTORE_DATA_MIN
-    && len(CMD.RESTORE, { op: RS.COMMIT }) === E.ED_LEN_RESTORE_OP, "header: variable-length minimums");
+    && len(CMD.RESTORE, { op: RS.COMMIT }) === E.ED_LEN_RESTORE_OP
+    && len(CMD.SMP_DATA, { slot: 0, offset: 0, data: [] }) === E.ED_LEN_SMP_DATA_MIN
+    && len(CMD.SMP_RENAME, { slot: 0, name: "A" }) === E.ED_LEN_SMP_RENAME_MIN && E.ED_SMP_HDR === 480
+    && E.ED_CAP_SAMPLES === CAP.SAMPLES && CAP.SAMPLES === 0x80, "header: variable-length minimums");
 
   const doc = readFileSync(join(ROOT, "web/EDITOR_PROTOCOL.md"), "utf8");
   const rows = new Map([...doc.matchAll(/^\| (\d+) \| ([A-Z_]+) \| /gm)].map((m) => [m[2], Number(m[1])]));
@@ -96,7 +101,7 @@ const fresh = (o) => createMockDevice(data, o);
     && same(data.uprFx, P.LAYOUT.uprFx) && same(P.LAYOUT.uprFxDef, data.uprFx.map((id) => data.tp[id].def))
     && P.LAYOUT.nuserOld === c.UPR_NOLD && P.LAYOUT.uprFx.length === c.UPR_NFX && P.UPR.USED === c.UPR_USED
     && P.UPR.VOICE === c.UPR_VOICE && P.MAGIC.UPR1 === data.magic.UPR1 && P.UPR_FX_LABELS.length === c.UPR_NFX
-    && P.CAP.UPR2 === 0x40 && P.PROTO.minor === 2, "layout: the user presets (UPR2: 96 slots with their FX, the moves; UPR1's size) = the firmware's");
+    && P.CAP.UPR2 === 0x40 && P.PROTO.minor === 3, "layout: the user presets (UPR2: 96 slots with their FX, the moves; UPR1's size) = the firmware's");
   ok(P.LAYOUT.pcount === c.P_COUNT && P.LAYOUT.gcount === c.G_COUNT && P.LAYOUT.pStored === c.P_NSTORED && P.LAYOUT.gStored === c.G_NSTORED
     && P.LAYOUT.nuser === c.PRE_NUSER && P.LAYOUT.lkMax === c.LK_MAX && P.LAYOUT.nameLen === c.NAME_LEN && P.SZ.VARS_MAX === c.VAR_BYTES
     && P.NAME_SET === data.nameSet, "layout: counts = the firmware's");
@@ -141,7 +146,7 @@ const fresh = (o) => createMockDevice(data, o);
     && eqb(P.fromBase64(P.toBase64(blob.slice(0, n))), blob.slice(0, n))), "base64: as node's, round trip");
   /* the whitelist: only F0 7D 48 54 frames of known commands with a request seq */
   bad = 0;
-  for (const f of [() => P.encodeRequest(0, 0), () => P.encodeRequest(21, 0), () => P.encodeRequest(PUSH.STATE, 0, {}),
+  for (const f of [() => P.encodeRequest(0, 0), () => P.encodeRequest(28, 0), () => P.encodeRequest(PUSH.STATE, 0, {}),
     () => P.encodeRequest(CMD.INFO, 127), () => P.encodeRequest(CMD.INFO, -1),
     () => P.encodeRequest(CMD.RESTORE, 0, { op: RS.DATA, part: 0, offset: 0, data: new Uint8Array(600) })]) try { f(); } catch { bad++; }
   ok(bad === 6, "whitelist: no unknown command, push id, bad seq or request over 640 bytes can be built");
@@ -155,7 +160,7 @@ m.feed = (f) => { const out = feed0(f); seen.push(...out); return out; };
 const q = (cmd, args) => m.request(cmd, args);
 {
   const info = q(CMD.INFO);
-  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 2 && info.caps === 0x7f && info.ntrk === 8 && info.pcount === 76
+  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 3 && info.caps === 0xff && info.ntrk === 8 && info.pcount === 76
     && info.gcount === 42 && info.nmodels === 45 && info.nfact === 151 && info.nuser === 96 && info.maxreq === 640
     && info.state.slot === 0 && info.state.used === 7 && info.state.dirty === 0 && P.checkInfo(info).ok, "INFO: the device, A loaded, nothing unsaved");
   ok(info.state.vmask[0] === 0b10111 && info.state.vmask[1] === 0b11 && info.state.vmask[3] === 1, "INFO: the variations used per slot");
@@ -585,7 +590,7 @@ function restore(dev, kind, slot, parts) {
   ok(d.request(CMD.INFO) === undefined && d.request(CMD.INFO) === undefined && d.request(CMD.INFO).rc === 0, "faults: n requests unanswered (timeouts)");
   d.faults.refuse[CMD.SAVE] = { rc: RC.FLASH, msg: "SAVE ERROR" };
   ok(d.request(CMD.SAVE, { slot: NONE }).rc === RC.FLASH && d.request(CMD.SAVE, { slot: NONE }).rc === 0, "faults: a refusal injected once");
-  const u = d.feed(Uint8Array.from([0xf0, 0x7d, 0x48, 0x54, 21, 3, 0xf7])).map(P.decodeFrame);
+  const u = d.feed(Uint8Array.from([0xf0, 0x7d, 0x48, 0x54, 28, 3, 0xf7])).map(P.decodeFrame);
   const caps = fresh({ caps: P.CAP.LIVE }).request(CMD.STEPS_GET, { slot: 0, var: 0, track: 0 });
   ok(u[0].rc === RC.BAD && u[0].detail === DETAIL.UNKNOWN && u[0].seq === 3 && caps.rc === RC.BAD && caps.detail === DETAIL.NO_CAP,
     "unknown command -> rc 1 (43); a missing capability -> rc 1 (46)");
@@ -608,6 +613,13 @@ function restore(dev, kind, slot, parts) {
   const got = await new Promise((res) => { inp.onmidimessage = (e) => res(P.decodeFrame(e.data)); out.send(P.encodeRequest(CMD.INFO, 9)); });
   ok(inp.name === "Hortator" && got.seq === 9 && got.magic === "HORTATOR", "access: a Web MIDI port pair answering asynchronously");
   ok(d.received.every((f) => f[1] === 0x7d && f[2] === 0x48 && f[3] === 0x54), "whitelist: every frame the tests sent through the access is an editor frame");
+}
+
+/* the user sample slots: sample.mjs and the mock's SMP_* (test_sample.mjs) */
+{
+  const r = await (await import("./test_sample.mjs")).runSampleTests((x) => console.log(x));
+  passed += r.passed;
+  failed += r.failed;
 }
 
 ok(seen.length > 100 && seen.every((f) => f.length <= P.LIMITS.reply && P.isEditorFrame(f)), "every reply and push <= 400 bytes, editor framed");
