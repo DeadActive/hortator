@@ -42,6 +42,8 @@ static void ota_idle(void) { usb_host_take(); }
 #include "../firmware/src/editor_proto.h"
 #include "../firmware/src/editor_backup.c"
 #include "../firmware/src/editor_pattern.c"
+#define EDS_OTA_REQ() (ota_race != 0u)
+#include "../firmware/src/editor_sample.c"
 #include "../firmware/src/editor.c"
 
 static uint32_t hex(const char *s, uint8_t *out, uint32_t max)

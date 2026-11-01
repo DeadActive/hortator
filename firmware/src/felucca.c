@@ -202,6 +202,9 @@ static void ota_commit(const uint8_t *parm)
 #if __has_include("editor_pattern.c")
 #include "editor_pattern.c"          /* STEPS, LOCKS, CUE, SAVE, NAMES / PRESET_LOAD */
 #endif
+#if __has_include("editor_sample.c")
+#include "editor_sample.c"           /* SMP_INFO .. SMP_RENAME: the user sample slots */
+#endif
 #include "editor.c"                  /* framing, INFO .. WATCH, TEXT, pushes, the update-silence rule */
 #endif
 #if FELUCCA_CDC

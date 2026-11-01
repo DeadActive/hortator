@@ -6,8 +6,9 @@
  * Instruments). */
 /* Hortator editor protocol 1, the core (web/EDITOR_PROTOCOL.md; the numbers: editor_proto.h). Included last of the
  * editor's files (felucca.c, FELUCCA_OTA): framing, the 7-bit fields, the duplicate rule, dispatch; INFO, PAGES, DESC,
- * GET, SET, TEXT, DUMP, SELECT, WATCH and the CHANGED / STATE pushes; the update-silence rule. editor_backup.c and
- * editor_pattern.c, when included before it, define ED_HAS_BACKUP / ED_HAS_PATTERN and their hooks (editor_proto.h).
+ * GET, SET, TEXT, DUMP, SELECT, WATCH and the CHANGED / STATE pushes; the update-silence rule. editor_backup.c,
+ * editor_pattern.c and editor_sample.c, when included before it, define ED_HAS_BACKUP / ED_HAS_PATTERN /
+ * ED_HAS_SAMPLES and their hooks (editor_proto.h).
  *
  * Frames come through usb_app.c's one received frame (sx_frame, ota_frame_get) and leave through its SysEx out ring
  * (ota_wire_send). main.c (frozen) calls ed_service() before ota_service() every pass and again in its 15 ms wait:
@@ -378,6 +379,9 @@ static void ed_info(void)
 #ifdef ED_HAS_BACKUP
     caps |= ED_CAP_BACKUP | ED_CAP_RESTORE;
 #endif
+#ifdef ED_HAS_SAMPLES
+    caps |= ED_CAP_SAMPLES;
+#endif
     if (fw[0] == 'D' && fw[1] == 'R' && fw[2] == 'U' && fw[3] == 'M' && fw[4] == '-')
         fw += 5;                           /* as VERSION.txt holds it */
     ed_reply(ED_INFO, ED_OK);
@@ -590,12 +594,17 @@ static void ed_dump(uint32_t track)
 static int ed_is_write(uint32_t cmd)
 {
     return cmd == ED_SET || cmd == ED_SELECT || cmd == ED_PRESET_LOAD || cmd == ED_STEPS_SET || cmd == ED_LOCK_EDIT ||
-           cmd == ED_CUE || cmd == ED_SAVE || cmd == ED_RESTORE;
+           cmd == ED_CUE || cmd == ED_SAVE || cmd == ED_RESTORE || cmd == ED_SMP_BEGIN || cmd == ED_SMP_DATA ||
+           cmd == ED_SMP_END || cmd == ED_SMP_CLEAR || cmd == ED_SMP_RENAME;
 }
 static void ed_dispatch(uint32_t cmd, const uint8_t *a, uint32_t n)
 {
 #ifdef ED_HAS_BACKUP
     if (ed_backup_cmd(cmd, a, n))          /* first: every request keeps a restore alive (ED_RESTORE_IDLE_MS) */
+        return;
+#endif
+#ifdef ED_HAS_SAMPLES
+    if (ed_sample_cmd(cmd, a, n))          /* (and an upload) */
         return;
 #endif
     switch (cmd) {
@@ -755,6 +764,9 @@ static void ed_hush(uint32_t now)          /* update traffic: silent ED_SILENCE_
 #ifdef ED_HAS_BACKUP
         ed_backup_drop();                  /* an uncommitted restore: dropped, its RAM homes reloaded */
 #endif
+#ifdef ED_HAS_SAMPLES
+        ed_sample_drop();                  /* a sample upload: dropped, its slot stays empty */
+#endif
     }
     ed.hush = 1;
     ed.hush_ms = now;
@@ -799,6 +811,9 @@ static void ed_service(void)
         ed.last = 0;                       /* the duplicate memory forgets */
 #ifdef ED_HAS_BACKUP
     ed_backup_poll();
+#endif
+#ifdef ED_HAS_SAMPLES
+    ed_sample_poll();
 #endif
     ed_sync(now);
 }
