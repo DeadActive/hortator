@@ -81,6 +81,13 @@ the command needs.
 | 18 | BACKUP_GET | BACKUP | obj u7, offset u14, seq u35 | obj u7, offset u14, len u14, data pack |
 | 19 | RESTORE | RESTORE | op u7, … (§2.6) | op u7, … (§2.6) |
 | 20 | TEXT | LIVE | scope u7, track u7, id u14, value v14 | as SET; nothing changes |
+| 21 | SMP_INFO | SAMPLES | slot u7 (0..2) | slot u7, valid u7, name str, len u35, crc u35, max u35, nz u7, n u35, rate u35 (§2.7) |
+| 22 | SMP_BEGIN | SAMPLES | slot u7, len u35, crc u35 | slot u7, max u35 |
+| 23 | SMP_DATA | SAMPLES | slot u7, offset u35, data pack | slot u7, offset u35, len u14 |
+| 24 | SMP_END | SAMPLES | slot u7, header pack (480 B) | slot u7, valid u7 |
+| 25 | SMP_READ | SAMPLES | slot u7, offset u35, crc u35 | slot u7, offset u35, len u14, data pack |
+| 26 | SMP_CLEAR | SAMPLES | slot u7 | slot u7 |
+| 27 | SMP_RENAME | SAMPLES | slot u7, name str (1..8 characters) | slot u7, name str |
 
 Pushes (only while WATCH is on; seq `7F`; ignore push commands you do not know):
 
@@ -93,7 +100,9 @@ Pushes (only while WATCH is on; seq `7F`; ignore push commands you do not know):
 
 Request argument bytes (for the device's per-command length check, upstream `ed_args_ok`): INFO 0, PAGES 1, DESC 5,
 GET 5, SET 6, DUMP 1, SELECT 1, WATCH 1, NAMES 2, PRESET_LOAD 3, STEPS_GET 3, STEPS_SET 5 + 3 × count (or, NUDGE, 5 + 4 × count), LOCKS_GET 4,
-LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 29, DATA 4 + the pack, COMMIT / ABORT 1.
+LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 29, DATA 4 + the pack, COMMIT / ABORT 1,
+SMP_INFO 1, SMP_BEGIN 11, SMP_DATA 6 + the pack, SMP_END 1 + the pack (549), SMP_READ 11, SMP_CLEAR 1, SMP_RENAME
+2..10 (slot, then the name's 1..8 characters and its 00).
 
 ### 2.1 INFO and versions
 
@@ -103,15 +112,18 @@ LOCK_EDIT 6, CUE 2, SAVE 1, BACKUP_LIST 0, BACKUP_GET 8, TEXT 6, RESTORE BEGIN 2
   PRESET_LOAD), 0x04 PATTERNS (STEPS_GET STEPS_SET LOCKS_GET LOCK_EDIT CUE SAVE; pushes STEPS_CHANGED LOCKS_CHANGED),
   0x08 BACKUP (BACKUP_LIST BACKUP_GET), 0x10 RESTORE, 0x20 NUDGE (minor 1: STEPS_GET's reply ends with each step's
   NUDGE, STEPS_SET may carry it; §2.4), 0x40 UPR2 (minor 2: the user presets are "UPR2", 96 slots each holding the
-  voice and its FX; backup object 0 is that record, nuser 96; §2.3, §6). 0.28.0 has all seven (0x7F); earlier 0.28
-  builds answered minor 0, caps 0x1F, then minor 1, caps 0x3F (user presets "UPR1": 128 voices). The page hides what a
-  missing bit covers (no NUDGE: it never sends the field and shows no NUDGE; no UPR2: it reads that FM-1's presets as
-  the new firmware will move them, but never writes them, and says to update the FM-1 first).
+  voice and its FX; backup object 0 is that record, nuser 96; §2.3, §6), 0x80 SAMPLES (minor 3: SMP_INFO ..
+  SMP_RENAME, the user sample slots; §2.7). 0.28.0 has all eight (0xFF); earlier 0.28
+  builds answered minor 0, caps 0x1F, then minor 1, caps 0x3F (user presets "UPR1": 128 voices), then minor 2, caps
+  0x7F. The page hides what a missing bit covers (no NUDGE: it never sends the field and shows no NUDGE; no UPR2: it
+  reads that FM-1's presets as the new firmware will move them, but never writes them, and says to update the FM-1
+  first; no SAMPLES: the Samples tab says to update the FM-1).
 - **minor** grows with additions an older page can ignore (commands, push types, flag bits, fields appended at a
   reply's end, optional fields at a request's end). A **major** change breaks the page: it refuses another major (§7).
   Minor 1 (NUDGE): an older page reads STEPS_GET's 64 steps and stops there; its STEPS_SET without the field leaves
   each written step's NUDGE as the device has it (§2.4), so it never clears one by accident. Minor 2 (UPR2): an older
   page's preset restore (1,284 B, "UPR1") is refused (rc 2 detail 24, nothing written); it cannot read the new record.
+  Minor 3 (SAMPLES): new commands only; an older page never sends them, an older device answers them rc 1 detail 43.
 - INFO also clears the device's memory of the last (cmd, seq) (§4 rule 3): every connection starts with INFO.
 
 ### 2.2 Knobs: PAGES, DESC, GET, SET, TEXT, DUMP, SELECT
@@ -306,6 +318,63 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
   bank is `lk_bank_t`, variations at most `var_bank_t` (3,584): BEGIN accepts no other size and DATA writes below it.
 - "Copy to…" another slot = BACKUP_GET the source's three objects + RESTORE them into the target.
 
+### 2.7 Samples: SMP_INFO, SMP_BEGIN, SMP_DATA, SMP_END, SMP_READ, SMP_CLEAR, SMP_RENAME
+
+The three user sample slots USR1..USR3 (the SAMPLE model's and the LAYER's sets after the built-in ones), in flash,
+in upstream Felucca's slot format (Appendix): a 480-byte header at the slot's start, IMA ADPCM data at +512.
+
+| slot | Name | Flash | Size | Data at most (`max`) |
+| --- | --- | --- | --- | --- |
+| 0 | USR1 | 0xA0000..0xB3FFF | 80 KiB | 81,408 B |
+| 1 | USR2 | 0xB4000..0xBFFFF | 48 KiB | 48,640 B (the variations follow at 0xC0000) |
+| 2 | USR3 | 0xC8000..0xD3FFF | 48 KiB | 48,640 B (the lock banks follow at 0xD4000) |
+
+**The slot limits are law**: the device never erases or writes a byte outside the slot a command names, whatever
+the request says (lengths, offsets, header fields), and never touches the Bluetooth store, the settings, the
+projects, the presets, the variations or the lock banks.
+
+- **SMP_INFO**: valid 1 = the slot holds a sample the device plays (its header passes the device's checks; then
+  name (the header's 8 characters, trailing 0s dropped), len (data bytes), crc (the header's CRC-32 of the data), nz
+  (zones), n (zone 1's samples) and rate (zone 1's rate, Hz / 44,100 × 65,536) are the header's); valid 0: empty
+  (name "", len / crc / nz / n / rate 0). max = the data bytes the slot holds (the table). Slot > 2: rc 1 detail 45.
+- **Upload: SMP_BEGIN → SMP_DATA … → SMP_END.** One at a time; the transport stopped throughout (the flash writes
+  stall the audio).
+  - **BEGIN** (allow 2 s): len = the data bytes (1..max; more: rc 2 detail 31 "TOO BIG", nothing changes), crc =
+    the zlib CRC-32 of the data. Playing: rc 3 detail 42 "STOP TO UPLOAD". A restore running: rc 6 detail 40. The
+    update command pending: rc 6 detail 0 "UPDATE". No flash this boot: rc 2 detail 28. USR2 / USR3 when its 48 KiB
+    clamp failed this boot (the guard of §2.4's SAVE): rc 2 detail 29. Then the device stops the voices playing the
+    slot and **erases the slot's first sector (its header)**: from here the slot reads empty, until END. An upload
+    running is dropped first (its slot stays empty). The device shows "UPLOAD USR1".
+  - **DATA** (allow 2 s): the data in order, 256 bytes a piece (the last one what is left) at offset 0, 256, 512 …
+    (offsets in the data: the bytes go to the slot's +512 + offset). The first piece into a flash sector erases that
+    sector. A repeat of the last piece (a retry) is answered again when flash holds it; another offset: rc 5 detail
+    34 "OUT OF ORDER" (send from the piece after the last one acknowledged); a wrong length: rc 1 detail 44; no
+    upload running for that slot: rc 1 detail 41 "NO UPLOAD"; playing: rc 3 detail 42 (the upload stays: STOP and
+    send the piece again). **The update loader's sweep** (Appendix): a piece holding a sector's bytes +0xF00..+0xF4F
+    that could read as an update record is refused, rc 2 detail 35 "DATA REFUSED", and the upload dropped (the slot
+    stays empty). The page checks this before sending and avoids it (§5 samples).
+  - **END** (allow 2 s): the header (480 bytes, the Appendix's layout). The device checks: every byte received (else
+    rc 2 detail 27, the upload stays); the header: magic "FSMP", version 1, 1..16 zones, data length = BEGIN's len,
+    CRC = BEGIN's crc, every zone inside the data and well formed (eng_sample.c `smp_user_scan`'s checks) (else rc 2
+    detail 26, dropped); the CRC-32 of the data as flash holds it = crc (else rc 2 detail 25, dropped); the update
+    command pending: rc 6 detail 0, dropped. Then it writes the header — bytes 4..479 first, the magic last — and
+    reads the slot again: valid 1. A power cut at any point of an upload leaves the slot empty, never a sample made of
+    two uploads or of an unwritten header.
+  - An upload with no editor request for 3 s, and update traffic (§4 rule 4), drop it: the slot stays empty.
+- **READ**: the slot's raw bytes, 256 a piece at offset (a multiple of 256) below 512 + len: the header sector's
+  first 512 bytes (the header, then 32 bytes as flash holds them), then the data — what a backup file holds (§5).
+  crc = SMP_INFO's: another one (the slot changed since) rc 5 detail 33 "CHANGED: READ AGAIN"; an empty slot rc 2
+  detail 30 "NO DATA".
+- **CLEAR** (allow 2 s): stopped only (rc 3 detail 42 "STOP FIRST"); the voices playing the slot stop and its
+  header sector is erased: the slot is empty (its other sectors keep their bytes until the next upload reaches them).
+- **RENAME** (allow 2 s): name = 1..8 characters, ASCII 32..126 (else rc 1 detail 45). Stopped only. An empty slot:
+  rc 2 detail 30. The device rewrites the header sector (header and the first 3,584 data bytes, read first; the
+  magic last): a power cut in its ~0.1 s can leave the slot empty, never garbage.
+- SMP_BEGIN, SMP_DATA, SMP_END, SMP_CLEAR and SMP_RENAME are writes (§4 rule 3: a retry with the same seq gets the
+  first reply again).
+- A sample the editor makes is **one zone over all keys** (lo 0, hi 127, root 60, not looped): SMP_INFO's n / rate
+  give its length (n / (44,100 × rate / 65,536) seconds). A restored backup keeps the zones it has (up to 16).
+
 ## 3. The state block (17 bytes)
 
 | # | Field | Meaning |
@@ -326,10 +395,11 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
 1. **One request in flight.** The page sends the next request only after the reply (or after giving up). The device
    holds one received SysEx frame; `ed_service()` takes `7D 48 54` frames and frees them in the same main-loop pass,
    answered or not, so the editor never holds the frame slot longer than one pass.
-2. **Timeouts and retries.** 300 ms, 3 tries of the same frame (same seq); SAVE and RESTORE COMMIT 2 s. Each new
+2. **Timeouts and retries.** 300 ms, 3 tries of the same frame (same seq); SAVE, RESTORE COMMIT and the sample
+   writes (SMP_BEGIN, SMP_DATA, SMP_END, SMP_CLEAR, SMP_RENAME) 2 s. Each new
    request takes the next seq (0..126, wrapping); a retry keeps its seq.
 3. **Duplicates.** The device remembers the last (cmd, seq) it handled. A write (SET, SELECT, PRESET_LOAD, STEPS_SET,
-   LOCK_EDIT, CUE, SAVE, RESTORE) arriving again with the same cmd and seq is not executed again: the answer is its
+   LOCK_EDIT, CUE, SAVE, RESTORE, SMP_BEGIN, SMP_DATA, SMP_END, SMP_CLEAR, SMP_RENAME) arriving again with the same cmd and seq is not executed again: the answer is its
    first reply again, byte for byte (an rc 0 reply carries the data as it was then, its state block included). Reads
    are answered anew. The memory holds the last request only (any request replaces it); it is cleared by INFO and
    after 3 s without requests.
@@ -350,7 +420,7 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
    editor's own writes; STATE is the exception (any change). After a STATE with another selection, slot or variation
    the page re-reads what it shows (DUMP, STEPS_GET, LOCKS_GET). Pushes (seq 7F) can arrive between a request and its
    reply: match replies by seq.
-6. **Stopped-only flash writes.** SAVE and RESTORE BEGIN / COMMIT need the transport stopped (rc 3). User presets
+6. **Stopped-only flash writes.** SAVE, RESTORE BEGIN / COMMIT and the sample writes need the transport stopped (rc 3). User presets
    reach flash only through RESTORE of object 0 (the page edits the list; "Save track N here" reads the track with
    DUMP and puts its MODEL + SOUND knobs in the list).
 7. **Nothing else goes out.** The page builds every frame with `proto.mjs encodeRequest`, which knows only this
@@ -378,7 +448,7 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
 | 3 | STOP | stop the transport first (detail 42) |
 | 4 | FLASH | a flash write failed ("SAVE ERROR"); what flash held before is still whole |
 | 5 | STALE | it changed: 32 CUE FIRST (STEPS_SET off the playing variation), 33 the object changed (BACKUP_GET), 34 out of order (RESTORE DATA) |
-| 6 | BUSY | RESTORING (detail 40); the upgrade command arrived at a RESTORE COMMIT (detail 0 "UPDATE": the restore dropped) |
+| 6 | BUSY | RESTORING (detail 40); the upgrade command arrived at a RESTORE COMMIT or a sample upload (detail 0 "UPDATE": the restore / upload dropped) |
 
 | detail | Message (the device's) | detail | Message |
 | --- | --- | --- | --- |
@@ -392,6 +462,8 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
 | 18 | ACID ON 2 TRACKS | 28 | NO FLASH |
 | 19 | NOT LOCKABLE | 29 | USR2 ERROR: NO SAVE / USR3 CLAMP FAILED |
 | 20 | LOCKS FULL | 30 | NO DATA (not present) |
+| 31 | TOO BIG (a sample longer than the slot) | 35 | DATA REFUSED (a sample sector that could read as an update record) |
+| 41 | NO RESTORE / NO UPLOAD (rc 1) | | |
 
 Details 1..11 are cue.c's `CUE_E_*` as they are. Detail 0 with rc 2: the device's own message (RESON MODEL's caps).
 The page shows `msg` and branches on rc / detail.
@@ -472,6 +544,23 @@ File names: `hortator-presets-<date>.json`, `hortator-project-<A..D>-<date>.json
   "projects": { "A": { "slot": "A", "summary": …, "objects": … } | null, "B": …, "C": …, "D": … } }
 ```
 
+**Sample backups** (minor 3) are not JSON: the raw slot, byte for byte as SMP_READ gives it — the 512-byte header
+block, then the data (512 + len bytes) — named `hortator-sample-<USR1..3>-<name>-<date>.fsmp`. The page restores
+one into any slot after checking it: magic "FSMP", version 1, 1..16 zones, file size = 512 + the header's data
+length, the CRC-32 of the data = the header's, the data length ≤ that slot's `max` (else "Too big for USR2 (48 KiB)"),
+every zone inside the data; it sends the header's bytes 0..479 as SMP_END's header, unchanged. Before sending any
+sample the page checks the loader windows (Appendix) and refuses a file that has one ("This file cannot be written
+safely"; a file the device made never has one).
+
+**Samples the page makes** (Samples tab): one zone, off 0, n = the samples, loop 0 / n − 1, not looped, rate =
+round(Hz × 65536 / 44100), root 60 (× 16 = 960), predictor / index 0, lo 0, hi 127; name ≤ 8 characters (ASCII
+32..126, the file's name by default, upper case). The source (WAV, AIFF — whatever the browser decodes) is mixed to
+mono, trimmed, optionally normalized (peak to full scale), and kept at its own rate when it is 44.1 kHz or less (else
+44.1 kHz); when the result does not fit the slot (2 samples a byte: n ≤ 2 × max) the page offers lower rates
+(halving down to 11,025 Hz, or the highest rate that fits) and shows the length and the rate. The ADPCM encoder
+(`web/editor/sample.mjs`) runs the device's decoder in step (each nibble chosen so the device's decode follows the
+source), so the page's preview — decoded from the encoded bytes with the device's decoder — is what the FM-1 plays.
+
 ## 6. Object layouts
 
 Little endian; the firmware's structs (`presets.c`, `project.c`, `lockbank.c`, `varpack.c`), checked against the
@@ -530,18 +619,32 @@ firmware through `tests/editor_ids.c` → `device_data.json` → `test_editor.mj
 
 `proto.mjs` `classifyPort(name)` and `checkInfo(info)` implement 2–6.
 
-## Appendix: the user sample slot (not part of protocol 1)
+## Appendix: the user sample slot
 
-User sample upload is not an editor feature (a non-goal of protocol 1). `tools/fm1_sample_upload.py`,
-`tools/sampleio.py` and `firmware/src/eng_sample.c` refer here for the slot's layout, kept from upstream Felucca's
-document (its commands 11..15, SMP_BEGIN .. SMP_INFO, belong to upstream's protocol, not to this one). A slot (80 KiB;
-the SAMPLE model's sets USR1..USR3): header at 0, ADPCM data at 512.
+The slot layout (upstream Felucca's, kept: `firmware/src/eng_sample.c` reads it; `tools/sampleio.py` and the page's
+`web/editor/sample.mjs` write it). Header at the slot's start, IMA ADPCM data at +512.
 
 | Offset | Field |
 | --- | --- |
 | 0 | magic `"FSMP"` (u32 0x504D5346), u16 version 1, u8 zone count 1..16, u8 0 |
 | 8 | name, 8 ASCII bytes (0-padded) |
 | 16 | u32 data length (bytes), u32 CRC-32 (zlib) of the data, 8 bytes 0 |
-| 32 | 16 zones × 28 bytes: u32 off (in the data), n (samples), loop start, loop end, rate (Hz / 44100 × 65536); i16 root × 16 (MIDI note), ADPCM predictor at the loop start; u8 step index at the loop start, lo note, hi note, looped (0/1) |
+| 32 | 16 zones × 28 bytes: u32 off (in the data), n (samples), loop start, loop end, rate (Hz / 44100 × 65536); i16 root × 16 (MIDI note), ADPCM predictor at the loop start; u8 step index at the loop start, lo note, hi note, looped (0/1). Unused zones: 0 |
+| 480 | 32 bytes: not part of the header (0xFF in flash; a backup file holds them as read) |
+| 512 | the data |
 
-Data is IMA ADPCM, 4 bit, low nibble first, starting from predictor 0 and step index 0. All little endian.
+Data is IMA ADPCM, 4 bit, low nibble first, each zone starting from predictor 0 and step index 0; the decoder is
+`eng_sample.c` `sample_next` (step table IMA_STEP, index table −1 −1 −1 −1 2 4 6 8; diff = step >> 3, + step for bit
+2, + step >> 1 for bit 1, + step >> 2 for bit 0, negated for bit 3; predictor clamped to ±32767/−32768, index to
+0..88). All little endian.
+
+**The update loader's sweep.** After an update the loader (`firmware/loader/ldr_core.c`, frozen) reads 80 bytes at
++0xF00 of every 4 KiB sector in 0x93000..0xFBFFF — the sample slots included — and erases the sector when they read
+as an update record: u16 at +6 = 0x5441 and u16 at +0 ≠ 0 and = CRC-16 (poly 0x1021, init 0, MSB first) of bytes
++2..+79. The chip's boot ROM looks for update records at the same place ("4 KiB boundary − 256"). Sample data fills
+whole sectors, so a sample could, by chance (about 1 in 2^32 per sector) or by design, plant one. The device refuses
+(SMP_DATA rc 2 detail 35) any piece whose window +0xF00..+0xF4F (bytes past the data's end: 0xFF, as flash holds
+them) has u16 at +0 ≠ 0 and = that CRC-16 of +2..+79 — the CRC alone, a superset of the loader's test (about 1 in
+65,536 per sector by chance) — and the page, before sending, finds such a window in its encoded data and moves the
+sample by one source sample (drops the first) and encodes again until none is left. A slot's header sector
++0xF00 is data too. Bytes the device keeps erased (0xFF) never match (u16 0xFFFF ≠ 0xB613, the CRC-16 of 78 bytes 0xFF).

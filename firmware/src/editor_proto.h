@@ -10,6 +10,7 @@
  *     #include "editor_proto.h"
  *     #include "editor_backup.c"     optional: defines ED_HAS_BACKUP 1   (LIST, GET, RESTORE)
  *     #include "editor_pattern.c"    optional: defines ED_HAS_PATTERN 1  (STEPS, LOCKS, CUE, SAVE, NAMES, PRESET_LOAD)
+ *     #include "editor_sample.c"     optional: defines ED_HAS_SAMPLES 1  (SMP_INFO .. SMP_RENAME)
  *     #include "editor.c"            the core: framing, dispatch, INFO .. WATCH, TEXT, pushes, the update-silence rule
  * editor.c calls the hooks below only when the file that defines them was included (#ifdef ED_HAS_*), and sets the
  * matching ED_CAP_* bits in INFO. The optional files use only the framing API below (editor.c defines it). */
@@ -24,8 +25,9 @@
 #define ED_HDR_N 3u                 /* sx_frame holds the bytes between F0 and F7: [0..2] header, [3] cmd, [4] seq */
 #define ED_MIN_FRAME 5u             /* header + cmd + seq; shorter frames are dropped unanswered */
 #define ED_PROTO_MAJOR 1u
-#define ED_PROTO_MINOR 2u           /* 1: NUDGE (ED_CAP_NUDGE: STEPS_GET / STEPS_SET carry each step's micro);
-                                     * 2: user presets "UPR2" (ED_CAP_UPR2: 96 slots with their FX) */
+#define ED_PROTO_MINOR 3u           /* 1: NUDGE (ED_CAP_NUDGE: STEPS_GET / STEPS_SET carry each step's micro);
+                                     * 2: user presets "UPR2" (ED_CAP_UPR2: 96 slots with their FX);
+                                     * 3: the user sample slots (ED_CAP_SAMPLES: SMP_INFO .. SMP_RENAME) */
 #define ED_MAGIC "HORTATOR"         /* INFO's first field */
 #define ED_SEQ_PUSH 0x7Fu           /* a push's seq; requests use 0..126 */
 #define ED_NONE 0x7Fu               /* "none" / "the current one" in a u7 field (slot, track, variation) */
@@ -48,6 +50,7 @@ enum {
     ED_STEPS_GET, ED_STEPS_SET, ED_LOCKS_GET, ED_LOCK_EDIT, ED_CUE, ED_SAVE,         /* 11..16 */
     ED_BACKUP_LIST, ED_BACKUP_GET, ED_RESTORE,                                      /* 17..19 */
     ED_TEXT,                                                                        /* 20 */
+    ED_SMP_INFO, ED_SMP_BEGIN, ED_SMP_DATA, ED_SMP_END, ED_SMP_READ, ED_SMP_CLEAR, ED_SMP_RENAME,   /* 21..27 */
     ED_CMD_N
 };
 enum { ED_P_CHANGED = 0x40, ED_P_STATE, ED_P_STEPS_CHANGED, ED_P_LOCKS_CHANGED };   /* pushes (seq 0x7F) */
@@ -75,6 +78,14 @@ enum { ED_P_CHANGED = 0x40, ED_P_STATE, ED_P_STEPS_CHANGED, ED_P_LOCKS_CHANGED }
 #define ED_LEN_RESTORE_BEGIN 29u    /* op, kind, slot, magic u35, 3 x (size u14, crc u35) */
 #define ED_LEN_RESTORE_DATA_MIN 4u  /* op, part, offset u14; then the packed piece */
 #define ED_LEN_RESTORE_OP 1u        /* op (COMMIT, ABORT) */
+#define ED_LEN_SMP_INFO 1u          /* slot */
+#define ED_LEN_SMP_BEGIN 11u        /* slot, len u35, crc u35 */
+#define ED_LEN_SMP_DATA_MIN 6u      /* slot, offset u35; then the packed piece */
+#define ED_LEN_SMP_END 550u         /* slot, the packed 480-byte header (549) */
+#define ED_LEN_SMP_READ 11u         /* slot, offset u35, crc u35 */
+#define ED_LEN_SMP_CLEAR 1u         /* slot */
+#define ED_LEN_SMP_RENAME_MIN 3u    /* slot, 1..8 characters, 0 */
+#define ED_SMP_HDR 480u             /* the slot header (eng_sample.c smp_user_hdr_t) END carries */
 
 /* ------------------------------------------------------------ result codes --- */
 enum { ED_OK, ED_E_BAD, ED_E_REFUSED, ED_E_STOP, ED_E_FLASH, ED_E_STALE, ED_E_BUSY };   /* rc 0..6 */
@@ -84,8 +95,9 @@ enum {
     ED_D_CUE_FULL = 1, ED_D_CUE_SONG = 2, ED_D_CUE_NOSLOT = 3, ED_D_CUE_EMPTY = 4, ED_D_CUE_PARK = 8,   /* + slot */
     ED_D_EMPTY_SLOT = 16, ED_D_PRESET_EMPTY, ED_D_ACID_CAP, ED_D_NOT_LOCKABLE, ED_D_LOCKS_FULL, ED_D_VARS_FULL,
     ED_D_NO_SLOT, ED_D_NEWER, ED_D_BAD_OBJECT, ED_D_CRC, ED_D_INVALID, ED_D_INCOMPLETE, ED_D_NO_FLASH, ED_D_BLOCKED,
-    ED_D_NOT_PRESENT,                                   /* 16..30 (rc 2) */
+    ED_D_NOT_PRESENT, ED_D_TOO_BIG,                     /* 16..31 (rc 2) */
     ED_D_CUE_FIRST = 32, ED_D_CHANGED, ED_D_ORDER,       /* rc 5 */
+    ED_D_REFUSED_DATA = 35,                              /* rc 2: a sample piece the update loader's sweep could take */
     ED_D_RESTORING = 40, ED_D_NOT_RESTORING,             /* rc 6 / rc 1 */
     ED_D_STOP = 42,                                      /* rc 3 */
     ED_D_UNKNOWN = 43, ED_D_LENGTH, ED_D_RANGE, ED_D_NO_CAP   /* rc 1 */
@@ -99,6 +111,7 @@ enum {
 #define ED_CAP_RESTORE 0x10u        /* RESTORE (editor_backup.c) */
 #define ED_CAP_NUDGE 0x20u          /* STEPS_GET / STEPS_SET carry each step's NUDGE (minor 1, editor_pattern.c) */
 #define ED_CAP_UPR2 0x40u           /* user presets: object 0 is "UPR2" (96 slots, voice + FX), minor 2 (editor.c) */
+#define ED_CAP_SAMPLES 0x80u        /* SMP_INFO .. SMP_RENAME, the user sample slots, minor 3 (editor_sample.c) */
 
 /* --------------------------------------------------------------- fields --- */
 enum { ED_SC_TRACK, ED_SC_GLOBAL, ED_SC_MODEL };      /* DESC / GET / SET / TEXT scope (MODEL: DESC only) */
@@ -164,5 +177,8 @@ static uint32_t ed_unpack7(const uint8_t *in, uint32_t n, uint8_t *out, uint32_t
  *   static int ed_restoring(void);              1 between BEGIN and COMMIT / ABORT / timeout (the RESTORING lock)
  *   static int ed_pattern_cmd(uint32_t cmd, const uint8_t *a, uint32_t n);  1: handled (replied)
  *   static uint32_t ed_pattern_push(uint32_t budget);   STEPS_CHANGED / LOCKS_CHANGED pushes sent (<= budget)
- *   static void ed_pattern_sync(void);          the step / lock shadows := now (WATCH on, the editor's own writes) */
+ *   static void ed_pattern_sync(void);          the step / lock shadows := now (WATCH on, the editor's own writes)
+ *   static int ed_sample_cmd(uint32_t cmd, const uint8_t *a, uint32_t n);   1: handled (replied)
+ *   static void ed_sample_poll(void);           every ed_service pass: the upload's idle timeout, its screen message
+ *   static void ed_sample_drop(void);           update traffic: an upload running dropped (its slot stays empty) */
 #endif
