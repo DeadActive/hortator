@@ -13,7 +13,7 @@ is its drummer.
   to WebAssembly, on a 3D FM-1 you can play with the mouse, a touch screen or the computer keyboard.
 - **Install it on your FM-1:** <https://deadactive.github.io/hortator/webapp/installer/>, in Chrome or Edge, over
   the FM-1's USB cable.
-- **Edit it from your browser** (from 0.28.0): <https://deadactive.github.io/hortator/webapp/editor/>, over USB
+- **Edit it from your browser** (from 1.0.0): <https://deadactive.github.io/hortator/webapp/editor/>, over USB
   ([below](#web-editor)).
 
 **Beta.** Hortator is untested on most hardware and may be unstable. You install it at your own risk: the author
@@ -546,7 +546,7 @@ a held ACID note goes last. The same order picks the voice to stop when too many
 
 ## Web editor
 
-From 0.28.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) works on an FM-1 connected by USB:
+From 1.0.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) works on an FM-1 connected by USB:
 
 - **Sound**: every page of the selected track and the globals, both ways: a knob turned on the FM-1 moves in the
   page, a knob moved in the page plays on the FM-1. Choosing a track in the page selects it on the FM-1.

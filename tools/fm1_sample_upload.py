@@ -99,7 +99,7 @@ class Link:
         outs = [n for n in mido.get_output_names() if PORT.search(n) and not re.search(r"update", n, re.I)]
         ins = [n for n in mido.get_input_names() if PORT.search(n) and not re.search(r"update", n, re.I)]
         if not outs or not ins:
-            sys.exit("no FM-1 MIDI port: connect the FM-1 (running Hortator 0.28.0 or later) by USB")
+            sys.exit("no FM-1 MIDI port: connect the FM-1 (running Hortator 1.0.0 or later) by USB")
         self.o = mido.open_output(outs[0])
         self.i = mido.open_input(ins[0])
         r = self.req(INFO, [], 1.0)

@@ -58,7 +58,7 @@ export class SamplesModel {
 
   /* ----------------------------------------------------------------- the slots --- */
   async refresh() {
-    if (!this.available) { this.say("This FM-1's firmware has no sample slots for the editor: Update the FM-1 to 0.28.0 or later.", true); return; }
+    if (!this.available) { this.say("This FM-1's firmware has no sample slots for the editor: Update the FM-1 to 1.0.0 or later.", true); return; }
     if (this.loading) return this.loading;
     this.loading = (async () => {
       this.emit("loading", true);

@@ -1,9 +1,11 @@
 # Changelog
 
 What changed in each version of Hortator, the drum firmware for the M-VAVE FM-1, newest first. Changes that are not
-released yet are listed under Unreleased (the next version) and, for the version after it, under its number.
+released yet are listed under Unreleased.
 
-## 0.28.0 (unreleased)
+## Unreleased
+
+## 1.0.0 - 2026-11-03
 
 - **Web editor**: edit the FM-1 from the browser, on the Hortator site under Editor, with the FM-1 connected by USB.
   Click Connect: the page asks the FM-1 who it is, so it finds it even when the computer still shows it under an
@@ -44,8 +46,6 @@ released yet are listed under Unreleased (the next version) and, for the version
 - A firmware update always comes first: while the web installer runs, the editor goes quiet, and it connects again
   afterwards (or click Reconnect). Other SysEx a DAW sends does not interrupt the editor. One browser tab runs the
   editor at a time: another tab offers "Use here".
-
-## Unreleased
 
 - **SAMPLE: ATK, SUS, REL and LOOP.** The SAMPLE model has a fifth SOUND page with an envelope and a loop. ATK fades
   the hit in (0 to 2 s). SUS 0 plays the sample once with DECAY, exactly as before; above 0, the sound falls to that

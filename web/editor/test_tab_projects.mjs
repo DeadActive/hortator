@@ -49,7 +49,7 @@ export async function runProjectsTests(log = console.log) {
   /* a project file: flash's bytes, byte for byte, through JSON */
   const bk = await pm.backupProject(0);
   const back = P.readProjectFile(json(bk.file));
-  ok(bk.file.format === "hortator-project" && bk.name.startsWith("hortator-project-A-") && bk.file.firmware === "0.28.0"
+  ok(bk.file.format === "hortator-project" && bk.name.startsWith("hortator-project-A-") && bk.file.firmware === "1.0.0"
     && bk.file.slot === "A" && sameObjs(back, flash(0)) && back.vars && back.locks, "project file round trip: byte-exact, A's three objects");
 
   /* restore into its own slot: flash equals the file byte for byte */

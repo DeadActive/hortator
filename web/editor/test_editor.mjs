@@ -433,7 +433,7 @@ function restore(dev, kind, slot, parts) {
   ok(m.request(CMD.BACKUP_LIST).objects[1].flags & P.BF.UNSAVED, "BACKUP_LIST: unsaved edits flagged");
 
   /* files */
-  const modelNames = data.models.map((x) => x.name), meta = { firmware: "0.28.0", created: "2026-10-31T00:00:00.000Z" };
+  const modelNames = data.models.map((x) => x.name), meta = { firmware: "1.0.0", created: "2026-10-31T00:00:00.000Z" };
   const projects = [0, 1, 2, 3].map((s) => (objs[1 + s] ? { record: objs[1 + s], locks: objs[5 + s], vars: objs[9 + s], unsaved: s === 0 } : null));
   const bank = P.decodePresets(objs[0]), slots = bank.slots;
   const file = JSON.parse(JSON.stringify(makeBackup()));

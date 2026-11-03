@@ -93,7 +93,7 @@ export async function runPageTests(log = console.log, mods = {}) {
   {
     const m = dev();
     const r = await connect(access(m), { timing: FAST });
-    ok(r.ok && r.session.info.firmware === "0.28.0" && r.session.info.major === 1 && r.port === "Hortator"
+    ok(r.ok && r.session.info.firmware === "1.0.0" && r.session.info.major === 1 && r.port === "Hortator"
       && r.session.state && isInfo(m.received[0]), "a Hortator connects; INFO first");
     r.session?.close();
   }
@@ -339,9 +339,9 @@ export async function runPageTests(log = console.log, mods = {}) {
     await until(() => headerModel(s).playing);
     const hm = headerModel(s);
     ok(hm.play === "PLAY" && hm.slot === "A*" && hm.variation === "VAR 1" && hm.slots[0].dirty && hm.slots[3].used === false
-      && hm.firmware === "0.28.0" && hm.status === "", "header: PLAY, A* (unsaved), VAR 1, D empty");
+      && hm.firmware === "1.0.0" && hm.status === "", "header: PLAY, A* (unsaved), VAR 1, D empty");
     m.stop();
-    const fake = (flags, busy) => headerModel({ busy, info: { firmware: "0.28.0" }, state: { ...s.state, flags } });
+    const fake = (flags, busy) => headerModel({ busy, info: { firmware: "1.0.0" }, state: { ...s.state, flags } });
     const other09 = dev({ firmware: "0.9.9" }), r09 = await connect(access(other09), { timing: FAST });
     ok(headerModel(r09.session).firmware === "0.9.9" && headerModel(r09.session).port === "Hortator",
       "header: the firmware version is INFO's (not written in the page), then the port's name");

@@ -986,13 +986,13 @@ headphones: 2 bars each ROOM, SPRNG, then HALL at SIZE 0 / 64 / 90 / 127, and 12
 - CPU: HALL on a busy pattern with every send up: GLOBAL -> SYSTEM CPU about as with ROOM, no crackle. Bluetooth
   version too.
 
-### Web editor (0.28.0: check on the FM-1)
+### Web editor (1.0.0: check on the FM-1)
 
 The page: `build/site` served as in step 3, then http://localhost:8000/webapp/editor/ in Chrome (Edge or Opera too).
 Two FM-1s for the move test, or one FM-1 and two slots. Note the times with a stopwatch.
 
 - Connect and refuse: Connect with the FM-1 on USB: the browser asks for MIDI with SysEx, then the tabs and the header
-  appear (firmware 0.28.0, PLAY / STOP, the loaded slot, the variation, the selected track). With an FM-1 on 0.27.0 or
+  appear (firmware 1.0.0, PLAY / STOP, the loaded slot, the variation, the selected track). With an FM-1 on 0.27.0 or
   older: "This FM-1 does not answer the editor" and the installer link. On a Mac that once knew this FM-1 as
   "Felucca" (Audio MIDI Setup still shows that name): it connects all the same. With only other MIDI gear plugged in:
   "No Hortator FM-1 found" and Search other MIDI ports (it finds the FM-1 under any name). With the FM-1 on Bluetooth

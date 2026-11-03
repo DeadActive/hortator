@@ -26,7 +26,7 @@
 //   m.g[G.CLOCK] (following an external clock: BPM stays the clock's) and m.song (a song plays) as the firmware
 // tests/editor_wire.mjs runs one request script through this mock and the firmware's (tests/editor_xcheck.c) and
 // compares the replies byte for byte.
-// opts: name ("Hortator"), editor (false: an FM-1 without the editor, it never answers), firmware ("0.28.0"),
+// opts: name ("Hortator"), editor (false: an FM-1 without the editor, it never answers), firmware ("1.0.0"),
 //       major / minor, magic, caps, latency (ms, the access' replies), powerOnKit (no slot loaded), seed
 import {
   BF, CAP, CMD, CMD_CAP, CUE, DESC_ORDER, DETAIL, DF, LAYOUT, LIMITS, LK, MAGIC, NONE, OLD_PROJECTS, PROTO, PUSH,
@@ -89,7 +89,7 @@ export function createMockDevice(data, opts = {}) { return new MockDevice(data, 
 export class MockDevice {
   constructor(data, opts = {}) {
     this.d = data;
-    this.o = { name: "Hortator", editor: true, firmware: "0.28.0", major: PROTO.major, minor: PROTO.minor,
+    this.o = { name: "Hortator", editor: true, firmware: "1.0.0", major: PROTO.major, minor: PROTO.minor,
       magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE | CAP.NUDGE | CAP.UPR2 | CAP.SAMPLES, latency: 1,
       seed: 7, ...opts };
     this.uprOld = !(this.o.caps & CAP.UPR2); // an FM-1 before minor 2: "UPR1", 128 voices

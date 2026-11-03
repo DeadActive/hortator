@@ -1,7 +1,7 @@
 # Hortator editor protocol 1 (SysEx over USB MIDI)
 
 Hortator is DEADACTIVE's drum-machine fork of Felucca for the FM-1 (fork: 2026 DEADACTIVE). This document specifies
-how the web editor (`webapp/editor`, sources `web/editor/`) talks to a Hortator FM-1 running firmware 0.28.0 or
+how the web editor (`webapp/editor`, sources `web/editor/`) talks to a Hortator FM-1 running firmware 1.0.0 or
 later. The protocol's shape — framing, 14-bit values, 7-bit groups, one request at a time, WATCH keep-alive and
 pushes, the backup LIST / GET shape and the result codes — follows **upstream Felucca's editor protocol**
 (hugelton/Felucca 5d9694d, `web/EDITOR_PROTOCOL.md`, `firmware/src/editor.c`; GPL-3.0-only, © Leo Kuroshita /
@@ -61,7 +61,7 @@ the command needs.
 
 | cmd | Name | Cap | Request | Reply (rc 0) |
 | --- | --- | --- | --- | --- |
-| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"0.28.0"`), major u7 (1), minor u7 (2), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (80), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (96), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
+| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"1.0.0"`), major u7 (1), minor u7 (2), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (80), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (96), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
 | 2 | PAGES | LIVE | first u7 | total u7, first u7, list of {title str, scope u7, graph u7, ids 4 × u14} |
 | 3 | DESC | LIVE | scope u7, track u7, id u14, first u7 | scope u7, track u7, id u14, fmt u7, flags u7, min v14, max v14, def v14, label str, unit str, nnames u7, first u7, list of names str (first = 7F: list of order u7) |
 | 4 | GET | LIVE | scope u7, track u7, id u14, count u7 (1..) | scope u7, track u7, id u14, list of {value v14, text str, unit str} for ids id, id + 1, … |
@@ -113,7 +113,7 @@ SMP_INFO 1, SMP_BEGIN 11, SMP_DATA 6 + the pack, SMP_END 1 + the pack (549), SMP
   0x08 BACKUP (BACKUP_LIST BACKUP_GET), 0x10 RESTORE, 0x20 NUDGE (minor 1: STEPS_GET's reply ends with each step's
   NUDGE, STEPS_SET may carry it; §2.4), 0x40 UPR2 (minor 2: the user presets are "UPR2", 96 slots each holding the
   voice and its FX; backup object 0 is that record, nuser 96; §2.3, §6), 0x80 SAMPLES (minor 3: SMP_INFO ..
-  SMP_RENAME, the user sample slots; §2.7). 0.28.0 has all eight (0xFF); earlier 0.28
+  SMP_RENAME, the user sample slots; §2.7). 1.0.0 has all eight (0xFF); earlier 0.28
   builds answered minor 0, caps 0x1F, then minor 1, caps 0x3F (user presets "UPR1": 128 voices), then minor 2, caps
   0x7F. The page hides what a missing bit covers (no NUDGE: it never sends the field and shows no NUDGE; no UPR2: it
   reads that FM-1's presets as the new firmware will move them, but never writes them, and says to update the FM-1
@@ -478,7 +478,7 @@ JSON, UTF-8, one envelope:
 
 ```json
 { "format": "hortator-presets" | "hortator-project" | "hortator-backup", "version": 2,
-  "firmware": "0.28.0", "protocol": 1, "created": "2026-10-31T12:00:00.000Z", … }
+  "firmware": "1.0.0", "protocol": 1, "created": "2026-10-31T12:00:00.000Z", … }
 ```
 
 Readers ignore unknown keys; another `format` is refused ("Not a hortator-project file."); a higher `version` is
@@ -658,8 +658,8 @@ firmware through `tests/editor_ids.c` → `device_data.json` → `test_editor.mj
    is sent unless the user clicks **Search other MIDI ports**, which sends INFO (only) to every other port too. With
    no port to ask: "No Hortator FM-1 found", the installer link and that search button.
 4. INFO unanswered after its tries: **upstream Felucca** (its editor takes only `7D 46 4C` frames and drops this one),
-   **the stock firmware**, **a Hortator before 0.28.0** (no editor), or a device busy updating — "This FM-1 does not
-   answer the editor … Install Hortator 0.28.0 or later" with the installer link. Only INFO frames reached it.
+   **the stock firmware**, **a Hortator before 1.0.0** (no editor), or a device busy updating — "This FM-1 does not
+   answer the editor … Install Hortator 1.0.0 or later" with the installer link. Only INFO frames reached it.
 5. INFO answered with another magic, or rc ≠ 0: "Not a Hortator editor device".
 6. INFO `major` > 1: **a newer Hortator** — "use the editor from its release" with the release link; `major` < 1:
    "Update this FM-1". The same major with any minor: connected; `caps` decides what is shown.

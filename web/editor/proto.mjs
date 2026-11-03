@@ -383,8 +383,8 @@ export function classifyPort(name = "") {
 /** an INFO reply (or null: no reply after the tries) -> { ok } or { ok: false, why, message } */
 export function checkInfo(info) {
   if (!info) return { ok: false, why: "noeditor",
-    message: "This FM-1 does not answer the editor: it runs Felucca, the stock firmware or a Hortator before 0.28.0 " +
-      "(or it is busy updating). Install Hortator 0.28.0 or later to use the editor." };
+    message: "This FM-1 does not answer the editor: it runs Felucca, the stock firmware or a Hortator before 1.0.0 " +
+      "(or it is busy updating). Install Hortator 1.0.0 or later to use the editor." };
   if (info.rc || info.magic !== PROTO.magic) return { ok: false, why: "magic", message: "Not a Hortator editor device." };
   if (info.major > PROTO.major) return { ok: false, why: "newer",
     message: `This FM-1 runs a newer Hortator (editor protocol ${info.major}): use the editor from its release.` };
