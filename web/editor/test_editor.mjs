@@ -621,6 +621,12 @@ function restore(dev, kind, slot, parts) {
   passed += r.passed;
   failed += r.failed;
 }
+/* sample sets and chopping: sampset.mjs, chop.mjs (test_sampset.mjs) */
+{
+  const r = await (await import("./test_sampset.mjs")).runSampsetTests((x) => console.log(x));
+  passed += r.passed;
+  failed += r.failed;
+}
 
 ok(seen.length > 100 && seen.every((f) => f.length <= P.LIMITS.reply && P.isEditorFrame(f)), "every reply and push <= 400 bytes, editor framed");
 ok(m.received.every((f) => P.isEditorFrame(f) && f.length - 2 <= P.LIMITS.req), "every request the tests built <= 640 bytes, editor framed");

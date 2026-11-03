@@ -272,6 +272,40 @@ static void make_sample(uint32_t len, uint32_t seed, const char *name)
     h.zone[0].hi = 127;
     memcpy(H, &h, sizeof H);
 }
+/* a set of nz samples as the web editor makes it (sampset.mjs): zone i its own data (lens[i] bytes, 2 samples a byte),
+ * one key each from C2 (the first down to 0, the last up to 127), then the names trailer ("SLNM"); D / H; its length */
+static uint32_t make_set(uint32_t nz, const uint32_t *lens, uint32_t seed, const char *name)
+{
+    smp_user_hdr_t h;
+    uint32_t i, j, len = 0;
+    for (i = 0; i < nz; i++)
+        len += lens[i];
+    make_sample(len + 8u * nz + 5u, seed, name);
+    memcpy(&h, H, sizeof h);
+    for (i = 0; i < nz; i++) {
+        uint32_t off = 0;
+        for (j = 0; j < i; j++)
+            off += lens[j];
+        memset(&h.zone[i], 0, sizeof h.zone[i]);
+        h.zone[i].off = off;
+        h.zone[i].n = 2u * lens[i];
+        h.zone[i].le = h.zone[i].n - 1u;
+        h.zone[i].rate = 65536u >> (i & 1u);
+        h.zone[i].root16 = (int16_t)((36 + i) * 16);
+        h.zone[i].lo = (uint8_t)(i ? 36u + i : 0u);
+        h.zone[i].hi = (uint8_t)(i + 1u < nz ? 36u + i : 127u);
+    }
+    for (i = 0; i < 8u * nz; i++)
+        D[len + i] = (uint8_t)('A' + i % 26u);
+    D[len + 8u * nz] = (uint8_t)nz;
+    memcpy(D + len + 8u * nz + 1u, "SLNM", 4);
+    len += 8u * nz + 5u;
+    h.nz = (uint8_t)nz;
+    h.data_len = len;
+    h.crc = st_crc32(D, len);
+    memcpy(H, &h, sizeof H);
+    return len;
+}
 static uint32_t begin(uint32_t k, uint32_t len, uint32_t crc)
 {
     a_put(k);
@@ -785,6 +819,96 @@ static void t_loader_window(void)
     check("DATA: a last piece whose bytes and the erased ones after it would read as a record: refused", (int)ok);
 }
 
+/* the editor's sets of several samples (a whole set is one upload): at the slot's limit, the zones the voices get;
+ * an update record planted in a later sample's bytes refused like any; the header last; a power cut: empty, never a
+ * mix of two sets */
+static void t_sets(void)
+{
+    static const uint32_t L16[16] = {3000, 2999, 3001, 2500, 4100, 3333, 2048, 1, 3900, 2222, 3456, 4000, 1234, 2345, 3210, 0};
+    uint32_t lens[16], i, len, tot, ok = 1, rc, at, ops, k = 2, sec;
+    uint8_t rec[80];
+    info_t o;
+    fresh();
+    for (i = 0, tot = 0; i < 15u; i++)
+        tot += (lens[i] = L16[i]);
+    lens[15] = SLOT_MAX[1] - tot - 8u * 16u - 5u;      /* the last sample fills USR2 to its last byte */
+    len = make_set(16, lens, 81, "KIT16");
+    host_nflog = 0;
+    ok &= len == SLOT_MAX[1] && upload(1, len) == 0 && usr_nz[1] == 16u && slot_holds(1, len) && flog_in(1) && sweep_clean();
+    for (i = 0, tot = 0; i < 16u; i++) {
+        ok &= usr_zone[1][i].n == 2u * lens[i] && usr_zone[1][i].lo == (i ? 36u + i : 0u) &&
+              usr_zone[1][i].off == (uint32_t)(uintptr_t)(SMP_USER_XIP(1) + 512u + tot) - (uint32_t)(uintptr_t)SMP_DATA;
+        tot += lens[i];
+    }
+    ok &= info(1, &o) == 0 && o.valid && o.nz == 16u && o.len == len;
+    check("a set of 16 samples filling USR2: one upload, every zone where the page put it, only USR2 written", (int)ok);
+
+    ok = 1;
+    for (sec = 1; sec < 8u; sec++) {                     /* a record in a later sample's bytes, at sector sec's +0xF00 */
+        uint32_t w = sec * 0x1000u + 0xF00u - 512u;
+        fresh();
+        for (i = 0; i < 6u; i++)
+            lens[i] = 6000u;
+        len = make_set(6, lens, 90 + sec, "EVIL");
+        memset(rec, 0, sizeof rec);
+        for (i = 2; i < 80u; i++)
+            rec[i] = (uint8_t)(i * 13u + sec);
+        rec[6] = 0x41, rec[7] = 0x54;
+        i = crc16x(rec + 2, 78);
+        rec[0] = (uint8_t)i, rec[1] = (uint8_t)(i >> 8);
+        memcpy(D + w, rec, 80);
+        {
+            smp_user_hdr_t h;
+            memcpy(&h, H, sizeof h);
+            h.crc = st_crc32(D, len);
+            memcpy(H, &h, sizeof H);
+        }
+        host_nflog = 0;
+        rc = upload(0, len);
+        ok &= rc == ED_E_REFUSED && rc_detail == ED_D_REFUSED_DATA && !eds.on && usr_nz[0] == 0u && flog_in(0) && sweep_clean();
+        for (i = 0; i < 80u; i++)
+            ok &= hflash[SLOT_LO[0] + sec * 0x1000u + 0xF00u + i] == 0xFFu;
+    }
+    check("a set with an update record in a later sample (sectors 1..7, samples 2..6): refused at that piece, never written, "
+          "the slot empty", (int)ok);
+
+    ok = 1;
+    fresh();
+    for (i = 0; i < 8u; i++)
+        lens[i] = 2000u + 111u * i;
+    len = make_set(8, lens, 95, "SET8");
+    ok &= upload(k, len) == 0;
+    for (i = 0, at = 0; i < host_nflog; i++)
+        if (!host_flog[i].erase && host_flog[i].off < SLOT_LO[k] + 512u)
+            at = i;
+    ok &= !host_flog[at].erase && host_flog[at].off == SLOT_LO[k] && host_flog[at].n == 4u && at + 1u == host_nflog;
+    check("a set's upload: the header's magic written last", (int)ok);
+
+    ok = 1;
+    fresh();
+    len = make_set(8, lens, 95, "SET8");
+    ok &= upload(k, len) == 0;
+    ops = host_nflog;
+    for (at = 0; at < ops && ok; at++) {
+        uint32_t l2, lens2[3] = {5000, 4000, 3000};
+        fresh();
+        l2 = make_set(3, lens2, 96, "OLD3");          /* an older set in the slot */
+        ok &= upload(k, l2) == 0 && usr_nz[k] == 3u;
+        len = make_set(8, lens, 95, "SET8");
+        host_nflog = 0;
+        host_fail_at = (int)at;
+        (void)upload(k, len);
+        host_fail_at = -1;
+        power_cycle();
+        ok &= at == 0 ? usr_nz[k] == 3u && !memcmp(hflash + SLOT_LO[k] + 8u, "OLD3", 4) : usr_nz[k] == 0u;
+        ok &= flog_in(k) && sweep_clean();
+        if (!ok)
+            printf("  power cut at op %u of %u\n", at, ops);
+    }
+    check("a power cut at every erase / program of a set's upload (over an older set): empty after (the old set only "
+          "before the first erase), never a mix", (int)ok);
+}
+
 static void t_read(void)
 {
     uint32_t ok = 1, off, crc, total, len;
@@ -905,6 +1029,7 @@ int main(void)
     t_power_cut();
     t_refusals();
     t_loader_window();
+    t_sets();
     t_read();
     t_clear_rename();
     t_fuzz();
