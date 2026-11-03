@@ -5,11 +5,14 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
-## 1.0.0 - 2026-11-03
+## 1.0.1 - 2026-11-03
 
 - **Newer FM-1s save again**: FM-1s sold recently come with a different flash chip of the same size. Hortator now
   recognises it, so projects, presets and settings are saved on these units instead of staying in memory with a
   flash error.
+
+## 1.0.0 - 2026-11-03
+
 - **More LFO destinations**: a track's LFO can now also move SRR, DST, the CHO, DLY and REV sends, the INSERT's MIX
   and its three values A, B and C (shown by the INSERT type's names). They are in the DEST list after F.RES, so
   projects, presets, step locks and MIDI LEARN keep their meaning, and nothing changes until an LFO is routed to one.
