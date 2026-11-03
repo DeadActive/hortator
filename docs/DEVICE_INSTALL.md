@@ -1207,3 +1207,14 @@ Use a user set of several samples (a loop chopped into 8 in the web editor) on a
 - SAVE, power cycle, LOAD: PLAY kept; a USER preset of the track keeps it (DRIVE unchanged); a factory SAMPL preset
   sets KEY.
 - The web editor: the SAMPL track's SOUND page 4 shows PLAY; a USER preset's FX panel lists PLAY KEY / CHOP.
+
+### SAMPLE LOOP LOOPI / ONE, CUT (check on the FM-1)
+
+- LOOP reads OFF FWD PING LOOPI ONE; SOUND 4/5 reads CHOKE PRIO PLAY CUT.
+- LOOPI, START 40 END 60, REL 127: a step's hit loops on and on at full level after the step; SUS 64: it settles
+  lower and stays. The next hit on the track (CUT OFF too) ends the old loop with no click; a choke ends it; STOP
+  ends it. A KEYS key let go: it keeps looping.
+- ONE, SUS 100, REL 0: a short step plays the whole sample to END (OFF with SUS 100: stops at the step's end).
+- CUT ON: fast repeats of a long sample cut each other (one at a time, no click); CUT OFF: they overlap. CHOP + CUT ON:
+  each chop cuts the previous one.
+- SAVE / LOAD, a USER preset: LOOP LOOPI / ONE and CUT kept; DECAY, TONE, DRIVE unchanged. MIDI LEARN: `T1 CUT`.

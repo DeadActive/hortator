@@ -165,6 +165,11 @@ static void drum_play(track_t *t, uint32_t vel, int32_t nt)
     model_follow(t);
     t->rs.hold = 0;                                     /* RESON hears this hit (a model change's cut came first) */
     t->rs.knt = t->nt;                                  /* .. and KEYF follows its note (reson.c reson_key) */
+    if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_SMPL && smpl_playable(t))
+        for (i = 0; i < NDV; i++)                       /* SAMPLE: CUT ON cuts the voice sounding; a LOOPI one ends
+                                                         * at the next hit, CUT or not (declicked: dtail) */
+            if (t->v[i].active && (t->p[P_SCUT] == 1 || (t->v[i].k[2] & SE_INF)))
+                dv_cut(t, &t->v[i]);
     if ((uint32_t)t->p[P_MODEL] % NMODELS != DM_SMPL || smpl_playable(t)) {   /* nothing to play: no voice */
         v = dv_alloc(t, t->v, nv, m->weight ? m->weight : 1u);
         dv_init(v, vel);

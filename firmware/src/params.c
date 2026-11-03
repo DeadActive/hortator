@@ -47,7 +47,8 @@ static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", 
 static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS", "F.CUT", "F.RES"};   /* LFO DEST 11..18 */
 static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
 static const char *const N_PRIO[] = {"HIGH", "LOW"};                 /* P_PRIO */
-static const char *const N_SLOOP[] = {"OFF", "FWD", "PING"};         /* P_SLOOP: the SAMPLE model's LOOP (dm_sample.c) */
+static const char *const N_SLOOP[] = {"OFF", "FWD", "PING", "LOOPI", "ONE"};   /* P_SLOOP: the SAMPLE model's LOOP
+                                                                     * (dm_sample.c; stored: append only) */
 static const char *const N_SPLAY[] = {"KEY", "CHOP"};                /* P_SPLAY: the SAMPLE model's PLAY (dm_sample.c) */
 static const char *const N_LSRC[] = {"LFO1", "LFO2"};                /* an LFO DEST slot's SRC */
 static const char *const N_ITYPE[] = {"OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"};   /* INSERT
@@ -117,8 +118,10 @@ static const param_desc_t TP[P_COUNT] = {
     [P_SATK] = PD("ATK", F_INT, 0, 127, 0),        /* the SAMPLE model's envelope (dm_sample.c): 0 none (as before) */
     [P_SSUS] = PD("SUS", F_PCT, 0, 127, 0),        /* 0: one-shot, DECAY to silence (as before); else the level held */
     [P_SREL] = PD("REL", F_INT, 0, 127, 40),       /* the release once the note's gate closes (SUS above 0) */
-    [P_SLOOP] = PE("LOOP", N_SLOOP, 0),            /* OFF as before; FWD, PING-PONG between START and END */
+    [P_SLOOP] = PE("LOOP", N_SLOOP, 0),            /* OFF as before; FWD, PING-PONG between START and END; LOOPI (FWD,
+                                                    * never released); ONE (to END whatever the gate) */
     [P_SPLAY] = PE("PLAY", N_SPLAY, 0),            /* KEY as before; CHOP: a hit's note picks the sample (chop) */
+    [P_SCUT] = PE("CUT", N_ONOFF, 0),              /* OFF as before (hits overlap); ON: a hit cuts the one sounding */
 };
 
 static const param_desc_t GP[G_COUNT] = {

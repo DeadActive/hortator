@@ -470,7 +470,7 @@ export class MockDevice {
     }
     if (((id >= P.SLEN && id <= P.SSWING) || id === P.SRC) && this.song) return t.p[id]; // a song's rows set PATTERN
     // presets.c preset_marks: a SOUND knob; an FX knob of a user preset that holds them
-    if (((id >= P.E0 && id <= P.E7) || (id >= P.SATK && id <= P.SPLAY) || (LAYOUT.uprFx.includes(id) && this.uprFx(t.pre))) && t.p[id] !== v) t.preEd = 1;
+    if (((id >= P.E0 && id <= P.E7) || (id >= P.SATK && id <= P.SCUT) || (LAYOUT.uprFx.includes(id) && this.uprFx(t.pre))) && t.p[id] !== v) t.preEd = 1;
     t.p[id] = v;
     return v;
   }
@@ -737,7 +737,7 @@ export class MockDevice {
     for (let k = 0; k < 8; k++) { const l = d.models[t.p[P.MODEL]].edit[k].label; if (k < 4 || (l && l[0] !== "-")) snd.push(P.E0 + k); }
     snd.push(P.LEVEL, P.PAN, P.NOTE, P.CHOKE, P.PRIO);
     if (t.p[P.MODEL] === d.consts.DM_SMPL) { // pages.c snd_list: SAMPLE's PLAY; ATK SUS REL LOOP, a page of their own
-      snd.push(P.SPLAY);
+      snd.push(P.SPLAY, P.SCUT);
       while (snd.length < 16) snd.push(undefined);
       snd.push(P.SATK, P.SSUS, P.SREL, P.SLOOP);
     }

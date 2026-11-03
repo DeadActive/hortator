@@ -30,25 +30,25 @@ const fresh = (o) => createMockDevice(data, o);
   const smpl = P.LAYOUT.smpl, fx = P.fxDefaults(), K = [0, 127, 127, 0, 1, -16, 0, 127];
   const fenv = P.LAYOUT.uprFenv, slots = Array(96).fill(null);
   slots[0] = { model: smpl, knobs: K, fx, voiceOnly: false };                                    // the defaults
-  slots[1] = { model: smpl, knobs: [0, 127, 127, 99, 1, -16, 0, 127], fx: fx.map((v, k) => (k === fenv ? -64 : k === 3 ? 127 : v)), voiceOnly: false, env: [127, 1, 0, 2, 1] };
-  slots[2] = { model: 3, knobs: K, fx, voiceOnly: false, env: [50, 50, 50, 1, 1] };              // another model: none
-  slots[3] = { model: smpl, knobs: K, fx: fx.map((v, k) => (k === fenv ? 63 : v)), voiceOnly: false, env: [0, 0, 40, 0, 0] };
+  slots[1] = { model: smpl, knobs: [0, 100, 127, 99, 1, -16, 0, 127], fx: fx.map((v, k) => (k === fenv ? -64 : k === 3 ? 127 : v)), voiceOnly: false, env: [127, 1, 0, 4, 1, 1] };
+  slots[2] = { model: 3, knobs: K, fx, voiceOnly: false, env: [50, 50, 50, 1, 1, 1] };              // another model: none
+  slots[3] = { model: smpl, knobs: K, fx: fx.map((v, k) => (k === fenv ? 63 : v)), voiceOnly: false, env: [0, 0, 40, 0, 0, 0] };
   const b = P.encodePresets(slots), plain = P.encodePresets(slots.map((s) => s && { ...s, env: undefined }));
   const d = P.decodePresets(b), o = (i) => 4 + i * P.LAYOUT.presets.slot + P.LAYOUT.presets.fx;
   ok(b.length === 3204 && eqb(b.subarray(0, 4 + 33), plain.subarray(0, 4 + 33)) && eqb(b.subarray(o(2) - 10, o(4)), plain.subarray(o(2) - 10, o(4))),
     "presets: a SAMPLE preset at the defaults, another model's, a SAMPLE one with its defaults given: byte for byte as before (3204 B)");
-  ok(same(d.slots[1].env, [127, 1, 0, 2, 1]) && same(d.slots[1].fx, slots[1].fx) && same(d.slots[0].env, [0, 0, 40, 0, 0])
-    && same(d.slots[1].knobs, slots[1].knobs) && b[4 + 33 + 2 + 3] === (99 | 0x80) && b[4 + 33 * 3 + 2 + 3] === K[3]
+  ok(same(d.slots[1].env, [127, 1, 0, 4, 1, 1]) && same(d.slots[1].fx, slots[1].fx) && same(d.slots[0].env, [0, 0, 40, 0, 0, 0])
+    && same(d.slots[1].knobs, slots[1].knobs) && b[4 + 33 + 2 + 3] === (99 | 0x80) && b[4 + 33 + 2 + 1] === (100 | 0x80) && b[4 + 33 + 2 + 2] === (127 | 0x80) && b[4 + 33 * 3 + 2 + 3] === K[3]
     && d.slots[2].env === undefined && same(d.slots[3].fx, slots[3].fx) && eqb(P.encodePresets(d.slots, d.moved), b),
-    "presets: ATK SUS REL LOOP ride in the FX bytes' spare top bit (FILTER ENV -64 / 63 kept), PLAY in DRIVE's, decode -> encode byte for byte");
+    "presets: ATK SUS REL LOOP ride in the FX bytes' spare top bit (FILTER ENV -64 / 63 kept), LOOP's 3rd bit, PLAY, CUT in DRIVE's, DECAY's, TONE's, decode -> encode byte for byte");
   ok(b.subarray(o(1), o(1) + 23).some((x, k) => k !== fenv && x > 127) && b.subarray(o(1), o(1) + 23).every((x, k) => k === fenv || (x & 127) === slots[1].fx[k]),
     "presets: the bits are the top bits of the 0..127 FX bytes");
   const rec = P.decodeProject(fresh().flashObjects(0).record), ia = data.P.indexOf("SATK");
-  rec.tracks[4].p[ia] = 9; rec.tracks[4].p[ia + 1] = 100; rec.tracks[4].p[ia + 2] = 127; rec.tracks[4].p[ia + 3] = 2; rec.tracks[4].p[ia + 4] = 1;
+  rec.tracks[4].p[ia] = 9; rec.tracks[4].p[ia + 1] = 100; rec.tracks[4].p[ia + 2] = 127; rec.tracks[4].p[ia + 3] = 2; rec.tracks[4].p[ia + 4] = 1; rec.tracks[4].p[ia + 5] = 1;
   const rb = P.encodeProject(rec), back = P.decodeProject(rb), x2 = P.LAYOUT.project.xp2 + 4 * 4;
-  ok(back.tracks[4].p.length === 81 && same(back.tracks[4].p.slice(ia), [9, 100, 127, 2, 1]) && same(back.tracks[0].p.slice(ia), [0, 0, 40, 0, 0])
-    && rb[x2] === 9 && rb[x2 + 2] === 87 && rb[P.LAYOUT.project.xp2] === 0 && rb[P.LAYOUT.project.xp3 + 4] === 1 && eqb(P.encodeProject(back), rb),
-    "project: ATK SUS REL LOOP in xp2, PLAY in xp3 (their offset from the power-on value; 0 = before them), round trip");
+  ok(back.tracks[4].p.length === 82 && same(back.tracks[4].p.slice(ia), [9, 100, 127, 2, 1, 1]) && same(back.tracks[0].p.slice(ia), [0, 0, 40, 0, 0, 0])
+    && rb[x2] === 9 && rb[x2 + 2] === 87 && rb[P.LAYOUT.project.xp2] === 0 && rb[P.LAYOUT.project.xp3 + 2 * 4] === 1 && rb[P.LAYOUT.project.xp3 + 2 * 4 + 1] === 1 && eqb(P.encodeProject(back), rb),
+    "project: ATK SUS REL LOOP in xp2, PLAY CUT in xp3 (their offset from the power-on value; 0 = before them), round trip");
 }
 
 /* ------------------------------------------------------------ the copies agree --- */
@@ -132,12 +132,12 @@ const fresh = (o) => createMockDevice(data, o);
     && P.LAYOUT.nuser === c.PRE_NUSER && P.LAYOUT.lkMax === c.LK_MAX && P.LAYOUT.nameLen === c.NAME_LEN && P.SZ.VARS_MAX === c.VAR_BYTES
     && P.NAME_SET === data.nameSet, "layout: counts = the firmware's");
   ok(P.LAYOUT.xp2Def.every((d, j) => data.tp[data.P.indexOf("SATK") + j].def === d) && P.LAYOUT.xp2Def.length === 4
-    && data.P.indexOf("SATK") === c.P_NSTORED + P.LAYOUT.xpDef.length && data.P.indexOf("SPLAY") === c.P_COUNT - 1
-    && P.LAYOUT.xp3Def.length === 1 && P.LAYOUT.xp3Def[0] === data.tp[data.P.indexOf("SPLAY")].def
+    && data.P.indexOf("SATK") === c.P_NSTORED + P.LAYOUT.xpDef.length && data.P.indexOf("SCUT") === c.P_COUNT - 1
+    && same(P.LAYOUT.xp3Def, ["SPLAY", "SCUT"].map((n) => data.tp[data.P.indexOf(n)].def))
     && P.LAYOUT.smpl === c.DM_SMPL && P.LAYOUT.uprFenv === c.UPR_FENV && P.LAYOUT.uprFx[c.UPR_FENV] === data.P.indexOf("FENV")
-    && same(P.LAYOUT.envMax, ["SATK", "SSUS", "SREL", "SLOOP", "SPLAY"].map((n) => data.tp[data.P.indexOf(n)].max))
-    && same(P.LAYOUT.envDef, ["SATK", "SSUS", "SREL", "SLOOP", "SPLAY"].map((n) => data.tp[data.P.indexOf(n)].def)),
-  "layout: ATK SUS REL LOOP (xp2), PLAY (xp3), their defaults and ranges, SAMPLE's model id, FILTER ENV's place in a preset's FX");
+    && same(P.LAYOUT.envMax, ["SATK", "SSUS", "SREL", "SLOOP", "SPLAY", "SCUT"].map((n) => data.tp[data.P.indexOf(n)].max))
+    && same(P.LAYOUT.envDef, ["SATK", "SSUS", "SREL", "SLOOP", "SPLAY", "SCUT"].map((n) => data.tp[data.P.indexOf(n)].def)),
+  "layout: ATK SUS REL LOOP (xp2), PLAY CUT (xp3), their defaults and ranges, SAMPLE's model id, FILTER ENV's place in a preset's FX");
   ok(P.LAYOUT.xpDef.every((d, j) => data.tp[c.P_NSTORED + j].def === d)
     && same(P.LAYOUT.timing, ["SLEN", "SDIV", "SSWING", "SRC"].map((n) => data.P.indexOf(n))), "layout: the step-byte parameters' defaults, the timing ids");
   ok(P.MAGIC.PROJ === data.magic.PROJ && P.MAGIC.LK === data.magic.LK && P.MAGIC.VAR === data.magic.VAR && P.MAGIC.UPR === data.magic.UPR
@@ -193,7 +193,7 @@ m.feed = (f) => { const out = feed0(f); seen.push(...out); return out; };
 const q = (cmd, args) => m.request(cmd, args);
 {
   const info = q(CMD.INFO);
-  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 3 && info.caps === 0xff && info.ntrk === 8 && info.pcount === 81
+  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 3 && info.caps === 0xff && info.ntrk === 8 && info.pcount === 82
     && info.gcount === 42 && info.nmodels === 45 && info.nfact === 151 && info.nuser === 96 && info.maxreq === 640
     && info.state.slot === 0 && info.state.used === 7 && info.state.dirty === 0 && P.checkInfo(info).ok, "INFO: the device, A loaded, nothing unsaved");
   ok(info.state.vmask[0] === 0b10111 && info.state.vmask[1] === 0b11 && info.state.vmask[3] === 1, "INFO: the variations used per slot");
@@ -215,8 +215,8 @@ const q = (cmd, args) => m.request(cmd, args);
   ok(pages.length > 20 && pages.filter((p) => /^DEST \d$/.test(p.title)).length === 4 && !pages.some((p) => ["PROJECT", "COPY", "TOOLS", "MOTION", "SONG", "STEP", "TRACKS"].includes(p.title))
     && pages[0].title === "SOUND" && same(pages[0].ids, [0, 1, 2, 3]) && pages.some((p) => p.title === "DLY" && p.ids[0] === data.G.indexOf("DMODE")),
   "PAGES: paged, DEST x 4, no slot / motion / song / tools pages, SOUND list, DLY MODE");
-  ok(t0.p.length === 81 && t0.g.length === 42 && t0.p[0] === data.models.findIndex((x) => x.name === "BDTRX"),
-    "DUMP: 81 parameters, 42 globals, the model");
+  ok(t0.p.length === 82 && t0.g.length === 42 && t0.p[0] === data.models.findIndex((x) => x.name === "BDTRX"),
+    "DUMP: 82 parameters, 42 globals, the model");
   const names = [];
   let d0;
   for (let first = 0; ;) {
@@ -236,8 +236,8 @@ const q = (cmd, args) => m.request(cmd, args);
     && (e1.flags & (P.DF.LOCK | P.DF.CONTEXT)) === (P.DF.LOCK | P.DF.CONTEXT) && mdl.label === data.models[0].edit[0].label
     && (ro.flags & P.DF.RO) && same(ro.items, ["A", "B", "C", "D"]), "DESC: an order, LDEST names, LOCK / CONTEXT / RO flags, scope MODEL");
   const vals = [];
-  for (let id = 0; id < 81;) { const r = q(CMD.GET, { scope: 0, track: 0, id, count: 81 - id }); vals.push(...r.values); id += r.values.length; }
-  ok(vals.length === 81 && vals.every((v, i) => v.value === t0.p[i]) && vals[0].text === "BDTRX", "GET: all 81 values with their texts, about 25 a reply");
+  for (let id = 0; id < 82;) { const r = q(CMD.GET, { scope: 0, track: 0, id, count: 82 - id }); vals.push(...r.values); id += r.values.length; }
+  ok(vals.length === 82 && vals.every((v, i) => v.value === t0.p[i]) && vals[0].text === "BDTRX", "GET: all 82 values with their texts, about 25 a reply");
   const lvl = data.P.indexOf("LEVEL"), s1 = q(CMD.SET, { scope: 0, track: 0, id: lvl, value: 500 }), tx = q(CMD.TEXT, { scope: 0, track: 0, id: lvl, value: 3 });
   ok(s1.value === 127 && q(CMD.DUMP, { track: 0 }).p[lvl] === 127 && tx.value === 3 && q(CMD.DUMP, { track: 0 }).p[lvl] === 127,
     "SET: clamped, kept; TEXT changes nothing");

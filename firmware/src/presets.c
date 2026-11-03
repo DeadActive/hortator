@@ -39,14 +39,16 @@ static const uint8_t UPR_FX[UPR_NFX] = {
 #define UPR_USED 1u
 #define UPR_VOICE 2u
 typedef struct { uint8_t used, model; int8_t k[8]; int8_t f[UPR_NFX]; } upr_slot_t;
-/* a SAMPLE preset's ATK SUS REL LOOP PLAY (user decisions 2026-11-03 and for 1.0.0: the 96 slots kept, the record's
- * size too): 24 bits, each value's offset from its power-on value (ATK, SUS, REL 7 bits, LOOP 2, PLAY 1), bits 0..22 in
- * FX byte i (UPR_FX's order): the top bit of the 22 bytes whose values are 0..127, FILTER ENV's (-64..63) its top bit
- * unlike bit 6; bit 23 (PLAY) the top bit of SOUND knob DRIVE's byte (k[3], 0..127). 0 = the defaults: such a slot is
- * byte for byte as before; another model's slot never holds them. upr_fxv reads an FX value out (a plain value too:
- * the same), upr_knob a SOUND knob */
+/* a SAMPLE preset's ATK SUS REL LOOP PLAY CUT (user decisions 2026-11-03 and for 1.0.0: the 96 slots kept, the
+ * record's size too): 26 bits, each value's offset from its power-on value (ATK, SUS, REL 7 bits, LOOP 3, PLAY 1, CUT
+ * 1), bits 0..22 in FX byte i (UPR_FX's order): the top bit of the 22 bytes whose values are 0..127, FILTER ENV's
+ * (-64..63) its top bit unlike bit 6; bits 23, 24, 25 the top bit of SOUND knobs DRIVE's, DECAY's and TONE's bytes
+ * (0..127 each). 0 = the defaults: such a slot is byte for byte as before; another model's slot never holds them.
+ * upr_fxv reads an FX value out (a plain value too: the same), upr_knob a SOUND knob */
 #define UPR_FENV 15u                                    /* UPR_FX's FILTER ENV */
-#define UPR_KPLAY 3u                                    /* the SOUND knob whose byte's top bit is PLAY's (DRIVE) */
+static const uint8_t UPR_KBIT[3] = {3, 1, 2};          /* the SOUND knobs whose byte's top bit is bit 23 + j (DRIVE,
+                                                        * DECAY, TONE: 0..127 each) */
+static int upr_kbit(uint32_t i) { return i >= 1u && i <= 3u; }   /* (one of them) */
 static int32_t upr_fxdec(int8_t f, uint32_t i)        /* FX byte i's value */
 {
     uint32_t b = (uint8_t)f;
@@ -65,22 +67,24 @@ static void upr_fxset(upr_slot_t *s, uint32_t i, int32_t v, uint32_t bit)
 }
 static int32_t upr_knob(const upr_slot_t *s, uint32_t i)   /* SOUND knob i as stored (PLAY's bit off) */
 {
-    return s->model == DM_SMPL && i == UPR_KPLAY ? (int32_t)((uint8_t)s->k[i] & 0x7Fu) : s->k[i];
+    return s->model == DM_SMPL && upr_kbit(i) ? (int32_t)((uint8_t)s->k[i] & 0x7Fu) : s->k[i];
 }
-static uint32_t upr_env(const upr_slot_t *s)            /* the 24 bits (0: the defaults) */
+static uint32_t upr_env(const upr_slot_t *s)            /* the 26 bits (0: the defaults) */
 {
     uint32_t e = 0, i;
     if (s->model != DM_SMPL)
         return 0;
     for (i = 0; i < UPR_NFX; i++)
         e |= upr_fxbit(s, i) << i;
-    return e | (uint32_t)((uint8_t)s->k[UPR_KPLAY] >> 7) << 23;
+    for (i = 0; i < 3u; i++)
+        e |= (uint32_t)((uint8_t)s->k[UPR_KBIT[i]] >> 7) << (23u + i);
+    return e;
 }
-/* ATK SUS REL LOOP PLAY of p[] (a track's values) as the 24 bits; and back onto p[] (their power-on values and ranges:
- * params.c TP's, tests/sampenv_test.c checks) */
-#define SENV_N 5u
-static const uint8_t SENV_DEF[SENV_N] = {0, 0, 40, 0, 0}, SENV_MAX[SENV_N] = {127, 127, 127, 2, 1};
-static const uint8_t SENV_SH[SENV_N] = {0, 7, 14, 21, 23}, SENV_M[SENV_N] = {0x7F, 0x7F, 0x7F, 3, 1};
+/* ATK SUS REL LOOP PLAY CUT of p[] (a track's values) as the 26 bits; and back onto p[] (their power-on values and
+ * ranges: params.c TP's, tests/sampenv_test.c checks) */
+#define SENV_N 6u
+static const uint8_t SENV_DEF[SENV_N] = {0, 0, 40, 0, 0, 0}, SENV_MAX[SENV_N] = {127, 127, 127, 4, 1, 1};
+static const uint8_t SENV_SH[SENV_N] = {0, 7, 14, 21, 24, 25}, SENV_M[SENV_N] = {0x7F, 0x7F, 0x7F, 7, 1, 1};
 static uint32_t senv_pack(const int16_t *p)
 {
     uint32_t e = 0, i;
@@ -94,7 +98,7 @@ static void senv_put(int16_t *p, uint32_t e)
     for (i = 0; i < SENV_N; i++)
         p[P_SATK + i] = (int16_t)clamp((int32_t)((SENV_DEF[i] + (e >> SENV_SH[i])) & SENV_M[i]), 0, SENV_MAX[i]);
 }
-typedef char senv_ids[P_SPLAY == P_SATK + 4 ? 1 : -1];
+typedef char senv_ids[P_SPLAY == P_SATK + 4 && P_SCUT == P_SATK + 5 ? 1 : -1];
 typedef struct { uint32_t magic; upr_slot_t s[PRE_NUSER]; uint8_t mv[UPR_NOLD - PRE_NUSER]; } upr_rec_t;
 typedef char upr_rec_size[sizeof(upr_rec_t) == 4u + 33u * PRE_NUSER + 32u && sizeof(upr_rec_t) <= 3584u ? 1 : -1];
                                                         /* (one sector; below 3584: the loader's erase scan) */
@@ -448,6 +452,7 @@ static void upr_set(uint32_t slot, uint32_t model, const int16_t *kv)
     e = s->model == DM_SMPL ? senv_pack(kv) : 0u;   /* (another model: none) */
     for (i = 0; i < UPR_NFX; i++)
         upr_fxset(s, i, kv[UPR_FX[i]], e >> i & 1u);
-    if (e >> 23)                                    /* PLAY CHOP: DRIVE's top bit (DRIVE 0..127) */
-        s->k[UPR_KPLAY] = (int8_t)((uint8_t)clamp(s->k[UPR_KPLAY], 0, 127) | 0x80u);
+    for (i = 0; i < 3u; i++)                        /* bits 23..25: DRIVE's, DECAY's, TONE's top bit (each 0..127) */
+        if ((e >> (23u + i)) & 1u)
+            s->k[UPR_KBIT[i]] = (int8_t)((uint8_t)clamp(s->k[UPR_KBIT[i]], 0, 127) | 0x80u);
 }

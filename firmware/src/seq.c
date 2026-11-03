@@ -787,7 +787,12 @@ static void seq_start(void)
 
 static void seq_stop(void)
 {
+    uint32_t i, j;
     song.playing = 0;
+    for (i = 0; i < NTRK; i++)                      /* SAMPLE's LOOPI voices end (nothing drones on after STOP) */
+        for (j = 0; j < NDV; j++)
+            if (trk[i].v[j].active && trk[i].model == DM_SMPL && (trk[i].v[j].k[2] & SE_INF))
+                dv_cut(&trk[i], &trk[i].v[j]);
     acid_gates_close();                             /* ACID: no note drones on */
     motion_end();                                   /* motion.c: the patch back */
     chain_stop();                                   /* song.c: the timing and REC back */

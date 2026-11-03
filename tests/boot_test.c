@@ -2369,7 +2369,7 @@ static int fdrf_round_trip(void)
     return (int)ok && bank_events_eq(&mo.b, &want) && proj_slot[2].magic == PROJ_MAGIC && proj_slot[2].lk_n == 5u &&
            sizeof(project_t) == 3840u && sizeof proj_slot[2].rsv_mo + sizeof proj_slot[2].xp + sizeof proj_slot[2].xp2 +
                    sizeof proj_slot[2].xp3 == 504u &&
-           sizeof proj_slot[2].xp == 56u && sizeof proj_slot[2].xp2 == 32u && sizeof proj_slot[2].xp3 == 8u && !proj_slot[2].var_len &&
+           sizeof proj_slot[2].xp == 56u && sizeof proj_slot[2].xp2 == 32u && sizeof proj_slot[2].xp3 == 16u && !proj_slot[2].var_len &&
            !proj_slot[2].var_link && str_eq(ui.msg, "LOADED");
 }
 static void fdre_of_live(project_ve_t *v)            /* the live state as 0.23.3 saved it ("FDRE") */

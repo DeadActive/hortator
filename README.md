@@ -314,7 +314,7 @@ refuses uploads to that slot too.)
 ### Samples: SLOT, START, END
 
 The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DECAY**, **TONE**, **DRIVE**; SOUND 2:
-**SET**, **SLOT**, **START**, **END**; SOUND 4: LVL, PAN, NOTE / CHOKE, PRIO, **PLAY**; SOUND 5 (its own page):
+**SET**, **SLOT**, **START**, **END**; SOUND 4: LVL, PAN, NOTE / CHOKE, PRIO, **PLAY**, **CUT**; SOUND 5 (its own page):
 **ATK**, **SUS**, **REL**, **LOOP**.
 
 - **SET**: PERC (built in) or a user slot USR1–USR3. **SLOT** steps through the set's samples, shown `3/16`: PERC
@@ -336,6 +336,15 @@ The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DEC
   forward again: the turn mirrors the sound, so it never jumps). PING plays loops up to 10,240 samples of the sample
   (0.23 s at 44.1 kHz, 0.46 s at 22 kHz, 0.9 s at 11 kHz); a longer loop plays FWD. A loop with SUS 0 goes on until
   DECAY has faded it; with SUS above 0 until the note is let go and REL has faded it.
+  **LOOPI** (loop infinite) loops as FWD and is **never released**: the end of the note (a step's length, a key or
+  MIDI note let go) does nothing and REL is not used. ATK fades it in, then DECAY falls to SUS and it stays there; SUS
+  0 keeps the full level (DECAY does nothing then). It loops until the track's next hit (always, whatever CUT says), a
+  CHOKE, a voice taken for another hit, or **STOP** (on STOP every LOOPI voice ends, so nothing drones on). **ONE**
+  plays the sample once from START to END **whatever the note's length**: ATK, then DECAY towards SUS held to END, no
+  release (REL not used); with SUS 0 it is OFF's one-shot (DECAY may fade it out before END).
+- **CUT** (SOUND 4): **OFF** (the default, as before: a new hit lets the sounding one ring on, two at a time) or
+  **ON** (a new hit cuts the sounding one, with the usual short fade: one at a time, across chops too). A LOOPI voice
+  ends at the next hit with CUT OFF too.
 - With ATK 0, SUS 0 and LOOP OFF a hit sounds exactly as it did before these knobs. They take MOTION, step locks and
   MIDI LEARN (`T1 ATK`, `T1 LOOP`), are saved with projects and in USER presets; a factory SAMPLE preset sets them back
   to ATK 0, SUS 0, REL 40, LOOP OFF. The LAYER keeps its one-shot DECAY.
@@ -350,7 +359,8 @@ The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DEC
   stores its chop as the step's NOTE (C4 + 0..15), so the pattern plays those chops back; a step's NOTE picks its
   chop, a MIDI note n chop (n − 60) mod 16 + 1 (ROUT SEL and TRACK; ROUT NOTE and the track keys hit at C4: chop 1).
   SLOT is not used then. PLAY takes step locks, MOTION and MIDI LEARN (`T1 PLAY`), is saved with projects and in USER
-  presets; a factory SAMPLE preset sets it back to KEY.
+  presets; a factory SAMPLE preset sets it back to KEY. CUT takes MIDI LEARN (`T1 CUT`) and is saved the same way (no
+  step locks).
 
 The **LAYER** (EDIT, then OCT+) puts a sample under any model: **SET**, **SLOT**, **LEVEL**, **TUNE** (1/2) and
 **DECAY** (2/2), SET and SLOT as the SAMPLE model's. MIDI LEARN names them `T3 L.SET`, `T3 L.SLOT`, `T3 L.LEVEL`,

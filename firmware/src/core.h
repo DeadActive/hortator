@@ -68,6 +68,7 @@ enum {                          /* per-track parameters */
                                           * SOUND page 5/5. Stored past the project's xp (project.c xp2) */
     P_SPLAY,                     /* the SAMPLE model's PLAY (dm_sample.c): 0 KEY (as before), 1 CHOP (a hit's note picks
                                   * the set's sample); SOUND 4/5. project.c xp3 */
+    P_SCUT,                      /* .. CUT: 0 OFF (as before: hits overlap), 1 ON (a hit cuts the sounding one); xp3 */
     P_COUNT
 };
 #define P_NSTORED P_RKEY         /* the parameters in a project's block (FDRE: P_MODEL .. P_LS4DEPTH) */

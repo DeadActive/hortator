@@ -684,20 +684,28 @@ static int smpl_playable(const track_t *t)          /* SET / SLOT (CHOP: the cho
 #define SE_SUS 2u                                   /* SUS above 0: the gate holds the note */
 #define SE_REL 4u                                   /* the gate closed: releasing */
 #define SE_ON 8u                                    /* ATK or SUS: smpl_env runs (else DECAY alone, as before) */
+#define SE_INF 16u                                  /* LOOPI: no gate, never released; SUS 0 holds the full level */
+#define SE_ONE 32u                                  /* ONE: no gate (to END), never released */
+#define SL_LOOPI 3u                                 /* P_SLOOP's LOOPI, ONE (OFF FWD PING 0 1 2) */
+#define SL_ONE 4u
 #define SMPL_HOLD_MAX (10u * 44100u)                /* a held key / note's gate at most (a note-off lost) */
 static uint32_t smpl_gate_len(const track_t *t);    /* seq.c: one step of the track */
 /* ATK 1..127: 1 ms .. 2 s, exponential (2^(11 x (ATK - 1) / 126) ms) */
 static uint32_t smpl_atk_len(int32_t a) { return ((pow2_q16((a - 1) * 2106 / 126) >> 8) * 44u) >> 8; }
+/* LOOP's LOOPI and ONE ignore the gate (REL never applies): ATK, then DECAY towards SUS, held; LOOPI with SUS 0 holds
+ * the full level (DECAY then does nothing: it loops until the next hit, a choke, a steal, STOP); ONE with SUS 0 is OFF's
+ * one-shot (DECAY to silence), with SUS the level held to END */
 static void smpl_env_init(const track_t *t, dvoice_t *v)
 {
-    int32_t a = clamp(t->p[P_SATK], 0, 127), su = clamp(t->p[P_SSUS], 0, 127);
-    if (!a && !su)
+    int32_t a = clamp(t->p[P_SATK], 0, 127), su = clamp(t->p[P_SSUS], 0, 127), lp = t->p[P_SLOOP];
+    uint32_t ng = lp == (int32_t)SL_LOOPI ? SE_INF : lp == (int32_t)SL_ONE ? SE_ONE : 0u;
+    if (!a && !su && ng != SE_INF)
         return;                                     /* (the default: DECAY alone, bit for bit as before) */
     v->k[1] = v->k[0];
     v->inc[0] = dk(t->p[P_SREL]);
     v->x[3] = su * (ENV1 / 127);
     v->x[1] = (int32_t)smpl_gate_len(t);
-    v->k[2] = SE_ON | (su ? SE_SUS : 0u) | (a ? SE_ATK : 0u);
+    v->k[2] = SE_ON | ng | (su ? SE_SUS : 0u) | (a ? SE_ATK : 0u);
     if (a) {
         v->env[0] = ENV_END;                        /* (-84 dB: above the voice's end) */
         v->x[2] = (int32_t)smpl_atk_len(a);
@@ -709,7 +717,7 @@ static void smpl_env_init(const track_t *t, dvoice_t *v)
 static int32_t smpl_env(dvoice_t *v, uint32_t n)
 {
     uint32_t f = v->k[2];
-    if ((f & (SE_SUS | SE_REL)) == SE_SUS) {
+    if ((f & (SE_SUS | SE_REL | SE_INF | SE_ONE)) == SE_SUS) {   /* (LOOPI, ONE: no gate) */
         if ((uint32_t)v->x[1] > n)
             v->x[1] -= (int32_t)n;
         else
@@ -732,6 +740,10 @@ static int32_t smpl_env(dvoice_t *v, uint32_t n)
         }
         return c;
     }
+    if ((f & (SE_INF | SE_SUS)) == SE_INF) {        /* LOOPI, SUS 0: the full level held */
+        v->k[0] = 65536u;
+        return 0;
+    }
     v->k[0] = v->k[1];
     return v->x[3] - mulq16(v->x[3], v->k[1]);
 }
@@ -750,7 +762,9 @@ static void smpl_trigger(track_t *t, dvoice_t *v)
     v->k[0] = dk(p[1]);
     v->x[0] = 4000 + p[2] * 28767 / 127;        /* tone lp coefficient */
     smpl_env_init(t, v);
-    smp_loop_init(v, zi, st, (uint32_t)clamp(t->p[P_SLOOP], 0, 2));
+    smp_loop_init(v, zi, st, t->p[P_SLOOP] == (int16_t)SL_LOOPI ? 1u
+                             : t->p[P_SLOOP] >= 0 && t->p[P_SLOOP] < 3 ? (uint32_t)t->p[P_SLOOP] : 0u);   /* (LOOPI loops
+                                                     * FWD; ONE none) */
 }
 
 static void smpl_render(track_t *t, dvoice_t *v, int32_t *out, uint32_t n)

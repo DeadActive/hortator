@@ -275,7 +275,7 @@ static void t_knobs(void)
     check("ATK SUS REL LOOP: their labels", ok);
     check("defaults: ATK 0, SUS 0, REL 40, LOOP OFF", TP[P_SATK].def == 0 && TP[P_SSUS].def == 0 &&
                                                           TP[P_SREL].def == 40 && TP[P_SLOOP].def == 0 &&
-                                                          TP[P_SLOOP].max == 2);
+                                                          TP[P_SLOOP].max == 4);
     param_format(&TP[P_SLOOP], 0, b, &u);
     ok = !strcmp(b, "OFF");
     param_format(&TP[P_SLOOP], 1, b, &u);
@@ -286,9 +286,9 @@ static void t_knobs(void)
     ui_host_init();
     old_set_model(TSEL, DM_SMPL);
     n = snd_list(TSEL, ids);
-    check("SAMPLE's sound list: 5 pages, the fifth ATK SUS REL LOOP (the fourth CHOKE PRIO PLAY)",
+    check("SAMPLE's sound list: 5 pages, the fifth ATK SUS REL LOOP (the fourth CHOKE PRIO PLAY CUT)",
           n == 20u && ids[16] == P_SATK && ids[17] == P_SSUS && ids[18] == P_SREL && ids[19] == P_SLOOP &&
-              ids[12] == P_CHOKE && ids[13] == P_PRIO && ids[14] == P_SPLAY && ids[15] == 0xFFu);
+              ids[12] == P_CHOKE && ids[13] == P_PRIO && ids[14] == P_SPLAY && ids[15] == P_SCUT);
     {
         uint32_t pos, np = fam_pages(FAM_SND, &pos), i5 = page_first(FAM_SND) + 4u;
         check("SOUND has 5 pages on a SAMPLE track, the fifth shown", np == 5u && !page_hidden(i5) &&
@@ -655,7 +655,7 @@ static void t_play(void)
     old_set_model(TSEL, DM_SMPL);
     snd_list(TSEL, ids);
     check("PLAY on SOUND 4/5 (CHOKE PRIO PLAY)", ids[12] == P_CHOKE && ids[13] == P_PRIO && ids[14] == P_SPLAY &&
-                                                 ids[15] == 0xFFu);
+                                                 ids[15] == P_SCUT);
     check("PLAY: LOCK / MOTION, MIDI LEARN take it", motion_param(P_SPLAY) && ml_param_ok(P_SPLAY));
     enc_set(0, pc, zlen, 3, 1);
     /* KEY: the selected SLOT's sample, chromatic from its root */
@@ -751,6 +751,106 @@ static void t_play(void)
     song.seq_mode = 0;
 }
 
+/* ---------------------------------------------------------------- LOOP LOOPI / ONE, CUT */
+static uint32_t voices_on(const track_t *t)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < NDV; i++)
+        n += t->v[i].active;
+    return n;
+}
+static void t_loopi_one_cut(void)
+{
+    char b[16];
+    const char *u;
+    uint8_t ids[SND_N];
+    int32_t pk, pk2;
+    uint32_t end;
+    param_format(&TP[P_SLOOP], 3, b, &u);
+    pk = !strcmp(b, "LOOPI");
+    param_format(&TP[P_SLOOP], 4, b, &u);
+    check("LOOP: OFF FWD PING LOOPI ONE (the old ids kept, the new appended)", pk && !strcmp(b, "ONE") &&
+                                                                               TP[P_SLOOP].max == 4);
+    check("CUT: OFF / ON, OFF by default; MIDI LEARN takes it", !strcmp(TP[P_SCUT].label, "CUT") &&
+                                                                  TP[P_SCUT].def == 0 && TP[P_SCUT].max == 1 &&
+                                                                  ml_param_ok(P_SCUT));
+    old_set_model(TSEL, DM_SMPL);
+    snd_list(TSEL, ids);
+    check("SOUND 4/5: CHOKE PRIO PLAY CUT", ids[14] == P_SPLAY && ids[15] == P_SCUT);
+    make_sig(40000, 0);
+    enc_slot(0, sig, 40000);
+    /* LOOPI: no release, the gate's end does nothing; ATK then the full level (SUS 0) */
+    song.g[G_BPM] = 120;
+    smpl_on_usr(30, 60, 0, 0, 127, 3);
+    hit(wa, SECS(2));
+    pk = peak(wa + SECS(0.05), SECS(0.1));
+    pk2 = peak(wa + SECS(1.85), SECS(0.1));
+    printf("     LOOPI SUS 0: peak just after the hit %d, 1.85 s later (the gate long gone, REL 127) %d\n", pk, pk2);
+    check("LOOPI: a step's gate ends, REL 127: no release, the loop goes on at the full level", pk2 * 10 >= pk * 9 &&
+                                                                                                  trk[0].v[0].active +
+                                                                                                          trk[0].v[1].active ==
+                                                                                                      1);
+    smpl_on_usr(30, 60, 0, 64, 0, 3);
+    hit(wa, SECS(2));
+    pk = peak(wa + SECS(0.05), SECS(0.1));
+    pk2 = peak(wa + SECS(1.85), SECS(0.1));
+    printf("     LOOPI SUS 64: %d then %d\n", pk, pk2);
+    check("LOOPI with SUS: DECAY falls to SUS and holds there (REL 0 never cuts it)", pk2 > pk / 4 && pk2 < pk);
+    smpl_on_usr(30, 60, 0, 0, 0, 3);
+    hit(wa, SECS(0.2));
+    drum_play(&trk[0], 127, 0);
+    render_track(&trk[0], wa, SECS(0.05));
+    check("LOOPI: the next hit ends the looping voice (even with CUT OFF): one voice", voices_on(&trk[0]) == 1u);
+    drum_cut(&trk[0]);
+    check("LOOPI: a choke ends it", voices_on(&trk[0]) == 0u);
+    smpl_on_usr(30, 60, 0, 0, 0, 3);
+    seq_start();
+    drum_play(&trk[0], 127, 0);
+    render_track(&trk[0], wa, SECS(0.1));
+    seq_stop();
+    render_track(&trk[0], wa, SECS(0.05));
+    check("LOOPI: STOP ends it (nothing drones on)", voices_on(&trk[0]) == 0u);
+    /* ONE: START to END whatever the gate */
+    smpl_on_usr(0, 127, 0, 100, 0, 4);
+    hit(wa, SECS(1));
+    end = silent_after(wa, SECS(1));
+    printf("     ONE SUS 100 REL 0, a step's gate: sound to %u (the sample 40000)\n", end);
+    check("ONE: a short gate, REL 0: the sample still plays to its END", end > 39000u && end <= 40100u);
+    smpl_on_usr(0, 127, 0, 100, 0, 0);
+    hit(wb, SECS(1));
+    check("(OFF with SUS: the gate's end releases it)", silent_after(wb, SECS(1)) < 8000u);
+    smpl_on_usr(0, 127, 0, 0, 40, 4);
+    hit(wa, SECS(1));
+    smpl_on_usr(0, 127, 0, 0, 40, 0);
+    hit(wb, SECS(1));
+    check("ONE with ATK 0 SUS 0: as OFF, bit for bit", !memcmp(wa, wb, sizeof(int32_t) * SECS(1)));
+    /* CUT */
+    smpl_on_usr(0, 127, 0, 0, 40, 0);
+    drum_play(&trk[0], 127, 0);
+    render_track(&trk[0], wa, SECS(0.05));
+    drum_play(&trk[0], 127, 0);
+    render_track(&trk[0], wa, SECS(0.05));
+    check("CUT OFF (the default): a new hit overlaps the sounding one (2 voices), as before", voices_on(&trk[0]) == 2u);
+    smpl_on_usr(0, 127, 0, 0, 40, 0);
+    trk[0].p[P_SCUT] = 1;
+    drum_play(&trk[0], 127, 0);
+    render_track(&trk[0], wa, SECS(0.05));
+    drum_play(&trk[0], 127, 0);
+    check("CUT ON: a new hit cuts the sounding one (one voice, its tail declicked)", voices_on(&trk[0]) == 1u &&
+                                                                                       trk[0].dtail != 0);
+    {
+        const int16_t *pc[3] = {zsig[0], zsig[1], zsig[2]};
+        enc_set(0, pc, zlen, 3, 1);
+        smpl_on_usr(0, 127, 0, 0, 40, 0);
+        trk[0].p[P_SPLAY] = 1;
+        trk[0].p[P_SCUT] = 1;
+        drum_play(&trk[0], 127, 0);
+        drum_play(&trk[0], 127, 2);
+        check("CUT ON, CHOP: a new chop cuts the previous one", voices_on(&trk[0]) == 1u &&
+                                                                  played_zone() == (0x8000u | 2u) + 1u);
+    }
+}
+
 /* ---------------------------------------------------------------- projects, presets, locks */
 static void t_project(void)
 {
@@ -761,13 +861,17 @@ static void t_project(void)
     trk[2].p[P_SREL] = 3;
     trk[2].p[P_SLOOP] = 2;
     trk[2].p[P_SPLAY] = 1;
+    trk[2].p[P_SCUT] = 1;
+    trk[3].p[P_SLOOP] = 3;
+    trk[4].p[P_SLOOP] = 4;
     trk[5].p[P_SREL] = 127;
     project_save(0);
     power_cycle();
     project_load(0);
     check("a project keeps ATK SUS REL LOOP", trk[2].p[P_SATK] == 12 && trk[2].p[P_SSUS] == 99 &&
                                                 trk[2].p[P_SREL] == 3 && trk[2].p[P_SLOOP] == 2 &&
-                                                trk[5].p[P_SREL] == 127 && trk[2].p[P_SPLAY] == 1);
+                                                trk[5].p[P_SREL] == 127 && trk[2].p[P_SPLAY] == 1 &&
+                                                trk[2].p[P_SCUT] == 1 && trk[3].p[P_SLOOP] == 3 && trk[4].p[P_SLOOP] == 4);
     check(".. the other parameters past the block where they were (xp)", proj_slot[0].xp[2][0] == 0 &&
                                                                        proj_xp_get(&proj_slot[0], 2, P_IMIX) == 127);
     memset(proj_slot[0].xp2, 0, sizeof proj_slot[0].xp2);   /* a record from before them: 0 there */
@@ -778,7 +882,8 @@ static void t_project(void)
                                                                              trk[2].p[P_SSUS] == 0 &&
                                                                              trk[2].p[P_SREL] == 40 &&
                                                                              trk[2].p[P_SLOOP] == 0 &&
-                                                                             trk[2].p[P_SPLAY] == 0);
+                                                                             trk[2].p[P_SPLAY] == 0 &&
+                                                                             trk[2].p[P_SCUT] == 0);
 }
 static void t_presets(void)
 {
@@ -796,8 +901,11 @@ static void t_presets(void)
     trk[0].p[P_SATK] = 127;
     trk[0].p[P_SSUS] = 1;
     trk[0].p[P_SREL] = 0;
-    trk[0].p[P_SLOOP] = 2;
+    trk[0].p[P_SLOOP] = 4;
     trk[0].p[P_SPLAY] = 1;
+    trk[0].p[P_SCUT] = 1;
+    trk[0].p[P_E1] = 100;                            /* (DECAY, TONE: their bytes' top bits hold LOOP's 3rd bit, CUT) */
+    trk[0].p[P_E2] = 127;
     trk[0].p[P_E3] = 127;                            /* (DRIVE: its byte's top bit holds PLAY) */
     trk[0].p[P_FENV] = -64;
     trk[0].p[P_REV] = 127;
@@ -808,13 +916,14 @@ static void t_presets(void)
     drum_set_model(&trk[3], DM_K909);
     preset_load(&trk[3], PRE_NFACT + 5u);
     check("a SAMPLE user preset brings ATK SUS REL LOOP back (after a power cycle)",
-          trk[3].p[P_SATK] == 127 && trk[3].p[P_SSUS] == 1 && trk[3].p[P_SREL] == 0 && trk[3].p[P_SLOOP] == 2 &&
-              trk[3].p[P_SPLAY] == 1 && trk[3].p[P_E3] == 127);
+          trk[3].p[P_SATK] == 127 && trk[3].p[P_SSUS] == 1 && trk[3].p[P_SREL] == 0 && trk[3].p[P_SLOOP] == 4 &&
+              trk[3].p[P_SPLAY] == 1 && trk[3].p[P_SCUT] == 1 && trk[3].p[P_E3] == 127 && trk[3].p[P_E1] == 100 &&
+              trk[3].p[P_E2] == 127);
     check(".. and its FX as saved (FENV -64, REV 127)", trk[3].p[P_FENV] == -64 && trk[3].p[P_REV] == 127);
     preset_load(&trk[3], PRE_NFACT + 4u);
     check("a SAMPLE preset saved at the defaults loads them", trk[3].p[P_SATK] == 0 && trk[3].p[P_SSUS] == 0 &&
                                                                 trk[3].p[P_SREL] == 40 && trk[3].p[P_SLOOP] == 0 &&
-                                                                trk[3].p[P_SPLAY] == 0);
+                                                                trk[3].p[P_SPLAY] == 0 && trk[3].p[P_SCUT] == 0);
     trk[3].p[P_SLOOP] = 1;
     for (i = 0; i < PRE_NFACT; i++)
         if (preset_get(i, &pr) && pr.model == DM_SMPL)
@@ -860,6 +969,8 @@ int main(void)
     t_set_slots();
     fresh();
     t_play();
+    fresh();
+    t_loopi_one_cut();
     t_project();
     t_presets();
     t_locks();

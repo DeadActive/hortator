@@ -18,7 +18,7 @@
 #define TL_DEAD 4u
 #define TL_PLAIN 8u
 #define TL_LK 192u                  /* the clipboard's lock events (3 B each: spec §3) */
-#define TL_SLK 48u                  /* the step buffer's: every recordable knob (motion.c motion_param: 44) */
+#define TL_SLK 52u                  /* the step buffer's: every recordable knob (motion.c motion_param: 49) */
 /* the tools' black keys (key index from F3) */
 #define TL_K_CPSTEP 1u              /* F#3 COPY STEP: held + a step */
 #define TL_K_PSTEP 3u               /* G#3 PASTE STEP: held + steps */

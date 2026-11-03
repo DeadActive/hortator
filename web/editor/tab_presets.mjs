@@ -24,8 +24,8 @@ const sameFx = (a, b) => !!a.voiceOnly === !!b.voiceOnly && (!!a.voiceOnly || a.
 /** a SAMPLE preset's ATK SUS REL LOOP PLAY as the FX panel shows them ("" none) */
 export function envText(env) {
   if (!Array.isArray(env)) return "";
-  const [a, su, r, lp, pl] = LAYOUT.envDef.map((d, i) => env[i] ?? d);
-  return `ATK ${a} · SUS ${su} · REL ${r} · LOOP ${["OFF", "FWD", "PING"][lp] ?? lp} · PLAY ${pl ? "CHOP" : "KEY"}`;
+  const [a, su, r, lp, pl, ct] = LAYOUT.envDef.map((d, i) => env[i] ?? d);
+  return `ATK ${a} · SUS ${su} · REL ${r} · LOOP ${["OFF", "FWD", "PING", "LOOPI", "ONE"][lp] ?? lp} · PLAY ${pl ? "CHOP" : "KEY"} · CUT ${ct ? "ON" : "OFF"}`;
 }
 const sameEnv = (a, b) => String(a.env ?? "") === String(b.env ?? "");   // (SAMPLE: ATK SUS REL LOOP)
 const same = (a, b) => (!a && !b) || (!!a && !!b && a.model === b.model && a.knobs.every((k, i) => k === b.knobs[i]) && sameFx(a, b) && sameEnv(a, b));
@@ -230,7 +230,7 @@ export class PresetsModel {
   async saveTrack(i, track = this.track) {
     const d = await this.s.request(CMD.DUMP, { track }), c8 = (k) => Math.max(-128, Math.min(127, k));
     const s = { model: d.model, knobs: d.p.slice(P_E0, P_E0 + 8).map(c8), fx: LAYOUT.uprFx.map((id) => c8(d.p[id])), voiceOnly: false };
-    if (d.model === LAYOUT.smpl) s.env = d.p.slice(LAYOUT.pStored + LAYOUT.xpDef.length, LAYOUT.pcount); // ATK SUS REL LOOP PLAY
+    if (d.model === LAYOUT.smpl) s.env = d.p.slice(LAYOUT.pStored + LAYOUT.xpDef.length, LAYOUT.pcount); // ATK SUS REL LOOP PLAY CUT
     s.name = this.memory()[soundKey(s)] || `${(this.modelNames[d.model] || "USER").slice(0, 5)} T${d.track + 1}`;
     this.slots[i] = s;
     this.emit("render");

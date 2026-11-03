@@ -68,6 +68,12 @@ released yet are listed under Unreleased.
   sample, so the pattern plays the same chops back. MIDI notes pick a sample too: C4 is sample 1, C#4 sample 2 and so
   on, again every 16 notes. PLAY takes step locks, MOTION and MIDI LEARN and is saved with projects and in USER
   presets. KEY is the default, so everything sounds as before.
+- **SAMPLE: LOOP LOOPI and ONE, and CUT.** LOOP has two more choices. LOOPI loops between START and END forever: the
+  end of the note and REL do nothing, the sound stays at its level (the full level, or SUS's) until the track's next
+  hit, a choke or STOP (STOP ends it, so nothing keeps sounding). ONE plays the sample from START to END whatever the
+  note's length, with no release. CUT (next to PLAY): ON makes each new hit cut the one still sounding, with a short
+  fade, chops included; OFF (the default) lets them overlap as before. Both are saved with projects and in USER
+  presets, and take MIDI LEARN.
 - **Web editor: Samples.** A new Samples tab loads your own sounds into the three user sample slots (USR1 holds 80
   KiB, USR2 and USR3 48 KiB each) and shows what each one holds: its name, length and how full it is. Open a WAV (or
   an AIFF your browser can open), trim its start and end on the waveform, normalize it if you like and choose the
