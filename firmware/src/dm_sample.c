@@ -651,11 +651,30 @@ static int smp_render(dvoice_t *v, int32_t *out, uint32_t n, int32_t gain, int32
     return 1;
 }
 
-/* SAMPLE model: TUNE DECAY TONE DRIVE, SET SLOT START END */
-static int smpl_playable(const track_t *t)          /* SET / SLOT name a sample (else a hit takes no voice) */
+/* SAMPLE model: TUNE DECAY TONE DRIVE, SET SLOT START END; PLAY (KEY / CHOP), ATK SUS REL LOOP.
+ * PLAY CHOP: a hit's note picks the set's sample, a chop: chop (note - C4) mod 16 + 1 (a step's NOTE, the keys' (the
+ * KEYS white keys: chops 1..16 on any octave, seq.c keys_note), a MIDI note's), played at its root + TUNE (the note does
+ * not pitch it); SLOT unused; a chop past the set's samples plays nothing. KEY: as before (SLOT's sample, the note
+ * pitching it) */
+static int32_t smpl_chop(const track_t *t)          /* the hit's chop 0..15 (PLAY CHOP), -1 KEY */
+{
+    return t->p[P_SPLAY] == 1 ? (int32_t)(((uint32_t)(int32_t)t->nt) & 15u) : -1;
+}
+/* the zone a hit of t plays (0xFFFF none) and its pitch from the root (1/16 semitones) */
+static uint32_t smpl_zone(const track_t *t, int32_t *o)
+{
+    int32_t c = smpl_chop(t);
+    uint32_t set = (uint32_t)t->p[P_E4];
+    if (c >= 0 && (uint32_t)c >= smp_slot_count(set)) {
+        *o = 0;
+        return 0xFFFFu;                             /* (a chop the set does not have: nothing) */
+    }
+    return smp_slot_zone(set, c >= 0 ? SMP_SLOT_V(c) : t->p[P_E5], o);
+}
+static int smpl_playable(const track_t *t)          /* SET / SLOT (CHOP: the chop) name a sample (else no voice) */
 {
     int32_t o;
-    uint32_t zi = smp_slot_zone((uint32_t)t->p[P_E4], t->p[P_E5], &o);
+    uint32_t zi = smpl_zone(t, &o);
     return zi != 0xFFFFu && smp_zone(zi)->n;
 }
 
@@ -721,12 +740,12 @@ static void smpl_trigger(track_t *t, dvoice_t *v)
 {
     const int16_t *p = &t->p[P_E0];
     int32_t o, en = p[7] <= 0 ? 127 : p[7];         /* (END 0: stored before START / END, the whole sample) */
-    uint32_t zi = smp_slot_zone((uint32_t)p[4], p[5], &o), st = (uint32_t)clamp(p[6], 0, 127);
+    uint32_t zi = smpl_zone(t, &o), st = (uint32_t)clamp(p[6], 0, 127);
     if (zi == 0xFFFFu || !smp_zone(zi)->n) {
         dm_end(v);
         return;
     }
-    smp_go(v, zi, o, dm_tune(t), st, (uint32_t)clamp(en, 0, 127));
+    smp_go(v, zi, o, smpl_chop(t) >= 0 ? p[0] : dm_tune(t), st, (uint32_t)clamp(en, 0, 127));   /* (a chop: TUNE alone) */
     v->env[0] = ENV1;
     v->k[0] = dk(p[1]);
     v->x[0] = 4000 + p[2] * 28767 / 127;        /* tone lp coefficient */

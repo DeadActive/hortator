@@ -21,6 +21,12 @@ const NAMES_KEY = "hortator-preset-names"; // the page's memory of the names giv
 const NFX = LAYOUT.uprFx.length;
 const noMoves = () => Array(LAYOUT.nuserOld - LAYOUT.nuser).fill(0);
 const sameFx = (a, b) => !!a.voiceOnly === !!b.voiceOnly && (!!a.voiceOnly || a.fx.every((x, i) => x === b.fx[i]));
+/** a SAMPLE preset's ATK SUS REL LOOP PLAY as the FX panel shows them ("" none) */
+export function envText(env) {
+  if (!Array.isArray(env)) return "";
+  const [a, su, r, lp, pl] = LAYOUT.envDef.map((d, i) => env[i] ?? d);
+  return `ATK ${a} · SUS ${su} · REL ${r} · LOOP ${["OFF", "FWD", "PING"][lp] ?? lp} · PLAY ${pl ? "CHOP" : "KEY"}`;
+}
 const sameEnv = (a, b) => String(a.env ?? "") === String(b.env ?? "");   // (SAMPLE: ATK SUS REL LOOP)
 const same = (a, b) => (!a && !b) || (!!a && !!b && a.model === b.model && a.knobs.every((k, i) => k === b.knobs[i]) && sameFx(a, b) && sameEnv(a, b));
 // (the names given, by sound: the voice, and the FX when the preset holds them)
@@ -224,7 +230,7 @@ export class PresetsModel {
   async saveTrack(i, track = this.track) {
     const d = await this.s.request(CMD.DUMP, { track }), c8 = (k) => Math.max(-128, Math.min(127, k));
     const s = { model: d.model, knobs: d.p.slice(P_E0, P_E0 + 8).map(c8), fx: LAYOUT.uprFx.map((id) => c8(d.p[id])), voiceOnly: false };
-    if (d.model === LAYOUT.smpl) s.env = d.p.slice(LAYOUT.pStored + LAYOUT.xpDef.length, LAYOUT.pcount); // ATK SUS REL LOOP
+    if (d.model === LAYOUT.smpl) s.env = d.p.slice(LAYOUT.pStored + LAYOUT.xpDef.length, LAYOUT.pcount); // ATK SUS REL LOOP PLAY
     s.name = this.memory()[soundKey(s)] || `${(this.modelNames[d.model] || "USER").slice(0, 5)} T${d.track + 1}`;
     this.slots[i] = s;
     this.emit("render");
@@ -450,7 +456,8 @@ export function mountPresets(el, ctx) {
       return `<label><span>${esc(d.label)}</span>${ctl}</label>`;
     }).join("");
     return `<li class="pr-fx" data-i="${i}"><label class="keep"><input type="checkbox" data-k="keep"${x.voiceOnly ? "" : " checked"}${dis(w)}>
-      Loading it sets these FX (off: the sound only, the track keeps its own FX)</label><div class="grid">${cells}</div></li>`;
+      Loading it sets these FX (off: the sound only, the track keeps its own FX)</label><div class="grid">${cells}</div>${x.env
+      ? `<p class="env">SAMPLE: ${esc(envText(x.env))} (set by the sound when it loads)</p>` : ""}</li>`;
   };
   const drawUser = () => {
     const chg = m.changed(), t = m.track + 1, w = busy(), dis = (c) => (c ? " disabled" : "");

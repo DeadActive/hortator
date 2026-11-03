@@ -66,6 +66,8 @@ enum {                          /* per-track parameters */
     P_ITYPE, P_IA, P_IB, P_IC, P_IMIX,   /* INSERT (insert.c, Skiff's from Felucca 1.5): TYPE, its A B C, MIX */
     P_SATK, P_SSUS, P_SREL, P_SLOOP,     /* the SAMPLE model's envelope and loop (dm_sample.c): ATK SUS REL LOOP, its
                                           * SOUND page 5/5. Stored past the project's xp (project.c xp2) */
+    P_SPLAY,                     /* the SAMPLE model's PLAY (dm_sample.c): 0 KEY (as before), 1 CHOP (a hit's note picks
+                                  * the set's sample); SOUND 4/5. project.c xp3 */
     P_COUNT
 };
 #define P_NSTORED P_RKEY         /* the parameters in a project's block (FDRE: P_MODEL .. P_LS4DEPTH) */

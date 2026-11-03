@@ -1,10 +1,10 @@
 {
 "generated": "tests/editor_ids.c (tools/gen_editor_data.sh): do not edit",
-"consts": {"NTRK": 8, "NSTEP": 64, "P_COUNT": 80, "G_COUNT": 42, "P_NSTORED": 69, "G_NSTORED": 41, "NMODELS": 45, "PRE_NFACT": 151, "PRE_NUSER": 96, "COND_MAX": 58, "NT_MIN": -60, "NT_MAX": 67, "LK_MAX": 1024, "VAR_BYTES": 3584, "VAR_N": 8, "NAME_LEN": 12, "ACID": 23, "ACID_MAXTRK": 2, "RS_OFF": 0, "RS_CHORD": 3, "RS_MODAL": 4, "RS_MAXTRK": 4, "RS_MAXMODAL": 2, "MICRO_MAX": 50, "UPR_NOLD": 128, "UPR_NFX": 23, "UPR_USED": 1, "UPR_VOICE": 2, "DM_SMPL": 14, "UPR_FENV": 15, "SND_N": 20},
+"consts": {"NTRK": 8, "NSTEP": 64, "P_COUNT": 81, "G_COUNT": 42, "P_NSTORED": 69, "G_NSTORED": 41, "NMODELS": 45, "PRE_NFACT": 151, "PRE_NUSER": 96, "COND_MAX": 58, "NT_MIN": -60, "NT_MAX": 67, "LK_MAX": 1024, "VAR_BYTES": 3584, "VAR_N": 8, "NAME_LEN": 12, "ACID": 23, "ACID_MAXTRK": 2, "RS_OFF": 0, "RS_CHORD": 3, "RS_MODAL": 4, "RS_MAXTRK": 4, "RS_MAXMODAL": 2, "MICRO_MAX": 50, "UPR_NOLD": 128, "UPR_NFX": 23, "UPR_USED": 1, "UPR_VOICE": 2, "DM_SMPL": 14, "UPR_FENV": 15, "SND_N": 20},
 "uprFx": [14, 15, 16, 17, 48, 49, 50, 51, 52, 53, 54, 69, 55, 56, 57, 58, 59, 71, 72, 73, 74, 75, 70],
 "nameSet": " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/#+",
 "fmt": ["INT", "PCT", "BIPCT", "TIME", "LFOHZ", "CUTOFF", "DB", "SEMI", "ENUM", "BPM", "NOTE", "ONOFF", "OCT", "STEPS", "CTHR", "CRAT", "CATK", "CREL", "CMKUP", "LRATE1", "LRATE2", "LDEST", "LPHASE", "NOTEO", "RDECAY", "FDEC", "SRR", "SLOT", "LSLOT"],
-"P": ["MODEL", "E0", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "LEVEL", "PAN", "MUTE", "CHOKE", "NOTE", "DIST", "CHOR", "DLY", "REV", "SLCR", "SLPAT", "SLRATE", "SLDEPTH", "SLEN", "SDIV", "SSWING", "LSET", "LKEY", "LLEVEL", "LTUNE", "LDEC", "SRC", "DUCK", "LFO1_WAVE", "LFO1_MODE", "LFO1_RATE", "LFO1_MORPH", "LFO1_DEPTH", "LFO1_DEST", "LFO1_TRIG", "LFO1_PHASE", "LFO2_WAVE", "LFO2_MODE", "LFO2_RATE", "LFO2_MORPH", "LFO2_DEPTH", "LFO2_DEST", "LFO2_TRIG", "LFO2_PHASE", "RMODEL", "RTUNE", "RDECAY", "RMIX", "RTONE", "RSTRCT", "RPOS", "FTYPE", "FCUT", "FRESO", "FENV", "FDEC", "PRIO", "LSRC1", "LSRC2", "LS3SRC", "LS3DEST", "LS3DEPTH", "LS4SRC", "LS4DEST", "LS4DEPTH", "RKEY", "SRR", "ITYPE", "IA", "IB", "IC", "IMIX", "SATK", "SSUS", "SREL", "SLOOP"],
+"P": ["MODEL", "E0", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "LEVEL", "PAN", "MUTE", "CHOKE", "NOTE", "DIST", "CHOR", "DLY", "REV", "SLCR", "SLPAT", "SLRATE", "SLDEPTH", "SLEN", "SDIV", "SSWING", "LSET", "LKEY", "LLEVEL", "LTUNE", "LDEC", "SRC", "DUCK", "LFO1_WAVE", "LFO1_MODE", "LFO1_RATE", "LFO1_MORPH", "LFO1_DEPTH", "LFO1_DEST", "LFO1_TRIG", "LFO1_PHASE", "LFO2_WAVE", "LFO2_MODE", "LFO2_RATE", "LFO2_MORPH", "LFO2_DEPTH", "LFO2_DEST", "LFO2_TRIG", "LFO2_PHASE", "RMODEL", "RTUNE", "RDECAY", "RMIX", "RTONE", "RSTRCT", "RPOS", "FTYPE", "FCUT", "FRESO", "FENV", "FDEC", "PRIO", "LSRC1", "LSRC2", "LS3SRC", "LS3DEST", "LS3DEPTH", "LS4SRC", "LS4DEST", "LS4DEPTH", "RKEY", "SRR", "ITYPE", "IA", "IB", "IC", "IMIX", "SATK", "SSUS", "SREL", "SLOOP", "SPLAY"],
 "G": ["BPM", "SWING", "CLOCK", "DTIME", "DFDBK", "DCOLOR", "DMIX", "RSIZE", "RDAMP", "CRATE", "CDEPTH", "MIDI", "SYNC", "ROUTE", "INFO", "SLOT", "NAME", "LOAD", "SAVE", "CLRSEQ", "INITSND", "DRCH", "GMODE", "GX", "GY", "GCHAOS", "GFILL1", "GFILL2", "GFILL3", "GLEN1", "GLEN2", "GLEN3", "CSRC", "CTHR", "CRAT", "CREL", "CATK", "CKNEE", "CMKUP", "CGHOST", "RTYPE", "DMODE"],
 "tp": [
  {"label": "MODEL", "fmt": 8, "min": 0, "max": 44, "def": 0, "names": ["K808", "K909", "S808", "S909", "C808", "C909", "HATC", "HATO", "CYMB", "COWB", "TOM", "CONGA", "RIM", "CLAVE", "SAMPL", "BOOM", "PUNCH", "SNAP", "CRACK", "METAL", "HISS", "SKIN", "FM", "ACID", "BDTRX", "SDTRX", "TMTRX", "CGTRX", "CPTRX", "RSTRX", "CBTRX", "CHTRX", "OHTRX", "CYTRX", "SHTRX", "CLTRX", "B2TRX", "BDEFM", "SDEFM", "TMEFM", "CPEFM", "RSEFM", "CBEFM", "HHEFM", "CYEFM"], "lock": 0},
@@ -86,7 +86,8 @@
  {"label": "ATK", "fmt": 0, "min": 0, "max": 127, "def": 0, "lock": 1},
  {"label": "SUS", "fmt": 1, "min": 0, "max": 127, "def": 0, "lock": 1},
  {"label": "REL", "fmt": 0, "min": 0, "max": 127, "def": 40, "lock": 1},
- {"label": "LOOP", "fmt": 8, "min": 0, "max": 2, "def": 0, "names": ["OFF", "FWD", "PING"], "lock": 1}],
+ {"label": "LOOP", "fmt": 8, "min": 0, "max": 2, "def": 0, "names": ["OFF", "FWD", "PING"], "lock": 1},
+ {"label": "PLAY", "fmt": 8, "min": 0, "max": 1, "def": 0, "names": ["KEY", "CHOP"], "lock": 1}],
 "gp": [
  {"label": "BPM", "fmt": 9, "min": 40, "max": 240, "def": 120},
  {"label": "SWG", "fmt": 1, "min": 0, "max": 100, "def": 0},
@@ -379,7 +380,7 @@
 "magic": {"PROJ": 1196573766, "LK": 826428236, "VAR": 827474262, "UPR": 844255317, "UPR1": 827478101, "ST": 1431061830},
 "oldProjects": [[827475014, 1564], [844252230, 2624], [861029446, 2656], [877806662, 2912], [894583878, 3024], [911361094, 3024], [928138310, 3028], [944915526, 3544], [961692742, 3592], [1095910470, 3672], [1112687686, 3672], [1129464902, 3688], [1146242118, 3712], [1163019334, 3840], [1179796550, 3840]],
 "layout": {
- "project": {"size": 3840, "magic": 0, "sizeField": 4, "g": 8, "sel": 90, "rsv": 91, "t": 94, "trk": 394, "trkP": 0, "trkStep": 138, "lk_n": 3246, "lk_link": 3248, "var_link": 3252, "var_len": 3256, "xp": 3258, "xp2": 3314, "rsv_mo": 3346, "song": 3762, "name": 3798, "pre": 3810, "pre_ed": 3826, "sum": 3836},
+ "project": {"size": 3840, "magic": 0, "sizeField": 4, "g": 8, "sel": 90, "rsv": 91, "t": 94, "trk": 394, "trkP": 0, "trkStep": 138, "lk_n": 3246, "lk_link": 3248, "var_link": 3252, "var_len": 3256, "xp": 3258, "xp2": 3314, "xp3": 3346, "rsv_mo": 3354, "song": 3762, "name": 3798, "pre": 3810, "pre_ed": 3826, "sum": 3836},
  "locks": {"size": 3208, "magic": 0, "slot": 4, "on": 5, "count": 6, "key": 8, "val": 2056, "lock": 3080},
  "vars": {"size": 3584, "magic": 0, "slot": 4, "used": 6, "d": 8},
  "presets": {"size": 3204, "slot": 33, "fx": 10, "mv": 3172, "sizeV1": 1284},

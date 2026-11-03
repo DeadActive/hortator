@@ -314,7 +314,8 @@ refuses uploads to that slot too.)
 ### Samples: SLOT, START, END
 
 The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DECAY**, **TONE**, **DRIVE**; SOUND 2:
-**SET**, **SLOT**, **START**, **END**; SOUND 5 (its own page): **ATK**, **SUS**, **REL**, **LOOP**.
+**SET**, **SLOT**, **START**, **END**; SOUND 4: LVL, PAN, NOTE / CHOKE, PRIO, **PLAY**; SOUND 5 (its own page):
+**ATK**, **SUS**, **REL**, **LOOP**.
 
 - **SET**: PERC (built in) or a user slot USR1–USR3. **SLOT** steps through the set's samples, shown `3/16`: PERC
   has 16 — 1 kick, 2 rim, 3 snare, 4 clap, 5 low tom, 6 closed hat, 7 open hat, 8 high tom, 9 crash, 10 ride,
@@ -341,6 +342,15 @@ The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DEC
 - In a user set START, END and LOOP work on whichever sample SLOT plays, over that sample's own length (sets the
   web editor writes carry the decoder's states for it; a set written before that, or restored from such a backup,
   has START only in its first sample until you write it again from the editor).
+- **PLAY** (SOUND 4, after CHOKE and PRIO): **KEY** (the default, as before) or **CHOP**. KEY: in KEYS mode the keys
+  play the SLOT's sample chromatically (C4 its own pitch, TUNE on top), as they play any model. CHOP: a hit's note
+  picks the set's sample, a chop: chop = (note − C4) mod 16 + 1. In KEYS mode the 16 white keys (F3 to G5) are chops
+  1 to 16 on any octave (OCT− / OCT+ change nothing), each at its own pitch + TUNE; the black keys and a key past the
+  set's samples play nothing; the screen says which one played (`CHOP 5/12`). A key recorded live or with step record
+  stores its chop as the step's NOTE (C4 + 0..15), so the pattern plays those chops back; a step's NOTE picks its
+  chop, a MIDI note n chop (n − 60) mod 16 + 1 (ROUT SEL and TRACK; ROUT NOTE and the track keys hit at C4: chop 1).
+  SLOT is not used then. PLAY takes step locks, MOTION and MIDI LEARN (`T1 PLAY`), is saved with projects and in USER
+  presets; a factory SAMPLE preset sets it back to KEY.
 
 The **LAYER** (EDIT, then OCT+) puts a sample under any model: **SET**, **SLOT**, **LEVEL**, **TUNE** (1/2) and
 **DECAY** (2/2), SET and SLOT as the SAMPLE model's. MIDI LEARN names them `T3 L.SET`, `T3 L.SLOT`, `T3 L.LEVEL`,

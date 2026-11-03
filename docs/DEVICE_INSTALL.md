@@ -1191,3 +1191,19 @@ Use a long sustained sound (a pad or a held note) in a user slot, and a SAMPL tr
   slot 1 until it is written again.
 - The web editor: the SAMPL track's fifth SOUND page shows ATK SUS REL LOOP; Save track N here and Write to FM-1
   keep them.
+
+### SAMPLE PLAY: KEY / CHOP (check on the FM-1)
+
+Use a user set of several samples (a loop chopped into 8 in the web editor) on a SAMPL track.
+
+- SOUND 4/5 reads CHOKE PRIO PLAY; PLAY shows KEY / CHOP. KEY: an old project sounds as before.
+- KEY, KEYS mode: the keys play SLOT's sample chromatically (C4 at its pitch, C5 an octave up), TUNE on top.
+- CHOP, KEYS mode: the white keys F3..C4 play chops 1..8, each at its own pitch, `CHOP 3/8` on screen; the white keys
+  past the 8th and every black key: silence. OCT+ / OCT−: the same chops on the same keys. TUNE shifts all.
+- CHOP: REC + PLAY, play a few chops live: the pattern plays them back. Step record (hold SEQ, step record): each key
+  writes its chop. A controller on ROUT SEL: C4 chop 1, C#4 chop 2, C5 chop 13; on a set of 8, notes past the 8th
+  chop: silence.
+- Lock PLAY on a step (CHOP on one step of a KEY track): that step plays the chop of its NOTE. MIDI LEARN: `T1 PLAY`.
+- SAVE, power cycle, LOAD: PLAY kept; a USER preset of the track keeps it (DRIVE unchanged); a factory SAMPL preset
+  sets KEY.
+- The web editor: the SAMPL track's SOUND page 4 shows PLAY; a USER preset's FX panel lists PLAY KEY / CHOP.

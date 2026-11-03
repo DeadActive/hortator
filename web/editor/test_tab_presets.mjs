@@ -15,7 +15,7 @@ import { pathToFileURL } from "node:url";
 import * as P from "./proto.mjs";
 import { createMockDevice, loadDeviceData } from "./mock_device.mjs";
 import { connect } from "./session.mjs";
-import { PresetsModel, explain } from "./tab_presets.mjs";
+import { PresetsModel, explain, envText } from "./tab_presets.mjs";
 
 const { CMD, RS, LAYOUT, SF } = P;
 const FAST = { timeout: 40, longTimeout: 120, tries: 3, silence: 60, backoff: 25, backoffMax: 100, giveUp: 100000, keepAlive: 100000 };
@@ -35,6 +35,8 @@ export async function runPresetsTests(log = console.log) {
   const flashUpr = (m) => Uint8Array.from(m.flash.upr.bytes);
   const sessions = [];
   try {
+    ok(envText([0, 0, 40, 0, 0]) === "ATK 0 · SUS 0 · REL 40 · LOOP OFF · PLAY KEY" && envText([5, 9, 0, 2, 1]) === "ATK 5 · SUS 9 · REL 0 · LOOP PING · PLAY CHOP"
+      && envText(undefined) === "", "a SAMPLE preset's ATK SUS REL LOOP PLAY, as the FX panel shows them");
     /* ---------------------------------------------------------------- factory --- */
     const { m, s, pm } = await open();
     sessions.push(s);

@@ -83,15 +83,18 @@ export const OLD_PROJECTS = new Map([[0x31524446, 1564], [0x32524446, 2624], [0x
   [0x41524446, 3672], [0x42524446, 3672], [0x43524446, 3688], [0x44524446, 3712], [0x45524446, 3840], [0x46524446, 3840]]);
 /** byte layouts (little endian) of the objects as flash stores them; checked against the firmware by the tests */
 export const LAYOUT = {
-  ntrk: 8, nstep: 64, pcount: 80, gcount: 42, pStored: 69, gStored: 41, nuser: 96, nuserOld: 128, nvar: 8, lkMax: 1024, nameLen: 12,
+  ntrk: 8, nstep: 64, pcount: 81, gcount: 42, pStored: 69, gStored: 41, nuser: 96, nuserOld: 128, nvar: 8, lkMax: 1024, nameLen: 12,
   xpDef: [0, 0, 0, 64, 96, 96, 127], // P_RKEY P_SRR P_ITYPE P_IA P_IB P_IC P_IMIX: their power-on values (xp; FDRF: step rsv)
   xp2Def: [0, 0, 40, 0], // P_SATK P_SSUS P_SREL P_SLOOP (the SAMPLE model's ATK SUS REL LOOP): xp2; 0 in every record before them
-  envMax: [127, 127, 127, 2], // .. their ranges (from 0)
+  xp3Def: [0], // P_SPLAY (the SAMPLE model's PLAY: KEY 0, CHOP 1): xp3; 0 before it
+  envDef: [0, 0, 40, 0, 0], // a SAMPLE user preset's ATK SUS REL LOOP PLAY: their power-on values
+  envMax: [127, 127, 127, 2, 1], // .. their ranges (from 0)
+  uprKplay: 3, // the SOUND knob (DRIVE) whose byte's top bit is a SAMPLE preset's PLAY
   smpl: 14, // DM_SMPL: the SAMPLE model, the only one whose user presets hold ATK SUS REL LOOP
   uprFenv: 15, // FILTER ENV's place in a user preset's FX (-64..63; the others 0..127)
   timing: [22, 23, 24, 30], // P_SLEN P_SDIV P_SSWING P_SRC: a variation's own timing
   project: { size: 3840, g: 8, sel: 90, rsv: 91, t: 94, trk: 394, trkStep: 138, lk_n: 3246, lk_link: 3248, var_link: 3252,
-    var_len: 3256, xp: 3258, xp2: 3314, song: 3762, name: 3798, pre: 3810, pre_ed: 3826, sum: 3836 },
+    var_len: 3256, xp: 3258, xp2: 3314, xp3: 3346, song: 3762, name: 3798, pre: 3810, pre_ed: 3826, sum: 3836 },
   locks: { size: 3208, slot: 4, on: 5, count: 6, key: 8, val: 2056, lock: 3080 },
   vars: { slot: 4, used: 6, d: 8 },
   presets: { size: 3204, slot: 33, fx: 10, mv: 3172, sizeV1: 1284 },
@@ -507,26 +510,29 @@ export function decodePresets(b) {
     const o = 4 + i * L.slot, u = b[o];
     if (u !== UPR.USED && u !== (UPR.USED | UPR.VOICE)) { bad ||= u !== 0; return null; }
     const fb = [...b.subarray(o + L.fx, o + L.fx + LAYOUT.uprFx.length)];
-    const s = { model: b[o + 1], knobs: [...b.subarray(o + 2, o + 10)].map(i8), fx: fb.map(fxValue), voiceOnly: u !== UPR.USED };
-    if (s.model === LAYOUT.smpl) s.env = envUnpack(fb.reduce((e, x, k) => e | (fxBit(x, k) << k), 0)); // (SAMPLE only)
+    const kb = [...b.subarray(o + 2, o + 10)], smpl = b[o + 1] === LAYOUT.smpl;
+    if (smpl) kb[LAYOUT.uprKplay] &= 0x7f; // (PLAY's bit off DRIVE)
+    const s = { model: b[o + 1], knobs: kb.map(i8), fx: fb.map(fxValue), voiceOnly: u !== UPR.USED };
+    if (smpl) s.env = envUnpack((fb.reduce((e, x, k) => e | (fxBit(x, k) << k), 0) | (b[o + 2 + LAYOUT.uprKplay] >> 7) << 23) >>> 0); // (SAMPLE only)
     return s;
   });
   const moved = [...b.subarray(L.mv, L.mv + LAYOUT.nuserOld - LAYOUT.nuser)];
   bad ||= moved.some((x) => x > LAYOUT.nuser);
   return { slots, moved, lost: 0, old: false, bad };
 }
-/** a SAMPLE user preset's ATK SUS REL LOOP (presets.c upr_env): 23 bits, each value's offset from its power-on value
- * (7, 7, 7, 2 bits), bit k in FX byte k: the top bit of a 0..127 FX, FILTER ENV's (-64..63) its top bit unlike bit 6.
- * 0: the defaults (the slot byte for byte as before). fxByte / fxValue: an FX byte with its bit, and back */
-const ENV_W = [7, 7, 7, 2];
+/** a SAMPLE user preset's ATK SUS REL LOOP PLAY (presets.c upr_env): 24 bits, each value's offset from its power-on
+ * value (7, 7, 7, 2, 1 bits), bit k < 23 in FX byte k: the top bit of a 0..127 FX, FILTER ENV's (-64..63) its top bit
+ * unlike bit 6; bit 23 (PLAY) the top bit of SOUND knob DRIVE's byte. 0: the defaults (the slot byte for byte as
+ * before). fxByte / fxValue: an FX byte with its bit, and back */
+const ENV_W = [7, 7, 7, 2, 1];
 export function envPack(env) {
   let e = 0, sh = 0;
-  ENV_W.forEach((w, i) => { e |= (((env?.[i] ?? LAYOUT.xp2Def[i]) - LAYOUT.xp2Def[i]) & ((1 << w) - 1)) << sh; sh += w; });
+  ENV_W.forEach((w, i) => { e |= (((env?.[i] ?? LAYOUT.envDef[i]) - LAYOUT.envDef[i]) & ((1 << w) - 1)) << sh; sh += w; });
   return e >>> 0;
 }
 export function envUnpack(e) {
   let sh = 0;
-  return ENV_W.map((w, i) => { const v = (LAYOUT.xp2Def[i] + (e >>> sh)) & ((1 << w) - 1); sh += w; return Math.min(LAYOUT.envMax[i], v); });
+  return ENV_W.map((w, i) => { const v = (LAYOUT.envDef[i] + (e >>> sh)) & ((1 << w) - 1); sh += w; return Math.min(LAYOUT.envMax[i], v); });
 }
 export function fxValue(byte, k) { const b = byte & 0x7f; return k === LAYOUT.uprFenv ? (b ^ 0x40) - 0x40 : b; }
 export function fxBit(byte, k) { return (k === LAYOUT.uprFenv ? (byte >> 7) ^ (byte >> 6) : byte >> 7) & 1; }
@@ -534,7 +540,7 @@ export function fxByte(v, k, bit) {
   const b = (k === LAYOUT.uprFenv ? Math.max(-64, Math.min(63, v)) : Math.max(0, Math.min(127, v))) & 0x7f;
   return b | ((k === LAYOUT.uprFenv ? ((b >> 6) & 1) ^ bit : bit) << 7);
 }
-/** 96 slots (null | { model, knobs[8], fx[23], voiceOnly, env? [ATK, SUS, REL, LOOP] (SAMPLE only; none: the
+/** 96 slots (null | { model, knobs[8], fx[23], voiceOnly, env? [ATK, SUS, REL, LOOP, PLAY] (SAMPLE only; none: the
  * defaults) }) and the moves -> the UPR2 record. A slot without fx: the FX's power-on values, the voice only */
 export function encodePresets(slots, moved = noMoves()) {
   const b = new Uint8Array(SZ.PRESETS), v = dv(b), L = LAYOUT.presets;
@@ -547,6 +553,7 @@ export function encodePresets(slots, moved = noMoves()) {
     b[o + 1] = s.model;
     for (let k = 0; k < 8; k++) v.setInt8(o + 2 + k, c8(s.knobs[k]));
     const e = s.model === LAYOUT.smpl ? envPack(s.env) : 0;
+    if (e >>> 23) b[o + 2 + LAYOUT.uprKplay] = Math.max(0, Math.min(127, s.knobs[LAYOUT.uprKplay])) | 0x80; // PLAY CHOP
     (fx || LAYOUT.uprFxDef).forEach((x, k) => { b[o + L.fx + k] = fxByte(x, k, (e >>> k) & 1); });
   }
   for (let i = 0; i < LAYOUT.nuserOld - LAYOUT.nuser; i++) b[L.mv + i] = Math.max(0, Math.min(LAYOUT.nuser, moved[i] | 0));
@@ -576,6 +583,7 @@ export function decodeProject(b) {
     for (let j = 0; j < nx; j++) // proj_xp_get (FDRF: proj_xp_move's source, steps 0..6's spare bytes)
       p.push(LAYOUT.xpDef[j] + v.getInt8(f ? o + L.trkStep + 4 * j + 3 : L.xp + nx * k + j));
     for (let j = 0; j < n2; j++) p.push(LAYOUT.xp2Def[j] + v.getInt8(L.xp2 + n2 * k + j)); // .. xp2 (FDRF: 0)
+    LAYOUT.xp3Def.forEach((d, j) => p.push(d + v.getInt8(L.xp3 + LAYOUT.xp3Def.length * k + j))); // .. xp3
     for (let i = 0; i < LAYOUT.nstep; i++) {
       const s = o + L.trkStep + 4 * i;
       steps.push({ flags: b[s] & 0x3f, cond: b[s + 1], note: v.getInt8(s + 2) + STEP.NT_OFFSET,
@@ -614,6 +622,7 @@ export function encodeProject(p, format = "FDRG") {
       b[f ? o + L.trkStep + 4 * j + 3 : L.xp + nx * k + j] = (Math.max(-128, Math.min(255, t.p[LAYOUT.pStored + j])) - LAYOUT.xpDef[j]) & 255;
     for (let j = 0; j < n2 && !f; j++) // .. xp2 (an FDRF record: 0 there)
       b[L.xp2 + n2 * k + j] = (Math.max(-128, Math.min(255, t.p[LAYOUT.pStored + nx + j] ?? LAYOUT.xp2Def[j])) - LAYOUT.xp2Def[j]) & 255;
+    LAYOUT.xp3Def.forEach((d, j) => { if (!f) b[L.xp3 + LAYOUT.xp3Def.length * k + j] = (Math.max(-128, Math.min(255, t.p[LAYOUT.pStored + nx + n2 + j] ?? d)) - d) & 255; });
     v.setUint16(L.pre + 2 * k, t.pre, true);
     b[L.pre_ed + k] = t.preEd ? 1 : 0;
   });
@@ -772,11 +781,11 @@ function readSlot(s, withFx) {
   if (!s || !Number.isInteger(s.model) || s.model < 0 || s.model > 127 || !int8s(s.knobs, 8)
     || (withFx && s.fx !== undefined && s.fx !== null && !int8s(s.fx, LAYOUT.uprFx.length))) throw new FileError("damaged", "A preset slot is damaged.");
   const fx = withFx && Array.isArray(s.fx) ? [...s.fx] : null;
-  if (s.env !== undefined && (!Array.isArray(s.env) || s.env.length !== 4
+  if (s.env !== undefined && (!Array.isArray(s.env) || (s.env.length !== 4 && s.env.length !== 5)
     || !s.env.every((v, i) => Number.isInteger(v) && v >= 0 && v <= LAYOUT.envMax[i]))) throw new FileError("damaged", "A preset slot is damaged.");
   return { name: typeof s.name === "string" ? s.name.slice(0, 24) : "", model: s.model, modelName: s.modelName,
     knobs: [...s.knobs], fx: fx || fxDefaults(), voiceOnly: !fx || s.voiceOnly === true,
-    ...(s.model === LAYOUT.smpl ? { env: s.env ? [...s.env] : [...LAYOUT.xp2Def] } : {}) };
+    ...(s.model === LAYOUT.smpl ? { env: LAYOUT.envDef.map((d, i) => s.env?.[i] ?? d) } : {}) };
 }
 /** a file's presets -> { slots (96), moved, lost, raw }. Version 1 (128 voices, before UPR2): moved into 96 slots as
  * the firmware moves an older bank (migratePresets: the voice only; a slot's automatic name follows it to its new

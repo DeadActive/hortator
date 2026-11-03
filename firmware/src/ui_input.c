@@ -1020,6 +1020,9 @@ static void srec_note(uint32_t key)                    /* a key pressed: its not
 {
     track_t *t = TSEL;
     step_t *s;
+    int32_t nt;
+    if (!keys_note(t, key, &nt))
+        return;                                        /* (a black key on a CHOP track: nothing) */
     if (ui.sr_key) {                                   /* the cursor's key still held: its step slides into this one */
         t->step[ui.sr_cur].slide = 1;
         srec_next();
@@ -1028,7 +1031,7 @@ static void srec_note(uint32_t key)                    /* a key pressed: its not
     s->on = 1;
     s->tie = 0;
     s->micro = 0;                                      /* (step record has no timing: on the step) */
-    s->nt = (int8_t)clamp(keys_nt(key), NT_MIN, NT_MAX);
+    s->nt = (int8_t)nt;                                /* (a CHOP track: the key's chop, + 0..15) */
     t->key_nt = s->nt;
     ui.sr_key = (uint8_t)(key + 1u);
 }
@@ -1185,11 +1188,28 @@ static void env_poll(uint32_t now, uint32_t pressed)
     }
 }
 
+/* KEYS on a SAMPLE track on PLAY CHOP: the chop the last key played (seq.c keys_on), "CHOP 5/12" (of the set's) */
+static void keys_chop_say(void)
+{
+    static uint8_t said;
+    uint32_t n = keys_chop_n, c = keys_chop;
+    char b[16];
+    if (n == said)
+        return;
+    said = (uint8_t)n;
+    str_cpy(b, "CHOP ", sizeof b);
+    fmt_int(b + 5, (int32_t)c);
+    n = str_len(b);
+    b[n] = '/';
+    fmt_int(b + n + 1u, (int32_t)smp_slot_count((uint32_t)TSEL->p[P_E4]));
+    ui_message(b);
+}
 static void ui_input(void)
 {
     uint32_t pressed, notes, now, id, b, k, fam;
     smp_slots_sync();                                   /* dm_sample.c: a user slot changed (an upload): its lists,
                                                          * START states (the main loop's) */
+    keys_chop_say();                                    /* KEYS on a CHOP track: CHOP 5/12 */
     pressed = fm1_input_edges(0);
     notes = fm1_input_note_edges();
     now = fm1_ticks();

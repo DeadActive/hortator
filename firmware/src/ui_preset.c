@@ -99,7 +99,7 @@ static void pl_audition(uint32_t hit, uint32_t key)
         ui.pr.sv_model = (uint8_t)t->p[P_MODEL];
         for (i = 0; i < 8u; i++)
             ui.pr.sv_k[i] = motion_rest(k, P_E0 + i);   /* (motion's base, a lock's value under it) */
-        for (i = 0; i < 4u; i++)
+        for (i = 0; i < SENV_N; i++)
             ui.pr.sv_k[8u + i] = motion_rest(k, P_SATK + i);
         for (i = 0; i < UPR_NFX; i++)
             ui.pr.sv_f[i] = (int8_t)motion_rest(k, UPR_FX[i]);

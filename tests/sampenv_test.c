@@ -286,9 +286,9 @@ static void t_knobs(void)
     ui_host_init();
     old_set_model(TSEL, DM_SMPL);
     n = snd_list(TSEL, ids);
-    check("SAMPLE's sound list: 5 pages, the fifth ATK SUS REL LOOP (the fourth CHOKE PRIO)",
+    check("SAMPLE's sound list: 5 pages, the fifth ATK SUS REL LOOP (the fourth CHOKE PRIO PLAY)",
           n == 20u && ids[16] == P_SATK && ids[17] == P_SSUS && ids[18] == P_SREL && ids[19] == P_SLOOP &&
-              ids[12] == P_CHOKE && ids[13] == P_PRIO && ids[14] == 0xFFu && ids[15] == 0xFFu);
+              ids[12] == P_CHOKE && ids[13] == P_PRIO && ids[14] == P_SPLAY && ids[15] == 0xFFu);
     {
         uint32_t pos, np = fam_pages(FAM_SND, &pos), i5 = page_first(FAM_SND) + 4u;
         check("SOUND has 5 pages on a SAMPLE track, the fifth shown", np == 5u && !page_hidden(i5) &&
@@ -297,7 +297,7 @@ static void t_knobs(void)
         n = snd_list(TSEL, ids);
         ok = 1;
         for (i = 0; i < n; i++)
-            ok &= ids[i] != P_SATK && ids[i] != P_SLOOP;
+            ok &= ids[i] != P_SATK && ids[i] != P_SLOOP && ids[i] != P_SPLAY;
         check("another model: no ATK .. LOOP, 4 pages at most, the fifth hidden",
               ok && n <= 16u && page_hidden(i5) && fam_pages(FAM_SND, &pos) <= 4u);
     }
@@ -615,6 +615,142 @@ static void t_set_slots(void)
     }
 }
 
+/* ---------------------------------------------------------------- PLAY: KEY / CHOP */
+static dvoice_t *newest(track_t *t)                  /* the voice t's last hit started (0: none) */
+{
+    dvoice_t *v = 0;
+    uint32_t i;
+    for (i = 0; i < NDV; i++)
+        if (t->v[i].active && (!v || t->v[i].age > v->age))
+            v = &t->v[i];
+    return v;
+}
+static uint32_t played_zone(void)                    /* the zone the newest voice of track 0 plays (+1, 0 none) */
+{
+    dvoice_t *v = newest(&trk[0]);
+    return v ? (uint32_t)v->sv.s[4] + 1u : 0u;
+}
+static void play_on(int32_t play)
+{
+    smpl_on_usr(0, 127, 0, 0, 40, 0);
+    trk[0].p[P_SPLAY] = (int16_t)play;
+    trk[0].p[P_E5] = SMP_SLOT_V(1);                  /* (SLOT 2: CHOP ignores it) */
+    song.sel = 0;
+    song.seq_mode = 3;
+}
+static void t_play(void)
+{
+    const int16_t *pc[3] = {zsig[0], zsig[1], zsig[2]};
+    uint8_t ids[SND_N];
+    char b[16];
+    const char *u;
+    uint32_t z0 = 0x8000u, ok;
+    int32_t q1;
+    check("PLAY: its label, KEY / CHOP, KEY by default", !strcmp(TP[P_SPLAY].label, "PLAY") && TP[P_SPLAY].def == 0 &&
+                                                         TP[P_SPLAY].max == 1);
+    param_format(&TP[P_SPLAY], 1, b, &u);
+    ok = !strcmp(b, "CHOP");
+    param_format(&TP[P_SPLAY], 0, b, &u);
+    check("PLAY reads KEY / CHOP", ok && !strcmp(b, "KEY"));
+    old_set_model(TSEL, DM_SMPL);
+    snd_list(TSEL, ids);
+    check("PLAY on SOUND 4/5 (CHOKE PRIO PLAY)", ids[12] == P_CHOKE && ids[13] == P_PRIO && ids[14] == P_SPLAY &&
+                                                 ids[15] == 0xFFu);
+    check("PLAY: LOCK / MOTION, MIDI LEARN take it", motion_param(P_SPLAY) && ml_param_ok(P_SPLAY));
+    enc_set(0, pc, zlen, 3, 1);
+    /* KEY: the selected SLOT's sample, chromatic from its root */
+    play_on(0);
+    song.octave = 0;
+    keys_on(7u);                                     /* C4: at its root */
+    q1 = newest(&trk[0])->sv.s[5];
+    ok = played_zone() == (z0 | 1u) + 1u;
+    keys_off();
+    keys_on(19u);                                    /* C5: an octave up */
+    check("KEY: KEYS play the selected SLOT's sample chromatically (C4 its root, C5 an octave up)",
+          ok && played_zone() == (z0 | 1u) + 1u && newest(&trk[0])->sv.s[5] == 2 * q1);
+    keys_off();
+    /* CHOP: the 16 white keys are chops 1..16, on any octave, each at its root + TUNE */
+    play_on(1);
+    {
+        uint32_t oct, good = 1;
+        for (oct = 0; oct < 2u; oct++) {
+            play_on(1);
+            song.octave = oct ? 2 : -1;
+            keys_on(0u);                             /* F3, the first white key: chop 1 */
+            good &= played_zone() == (z0 | 0u) + 1u && newest(&trk[0])->sv.s[5] == q1;
+            keys_off();
+            keys_on(4u);                             /* the third white key: chop 3 */
+            good &= played_zone() == (z0 | 2u) + 1u;
+            keys_off();
+        }
+        check("CHOP: white key i plays chop i + 1 (SLOT ignored) at its root, the same on any octave", good);
+    }
+    song.octave = 0;
+    play_on(1);
+    keys_on(6u);                                     /* the fourth white key: past the set's 3 samples */
+    ok = !played_zone();
+    keys_off();
+    keys_on(1u);                                     /* a black key */
+    check("CHOP: a key past the set's samples and the black keys play nothing", ok && !played_zone());
+    keys_off();
+    play_on(1);
+    trk[0].p[P_E0] = 12;
+    keys_on(2u);
+    check("CHOP: TUNE pitches the chops", played_zone() == (z0 | 1u) + 1u && newest(&trk[0])->sv.s[5] == 2 * q1);
+    keys_off();
+    play_on(1);
+    keys_on(2u);
+    ui_input();
+    check("CHOP: the screen says which chop a key plays (CHOP 2/3)", str_eq(ui.msg, "CHOP 2/3"));
+    keys_off();
+    /* MIDI and the steps: a note's chop is (note - 60) mod 16 + 1 */
+    play_on(1);
+    song.g[G_ROUTE] = RT_SEL;
+    midi_in(0x90, (uint32_t)song.g[G_DRCH] - 1u, 62, 100);   /* D4: chop 3 */
+    events_block(CTL);
+    ok = played_zone() == (z0 | 2u) + 1u;
+    midi_in(0x90, (uint32_t)song.g[G_DRCH] - 1u, 60 + 16 + 1, 100);   /* chop 2, an octave and a fourth up */
+    events_block(CTL);
+    ok &= played_zone() == (z0 | 1u) + 1u;
+    midi_in(0x90, (uint32_t)song.g[G_DRCH] - 1u, 60 - 16, 100);   /* chop 1 */
+    events_block(CTL);
+    check("CHOP: MIDI note n plays chop (n - 60) mod 16 + 1", ok && played_zone() == (z0 | 0u) + 1u);
+    song.g[G_ROUTE] = 0;
+    play_on(1);
+    drum_play(&trk[0], 127, 2);                      /* a step at D4 (NOTE + 2) */
+    ok = played_zone() == (z0 | 2u) + 1u;
+    drum_play(&trk[0], 127, -14);                    /* -14 mod 16 = 2 */
+    check("CHOP: a step plays the chop of its note", ok && played_zone() == (z0 | 2u) + 1u);
+    /* recording: the key's chop into the step */
+    play_on(1);
+    memset(trk[0].step, 0, sizeof trk[0].step);
+    song.rec = 1;
+    seq_start();
+    keys_on(4u);
+    keys_off();
+    seq_stop();
+    song.rec = 0;
+    {
+        uint32_t i, got = 0;
+        for (i = 0; i < NSTEP; i++)
+            if (trk[0].step[i].on)
+                got = (uint32_t)(trk[0].step[i].nt + 100);
+        check("CHOP: a key recorded live stores its chop (the step's note + 2: chop 3)", got == 102u);
+    }
+    ui_host_init();
+    play_on(1);
+    ui.sr_cur = 0;
+    srec_note(4u);
+    check("CHOP: step record stores the key's chop (+ 2)", trk[0].step[0].on && trk[0].step[0].nt == 2);
+    ui.sr_key = 0;
+    trk[0].step[1].nt = 0;
+    trk[0].step[1].on = 0;
+    ui.sr_cur = 1;
+    srec_note(1u);
+    check("CHOP: step record: a black key writes nothing", !trk[0].step[1].on);
+    song.seq_mode = 0;
+}
+
 /* ---------------------------------------------------------------- projects, presets, locks */
 static void t_project(void)
 {
@@ -624,20 +760,25 @@ static void t_project(void)
     trk[2].p[P_SSUS] = 99;
     trk[2].p[P_SREL] = 3;
     trk[2].p[P_SLOOP] = 2;
+    trk[2].p[P_SPLAY] = 1;
     trk[5].p[P_SREL] = 127;
     project_save(0);
     power_cycle();
     project_load(0);
     check("a project keeps ATK SUS REL LOOP", trk[2].p[P_SATK] == 12 && trk[2].p[P_SSUS] == 99 &&
                                                 trk[2].p[P_SREL] == 3 && trk[2].p[P_SLOOP] == 2 &&
-                                                trk[5].p[P_SREL] == 127);
+                                                trk[5].p[P_SREL] == 127 && trk[2].p[P_SPLAY] == 1);
     check(".. the other parameters past the block where they were (xp)", proj_slot[0].xp[2][0] == 0 &&
                                                                        proj_xp_get(&proj_slot[0], 2, P_IMIX) == 127);
     memset(proj_slot[0].xp2, 0, sizeof proj_slot[0].xp2);   /* a record from before them: 0 there */
+    memset(proj_slot[0].xp3, 0, sizeof proj_slot[0].xp3);
     proj_slot[0].sum = proj_sum(&proj_slot[0]);
     proj_load(0, 0);
-    check("a project from before: ATK 0, SUS 0, REL 40, LOOP OFF", trk[2].p[P_SATK] == 0 && trk[2].p[P_SSUS] == 0 &&
-                                                                     trk[2].p[P_SREL] == 40 && trk[2].p[P_SLOOP] == 0);
+    check("a project from before: ATK 0, SUS 0, REL 40, LOOP OFF, PLAY KEY", trk[2].p[P_SATK] == 0 &&
+                                                                             trk[2].p[P_SSUS] == 0 &&
+                                                                             trk[2].p[P_SREL] == 40 &&
+                                                                             trk[2].p[P_SLOOP] == 0 &&
+                                                                             trk[2].p[P_SPLAY] == 0);
 }
 static void t_presets(void)
 {
@@ -656,6 +797,8 @@ static void t_presets(void)
     trk[0].p[P_SSUS] = 1;
     trk[0].p[P_SREL] = 0;
     trk[0].p[P_SLOOP] = 2;
+    trk[0].p[P_SPLAY] = 1;
+    trk[0].p[P_E3] = 127;                            /* (DRIVE: its byte's top bit holds PLAY) */
     trk[0].p[P_FENV] = -64;
     trk[0].p[P_REV] = 127;
     preset_user_save(5, &trk[0]);
@@ -665,11 +808,13 @@ static void t_presets(void)
     drum_set_model(&trk[3], DM_K909);
     preset_load(&trk[3], PRE_NFACT + 5u);
     check("a SAMPLE user preset brings ATK SUS REL LOOP back (after a power cycle)",
-          trk[3].p[P_SATK] == 127 && trk[3].p[P_SSUS] == 1 && trk[3].p[P_SREL] == 0 && trk[3].p[P_SLOOP] == 2);
+          trk[3].p[P_SATK] == 127 && trk[3].p[P_SSUS] == 1 && trk[3].p[P_SREL] == 0 && trk[3].p[P_SLOOP] == 2 &&
+              trk[3].p[P_SPLAY] == 1 && trk[3].p[P_E3] == 127);
     check(".. and its FX as saved (FENV -64, REV 127)", trk[3].p[P_FENV] == -64 && trk[3].p[P_REV] == 127);
     preset_load(&trk[3], PRE_NFACT + 4u);
     check("a SAMPLE preset saved at the defaults loads them", trk[3].p[P_SATK] == 0 && trk[3].p[P_SSUS] == 0 &&
-                                                                trk[3].p[P_SREL] == 40 && trk[3].p[P_SLOOP] == 0);
+                                                                trk[3].p[P_SREL] == 40 && trk[3].p[P_SLOOP] == 0 &&
+                                                                trk[3].p[P_SPLAY] == 0);
     trk[3].p[P_SLOOP] = 1;
     for (i = 0; i < PRE_NFACT; i++)
         if (preset_get(i, &pr) && pr.model == DM_SMPL)
@@ -713,6 +858,8 @@ int main(void)
     t_loop_guard();
     fresh();
     t_set_slots();
+    fresh();
+    t_play();
     t_project();
     t_presets();
     t_locks();

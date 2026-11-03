@@ -60,6 +60,14 @@ released yet are listed under Unreleased.
   projects and in USER presets (still 96 slots), and the web editor shows and saves them. A factory SAMPLE preset sets
   them back to their defaults. In a user sample set START, END and LOOP work within whichever sample SLOT plays, over
   that sample's own length.
+- **SAMPLE: PLAY KEY or CHOP.** A new SAMPLE knob, PLAY (SOUND page 4, after CHOKE and PRIO). KEY is how it always
+  played: in KEYS mode the keys play the chosen SLOT's sample up and down the keyboard. CHOP turns a set of samples
+  (a chopped loop, a kit) into something you play: in KEYS mode the 16 white keys play samples 1 to 16 on any octave,
+  each at its own pitch (TUNE still shifts them all); a key past the set's samples and the black keys play nothing,
+  and the screen shows which one played (`CHOP 5/12`). Recorded live or with step record, each step remembers its
+  sample, so the pattern plays the same chops back. MIDI notes pick a sample too: C4 is sample 1, C#4 sample 2 and so
+  on, again every 16 notes. PLAY takes step locks, MOTION and MIDI LEARN and is saved with projects and in USER
+  presets. KEY is the default, so everything sounds as before.
 - **Web editor: Samples.** A new Samples tab loads your own sounds into the three user sample slots (USR1 holds 80
   KiB, USR2 and USR3 48 KiB each) and shows what each one holds: its name, length and how full it is. Open a WAV (or
   an AIFF your browser can open), trim its start and end on the waveform, normalize it if you like and choose the

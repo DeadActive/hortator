@@ -72,8 +72,8 @@ static const page_t PAGES[] = {
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_HOME};
 
 /* the EDIT list of track t: MODEL, its model's TUNE DECAY TONE and 4th knob, its extra knobs, then LVL PAN NOTE
- * CHOKE PRIO (at most 16: 14); the SAMPLE model's then ATK SUS REL LOOP on a page of their own (the 5th: 0xFF, an
- * empty column, up to it); returns how many (SND_N at most) */
+ * CHOKE PRIO (at most 16: 14); the SAMPLE model's then PLAY, and ATK SUS REL LOOP on a page of their own (the 5th:
+ * 0xFF, an empty column, up to it); returns how many (SND_N at most) */
 static uint32_t snd_list(const track_t *t, uint8_t *ids)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
@@ -88,6 +88,7 @@ static uint32_t snd_list(const track_t *t, uint8_t *ids)
     ids[n++] = P_CHOKE;
     ids[n++] = P_PRIO;
     if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_SMPL) {
+        ids[n++] = P_SPLAY;                         /* (SOUND 4/5: CHOKE PRIO PLAY) */
         while (n < 16u)
             ids[n++] = 0xFFu;
         for (k = 0; k < 4u; k++)

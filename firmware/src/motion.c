@@ -46,7 +46,7 @@ static int motion_param(uint32_t id)
            (id >= P_FCUT && id <= P_FDEC) || id == P_RKEY ||   /* the FILTER's knobs, not its TYPE (as RESON's MODEL);
                                                                    * RESON's KEYF */
            id == P_SRR || (id >= P_IA && id <= P_IMIX) ||   /* SRR; the INSERT's A B C MIX, not its TYPE */
-           (id >= P_SATK && id <= P_SLOOP);                /* the SAMPLE model's ATK SUS REL LOOP (SOUND 5/5) */
+           (id >= P_SATK && id <= P_SPLAY);                /* the SAMPLE model's ATK SUS REL LOOP (SOUND 5/5), PLAY */
 }
 static int motion_on(uint32_t k) { return (int)((mo.b.on >> k) & 1u); }
 static uint32_t motion_count(uint32_t k) { return lk_count(&mo.b, k, LK_MOTION); }   /* track k's motion events */

@@ -52,9 +52,10 @@ typedef struct {
     step_t step[NSTEP];                         /* FDRG: rsv = the step's MICRO */
 } proj_trk_t;
 #define PROJ_XP (P_SATK - P_NSTORED)            /* the parameters past the block: 7 (KEYF, SRR, the INSERT) */
-#define PROJ_XP2 (P_COUNT - P_SATK)             /* .. and after them (xp2: the SAMPLE model's ATK SUS REL LOOP) */
-typedef char proj_xp_fit[PROJ_XP == 7 && PROJ_XP2 == 4 && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's block: 69; xp 56 B,
-                                                                                         * xp2 32 B of rsv_mo's) */
+#define PROJ_XP2 (P_SPLAY - P_SATK)             /* .. and after them (xp2: the SAMPLE model's ATK SUS REL LOOP) */
+#define PROJ_XP3 (P_COUNT - P_SPLAY)            /* .. (xp3: its PLAY) */
+typedef char proj_xp_fit[PROJ_XP == 7 && PROJ_XP2 == 4 && PROJ_XP3 == 1 && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's
+                                                                    * block: 69; xp 56 B, xp2 32 B, xp3 8 B of rsv_mo's) */
 /* a parameter past the block as stored (0 = the power-on value) */
 static uint8_t proj_xp_enc(uint32_t id, int32_t v) { return (uint8_t)(clamp(v, -128, 255) - TP[id].def); }
 typedef struct {
@@ -70,7 +71,8 @@ typedef struct {
     uint8_t xp[NTRK][PROJ_XP];                  /* FDRG: the parameters past the block (proj_xp_enc; FDRF: 0) */
     uint8_t xp2[NTRK][PROJ_XP2];                /* FDRG (2026-11-03): ATK SUS REL LOOP (proj_xp_enc; 0 in every record
                                                  * before them: the power-on values; an older firmware ignores them) */
-    uint8_t rsv_mo[504 - NTRK * (PROJ_XP + PROJ_XP2)];   /* FDRF: reserved, 0 */
+    uint8_t xp3[NTRK][PROJ_XP3];                /* FDRG (1.0.0): PLAY (as xp2; 0 before it: KEY) */
+    uint8_t rsv_mo[504 - NTRK * (PROJ_XP + PROJ_XP2 + PROJ_XP3)];   /* FDRF: reserved, 0 */
     chain_config_t song;                        /* FDR9: the song (song.c) */
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint16_t pre[NTRK];                         /* FDRD: each track's preset: a factory one's uid, 0x8000 | a user
@@ -81,14 +83,17 @@ typedef struct {
 typedef char project_size[sizeof(project_t) == 3840u ? 1 : -1];
 static int16_t proj_xp_get(const project_t *p, uint32_t k, uint32_t id)   /* track k's parameter id past the block */
 {
-    return (int16_t)(TP[id].def + (int8_t)(id < P_SATK ? p->xp[k][id - P_NSTORED] : p->xp2[k][id - P_SATK]));
+    return (int16_t)(TP[id].def + (int8_t)(id < P_SATK ? p->xp[k][id - P_NSTORED]
+                                           : id < P_SPLAY ? p->xp2[k][id - P_SATK] : p->xp3[k][id - P_SPLAY]));
 }
 static void proj_xp_set(project_t *p, uint32_t k, uint32_t id, int32_t v)   /* .. stored */
 {
     if (id < P_SATK)
         p->xp[k][id - P_NSTORED] = proj_xp_enc(id, v);
-    else
+    else if (id < P_SPLAY)
         p->xp2[k][id - P_SATK] = proj_xp_enc(id, v);
+    else
+        p->xp3[k][id - P_SPLAY] = proj_xp_enc(id, v);
 }
 /* an FDRF (or older) record's tracks as FDRG's: the parameters out of steps 0..6's spare bytes, every micro 0 */
 static void proj_xp_move(project_t *q)
@@ -1987,7 +1992,9 @@ static void preset_user_boot(void)                  /* persist_boot (after flash
                 continue;
             }
             for (k = 0; k < 8u; k++)
-                u->k[k] = (int8_t)knob_in(&DMODELS[u->model].edit[k], u->k[k]);   /* (a KEY note kept: converted
+                u->k[k] = (int8_t)((uint32_t)knob_in(&DMODELS[u->model].edit[k], upr_knob(u, k)) |
+                                   (u->model == DM_SMPL && k == UPR_KPLAY ? (uint8_t)u->k[k] & 0x80u : 0u));   /* (PLAY's
+                                                                                    * bit kept; a KEY note kept: converted
                                                                                     * when loaded, presets.c) */
             for (k = 0; k < UPR_NFX; k++)                /* (ATK .. LOOP's bits kept: presets.c upr_env) */
                 upr_fxset(u, k, clamp(upr_fxv(u, k), TP[UPR_FX[k]].min, TP[UPR_FX[k]].max),

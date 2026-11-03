@@ -48,6 +48,7 @@ static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR
 static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
 static const char *const N_PRIO[] = {"HIGH", "LOW"};                 /* P_PRIO */
 static const char *const N_SLOOP[] = {"OFF", "FWD", "PING"};         /* P_SLOOP: the SAMPLE model's LOOP (dm_sample.c) */
+static const char *const N_SPLAY[] = {"KEY", "CHOP"};                /* P_SPLAY: the SAMPLE model's PLAY (dm_sample.c) */
 static const char *const N_LSRC[] = {"LFO1", "LFO2"};                /* an LFO DEST slot's SRC */
 static const char *const N_ITYPE[] = {"OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"};   /* INSERT
                                                                      * TYPE (IT_; insert.c) */
@@ -117,6 +118,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_SSUS] = PD("SUS", F_PCT, 0, 127, 0),        /* 0: one-shot, DECAY to silence (as before); else the level held */
     [P_SREL] = PD("REL", F_INT, 0, 127, 40),       /* the release once the note's gate closes (SUS above 0) */
     [P_SLOOP] = PE("LOOP", N_SLOOP, 0),            /* OFF as before; FWD, PING-PONG between START and END */
+    [P_SPLAY] = PE("PLAY", N_SPLAY, 0),            /* KEY as before; CHOP: a hit's note picks the sample (chop) */
 };
 
 static const param_desc_t GP[G_COUNT] = {

@@ -39,12 +39,14 @@ static const uint8_t UPR_FX[UPR_NFX] = {
 #define UPR_USED 1u
 #define UPR_VOICE 2u
 typedef struct { uint8_t used, model; int8_t k[8]; int8_t f[UPR_NFX]; } upr_slot_t;
-/* a SAMPLE preset's ATK SUS REL LOOP (user decision 2026-11-03: the 96 slots kept, the record's size too): 23 bits,
- * each value's offset from its power-on value (ATK, SUS, REL 7 bits, LOOP 2), bit i in FX byte i (UPR_FX's order): the
- * top bit of the 22 bytes whose values are 0..127, FILTER ENV's (-64..63) its top bit unlike bit 6. 0 = the defaults:
- * such a slot is byte for byte as before; another model's slot never holds them. upr_fxv reads an FX value out (a
- * plain value too: the same) */
+/* a SAMPLE preset's ATK SUS REL LOOP PLAY (user decisions 2026-11-03 and for 1.0.0: the 96 slots kept, the record's
+ * size too): 24 bits, each value's offset from its power-on value (ATK, SUS, REL 7 bits, LOOP 2, PLAY 1), bits 0..22 in
+ * FX byte i (UPR_FX's order): the top bit of the 22 bytes whose values are 0..127, FILTER ENV's (-64..63) its top bit
+ * unlike bit 6; bit 23 (PLAY) the top bit of SOUND knob DRIVE's byte (k[3], 0..127). 0 = the defaults: such a slot is
+ * byte for byte as before; another model's slot never holds them. upr_fxv reads an FX value out (a plain value too:
+ * the same), upr_knob a SOUND knob */
 #define UPR_FENV 15u                                    /* UPR_FX's FILTER ENV */
+#define UPR_KPLAY 3u                                    /* the SOUND knob whose byte's top bit is PLAY's (DRIVE) */
 static int32_t upr_fxdec(int8_t f, uint32_t i)        /* FX byte i's value */
 {
     uint32_t b = (uint8_t)f;
@@ -61,32 +63,38 @@ static void upr_fxset(upr_slot_t *s, uint32_t i, int32_t v, uint32_t bit)
     uint32_t b = (uint32_t)(i == UPR_FENV ? clamp(v, -64, 63) : clamp(v, 0, 127)) & 0x7Fu;
     s->f[i] = (int8_t)(b | ((i == UPR_FENV ? (b >> 6 & 1u) ^ bit : bit) << 7));
 }
-static uint32_t upr_env(const upr_slot_t *s)            /* the 23 bits (0: the defaults) */
+static int32_t upr_knob(const upr_slot_t *s, uint32_t i)   /* SOUND knob i as stored (PLAY's bit off) */
+{
+    return s->model == DM_SMPL && i == UPR_KPLAY ? (int32_t)((uint8_t)s->k[i] & 0x7Fu) : s->k[i];
+}
+static uint32_t upr_env(const upr_slot_t *s)            /* the 24 bits (0: the defaults) */
 {
     uint32_t e = 0, i;
     if (s->model != DM_SMPL)
         return 0;
     for (i = 0; i < UPR_NFX; i++)
         e |= upr_fxbit(s, i) << i;
-    return e;
+    return e | (uint32_t)((uint8_t)s->k[UPR_KPLAY] >> 7) << 23;
 }
-/* ATK SUS REL LOOP of p[] (a track's values) as the 23 bits; and back onto p[] (their power-on values and ranges:
+/* ATK SUS REL LOOP PLAY of p[] (a track's values) as the 24 bits; and back onto p[] (their power-on values and ranges:
  * params.c TP's, tests/sampenv_test.c checks) */
-static const uint8_t SENV_DEF[4] = {0, 0, 40, 0}, SENV_MAX[4] = {127, 127, 127, 2};
+#define SENV_N 5u
+static const uint8_t SENV_DEF[SENV_N] = {0, 0, 40, 0, 0}, SENV_MAX[SENV_N] = {127, 127, 127, 2, 1};
+static const uint8_t SENV_SH[SENV_N] = {0, 7, 14, 21, 23}, SENV_M[SENV_N] = {0x7F, 0x7F, 0x7F, 3, 1};
 static uint32_t senv_pack(const int16_t *p)
 {
     uint32_t e = 0, i;
-    for (i = 0; i < 4u; i++)
-        e |= ((uint32_t)(p[P_SATK + i] - SENV_DEF[i]) & (i < 3u ? 0x7Fu : 3u)) << (7u * i);
+    for (i = 0; i < SENV_N; i++)
+        e |= ((uint32_t)(p[P_SATK + i] - SENV_DEF[i]) & SENV_M[i]) << SENV_SH[i];
     return e;
 }
 static void senv_put(int16_t *p, uint32_t e)
 {
     uint32_t i;
-    for (i = 0; i < 4u; i++)
-        p[P_SATK + i] = (int16_t)clamp((int32_t)((SENV_DEF[i] + (e >> (7u * i))) & (i < 3u ? 0x7Fu : 3u)), 0,
-                                       SENV_MAX[i]);
+    for (i = 0; i < SENV_N; i++)
+        p[P_SATK + i] = (int16_t)clamp((int32_t)((SENV_DEF[i] + (e >> SENV_SH[i])) & SENV_M[i]), 0, SENV_MAX[i]);
 }
+typedef char senv_ids[P_SPLAY == P_SATK + 4 ? 1 : -1];
 typedef struct { uint32_t magic; upr_slot_t s[PRE_NUSER]; uint8_t mv[UPR_NOLD - PRE_NUSER]; } upr_rec_t;
 typedef char upr_rec_size[sizeof(upr_rec_t) == 4u + 33u * PRE_NUSER + 32u && sizeof(upr_rec_t) <= 3584u ? 1 : -1];
                                                         /* (one sector; below 3584: the loader's erase scan) */
@@ -141,6 +149,7 @@ static const int8_t *upr_fx(uint32_t id)
 /* preset id -> *out; 1, or 0 for an empty user slot or a bad id */
 static int preset_get(uint32_t id, preset_t *out)
 {
+    uint32_t i;
     const upr_slot_t *s;
     if (id < PRE_NFACT) {
         *out = PRE_FACTORY[id];
@@ -152,7 +161,8 @@ static int preset_get(uint32_t id, preset_t *out)
     if (!upr_used(id - PRE_NFACT) || s->model >= NMODELS)
         return 0;
     out->model = s->model;
-    memcpy(out->k, s->k, sizeof out->k);
+    for (i = 0; i < 8u; i++)
+        out->k[i] = (int8_t)upr_knob(s, i);
     upr_name(out->name, id - PRE_NFACT, s->model);
     return 1;
 }
@@ -349,7 +359,7 @@ static int preset_load(track_t *t, uint32_t id)
 }
 
 /* t's voice put back as it was (the PRESETS list's audition ended, ui_preset.c): MODEL, the 8 SOUND knobs k[0..7] and
- * ATK SUS REL LOOP k[8..11], the reference pre and its edited mark ed, as they were (no clamp), and FX f when the
+ * ATK SUS REL LOOP PLAY k[8..12], the reference pre and its edited mark ed, as they were (no clamp), and FX f when the
  * audition changed them (0: as they are); the audio IRQ off, another voice cut first, motion's base follows, as
  * preset_load */
 static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pre, uint32_t ed, const int8_t *f)
@@ -362,7 +372,7 @@ static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pr
     t->model = (uint8_t)t->p[P_MODEL];
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = k[i];
-    for (i = 0; i < 4u; i++)
+    for (i = 0; i < SENV_N; i++)
         t->p[P_SATK + i] = k[8u + i];
     t->pre = (uint16_t)pre;
     t->pre_ed = (uint8_t)ed;
@@ -397,8 +407,8 @@ static uint32_t preset_step(const track_t *t, uint32_t from, int dir)
 /* a user edit of what t's preset holds (a SOUND knob: the panel, MIDI LEARN, the SMC knobs; an FX knob as well when
  * the preset holds FX: preset_marks; not LFOs or MOTION playback) */
 static void preset_touch(track_t *t) { t->pre_ed = 1; }
-#define PRE_SOUND(id) ((uint32_t)(id) - P_E0 < 8u || (uint32_t)(id) - P_SATK < 4u)   /* a parameter id is a SOUND
-                                                        * knob: the 8, SAMPLE's ATK SUS REL LOOP */
+#define PRE_SOUND(id) ((uint32_t)(id) - P_E0 < 8u || (uint32_t)(id) - P_SATK < SENV_N)   /* a parameter id is a SOUND
+                                                        * knob: the 8, SAMPLE's ATK SUS REL LOOP PLAY */
 static int upr_fx_index(uint32_t id)                    /* id's place in UPR_FX, -1 not an FX a user preset holds */
 {
     uint32_t i;
@@ -438,4 +448,6 @@ static void upr_set(uint32_t slot, uint32_t model, const int16_t *kv)
     e = s->model == DM_SMPL ? senv_pack(kv) : 0u;   /* (another model: none) */
     for (i = 0; i < UPR_NFX; i++)
         upr_fxset(s, i, kv[UPR_FX[i]], e >> i & 1u);
+    if (e >> 23)                                    /* PLAY CHOP: DRIVE's top bit (DRIVE 0..127) */
+        s->k[UPR_KPLAY] = (int8_t)((uint8_t)clamp(s->k[UPR_KPLAY], 0, 127) | 0x80u);
 }

@@ -464,6 +464,22 @@ static void input_hit(track_t *t, uint32_t vel)
 static struct { uint8_t key, trk, rec, last, first; } kz;
 
 static int32_t keys_nt(uint32_t key) { return (int32_t)key - 7 + 12 * song.octave; }   /* NOTE - 60 */
+/* the note key plays on t (NOTE - 60) into *nt: keys_nt's; a SAMPLE track on PLAY CHOP (dm_sample.c smpl_chop): the 16
+ * white keys (STEP_KEY) chops 1..16 = notes C4 + 0..15 on any octave, a black key nothing (0) */
+static int keys_note(const track_t *t, uint32_t key, int32_t *nt)
+{
+    uint32_t i;
+    if ((uint32_t)t->p[P_MODEL] % NMODELS != DM_SMPL || t->p[P_SPLAY] != 1) {
+        *nt = clamp(keys_nt(key), NT_MIN, NT_MAX);
+        return 1;
+    }
+    for (i = 0; i < 16u && STEP_KEY[i] != key; i++)
+        ;
+    *nt = (int32_t)i;
+    return i < 16u;
+}
+static volatile uint8_t keys_chop;                  /* KEYS: the chop a key played last + 1 (the UI says it: ui.c) */
+static volatile uint8_t keys_chop_n;                /* .. a count of them (a new press, the same chop again) */
 
 /* the sounding key let go (or a key on another track took over): the note it holds on a gated model ends; a gate the
  * sequencer took over since (counting, or held) is the sequencer's: left alone */
@@ -531,8 +547,14 @@ static __attribute__((noinline)) void keys_on(uint32_t key)
 {
     track_t *t = TSEL;
     const dmodel_t *m = trk_model(t);
-    int32_t nt = clamp(keys_nt(key), NT_MIN, NT_MAX);
+    int32_t nt;
     int legato = kz.key && kz.trk == song.sel;
+    if (!keys_note(t, key, &nt))
+        return;                                        /* (a black key on a CHOP track: nothing) */
+    if (t->p[P_SPLAY] == 1 && (uint32_t)t->p[P_MODEL] % NMODELS == DM_SMPL) {
+        keys_chop = (uint8_t)(nt + 1);
+        keys_chop_n++;
+    }
     if (kz.key && !legato)
         keys_off();                                    /* mono over the keys: another track's held note ends */
     if (((song.rec >> song.sel) & 1u) && song.playing && !t->p[P_SRC] && !REC_LOCKED())

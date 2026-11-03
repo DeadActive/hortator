@@ -74,7 +74,7 @@ int main(void)
     PNAME(FTYPE); PNAME(FCUT); PNAME(FRESO); PNAME(FENV); PNAME(FDEC); PNAME(PRIO); PNAME(LSRC1); PNAME(LSRC2);
     PNAME(LS3SRC); PNAME(LS3DEST); PNAME(LS3DEPTH); PNAME(LS4SRC); PNAME(LS4DEST); PNAME(LS4DEPTH);
     PNAME(RKEY); PNAME(SRR); PNAME(ITYPE); PNAME(IA); PNAME(IB); PNAME(IC); PNAME(IMIX);
-    PNAME(SATK); PNAME(SSUS); PNAME(SREL); PNAME(SLOOP);
+    PNAME(SATK); PNAME(SSUS); PNAME(SREL); PNAME(SLOOP); PNAME(SPLAY);
     for (k = 0; k < 2u; k++)
         for (i = 0; i < LF_N; i++) {
             snprintf(lfo[k][i], sizeof lfo[k][i], "LFO%u_%s", (unsigned)k + 1u, LFN[i]);
@@ -209,11 +209,11 @@ int main(void)
 #define OFF(t, f) (unsigned)offsetof(t, f)
     printf(" \"project\": {\"size\": %u, \"magic\": %u, \"sizeField\": %u, \"g\": %u, \"sel\": %u, \"rsv\": %u, "
            "\"t\": %u, \"trk\": %u, \"trkP\": %u, \"trkStep\": %u, \"lk_n\": %u, \"lk_link\": %u, \"var_link\": %u, "
-           "\"var_len\": %u, \"xp\": %u, \"xp2\": %u, \"rsv_mo\": %u, \"song\": %u, \"name\": %u, \"pre\": %u, \"pre_ed\": %u, \"sum\": %u},\n",
+           "\"var_len\": %u, \"xp\": %u, \"xp2\": %u, \"xp3\": %u, \"rsv_mo\": %u, \"song\": %u, \"name\": %u, \"pre\": %u, \"pre_ed\": %u, \"sum\": %u},\n",
            (unsigned)sizeof(project_t), OFF(project_t, magic), OFF(project_t, size), OFF(project_t, g),
            OFF(project_t, sel), OFF(project_t, rsv), OFF(project_t, t), (unsigned)sizeof(proj_trk_t),
            OFF(proj_trk_t, p), OFF(proj_trk_t, step), OFF(project_t, lk_n), OFF(project_t, lk_link),
-           OFF(project_t, var_link), OFF(project_t, var_len), OFF(project_t, xp), OFF(project_t, xp2), OFF(project_t, rsv_mo), OFF(project_t, song),
+           OFF(project_t, var_link), OFF(project_t, var_len), OFF(project_t, xp), OFF(project_t, xp2), OFF(project_t, xp3), OFF(project_t, rsv_mo), OFF(project_t, song),
            OFF(project_t, name), OFF(project_t, pre), OFF(project_t, pre_ed), OFF(project_t, sum));
     printf(" \"locks\": {\"size\": %u, \"magic\": %u, \"slot\": %u, \"on\": %u, \"count\": %u, \"key\": %u, "
            "\"val\": %u, \"lock\": %u},\n",

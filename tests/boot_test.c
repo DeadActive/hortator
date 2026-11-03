@@ -2367,8 +2367,9 @@ static int fdrf_round_trip(void)
     for (i = 0; i < sizeof proj_slot[2].rsv_mo; i++)
         ok &= proj_slot[2].rsv_mo[i] == 0;
     return (int)ok && bank_events_eq(&mo.b, &want) && proj_slot[2].magic == PROJ_MAGIC && proj_slot[2].lk_n == 5u &&
-           sizeof(project_t) == 3840u && sizeof proj_slot[2].rsv_mo + sizeof proj_slot[2].xp + sizeof proj_slot[2].xp2 == 504u &&
-           sizeof proj_slot[2].xp == 56u && sizeof proj_slot[2].xp2 == 32u && !proj_slot[2].var_len &&
+           sizeof(project_t) == 3840u && sizeof proj_slot[2].rsv_mo + sizeof proj_slot[2].xp + sizeof proj_slot[2].xp2 +
+                   sizeof proj_slot[2].xp3 == 504u &&
+           sizeof proj_slot[2].xp == 56u && sizeof proj_slot[2].xp2 == 32u && sizeof proj_slot[2].xp3 == 8u && !proj_slot[2].var_len &&
            !proj_slot[2].var_link && str_eq(ui.msg, "LOADED");
 }
 static void fdre_of_live(project_ve_t *v)            /* the live state as 0.23.3 saved it ("FDRE") */
@@ -2487,6 +2488,7 @@ static int fdrf_converts(void)
             v.t[k].step[j].rsv = v.xp[k][j];
     memset(v.xp, 0, sizeof v.xp);
     memset(v.xp2, 0, sizeof v.xp2);
+    memset(v.xp3, 0, sizeof v.xp3);
     v.magic = 0x46524446u;
     v.sum = proj_hash(&v, sizeof v - 4u);
     st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
