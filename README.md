@@ -11,6 +11,7 @@ is its drummer.
 
 - **Play it in your browser:** <https://deadactive.github.io/hortator/>. The page runs the real firmware, compiled
   to WebAssembly, on a 3D FM-1 you can play with the mouse, a touch screen or the computer keyboard.
+- **Read the manual:** <https://deadactive.github.io/hortator/manual/>, every page, knob and feature, with search.
 - **Install it on your FM-1:** <https://deadactive.github.io/hortator/webapp/installer/>, in Chrome or Edge, over
   the FM-1's USB cable.
 - **Edit it from your browser** (from 1.0.0): <https://deadactive.github.io/hortator/webapp/editor/>, over USB

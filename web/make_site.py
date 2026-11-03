@@ -15,6 +15,7 @@
   webapp/editor/index.html    editor.html (Hortator's editor) in one file: its modules (editor/*.mjs but the tests)
                               and device_data.json (for ?mock) inlined, the typeface embedded, sim/counter.js's
                               visit count; nothing else is fetched, so a saved copy works offline
+  manual/index.html           the manual (docs/manual/*.md, built by tools/build_manual.py; search is in the page)
   src/                        not touched
 
   web/make_site.py build/felucca-X.Y.fwsc X.Y OUT_DIR [build/felucca-ble-X.Y.fwsc]
@@ -168,6 +169,10 @@ def main(pkg, version, out, ble_pkg=None):
     shutil.rmtree(ed / "editor", ignore_errors=True)  # (what an older build put beside it)
     for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
         (ed / f).unlink(missing_ok=True)
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import build_manual
+    (out / "manual").mkdir(exist_ok=True)
+    build_manual.build(out / "manual" / "index.html")
     landing = sim_page(out)
     if not landing:
         (out / "index.html").write_text(
