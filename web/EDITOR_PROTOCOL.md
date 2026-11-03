@@ -374,8 +374,10 @@ projects, the presets, the variations or the lock banks.
   magic last): a power cut in its ~0.1 s can leave the slot empty, never garbage.
 - SMP_BEGIN, SMP_DATA, SMP_END, SMP_CLEAR and SMP_RENAME are writes (§4 rule 3: a retry with the same seq gets the
   first reply again).
-- A sample the editor makes is **one zone over all keys** (lo 0, hi 127, root 60, not looped): SMP_INFO's n / rate
-  give its length (n / (44,100 × rate / 65,536) seconds). A restored backup keeps the zones it has (up to 16).
+- A slot holds a **set** of 1..16 samples, one zone each (§5 "Sets the page makes"); the page always writes a whole
+  set with one upload, so the rules above hold for every change to a set. One sample is **one zone over all keys**
+  (lo 0, hi 127, root 60, not looped): SMP_INFO's n / rate give its length (n / (44,100 × rate / 65,536) seconds);
+  for a set of several they are its first zone's. A restored backup keeps the zones it has (up to 16).
 
 ## 3. The state block (17 bytes)
 
@@ -563,6 +565,38 @@ mono, trimmed, optionally normalized (peak to full scale), and kept at its own r
 (`web/editor/sample.mjs`) runs the device's decoder in step (each nibble chosen so the device's decode follows the
 source), so the page's preview — decoded from the encoded bytes with the device's decoder — is what the FM-1 plays.
 
+**Sets the page makes** (`web/editor/sampset.mjs`). A slot holds a set of 1..16 samples; the firmware's SLOT knob (the
+SAMPLE model's and the LAYER's) steps through a set's distinct samples in key order (`dm_sample.c` `sl_make`), so
+the page's sample n is SLOT n. The page composes the whole image and writes it with one upload (BEGIN, DATA …, END):
+adding, replacing, moving, renaming or deleting a sample, and chopping, all rewrite the set, header last, so a failed
+or cancelled write leaves the slot empty (the page keeps the set to write again or to save as a `.fsmp`).
+
+- **One sample**: exactly "Samples the page makes" above (one zone, off 0, lo 0, hi 127, root 60, no trailer): the
+  same bytes as a single upload always had.
+- **N ≥ 2 samples**: zone i (0-based) = sample i: off = its first data byte, n its samples, loop 0 / n − 1, not
+  looped, its own rate, predictor / index 0, root 36 + i (C2 up) × 16, lo = 0 for i = 0 else 36 + i, hi = 127 for
+  the last else 36 + i (one key each, the ends stretched to the keyboard's). Each sample's ADPCM starts from
+  predictor 0 / index 0 at its own byte (no byte shared), so moving a sample copies its bytes unchanged (its decode
+  stays bit for bit); only trimming, normalizing or replacing one encodes it again.
+- **The names trailer** (N ≥ 2): after the last sample, the data ends with 8 bytes a sample (its name, ASCII, 0-padded,
+  in slot order), the count N (u8) and `"SLNM"`. It is inside the data length and the CRC and outside every zone: the
+  firmware never reads it. The page reads it back when the last 4 bytes are `"SLNM"`, the count byte is the number of
+  distinct samples and the trailer lies past every zone; else the samples are named `SLOT 1` … (one sample: the
+  header's name). The header's name is the set's (one sample: the sample's).
+- **Gap bytes against the loader's windows**: when a window (Appendix) of the composed image would read as an update
+  record, the page puts a gap byte (0) before the sample (or the trailer) that window starts in and checks the whole
+  image again (up to 512 times): no sample's bytes change. Gaps count in the data length.
+- **A set made elsewhere** (zones sharing data, loops, other keys — an upstream multi-zone set): listed as its
+  distinct samples (the same off, n and rate: one sample; each by its lowest zone; by lo, then zone order — the
+  firmware's SLOT order); changing it lays it out again as above after the user confirms.
+- **Chop** (page only): the cuts are positions in the trimmed source; Auto from the level's rises (3 ms frames, the
+  sensitivity a threshold of 18 dB down to 4 dB, 40 ms apart at least, each on the hit's first sample at a tenth of
+  its peak, moved back to a zero crossing within 1 ms), Beats every 1/4, 1/8 or 1/16 at a tempo (detected from the
+  onset strength's autocorrelation, 60..200 BPM, near 120 preferred, made exact when the sound is then within 4 % of a
+  whole number of beats), Equal N slices. The trimmed source is rendered once (normalized as a whole, at the chosen
+  rate) and cut; each slice becomes a sample (`<file> 1`, `<file> 2` …); the slices that do not fit (the room, 16
+  samples) are left out and counted.
+
 ## 6. Object layouts
 
 Little endian; the firmware's structs (`presets.c`, `project.c`, `lockbank.c`, `varpack.c`), checked against the
@@ -648,5 +682,6 @@ whole sectors, so a sample could, by chance (about 1 in 2^32 per sector) or by d
 (SMP_DATA rc 2 detail 35) any piece whose window +0xF00..+0xF4F (bytes past the data's end: 0xFF, as flash holds
 them) has u16 at +0 ≠ 0 and = that CRC-16 of +2..+79 — the CRC alone, a superset of the loader's test (about 1 in
 65,536 per sector by chance) — and the page, before sending, finds such a window in its encoded data and moves the
-sample by one source sample (drops the first) and encodes again until none is left. A slot's header sector
+sample by one source sample (drops the first) and encodes again until none is left (a set of several samples: a gap
+byte before the sample the window is in, §5 "Sets the page makes"). A slot's header sector
 +0xF00 is data too. Bytes the device keeps erased (0xFF) never match (u16 0xFFFF ≠ 0xB613, the CRC-16 of 78 bytes 0xFF).
