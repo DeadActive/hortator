@@ -338,8 +338,9 @@ The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DEC
 - With ATK 0, SUS 0 and LOOP OFF a hit sounds exactly as it did before these knobs. They take MOTION, step locks and
   MIDI LEARN (`T1 ATK`, `T1 LOOP`), are saved with projects and in USER presets; a factory SAMPLE preset sets them back
   to ATK 0, SUS 0, REL 40, LOOP OFF. The LAYER keeps its one-shot DECAY.
-- In a user set START reaches only into the set's first sample: the others start (and loop) from their beginning; END
-  works on all of them.
+- In a user set START, END and LOOP work on whichever sample SLOT plays, over that sample's own length (sets the
+  web editor writes carry the decoder's states for it; a set written before that, or restored from such a backup,
+  has START only in its first sample until you write it again from the editor).
 
 The **LAYER** (EDIT, then OCT+) puts a sample under any model: **SET**, **SLOT**, **LEVEL**, **TUNE** (1/2) and
 **DECAY** (2/2), SET and SLOT as the SAMPLE model's. MIDI LEARN names them `T3 L.SET`, `T3 L.SLOT`, `T3 L.LEVEL`,
@@ -581,8 +582,8 @@ From 0.28.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) w
   complete, so a cancelled write, an unplugged cable or a power cut leaves it empty, never half a set; the page keeps
   the set so you can write it again or save it as a file. The samples' names are kept inside the set (the FM-1 itself
   shows the set's name). A set made elsewhere (for example a multi-zone set from upstream Felucca) is listed by its
-  samples; changing it lays it out again as plain samples, after asking. On the FM-1, START reaches into the first sample of a user set; the
-  others always start at their beginning (END cuts them as usual).
+  samples; changing it lays it out again as plain samples, after asking. On the FM-1, START, END and LOOP work within
+  each sample of a set the page wrote.
 
 Restores and sample uploads happen only while the FM-1 is stopped; during a restore it shows RESTORING and its PLAY, cue keys, LOAD, SAVE and
 the step tools wait. USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a

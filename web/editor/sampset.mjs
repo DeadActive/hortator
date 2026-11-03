@@ -15,6 +15,10 @@
 // - the slots' names (the header has only the set's 8 characters): with two or more slots, a trailer at the data's end
 //   (8 characters a slot, their count, "SLNM"), inside the data length and its CRC, outside every zone: the firmware
 //   never reads it (it plays zones only).
+// - START in every slot: with two or more slots, before the names, the START table the firmware reads at a hit
+//   (dm_sample.c smp_user_seek; the header's rsv2: "SEEK", its offset in the data): per slot the decoder's state
+//   (predictor, step index: 3 bytes) (n * s) >> 7 nibbles in, s 1..127 (381 bytes a slot). One slot: none (the
+//   firmware works its states out itself, the image stays as a single sample always was).
 // - the update loader's windows (+0xF00 of each sector): the page moves the zone holding one by a gap byte (0) before it
 //   and checks the whole image again: no sample changes.
 // - a set the page did not make (a backup of upstream sets: zones sharing their data, loops, other keys): its distinct
@@ -23,14 +27,22 @@
 import { crc32 } from "./proto.mjs";
 import * as S from "./sample.mjs";
 
-export const MAX_SLOTS = 16, BASE_NOTE = 36, NAME_LEN = 8;
+export const MAX_SLOTS = 16, BASE_NOTE = 36, NAME_LEN = 8, SEEK_BYTES = 127 * 3, SEEK_MAGIC = 0x4b454553; // "SEEK"
 const TAG = [0x53, 0x4c, 0x4e, 0x4d]; // "SLNM"
+export const SLOT_TRAILER = SEEK_BYTES + NAME_LEN; // the trailer's bytes a slot (its START table, its name)
 const GAP_TRIES = 512;
 
 /** a slot: { name, data (ADPCM), n (samples), rate (Hz / 44100 x 65536) } */
 export const slotBytes = (s) => Math.ceil(s.n / 2);
-/** the names trailer's bytes for a set of n slots (none for one) */
-export const namesBytes = (n) => (n >= 2 ? NAME_LEN * n + 1 + TAG.length : 0);
+/** the trailer's bytes for a set of n slots (none for one): the START table and the names */
+export const namesBytes = (n) => (n >= 2 ? (SEEK_BYTES + NAME_LEN) * n + 1 + TAG.length : 0);
+/** the decoder's states (n * s) >> 7 nibbles into ADPCM data b, s 1..127: [[predictor, step index]] (dm_sample.c
+ * smp_seek_fill, the device's decoder) */
+export function seekStates(b, n) {
+  const pcm = S.adpcmDecode(b, n), idx = S.adpcmIndexes(b, n), out = [];
+  for (let s = 1; s < 128; s++) { const at = Math.floor(n * s / 128); out.push(at ? [pcm[at - 1], idx[at - 1]] : [0, 0]); }
+  return out;
+}
 /** the data bytes a set of these slots needs (no gaps) */
 export const setBytes = (slots) => slots.reduce((a, s) => a + slotBytes(s), 0) + namesBytes(slots.length);
 /** the bytes left for one more slot in a slot holding max: { free, room (slots left) } */
@@ -55,7 +67,7 @@ export function slotSource(s) {
 
 const w16 = (b, o, v) => { b[o] = v & 255; b[o + 1] = v >> 8 & 255; };
 const w32 = (b, o, v) => { w16(b, o, v & 0xffff); w16(b, o + 2, v >>> 16); };
-function header(name, zones, data) {
+function header(name, zones, data, seekAt) {
   const h = new Uint8Array(S.HDR_SIZE), nm = S.cleanName(name);
   w32(h, 0, S.MAGIC);
   w16(h, 4, 1);
@@ -63,6 +75,7 @@ function header(name, zones, data) {
   for (let i = 0; i < nm.length; i++) h[8 + i] = nm.charCodeAt(i);
   w32(h, 16, data.length);
   w32(h, 20, crc32(data));
+  if (seekAt !== undefined) { w32(h, 24, SEEK_MAGIC); w32(h, 28, seekAt); }
   zones.forEach((z, i) => {
     const o = 32 + 28 * i;
     w32(h, o, z.off);
@@ -97,17 +110,24 @@ export function composeSet(slots, name, max, opts = {}) {
       at += slotBytes(s);
       ends.push(at);
     });
+    let seekAt;
     if (n >= 2) {
       at += gaps[n];
+      seekAt = at;
+      slots.forEach((s, i) => seekStates(s.data, s.n).forEach(([p, x], k) => {
+        const q = at + SEEK_BYTES * i + 3 * k;
+        data[q] = p & 255; data[q + 1] = (p >> 8) & 255; data[q + 2] = x;
+      }));
+      at += SEEK_BYTES * n;
       slots.forEach((s, i) => { const nm = S.cleanName(s.name); for (let c = 0; c < nm.length; c++) data[at + NAME_LEN * i + c] = nm.charCodeAt(c); });
       data[at + NAME_LEN * n] = n;
       data.set(TAG, at + NAME_LEN * n + 1);
-      ends.push(at + namesBytes(n));
+      ends.push(at + NAME_LEN * n + 1 + TAG.length);
     }
     const hits = windows(data);
     if (!hits.length) {
       const zones = slots.map((s, i) => ({ off: offs[i], n: s.n, rate: s.rate, ...keys[i] }));
-      return { header: header(name, zones, data), data, offs, gaps: gaps.slice(0, n), name: S.cleanName(name) };
+      return { header: header(name, zones, data, seekAt), data, offs, gaps: gaps.slice(0, n), name: S.cleanName(name) };
     }
     const j = ends.findIndex((e) => e > hits[0]); // the part (a slot, the trailer) the window starts in, or the next one
     gaps[j < 0 ? 0 : j]++;
@@ -118,7 +138,7 @@ export function composeSet(slots, name, max, opts = {}) {
 const same = (a, b) => a.off === b.off && a.n === b.n && a.rate === b.rate;
 /** the names trailer of data (n names), or null */
 function trailer(data, n, end) {
-  const len = namesBytes(n), at = data.length - len;
+  const len = NAME_LEN * n + 1 + TAG.length, at = data.length - len;
   if (n < 2 || at < end || TAG.some((c, i) => data[data.length - TAG.length + i] !== c) || data[data.length - TAG.length - 1] !== n) return null;
   return Array.from({ length: n }, (_, i) => S.headerName(data, at + NAME_LEN * i));
 }

@@ -137,6 +137,16 @@ export function adpcmEncode(pcm) {
   }
   return out;
 }
+/** the decoder's step index after each of the n samples of ADPCM bytes b (sampset.mjs: a set's START table) */
+export function adpcmIndexes(b, n = b.length * 2) {
+  const out = new Uint8Array(n);
+  let pred = 0, idx = 0;
+  for (let i = 0; i < n; i++) {
+    [pred, idx] = step(pred, idx, i & 1 ? b[i >> 1] >> 4 : b[i >> 1] & 15);
+    out[i] = idx;
+  }
+  return out;
+}
 /** IMA ADPCM bytes -> n 16-bit samples, exactly as the FM-1 decodes them */
 export function adpcmDecode(b, n = b.length * 2) {
   const out = new Int16Array(n);

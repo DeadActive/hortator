@@ -202,6 +202,19 @@ static struct { int16_t p[SMP_USER_SLOTS][127]; uint8_t ix[SMP_USER_SLOTS][127];
 static uint8_t usr_seek_z[SMP_USER_SLOTS];          /* the zone usr_seek holds for, while usr_seek_ok's bit is set */
 static uint8_t usr_seek_ok;
 static uint32_t usr_seek_gen;                       /* smp_user_gen they were worked out for */
+/* a user set's START table (the web editor writes it into a set of several samples: web/EDITOR_PROTOCOL.md §5): the
+ * header's rsv2[0] "SEEK", rsv2[1] its offset in the data; zone j's states at START s 1..127 (its decoder (n * s) >> 7
+ * nibbles in, smp_seek_fill's) at 3 x (127 j + s - 1): predictor (2 bytes), step index. Read from flash at the hit (no
+ * RAM); a set without it (one sample, an older page's, a backup): the main loop's state of its first sample only */
+#define SMP_SEEK_MAGIC 0x4B454553u                  /* "SEEK" */
+static const uint8_t *smp_user_seek(uint32_t k, uint32_t j, uint32_t s)
+{
+    const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
+    uint32_t off = h->rsv2[1];
+    if (h->rsv2[0] != SMP_SEEK_MAGIC || j >= usr_nz[k] || off > h->data_len || (h->data_len - off) / 381u < usr_nz[k])
+        return 0;
+    return smp_user_xip(k) + SMP_USER_DATA + off + (j * 127u + s - 1u) * 3u;
+}
 /* START s (1..127) of zone zi: the state there; 0 none (START plays from the beginning) */
 static int smp_seek_at(uint32_t zi, uint32_t s, int32_t *p, int32_t *ix)
 {
@@ -214,6 +227,12 @@ static int smp_seek_at(uint32_t zi, uint32_t s, int32_t *p, int32_t *ix)
         return 1;
     } else {
         uint32_t k = (zi >> 5) & 3u;
+        const uint8_t *q = k < SMP_USER_SLOTS ? smp_user_seek(k, zi & 31u, s) : 0;
+        if (q) {
+            *p = (int16_t)(q[0] | q[1] << 8);
+            *ix = q[2] <= 88u ? q[2] : 88;
+            return 1;
+        }
         if (k >= SMP_USER_SLOTS || !((usr_seek_ok >> k) & 1u) || usr_seek_gen != smp_user_gen ||
             usr_seek_z[k] != (zi & 31u))
             return 0;

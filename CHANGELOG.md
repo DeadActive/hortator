@@ -55,8 +55,8 @@ released yet are listed under Unreleased (the next version) and, for the version
   or PING (forward and back; loops up to about a quarter of a second at 44.1 kHz, longer ones play FWD). With ATK 0,
   SUS 0 and LOOP OFF every hit sounds as before. The four knobs take MOTION, step locks and MIDI LEARN, are saved with
   projects and in USER presets (still 96 slots), and the web editor shows and saves them. A factory SAMPLE preset sets
-  them back to their defaults. In a user sample set, START (and so the loop's start) only reaches into the first
-  sample; the others start from their beginning.
+  them back to their defaults. In a user sample set START, END and LOOP work within whichever sample SLOT plays, over
+  that sample's own length.
 - **Web editor: Samples.** A new Samples tab loads your own sounds into the three user sample slots (USR1 holds 80
   KiB, USR2 and USR3 48 KiB each) and shows what each one holds: its name, length and how full it is. Open a WAV (or
   an AIFF your browser can open), trim its start and end on the waveform, normalize it if you like and choose the

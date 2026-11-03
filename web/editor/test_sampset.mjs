@@ -49,7 +49,22 @@ export async function runSampsetTests(log = console.log) {
     "three slots: one key each from C2 (the first down to 0, the last up to 127), not looped");
   ok(info.zones.every((z, i) => z.n === slots[i].n && z.rate === slots[i].rate && eqb(S.adpcmDecode(set.data.subarray(z.off), z.n), S.adpcmDecode(slots[i].data, slots[i].n))),
     "three slots: each its own rate, its bytes decode as the sample (bit for bit)");
-  ok(set.data.length === T.setBytes(slots) && T.setBytes(slots) === 4501 + 3000 + 1501 + 8 * 3 + 5, "the data: the slots' bytes and the names trailer");
+  ok(set.data.length === T.setBytes(slots) && T.setBytes(slots) === 4501 + 3000 + 1501 + 381 * 3 + 8 * 3 + 5,
+    "the data: the slots' bytes, the START table and the names trailer");
+  {
+    const h = set.header, r32 = (o) => (h[o] | h[o + 1] << 8 | h[o + 2] << 16 | h[o + 3] << 24) >>> 0, at = r32(28);
+    let good = r32(24) === 0x4b454553 && at === 4501 + 3000 + 1501;
+    info.zones.forEach((z, j) => {                   // the firmware's states (dm_sample.c smp_seek_fill): (n * s) >> 7 in
+      const st = T.seekStates(set.data.subarray(z.off), z.n);
+      for (let k = 1; k < 128; k++) {
+        const q = at + 3 * (127 * j + k - 1), p = (set.data[q] | set.data[q + 1] << 8) << 16 >> 16;
+        good &&= p === st[k - 1][0] && set.data[q + 2] === st[k - 1][1];
+      }
+      const pos = Math.floor(z.n * 64 / 128), pcm = S.adpcmDecode(set.data.subarray(z.off), z.n);
+      good &&= st[63][0] === pcm[pos - 1];          // (the predictor there: the sample before START's)
+    });
+    ok(good, "several slots: the START table (the header's \"SEEK\" and its offset), each slot's 127 decoder states, so START reaches into every slot");
+  }
   {
     const back = T.parseSet(set.header, set.data);
     ok(back.plain && back.slots.map((s) => s.name).join() === "KICK,SNARE,HAT" && back.slots.every((s, i) => eqb(s.data, slots[i].data) && s.n === slots[i].n),
@@ -61,7 +76,7 @@ export async function runSampsetTests(log = console.log) {
   /* ---- limits */
   {
     const tiny = T.makeSlot(Int16Array.from({ length: 10 }, (_, i) => i * 100), 44100, "t");
-    ok(T.composeSet(Array(16).fill(tiny), "x", 1000).header[6] === 16, "16 slots: a set");
+    ok(T.composeSet(Array(16).fill(tiny), "x", 10000).header[6] === 16, "16 slots: a set");
     let e = null;
     try { T.composeSet(Array(17).fill(tiny), "x", 100000); } catch (x) { e = x; }
     ok(e && e.sample && /16/.test(e.message), "17 slots: refused");
@@ -69,7 +84,7 @@ export async function runSampsetTests(log = console.log) {
     try { T.composeSet(slots, "x", 5000); } catch (x) { e = x; }
     ok(e && e.sample && /holds 5000/.test(e.message), "too big for the slot: refused");
     const r = T.roomFor(slots, S.SLOT_MAX[1]);
-    ok(r.room === 13 && r.free === S.SLOT_MAX[1] - T.setBytes(slots) - 8, "the room for one more: the bytes left (its name's 8 bytes taken off), 13 slots left");
+    ok(r.room === 13 && r.free === S.SLOT_MAX[1] - T.setBytes(slots) - 8 - 381, "the room for one more: the bytes left (its name's 8 bytes and its START table's 381 taken off), 13 slots left");
     ok(T.roomFor([slots[0]], 10000).free === 10000 - 4501 - T.namesBytes(2) && T.roomFor(Array(16).fill(tiny), 1e6).free === 0, "the room: one slot (the trailer comes with the second), a full set");
   }
   /* ---- the loader's windows: a gap byte moves the zone, no sample changes */

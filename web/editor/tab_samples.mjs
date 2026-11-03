@@ -326,7 +326,7 @@ export class SamplesModel {
     }).filter((x) => x.n > 0);
     const set = this.sets[k], have = set ? set.slots : [], max = S.SLOT_MAX[k];
     const used = set ? have.reduce((a, x) => a + T.slotBytes(x), 0) : this.room(k).used, count = set ? have.length : this.room(k).count;
-    const fit = C.fitting(slices.map((x) => x.bytes + T.NAME_LEN), max - used - T.NAME_LEN * count - 5, T.MAX_SLOTS - count);
+    const fit = C.fitting(slices.map((x) => x.bytes + T.SLOT_TRAILER), max - used - T.SLOT_TRAILER * count - 5, T.MAX_SLOTS - count);
     return { slices, fit: fit.n, lost: slices.length - fit.n, bytes: fit.bytes, room: T.MAX_SLOTS - count };
   }
   /** slice i as the FM-1 will play it */

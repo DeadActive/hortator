@@ -1186,6 +1186,8 @@ Use a long sustained sound (a pad or a held note) in a user slot, and a SAMPL tr
   another track: the same four (and its FX). A factory SAMPL preset: back to 0 / 0 / 40 / OFF.
 - 8 SAMPL tracks all looping with SUS on, 3 octaves up: listen for overload (the device sheds voices; it must not
   crash or crackle for long).
-- In a chopped user set: START moves only slot 1's start; LOOP on slot 3 loops from its beginning to END.
+- In a chopped user set (written by this editor): START, END, FWD and PING on SLOT 1, a middle slot and the last one
+  each work within that slot (START 64 starts halfway into it). A set written by an earlier editor: START moves only
+  slot 1 until it is written again.
 - The web editor: the SAMPL track's fifth SOUND page shows ATK SUS REL LOOP; Save track N here and Write to FM-1
   keep them.

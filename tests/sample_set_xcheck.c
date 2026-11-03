@@ -6,7 +6,8 @@
  * in key order, as the SAMPLE model's and the LAYER's SLOT knob step through them); then each SLOT 1..N's zone
  * (smp_slot_zone) is decoded by sample_next from its start, as a voice plays it. Writes int32 little endian: N, then per
  * SLOT its zone index in the set, its samples n, its pitch from the root (1/16 semitones) and the n samples; exit 2 when
- * the firmware refuses the slot.
+ * the firmware refuses the slot, 3 when a slot's START state (the page's table, a set of several) is not the one the
+ * firmware's decoder reaches there (smp_seek_fill).
  *   sample_set_xcheck SLOT_FILE > decoded.bin */
 #include <stdint.h>
 static uint8_t usr_img[3u * 0x14000u];               /* the user slots' flash */
@@ -51,6 +52,18 @@ int main(int argc, char **argv)
             continue;
         }
         z = smp_zone(zi);
+        if (cnt >= 2u) {                             /* START in this slot: the page's table = the firmware's own states */
+            static int16_t ep[127];
+            static uint8_t ex[127];
+            uint32_t st;
+            smp_seek_fill(z, ep, ex);
+            for (st = 1; st < 128u; st++) {
+                int32_t p, x;
+                if (!smp_user_seek(0, zi & 31u, st) || !smp_seek_at(zi, st, &p, &x) || p != ep[st - 1u] ||
+                    x != ex[st - 1u])
+                    return 3;
+            }
+        }
         put((int32_t)(zi & 31u));
         put((int32_t)z->n);
         put(o16);

@@ -578,7 +578,13 @@ or cancelled write leaves the slot empty (the page keeps the set to write again 
   the last else 36 + i (one key each, the ends stretched to the keyboard's). Each sample's ADPCM starts from
   predictor 0 / index 0 at its own byte (no byte shared), so moving a sample copies its bytes unchanged (its decode
   stays bit for bit); only trimming, normalizing or replacing one encodes it again.
-- **The names trailer** (N ≥ 2): after the last sample, the data ends with 8 bytes a sample (its name, ASCII, 0-padded,
+- **The START table** (N ≥ 2): after the last sample (and its gap), 381 bytes a sample in slot order: for START s =
+  1..127, the decoder's state (n × s) >> 7 nibbles into the sample (predictor i16, step index u8), as the device's
+  decoder reaches it. The header's 8 bytes at +24 say where: u32 `"SEEK"` (0x4B454553), u32 the table's offset in the
+  data. The firmware reads it at a hit (`dm_sample.c` `smp_user_seek`: the magic, the table inside the data, a step
+  index above 88 read as 88), so START, END and LOOP work in every sample of the set; without it (one sample, a set
+  from before, upstream's) only the first sample's START states exist (worked out by the device).
+- **The names trailer** (N ≥ 2): after the START table, the data ends with 8 bytes a sample (its name, ASCII, 0-padded,
   in slot order), the count N (u8) and `"SLNM"`. It is inside the data length and the CRC and outside every zone: the
   firmware never reads it. The page reads it back when the last 4 bytes are `"SLNM"`, the count byte is the number of
   distinct samples and the trailer lies past every zone; else the samples are named `SLOT 1` … (one sample: the
@@ -670,7 +676,7 @@ The slot layout (upstream Felucca's, kept: `firmware/src/eng_sample.c` reads it;
 | --- | --- |
 | 0 | magic `"FSMP"` (u32 0x504D5346), u16 version 1, u8 zone count 1..16, u8 0 |
 | 8 | name, 8 ASCII bytes (0-padded) |
-| 16 | u32 data length (bytes), u32 CRC-32 (zlib) of the data, 8 bytes 0 |
+| 16 | u32 data length (bytes), u32 CRC-32 (zlib) of the data, 8 bytes 0 (a set of several samples the page makes: u32 `"SEEK"`, u32 its START table's offset in the data, §5) |
 | 32 | 16 zones × 28 bytes: u32 off (in the data), n (samples), loop start, loop end, rate (Hz / 44100 × 65536); i16 root × 16 (MIDI note), ADPCM predictor at the loop start; u8 step index at the loop start, lo note, hi note, looped (0/1). Unused zones: 0 |
 | 480 | 32 bytes: not part of the header (0xFF in flash; a backup file holds them as read) |
 | 512 | the data |

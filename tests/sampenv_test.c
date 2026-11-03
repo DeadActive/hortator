@@ -104,6 +104,84 @@ static void enc_slot(uint32_t k, const int16_t *pcm, uint32_t n)
     smp_user_scan(k);
     smp_slots_sync();
 }
+/* a user set of nz samples (pcm[i] of len[i], 44.1 kHz), the keys as the page lays them out (36 + i), each zone's data
+ * from predictor 0 / index 0 at its own byte; seek: the page's START table after the zones (the header's rsv2: "SEEK",
+ * its offset): each zone's decoder state (n * s) >> 7 nibbles in, s 1..127, 3 bytes (predictor, step index) */
+static void enc_set(uint32_t k, const int16_t *const *pcm, const uint32_t *len, uint32_t nz, int seek)
+{
+    uint8_t *s = hflash + 0xA0000u + k * 0x14000u;
+    uint32_t z, i, off = 0;
+    memset(s, 0xFF, 0x14000u);
+    memset(s, 0, 512);
+    memcpy(s, "FSMP", 4);
+    s[4] = 1;
+    s[6] = (uint8_t)nz;
+    memcpy(s + 8, "SET", 3);
+    for (z = 0; z < nz; z++) {
+        uint8_t *e = s + 32u + 28u * z, *d = s + 512u + off;
+        uint32_t w[5] = {off, len[z], 0, len[z] - 1u, 65536u}, nb = (len[z] + 1u) / 2u;
+        int16_t r16 = (int16_t)((36u + z) * 16u);
+        int32_t p = 0, x = 0;
+        memcpy(e, w, 20);
+        memcpy(e + 20, &r16, 2);
+        e[25] = (uint8_t)(z ? 36u + z : 0u);
+        e[26] = (uint8_t)(z + 1u < nz ? 36u + z : 127u);
+        memset(d, 0, nb);
+        for (i = 0; i < len[z]; i++) {               /* the page's encoder (sample.mjs adpcmEncode) */
+            int32_t st = IMA_STEP[x], df = pcm[z][i] - p, vd;
+            uint32_t c = 0;
+            if (df < 0) {
+                c = 8;
+                df = -df;
+            }
+            if (df >= st) {
+                c |= 4;
+                df -= st;
+            }
+            if (df >= st >> 1) {
+                c |= 2;
+                df -= st >> 1;
+            }
+            if (df >= st >> 2)
+                c |= 1;
+            vd = st >> 3;
+            if (c & 4u)
+                vd += st;
+            if (c & 2u)
+                vd += st >> 1;
+            if (c & 1u)
+                vd += st >> 2;
+            p = clamp(p + ((c & 8u) ? -vd : vd), -32768, 32767);
+            x = clamp(x + IMA_IDX[c & 7u], 0, 88);
+            d[i >> 1] |= (uint8_t)((i & 1u) ? c << 4 : c);
+        }
+        off += nb;
+    }
+    if (seek) {
+        uint32_t magic = 0x4B454553u, t = off;       /* "SEEK" */
+        memcpy(s + 24, &magic, 4);
+        memcpy(s + 28, &t, 4);
+        for (z = 0, off = 0; z < nz; z++) {
+            const uint8_t *d = s + 512u + off;
+            uint32_t pos = 0, st;
+            int32_t p = 0, x = 0;
+            for (st = 1; st < 128u; st++) {
+                uint8_t *q = s + 512u + t + (z * 127u + st - 1u) * 3u;
+                for (; pos < (len[z] * st) >> 7; pos++)
+                    smp_nib(d, pos, &p, &x);
+                q[0] = (uint8_t)p;
+                q[1] = (uint8_t)((uint32_t)p >> 8);
+                q[2] = (uint8_t)x;
+            }
+            off += (len[z] + 1u) / 2u;
+        }
+        off = t + nz * 127u * 3u;
+    }
+    memcpy(s + 16, &off, 4);
+    smp_user_scan(k);
+    smp_slots_sync();
+}
+
 /* the slot's samples as the firmware decodes them (the reference: sample_next's rule written out) */
 static int16_t ref[0x28000];
 static void ref_decode(uint32_t k)
@@ -461,6 +539,82 @@ static void t_loop_guard(void)
     }
 }
 
+/* ---------------------------------------------------------------- a set's slots: START END LOOP in each */
+static int16_t zsig[3][24000];
+static uint32_t zlen[3] = {14000, 24000, 9001};
+static void zref(uint32_t z)                         /* ref[] = zone z of USR1 as the firmware decodes it */
+{
+    const smp_zone_t *q = &usr_zone[0][z];
+    const uint8_t *d = (const uint8_t *)((uintptr_t)SMP_DATA + q->off);
+    uint32_t i;
+    int32_t p = 0, x = 0;
+    for (i = 0; i < q->n; i++)
+        ref[i] = (int16_t)smp_nib(d, i, &p, &x);
+}
+static void set_on(uint32_t z, int32_t st, int32_t en, int32_t loop)
+{
+    smpl_on_usr(st, en, 0, 0, 40, loop);
+    trk[0].p[P_E5] = SMP_SLOT_V(z);
+}
+static int zone_check(uint32_t z, uint32_t st, uint32_t en, int32_t loop)
+{
+    uint32_t n = zlen[z], ls = (n * st) >> 7, le = en >= 127u ? n : (n * (en + 1u)) >> 7, L = le - ls, i, t = 0, ok = 1;
+    uint32_t got_n, xf = L / 2u < 64u ? L / 2u : 64u;
+    zref(z);
+    set_on(z, (int32_t)st, (int32_t)en, loop);
+    got_n = stream(loop ? 3u * L : L + 50u);
+    for (i = 0; i < L && t < got_n; i++)              /* the first leg: START .. END of this slot */
+        ok &= got[t++] == ref[ls + i];
+    if (!loop)
+        return ok && got_n == L;                      /* (one-shot: ends at END) */
+    if (loop == 2) {                                  /* PING: back to START, forward again */
+        for (i = L - 1u; i-- > 0 && t < got_n;)
+            ok &= got[t++] == ref[ls + i];
+        for (i = 1; i < L && t < got_n; i++)
+            ok &= got[t++] == ref[ls + i];
+        return ok && got_n == 3u * L;
+    }
+    for (i = xf; i < L; i++)                          /* FWD: after the crossfade START + xf on, exactly */
+        ok &= got[L + i] == ref[ls + i];
+    return ok && got_n == 3u * L;
+}
+static void t_set_slots(void)
+{
+    static const char *const W[3] = {"first", "middle", "last"};
+    const int16_t *pc[3] = {zsig[0], zsig[1], zsig[2]};
+    uint32_t z, i, r = 777;
+    char what[160];
+    for (z = 0; z < 3u; z++)
+        for (i = 0; i < zlen[z]; i++) {
+            r = r * 1103515245u + 12345u;
+            zsig[z][i] = (int16_t)(sin((double)i * (0.03 + 0.02 * z)) * 9000.0 * (i % 4000u < 3000u ? 1.0 : 0.01) +
+                                   (double)((int32_t)(r >> 16) % 2000) * (z == 1u ? 1.0 : 0.2));
+        }
+    enc_set(0, pc, zlen, 3, 1);
+    check("a set of 3 with the page's START table: 3 samples, SLOT order = key order", smp_slot_count(SMP_NSETS) == 3u);
+    for (z = 0; z < 3u; z++) {
+        snprintf(what, sizeof what, "set, the %s sample (SLOT %u/3): START 40 .. END 127, exact from its own START", W[z],
+                 (unsigned)z + 1u);
+        check(what, zone_check(z, 40, 127, 0));
+        snprintf(what, sizeof what, "set, the %s sample: START 0 .. END 50, exact, ends at its own END", W[z]);
+        check(what, zone_check(z, 0, 50, 0));
+        snprintf(what, sizeof what, "set, the %s sample: LOOP FWD START 30 .. END 60, exact pass after pass", W[z]);
+        check(what, zone_check(z, 30, 60, 1));
+        snprintf(what, sizeof what, "set, the %s sample: LOOP PING START 50 .. END 70, exact both ways", W[z]);
+        check(what, zone_check(z, 50, 70, 2));
+    }
+    enc_set(0, pc, zlen, 3, 0);                       /* a set without the table (an older page, a backup) */
+    zref(0);
+    check("a set without the table: the first sample's START as before (worked out in the main loop)", zone_check(0, 40, 127, 0));
+    {
+        uint32_t ok;
+        zref(1);
+        set_on(1, 40, 127, 0);
+        ok = stream(100) == 100u && got[0] == ref[0];
+        check("a set without the table: another sample starts from its beginning (no state for its START)", ok);
+    }
+}
+
 /* ---------------------------------------------------------------- projects, presets, locks */
 static void t_project(void)
 {
@@ -557,6 +711,8 @@ int main(void)
     t_loop_fwd();
     t_loop_ping();
     t_loop_guard();
+    fresh();
+    t_set_slots();
     t_project();
     t_presets();
     t_locks();
