@@ -125,7 +125,7 @@ export async function runPageTests(log = console.log, mods = {}) {
   {
     const old = dev({ editor: false }), r = await connect(access(old), { timing: FAST });
     const seqs = new Set(old.received.map((f) => f[5]));
-    ok(!r.ok && r.why === "noeditor" && /Install Hortator 0\.28/.test(r.message) && old.received.length === FAST.tries
+    ok(!r.ok && r.why === "noeditor" && /Install Hortator 1\.0/.test(r.message) && old.received.length === FAST.tries
       && old.received.every(isInfo) && seqs.size === 1, "an older Hortator (no editor): INFO x3 (one seq), nothing else, update message");
   }
   {
