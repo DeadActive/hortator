@@ -504,7 +504,7 @@ const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textCont
 const say = (txt) => { lastKey = null; $("status").textContent = txt; };
 const log = (t) => { $("log").textContent += t + "\n"; };
 let image = null;
-const meta = {"version": "drum-1.0.0+cb896fb", "product": "FM-1_900", "pkg": "../../firmware/felucca-drum-1.0.0-cb896fb.fwsc", "variants": [{"id": "std", "version": "drum-1.0.0+cb896fb", "pkg": "../../firmware/felucca-drum-1.0.0-cb896fb.fwsc"}, {"id": "ble", "version": "drum-1.0.0+cb896fb+ble", "pkg": "../../firmware/felucca-drum-1.0.0-cb896fb-ble.fwsc"}]};
+const meta = {"version": "drum-1.0.1+c8cca2c", "product": "FM-1_900", "pkg": "../../firmware/felucca-drum-1.0.1-c8cca2c.fwsc", "variants": [{"id": "std", "version": "drum-1.0.1+c8cca2c", "pkg": "../../firmware/felucca-drum-1.0.1-c8cca2c.fwsc"}, {"id": "ble", "version": "drum-1.0.1+c8cca2c+ble", "pkg": "../../firmware/felucca-drum-1.0.1-c8cca2c-ble.fwsc"}]};
 
 let writing = false;
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });

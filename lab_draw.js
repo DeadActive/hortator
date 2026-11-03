@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Drum machine fork: 2026 DEADACTIVE
 // The lab pieces' traces, drawn like the FM-1's LEDs: a bright line with a glow on the plate's black.
-import { INK } from './lab_ui.js?v=52da06116a';
-import { ditherPattern } from './dither.js?v=52da06116a';
+import { INK } from './lab_ui.js?v=a85d487dbb';
+import { ditherPattern } from './dither.js?v=a85d487dbb';
 
 const LABEL = '16px "Hortator Terminus", monospace';
 

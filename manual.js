@@ -3,8 +3,8 @@
 // The manual's panel map: a small FM-1 (mini.js) beside the list of its controls. Pointing at a control, or at its
 // line in the list (hover, tap, focus), lights both and shows the line under the FM-1. The list is the content; the
 // drawing is a picture of it (aria-hidden).
-import { KEYS } from './controls.js?v=52da06116a';
-import { buildMini } from './mini.js?v=52da06116a';
+import { KEYS } from './controls.js?v=a85d487dbb';
+import { buildMini } from './mini.js?v=a85d487dbb';
 
 const GROUPS = {                                   // data-ctl names for several parts at once
   white: KEYS.filter(k => !k.black).map(k => `key:${k.n}`),
