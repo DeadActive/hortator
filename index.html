@@ -10,15 +10,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<link rel="preload" href="terminus.woff?v=9d7508cdf2" as="font" type="font/woff" crossorigin>
-<link rel="stylesheet" href="sim.css?v=9d7508cdf2">
+<link rel="preload" href="terminus.woff?v=52da06116a" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="sim.css?v=52da06116a">
 </head>
 <body>
 <section id="hero" class="hero" aria-label="Hortator">
   <div class="hero-stage" id="stage">
     <nav class="hero-nav">
       <span class="silk">HORTATOR</span>
-      <span class="nav-links"><a href="#manual">Manual</a><a href="webapp/installer/">Install</a></span>
+      <span class="nav-links"><a href="#manual">Manual</a><a href="webapp/editor/">Editor</a><a href="webapp/installer/">Install</a></span>
     </nav>
 
     <div class="desk-shadow" id="desk-shadow"></div>
@@ -42,7 +42,7 @@
       <p>Custom firmware by DEADACTIVE, named after the drummer who kept a Roman galley's rowers in time. Scroll on
         to play the real firmware in your browser.</p>
       <p class="hero-count"><b>45</b> drum engines in three banks: <b>21</b> measured from the Machinedrum (13 TRX,
-        8 EFM), <b>10</b> modern, <b>14</b> classic. <b>151</b> factory presets, <b>128</b> user slots.</p>
+        8 EFM), <b>10</b> modern, <b>14</b> classic. <b>151</b> factory presets, <b>96</b> user slots.</p>
       <p class="hero-actions">
         <a class="cta" href="#play">Play it</a>
         <span class="cta-slot"><a class="cta ghost" href="webapp/installer/">Install on your FM-1</a><span class="install-count" id="install-count" hidden></span></span>
@@ -119,13 +119,14 @@
         <li data-ctl="HOME"><b>HOME</b> TRACKS (levels, lengths, pans) and HOME (the scope, the track's first four knobs);
           a tap switches. Hold it: the menu.</li>
         <li data-ctl="EDIT"><b>EDIT</b> The track's sound: its model and knobs. Hold it: the PRESETS list.</li>
-        <li data-ctl="SEQ"><b>SEQ</b> The steps on the white keys, then PATTERN, MOTION and SONG.</li>
-        <li data-ctl="FX"><b>FX</b> FILTER, FX, SLICER, RESON, delay, reverb, chorus. Hold it: PERFORM.</li>
+        <li data-ctl="SEQ"><b>SEQ</b> The steps on the white keys, then PATTERN, MOTION and SONG. Hold it: the step
+          tools, copy and paste.</li>
+        <li data-ctl="FX"><b>FX</b> FILTER, FX, INSERT (and SRR), SLICER, RESON. Hold it: PERFORM.</li>
         <li data-ctl="ARP"><b>ARP</b> Grids, a map of drum patterns.</li>
         <li data-ctl="LFO"><b>LFO</b> The track's two LFOs, then DEST: what they move.</li>
         <li data-ctl="ENV"><b>ENV</b> STEPS: the white keys are the track's steps on every page, for locks.</li>
         <li data-ctl="SEL"><b>SEL</b> KEYS: the keys play the selected track, a keyboard.</li>
-        <li data-ctl="GLO"><b>GLO</b> A tap: GLOBAL (tempo, swing, clock, MIDI channel, sync, routing, thru, metronome). Hold it: the MUTE
+        <li data-ctl="GLO"><b>GLO</b> A tap: GLOBAL (tempo, swing, clock, MIDI channel, sync, routing, thru, metronome), then the delay, the reverb and the chorus. Hold it: the MUTE
           screen.</li>
         <li data-ctl="SAVE"><b>SAVE</b> PROJECT (save, load and name slots A to D), then TOOLS.</li>
         <li data-ctl="PLAY"><b>PLAY</b> Play and stop; on SONG, the song.</li>
@@ -153,16 +154,27 @@
     <li class="guide" id="m-beat">
       <h3>Make a beat</h3>
       <p>SEQ puts the track's steps on the white keys: tap one to turn it on or off, then PLAY. Hold a step and turn a
-        knob for its chance, ratchet or accent. OCT+ and OCT- go to the next 16 steps, up to 64. PATTERN, the next
+        knob for its chance, ratchet, accent or timing (NUDGE: early or late, up to half a step). OCT+ and OCT- go to the next 16 steps, up to 64. PATTERN, the next
         page, sets the track's length, division and swing, or has it follow a Grids lane (SRC).</p>
       <p class="where"><b>SEQ</b>, tap the white keys, <b>PLAY</b>. Hold a step: <b>KNOB1</b> PROB, <b>KNOB2</b> RATCH,
-        <b>KNOB3</b> ACCENT.</p>
+        <b>KNOB3</b> ACCENT, <b>KNOB4</b> NUDGE.</p>
+    </li>
+    <li class="guide" id="m-copy">
+      <h3>Copy and paste steps</h3>
+      <p>Hold SEQ: the TOOLS screen, for the selected track. The white keys are the 16 steps shown, OCT- and OCT+ the
+        others; the black keys copy and paste. Hold F#3 and tap a step to copy it, hold G#3 and tap steps to paste it;
+        A#3 copies the 16 steps, C#4 pastes them over others, D#4 adds their hits, F#4 fills the whole pattern. G#4
+        picks a stretch with KNOB1 and KNOB2 (G#4 again copies it) and A#4 then a step pastes it there. C#5 doubles
+        every track's pattern. Steps keep their accent, chance, ratchet, note and locks.</p>
+      <p class="where">Hold <b>SEQ</b>: the black keys; <b>OCT-</b> <b>OCT+</b> the steps; <b>KNOB1</b> <b>KNOB2</b> a
+        stretch.</p>
     </li>
     <li class="guide" id="m-sound">
       <h3>Shape a sound</h3>
       <p>EDIT opens the track's sound. KNOB1 picks the model, one of 45; TUNE, DECAY, TONE and a knob of the model's own
         follow, then its other knobs, the level, pan, note, choke group and PRIO on the next pages. PRESETS tries the
-        factory presets on the track; hold EDIT for the list, to load one or save yours to the USER bank.</p>
+        factory presets on the track (the sound only); hold EDIT for the list, to load one or save yours to the USER bank
+        (yours keep the track's FX too, all but the SLICER).</p>
       <p class="where"><b>EDIT</b>, <b>KNOB1</b> the model; <b>PRESETS</b> the next preset; hold <b>EDIT</b> for the list.</p>
     </li>
     <li class="guide" id="m-live">
@@ -177,16 +189,20 @@
       <h3>Mute tracks</h3>
       <p>Hold GLO: the MUTE screen. The white keys F3 to F4 mute and unmute tracks 1 to 8 (a filled box is heard, an
         outline muted). The top C# makes a mute land at once, the top D# on the next bar: made while playing, it blinks
-        until the downbeat. Let go of GLO to go back.</p>
-      <p class="where">Hold <b>GLO</b>, press the white keys.</p>
+        until the downbeat. The black keys F#3 to A#4 solo tracks 1 to 8; the top F# switches solo between toggle and
+        momentary (held). Let go of GLO to go back.</p>
+      <p class="where">Hold <b>GLO</b>, press the white keys (mute) or the black keys (solo).</p>
     </li>
     <li class="guide" id="m-perform">
       <h3>Perform</h3>
       <p>Hold FX: the black keys play effects on the whole mix while held: repeat 1/8, 1/16 and 1/32, reverse, tape
-        stop, filter sweeps, freeze, an octave up or down. The white keys silence their tracks while held. The knobs
-        become FILTER, CRUSH, THROW and DEPTH, which stay on when you let go, an FX in the top bar, until turned back
-        to 0.</p>
-      <p class="where">Hold <b>FX</b>: the black keys, the white keys, <b>KNOB1</b> to <b>KNOB4</b>.</p>
+        stop, filter sweeps, freeze, an octave up or down. The white keys F3 to F4 are REPEAT STEP for tracks 1 to 8:
+        while held, the track plays the step it was on again and again on the beat grid, its own steps paused, and
+        carries on in time when let go (stopped: at once, at the tempo). D5, E5, F5 and G5 pick its rate: 1/4, 1/8,
+        1/16 (at first) or 1/32. The knobs become FILTER, CRUSH, THROW and DEPTH, which stay on when you let go, an FX
+        in the top bar, until turned back to 0.</p>
+      <p class="where">Hold <b>FX</b>: the black keys, the white keys (D5 to G5 the rate), <b>KNOB1</b> to
+        <b>KNOB4</b>.</p>
     </li>
     <li class="guide" id="m-locks">
       <h3>Lock a step</h3>
@@ -210,7 +226,7 @@
         the TRS jack's notes on to USB. MIDI LEARN ties up to 32 controls of a controller to knobs,
         PLAY, REC or PERFORM: hold GLO and press G4, turn a knob (or press PLAY), then move the controller's knob.</p>
       <p>Over USB the FM&#8209;1 is also an audio interface, Hortator, that records into a computer. USB AUDIO in the
-        menu sends 2 CH, the stereo master; 10 CH MIX, the master and the eight tracks each on its own; or 10 CH FX, the
+        menu sends 2 CH, the stereo master; 10 CH MIX, the eight tracks each on its own and the master; or 10 CH FX, the
         eight tracks dry and the send effects, to mix in your DAW. 10 CH needs the standard version, not Bluetooth;
         macOS and iPadOS take it, Windows may not.</p>
       <p class="where">Tap <b>GLO</b> for CH and CLK. Hold <b>GLO</b> + G4 to learn, <b>OCT+</b> when done. Hold
@@ -247,7 +263,7 @@
     <div class="ch-text">
       <h3 id="f-voices-title">45 engines in three banks</h3>
       <p>MD has 21, measured from the Machinedrum: 13 TRX and 8 EFM. MODERN has 10, among them
-        ACID, a 303-style bass. CLASSIC has 14, the 808 and 909 family. 151 factory presets and 128 user slots.</p>
+        ACID, a 303-style bass. CLASSIC has 14, the 808 and 909 family. 151 factory presets and 96 user slots.</p>
       <p class="where"><b>EDIT</b>, then <b>KNOB1</b> picks the model; on the HOME screen (<b>HOME</b>) four knobs shape it.</p>
       <figure class="device-screen">
         <canvas width="240" height="240" role="img" aria-label="The FM-1's screen"></canvas>
@@ -383,7 +399,7 @@
     </div>
     <div class="install-go">
       <a class="cta big" href="webapp/installer/">Open the installer</a>
-      <p class="beta">Beta firmware, installed at your own risk: the author accepts no responsibility if your FM-1 is
+      <p class="risk">Installed at your own risk: the author accepts no responsibility if your FM-1 is
         damaged or misbehaves.</p>
       <details>
         <summary>Back to the official firmware</summary>
@@ -411,8 +427,9 @@
     <a href="#play">Play it in the browser</a>
     <a href="#manual">How to play it</a>
     <a href="webapp/installer/">Install on your FM-1</a>
+    <a href="webapp/editor/">Edit it from the browser</a>
     <a href="#install">What's new</a>
-    <a href="source.tar.gz?v=9d7508cdf2">Source code (GPL-3.0)</a>
+    <a href="source.tar.gz?v=52da06116a">Source code (GPL-3.0)</a>
   </nav>
   <div class="foot-credits">
     <p>By DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
@@ -422,7 +439,7 @@
       <a href="https://github.com/pichenettes/eurorack" target="_blank" rel="noopener">Mutable Instruments</a>. SKIN
       and RESON: <a href="https://github.com/electro-smith/DaisySP" target="_blank" rel="noopener">DaisySP</a>
       (Electrosmith, Emilie Gillet). Samples: Versilian Studios VSCO-2 CE and VCSL (CC0 1.0). Font: Terminus (Dimitar
-      Toshkov Zhekov, <a href="terminus-license.txt?v=9d7508cdf2">SIL OFL 1.1</a>). Recovery: jl-uboot-tool (Andrey Grigoryev).
+      Toshkov Zhekov, <a href="terminus-license.txt?v=52da06116a">SIL OFL 1.1</a>). Recovery: jl-uboot-tool (Andrey Grigoryev).
       Icons: Fukiai (Hügelton Instruments). Pixel font: DEADACTIVE.</p>
     <p>MD voices measured from Joe Landers' Machinedrum emulator, a fork of
       <a href="https://github.com/dsp56300/gearmulator" target="_blank" rel="noopener">Gearmulator</a> by The Usual
@@ -430,6 +447,6 @@
       affiliated. M-VAVE and FM-1 are trademarks of their owners; not affiliated with M-VAVE.</p>
   </div>
 </footer>
-<script type="module" src="app.js?v=9d7508cdf2"></script>
+<script type="module" src="app.js?v=52da06116a"></script>
 </body>
 </html>

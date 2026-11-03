@@ -3,7 +3,7 @@
 /* The page as the FM-1's screen: its MONO palette (firmware/src/gfx.c: five steps of one colour plus white, in the
  * firmware's own roles), its typeface (Terminus 8 x 16, tests/sim_font.mjs, on its 16 px grid: 16, 32, 48, 64, 80),
  * blends dithered (dither.js), headings that glitch as they arrive. Only the device keeps its hardware greys. */
-@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=9d7508cdf2") format("woff"); font-display: swap; }
+@font-face { font-family: "Hortator Terminus"; src: url("terminus.woff?v=52da06116a") format("woff"); font-display: swap; }
 :root {
   --k: #000000;                                    /* the screen */
   --c1: #282828;                                   /* rules, separators */
@@ -453,7 +453,7 @@ html { scroll-behavior: smooth; }
 .where b, .map-list b, .map-caption b { font: 12px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.04em; padding: 3px 6px 2px;
   border: 2px solid var(--c3); color: var(--c5); vertical-align: 1px; }
 
-.beta { max-width: 640px; margin: 0 0 20px; padding: 10px 14px; color: var(--c4); border: 2px dashed var(--c3); }
+.risk { max-width: 640px; margin: 0 0 20px; padding: 10px 14px; color: var(--c4); border: 2px dashed var(--c3); }
 
 /* install: the connection as a diagram (laptop, a USB cable with light travelling along it, the FM-1), the three
    steps under its three parts, then what is new in this build beside the way to the installer */
@@ -502,7 +502,7 @@ html { scroll-behavior: smooth; }
 .whats-new li span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .whats-new li b { color: var(--w); font-weight: 400; }
 .cta.big { padding: 12px 32px; }
-.install-go .beta { margin: 24px 0 16px; }
+.install-go .risk { margin: 24px 0 16px; }
 .install-go details { border-top: 2px solid var(--c1); padding: 12px 0; }
 .install-go summary { cursor: pointer; color: var(--c5); }
 .install-go summary:hover { color: var(--w); }

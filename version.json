@@ -1,59 +1,159 @@
 {
- "version": "0.26.0",
- "commit": "4e40f27",
- "date": "2026-10-28",
+ "version": "1.0.0",
+ "commit": "cb896fb",
+ "date": "2026-11-03",
  "since": [],
  "release": {
-  "version": "0.26.0",
-  "date": "2026-10-28",
+  "version": "1.0.0",
+  "date": "2026-11-03",
   "notes": [
    {
-    "title": "Steadier key backlight",
-    "text": "Steadier key backlight: the glow of BACKLIGHT DIM LO and DIM HI (the unlit keys and idle buttons) is now a very short flash about 900 times a second instead of a longer one 45 times a second. It no longer flickers, and in the Bluetooth version it no longer jumps brighter for an instant while Bluetooth is on."
+    "title": "More LFO destinations",
+    "text": "More LFO destinations: a track's LFO can now also move SRR, DST, the CHO, DLY and REV sends, the INSERT's MIX and its three values A, B and C (shown by the INSERT type's names). They are in the DEST list after F.RES, so projects, presets, step locks and MIDI LEARN keep their meaning, and nothing changes until an LFO is routed to one."
    },
    {
-    "title": "MIDI clock out",
-    "text": "MIDI clock out: GLO SYSTEM 2/3 SYNC sends the MIDI clock to USB (OFF / USB; in the Bluetooth version also BLE and BOTH). On the FM-1's own clock PLAY sends Start, then 24 clocks a quarter note on the sequencer's grid (steady through tempo changes, never swung), and STOP sends Stop, so a DAW, AUM or another instrument can follow it. Following a clock (CLK USB, TRS or BLE), the incoming clock and Start / Stop / Continue go on to the SYNC outputs as they arrive, never back to where they came from. Nothing is sent during a firmware update. The FM-1's TRS jack is an input only, so there is no TRS out."
+    "title": "Fewer dropouts under heavy load",
+    "text": "Fewer dropouts under heavy load: the FM-1 now stops a voice when an audio block takes more than 85 % of its time (it was 95 %), so a sudden peak no longer runs past the deadline and drops out. Very heavy kits may lose a voice a little sooner."
    },
    {
-    "title": "MIDI in routing",
-    "text": "MIDI in routing: GLO SYSTEM 2/3 ROUT chooses how incoming notes play: NOTE (as before: on the drum channel, the tracks whose NOTE it is), SEL (on the drum channel, the selected track, pitched from C4) or TRACK (channels 1\u20138 play tracks 1\u20138, pitched from C4). Pitched notes into an armed track are recorded with their pitch. With TRACK the white keys send on their track's channel at C4."
+    "title": "Web editor",
+    "text": "Web editor: edit the FM-1 from the browser, on the Hortator site under Editor, with the FM-1 connected by USB. Click Connect: the page asks the FM-1 who it is, so it finds it even when the computer still shows it under an old name such as \"Felucca\" or \"FM-1\". Other MIDI gear gets nothing unless you click Search other MIDI ports; an FM-1 that does not answer (the official firmware, Felucca or an older Hortator) gets a link to the installer. - Sound: the selected track's pages (SOUND for its model, LAYER, FILTER, FX, INSERT, SRR, RESON, SLICER, LFO 1 and 2, DEST) and the globals, among them the DLY, REVERB (ROOM, SPRNG, HALL) and CHORUS pages, each knob with the FM-1's own text. Both ways: turn a knob on the FM-1 and it moves in the page; move it in the page and the FM-1 plays it. Choosing a track in the page selects it on the FM-1, and the other way round. - Presets: the 151 factory presets (in their three banks), loaded onto a track with a click. The user presets as a list: rename, reorder, delete, save a track's sound into a slot, back up to a file, open a file and write the list to the FM-1 (this one or another). The names live in the page and its files; the FM-1 keeps showing \"MODEL NN\". - Projects: A\u2013D as saved, with unsaved changes marked. Back up a project (with its locks and variations) or everything (the user presets and all four projects) to a file; restore a project into any slot, on this FM-1 or another; restore everything; copy a project to another slot. A backup holds what is saved on the FM-1: SAVE first to include changes not saved yet (the page says so). Restoring asks first and says what it replaces. - Patterns: every track's 64 steps in each variation of a slot (on / off, NOTE, PROB, RATCH, ACC, NUDGE, FILL / !FILL, SLIDE / TIE on ACID), editable; editing another variation makes the FM-1 switch to it, as its key would. NUDGE is a slider from -50 to +50 with the FM-1's own reading (+25, -10), and a nudged step has a mark in the grid on the side it moves to, as on the FM-1. The locks of each step, editable and clearable. SAVE from the page. - Remote cue: click a slot or a variation to queue it, exactly as the cue keys do, with the same refusals. - Copy a variation: from this slot, another slot or a backup file into a variation of the loaded slot, with the source's locks if you want them; every step's NUDGE comes along. Locks the FM-1 cannot hold are refused before anything changes."
    },
    {
-    "title": "MIDI THRU",
-    "text": "MIDI THRU: GLOBAL 3/3 THRU ON passes notes and CCs from each MIDI input to the other outputs (the TRS jack to USB; Bluetooth and USB to each other in the Bluetooth version), never back to the input. It is a setting of the FM-1, kept over power-off."
+    "title": "Restores",
+    "text": "Restores (user presets, projects) only while the FM-1 is stopped. Meanwhile it shows RESTORING and its PLAY, cue keys, LOAD, SAVE, the TOOLS screen's pastes, DUPLICATE and CLEAR and a held step's knobs wait, and nothing is recorded. A power cut during a restore leaves the old or the new project whole."
    },
    {
-    "title": "SYNC and ROUT are saved",
-    "text": "SYNC and ROUT are saved with each project; projects saved before load SYNC OFF and ROUT NOTE, and THRU starts OFF."
+    "title": "Backup files made by an",
+    "text": "Backup files made by an earlier test build of the editor (before NUDGE) still restore, every step at NUDGE 0, and their variations can still be copied. Files made now hold the new project format: an FM-1 still on an older firmware refuses them with \"UPDATE THE FM-1 FIRST\" and keeps what it has."
    },
    {
-    "title": "Live cue and variations",
-    "text": "Live cue and variations: while a pattern plays, queue the next project slot (A\u2013D) or another variation and it comes in exactly where the pattern ends (its longest track's), every track from its first step, in time. On HOME and the SEQ pages the first 8 black keys (F#3 to A#4) queue variations 1\u20138 of the playing slot: the playing one's key lit, a queued one blinking (not with KEYS on; elsewhere the black keys work as before). Hold SAVE (0.4 s, or press a key with it) for the cue map: white keys 1\u20134 queue slots A\u2013D, the black keys variations 1\u20138 (lit: used, winking: playing, blinking: queued, breathing: unsaved edits); a slot key then a variation key queues both (CUE>B3 on top). The same key again switches at the next step; the playing slot's key cancels; stopped, a cue switches at once; STOP drops a queued cue. The keys pressed with SAVE play no note, send no MIDI and record nothing. A SAVE tap still opens the projects page, now when it is let go. - A slot switch brings the slot's sounds, steps, timing and locks; the tempo, swing, clock, MIDI, the master effects, Grids, the mutes and the selected track stay. The old sounds fade out over the last 5 ms before the switch (no click). A variation switch changes the steps and the timing only; the sounds ring on. - Each slot has 8 variations, in both the plain and the Bluetooth version: variation 1 is its own steps; 2\u20138 hold their own steps and timing and share the slot's sounds and locks. A variation never used before starts as a copy of the one playing when it is first cued. When a slot's variations are full the cue says VARIATIONS FULL and the playing one plays on. A slot comes back on the variation it played last. A SONG row plays its slot's variation 1; while SONG plays a cue says STOP SONG TO CUE. Following an external clock (USB or TRS) the switch comes on the pulse that ends the pattern."
+    "title": "While the FM-1 plays with SYNC",
+    "text": "While the FM-1 plays with SYNC (MIDI clock out) on, the page asks before a big transfer: clock out may jitter, stop first?"
    },
    {
-    "title": "Edits stay in RAM until SAVE",
-    "text": "Edits stay in RAM until SAVE: a reset or a power cut brings every slot back as it was last saved. Leaving a slot by LOAD or by a cue keeps its edits in RAM, so going back finds them; a slot with unsaved edits shows * in the PROJECTS list. LOAD of a slot with unsaved edits (a tempo change counts) asks DISCARD EDITS?; SAVE onto a slot that is not loaded but has unsaved edits asks OVERWRITE B*?. SAVE to another slot moves the edits there (the slot you came from is its saved version again). RENAME of a slot with unsaved edits renames it in RAM only (RENAMED (SAVE TO KEEP)). Unsaved variations of one slot can wait in RAM while another plays: until they are saved, a cue of a third slot (or a LOAD, when the slot you leave has unsaved variations too) says SAVE C FIRST."
+    "title": "USB only, not over Bluetooth",
+    "text": "USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a computer or Android; Firefox after its permission prompt; not Safari (it has no Web MIDI)."
    },
    {
-    "title": "FILL",
-    "text": "FILL: a step's PROB goes on past 8/8 with FILL (plays only during a fill) and !FILL (only outside one). Hold REC (0.4 s) on any page but SEQ's to play a fill while you hold it (FILL on top). A shorter REC press arms as before, when it is let go; REC held on STEP, PATTERN, MOTION and SONG does what it did. A learned REC and the SMC-Mixer's REC are always taps. (A long REC hold off the SEQ pages used to toggle REC ALL.)"
+    "title": "A firmware update always comes first",
+    "text": "A firmware update always comes first: while the web installer runs, the editor goes quiet, and it connects again afterwards (or click Reconnect). Other SysEx a DAW sends does not interrupt the editor. One browser tab runs the editor at a time: another tab offers \"Use here\"."
    },
    {
-    "title": "COPY / PASTE a slot",
-    "text": "COPY / PASTE a slot: SAVE's third page, COPY: KNOB 2 COPY remembers SLOT's slot (COPIED A, # in the list), KNOB 3 PASTE (turn twice) makes SLOT's slot a copy of it: kit, steps, locks, variations and song, named ... COPY, unsaved until SAVE. PASTE again on the same slot before saving it undoes it (PASTE UNDONE). Not while playing (STOP TO PASTE)."
+    "title": "SAMPLE",
+    "text": "SAMPLE: ATK, SUS, REL and LOOP. The SAMPLE model has a fifth SOUND page with an envelope and a loop. ATK fades the hit in (0 to 2 s). SUS 0 plays the sample once with DECAY, exactly as before; above 0, the sound falls to that level and holds while the note is held, then REL fades it out. A step holds its note for one step of the track, longer through the TIE steps after it; a key in KEYS mode, a track's key or a MIDI note holds it until you let go. LOOP plays the part between START and END again and again: FWD (with a short crossfade, so the seam does not click) or PING (forward and back; loops up to about a quarter of a second at 44.1 kHz, longer ones play FWD). With ATK 0, SUS 0 and LOOP OFF every hit sounds as before. The four knobs take MOTION, step locks and MIDI LEARN, are saved with projects and in USER presets (still 96 slots), and the web editor shows and saves them. A factory SAMPLE preset sets them back to their defaults. In a user sample set START, END and LOOP work within whichever sample SLOT plays, over that sample's own length."
    },
    {
-    "title": "User sample slot 2",
-    "text": "User sample slot 2 (USR2) now holds up to 48 KiB, as USR3 does: the rest of its flash holds the projects' variations. A longer USR2 (uploaded under upstream Felucca) is shortened to its first 48 KiB once, at the next power-on (USR2 SHORTENED TO 48K). If that ever fails (USR2 CLAMP FAILED at power-on), SAVE says USR2 ERROR: NO SAVE until the next power-on."
+    "title": "SAMPLE",
+    "text": "SAMPLE: PLAY KEY or CHOP. A new SAMPLE knob, PLAY (SOUND page 4, after CHOKE and PRIO). KEY is how it always played: in KEYS mode the keys play the chosen SLOT's sample up and down the keyboard. CHOP turns a set of samples (a chopped loop, a kit) into something you play: in KEYS mode the 16 white keys play samples 1 to 16 on any octave, each at its own pitch (TUNE still shifts them all); a key past the set's samples and the black keys play nothing, and the screen shows which one played (CHOP 5/12). Recorded live or with step record, each step remembers its sample, so the pattern plays the same chops back. MIDI notes pick a sample too: C4 is sample 1, C#4 sample 2 and so on, again every 16 notes. PLAY takes step locks, MOTION and MIDI LEARN and is saved with projects and in USER presets. KEY is the default, so everything sounds as before."
    },
    {
-    "title": "Projects",
-    "text": "Projects: a project saved now loads on 0.25.0 and 0.24.0 without its variations. If a project's variations can't be read, it loads without them and the FM-1 says VARIATIONS LOST once. A power cut during SAVE keeps the previous save whole."
+    "title": "SAMPLE",
+    "text": "SAMPLE: LOOP LOOPI and ONE, and CUT. LOOP has two more choices. LOOPI loops between START and END forever: the end of the note and REL do nothing, the sound stays at its level (the full level, or SUS's) until the track's next hit, a choke or STOP (STOP ends it, so nothing keeps sounding). ONE plays the sample from START to END whatever the note's length, with no release. CUT (next to PLAY): ON makes each new hit cut the one still sounding, with a short fade, chops included; OFF (the default) lets them overlap as before. Both are saved with projects and in USER presets, and take MIDI LEARN."
    },
    {
-    "title": "Bluetooth version",
-    "text": "Bluetooth version: a new Bluetooth page, in Hortator's own look. ROLE (HOST / DEVICE), MODE (now also FM-LINK) and RECONNECT (AUTO / FAST / SLOW), and up to 8 saved devices, controllers and FM-1s, each on its own line (connected or not, CTRL or FM-1, ON / NEAR / AWAY), with + ADD A DEVICE (an 8 s scan, then the list stays), FORGET and \"use now\". Two links at once (a controller and another FM-1), reconnected by themselves in the order you picked; scanning never drops a link. The top bar shows a Bluetooth rune (struck through while nothing is linked). - ROLE DEVICE: the FM-1 is a BLE-MIDI device for a computer, a tablet or another FM-1. - FM-Link: two FM-1s in time (CLK LINK follows the leader), with Felucca's Bluetooth version too. The leader runs on its own clock (CLK INT) or follows a MIDI clock (CLK USB, TRS or BLE). Following a clock, the leader passes its Start, Stop and tempo on: the other FM-1 starts from beat 1 with it, within a few milliseconds, and keeps in time. In MODE FM-LINK the link carries FM-Link only: no MIDI either way, so no MIDI clock either. - MIDI to the device: in MIDI mode the key hits go to the linked device too, and GLO SYNC BLE or BOTH sends it the MIDI clock (one clock, the same as USB's). - The SMC-Mixer's knobs 5-8 are MIDI LEARN's. - The device the old page remembered becomes the first saved device; MODE and AUTOSTART carry over. The saved devices, ROLE, RECONNECT and this FM-1's Bluetooth address are kept over power-off, in a place older versions ignore. The standard version is unchanged. - What the Bluetooth version leaves out: USB AUDIO 10 CH MIX and 10 CH FX (USB audio is always 2 CH there). The manual has a new Bluetooth section: what it adds, what it leaves out, and step-by-step connecting of a MIDI controller, the SMC-Mixer, a computer or tablet, and two FM-1s with FM-Link. - Known issue: while Bluetooth is on, a saved device that is not connected can make the sound stutter now and then, as the FM-1 keeps looking for it. If you no longer use a device, FORGET it on the Bluetooth page (KNOB 1 left on its line, OCT+); or switch Bluetooth off when you don't need it."
+    "title": "Web editor",
+    "text": "Web editor: Samples. A new Samples tab loads your own sounds into the three user sample slots (USR1 holds 80 KiB, USR2 and USR3 48 KiB each) and shows what each one holds: its name, length and how full it is. Open a WAV (or an AIFF your browser can open), trim its start and end on the waveform, normalize it if you like and choose the sample rate (the file's own up to 44.1 kHz, or a lower one when the sound is too long for the slot; the page shows the length you get). The preview plays exactly what the FM-1 will play. The upload shows its progress and can be cancelled; the FM-1 shows UPLOAD USR1 meanwhile and must be stopped. Until an upload is complete the slot reads as empty, so a cancelled upload, a pulled cable or a power cut leaves the slot empty, never half a sample. Each slot can also be listened to, backed up to a file and restored (into any slot), renamed and cleared. A sample never spills past its slot: the projects' variations and lock banks next to USR2 and USR3 stay safe, and the firmware update leaves the samples alone."
+   },
+   {
+    "title": "Web editor",
+    "text": "Web editor: sets of up to 16 samples. Each user sample slot (USR1, USR2, USR3) now holds a set of up to 16 samples instead of one: the SAMPLE model's and the LAYER's SLOT knob picks among them (2/5), in the order the page lists them. The Samples tab shows each set's samples with their names, lengths and sizes, how full the slot is and how much room is left before you add one. Add a sound file as the set's next sample, put it in place of one, or replace the whole set; play each sample as the FM-1 plays it, open it again to trim, normalize or resample it, move it up or down, rename it or delete it (these wait for Write, and can be undone until then). Every write sends the whole set with the FM-1 stopped; if it is cancelled or fails, the slot is left empty, never half a set, and the page keeps the set so you can write it again or save it to a file. The samples keep their names in the set. Sets and single samples from before load and play as they did."
+   },
+   {
+    "title": "Web editor",
+    "text": "Web editor: Chop. Cut a long sound (a drum loop, a phrase) into samples: Auto finds its hits (with a sensitivity control), Beats cuts every 1/4, 1/8 or 1/16 at a tempo you type or let the page detect, Equal makes as many slices as you ask. The cuts show on the waveform, where you can move, add and remove them, and each slice can be heard before you add them. The slices go into a set as its samples (named after the file: LOOP 1, LOOP 2 \u2026); when not all fit, the page adds what fits and says how many did not."
+   },
+   {
+    "title": "SAMPLE and LAYER",
+    "text": "SAMPLE and LAYER: SLOT steps through the samples. The SAMPLE model's KEY knob is now SLOT, and so is the LAYER's: it picks one of the set's samples, shown as 3/16 (PERC's 16 drum and percussion samples in order, from the kick to the wood block; 1/1 for a user slot with one sample, -- for an empty one), each played at its own pitch, with TUNE to transpose it. Before, KEY was a MIDI note, so most of its values gave the same sample or nothing, and PERC's closed hat could not be reached at all. Changing SET keeps SLOT inside the new set."
+   },
+   {
+    "title": "SAMPLE",
+    "text": "SAMPLE: START and END. The two empty knobs of the SAMPLE model are now START and END, 0 to 127 over the sample: play only part of it. They are SOUND knobs like the others (MOTION, step locks, presets, MIDI LEARN, LFO DEST). At START 0 and END 127 the sample plays whole, exactly as before."
+   },
+   {
+    "title": "LAYER knobs renamed. The LAYER",
+    "text": "LAYER knobs renamed. The LAYER page's knobs read SET, SLOT, LEVEL, TUNE and DECAY (were LSET, LKEY, LLVL, LTUNE, LDEC); MIDI LEARN shows them as T3 L.SET, T3 L.SLOT and so on. The SAMPLE model's SET stays SET."
+   },
+   {
+    "title": "Projects and presets from before",
+    "text": "Projects and presets from before load with KEY turned into SLOT and sound the same: where a note played a sample above or below its own pitch, TUNE takes the difference (if TUNE has no room, the old note stays and plays as before). A note where the set had no sample, which played nothing, now plays the nearest sample. Step locks and MOTION on the old KEY keep playing as they were; a step lock on TUNE keeps its value, so on that step the pitch is off by what TUNE moved. The factory SAMPLE presets play as before."
+   },
+   {
+    "title": "Web editor",
+    "text": "Web editor: user presets with their FX. The Presets page lists the 96 user slots; each preset is marked +FX (it sets the track's FX when loaded) or SOUND (the sound only), and its FX button shows and edits the FX it holds (sends, FILTER, INSERT, SRR, RESON) or switches them off. Save track N here takes the track's FX too, and loading a user preset from the page sets them, as on the FM-1. Turning an FX knob in the page marks a track loaded from a +FX preset as edited (*), as its own knobs do. Back up and Restore all keep the presets' FX. Preset files and backups made by the editor before this change (128 presets, the sound only) still open and restore: the presets past 96 move into the first empty slots, as the FM-1 moves its own, and the page says how many did not fit. Files made now say they need this editor; an older editor refuses them. An FM-1 still on a firmware with 128 presets is read but not written: the page asks you to update it first."
+   },
+   {
+    "title": "USER presets keep the track's FX, in 96 slots",
+    "text": "USER presets keep the track's FX, in 96 slots (was 128). SAVE in the PRESETS list now stores the track's sound and its FX: the DIST, CHO, DLY and REV sends, FILTER, INSERT, SRR and RESON, everything on the FX pages but the SLICER. Loading a USER preset (or trying one in the list) sets them all; LEVEL, PAN, NOTE, CHOKE, PRIO, the SLICER, LAYER, the LFOs and the steps stay as they are. RESON keeps its limits: on a fifth track it stays OFF, a third CHORD or MODAL becomes STRNG. Factory presets still change only the sound, the track's FX stay. On a track loaded from a USER preset, turning an FX knob marks the preset edited (*) as a SOUND knob does. To make room the USER bank has 96 slots now. Your presets move over at the first start: slots 1 to 96 stay where they are, used slots 97 to 128 move into the first empty slots (and are named after their new slot); only if all 96 are full are the rest lost, and the screen says how many once (3 PRESETS LOST). Projects that used a moved preset find it in its new slot; one that used a lost preset shows PRESET - with its sound unchanged. Presets saved before this version hold no FX: they keep loading as the sound only until you save over them. An earlier firmware shows the new USER bank empty, and a preset saved there replaces the whole bank."
+   },
+   {
+    "title": "REPEAT STEP on the PERFORM keys",
+    "text": "REPEAT STEP on the PERFORM keys (replaces the track mutes there). With FX held (or on the PERFORM page), the white keys F3 to F4 no longer mute tracks 1 to 8: holding one makes that track repeat the step it was on, again and again, while its own steps pause; let go and its pattern carries on in time. The repeat plays the step's note, loud when the step has an accent; a step that is off repeats the track's last note. While playing, the repeats land on the beat grid of the rate (following swing, the tempo and an incoming MIDI clock), starting on the next grid point; while stopped they start at once at the tempo. Several tracks can repeat together. The last four white keys pick the rate: D5 1/4, E5 1/8, F5 1/16 (the default after power-on) and G5 1/32; the chosen one is lit, and a change takes over at the next grid point. The PERFORM screen shows T1 to T8 and the four rates. If you used FX + a white key to mute a track, that is gone: use the MUTE screen (hold GLO) instead. A controller button learned to a PERFORM mute now holds that track's REPEAT STEP. The black keys and the knobs work as before."
+   },
+   {
+    "title": "Step editing on every step page",
+    "text": "Step editing on every step page: holding a step now turns KNOB 1\u20134 into its PROB, RATCH, ACCENT and NUDGE on TRACKS, PATTERN, MOTION and SONG too, not only on STEP, and the knobs no longer change the page's own settings (LEN, DIV, SWING, the song's rows, the track's level) while a step is held."
+   },
+   {
+    "title": "NUDGE",
+    "text": "NUDGE: move a step's hit early or late. On SEQ STEP, hold a step and turn KNOB 4: -50 to +50 hundredths of a step (+50 halfway to the next step, -50 halfway to the previous one), following the track's division and swing. A late hit keeps its PROB, RATCH and locks (its RATCH hits spread over the rest of the step); an early one plays in the step before it. A nudged step has a mark beside its box in the grid (left: early, right: late). NUDGE is saved with the step everywhere: projects, variations, song rows and slot COPY / PASTE. All steps start at 0 and play exactly as before."
+   },
+   {
+    "title": "QUANT for live recording on GLOBAL 3/7 KNOB 4",
+    "text": "QUANT for live recording on GLOBAL 3/7 KNOB 4: 1/16 (the default: the nearest step, as before), 1/8 (every other step), 1/32 (the nearest half step) or OFF (the nearest step, keeping how early or late you played as its NUDGE). It applies to the keys, MIDI notes and the SMC-Mixer; step record still writes on the step. The setting is kept over power-off."
+   },
+   {
+    "title": "Projects saved now don't load",
+    "text": "Projects saved now don't load on 0.26.0 and older (they show an empty slot there). Older projects load as before, every step at NUDGE 0."
+   },
+   {
+    "title": "Step tools",
+    "text": "Step tools: hold SEQ. Holding SEQ now opens the TOOLS screen for the selected track (a quick SEQ tap still turns the SEQ pages, now on its release). The white keys are the bank's 16 steps, OCT- / OCT+ the bank, and the black keys copy and paste: F#3 COPY STEP and G#3 PASTE STEP (hold the tool, tap steps), A#3 COPY PAGE, C#4 REPLACE, D#4 MERGE (only the clipboard's steps that are on), F#4 FILL (the clipboard repeated up to LEN), G#4 COPY SEL (KNOB 1 START, KNOB 2 END, G#4 again copies), A#4 PASTE SEL (then tap where it starts), D#5 CLEAR (the CLEAR TRACK question, as REC held) and C#5 DUPLICATE (every track's pattern twice as long, up to 64 steps, the new half a copy). A copied step keeps everything: accent, PROB, ratchet, note, slide and tie, its NUDGE and its parameter locks; with the locks full a paste brings what fits and says LOCKS FULL. Keys pressed with SEQ play nothing and record nothing. Holding SEQ while switching on is still the safe start."
+   },
+   {
+    "title": "ROOM reverb",
+    "text": "ROOM reverb: its tail now fades to true silence. Before, a faint hum and offset stayed behind for ever once a ROOM tail had died away: too quiet to hear on the main output, but left on the USB effect channels (10 CH FX). The room sounds as before otherwise."
+   },
+   {
+    "title": "HALL reverb",
+    "text": "HALL reverb: GLO > REVERB TYPE has a third value, HALL: a smooth, dense reverb in stereo (from Skiff), its tail wide on headphones and fading to exact silence. SIZE sets its length (from about half a second up to several seconds), DAMP how soon its top end fades. Switching between ROOM, SPRNG and HALL fades the old tail out without a click. On USB AUDIO 10 CH FX its left and right come out on channels 9 and 10. TYPE is saved with the project; projects saved before keep their ROOM or SPRNG and sound as before."
+   },
+   {
+    "title": "Delay, reverb and chorus graphs",
+    "text": "Delay, reverb and chorus graphs on their GLO pages. DLY draws the echoes after a hit: their spacing, how fast FDBK lets them fade, COLR dulling the later ones, and in PING-PONG the echoes left and right in turn, with TIME's length in milliseconds. REVERB draws the tail over 4 seconds and its decay time (RT), with DAMP's faster-fading top end and the spring's drips. CHORUS draws its sweep over 4 seconds, as fast as RATE and as deep as DEPTH, with the range of its delay in milliseconds."
+   },
+   {
+    "title": "Solo on the MUTE screen",
+    "text": "Solo on the MUTE screen: hold GLO and press a black key F#3 to A#4 to solo track 1 to 8 (several at once; the soloed keys lit). The other tracks' boxes are half filled, a soloed one shows an S. The top black key F#5 switches solo between TGL (a tap on, a tap off) and MOM (soloed only while the key is held); the choice is kept over power-off."
+   },
+   {
+    "title": "The delay's, the reverb's and",
+    "text": "The delay's, the reverb's and the chorus' settings moved to GLO: DLY (TIME, FDBK, COLR, MIX, and MODE on its second page), REVERB (TYPE, SIZE, DAMP) and CHORUS (RATE, DEPTH) are now GLO's pages 4\u20137, after GLOBAL, SYSTEM and GLOBAL; FX keeps the track's own pages. GLO's first three pages are now numbered 1/7 to 3/7. The send knobs (CHOR, DLY, REV) stay on the FX page."
+   },
+   {
+    "title": "USB AUDIO 10 CH",
+    "text": "USB AUDIO 10 CH: the tracks come first. In 10 CH MIX and 10 CH FX, channels 1-8 now carry the tracks T1..T8 and channels 9-10 the stereo pair (the master in MIX, the send effects in FX); before, the pair came first. Hosts that show channel names list T1..T8, Main L, Main R. If a DAW or AUM had inputs set up for the old order, pick them again. 2 CH and the Bluetooth version are unchanged."
+   },
+   {
+    "title": "INSERT effect on every track",
+    "text": "INSERT effect on every track: FX > INSERT, two new pages after FX. Choose a TYPE (SOFT, HARD, FOLD, FUZZ, CRUSH, PHASR, FLANG or CHOR) and shape it with its three knobs, named by the type (DRIVE / TONE / LEVEL, BITS / RATE / LPF, or RATE / DEPTH / FDBK); MIX on the second page blends it with the dry sound. It sits after DIST and before the SLICER. Changing the type fades over a few milliseconds, without a click. Its knobs can be recorded with MOTION, locked on steps and learned with MIDI LEARN."
+   },
+   {
+    "title": "SRR",
+    "text": "SRR (sample rate reduction) on every track: INSERT 2/2 KNOB 2. It samples and holds the track's sound, after the FILTER and before DIST, for the gritty, aliased sound of the classic drum machines: from OFF down to 347 Hz, the rate shown on the screen. MOTION, locks and MIDI LEARN take it too."
+   },
+   {
+    "title": "Both are saved with each",
+    "text": "Both are saved with each project. Projects saved before load with SRR OFF and the INSERT OFF, and sound exactly as before."
+   },
+   {
+    "title": "Dotted and triplet delay times",
+    "text": "Dotted and triplet delay times: DLY TIME now also has 1/4D, 1/8D and 1/16D (dotted) and 4T and 32T (triplets). The knob runs by length, the new times between their neighbours: 4BAR 2BAR 1/1 1/2 1/4D 1/4 1/8D 4T 1/8 1/16D 8T 1/16 16T 1/32 32T. A time longer than the delay holds is cut to its longest, 1.49 s, as before. Projects keep their delay times. The steps' DIV is unchanged."
+   },
+   {
+    "title": "Ping-pong delay",
+    "text": "Ping-pong delay: the delay's new second page has MODE: NORM (the delay as before) or PING (ping-pong). In PING the echoes alternate between left and right: the first on the left, the next on the right, and so on, with FDBK and COLR working as in NORM and the same longest time, 1.49 s. The ping-pong echoes are a little softer in the top end. Changing MODE clears the delay, so no old echoes come back. MODE is saved with each project; projects saved before load NORM. With USB AUDIO 10 CH FX, channels 9-10 carry the ping-pong's left and right."
    }
   ]
  }

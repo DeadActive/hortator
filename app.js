@@ -3,16 +3,16 @@
 // The FM-1 simulator page: draws the panel (two layouts: the device's landscape, a stacked portrait for phones),
 // turns pointer and keyboard input into messages for the worklet (worklet.js runs the firmware), paints the
 // frames it sends back, and keeps the flash it writes in IndexedDB (store.js).
-import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=9d7508cdf2';
-import { FlashStore, openFlashDb } from './store.js?v=9d7508cdf2';
-import { needsResume, playbackSession } from './audio.js?v=9d7508cdf2';
-import { parseReel } from './reel.js?v=9d7508cdf2';
-import { initFeatures } from './features.js?v=9d7508cdf2';
-import { initManual } from './manual.js?v=9d7508cdf2';
-import { buildMini } from './mini.js?v=9d7508cdf2';
-import { installCount, loadPageCounter } from './counter.js?v=9d7508cdf2';
-import { ditherBackground, initGlitch } from './dither.js?v=9d7508cdf2';
-import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=9d7508cdf2';
+import { BTN, ENC, KEYS, HeldSet, keyEvent, keyHint, contextMenuLatches } from './controls.js?v=52da06116a';
+import { FlashStore, openFlashDb } from './store.js?v=52da06116a';
+import { needsResume, playbackSession } from './audio.js?v=52da06116a';
+import { parseReel } from './reel.js?v=52da06116a';
+import { initFeatures } from './features.js?v=52da06116a';
+import { initManual } from './manual.js?v=52da06116a';
+import { buildMini } from './mini.js?v=52da06116a';
+import { installCount, loadPageCounter } from './counter.js?v=52da06116a';
+import { ditherBackground, initGlitch } from './dither.js?v=52da06116a';
+import { LAYOUTS, DECO_CLASS, blend, heroPose, outline } from './layout.js?v=52da06116a';
 
 // ---- the panel's elements (built once, placed per layout)
 const device = document.getElementById('device');
@@ -299,7 +299,7 @@ function wake() {                                 // a tap or a key brings a sto
 }
 
 // ---- power on
-const wasmBytes = fetch('fm1sim.wasm?v=9d7508cdf2').then(r => {
+const wasmBytes = fetch('fm1sim.wasm?v=52da06116a').then(r => {
   if (!r.ok) throw new Error(`fm1sim.wasm: HTTP ${r.status}`);
   return r.arrayBuffer();
 });
@@ -326,7 +326,7 @@ async function powerOn() {
     playbackSession(navigator);
     ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     const resumed = ctx.resume();                         // inside the tap: browsers allow sound from here on
-    await ctx.audioWorklet.addModule('worklet.js?v=9d7508cdf2');
+    await ctx.audioWorklet.addModule('worklet.js?v=52da06116a');
     const [wasm, sectors] = await Promise.all([wasmBytes, store.load()]);
     node = new AudioWorkletNode(ctx, 'fm1', { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { wasm, sectors } });
     node.port.onmessage = e => {
@@ -396,7 +396,7 @@ function bindPage() {
 let reel = null, reelPos = -1, reelT0 = 0;
 const reelFb = new Uint16Array(240 * 240);
 if (window.DecompressionStream)
-  fetch('reel.bin.gz?v=9d7508cdf2')
+  fetch('reel.bin.gz?v=52da06116a')
     .then(r => r.ok ? new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : Promise.reject())
     .then(b => { reel = parseReel(b); reelT0 = performance.now(); })
     .catch(() => { /* no reel: the screen stays dark until Switch on */ });
@@ -481,7 +481,7 @@ installCount().then(n => {
   el.replaceChildren('Installed ', b, n === 1 ? ' time' : ' times');
   el.hidden = false;
 });
-fetch('version.json?v=9d7508cdf2').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
+fetch('version.json?v=52da06116a').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
   const [y, m, d] = v.date.split('-').map(Number);
   const newer = v.since.length ? ` and ${v.since.length} newer change${v.since.length > 1 ? 's' : ''}` : '';
   document.getElementById('fw-version').textContent =
