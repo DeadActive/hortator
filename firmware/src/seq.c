@@ -191,6 +191,10 @@ static uint32_t hit_gate_len(const track_t *t)
     return acid_gate_len(t, div_period((uint32_t)t->p[P_SDIV], 0));
 }
 
+/* dm_sample.c: a SAMPLE hit's gate, one step of the track at the tempo now (a block more: a TIE step at the step's end
+ * finds it open) */
+static uint32_t smpl_gate_len(const track_t *t) { return div_period((uint32_t)t->p[P_SDIV], 0) + CTL; }
+
 /* the gate of the voice the track's model started closes now (its release); gate_n 0 */
 static void acid_gate_off(track_t *t)
 {
@@ -365,6 +369,8 @@ static void step_fire(track_t *t, uint32_t len_s)
         return;
     }
     t->rat_n = 0;
+    if (s->tie && !t->p[P_SRC])
+        smpl_tie(t, len_s);                         /* (a SAMPLE note with SUS: held through it) */
     if (t->p[P_SRC] || !s->on || s->tie || !step_plays(t, s, len))
         return;
     t->rat_vel = (uint8_t)(s->acc ? 127u : 96u);
@@ -466,6 +472,7 @@ static __attribute__((noinline)) void keys_off(void)
     track_t *t = &trk[kz.trk % NTRK];
     if (DMODELS[t->model % NMODELS].gate && t->gate_n == 0u)
         acid_gate_off(t);
+    smpl_release(SH_KEYS);                             /* (a SAMPLE note the key held) */
     kz.key = 0;
     kz.rec = 0;
 }
@@ -545,7 +552,9 @@ static __attribute__((noinline)) void keys_on(uint32_t key)
         t->gate_n = 0;
         t->slide_in = 0;
     } else {
+        uint32_t a = dvage;
         drum_play(t, 100u, nt);
+        smpl_hold(t, SH_KEYS, a);                      /* a SAMPLE note with SUS: held while the key is */
     }
     t->key_nt = (int8_t)nt;
     kz.key = (uint8_t)(key + 1u);
@@ -611,13 +620,16 @@ static void keyboard_block(void)
             note = 60u;
         }
         if ((cur >> k) & 1u) {
+            uint32_t a = dvage;
             input_hit(&trk[i], 100u);
+            smpl_hold(&trk[i], SH_PAD | i, a);          /* a SAMPLE note with SUS: held while the pad is */
             midi_out_event(0x09u | (0x90u | mc) << 8 | note << 16 | 100u << 24);
 #if FELUCCA_BLE
             bt_midi_out_isr(0x09u | (0x90u | mc) << 8 | note << 16 | 100u << 24);   /* (bt_midi.c: the BLE device, MIDI
                                                      * mode) */
 #endif
         } else {
+            smpl_release(SH_PAD | i);
             midi_out_event(0x08u | (0x80u | mc) << 8 | note << 16);
 #if FELUCCA_BLE
             bt_midi_out_isr(0x08u | (0x80u | mc) << 8 | note << 16);
@@ -681,22 +693,33 @@ static void midi_block(void)
         }
         if ((st == 0x90u || st == 0x80u) && learn_note(d1, st == 0x90u && d2))
             continue;                               /* a learned note (any channel): its action, no drum */
-        if (st != 0x90u || !d2)
-            continue;                               /* note-offs: one-shots ignore them */
+        if (st != 0x90u || !d2) {                   /* note-offs: one-shots ignore them; a SAMPLE note with SUS */
+            if (st == 0x80u || st == 0x90u)         /* the note held ends */
+                smpl_release(SH_MIDI | ch << 8 | d1);
+            continue;
+        }
         if (song.g[G_ROUTE] == RT_TRACK) {          /* channel 1..8: track 1..8, pitched */
-            if (ch < NTRK)
+            if (ch < NTRK) {
+                uint32_t a = dvage;
                 midi_play(&trk[ch], d2, (int32_t)d1 - 60);
+                smpl_hold(&trk[ch], SH_MIDI | ch << 8 | d1, a);
+            }
             continue;
         }
         if (ch != drum_ch())
             continue;
         if (song.g[G_ROUTE] == RT_SEL) {            /* the selected track, pitched */
+            uint32_t a = dvage;
             midi_play(TSEL, d2, (int32_t)d1 - 60);
+            smpl_hold(TSEL, SH_MIDI | ch << 8 | d1, a);
             continue;
         }
         for (i = 0; i < NTRK; i++)
-            if ((uint32_t)trk[i].p[P_NOTE] == d1)
+            if ((uint32_t)trk[i].p[P_NOTE] == d1) {
+                uint32_t a = dvage;
                 input_hit(&trk[i], d2);
+                smpl_hold(&trk[i], SH_MIDI | ch << 8 | d1, a);
+            }
     }
 }
 

@@ -164,6 +164,12 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base,array-bounds -fn
                             # slot's zones read through SMP_DATA rebased, as the firmware does: no array-bounds check)
 "$OUT/slot_test" > "$OUT/slot_test.txt" 2>&1 || { grep -v "^ok" "$OUT/slot_test.txt" | tail -30; exit 1; }
 tail -1 "$OUT/slot_test.txt"
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base,array-bounds -fno-sanitize-recover=all -Wall \
+    -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/sampenv_test" \
+    tests/sampenv_test.c -lm   # (the SAMPLE model's ATK SUS REL LOOP: the defaults bit-identical, the gate, the loops
+                               # exact both ways, projects / presets / locks: ASan + UBSan)
+"$OUT/sampenv_test" > "$OUT/sampenv_test.txt" 2>&1 || { grep -v "^ok" "$OUT/sampenv_test.txt" | tail -40; exit 1; }
+tail -1 "$OUT/sampenv_test.txt"
 XF="-O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src"   # (the variations across the two builds)
 cc $XF -o "$OUT/xbuild_std" tests/xbuild_test.c -lm

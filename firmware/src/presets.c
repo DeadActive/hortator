@@ -39,6 +39,54 @@ static const uint8_t UPR_FX[UPR_NFX] = {
 #define UPR_USED 1u
 #define UPR_VOICE 2u
 typedef struct { uint8_t used, model; int8_t k[8]; int8_t f[UPR_NFX]; } upr_slot_t;
+/* a SAMPLE preset's ATK SUS REL LOOP (user decision 2026-11-03: the 96 slots kept, the record's size too): 23 bits,
+ * each value's offset from its power-on value (ATK, SUS, REL 7 bits, LOOP 2), bit i in FX byte i (UPR_FX's order): the
+ * top bit of the 22 bytes whose values are 0..127, FILTER ENV's (-64..63) its top bit unlike bit 6. 0 = the defaults:
+ * such a slot is byte for byte as before; another model's slot never holds them. upr_fxv reads an FX value out (a
+ * plain value too: the same) */
+#define UPR_FENV 15u                                    /* UPR_FX's FILTER ENV */
+static int32_t upr_fxdec(int8_t f, uint32_t i)        /* FX byte i's value */
+{
+    uint32_t b = (uint8_t)f;
+    return i == UPR_FENV ? (int32_t)((b & 0x7Fu) ^ 0x40u) - 0x40 : (int32_t)(b & 0x7Fu);
+}
+static int32_t upr_fxv(const upr_slot_t *s, uint32_t i) { return upr_fxdec(s->f[i], i); }
+static uint32_t upr_fxbit(const upr_slot_t *s, uint32_t i)
+{
+    uint32_t b = (uint8_t)s->f[i];
+    return (i == UPR_FENV ? b >> 7 ^ b >> 6 : b >> 7) & 1u;
+}
+static void upr_fxset(upr_slot_t *s, uint32_t i, int32_t v, uint32_t bit)
+{
+    uint32_t b = (uint32_t)(i == UPR_FENV ? clamp(v, -64, 63) : clamp(v, 0, 127)) & 0x7Fu;
+    s->f[i] = (int8_t)(b | ((i == UPR_FENV ? (b >> 6 & 1u) ^ bit : bit) << 7));
+}
+static uint32_t upr_env(const upr_slot_t *s)            /* the 23 bits (0: the defaults) */
+{
+    uint32_t e = 0, i;
+    if (s->model != DM_SMPL)
+        return 0;
+    for (i = 0; i < UPR_NFX; i++)
+        e |= upr_fxbit(s, i) << i;
+    return e;
+}
+/* ATK SUS REL LOOP of p[] (a track's values) as the 23 bits; and back onto p[] (their power-on values and ranges:
+ * params.c TP's, tests/sampenv_test.c checks) */
+static const uint8_t SENV_DEF[4] = {0, 0, 40, 0}, SENV_MAX[4] = {127, 127, 127, 2};
+static uint32_t senv_pack(const int16_t *p)
+{
+    uint32_t e = 0, i;
+    for (i = 0; i < 4u; i++)
+        e |= ((uint32_t)(p[P_SATK + i] - SENV_DEF[i]) & (i < 3u ? 0x7Fu : 3u)) << (7u * i);
+    return e;
+}
+static void senv_put(int16_t *p, uint32_t e)
+{
+    uint32_t i;
+    for (i = 0; i < 4u; i++)
+        p[P_SATK + i] = (int16_t)clamp((int32_t)((SENV_DEF[i] + (e >> (7u * i))) & (i < 3u ? 0x7Fu : 3u)), 0,
+                                       SENV_MAX[i]);
+}
 typedef struct { uint32_t magic; upr_slot_t s[PRE_NUSER]; uint8_t mv[UPR_NOLD - PRE_NUSER]; } upr_rec_t;
 typedef char upr_rec_size[sizeof(upr_rec_t) == 4u + 33u * PRE_NUSER + 32u && sizeof(upr_rec_t) <= 3584u ? 1 : -1];
                                                         /* (one sector; below 3584: the loader's erase scan) */
@@ -257,6 +305,8 @@ static void preset_apply(track_t *t, const preset_t *p, uint32_t id)
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = (int16_t)knob_in(&m->edit[i], p->k[i]);
     smpl_knobs_conv(&t->p[P_E0], p->model);         /* (a SAMPLE preset stored before SLOT) */
+    if (p->model % NMODELS == DM_SMPL)              /* its ATK SUS REL LOOP: a user one's, else the defaults */
+        senv_put(t->p, id >= PRE_NFACT && id < PRE_NID ? upr_env(&upr.s[id - PRE_NFACT]) : 0u);
     t->pre = (uint16_t)id;
     t->pre_ed = 0;
 }
@@ -268,7 +318,7 @@ static void preset_fx_put(track_t *t, const int8_t *f)
 {
     uint32_t i;
     for (i = 0; i < UPR_NFX; i++) {
-        int32_t v = f[i];
+        int32_t v = upr_fxdec(f[i], i);             /* (a slot's byte: ATK .. LOOP's bit off; a value: itself) */
         if (UPR_FX[i] == P_RMODEL) {
             if (reson_refused(t, t->p[P_RMODEL], v))
                 v = RS_STRNG;
@@ -298,9 +348,10 @@ static int preset_load(track_t *t, uint32_t id)
     return 0;
 }
 
-/* t's voice put back as it was (the PRESETS list's audition ended, ui_preset.c): MODEL, the 8 SOUND knobs k, the
- * reference pre and its edited mark ed, as they were (no clamp), and FX f when the audition changed them (0: as they
- * are); the audio IRQ off, another voice cut first, motion's base follows, as preset_load */
+/* t's voice put back as it was (the PRESETS list's audition ended, ui_preset.c): MODEL, the 8 SOUND knobs k[0..7] and
+ * ATK SUS REL LOOP k[8..11], the reference pre and its edited mark ed, as they were (no clamp), and FX f when the
+ * audition changed them (0: as they are); the audio IRQ off, another voice cut first, motion's base follows, as
+ * preset_load */
 static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pre, uint32_t ed, const int8_t *f)
 {
     uint32_t i;
@@ -311,6 +362,8 @@ static void preset_put(track_t *t, uint32_t model, const int16_t *k, uint32_t pr
     t->model = (uint8_t)t->p[P_MODEL];
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = k[i];
+    for (i = 0; i < 4u; i++)
+        t->p[P_SATK + i] = k[8u + i];
     t->pre = (uint16_t)pre;
     t->pre_ed = (uint8_t)ed;
     motion_rebase((uint32_t)(t - trk));
@@ -344,7 +397,8 @@ static uint32_t preset_step(const track_t *t, uint32_t from, int dir)
 /* a user edit of what t's preset holds (a SOUND knob: the panel, MIDI LEARN, the SMC knobs; an FX knob as well when
  * the preset holds FX: preset_marks; not LFOs or MOTION playback) */
 static void preset_touch(track_t *t) { t->pre_ed = 1; }
-#define PRE_SOUND(id) ((uint32_t)(id) - P_E0 < 8u)      /* a parameter id is one of the 8 SOUND knobs */
+#define PRE_SOUND(id) ((uint32_t)(id) - P_E0 < 8u || (uint32_t)(id) - P_SATK < 4u)   /* a parameter id is a SOUND
+                                                        * knob: the 8, SAMPLE's ATK SUS REL LOOP */
 static int upr_fx_index(uint32_t id)                    /* id's place in UPR_FX, -1 not an FX a user preset holds */
 {
     uint32_t i;
@@ -376,11 +430,12 @@ static int preset_user_free(void)                      /* the first free user sl
 static void upr_set(uint32_t slot, uint32_t model, const int16_t *kv)
 {
     upr_slot_t *s = &upr.s[slot];
-    uint32_t i;
+    uint32_t i, e;
     s->used = UPR_USED;
     s->model = (uint8_t)(model % NMODELS);
     for (i = 0; i < 8u; i++)
         s->k[i] = (int8_t)clamp(kv[P_E0 + i], -128, 127);
+    e = s->model == DM_SMPL ? senv_pack(kv) : 0u;   /* (another model: none) */
     for (i = 0; i < UPR_NFX; i++)
-        s->f[i] = (int8_t)clamp(kv[UPR_FX[i]], -128, 127);
+        upr_fxset(s, i, kv[UPR_FX[i]], e >> i & 1u);
 }

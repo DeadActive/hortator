@@ -8151,15 +8151,18 @@ static void test_acid_screens(void)
 
 static void test_prio_sound_list(void)
 {
-    uint8_t ids[16];
+    uint8_t ids[SND_N];
     uint32_t m, n, ok = 1;
     ui_host_init();
     for (m = 0; m < NMODELS; m++) {
         old_set_model(TSEL, m);
         n = snd_list(TSEL, ids);
-        ok &= n <= 16u && ids[n - 1u] == P_PRIO && ids[n - 2u] == P_CHOKE;
+        if (m == DM_SMPL)                            /* (SAMPLE: then its own page, ATK SUS REL LOOP) */
+            ok &= n == SND_N && ids[13] == P_PRIO && ids[12] == P_CHOKE && ids[16] == P_SATK;
+        else
+            ok &= n <= 16u && ids[n - 1u] == P_PRIO && ids[n - 2u] == P_CHOKE;
     }
-    check("PRIO: every model's SOUND list ends CHOKE, PRIO", ok);
+    check("PRIO: every model's SOUND list ends CHOKE, PRIO (SAMPLE's before its ATK SUS REL LOOP page)", ok);
     old_set_model(TSEL, DM_CYMB);
     n = snd_list(TSEL, ids);
     ui.home = 0;                                     /* the SOUND page with PRIO */

@@ -2367,8 +2367,8 @@ static int fdrf_round_trip(void)
     for (i = 0; i < sizeof proj_slot[2].rsv_mo; i++)
         ok &= proj_slot[2].rsv_mo[i] == 0;
     return (int)ok && bank_events_eq(&mo.b, &want) && proj_slot[2].magic == PROJ_MAGIC && proj_slot[2].lk_n == 5u &&
-           sizeof(project_t) == 3840u && sizeof proj_slot[2].rsv_mo + sizeof proj_slot[2].xp == 504u &&
-           sizeof proj_slot[2].xp == 56u && !proj_slot[2].var_len &&
+           sizeof(project_t) == 3840u && sizeof proj_slot[2].rsv_mo + sizeof proj_slot[2].xp + sizeof proj_slot[2].xp2 == 504u &&
+           sizeof proj_slot[2].xp == 56u && sizeof proj_slot[2].xp2 == 32u && !proj_slot[2].var_len &&
            !proj_slot[2].var_link && str_eq(ui.msg, "LOADED");
 }
 static void fdre_of_live(project_ve_t *v)            /* the live state as 0.23.3 saved it ("FDRE") */
@@ -2483,9 +2483,10 @@ static int fdrf_converts(void)
     project_save(1);
     v = proj_slot[1];                                /* as 0.26.0 wrote it */
     for (k = 0; k < NTRK; k++)
-        for (j = 0; j < P_COUNT - P_NSTORED; j++)
+        for (j = 0; j < PROJ_XP; j++)               /* (FDRF: the 7 in the steps; ATK .. LOOP after them: none) */
             v.t[k].step[j].rsv = v.xp[k][j];
     memset(v.xp, 0, sizeof v.xp);
+    memset(v.xp2, 0, sizeof v.xp2);
     v.magic = 0x46524446u;
     v.sum = proj_hash(&v, sizeof v - 4u);
     st_save(OBJ_PROJECT0 + 1u, &v, sizeof v);
@@ -2842,7 +2843,8 @@ int main(void)
     check("last project: an older record boots the power-on kit; a RAM-only save remembers nothing",
           last_project_old_record_no_flash());
     check("last project: lowcut's bits keep SPEAKER EQ, the slot and the Bluetooth bytes", last_project_bits());
-    check("FDRF: motion, locks and PLAY bits through a save and a load (the project record 3840 B, 504 B reserved 0)",
+    check("FDRF: motion, locks and PLAY bits through a save and a load (the project record 3840 B, 504 B reserved: xp, "
+          "xp2, the rest 0)",
           fdrf_round_trip());
     check("FDRF: an FDRE record (0.23.3) migrates: its motion as motion events, PLAY bits, every knob and step",
           fdre_migrates());

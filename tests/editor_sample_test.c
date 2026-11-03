@@ -854,7 +854,7 @@ static void t_clear_rename(void)
     a_put(2);
     ok &= req(ED_SMP_CLEAR) == 0 && usr_nz[2] == 0u && info(2, &o) == 0 && !o.valid;
     ok &= host_nflog == 1u && host_flog[0].erase && host_flog[0].off == 0xC8000u;
-    ok &= smp_render(&v, out, 32, 32767, 32767, 0) == 0;   /* the voice playing it ended */
+    ok &= smp_render(&v, out, 32, 32767, 32767, 0, 0) == 0;   /* the voice playing it ended */
     power_cycle();
     ok &= usr_nz[2] == 0u;
     check("SMP_CLEAR: stopped only; the header sector erased, the slot empty, its voice ended", (int)ok);

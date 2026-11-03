@@ -136,8 +136,31 @@ typedef struct {                        /* CYEFM (dm_efmm.c) */
     uint32_t pc[4], pm[4], wc[4], wm[4], ea, da, ih, di;
     int32_t yp[4], bq, gk, s1, s2, lvl;
 } cyefm_t;
+/* SAMPLE's LOOP (dm_sample.c smp_edge): the loop [ls, le), its start state; FWD's crossfade (the tail past END and its
+ * count); PING-PONG's reverse leg, exact: chunks of SPP_B source samples counted down from END (chunk 0 the top), a
+ * segment SPP_K2 chunks; the decoder state at each segment's lowest chunk (co, the forward legs'), at each chunk of the
+ * segment playing and the one below it (fi[2]: the forward leg's for the top segment, else worked out ahead, two
+ * nibbles a source sample), the chunk playing and the one below it in buf (one nibble a sample: the slot each frees).
+ * A state is 3 bytes: the predictor (2), the step index. In the voice's model state (dm_state_t: no RAM of its own) */
+#define SPP_B 40u                            /* source samples a chunk */
+#define SPP_K2 8u                            /* chunks a segment */
+#define SPP_K1 32u                           /* segments: PING-PONG plays back up to SPP_K1 * SPP_K2 * SPP_B samples */
+typedef struct {
+    uint32_t ls, le;                         /* the loop: START's and END's positions */
+    uint32_t fpos, apos;                     /* FWD: the tail past END's position; PING: the fill's; the look-ahead's */
+    int16_t p0, fp, ap;                      /* predictors: START's, the tail's / the fill's, the look-ahead's */
+    uint16_t nch;                            /* PING: chunks */
+    uint8_t x0, fx, ax;                      /* .. their step indexes */
+    uint8_t mode, dir, xf, xfn;              /* LOOP 0 OFF 1 FWD 2 PING (as played); 1 backward; FWD's crossfade left, length */
+    uint8_t fcur, fill, ac, aj;              /* fi[] of the segment playing; samples of the chunk below to fill; the
+                                              * look-ahead: chunks left, the next one's index in its segment */
+    uint8_t rk, rj, nseg;                    /* the chunk playing (0 = the top), its samples left; segments */
+    uint8_t co[SPP_K1][3], fi[2][SPP_K2][3];
+    int16_t buf[SPP_B];
+} smpl_loop_t;
 typedef union {
     int32_t raw[2];
+    smpl_loop_t sl;
     scrak_t sc;
     ssnap_t ss;
     kpunc_t kp;

@@ -9,6 +9,7 @@ enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, G
        GR_LDEST, GR_INSERT, GR_DLY, GR_REV, GR_CHO };
 
 #define SND_SLOT 0xC0u                            /* EDIT page ids: SND_SLOT + n = the track's n-th sound knob */
+#define SND_N 20u                                 /* .. at most: 5 SOUND pages (the fifth the SAMPLE model's only) */
 
 typedef struct {
     const char *title;
@@ -22,6 +23,8 @@ static const page_t PAGES[] = {
     {"SOUND", FAM_SND, SC_TRACK, GR_MODEL, {SND_SLOT + 4, SND_SLOT + 5, SND_SLOT + 6, SND_SLOT + 7}},
     {"SOUND", FAM_SND, SC_TRACK, GR_MODEL, {SND_SLOT + 8, SND_SLOT + 9, SND_SLOT + 10, SND_SLOT + 11}},
     {"SOUND", FAM_SND, SC_TRACK, GR_MODEL, {SND_SLOT + 12, SND_SLOT + 13, SND_SLOT + 14, SND_SLOT + 15}},
+    {"SOUND", FAM_SND, SC_TRACK, GR_MODEL, {SND_SLOT + 16, SND_SLOT + 17, SND_SLOT + 18, SND_SLOT + 19}},   /* SAMPLE:
+                                                                                * ATK SUS REL LOOP */
     {"LAYER", FAM_LAY, SC_TRACK, GR_NONE, {P_LSET, P_LKEY, P_LLEVEL, P_LTUNE}},
     {"LAYER", FAM_LAY, SC_TRACK, GR_NONE, {P_LDEC, 0xFF, 0xFF, 0xFF}},
     {"FILTER", FAM_FX, SC_TRACK, GR_FILTER, {P_FTYPE, P_FCUT, P_FRESO, P_FENV}},   /* filter.c */
@@ -69,7 +72,8 @@ static const page_t PAGES[] = {
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_EDIT, B_EDIT, B_FX, B_SEQ, B_GLO, B_SAVE, B_ARP, B_LFO, B_HOME};
 
 /* the EDIT list of track t: MODEL, its model's TUNE DECAY TONE and 4th knob, its extra knobs, then LVL PAN NOTE
- * CHOKE PRIO (at most 16: 14); returns how many */
+ * CHOKE PRIO (at most 16: 14); the SAMPLE model's then ATK SUS REL LOOP on a page of their own (the 5th: 0xFF, an
+ * empty column, up to it); returns how many (SND_N at most) */
 static uint32_t snd_list(const track_t *t, uint8_t *ids)
 {
     const dmodel_t *m = &DMODELS[(uint32_t)t->p[P_MODEL] % NMODELS];
@@ -83,6 +87,12 @@ static uint32_t snd_list(const track_t *t, uint8_t *ids)
     ids[n++] = P_NOTE;
     ids[n++] = P_CHOKE;
     ids[n++] = P_PRIO;
+    if ((uint32_t)t->p[P_MODEL] % NMODELS == DM_SMPL) {
+        while (n < 16u)
+            ids[n++] = 0xFFu;
+        for (k = 0; k < 4u; k++)
+            ids[n++] = (uint8_t)(P_SATK + k);
+    }
     return n;
 }
 
@@ -92,8 +102,8 @@ static uint32_t snd_list(const track_t *t, uint8_t *ids)
 static uint32_t page_id(const page_t *pg, uint32_t slot)
 {
     uint32_t id = pg->id[slot & 3u];
-    if (id >= SND_SLOT && id < SND_SLOT + 16u) {
-        uint8_t ids[16];
+    if (id >= SND_SLOT && id < SND_SLOT + SND_N) {
+        uint8_t ids[SND_N];
         uint32_t n = snd_list(TSEL, ids);
         return id - SND_SLOT < n ? ids[id - SND_SLOT] : 0xFFu;
     }

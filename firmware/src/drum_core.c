@@ -185,6 +185,44 @@ static void drum_play(track_t *t, uint32_t vel, int32_t nt)
 
 static uint32_t hit_gate_len(const track_t *t);          /* seq.c */
 
+/* ---- the SAMPLE model's held notes (dm_sample.c ATK SUS REL): a KEYS key, a pad, a MIDI note holds the gate of the
+ * voice its hit started (age above a: dvage before the hit) until let go; a TIE step holds the sounding one on */
+#define SH_KEYS (1u << 16)                               /* who holds: the KEYS keyboard */
+#define SH_PAD (2u << 16)                                /* .. | the track: its pad */
+#define SH_MIDI (3u << 16)                               /* .. | channel << 8 | note */
+static int smpl_gated(const track_t *t, const dvoice_t *v)   /* a SAMPLE voice with SUS, its gate open */
+{
+    return v->active && t->model % NMODELS == DM_SMPL && (v->k[2] & (SE_SUS | SE_REL)) == SE_SUS;
+}
+static void smpl_hold(track_t *t, uint32_t who, uint32_t a)
+{
+    uint32_t i;
+    for (i = 0; i < NDV; i++)
+        if (t->v[i].age > a && smpl_gated(t, &t->v[i])) {
+            t->v[i].x[1] = (int32_t)SMPL_HOLD_MAX;
+            t->v[i].inc[1] = who;
+        }
+}
+static void smpl_release(uint32_t who)                   /* who let go: the gates it holds close (REL next block) */
+{
+    uint32_t k, i;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NDV; i++)
+            if (trk[k].v[i].inc[1] == who && trk[k].v[i].active) {
+                trk[k].v[i].x[1] = 0;
+                trk[k].v[i].inc[1] = 0;
+            }
+}
+static void smpl_tie(track_t *t, uint32_t len)          /* a TIE step: the newest note goes on through it */
+{
+    uint32_t i, b = NDV;
+    for (i = 0; i < NDV; i++)
+        if (smpl_gated(t, &t->v[i]) && (b == NDV || t->v[i].age > t->v[b].age))
+            b = i;
+    if (b < NDV && !t->v[b].inc[1])
+        t->v[b].x[1] += (int32_t)len;
+}
+
 /* MIDI, the keys, Grids: C4. A gated model's (ACID) note no step drives ends as a step's: its gate closes after
  * GATE of the track's step (seq.c seq_tick counts it, stopped too) */
 static void drum_hit(track_t *t, uint32_t vel)
@@ -247,7 +285,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         }
     for (i = 0; i < NDV; i++)
         if (t->lv[i].active) {
-            smp_render(&t->lv[i], out, n, mulq15(t->p[P_LLEVEL] * 258, vel_gain(&t->lv[i])), 32767, 0);
+            smp_render(&t->lv[i], out, n, mulq15(t->p[P_LLEVEL] * 258, vel_gain(&t->lv[i])), 32767, 0, 0);
             nr++;
         }
     if (t->dtail) {
@@ -279,6 +317,8 @@ static void drum_set_model(track_t *t, uint32_t mi)
     }
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = m->edit[i].def;
+    if (mi % NMODELS == DM_SMPL)
+        senv_put(t->p, 0);                              /* (ATK SUS REL LOOP: their defaults) */
     t->pre = (uint16_t)PRE_NONE;
     t->pre_ed = 0;
 }

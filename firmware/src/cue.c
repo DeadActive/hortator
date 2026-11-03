@@ -70,7 +70,7 @@ static __attribute__((noinline)) int cue_switch(uint32_t x, uint32_t k)
     if (cue.fade == 1u) {                          /* this block: the old voices were cut before it renders */
         if (cue.done & CUE_SW_SLOT && mix_fade == 0) {
             for (k = 0; k < NTRK; k++)
-                trk[k].dtail = 0;                  /* (faded out: no declick tail of them at full gain) */
+                trk[NTRK - 1u - k].dtail = 0;      /* (faded out: no declick tail of them at full gain) */
             cue_fade_set(32767u, 0, CTL);          /* the new steps from the block's start (as they fire) */
         } else {
             cue_fade_set((uint32_t)mix_fade, -(int32_t)CUE_FSTEP, x);   /* (not faded out: their declick ramps on) */

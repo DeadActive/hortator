@@ -47,6 +47,7 @@ static const char *const N_RCHORD[RS_NCHORD + 1] = {"OCT", "5TH", "4TH", "MAJ", 
 static const char *const N_RDEST[] = {"R.TUN", "R.DCY", "R.MIX", "R.TON", "R.STR", "R.POS", "F.CUT", "F.RES"};   /* LFO DEST 11..18 */
 static const char *const N_FTYPE[] = {"OFF", "LP", "BP", "HP", "NOT"};   /* FILTER TYPE (FT_) */
 static const char *const N_PRIO[] = {"HIGH", "LOW"};                 /* P_PRIO */
+static const char *const N_SLOOP[] = {"OFF", "FWD", "PING"};         /* P_SLOOP: the SAMPLE model's LOOP (dm_sample.c) */
 static const char *const N_LSRC[] = {"LFO1", "LFO2"};                /* an LFO DEST slot's SRC */
 static const char *const N_ITYPE[] = {"OFF", "SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "PHASR", "FLANG", "CHOR"};   /* INSERT
                                                                      * TYPE (IT_; insert.c) */
@@ -112,6 +113,10 @@ static const param_desc_t TP[P_COUNT] = {
     [P_IB] = PD("B", F_PCT, 0, 127, 96),
     [P_IC] = PD("C", F_PCT, 0, 127, 96),
     [P_IMIX] = PD("MIX", F_PCT, 0, 127, 127),
+    [P_SATK] = PD("ATK", F_INT, 0, 127, 0),        /* the SAMPLE model's envelope (dm_sample.c): 0 none (as before) */
+    [P_SSUS] = PD("SUS", F_PCT, 0, 127, 0),        /* 0: one-shot, DECAY to silence (as before); else the level held */
+    [P_SREL] = PD("REL", F_INT, 0, 127, 40),       /* the release once the note's gate closes (SUS above 0) */
+    [P_SLOOP] = PE("LOOP", N_SLOOP, 0),            /* OFF as before; FWD, PING-PONG between START and END */
 };
 
 static const param_desc_t GP[G_COUNT] = {

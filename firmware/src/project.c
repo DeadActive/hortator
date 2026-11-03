@@ -6,7 +6,9 @@
  * Format "FDRG" (the 16th, 2026-10-31 MICRO): as "FDRF", but every step's spare byte is its MICRO (step_t.micro) and
  * the 7 parameters past the block (below) are in the reserved area (xp: 7 B a track, each as its offset from its
  * power-on value). An FDRF (or older) record converts on load: its steps' spare bytes are those parameters, every
- * micro 0. An older firmware reads an FDRG record as no record (LOAD FAILED).
+ * micro 0. An older firmware reads an FDRG record as no record (LOAD FAILED). The SAMPLE model's ATK SUS REL LOOP
+ * (2026-11-03) follow in xp2 (4 B a track, the same encoding) of the reserved area: 0 in every record before them, so
+ * such a record loads with their power-on values; an FDRG firmware before them ignores them (the format unchanged).
  * "FDRF" (the 15th, 2026-10-24 parameter locks): as "FDRE", but its motion block is gone: the motion and the
  * parameter locks are the slot's lock bank (lockbank.c), its own flash object (storage.c OBJ_LOCKS0 + slot), saved
  * just before the record; the record links it (lk_link: a hash of the bank, lk_n: its count), so a save torn by a
@@ -49,8 +51,10 @@ typedef struct {
     int16_t p[P_NSTORED];                       /* the block; P_NSTORED + j: xp[track][j] (FDRE / FDRF: step[j].rsv) */
     step_t step[NSTEP];                         /* FDRG: rsv = the step's MICRO */
 } proj_trk_t;
-#define PROJ_XP (P_COUNT - P_NSTORED)           /* the parameters past the block: 7 */
-typedef char proj_xp_fit[PROJ_XP == 7 && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's block: 69; the 56 B of xp) */
+#define PROJ_XP (P_SATK - P_NSTORED)            /* the parameters past the block: 7 (KEYF, SRR, the INSERT) */
+#define PROJ_XP2 (P_COUNT - P_SATK)             /* .. and after them (xp2: the SAMPLE model's ATK SUS REL LOOP) */
+typedef char proj_xp_fit[PROJ_XP == 7 && PROJ_XP2 == 4 && P_NSTORED == 69 ? 1 : -1];   /* (FDRE's block: 69; xp 56 B,
+                                                                                         * xp2 32 B of rsv_mo's) */
 /* a parameter past the block as stored (0 = the power-on value) */
 static uint8_t proj_xp_enc(uint32_t id, int32_t v) { return (uint8_t)(clamp(v, -128, 255) - TP[id].def); }
 typedef struct {
@@ -64,7 +68,9 @@ typedef struct {
     uint32_t var_link;                          /* FDRF (2026-10-26): its variations' object (var_link_of; 0: none) */
     uint16_t var_len;                           /* .. its stored length (0: none, variations 2..8 empty: 0.24.0's) */
     uint8_t xp[NTRK][PROJ_XP];                  /* FDRG: the parameters past the block (proj_xp_enc; FDRF: 0) */
-    uint8_t rsv_mo[504 - NTRK * PROJ_XP];       /* FDRF: reserved, 0 */
+    uint8_t xp2[NTRK][PROJ_XP2];                /* FDRG (2026-11-03): ATK SUS REL LOOP (proj_xp_enc; 0 in every record
+                                                 * before them: the power-on values; an older firmware ignores them) */
+    uint8_t rsv_mo[504 - NTRK * (PROJ_XP + PROJ_XP2)];   /* FDRF: reserved, 0 */
     chain_config_t song;                        /* FDR9: the song (song.c) */
     char name[NAME_LEN];                        /* FDR9: the name (NAME_SET, 0-padded; "" = none) */
     uint16_t pre[NTRK];                         /* FDRD: each track's preset: a factory one's uid, 0x8000 | a user
@@ -75,7 +81,14 @@ typedef struct {
 typedef char project_size[sizeof(project_t) == 3840u ? 1 : -1];
 static int16_t proj_xp_get(const project_t *p, uint32_t k, uint32_t id)   /* track k's parameter id past the block */
 {
-    return (int16_t)(TP[id].def + (int8_t)p->xp[k][id - P_NSTORED]);
+    return (int16_t)(TP[id].def + (int8_t)(id < P_SATK ? p->xp[k][id - P_NSTORED] : p->xp2[k][id - P_SATK]));
+}
+static void proj_xp_set(project_t *p, uint32_t k, uint32_t id, int32_t v)   /* .. stored */
+{
+    if (id < P_SATK)
+        p->xp[k][id - P_NSTORED] = proj_xp_enc(id, v);
+    else
+        p->xp2[k][id - P_SATK] = proj_xp_enc(id, v);
 }
 /* an FDRF (or older) record's tracks as FDRG's: the parameters out of steps 0..6's spare bytes, every micro 0 */
 static void proj_xp_move(project_t *q)
@@ -641,8 +654,8 @@ static __attribute__((noinline)) void proj_image(project_t *p, uint32_t slot, in
         } else {
             memcpy(p->t[k].step, trk[k].step, sizeof p->t[k].step);
         }
-        for (i = P_NSTORED; i < P_COUNT; i++)           /* KEYF, SRR, the INSERT: past the block (xp) */
-            p->xp[k][i - P_NSTORED] = proj_xp_enc(i, motion_rest(k, i));
+        for (i = P_NSTORED; i < P_COUNT; i++)           /* KEYF, SRR, the INSERT, ATK .. LOOP: past the block */
+            proj_xp_set(p, k, i, motion_rest(k, i));
         p->pre[k] = (uint16_t)preset_rec_enc(trk[k].pre);   /* (stable: a uid / a user slot, presets.c) */
         p->pre_ed[k] = trk[k].pre_ed;
     }
@@ -1370,8 +1383,8 @@ static void cue_file_out(void)
             }
             if (!ov)
                 memcpy(p->t[k].step, g->st[k], sizeof p->t[k].step);
-            for (i = P_NSTORED; i < P_COUNT; i++)      /* KEYF, SRR, the INSERT: past the block (xp) */
-                p->xp[k][i - P_NSTORED] = proj_xp_enc(i, g->p[k][i]);
+            for (i = P_NSTORED; i < P_COUNT; i++)      /* KEYF, SRR, the INSERT, ATK .. LOOP: past the block */
+                proj_xp_set(p, k, i, g->p[k][i]);
             p->pre[k] = (uint16_t)preset_rec_enc(cue.out_pre[k]);
             p->pre_ed[k] = cue.out_pre_ed[k];
             var_sp[k] = g->st[k];
@@ -1406,7 +1419,7 @@ static void cue_file_out(void)
             for (k = 0; k < NTRK; k++) {
                 memcpy(p->t[k].step, var_sp[k], sizeof p->t[k].step);
                 for (i = P_NSTORED; i < P_COUNT; i++)
-                    p->xp[k][i - P_NSTORED] = proj_xp_enc(i, motion_rest(k, i));
+                    proj_xp_set(p, k, i, motion_rest(k, i));
                 for (j = 0; j < 4u; j++)
                     p->t[k].p[CHAIN_TIMING[j]] = var_tm[k][j];
             }
@@ -1976,8 +1989,9 @@ static void preset_user_boot(void)                  /* persist_boot (after flash
             for (k = 0; k < 8u; k++)
                 u->k[k] = (int8_t)knob_in(&DMODELS[u->model].edit[k], u->k[k]);   /* (a KEY note kept: converted
                                                                                     * when loaded, presets.c) */
-            for (k = 0; k < UPR_NFX; k++)
-                u->f[k] = (int8_t)clamp(u->f[k], TP[UPR_FX[k]].min, TP[UPR_FX[k]].max);
+            for (k = 0; k < UPR_NFX; k++)                /* (ATK .. LOOP's bits kept: presets.c upr_env) */
+                upr_fxset(u, k, clamp(upr_fxv(u, k), TP[UPR_FX[k]].min, TP[UPR_FX[k]].max),
+                          u->model == DM_SMPL ? upr_fxbit(u, k) : 0u);
         }
         for (i = 0; i < UPR_NOLD - PRE_NUSER; i++)
             if (upr.mv[i] > PRE_NUSER)

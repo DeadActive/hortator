@@ -64,6 +64,8 @@ enum {                          /* per-track parameters */
                                   * byte (project.c) */
     P_SRR,                       /* SRR (insert.c): sample rate reduction before DIST, 0 off .. 127 (347 Hz) */
     P_ITYPE, P_IA, P_IB, P_IC, P_IMIX,   /* INSERT (insert.c, Skiff's from Felucca 1.5): TYPE, its A B C, MIX */
+    P_SATK, P_SSUS, P_SREL, P_SLOOP,     /* the SAMPLE model's envelope and loop (dm_sample.c): ATK SUS REL LOOP, its
+                                          * SOUND page 5/5. Stored past the project's xp (project.c xp2) */
     P_COUNT
 };
 #define P_NSTORED P_RKEY         /* the parameters in a project's block (FDRE: P_MODEL .. P_LS4DEPTH) */
