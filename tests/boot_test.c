@@ -2044,6 +2044,14 @@ static int last_project_old_record_no_flash(void)
     project_save(0);
     ok &= !flash_ok && str_eq(ui.msg, "SAVED (RAM)") && lastp.set == 0u;
     ok &= power_on(0) == 0u && !ui.confirm && !flash_ok && lastp.set == 0u;
+    host_jedec = 0xB36014u;                          /* the UC25HQ80 of newer FM-1s: the same 1 MiB SPI NOR, accepted */
+    fresh_flash();
+    ok &= power_on(0) == 0u && flash_ok;
+    project_save(0);
+    ok &= flash_ok && str_eq(ui.msg, "SAVED");
+    host_jedec = 0x123456u;                          /* any other chip: RAM only, as before */
+    fresh_flash();
+    ok &= power_on(0) == 0u && !flash_ok;
     host_jedec = host_jedec_keep;
     return (int)ok;
 }

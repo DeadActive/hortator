@@ -28,8 +28,9 @@ LOADER = rnd(U.LOADER_LEN)
 
 
 class Fake(U.UBoot):
-    def __init__(self, flash, fail_after=None):
+    def __init__(self, flash, fail_after=None, jedec=0x856014):
         self.flash, self.loader, self.ram, self.log, self.fail_after, self.tag = flash, False, {}, [], fail_after, 1
+        self.jedec = jedec                             # the ONLINE answer's flash id
 
     def xfer(self, cdb, data_out=None, in_len=0, timeout=0):
         if cdb[0] == 0x12:
@@ -52,7 +53,7 @@ class Fake(U.UBoot):
             k = U.crc_cipher((0x980F).to_bytes(2, "little"))[::-1]
             return (echo + b"\0\0\0\0" + k).ljust(16, b"\0")
         if cmd == U.CMD_ONLINE:
-            return (echo + bytes([3, 0]) + (0x856014).to_bytes(4, "little")).ljust(16, b"\0")
+            return (echo + bytes([3, 0]) + self.jedec.to_bytes(4, "little")).ljust(16, b"\0")
         addr = int.from_bytes(a[:4], "big")
         if cmd == U.CMD_READ_FLASH:
             return bytes(self.flash[addr:addr + int.from_bytes(a[4:6], "big")])
@@ -106,6 +107,11 @@ def main():
     check("backup saves the flash exactly", rc == 0 and open(p("backup.bin"), "rb").read() == before)
     check("backup sends no flash erase or write", not ({U.CMD_ERASE_SECTOR, U.CMD_WRITE_FLASH} & set(f.log))
           and bytes(device) == before)
+    rc, _ = run(["backup", "--loader", p("loader.bin"), p("backup_uc.bin")], Fake(device, jedec=0xB36014))
+    check("a newer FM-1's UC25HQ80 flash (0xB36014) is accepted", rc == 0
+          and open(p("backup_uc.bin"), "rb").read() == before)
+    rc, msg = run(["backup", "--loader", p("loader.bin"), p("x.bin")], Fake(device, jedec=0x123456))
+    check("any other flash chip is refused", rc == 1 and "not an FM-1" in msg and "0x123456" in msg)
     rc, msg = run(["backup", "--loader", p("bad_loader.bin"), p("x.bin")], Fake(device))
     check("a loader that is not wl82loader.bin is refused", rc == 1 and "expected" in msg)
 

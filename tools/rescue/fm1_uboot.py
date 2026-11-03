@@ -42,7 +42,8 @@ LOADER_ADDR, LOADER_ARG = 0x1C02000, 0x0001          # loader in RAM; argument: 
 LOADER_LEN = 24064                                     # jl-uboot-tool data/loaderblobs/usb/wl82loader.bin
 FLASH_SIZE, CHUNK, SECTOR = 0x100000, 512, 0x1000
 APP_LO, APP_HI = 0x4000, 0x93000
-EXPECT_KEY, EXPECT_ID = 0x980F, 0x856014              # FM-1 chip key; 1 MiB SPI NOR
+EXPECT_KEY = 0x980F                                    # FM-1 chip key
+EXPECT_IDS = (0x856014, 0xB36014)                      # 1 MiB SPI NOR: Puya P25Q80, UC25HQ80 (newer units)
 STOCK_V15 = "db1642b2"                                 # sha256 prefix of M-VAVE's FM-1.fwsc (V15)
 
 CMD_WRITE_MEMORY = 0xFB06      # ROM UBOOT1.00: RAM only (ram_write guards the range)
@@ -149,8 +150,9 @@ class UBoot:
         r = self.cmd(CMD_ONLINE)
         typ, fid = r[0], int.from_bytes(r[2:6], "little")
         print(f"chip key 0x{key:04X}, flash type {typ} id 0x{fid:06X}")
-        if key != EXPECT_KEY or typ != 3 or fid != EXPECT_ID:
-            sys.exit(f"not an FM-1 as expected (key 0x{EXPECT_KEY:04X}, flash 3 / 0x{EXPECT_ID:06X}): stopping")
+        if key != EXPECT_KEY or typ != 3 or fid not in EXPECT_IDS:
+            sys.exit(f"not an FM-1 as expected (key 0x{EXPECT_KEY:04X}, flash 3 / "
+                     f"{' or '.join(f'0x{i:06X}' for i in EXPECT_IDS)}; this one: 0x{fid:06X}): stopping")
 
     def read(self, lo=0, n=FLASH_SIZE):
         out = bytearray()

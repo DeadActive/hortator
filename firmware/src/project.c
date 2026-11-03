@@ -31,6 +31,9 @@
  * The globals after its block (G_NSTORED .., the delay's MODE) ride in the record's reserved byte rsv[0] (proj_g; 0 in
  * every earlier record: NORMAL).
  * Felucca's formats ("FUN1".."FUN3") are not read. Settings + the panel table: as in Felucca. */
+/* the FM-1's 1 MiB SPI NOR flash by its JEDEC id: the Puya P25Q80 (0x856014) and the UC25HQ80 (0xB36014) of newer
+ * units (the same size and commands: 0x9F, 0x05 / 0x35, 0x06, 0x20, 0x02); any other answer: RAM-only saves */
+#define FL_JEDEC_OK(id) ((id) == 0x856014u || (id) == 0xB36014u)
 #define PROJ_MAGIC 0x47524446u                 /* "FDRG" (the 16th): MICRO (spec 2026-10-31) */
 #define PROJ_MAGIC_VF 0x46524446u              /* "FDRF": the lock bank (spec 2026-10-24 parameter locks); converted on load */
 #define PROJ_MAGIC_VE 0x45524446u              /* "FDRE": + the LFO DEST slots (fixes 2026-10-21 item 3); converted on load */
@@ -2131,7 +2134,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #else
     persist_t p;
     uint32_t f = irq_save();
-    flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;
+    flash_ok = FL_JEDEC_OK(FL_FAR(fl_jedec_ram)());
     irq_restore(f);
     if (!flash_ok) {
         uint32_t i;
