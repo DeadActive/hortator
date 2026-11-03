@@ -130,6 +130,7 @@ function started(s) {
     panels.append(p);
     views.push({ id: t.id, view: t.mount(p, ctx) || {} });
   }
+  if (MOCK) globalThis.hortatorMock = { device: mock, views }; // ?mock only: the views' models for development
   let last = location.hash.slice(1);
   try { last = last || localStorage.getItem(TAB_KEY) || ""; } catch { /* storage off */ }
   show(views.some((v) => v.id === last) ? last : views[0]?.id);
@@ -162,11 +163,19 @@ function stopped(r) {
 }
 
 /* ?mock: the FM-1's side, by hand -------------------------------------------------------- */
-async function seedMockSample(m) { // USR1 holds a short decaying tone, so the Samples tab has something to show
-  const S = await import("./sample.mjs"), hz = 22050;
+async function seedMockSample(m) { // USR1 holds a short decaying tone, USR2 a kit of four, so the Samples tab has something to show
+  const S = await import("./sample.mjs"), T = await import("./sampset.mjs"), hz = 22050;
   const x = Float32Array.from({ length: hz }, (_, i) => Math.exp(-i / 4000) * Math.sin(2 * Math.PI * 110 * i / hz * (1 + 2 * Math.exp(-i / 800))));
   const e = S.encodeSample(S.toPcm16(S.normalize(x)), hz, "MOCK BD");
   m.seedSample(0, e.header, e.data);
+  let seed = 7;
+  const noise = () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 2147483648 - 1; };
+  const kit = [["KICK", 0.35, (i) => Math.exp(-i / 3000) * Math.sin(2 * Math.PI * 55 * i / hz * (1 + 3 * Math.exp(-i / 600)))],
+    ["SNARE", 0.25, (i) => Math.exp(-i / 1800) * (0.7 * noise() + 0.4 * Math.sin(i / 6))], ["CL HAT", 0.08, (i) => Math.exp(-i / 300) * noise()],
+    ["CLAP", 0.3, (i) => Math.exp(-(i % 2200) / 250) * (i < 6600 ? 1 : Math.exp(-(i - 6600) / 1500)) * noise()]];
+  const slots = kit.map(([n, sec, f]) => T.makeSlot(S.toPcm16(S.normalize(Float32Array.from({ length: Math.round(sec * hz) }, (_, i) => f(i)))), hz, n));
+  const set = T.composeSet(slots, "MOCK KIT", S.SLOT_MAX[1]);
+  m.seedSample(1, set.header, set.data);
 }
 function mockBar(m) {
   const bar = $("#mockbar");

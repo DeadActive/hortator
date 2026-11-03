@@ -318,8 +318,8 @@ The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DEC
 
 - **SET**: PERC (built in) or a user slot USR1–USR3. **SLOT** steps through the set's samples, shown `3/16`: PERC
   has 16 — 1 kick, 2 rim, 3 snare, 4 clap, 5 low tom, 6 closed hat, 7 open hat, 8 high tom, 9 crash, 10 ride,
-  11 tambourine, 12 cowbell, 13 conga, 14 shaker, 15 claves, 16 wood block; a user slot with one sample reads `1/1`,
-  an empty one `--`. Each sample plays at its own pitch: TUNE (and a step's NOTE) transposes it. Turning SET keeps
+  11 tambourine, 12 cowbell, 13 conga, 14 shaker, 15 claves, 16 wood block; a user slot reads `1/N` for its N samples (the web
+  editor's order), an empty one `--`. Each sample plays at its own pitch: TUNE (and a step's NOTE) transposes it. Turning SET keeps
   SLOT inside the new set.
 - **START** and **END** cut the sample: 0–127 over its length, START 0 / END 127 the whole of it (as before). END
   below START plays a sliver from START. Like every SOUND knob they take MOTION, step locks, presets, MIDI LEARN and an
@@ -545,15 +545,28 @@ From 0.28.0 the [editor](https://deadactive.github.io/hortator/webapp/editor/) w
 - **Patterns**: every track's steps in each variation (NUDGE included), and the locks, editable; click a slot or
   variation to cue it, exactly as the cue keys do; copy a variation from this slot, another slot or a backup file;
   SAVE.
-- **Samples**: the three user sample slots (USR1 80 KiB, USR2 and USR3 48 KiB each) with each one's name, length and
-  how full it is. Load a WAV (or AIFF, if your browser opens it) into a slot: the page mixes it to mono, lets you trim
-  its start and end on the waveform, normalize it and pick the sample rate (its own up to 44.1 kHz, lower ones when the
-  slot needs them, with the resulting length), encodes it as the FM-1 stores it and plays you exactly what the FM-1
-  will play before you send it. The upload shows its progress and can be cancelled. Each slot holds one sample over
-  all keys: pick it with SET = USR1..USR3 on the SAMPLE model or the LAYER page. Back up a slot to a file (`.fsmp`)
-  and restore it into any slot, listen to what a slot holds, rename it, or clear it. Uploads happen only while the
-  FM-1 is stopped (the FM-1 shows UPLOAD USR1 meanwhile); a slot being written reads as empty until the upload is
-  complete, so a cancelled upload, an unplugged cable or a power cut leaves it empty, never half a sample.
+- **Samples**: the three user sample slots (USR1 80 KiB, USR2 and USR3 48 KiB each), each a **set of up to 16
+  samples**, shown with its samples (name, length, size), how full it is and the room left. Load a WAV (or AIFF, if
+  your browser opens it): the page mixes it to mono, lets you trim its start and end on the waveform, normalize it and
+  pick the sample rate (its own up to 44.1 kHz, lower ones when the room needs them, with the resulting length),
+  encodes it as the FM-1 stores it and plays you exactly what the FM-1 will play before you send it. Then **add** it
+  to a set as its next sample, put it **in place of** one, or let it **replace the whole set**. A set's samples are
+  its SLOT 1, 2, 3 … on the SAMPLE model and the LAYER page (SET = USR1..USR3), in the order the page lists them.
+  For each sample: **Play** (as the FM-1 plays it), **Edit** (open it in the editor to trim, normalize or resample
+  it, then replace it), move it up or down, rename or delete it. Moving, renaming and deleting wait for **Write**
+  (the set's card says it has changes; Undo changes reads it back from the FM-1); adding, replacing and chopping
+  write at once. **Chop** cuts a long sound into samples: **Auto** finds its hits (with a sensitivity), **Beats** cuts
+  every 1/4, 1/8 or 1/16 at a tempo you type or let the page detect (÷2 / ×2 when it guesses half or double), and
+  **Equal** makes N slices. The cuts show on the waveform: click to add one, drag one to move it, double-click it to
+  remove it; click a slice's number to hear it. The slices that fit go in as samples named after the file (`BREAK 1`,
+  `BREAK 2` …), and the page says how many did not fit (no room, or a set's 16 samples). Back up a set to a file
+  (`.fsmp`) and restore it into any slot, rename the set, or clear it. Writing happens only while the FM-1 is stopped
+  (the FM-1 shows UPLOAD USR1 meanwhile) and always sends the whole set: the slot reads as empty until the write is
+  complete, so a cancelled write, an unplugged cable or a power cut leaves it empty, never half a set; the page keeps
+  the set so you can write it again or save it as a file. The samples' names are kept inside the set (the FM-1 itself
+  shows the set's name). A set made elsewhere (for example a multi-zone set from upstream Felucca) is listed by its
+  samples; changing it lays it out again as plain samples, after asking. On the FM-1, START reaches into the first sample of a user set; the
+  others always start at their beginning (END cuts them as usual).
 
 Restores and sample uploads happen only while the FM-1 is stopped; during a restore it shows RESTORING and its PLAY, cue keys, LOAD, SAVE and
 the step tools wait. USB only, not over Bluetooth (the Bluetooth version has the editor over USB too). Chrome, Edge or Opera on a

@@ -57,6 +57,20 @@ released yet are listed under Unreleased (the next version) and, for the version
   can also be listened to, backed up to a file and restored (into any slot), renamed and cleared. A sample never
   spills past its slot: the projects' variations and lock banks next to USR2 and USR3 stay safe, and the firmware
   update leaves the samples alone.
+- **Web editor: sets of up to 16 samples.** Each user sample slot (USR1, USR2, USR3) now holds a set of up to 16
+  samples instead of one: the SAMPLE model's and the LAYER's SLOT knob picks among them (`2/5`), in the order the
+  page lists them. The Samples tab shows each set's samples with their names, lengths and sizes, how full the slot is
+  and how much room is left before you add one. Add a sound file as the set's next sample, put it in place of one,
+  or replace the whole set; play each sample as the FM-1 plays it, open it again to trim, normalize or resample it,
+  move it up or down, rename it or delete it (these wait for Write, and can be undone until then). Every write sends
+  the whole set with the FM-1 stopped; if it is cancelled or fails, the slot is left empty, never half a set, and the
+  page keeps the set so you can write it again or save it to a file. The samples keep their names in the set. Sets
+  and single samples from before load and play as they did.
+- **Web editor: Chop.** Cut a long sound (a drum loop, a phrase) into samples: Auto finds its hits (with a
+  sensitivity control), Beats cuts every 1/4, 1/8 or 1/16 at a tempo you type or let the page detect, Equal makes as
+  many slices as you ask. The cuts show on the waveform, where you can move, add and remove them, and each slice can
+  be heard before you add them. The slices go into a set as its samples (named after the file: `LOOP 1`, `LOOP 2` …);
+  when not all fit, the page adds what fits and says how many did not.
 - **SAMPLE and LAYER: SLOT steps through the samples.** The SAMPLE model's KEY knob is now SLOT, and so is the
   LAYER's: it picks one of the set's samples, shown as `3/16` (PERC's 16 drum and percussion samples in order, from
   the kick to the wood block; `1/1` for a user slot with one sample, `--` for an empty one), each played at its own

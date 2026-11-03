@@ -1089,6 +1089,35 @@ track on SAMPLE, SET USR2.
   plays what it held (the update's cleanup leaves the samples alone).
 - Timings: an 80 KiB upload about 5–15 s, its backup about 3–6 s; each must stay under 30 s.
 
+### Web editor: sample sets and Chop (check on the FM-1)
+
+Have at hand: three short drum WAVs (kick, snare, hat) and a drum loop of 2–4 bars (a WAV with a known tempo). Put a
+SAMPL track on SET USR2, SLOT 1, and a second SAMPL track on USR2 too.
+
+- USR2 empty: Add the kick (Add a sound…): the card shows `1 sample`, the FM-1 plays it on SLOT `1/1`. Add the snare
+  and the hat: the card lists KICK, SNARE, HAT with lengths and sizes, the free room shrinks; on the FM-1 SLOT reads
+  `1/3`..`3/3` and each SLOT plays the sample the page lists at that number (A/B with the page's Play: the same sound).
+- Move HAT up to 2: the card says it has changes; the FM-1 still plays the old order. Write USR2: SLOT 2 is now the
+  hat, SLOT 3 the snare. Rename SNARE (Name), Write, Read again: the name stays. Delete the hat, Write: `1/2`, `2/2`.
+- Edit the kick: trim its start and Normalize, Replace sample 1: SLOT 1 plays the trimmed, louder kick; SLOT 2 is
+  unchanged (A/B against the page's Play).
+- MIDI: a note on the drum channel on a SAMPL track on USR2 plays the selected SLOT, transposed by the note; KEYS
+  (the keyboard) the same. A LAYER on USR2 SLOT 2 plays the second sample under any model.
+- Chop the loop into USR3 (Chop a sound…): Auto lists the hits on the waveform (more cuts as Sensitivity goes up);
+  Beats with Detect gives the loop's tempo (÷2 / ×2 when it is half or double); 1/8 shows a cut every eighth; drag a
+  cut, add one by clicking, remove one by double-clicking; click a slice number to hear it. Add the slices: USR3 lists
+  `LOOP 1` … and the FM-1's SLOT steps through them in order, each a clean slice (no click at its start beyond the
+  sound's own). Chop at 44.1 kHz into 1/16: the page says how many slices fit and how many did not; only those are
+  added.
+- Fill a set to 16 samples: Add and Chop are off for it (16 of 16). Play the FM-1 and try Write: refused, the card
+  keeps the changes; STOP, Write: done. Cancel a Write halfway: the set on the FM-1 is empty (SLOT `--`, silent), the
+  card offers Write again and Save as file; Write again: it plays as before. Save as file, Clear, Restore the file:
+  the same samples, the same order and names.
+- Restore an older single-sample backup and an 80 KiB USR1 set into USR1: both play as before; the card shows one
+  sample / the set's samples.
+- After all this, the projects using USR2 still load with their variations and locks (USR2's limit kept them), and a
+  firmware update leaves the sets alone.
+
 ### USER presets with FX, 96 slots (check on the FM-1)
 
 Before installing, on the old firmware: save a few USER presets, among them some in slots 97 to 128 (scroll the list
