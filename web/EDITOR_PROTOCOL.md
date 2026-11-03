@@ -61,7 +61,7 @@ the command needs.
 
 | cmd | Name | Cap | Request | Reply (rc 0) |
 | --- | --- | --- | --- | --- |
-| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"0.28.0"`), major u7 (1), minor u7 (2), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (76), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (96), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
+| 1 | INFO | — | — | magic str `"HORTATOR"`, firmware str (`"0.28.0"`), major u7 (1), minor u7 (2), caps u14, ntrk u7 (8), nstep u7 (64), pcount u7 (80), gcount u7 (42), nmodels u7 (45), nfact u14 (151), nuser u14 (96), nbanks u7 (3), nslot u7 (4), nvar u7 (8), maxreq u14 (640), ble u7 (1: the Bluetooth build), state |
 | 2 | PAGES | LIVE | first u7 | total u7, first u7, list of {title str, scope u7, graph u7, ids 4 × u14} |
 | 3 | DESC | LIVE | scope u7, track u7, id u14, first u7 | scope u7, track u7, id u14, fmt u7, flags u7, min v14, max v14, def v14, label str, unit str, nnames u7, first u7, list of names str (first = 7F: list of order u7) |
 | 4 | GET | LIVE | scope u7, track u7, id u14, count u7 (1..) | scope u7, track u7, id u14, list of {value v14, text str, unit str} for ids id, id + 1, … |
@@ -607,7 +607,12 @@ firmware through `tests/editor_ids.c` → `device_data.json` → `test_editor.mj
   (P_E0..P_E7), fx 23 × i8 @+10 (P_DIST P_CHOR P_DLY P_REV, P_RMODEL P_RTUNE P_RDECAY P_RMIX P_RTONE P_RSTRCT P_RPOS
   P_RKEY, P_FTYPE P_FCUT P_FRESO P_FENV P_FDEC, P_ITYPE P_IA P_IB P_IC P_IMIX, P_SRR: `LAYOUT.uprFx`); then mv 32 × u8
   @3172: older slot 97 + i moved into slot mv[i] − 1 (0 none / dropped). A project's user reference (`pre`,
-  0x8000 | slot) to an old slot 96..127 reads through mv.
+  0x8000 | slot) to an old slot 96..127 reads through mv. **A SAMPLE preset's ATK SUS REL LOOP** (model 14 only; the
+  record's size and its 96 slots unchanged): 23 bits E = (ATK − 0) mod 128 | (SUS − 0) mod 128 << 7 | (REL − 40) mod
+  128 << 14 | (LOOP − 0) mod 4 << 21, bit k of E in fx byte k: the top bit of each 0..127 FX, FILTER ENV's (k = 15,
+  −64..63) its top bit unlike bit 6. An FX's value is its byte's low 7 bits (FILTER ENV sign-extended from 7). E = 0
+  (the defaults) leaves the slot byte for byte as before; another model's slot never sets a bit (`proto.mjs`
+  `envPack` / `fxByte`, `presets.c` `upr_env`).
 - **User presets "UPR1"** (1,284; minor 1 and before): u32 magic "UPR1" (0x31525055), then 128 slots × 10 bytes:
   used u8 (1 = used; an empty slot is 10 zero bytes), model u8, knobs 8 × i8 (P_E0..P_E7).
 - **Project record "FDRG"** (3,840): magic u32 0x47524446 @0; size u32 = 3840 @4; g 41 × i16 @8 (G_BPM..G_RTYPE); sel
@@ -615,7 +620,8 @@ firmware through `tests/editor_ids.c` → `device_data.json` → `test_editor.mj
   × 4 B {flags (bit 0 on, 1 acc, 2 slide, 3 tie, 4..5 ratch), cond u8, nt i8 (NOTE − C4), micro i8 (NUDGE, −50..+50)};
   lk_n u16 @3246; lk_link u32 @3248 (FNV-1a of the 3,208-byte lock bank, | 1); var_link u32 @3252 (FNV-1a of the
   variations' 8 + used bytes, | 1); var_len u16 @3256; xp 8 × 7 B @3258 (track k's P_RKEY + j as (value − its
-  power-on value) mod 256 — RKEY 0, SRR 0, ITYPE 0, IA 64, IB 96, IC 96, IMIX 127); rsv_mo 448 B @3314 (0); song 36 B @3762; name 12 B @3798
+  power-on value) mod 256 — RKEY 0, SRR 0, ITYPE 0, IA 64, IB 96, IC 96, IMIX 127); xp2 8 × 4 B @3314 (track k's P_SATK + j, the SAMPLE model's ATK SUS REL LOOP, the same encoding — ATK 0,
+  SUS 0, REL 40, LOOP 0; 0 in every record before them); rsv_mo 416 B @3346 (0); song 36 B @3762; name 12 B @3798
   (characters of `" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/#+"`, 0-padded); pre 8 × u16 @3810 (a factory preset's uid,
   0x8000 | a user slot, 0xFFFF none); pre_ed 8 × u8 @3826; sum u32 @3836 = FNV-1a (32 bit, offset basis 2166136261,
   prime 16777619) of bytes 0..3835 (padding bytes 0). Variation 1 is the record's steps with its tracks' LEN DIV SWG

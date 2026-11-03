@@ -47,6 +47,16 @@ released yet are listed under Unreleased (the next version) and, for the version
 
 ## Unreleased
 
+- **SAMPLE: ATK, SUS, REL and LOOP.** The SAMPLE model has a fifth SOUND page with an envelope and a loop. ATK fades
+  the hit in (0 to 2 s). SUS 0 plays the sample once with DECAY, exactly as before; above 0, the sound falls to that
+  level and holds while the note is held, then REL fades it out. A step holds its note for one step of the track,
+  longer through the TIE steps after it; a key in KEYS mode, a track's key or a MIDI note holds it until you let go.
+  LOOP plays the part between START and END again and again: FWD (with a short crossfade, so the seam does not click)
+  or PING (forward and back; loops up to about a quarter of a second at 44.1 kHz, longer ones play FWD). With ATK 0,
+  SUS 0 and LOOP OFF every hit sounds as before. The four knobs take MOTION, step locks and MIDI LEARN, are saved with
+  projects and in USER presets (still 96 slots), and the web editor shows and saves them. A factory SAMPLE preset sets
+  them back to their defaults. In a user sample set, START (and so the loop's start) only reaches into the first
+  sample; the others start from their beginning.
 - **Web editor: Samples.** A new Samples tab loads your own sounds into the three user sample slots (USR1 holds 80
   KiB, USR2 and USR3 48 KiB each) and shows what each one holds: its name, length and how full it is. Open a WAV (or
   an AIFF your browser can open), trim its start and end on the waveform, normalize it if you like and choose the

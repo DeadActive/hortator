@@ -314,7 +314,7 @@ refuses uploads to that slot too.)
 ### Samples: SLOT, START, END
 
 The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DECAY**, **TONE**, **DRIVE**; SOUND 2:
-**SET**, **SLOT**, **START**, **END**.
+**SET**, **SLOT**, **START**, **END**; SOUND 5 (its own page): **ATK**, **SUS**, **REL**, **LOOP**.
 
 - **SET**: PERC (built in) or a user slot USR1–USR3. **SLOT** steps through the set's samples, shown `3/16`: PERC
   has 16 — 1 kick, 2 rim, 3 snare, 4 clap, 5 low tom, 6 closed hat, 7 open hat, 8 high tom, 9 crash, 10 ride,
@@ -323,7 +323,23 @@ The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DEC
   SLOT inside the new set.
 - **START** and **END** cut the sample: 0–127 over its length, START 0 / END 127 the whole of it (as before). END
   below START plays a sliver from START. Like every SOUND knob they take MOTION, step locks, presets, MIDI LEARN and an
-  LFO DEST. Samples play once (one-shot): loop points in a sample are not played.
+  LFO DEST. A sample's own loop points are not played: LOOP loops between START and END instead.
+- **ATK SUS REL** shape the hit's level. **ATK** fades it in: 0 at once (as before), up to 2 s. **SUS** 0 plays the
+  sample once, DECAY fading it to silence, exactly as before (REL does nothing then); above 0, DECAY falls only to that
+  level and the note holds there **while it is held**, then **REL** fades it out (REL 0 is about 5 ms, 127 several
+  seconds). How long a note is held: a step holds for one step of the track (its DIV at the tempo), longer through the
+  **TIE** steps that follow it; a key in KEYS mode, a track's own key and a MIDI note hold until you let go (10 s at
+  most, in case a note-off gets lost). The sample still ends at END unless it loops.
+- **LOOP**: **OFF** (as before), **FWD** (from END back to START, again and again; the seam is crossfaded over 64
+  samples so it does not click, a very short loop over half its length) or **PING** (forward to END, back to START,
+  forward again: the turn mirrors the sound, so it never jumps). PING plays loops up to 10,240 samples of the sample
+  (0.23 s at 44.1 kHz, 0.46 s at 22 kHz, 0.9 s at 11 kHz); a longer loop plays FWD. A loop with SUS 0 goes on until
+  DECAY has faded it; with SUS above 0 until the note is let go and REL has faded it.
+- With ATK 0, SUS 0 and LOOP OFF a hit sounds exactly as it did before these knobs. They take MOTION, step locks and
+  MIDI LEARN (`T1 ATK`, `T1 LOOP`), are saved with projects and in USER presets; a factory SAMPLE preset sets them back
+  to ATK 0, SUS 0, REL 40, LOOP OFF. The LAYER keeps its one-shot DECAY.
+- In a user set START reaches only into the set's first sample: the others start (and loop) from their beginning; END
+  works on all of them.
 
 The **LAYER** (EDIT, then OCT+) puts a sample under any model: **SET**, **SLOT**, **LEVEL**, **TUNE** (1/2) and
 **DECAY** (2/2), SET and SLOT as the SAMPLE model's. MIDI LEARN names them `T3 L.SET`, `T3 L.SLOT`, `T3 L.LEVEL`,

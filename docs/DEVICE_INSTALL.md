@@ -1164,3 +1164,28 @@ each sounds. If you have a sample in USR1, add a SAMPL track on USR1 KEY 48.
   shows `1/1` and still sounds as before). No `*` on the slot after loading.
 - The factory SAMPL presets (SMPKICK TAMBO SHAKER LOFICONG): as before.
 - A web editor on the SAMPL track: SLOT, START, END with the FM-1's texts (`3/16`).
+
+### SAMPLE ATK, SUS, REL, LOOP (check on the FM-1)
+
+Use a long sustained sound (a pad or a held note) in a user slot, and a SAMPL track on it.
+
+- EDIT on the SAMPL track: SOUND has 5 pages, the fifth reads ATK SUS REL LOOP; page 4 shows CHOKE PRIO and two empty
+  columns. Another model: 4 pages at most, no ATK..LOOP.
+- All four at their defaults (ATK 0, SUS 0, REL 40, LOOP OFF): the kit sounds as before (compare an old project).
+  REL alone changes nothing while SUS is 0.
+- ATK up: the hits fade in, ATK 127 about 2 s; no click at the start.
+- SUS 100, LOOP FWD, REL 0: a step's note lasts one step (DIV 1/16: short, 1/4: four times longer) then stops
+  quickly without a click; with TIE on the next two steps it lasts three steps. REL up: a longer fade.
+- KEYS mode on that track: a key holds the note as long as it is pressed. A pad (the track's key) too. A MIDI note
+  from a controller (ROUT NOTE, SEL and TRACK): held until its note-off.
+- LOOP FWD with START 40 END 60: the loop repeats evenly, no click at the seam (try a sine-like sound, the worst case).
+  LOOP PING on a short region: back and forth, smooth at both ends; on a region longer than ~0.2 s at 44.1 kHz it plays
+  as FWD.
+- Lock ATK and LOOP on one step: only that step's hit changes. MOTION records ATK. MIDI LEARN a CC to ATK: `T1 ATK`.
+- SAVE the project, power off and on, LOAD: ATK SUS REL LOOP as set. Save the track as a USER preset, load it on
+  another track: the same four (and its FX). A factory SAMPL preset: back to 0 / 0 / 40 / OFF.
+- 8 SAMPL tracks all looping with SUS on, 3 octaves up: listen for overload (the device sheds voices; it must not
+  crash or crackle for long).
+- In a chopped user set: START moves only slot 1's start; LOOP on slot 3 loops from its beginning to END.
+- The web editor: the SAMPL track's fifth SOUND page shows ATK SUS REL LOOP; Save track N here and Write to FM-1
+  keep them.
