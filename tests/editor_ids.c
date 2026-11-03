@@ -74,6 +74,7 @@ int main(void)
     PNAME(FTYPE); PNAME(FCUT); PNAME(FRESO); PNAME(FENV); PNAME(FDEC); PNAME(PRIO); PNAME(LSRC1); PNAME(LSRC2);
     PNAME(LS3SRC); PNAME(LS3DEST); PNAME(LS3DEPTH); PNAME(LS4SRC); PNAME(LS4DEST); PNAME(LS4DEPTH);
     PNAME(RKEY); PNAME(SRR); PNAME(ITYPE); PNAME(IA); PNAME(IB); PNAME(IC); PNAME(IMIX);
+    PNAME(SATK); PNAME(SSUS); PNAME(SREL); PNAME(SLOOP);
     for (k = 0; k < 2u; k++)
         for (i = 0; i < LF_N; i++) {
             snprintf(lfo[k][i], sizeof lfo[k][i], "LFO%u_%s", (unsigned)k + 1u, LFN[i]);
@@ -98,12 +99,13 @@ int main(void)
            "\"NT_MIN\": %d, \"NT_MAX\": %d, \"LK_MAX\": %u, \"VAR_BYTES\": %u, \"VAR_N\": %u, \"NAME_LEN\": %u, "
            "\"ACID\": %u, \"ACID_MAXTRK\": %u, \"RS_OFF\": %u, \"RS_CHORD\": %u, \"RS_MODAL\": %u, \"RS_MAXTRK\": %u, "
            "\"RS_MAXMODAL\": %u, \"MICRO_MAX\": %u, \"UPR_NOLD\": %u, \"UPR_NFX\": %u, \"UPR_USED\": %u, "
-           "\"UPR_VOICE\": %u},\n",
+           "\"UPR_VOICE\": %u, \"DM_SMPL\": %u, \"UPR_FENV\": %u, \"SND_N\": %u},\n",
            NTRK, NSTEP, P_COUNT, G_COUNT, P_NSTORED, G_NSTORED, NMODELS, (unsigned)PRE_NFACT, (unsigned)PRE_NUSER,
            (unsigned)COND_MAX, NT_MIN, NT_MAX, (unsigned)LK_MAX, (unsigned)VAR_BYTES, (unsigned)VAR_N,
            (unsigned)NAME_LEN, (unsigned)DM_ACID, (unsigned)ACID_MAXTRK, (unsigned)RS_OFF, (unsigned)RS_CHORD,
            (unsigned)RS_MODAL, (unsigned)RS_MAXTRK, (unsigned)RS_MAXMODAL, (unsigned)MICRO_MAX, (unsigned)UPR_NOLD,
-           (unsigned)UPR_NFX, (unsigned)UPR_USED, (unsigned)UPR_VOICE);
+           (unsigned)UPR_NFX, (unsigned)UPR_USED, (unsigned)UPR_VOICE, (unsigned)DM_SMPL, (unsigned)UPR_FENV,
+           (unsigned)SND_N);
     printf("\"uprFx\": [");                         /* the FX a user preset holds (presets.c UPR_FX), in its order */
     for (i = 0; i < UPR_NFX; i++)
         printf("%s%u", i ? ", " : "", (unsigned)UPR_FX[i]);
@@ -207,11 +209,11 @@ int main(void)
 #define OFF(t, f) (unsigned)offsetof(t, f)
     printf(" \"project\": {\"size\": %u, \"magic\": %u, \"sizeField\": %u, \"g\": %u, \"sel\": %u, \"rsv\": %u, "
            "\"t\": %u, \"trk\": %u, \"trkP\": %u, \"trkStep\": %u, \"lk_n\": %u, \"lk_link\": %u, \"var_link\": %u, "
-           "\"var_len\": %u, \"xp\": %u, \"rsv_mo\": %u, \"song\": %u, \"name\": %u, \"pre\": %u, \"pre_ed\": %u, \"sum\": %u},\n",
+           "\"var_len\": %u, \"xp\": %u, \"xp2\": %u, \"rsv_mo\": %u, \"song\": %u, \"name\": %u, \"pre\": %u, \"pre_ed\": %u, \"sum\": %u},\n",
            (unsigned)sizeof(project_t), OFF(project_t, magic), OFF(project_t, size), OFF(project_t, g),
            OFF(project_t, sel), OFF(project_t, rsv), OFF(project_t, t), (unsigned)sizeof(proj_trk_t),
            OFF(proj_trk_t, p), OFF(proj_trk_t, step), OFF(project_t, lk_n), OFF(project_t, lk_link),
-           OFF(project_t, var_link), OFF(project_t, var_len), OFF(project_t, xp), OFF(project_t, rsv_mo), OFF(project_t, song),
+           OFF(project_t, var_link), OFF(project_t, var_len), OFF(project_t, xp), OFF(project_t, xp2), OFF(project_t, rsv_mo), OFF(project_t, song),
            OFF(project_t, name), OFF(project_t, pre), OFF(project_t, pre_ed), OFF(project_t, sum));
     printf(" \"locks\": {\"size\": %u, \"magic\": %u, \"slot\": %u, \"on\": %u, \"count\": %u, \"key\": %u, "
            "\"val\": %u, \"lock\": %u},\n",

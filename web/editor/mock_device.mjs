@@ -128,6 +128,8 @@ export class MockDevice {
     return { p, pre: pre >= 0 ? pre : LAYOUT.preNone, preEd: 0 };
   }
   clampKnob(model, i, v) { const e = this.d.models[model].edit[i]; return clamp(v, e.min, e.max); }
+  /** a SAMPLE preset's ATK SUS REL LOOP onto t (a factory one, none: the defaults) */
+  envPut(t, env) { LAYOUT.xp2Def.forEach((d, i) => { t.p[this.P.SATK + i] = env ? clamp(env[i], 0, LAYOUT.envMax[i]) : d; }); }
   clampFx(k, v) { const t = this.d.tp[LAYOUT.uprFx[k]]; return clamp(v, t.min, t.max); }
   /** preset id's FX (a used user slot that holds them, presets.c upr_fx), else null */
   uprFx(id) {
@@ -281,7 +283,7 @@ export class MockDevice {
     }
     const bank = decodePresets(b);
     this.upr = bank.slots.map((s) => s && s.model < this.d.models.length ? { model: s.model, knobs: s.knobs.map((k, i) => this.clampKnob(s.model, i, k)),
-      fx: s.fx.map((x, k) => this.clampFx(k, x)), voiceOnly: s.voiceOnly } : null);
+      fx: s.fx.map((x, k) => this.clampFx(k, x)), voiceOnly: s.voiceOnly, ...(s.env ? { env: [...s.env] } : {}) } : null);
     this.uprMoved = bank.moved.map((x) => (x > LAYOUT.nuser ? 0 : x));
   }
   flashObjects(s) {
@@ -457,6 +459,7 @@ export class MockDevice {
       const pre = this.d.presets.findIndex((x) => x.model === v); // drum_set_model: the model's first factory preset
       t.p[id] = v;
       for (let i = 0; i < 8; i++) t.p[P.E0 + i] = pre >= 0 ? this.clampKnob(v, i, this.d.presets[pre].k[i]) : this.d.models[v].edit[i].def;
+      if (v === c.DM_SMPL) this.envPut(t, null);
       t.pre = pre >= 0 ? pre : LAYOUT.preNone;
       t.preEd = 0;
       return v;
@@ -467,7 +470,7 @@ export class MockDevice {
     }
     if (((id >= P.SLEN && id <= P.SSWING) || id === P.SRC) && this.song) return t.p[id]; // a song's rows set PATTERN
     // presets.c preset_marks: a SOUND knob; an FX knob of a user preset that holds them
-    if (((id >= P.E0 && id <= P.E7) || (LAYOUT.uprFx.includes(id) && this.uprFx(t.pre))) && t.p[id] !== v) t.preEd = 1;
+    if (((id >= P.E0 && id <= P.E7) || (id >= P.SATK && id <= P.SLOOP) || (LAYOUT.uprFx.includes(id) && this.uprFx(t.pre))) && t.p[id] !== v) t.preEd = 1;
     t.p[id] = v;
     return v;
   }
@@ -627,6 +630,7 @@ export class MockDevice {
         const fx = this.uprFx(a.id);
         t.p[P.MODEL] = p.model;
         p.knobs.forEach((k, i) => { t.p[P.E0 + i] = this.clampKnob(p.model, i, k); });
+        if (p.model === this.d.consts.DM_SMPL) this.envPut(t, a.id >= nf ? p.env : null); // presets.c preset_apply
         if (fx) LAYOUT.uprFx.forEach((id, k) => { // presets.c preset_fx_put: RESON within its caps (STRNG, else OFF)
           let v = fx[k];
           if (id === P.RMODEL) {
@@ -732,6 +736,10 @@ export class MockDevice {
     const snd = [P.MODEL];
     for (let k = 0; k < 8; k++) { const l = d.models[t.p[P.MODEL]].edit[k].label; if (k < 4 || (l && l[0] !== "-")) snd.push(P.E0 + k); }
     snd.push(P.LEVEL, P.PAN, P.NOTE, P.CHOKE, P.PRIO);
+    if (t.p[P.MODEL] === d.consts.DM_SMPL) { // pages.c snd_list: SAMPLE's ATK SUS REL LOOP, a page of their own
+      while (snd.length < 16) snd.push(undefined);
+      snd.push(P.SATK, P.SSUS, P.SREL, P.SLOOP);
+    }
     for (const pg of d.pages) {
       if (pg.scope > d.sc.GLOBAL || [d.gr.SLOTS, d.gr.MOTION, d.gr.SONG].includes(pg.graph)) continue;
       if (pg.scope === d.sc.GLOBAL && pg.id.some((x) => x !== 255 && x >= d.gp.length)) continue;
