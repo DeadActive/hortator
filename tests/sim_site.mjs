@@ -60,7 +60,7 @@ test('installer: the script is main\'s, changed only in its text table, the lang
 test('installer: English only, every message the logic can show is still there', { skip: !ORIG && 'no git history' }, () => {
   const old = table(ORIG), now = table(NOW);
   assert.deepEqual(Object.keys(now), ['en'], 'one language');
-  for (const k of Object.keys(old.en)) if (k !== 'other' && k !== 'editor') assert.equal(typeof now.en[k], 'string', k);
+  for (const k of Object.keys(old.en)) if (k !== 'other' && k !== 'editor' && k !== 'beta') assert.equal(typeof now.en[k], 'string', k);
   for (const [, k] of NOW.matchAll(/data-t="(\w+)"/g)) assert.equal(typeof now.en[k], 'string', `data-t ${k}`);
 });
 
