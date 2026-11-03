@@ -232,7 +232,7 @@ const q = (cmd, args) => m.request(cmd, args);
   const ldest = q(CMD.DESC, { scope: SCOPE.TRACK, track: 0, id: data.P.indexOf("LFO1_DEST"), first: 0 });
   const e1 = q(CMD.DESC, { scope: SCOPE.TRACK, track: 0, id: 2, first: 0 }), mdl = q(CMD.DESC, { scope: SCOPE.MODEL, track: 0, id: 0, first: 0 });
   const ro = q(CMD.DESC, { scope: SCOPE.GLOBAL, track: 0, id: data.G.indexOf("SLOT"), first: 0 });
-  ok(same(div.items, data.tp[data.P.indexOf("SDIV")].order) && ldest.nnames === 19 && ldest.items[0] === "OFF" && ldest.items[11] === "R.TUN"
+  ok(same(div.items, data.tp[data.P.indexOf("SDIV")].order) && ldest.nnames === 28 && ldest.items[0] === "OFF" && ldest.items[11] === "R.TUN" && ldest.items[19] === "SRR" && ldest.items[24] === "MIX"
     && (e1.flags & (P.DF.LOCK | P.DF.CONTEXT)) === (P.DF.LOCK | P.DF.CONTEXT) && mdl.label === data.models[0].edit[0].label
     && (ro.flags & P.DF.RO) && same(ro.items, ["A", "B", "C", "D"]), "DESC: an order, LDEST names, LOCK / CONTEXT / RO flags, scope MODEL");
   const vals = [];

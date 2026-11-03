@@ -202,7 +202,7 @@ static uint32_t ed_names_n(const param_desc_t *d)
 {
     uint32_t n = 0;
     if (d->fmt == F_LDEST)
-        return 19u;
+        return 28u;
     if (!d->names)
         return 0;
     if (d->fmt == F_ENUM)

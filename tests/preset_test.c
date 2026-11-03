@@ -729,6 +729,7 @@ static void test_user_fx_round_trip(void)
     u->p[P_PRIO] = 1;
     u->p[P_LFO1 + LF_DEST] = 2;
     u->p[P_LS3DEST] = 4;
+    u->p[P_LS4DEST] = 27;                            /* an appended DEST (the INSERT's C) is kept too */
     u->p[P_LSET] = 1;
     before = *u;
     ok = preset_load(u, user_id(4)) == 0 && preset_get(user_id(4), &p) && knobs_are(u, &p) && fx_same(u->p, want);

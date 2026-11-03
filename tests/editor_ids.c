@@ -137,9 +137,9 @@ int main(void)
     printf(",\n\"lsId\": [");
     for (k = 0; k < 4u; k++)
         printf("%s[%u, %u, %u]", k ? ", " : "", LS_ID[k][0], LS_ID[k][1], LS_ID[k][2]);
-    printf("],\n\"ldest\": [");                    /* an LFO DEST value 1..18: the knob it moves (lfo_dest_param), or its name */
-    for (i = 1; i <= 18u; i++)
-        if (i < 11u)
+    printf("],\n\"ldest\": [");                    /* an LFO DEST value 1..27: the knob it moves (lfo_dest_param), or its name */
+    for (i = 1; i <= 27u; i++)
+        if (i < 11u || i > 18u)
             printf("%s%u", i > 1u ? ", " : "", (unsigned)lfo_dest_param(i));
         else
             printf(", "), str(N_RDEST[i - 11u]);

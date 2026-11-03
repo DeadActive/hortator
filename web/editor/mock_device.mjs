@@ -393,7 +393,7 @@ export class MockDevice {
       if (id >= this.d.tp.length) refuse(RC.BAD, DETAIL.RANGE);
       const t = this.tracks[track === NONE ? this.sel : track], desc = this.trackDesc(t, id), P = this.P;
       let names = desc.names || [];
-      if (this.d.fmt[desc.fmt] === "LDEST") names = Array.from({ length: 19 }, (_, v) => this.ldestName(t, v));
+      if (this.d.fmt[desc.fmt] === "LDEST") names = Array.from({ length: 28 }, (_, v) => this.ldestName(t, v));
       let flags = (desc.split ? DF.SPLIT : 0) | (desc.order || id === P.MODEL ? DF.ORDER : 0) | (this.d.tp[id].lock ? DF.LOCK : 0);
       if ((id >= P.E0 && id <= P.E7) || (id >= P.IA && id <= P.IC) || id === P.RSTRCT || this.d.fmt[desc.fmt] === "LDEST") flags |= DF.CONTEXT;
       return { desc, names, flags, t, order: id === P.MODEL ? this.d.modelList : desc.order };

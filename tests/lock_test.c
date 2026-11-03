@@ -343,6 +343,40 @@ static void lock_lfo_motion_same_knob(void)
         printf("     LFO on a lock: live %d..%d, E1 %d\n", lo, hi, trk[0].p[P_E1]);
     check("lock + motion + LFO on one knob: the LFO round the lock's 100 on its step, motion's 30 after, STOP the base", ok);
 }
+/* an LFO on the new FX DESTs (DIST = 20, INSERT B = 26) with a lock on the knob at step 4: the LFO swings round the lock's
+ * value on that step, and the knob is the base again after STOP */
+static void lock_lfo_fx_dest(void)
+{
+    static const struct { int16_t dest; uint32_t id; } c[2] = {{20, P_DIST}, {26, P_IB}};
+    int ok = 1, lo = 999, hi = -999;
+    int32_t v;
+    uint32_t b, k;
+    for (k = 0; k < 2u; k++) {
+        fresh();
+        trk[0].p[P_ITYPE] = IT_CRUSH;
+        trk[0].p[c[k].id] = 64;
+        trk[0].p[P_LFO1 + LF_DEST] = c[k].dest;
+        trk[0].p[P_LFO1 + LF_DEPTH] = 10;
+        trk[0].p[P_LFO1 + LF_TRIG] = LT_FREE;
+        trk[0].p[P_LFO1 + LF_MODE] = LM_HZ;
+        trk[0].p[P_LFO1 + LF_RATE] = 127;
+        lock_set(0, 4, c[k].id, 100);
+        play();
+        to_step(4, 100);
+        ok &= trk[0].p[c[k].id] == 100;
+        for (lo = 999, hi = -999, b = 0; b < 40u && trk[0].seq_idx == 4u; b++) {
+            render_mix(0, 0, CTL);
+            if (lfo_live(&trk[0], c[k].id, &v)) {
+                lo = v < lo ? (int)v : lo;
+                hi = v > hi ? (int)v : hi;
+            }
+        }
+        ok &= lo < 100 && hi > 100 && lo >= 78 && hi <= 122;
+        stop();
+        ok &= trk[0].p[c[k].id] == 64;
+    }
+    check("LFO on DIST / INSERT B (new DESTs) with a lock: round the lock's value on its step, the base after STOP", ok);
+}
 static void lock_dormant_off_step(void)
 {
     int ok;
@@ -486,6 +520,7 @@ int main(void)
     lock_plays_motion_off();
     lock_over_motion();
     lock_lfo_motion_same_knob();
+    lock_lfo_fx_dest();
     lock_dormant_off_step();
     lock_song_row_change();
     lock_turn_while_held();

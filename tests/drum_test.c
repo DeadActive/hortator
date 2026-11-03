@@ -2980,8 +2980,8 @@ static void test_reson_lfo(void)
     }
     param_format(&TP[P_LFO1 + LF_DEST], 0, v, &u);
     ok &= str_eq(v, "OFF");
-    check("LFO DEST 11..16: R.TUN R.DCY R.MIX R.TON R.STR R.POS; 0 OFF (the knob runs on to F.CUT / F.RES, 18)",
-          ok && TP[P_LFO1 + LF_DEST].max == 18);
+    check("LFO DEST 11..16: R.TUN R.DCY R.MIX R.TON R.STR R.POS; 0 OFF (the knob runs on to F.CUT / F.RES, 18, then SRR .. INSERT C, 27)",
+          ok && TP[P_LFO1 + LF_DEST].max == 27);
     rs_setup(RS_STRNG, 48);                           /* R.TUN: a slow sweep moves the line length smoothly */
     trk[0].p[P_RDECAY] = 127;
     trk[0].p[P_LFO1 + LF_WAVE] = LW_TRI;
@@ -3723,6 +3723,71 @@ static void test_lfo_dest_slots(void)
     }
 }
 
+/* LFO DEST 19..27: SRR DST CHO DLY REV MIX and the INSERT's A B C (appended: 1..18 keep their meaning) */
+static void test_lfo_fx_dests(void)
+{
+    static const uint8_t want[9] = {P_SRR, P_DIST, P_CHOR, P_DLY, P_REV, P_IMIX, P_IA, P_IB, P_IC};
+    uint32_t i, k, ok = 1, ids = 1;
+    int32_t v, lo, hi;
+    host_init();
+    for (i = 1; i <= 18u; i++)
+        ids &= lfo_dest_param(i) == (i <= 8u ? P_E0 + i - 1u : i == 9u ? (uint32_t)P_LEVEL : i == 10u ? (uint32_t)P_PAN
+               : i == 11u ? 0xFFu : i <= 16u ? P_RDECAY + i - 12u : i == 17u ? (uint32_t)P_FCUT : (uint32_t)P_FRESO);
+    check("LFO DEST: ids 1..18 keep their knobs", ids);
+    check("LFO DEST: 19..27 are SRR DST CHO DLY REV MIX A B C, 28 none, DEST range 0..27",
+          lfo_dest_param(19) == P_SRR && lfo_dest_param(20) == P_DIST && lfo_dest_param(21) == P_CHOR &&
+          lfo_dest_param(22) == P_DLY && lfo_dest_param(23) == P_REV && lfo_dest_param(24) == P_IMIX &&
+          lfo_dest_param(25) == P_IA && lfo_dest_param(26) == P_IB && lfo_dest_param(27) == P_IC &&
+          lfo_dest_param(28) == 0xFFu && TP[P_LS3DEST].max == 27 && TP[P_LS4DEST].max == 27 &&
+          TP[P_LFO1 + LF_DEST].max == 27 && TP[P_LFO2 + LF_DEST].max == 27);
+    for (k = 0; k < 9u; k++) {
+        uint32_t pid = want[k];
+        int32_t base[3] = {64, 0, 127};
+        for (i = 0; i < 3u; i++) {
+            host_init();
+            trk[0].p[P_ITYPE] = IT_CRUSH;
+            lfo_q(0, 0)[LF_WAVE] = LW_SQUARE;
+            lfo_q(0, 0)[LF_MODE] = LM_HZ;
+            lfo_q(0, 0)[LF_RATE] = 100;
+            lfo_slot_set(0, 2, 0, (int16_t)(19u + k), 64);
+            trk[0].p[pid] = (int16_t)base[i];
+            lfo_start();
+            for (v = 0, lo = 999, hi = -999; v < 600; v++) {
+                int32_t x = lfo_probe(0, pid);
+                lo = x < lo ? x : lo;
+                hi = x > hi ? x : hi;
+                ok &= x >= TP[pid].min && x <= TP[pid].max && trk[0].p[pid] == base[i] && !trk[0].lnum;
+            }
+            ok &= i == 0u ? lo < 64 && hi > 64 : i == 1u ? hi > 0 && lo >= 0 : lo < 127 && hi <= 127;
+        }
+        if (!ok)
+            printf("     DEST %u (knob %u) failed\n", 19u + k, pid);
+    }
+    check("LFO DEST 19..27: each modulates its knob within range, the set value restored", ok);
+    host_init();
+    trk[0].p[P_ITYPE] = IT_CRUSH;
+    check("LFO DEST names: SRR DST CHO DLY REV MIX, the INSERT's by its TYPE (CRUSH: BITS RATE LPF), else A B C",
+          !strcmp(lfo_dest_label(&trk[0], 19), "SRR") && !strcmp(lfo_dest_label(&trk[0], 20), "DST") &&
+          !strcmp(lfo_dest_label(&trk[0], 21), "CHO") && !strcmp(lfo_dest_label(&trk[0], 22), "DLY") &&
+          !strcmp(lfo_dest_label(&trk[0], 23), "REV") && !strcmp(lfo_dest_label(&trk[0], 24), "MIX") &&
+          !strcmp(lfo_dest_label(&trk[0], 25), "BITS") && !strcmp(lfo_dest_label(&trk[0], 27), "LPF"));
+    trk[0].p[P_ITYPE] = IT_OFF;
+    check("LFO DEST names: INSERT OFF shows A B C", !strcmp(lfo_dest_label(&trk[0], 25), "A") &&
+          !strcmp(lfo_dest_label(&trk[0], 26), "B") && !strcmp(lfo_dest_label(&trk[0], 27), "C"));
+    /* reaching the DSP: MIX from 0 modulated up turns the INSERT on in the block; a send from 0 gets a level */
+    host_init();
+    trk[0].p[P_ITYPE] = IT_CRUSH;
+    trk[0].p[P_IMIX] = 0;
+    lfo_q(0, 0)[LF_WAVE] = LW_SQUARE;
+    lfo_slot_set(0, 2, 0, 24, 64);
+    lfo_start();
+    lfo_apply(CTL);
+    v = trk[0].p[P_IMIX];
+    check("LFO DEST MIX: the INSERT sees the modulated MIX in the block (ins_on), not after", v > 0 && ins_on(&trk[0]));
+    lfo_restore();
+    check("LFO DEST MIX: restored, the INSERT off again", trk[0].p[P_IMIX] == 0 && !ins_on(&trk[0]));
+}
+
 int main(void)
 {
     test_cond_codes();
@@ -3753,6 +3818,7 @@ int main(void)
     test_lfo_random_phase_restart();
     test_lfo_activate_on_bar();
     test_lfo_dest_slots();
+    test_lfo_fx_dests();
     test_mute_next_bar();
     test_mute_next_bar_solo();
     test_reson_params();

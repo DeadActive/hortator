@@ -36,12 +36,14 @@ static int lfo_slot_of(uint32_t id, uint32_t *f)
 static int lfo_own(uint32_t id) { return (id >= P_LFO1 && id < P_LFO2 + LF_N) || (id >= P_LSRC1 && id <= P_LS4DEPTH); }
 
 /* DEST -> the knob an LFO writes; R.TUN (11) writes no knob: the resonator's fine pitch (lfo_track);
- * F.CUT / F.RES (17, 18): FILTER's CUT / RESO (filter.c) */
+ * F.CUT / F.RES (17, 18): FILTER's CUT / RESO (filter.c); 19..27 (appended: SRR, DST, CHO, DLY, REV, the INSERT's MIX,
+ * its A B C) the knobs by name. All are read per block (insert.c, fx.c mix_part), so the modulation reaches the DSP */
 static uint32_t lfo_dest_param(uint32_t dest)
 {
     return dest >= 1u && dest <= 8u ? P_E0 + dest - 1u : dest == 9u ? (uint32_t)P_LEVEL : dest == 10u ? (uint32_t)P_PAN
          : dest >= 12u && dest <= 16u ? P_RDECAY + dest - 12u : dest == 17u ? (uint32_t)P_FCUT
-         : dest == 18u ? (uint32_t)P_FRESO : 0xFFu;
+         : dest == 18u ? (uint32_t)P_FRESO : dest == 19u ? (uint32_t)P_SRR : dest >= 20u && dest <= 23u ? P_DIST + dest - 20u
+         : dest == 24u ? (uint32_t)P_IMIX : dest >= 25u && dest <= 27u ? P_IA + dest - 25u : 0xFFu;
 }
 
 static uint32_t lfo_inc(const int16_t *q)
@@ -160,7 +162,7 @@ static __attribute__((noinline)) void lfo_join(track_t *t, uint32_t mask)
  * the first time). Inlined per slot: its ids are constants (direct loads) */
 static inline __attribute__((always_inline)) void lfo_slot(track_t *t, uint32_t s, int32_t *acc)
 {
-    uint32_t dest = (uint32_t)clamp(t->p[LS_ID[s][LS_DEST]], 0, 18), pid, k;
+    uint32_t dest = (uint32_t)clamp(t->p[LS_ID[s][LS_DEST]], 0, 27), pid, k;
     int32_t m = t->lfo[t->p[LS_ID[s][LS_SRC]] ? 1 : 0].out * clamp(t->p[LS_ID[s][LS_DEPTH]], -64, 64) / 64;
     const param_desc_t *d;
     if (dest == 11u) {                                /* R.TUN: the resonator's fine pitch, smooth (TUNE untouched) */
@@ -300,7 +302,7 @@ static int lfo_live(const track_t *t, uint32_t pid, int32_t *val)
     int32_t sum = 0;
     const param_desc_t *d = track_desc(t, pid);
     for (s = 0; s < LS_N; s++) {
-        uint32_t dest = (uint32_t)clamp(t->p[LS_ID[s][LS_DEST]], 0, 18);
+        uint32_t dest = (uint32_t)clamp(t->p[LS_ID[s][LS_DEST]], 0, 27);
         int32_t m = t->lfo[t->p[LS_ID[s][LS_SRC]] ? 1 : 0].out * clamp(t->p[LS_ID[s][LS_DEPTH]], -64, 64) / 64;
         if (!dest || !t->p[LS_ID[s][LS_DEPTH]])
             continue;

@@ -347,8 +347,8 @@ static void t_desc(void)
     rd_b(&r);
     cnt = rd_b(&r);
     rd_str(&r, nm, sizeof nm);
-    check("DESC an LFO DEST: LDEST, CONTEXT, 19 names from OFF", fmt == F_LDEST && (flags & ED_DF_CONTEXT) && nn == 19u &&
-                                                                  cnt == 19u && !strcmp(nm, "OFF"));
+    check("DESC an LFO DEST: LDEST, CONTEXT, 28 names from OFF", fmt == F_LDEST && (flags & ED_DF_CONTEXT) && nn == 28u &&
+                                                                  cnt == 28u && !strcmp(nm, "OFF"));
     f = req_knob(ED_DESC, ED_SC_TRACK, 0, P_E0, 0);
     check("DESC a SOUND knob: CONTEXT and LOCK", rc_is(f, 0, 0) && (f->b[12] & ED_DF_CONTEXT) && (f->b[12] & ED_DF_LOCK));
     f = req_knob(ED_DESC, ED_SC_MODEL, DM_ACID, 0, 0);

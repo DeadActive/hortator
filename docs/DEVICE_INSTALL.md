@@ -681,8 +681,11 @@ The screens: `build/ui_shots/presets/`. The factory banks (151 presets; `tools/p
   first; on DEST: the selected slot's source).
 - 4/4 DEST: four rows, one per slot ("1 LFO1 > SWEEP +40%" and a small meter of what the slot adds now). KNOB 1 picks
   the slot (the row inverts, SLOT n/4), KNOB 2 its SRC (LFO1 / LFO2), KNOB 3 its DEST (any knob an LFO could target
-  before: the engine's knobs, LVL, PAN, R.TUN .. R.POS, F.CUT, F.RES), KNOB 4 its DEPTH. Set slot 3 to LFO2 > DECAY and
+  before: the engine's knobs, LVL, PAN, R.TUN .. R.POS, F.CUT, F.RES, then SRR, DST, CHO, DLY, REV, MIX and the INSERT's A B C, named by its TYPE), KNOB 4 its DEPTH. Set slot 3 to LFO2 > DECAY and
   slot 4 to LFO1 > PAN: four knobs can move at once, from the same LFO or both; two slots on one knob add.
+- DEST SRR / DST / CHO / DLY / REV / MIX / A / B / C: with the INSERT set to CRUSH, an LFO on MIX or on a send from 0
+  makes it swell and fade; set DEST to B (it reads RATE for CRUSH) and the bit-crush rate wobbles. Turn the knob while
+  it is modulated: nothing is saved modulated.
 - An LFO no slot uses costs nothing (its dot stands still).
 - A project saved before this firmware: its LFO 1 / LFO 2 routing comes back as slots 1 / 2 (sources LFO1 / LFO2, the
   same DEST and DEPTH), slots 3 / 4 OFF; it sounds as before; MOTION on an LFO's DEPTH and a MIDI LEARNed LFO DEPTH

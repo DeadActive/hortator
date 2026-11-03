@@ -7,6 +7,9 @@ released yet are listed under Unreleased.
 
 ## 1.0.0 - 2026-11-03
 
+- **More LFO destinations**: a track's LFO can now also move SRR, DST, the CHO, DLY and REV sends, the INSERT's MIX
+  and its three values A, B and C (shown by the INSERT type's names). They are in the DEST list after F.RES, so
+  projects, presets, step locks and MIDI LEARN keep their meaning, and nothing changes until an LFO is routed to one.
 - **Fewer dropouts under heavy load**: the FM-1 now stops a voice when an audio block takes more than 85 % of its
   time (it was 95 %), so a sudden peak no longer runs past the deadline and drops out. Very heavy kits may lose a
   voice a little sooner.

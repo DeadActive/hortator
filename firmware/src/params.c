@@ -60,7 +60,7 @@ static const char *const N_IRATE[] = {"689", "919", "1.1k", "1.4k", "1.8k", "2.2
 #define LFO_TP(b, rf)                                                                                     \
     [b + LF_WAVE] = PE("WAVE", N_LWAVE, 3), [b + LF_MODE] = PE("MODE", N_LMODE, 0),                         \
     [b + LF_RATE] = PD("RATE", rf, 0, 127, 23), [b + LF_MORPH] = PD("MORPH", F_INT, 0, 127, 0),              \
-    [b + LF_DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0), [b + LF_DEST] = PD("DEST", F_LDEST, 0, 18, 0),        \
+    [b + LF_DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0), [b + LF_DEST] = PD("DEST", F_LDEST, 0, 27, 0),        \
     [b + LF_TRIG] = PE("TRIG", N_LTRIG, 2), [b + LF_PHASE] = PD("PHASE", F_LPHASE, 0, 127, 0)
 static const param_desc_t TP[P_COUNT] = {
     [P_MODEL] = PE("MODEL", N_MODEL, 0),
@@ -104,9 +104,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_PRIO] = PE("PRIO", N_PRIO, 0),
     [P_LSRC1] = PE("SRC", N_LSRC, 0), [P_LSRC2] = PE("SRC", N_LSRC, 1),   /* slots 1 / 2: LFO 1 / LFO 2 (the routing
                                                                             * before slots) */
-    [P_LS3SRC] = PE("SRC", N_LSRC, 0), [P_LS3DEST] = PD("DEST", F_LDEST, 0, 18, 0),
+    [P_LS3SRC] = PE("SRC", N_LSRC, 0), [P_LS3DEST] = PD("DEST", F_LDEST, 0, 27, 0),
     [P_LS3DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0),
-    [P_LS4SRC] = PE("SRC", N_LSRC, 1), [P_LS4DEST] = PD("DEST", F_LDEST, 0, 18, 0),
+    [P_LS4SRC] = PE("SRC", N_LSRC, 1), [P_LS4DEST] = PD("DEST", F_LDEST, 0, 27, 0),
     [P_LS4DEPTH] = PD("DEPTH", F_BIPCT, -64, 64, 0),
     [P_RKEY] = PD("KEYF", F_PCT, 0, 127, 0),       /* RESON KEYFOLLOW: 0 off (the ring at TUNE), 127 = 100 % */
     [P_SRR] = PD("SRR", F_SRR, 0, 127, 0),         /* SRR (insert.c): 0 off (as before), else the held rate */
@@ -257,15 +257,16 @@ static void fmt_ms10(char *val, const char **unit, uint32_t ms10)   /* a time in
 #include "reson_tables.h"
 static uint32_t lfo_dest_param(uint32_t dest);    /* lfo.c */
 static uint32_t flt_dec_idx(int32_t v);           /* filter.c */
-/* an LFO DEST by name: OFF, the track's knob by its label ("--" where its engine has none), R.TUN .. R.POS */
+/* an LFO DEST by name: OFF, the track's knob by its label ("--" where its engine has none), R.TUN .. F.RES (11..18),
+ * then SRR .. the INSERT's C (19..27) by their labels (A B C by the INSERT's TYPE) */
 static const char *lfo_dest_label(const track_t *t, int32_t dest)
 {
     const param_desc_t *d;
     if (dest <= 0)
         return "OFF";
-    if (dest >= 11)
-        return N_RDEST[clamp(dest, 11, 18) - 11];
-    d = track_desc(t, lfo_dest_param((uint32_t)clamp(dest, 1, 10)));
+    if (dest >= 11 && dest <= 18)
+        return N_RDEST[dest - 11];
+    d = track_desc(t, lfo_dest_param((uint32_t)clamp(dest, 1, 27)));
     return d->label && d->label[0] != '-' ? d->label : "--";
 }
 

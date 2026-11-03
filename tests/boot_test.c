@@ -1713,6 +1713,8 @@ static int fdre_slots_round_trip(void)
     trk[5].p[P_LS4SRC] = 0;
     trk[5].p[P_LS4DEST] = 2;
     trk[5].p[P_LS4DEPTH] = 33;
+    trk[6].p[P_LS3DEST] = 27;                        /* the INSERT's C: the last DEST */
+    trk[6].p[P_LFO2 + LF_DEST] = 19;                 /* SRR */
     project_save(3);
     host_init();
     memset(proj_slot, 0, sizeof proj_slot);
@@ -1720,7 +1722,8 @@ static int fdre_slots_round_trip(void)
     project_load(3);
     return trk[5].p[P_LSRC1] == 1 && trk[5].p[P_LSRC2] == 0 && trk[5].p[P_LS3SRC] == 1 && trk[5].p[P_LS3DEST] == 17 &&
            trk[5].p[P_LS3DEPTH] == -64 && trk[5].p[P_LS4SRC] == 0 && trk[5].p[P_LS4DEST] == 2 &&
-           trk[5].p[P_LS4DEPTH] == 33 && sizeof(project_t) == 3840u && sizeof(project_t) <= ST_PAYLOAD_MAX &&
+           trk[5].p[P_LS4DEPTH] == 33 && trk[6].p[P_LS3DEST] == 27 && trk[6].p[P_LFO2 + LF_DEST] == 19 &&
+           sizeof(project_t) == 3840u && sizeof(project_t) <= ST_PAYLOAD_MAX &&
            proj_slot[3].magic == 0x47524446u;       /* "FDRG" (2026-10-31: MICRO) */
 }
 
