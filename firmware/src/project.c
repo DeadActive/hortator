@@ -950,8 +950,10 @@ static __attribute__((noinline)) void proj_tracks_in(const project_t *p, int cue
         drum_cut(t);
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = i >= P_E0 && i <= P_E7 ? &DMODELS[m].edit[i - P_E0] : &TP[i];
-            t->p[i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(p, k, i), d->min, d->max);
+            t->p[i] = (int16_t)knob_in(d, i < P_NSTORED ? s->p[i] : proj_xp_get(p, k, i));
         }
+        smpl_knobs_conv(&t->p[P_E0], m);                /* (presets.c: a KEY stored before SLOT) */
+        layer_knobs_conv(t->p);
         if (cue_in)
             t->p[P_MUTE] = mute;                        /* (a cue: the mutes stay the performance's) */
         t->p[P_MODEL] = (int16_t)m;
@@ -1146,8 +1148,10 @@ static void cue_stage_knobs(const project_t *p, int16_t o[NTRK][P_COUNT], uint16
         uint32_t m = (uint32_t)clamp(s->p[P_MODEL], 0, NMODELS - 1);
         for (i = 0; i < P_COUNT; i++) {
             const param_desc_t *d = i >= P_E0 && i <= P_E7 ? &DMODELS[m].edit[i - P_E0] : &TP[i];
-            o[k][i] = (int16_t)clamp(i < P_NSTORED ? s->p[i] : proj_xp_get(p, k, i), d->min, d->max);
+            o[k][i] = (int16_t)knob_in(d, i < P_NSTORED ? s->p[i] : proj_xp_get(p, k, i));
         }
+        smpl_knobs_conv(&o[k][P_E0], m);
+        layer_knobs_conv(o[k]);
         o[k][P_MODEL] = (int16_t)m;
         pre[k] = (uint16_t)preset_ref(preset_rec_dec(p->pre[k]), m);
         pre_ed[k] = p->pre_ed[k] ? 1u : 0u;
@@ -1935,7 +1939,8 @@ static void upr_migrate(const uint8_t *o)
         u->used = UPR_USED | UPR_VOICE;
         u->model = q[1];
         for (k = 0; k < 8u; k++)
-            u->k[k] = (int8_t)clamp((int8_t)q[2u + k], DMODELS[u->model].edit[k].min, DMODELS[u->model].edit[k].max);
+            u->k[k] = (int8_t)knob_in(&DMODELS[u->model].edit[k], (int8_t)q[2u + k]);   /* (a KEY note kept: converted
+                                                                                         * when loaded, presets.c) */
         for (k = 0; k < UPR_NFX; k++)
             u->f[k] = (int8_t)TP[UPR_FX[k]].def;
     }
@@ -1969,7 +1974,8 @@ static void preset_user_boot(void)                  /* persist_boot (after flash
                 continue;
             }
             for (k = 0; k < 8u; k++)
-                u->k[k] = (int8_t)clamp(u->k[k], DMODELS[u->model].edit[k].min, DMODELS[u->model].edit[k].max);
+                u->k[k] = (int8_t)knob_in(&DMODELS[u->model].edit[k], u->k[k]);   /* (a KEY note kept: converted
+                                                                                    * when loaded, presets.c) */
             for (k = 0; k < UPR_NFX; k++)
                 u->f[k] = (int8_t)clamp(u->f[k], TP[UPR_FX[k]].min, TP[UPR_FX[k]].max);
         }
@@ -2137,6 +2143,7 @@ static void persist_boot(void)                    /* before settings_init / pane
         for (k = 0; k < SMP_USER_SLOTS; k++)
             smp_user_scan(k);
     }
+    smp_slots_sync();                                 /* dm_sample.c: the user sets' SLOT lists and START states */
     if (st_load(OBJ_SETTINGS, &p, sizeof p) == (int)sizeof p && p.magic == PERSIST_MAGIC) {
         settings.magic = SETTINGS_MAGIC;
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */

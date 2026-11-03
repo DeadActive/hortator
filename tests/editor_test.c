@@ -423,6 +423,10 @@ static void t_get_set(void)
     f = req_knob(ED_SET, ED_SC_TRACK, 2, P_PAN, 500);
     r = rd_of(f, 7 + 4);
     check("SET clamps to the knob's range", rd_v14(&r) == TP[P_PAN].max && trk[2].p[P_PAN] == TP[P_PAN].max);
+    trk[3].p[P_LSET] = 0;                             /* SET: SLOT kept inside the new set's samples (dm_sample.c) */
+    trk[3].p[P_LKEY] = (int16_t)SMP_SLOT_V(12);
+    req_knob(ED_SET, ED_SC_TRACK, 3, P_LSET, SMP_NSETS);
+    check("SET the LAYER's SET to an empty user slot: its SLOT back to 1", trk[3].p[P_LKEY] == SMP_SLOT_V(0));
     trk[1].pre_ed = 0;
     req_knob(ED_SET, ED_SC_TRACK, 1, P_E1, trk[1].p[P_E1] == 10 ? 11 : 10);
     check("SET a SOUND knob: the track's preset marked edited", trk[1].pre_ed == 1u);

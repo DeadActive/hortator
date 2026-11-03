@@ -357,6 +357,7 @@ static int ed_set(uint32_t cmd, const ed_knob_t *x, uint32_t scope, uint32_t id,
     if (lock_held(x->k, id))
         mo.under[x->k][id] = (int16_t)v;   /* a locked step: what the knob goes back to */
     t->p[id] = (int16_t)v;
+    smp_set_moved(t, id);                  /* presets.c: a SET keeps its SLOT inside its samples */
     fm1_irq_on();
     return 0;
 }

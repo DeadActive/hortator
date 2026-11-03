@@ -77,11 +77,11 @@ static const param_desc_t TP[P_COUNT] = {
     [P_SLEN] = PD("LEN", F_STEPS, 1, NSTEP, 16),
     [P_SDIV] = PE("DIV", N_DIV, 2),
     [P_SSWING] = PD("SWG", F_PCT, 0, 100, 0),
-    [P_LSET] = PE("LSET", SMP_ALL_NAMES, 0),
-    [P_LKEY] = PD("LKEY", F_INT, 0, 127, 36),
-    [P_LLEVEL] = PD("LLVL", F_PCT, 0, 127, 0),
-    [P_LTUNE] = PD("LTUNE", F_SEMI, -24, 24, 0),
-    [P_LDEC] = PD("LDEC", F_INT, 0, 127, 127),
+    [P_LSET] = PE("SET", SMP_ALL_NAMES, 0),       /* the LAYER (MIDI LEARN: "T1 L.SET") */
+    [P_LKEY] = PD("SLOT", F_LSLOT, -16, -1, -16),  /* dm_sample.c: SET's samples 1..N (stored -16..-1; >= 0 a KEY note) */
+    [P_LLEVEL] = PD("LEVEL", F_PCT, 0, 127, 0),
+    [P_LTUNE] = PD("TUNE", F_SEMI, -24, 24, 0),
+    [P_LDEC] = PD("DECAY", F_INT, 0, 127, 127),
     [P_SRC] = PE("SRC", N_SRC, 0),
     [P_DUCK] = PE("DUCK", N_ONOFF, 0),
     LFO_TP(P_LFO1, F_LRATE1),
@@ -303,6 +303,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         }
         break;
     }
+    case F_SLOT:                                      /* "3/16": the selected track's SET's samples (dm_sample.c) */
+    case F_LSLOT:
+        smp_slot_text((uint32_t)TSEL->p[d->fmt == F_SLOT ? P_E4 : P_LSET], v, val);
+        break;
     case F_LDEST:                                     /* the selected track's knob, by its label */
         str_cpy(val, lfo_dest_label(TSEL, v), 6);
         break;

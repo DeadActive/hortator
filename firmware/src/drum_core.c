@@ -171,11 +171,12 @@ static void drum_play(track_t *t, uint32_t vel, int32_t nt)
         m->trigger(t, v);
     }
     if (t->p[P_LLEVEL]) {
-        uint32_t zi = smp_find((uint32_t)t->p[P_LSET], (uint32_t)t->p[P_LKEY]);
+        int32_t o16;
+        uint32_t zi = smp_slot_zone((uint32_t)t->p[P_LSET], t->p[P_LKEY], &o16);   /* (dm_sample.c: SLOT, or a KEY) */
         if (zi != 0xFFFFu && smp_zone(zi)->n) {
             v = dv_alloc(t, t->lv, nv, 1u);
             dv_init(v, vel);
-            smp_start(v, zi, (uint32_t)t->p[P_LKEY], t->p[P_LTUNE] + clamp(t->nt, -24, 24));   /* as dm_tune */
+            smp_go(v, zi, o16, t->p[P_LTUNE] + clamp(t->nt, -24, 24), 0, 127);   /* as dm_tune; the whole sample */
             v->env[0] = ENV1;
             v->k[0] = dk(t->p[P_LDEC]);
         }

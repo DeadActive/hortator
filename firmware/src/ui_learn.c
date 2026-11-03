@@ -158,7 +158,7 @@ static void ml_pick_act(uint32_t code)
     ml_arm = ml_btn(code) ? 2u : 1u;
 }
 /* the picked one's name: "T3 DECAY", a section's knob with its section ("T3 L1.RATE", a DEST slot's "T3 D2.DEPTH",
- * "T3 F.DECAY", "T3 R.TUNE", "T3 S.RATE": the same labels are on other pages); an action "PLAY", "REC", "NEXT TRACK", "PREV TRACK", "FX R1/16",
+ * "T3 F.DECAY", "T3 R.TUNE", "T3 S.RATE", the LAYER's "T3 L.SLOT": the same labels are on other pages); an action "PLAY", "REC", "NEXT TRACK", "PREV TRACK", "FX R1/16",
  * "FX RPT T3", "FX FILTER"; b: 16 bytes */
 static const char *const ML_ACT_NAME[4] = {"PLAY", "REC", "NEXT TRACK", "PREV TRACK"};
 static const char *const ML_MAC_NAME[4] = {"FX FILTER", "FX CRUSH", "FX THROW", "FX DEPTH"};
@@ -171,7 +171,8 @@ static void ml_name(char *b)
     const char *pre = ls >= 0 ? (dn[1] = (char)('1' + ls), dn) : id >= P_LFO1 && id < P_LFO2 ? "L1."
                     : id >= P_LFO2 && id < P_LFO2 + LF_N ? "L2."
                     : (id >= P_RMODEL && id <= P_RPOS) || id == P_RKEY ? "R." : id >= P_FTYPE && id <= P_FDEC ? "F."
-                    : id >= P_SLCR && id <= P_SLDEPTH ? "S." : id >= P_ITYPE && id <= P_IMIX ? "I." : "";
+                    : id >= P_SLCR && id <= P_SLDEPTH ? "S." : id >= P_ITYPE && id <= P_IMIX ? "I."
+                    : id >= P_LSET && id <= P_LDEC ? "L." : "";
     if (c) {
         if (c <= ML_A_PREV) {
             str_cpy(b, ML_ACT_NAME[c - ML_A_PLAY], 16);

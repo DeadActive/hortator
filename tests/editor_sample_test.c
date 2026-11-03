@@ -841,6 +841,7 @@ static void t_clear_rename(void)
     v.sv.s[4] = (int32_t)(0x8000u | 2u << 5);
     v.sv.s[5] = 65536;
     v.sv.ph[0] = 1;
+    v.sv.ph[2] = 40000;                               /* (its END: the whole sample) */
     v.env[0] = ENV1;
     v.k[0] = dk(127);
     memset(out, 0, sizeof out);

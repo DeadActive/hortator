@@ -147,7 +147,8 @@ SMP_INFO 1, SMP_BEGIN 11, SMP_DATA 6 + the pack, SMP_END 1 + the pack (549), SMP
   PAGES after a selection change, after the selected track's MODEL changed and after G_GMODE changed.
 - **DESC**: fmt (`core.h` F_*: 0 INT, 1 PCT, 2 BIPCT, 3 TIME, 4 LFOHZ, 5 CUTOFF, 6 DB, 7 SEMI, 8 ENUM, 9 BPM, 10 NOTE,
   11 ONOFF, 12 OCT, 13 STEPS, 14 CTHR, 15 CRAT, 16 CATK, 17 CREL, 18 CMKUP, 19 LRATE1, 20 LRATE2, 21 LDEST,
-  22 LPHASE, 23 NOTEO, 24 RDECAY, 25 FDEC, 26 SRR), min / max / def, the label and unit the device shows, and the
+  22 LPHASE, 23 NOTEO, 24 RDECAY, 25 FDEC, 26 SRR, 27 SLOT and 28 LSLOT: the SAMPLE model's / the LAYER's sample of
+  its SET, -16..-1 = 1..16, a value >= 0 an older KEY note; text "3/16"), min / max / def, the label and unit the device shows, and the
   value names from index `first` (as many as fit; `nnames` = how many there are: ask again from first + count):
   - ENUM: the names of the values min..max (the name of v = names[v − min]).
   - INT with names (flag SPLIT): the range split evenly over the n names: v's = names[⌊(v − min) · n / (max − min + 1)⌋].

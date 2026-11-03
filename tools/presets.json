@@ -1564,12 +1564,12 @@
      127,
      0,
      0,
-     36,
+     -16,
      0,
-     0
+     127
     ],
     "source": "designed",
-    "note": "the PERC set's kick (today's default)"
+    "note": "the PERC set's kick (today's default; SLOT 1/16)"
    },
    {
     "uid": 149,
@@ -1581,12 +1581,12 @@
      127,
      0,
      0,
-     54,
+     -6,
      0,
-     0
+     127
     ],
     "source": "designed",
-    "note": "tambourine"
+    "note": "tambourine (SLOT 11/16)"
    },
    {
     "uid": 150,
@@ -1598,12 +1598,12 @@
      110,
      0,
      0,
-     82,
+     -3,
      0,
-     0
+     127
     ],
     "source": "designed",
-    "note": "shaker, slightly darker"
+    "note": "shaker, slightly darker (SLOT 14/16)"
    },
    {
     "uid": 151,
@@ -1615,12 +1615,12 @@
      100,
      60,
      0,
-     63,
+     -4,
      0,
-     0
+     127
     ],
     "source": "designed",
-    "note": "conga pitched down, driven"
+    "note": "conga pitched down, driven (SLOT 13/16)"
    }
   ]
  },

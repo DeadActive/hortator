@@ -164,7 +164,8 @@ static __attribute__((noinline)) void motion_step(track_t *t, uint32_t s, uint32
         } else {
             motion_mark(k, id);
         }
-        *slot = (int16_t)clamp(m->val[i], d->min, d->max);
+        *slot = (int16_t)knob_in(d, m->val[i]);    /* (presets.c: a SLOT's KEY note from before SLOT kept: it plays
+                                                     * as it was recorded) */
         moved = 1;
     }
 done:

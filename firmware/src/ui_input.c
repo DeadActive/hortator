@@ -595,6 +595,12 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
     v = knob_turn(EN_K1 + slot, d, *vp, steps);
+    if ((d->fmt == F_SLOT || d->fmt == F_LSLOT) && pg->scope == SC_TRACK) {   /* SLOT: its set's samples 1..N (a KEY
+                                                                                * note from before SLOT: from its own) */
+        int32_t i = smp_slot_of((uint32_t)TSEL->p[d->fmt == F_SLOT ? P_E4 : P_LSET], *vp),
+                n = (int32_t)smp_slot_count((uint32_t)TSEL->p[d->fmt == F_SLOT ? P_E4 : P_LSET]);
+        v = SMP_SLOT_V(clamp((i < 0 ? 0 : i) + steps, 0, n > 0 ? n - 1 : 0));   /* (no acceleration: <= 16) */
+    }
     if (pg->scope == SC_TRACK && id == P_RMODEL && v != *vp) {   /* a capped model full: the next one (or why not) */
         int32_t dir = v > *vp ? 1 : -1;
         const char *why = reson_refused(TSEL, *vp, v);
@@ -613,6 +619,9 @@ static void edit_param(uint32_t slot, int32_t steps)
         preset_touch(TSEL);                           /* presets.c: the preset edited (not a turn at its limit) */
     *vp = (int16_t)v;
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
+        fm1_irq_off();
+        smp_set_moved(TSEL, (uint32_t)(vp - TSEL->p));   /* presets.c: a SET keeps its SLOT inside its samples */
+        fm1_irq_on();
         motion_capture(TSEL, (uint32_t)(vp - TSEL->p));   /* motion.c: recorded when armed and playing */
         ml_knob(song.sel, (uint32_t)(vp - TSEL->p));      /* (MIDI LEARN: picked) */
     }
@@ -1178,7 +1187,13 @@ static void env_poll(uint32_t now, uint32_t pressed)
 
 static void ui_input(void)
 {
-    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k, fam = cur_fam();
+    uint32_t pressed, notes, now, id, b, k, fam;
+    smp_slots_sync();                                   /* dm_sample.c: a user slot changed (an upload): its lists,
+                                                         * START states (the main loop's) */
+    pressed = fm1_input_edges(0);
+    notes = fm1_input_note_edges();
+    now = fm1_ticks();
+    fam = cur_fam();
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
     uint32_t rec = btn_hold(&ui.rec_t0, B_REC, now, !ui.menu && fam == FAM_SEQ), acts;
     int32_t s, dt;

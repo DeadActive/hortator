@@ -158,6 +158,12 @@ if command -v node >/dev/null 2>&1; then
 else
     echo "sample_xcheck: SKIPPED (no node)"
 fi
+cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base,array-bounds -fno-sanitize-recover=all -Wall \
+    -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/slot_test" \
+    tests/slot_test.c -lm   # (the SAMPLE / LAYER sample knobs: SLOT, START, END, old KEY values: ASan + UBSan; a user
+                            # slot's zones read through SMP_DATA rebased, as the firmware does: no array-bounds check)
+"$OUT/slot_test" > "$OUT/slot_test.txt" 2>&1 || { grep -v "^ok" "$OUT/slot_test.txt" | tail -30; exit 1; }
+tail -1 "$OUT/slot_test.txt"
 XF="-O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src"   # (the variations across the two builds)
 cc $XF -o "$OUT/xbuild_std" tests/xbuild_test.c -lm

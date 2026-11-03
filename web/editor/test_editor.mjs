@@ -112,7 +112,7 @@ const fresh = (o) => createMockDevice(data, o);
   ok(P.ID.MODEL === data.P.indexOf("MODEL") && P.ID.RMODEL === data.P.indexOf("RMODEL") && P.ID.ITYPE === data.P.indexOf("ITYPE")
     && P.ID.GMODE === data.G.indexOf("GMODE") && P.ID.SYNC === data.G.indexOf("SYNC"), "ids: the core.h ids the page names = device_data.json's");
   ok(P.LAYOUT.preNone === data.preNone && P.LAYOUT.preRecUser === data.preRecUser && same(data.fmt.slice(0, 3), ["INT", "PCT", "BIPCT"])
-    && data.fmt.length === 27, "layout: preset references, the F_ list");
+    && data.fmt.length === 29, "layout: preset references, the F_ list");
   let gen = "skipped (no cc)";
   try { execFileSync("cc", ["--version"], { stdio: "ignore" }); gen = ""; } catch { /* no compiler */ }
   if (!gen) {

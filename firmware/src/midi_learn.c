@@ -102,6 +102,7 @@ static __attribute__((noinline)) void ml_set(track_t *t, uint32_t id, uint32_t v
     if (lf)
         lfo_restore_track(t);
     t->p[id] = (int16_t)nv;
+    smp_set_moved(t, id);                           /* presets.c: a SET keeps its SLOT inside its samples */
     if (preset_marks(t, id))
         preset_touch(t);                            /* presets.c: the preset edited (a SOUND knob; its FX: a user one) */
     if (lf)

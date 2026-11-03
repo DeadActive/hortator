@@ -182,6 +182,62 @@ static uint32_t preset_first_of(uint32_t model)        /* the voice's first fact
     return PRE_NONE;
 }
 
+/* ---- the sample knobs stored before SLOT / START / END (dm_sample.c): a SLOT holding a KEY note, the SAMPLE model's
+ * END its "-" knob's 0. smp_slot_conv: a KEY note of set -> its sample (the zone covering it, smp_find's; no zone: the
+ * nearest), its pitch from the root moved into *tune (-24..24); kept as the note (which plays exactly as before) when
+ * that does not fit, the root is not a whole note, or the set has no sample. Idempotent: a SLOT value stays */
+static int32_t smp_slot_conv(uint32_t set, int32_t v, int32_t *tune)
+{
+    int32_t i = v >= 0 ? smp_slot_of(set, v) : -1, d16 = 0;
+    uint32_t zi;
+    if (i < 0)
+        return v;
+    zi = smp_find(set, (uint32_t)v);
+    if (zi != 0xFFFFu) {                            /* (no zone there: the nearest, at its root) */
+        d16 = v * 16 - smp_zone(zi)->root16;
+        if ((d16 & 15) || *tune + d16 / 16 < -24 || *tune + d16 / 16 > 24)
+            return v;
+    }
+    *tune += d16 / 16;
+    return SMP_SLOT_V(i);
+}
+/* a stored knob value v of d, into its range; a SLOT's KEY note kept for smp_slot_conv, the SAMPLE END's 0 -> 127 */
+static int32_t knob_in(const param_desc_t *d, int32_t v)
+{
+    if ((d->fmt == F_SLOT || d->fmt == F_LSLOT) && v >= 0)
+        return v > 127 ? 127 : v;
+    if (d == &DMODELS[DM_SMPL].edit[7] && v <= 0)
+        return d->max;
+    return clamp(v, d->min, d->max);
+}
+/* model m's knobs e[0..7] (P_E0..P_E7, through knob_in): a SAMPLE's KEY note converted, TUNE taking its pitch */
+static void smpl_knobs_conv(int16_t *e, uint32_t m)
+{
+    int32_t tu = e[0];
+    if (m % NMODELS != DM_SMPL)
+        return;
+    e[5] = (int16_t)smp_slot_conv((uint32_t)e[4], e[5], &tu);
+    e[0] = (int16_t)tu;
+}
+static void layer_knobs_conv(int16_t *p)            /* a track's LAYER: its SLOT's KEY note, LAYER TUNE its pitch */
+{
+    int32_t tu = p[P_LTUNE];
+    p[P_LKEY] = (int16_t)smp_slot_conv((uint32_t)p[P_LSET], p[P_LKEY], &tu);
+    p[P_LTUNE] = (int16_t)tu;
+}
+
+/* knob id of t just set: a SET (the SAMPLE model's, the LAYER's) keeps its SLOT inside the new set's samples (a KEY
+ * note: its sample in the new set). The IRQ off, or the ISR */
+static void smp_set_moved(track_t *t, uint32_t id)
+{
+    uint32_t set = id == P_LSET ? (uint32_t)t->p[P_LSET] : (uint32_t)t->p[P_E4], sl = id == P_LSET ? P_LKEY : P_E5;
+    int32_t i;
+    if (id != P_LSET && (id != P_E4 || (uint32_t)t->p[P_MODEL] % NMODELS != DM_SMPL))
+        return;
+    i = smp_slot_of(set, t->p[sl]);
+    t->p[sl] = (int16_t)SMP_SLOT_V(i < 0 ? 0 : i);
+}
+
 /* id is a preset t may load: not empty, not a third ACID track */
 static int preset_ok(const track_t *t, uint32_t id, preset_t *p)
 {
@@ -199,7 +255,8 @@ static void preset_apply(track_t *t, const preset_t *p, uint32_t id)
     t->p[P_MODEL] = (int16_t)(p->model % NMODELS);
     t->model = (uint8_t)t->p[P_MODEL];
     for (i = 0; i < 8u; i++)
-        t->p[P_E0 + i] = (int16_t)clamp(p->k[i], m->edit[i].min, m->edit[i].max);
+        t->p[P_E0 + i] = (int16_t)knob_in(&m->edit[i], p->k[i]);
+    smpl_knobs_conv(&t->p[P_E0], p->model);         /* (a SAMPLE preset stored before SLOT) */
     t->pre = (uint16_t)id;
     t->pre_ed = 0;
 }

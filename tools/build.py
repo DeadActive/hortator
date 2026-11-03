@@ -113,6 +113,11 @@ def generate():
             failed.append(c[0].name)
     if failed:
         raise SystemExit(f"build: {', '.join(failed)} failed")
+    p = subprocess.run([sys.executable, str(tools / "gen_seek.py"), str(GEN / "felucca_samples.h"),
+                        str(GEN / "felucca_seek.h")], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    sys.stdout.write(p.stdout)                      # (START's states: from the samples, so after them)
+    if p.returncode:
+        raise SystemExit("build: gen_seek.py failed")
 
 
 # ---- update loader
