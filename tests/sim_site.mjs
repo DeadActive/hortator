@@ -201,7 +201,8 @@ test('install: the version and what is new, the connection diagram, the installe
   assert.match(sec, /href="webapp\/installer\/"/);
   assert.match(sec, /<details[^>]*>\s*<summary>Back to the official firmware<\/summary>/);
   assert.match(sec, /<details[^>]*>\s*<summary>If an install fails<\/summary>/);
-  assert.match(sec, /beta/i);
+  assert.match(sec, /at your own risk/i);
+  assert.doesNotMatch(sec, /beta/i);
 });
 
 test('Controls opens its help over the hero stage, next to the button (not below the whole scroll track)', () => {

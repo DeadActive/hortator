@@ -22,7 +22,7 @@ released yet are listed under Unreleased.
     FM-1's own text. Both ways: turn a knob on the
     FM-1 and it moves in the page; move it in the page and the FM-1 plays it. Choosing a track in the page selects it
     on the FM-1, and the other way round.
-  - **Presets**: the 151 factory presets (MACHINEDRUM, MODERN, CLASSIC), loaded onto a track with a click. The user
+  - **Presets**: the 151 factory presets (in their three banks), loaded onto a track with a click. The user
     presets as a list: rename, reorder, delete, save a track's sound into a slot, back up to a file, open a file
     and write the list to the FM-1 (this one or another). The names live in the page and its files; the FM-1 keeps
     showing "MODEL NN".

@@ -16,7 +16,7 @@ is its drummer.
 - **Edit it from your browser** (from 1.0.0): <https://deadactive.github.io/hortator/webapp/editor/>, over USB
   ([below](#web-editor)).
 
-**Beta.** Hortator is untested on most hardware and may be unstable. You install it at your own risk: the author
+**Install at your own risk.** Hortator is untested on most hardware. The author
 accepts no responsibility if your FM-1 is damaged or misbehaves. M-VAVE's own updater takes you back to the official
 firmware ([below](#back-to-the-official-firmware)).
 
