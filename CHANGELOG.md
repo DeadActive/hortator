@@ -57,6 +57,22 @@ released yet are listed under Unreleased (the next version) and, for the version
   can also be listened to, backed up to a file and restored (into any slot), renamed and cleared. A sample never
   spills past its slot: the projects' variations and lock banks next to USR2 and USR3 stay safe, and the firmware
   update leaves the samples alone.
+- **SAMPLE and LAYER: SLOT steps through the samples.** The SAMPLE model's KEY knob is now SLOT, and so is the
+  LAYER's: it picks one of the set's samples, shown as `3/16` (PERC's 16 drum and percussion samples in order, from
+  the kick to the wood block; `1/1` for a user slot with one sample, `--` for an empty one), each played at its own
+  pitch, with TUNE to transpose it. Before, KEY was a MIDI note, so most of its values gave the same sample or
+  nothing, and PERC's closed hat could not be reached at all. Changing SET keeps SLOT inside the new set.
+- **SAMPLE: START and END.** The two empty knobs of the SAMPLE model are now START and END, 0 to 127 over the sample:
+  play only part of it. They are SOUND knobs like the others (MOTION, step locks, presets, MIDI LEARN, LFO DEST). At
+  START 0 and END 127 the sample plays whole, exactly as before.
+- **LAYER knobs renamed.** The LAYER page's knobs read SET, SLOT, LEVEL, TUNE and DECAY (were LSET, LKEY, LLVL, LTUNE,
+  LDEC); MIDI LEARN shows them as `T3 L.SET`, `T3 L.SLOT` and so on. The SAMPLE model's SET stays SET.
+- **Projects and presets from before** load with KEY turned into SLOT and sound the same: where a note played a sample
+  above or below its own pitch, TUNE takes the difference (if TUNE has no room, the old note stays and plays as
+  before). A note where the set had no sample, which played nothing, now plays the nearest sample. Step locks and
+  MOTION on the old KEY keep playing as they were; a step lock on TUNE keeps its value, so on that step the pitch is
+  off by what TUNE moved. The factory SAMPLE presets play as before.
+
 - **Web editor: user presets with their FX.** The Presets page lists the 96 user slots; each preset is marked +FX
   (it sets the track's FX when loaded) or SOUND (the sound only), and its FX button shows and edits the FX it holds
   (sends, FILTER, INSERT, SRR, RESON) or switches them off. Save track N here takes the track's FX too, and loading a

@@ -1113,3 +1113,25 @@ past 96), and save a project with a track loaded from one of those (note its slo
   a voice change's; STOP: CUT the preset's.
 - Bluetooth version: the same, and the variations, the INSERTs and the TOOLS' copy still work (they share the memory
   the USER bank moved into).
+
+### SAMPLE SLOT, START, END and the LAYER's names (check on the FM-1)
+
+Before installing, on the old firmware: save a project with a SAMPL track on PERC KEY 38 (snare), one on KEY 50 (the
+high tom, pitched up), one on KEY 20 (silent), and a K909 track with LAYER LSET PERC, LKEY 36, LLVL up; note how
+each sounds. If you have a sample in USR1, add a SAMPL track on USR1 KEY 48.
+
+- EDIT on a SAMPL track: SOUND 2 reads SET SLOT START END. SLOT shows `1/16`..`16/16`, one sample a detent (kick,
+  rim, snare, clap, low tom, closed hat, open hat, high tom, crash, ride, tambourine, cowbell, conga, shaker, claves,
+  wood block), each at its own pitch; it stops at 1 and 16. SLOT 6 is a closed hat (not reachable before).
+- SET to USR1 with one sample: SLOT `1/1`; to an empty USR slot: `--`, a hit plays nothing. Back to PERC: SLOT 1.
+- START up: the hit starts later into the sample, no click beyond the sample's own; END down: it stops earlier.
+  END below START: a short blip. START 0, END 127: as before. Lock START on a step (hold the step, turn it): only that
+  step starts late. MIDI LEARN a CC to START: `T1 START`.
+- LAYER (EDIT, OCT+): SET SLOT LEVEL TUNE / DECAY, labels whole in their columns. MIDI LEARN on them: `T1 L.SLOT`,
+  `T1 L.TUNE`. The LFO DEST list on a SAMPL track names SLOT, START, END.
+- LOAD the old project: the snare track shows SLOT `3/16`, the tom track SLOT `8/16` with TUNE +2 higher than it was,
+  the KEY 20 track SLOT `1/16` (it now plays the kick), the layer SLOT `1/16`; each sounds as noted (the KEY 20 one
+  now sounds). The USR1 track: SLOT `1/1`, the same pitch as before (TUNE moved), unless TUNE had no room (then SLOT
+  shows `1/1` and still sounds as before). No `*` on the slot after loading.
+- The factory SAMPL presets (SMPKICK TAMBO SHAKER LOFICONG): as before.
+- A web editor on the SAMPL track: SLOT, START, END with the FM-1's texts (`3/16`).

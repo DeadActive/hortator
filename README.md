@@ -311,6 +311,39 @@ Felucca's tools: an 80 KiB upload there overwrites the variations or the lock ba
 `USR2 CLAMP FAILED` shows at power-on and SAVE says `USR2 ERROR: NO SAVE` until the next power-on; the editor then
 refuses uploads to that slot too.)
 
+### Samples: SLOT, START, END
+
+The **SAMPLE** model (SAMPL) plays one sample of a set. SOUND 1: **TUNE**, **DECAY**, **TONE**, **DRIVE**; SOUND 2:
+**SET**, **SLOT**, **START**, **END**.
+
+- **SET**: PERC (built in) or a user slot USR1–USR3. **SLOT** steps through the set's samples, shown `3/16`: PERC
+  has 16 — 1 kick, 2 rim, 3 snare, 4 clap, 5 low tom, 6 closed hat, 7 open hat, 8 high tom, 9 crash, 10 ride,
+  11 tambourine, 12 cowbell, 13 conga, 14 shaker, 15 claves, 16 wood block; a user slot with one sample reads `1/1`,
+  an empty one `--`. Each sample plays at its own pitch: TUNE (and a step's NOTE) transposes it. Turning SET keeps
+  SLOT inside the new set.
+- **START** and **END** cut the sample: 0–127 over its length, START 0 / END 127 the whole of it (as before). END
+  below START plays a sliver from START. Like every SOUND knob they take MOTION, step locks, presets, MIDI LEARN and an
+  LFO DEST. Samples play once (one-shot): loop points in a sample are not played.
+
+The **LAYER** (EDIT, then OCT+) puts a sample under any model: **SET**, **SLOT**, **LEVEL**, **TUNE** (1/2) and
+**DECAY** (2/2), SET and SLOT as the SAMPLE model's. MIDI LEARN names them `T3 L.SET`, `T3 L.SLOT`, `T3 L.LEVEL`,
+`T3 L.TUNE`, `T3 L.DECAY` (the SAMPLE model's own: `T3 SLOT`, `T3 START` ...).
+
+Projects and presets from before SLOT (when it was KEY, a MIDI note picking the sample under it) load as SLOT:
+
+- A KEY on a sample's own note (every factory preset, PERC's one-note samples) becomes its SLOT: the same sound.
+- A KEY that played a sample away from its own note (in PERC: 35 the kick; 41, 42, 44, 45 the low tom and 47, 49, 50
+  the high tom — 42, 44 and 49 played the toms, not the hats or the crash, and still do; 62, 64 the conga; 69 the
+  shaker; 77 the wood block; in a user slot, any note but the sample's) becomes its SLOT with TUNE (LAYER: its TUNE)
+  moved by the difference: the same sound. When TUNE has no room for it
+  (past ±24), the KEY stays as it was and plays as before; the SLOT knob shows its sample, and the first turn moves it
+  to SLOT values (the sample at its own pitch). A step lock or MOTION on TUNE keeps its value, so on that step the
+  pitch is off by what TUNE moved.
+- A KEY where the set had no sample (PERC: below 35, 58, 60, 61, 65–68, 71–74, 78–81, above 82; it played nothing)
+  becomes the nearest sample, at its own pitch: those tracks now sound.
+- Step locks and MOTION recorded on KEY keep their note and play as before.
+- A SAMPLE sound's END reads 127 (the whole sample).
+
 ### Step tools
 
 Hold SEQ: the **TOOLS screen**, up while SEQ is held (a quick SEQ tap turns the SEQ pages as before, on its release;
