@@ -540,7 +540,7 @@ accept 10 CH** (its USB audio 1.0 driver and the channel layout): use 2 CH there
 
 ### CPU and PRIO
 
-When an audio block takes more than 95 % of its time, the FM-1 stops one sounding voice to catch up, and the top bar
+When an audio block takes more than 85 % of its time, the FM-1 stops one sounding voice to catch up, and the top bar
 shows a red CPU icon for 2 s. A track with **PRIO LOW** loses its voices before a PRIO HIGH one, the oldest first;
 a held ACID note goes last. The same order picks the voice to stop when too many play at once. PRIO is on the track's last EDIT (SOUND) page, after CHOKE: HIGH by default, saved in the project.
 

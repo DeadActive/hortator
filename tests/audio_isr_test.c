@@ -95,11 +95,12 @@ static int bench_isr(void)
     return fail;
 }
 
-/* overload: a half that took more than 95 % of its time (5804 us at 256 frames, 44.1 kHz: above 5513.8 us) asks
- * for one voice to be shed before the next half; 90 % and 95 % exactly do not */
+/* overload: a half that took more than 85 % of its time (5804 us at 256 frames, 44.1 kHz: above 4933.4 us) asks
+ * for one voice to be shed before the next half (owner 2026-11-03: 95 % let rare spikes past 100 %); 80 % and 85 %
+ * exactly do not */
 static int shed_threshold(void)
 {
-    static const uint32_t US[4] = {5224, 5513, 5514, 5600};   /* 90 %, 95 % (5513.8 not reached), above, 96 % */
+    static const uint32_t US[4] = {4643, 4933, 4934, 5514};   /* 80 %, 85 % (4933.4 not reached), above, 95 % */
     static const uint8_t WANT[4] = {0, 0, 1, 1};
     uint32_t i, s0;
     int fail = 0;
@@ -112,7 +113,7 @@ static int shed_threshold(void)
         ticks_calls = 0;
         fm1_alnk0_irq();
         if (shed_req != WANT[i]) {
-            printf("audio ISR: a %u us half: shed %u, want %u (95 %% of 5804 us)\n", US[i], shed_req, WANT[i]);
+            printf("audio ISR: a %u us half: shed %u, want %u (85 %% of 5804 us)\n", US[i], shed_req, WANT[i]);
             fail = 1;
         }
     }
@@ -125,7 +126,7 @@ static int shed_threshold(void)
         fail = 1;
     }
     if (!fail)
-        printf("audio ISR: sheds above 95 %% of a half (5514 us), not at 90 %% or 95 %%; counted ok\n");
+        printf("audio ISR: sheds above 85 %% of a half (4934 us), not at 80 %% or 85 %%; counted ok\n");
     return fail;
 }
 

@@ -7,6 +7,9 @@ released yet are listed under Unreleased.
 
 ## 1.0.0 - 2026-11-03
 
+- **Fewer dropouts under heavy load**: the FM-1 now stops a voice when an audio block takes more than 85 % of its
+  time (it was 95 %), so a sudden peak no longer runs past the deadline and drops out. Very heavy kits may lose a
+  voice a little sooner.
 - **Web editor**: edit the FM-1 from the browser, on the Hortator site under Editor, with the FM-1 connected by USB.
   Click Connect: the page asks the FM-1 who it is, so it finds it even when the computer still shows it under an
   old name such as "Felucca" or "FM-1". Other MIDI gear gets nothing unless you click Search other MIDI ports; an

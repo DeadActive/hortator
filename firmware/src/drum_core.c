@@ -103,7 +103,7 @@ static void dv_make_room(uint32_t w)
         dv_cut(ot, ov);
 }
 
-/* audio overload (audio.c, > 95 % of a half): one voice stops (dv_oldest's order: a held ACID note last, a LOW
+/* audio overload (audio.c, > 85 % of a half): one voice stops (dv_oldest's order: a held ACID note last, a LOW
  * track's first, the oldest) */
 static void drum_shed(void)
 {
