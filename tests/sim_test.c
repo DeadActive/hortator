@@ -289,7 +289,7 @@ static void test_drift(void)
                                            "enc.c",   /* the scan's knob decoder: the page feeds detents (enc_take) */
                                            "bt_set.c", "smc.c", "bt_midi.c", "bt_fml.c", "bt_devs.c", "bt_page.c",
                                            "core_ble_api.c",   /* FELUCCA_BLE only */
-                                           "editor_backup.c", "editor_pattern.c", "editor.c"};   /* the web editor:
+                                           "editor_backup.c", "editor_pattern.c", "editor_sample.c", "editor.c"};   /* the web editor:
                                                                             * USB SysEx, FELUCCA_OTA only (as ota.c) */
     static char fw[64][32], sim[64][32];
     uint32_t nf = c_includes("firmware/src/felucca.c", fw, 64), ns = c_includes("tests/sim_host.h", sim, 64), i, j, ok = 1;
