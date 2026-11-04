@@ -11,13 +11,14 @@
 
 | Setting | Where |
 | --- | --- |
-| **CH** (drum channel, 10 by default) | GLOBAL 1/3 |
-| **CLK** (INT / USB / TRS, BLE, LINK) | GLOBAL 1/3 |
-| **SYNC** (clock out) | SYSTEM 2/3 |
-| **ROUT** (note routing) | SYSTEM 2/3 |
-| **MUTE** (NOW / NEXT BAR) | GLOBAL 3/3 |
-| **METRO** | GLOBAL 3/3 |
-| **THRU** | GLOBAL 3/3 |
+| **CH** (drum channel, 10 by default) | GLOBAL 1/7 |
+| **CLK** (INT / USB / TRS, BLE, LINK) | GLOBAL 1/7 |
+| **SYNC** (clock out) | SYSTEM 2/7 |
+| **ROUT** (note routing) | SYSTEM 2/7 |
+| **MUTE** (NOW / NEXT BAR) | GLOBAL 3/7 |
+| **METRO** | GLOBAL 3/7 |
+| **THRU** | GLOBAL 3/7 |
+| **QUANT** (live-record grid) | GLOBAL 3/7 |
 
 SYNC and ROUT are saved with each project; projects saved before them load SYNC OFF and ROUT NOTE. THRU is a setting of the FM-1 itself, kept over power-off, OFF until you turn it on.
 
@@ -50,7 +51,7 @@ Set SYNC to OFF or USB (and BLE or BOTH in the Bluetooth version).
 
 ## THRU
 
-GLOBAL 3/3 **THRU ON** passes notes and CCs from each MIDI input to the other outputs (the TRS jack to USB; Bluetooth and USB to each other in the Bluetooth version), never back to the input.
+GLOBAL 3/7 **THRU ON** passes notes and CCs from each MIDI input to the other outputs (the TRS jack to USB; Bluetooth and USB to each other in the Bluetooth version), never back to the input.
 
 ## MIDI LEARN
 
@@ -63,14 +64,14 @@ Up to **32** controls of any controller. A learned CC moves one knob of one trac
 | REC | press REC (nothing arms) | a CC or a note | a press = a REC tap: TRACKS arms the selected track, elsewhere REC ALL |
 | NEXT TRACK / PREV TRACK | turn ALGORITHM right / left | a CC or a note | selects the next / previous track |
 | a PERFORM effect | hold FX, press its black key | a CC or a note | held while the controller's button is held (FX need not be held) |
-| a track's PERFORM mute | hold FX, press its white key F3..F4 | a CC or a note | the track silent while held |
+| a track's REPEAT STEP | hold FX, press its white key F3..F4 | a CC or a note | the track repeats its step while held, as the key (a control learned to a PERFORM mute in an older version does this now) |
 | a PERFORM macro | on the PERFORM screen, turn KNOB 1..4 | a CC | FILTER (0 at 64: left LPF, right HPF), CRUSH, THROW, DEPTH; stays on |
 
 ### How to learn a control
 
 1. **Turn it on:** hold [[GLO]] (the MUTE screen) and press **G4**: `G4 LEARN: ON`, and `MIDI LEARN ON` in the top bar. Let go of GLO; the footer's first row shows `LEARN: TURN OR PRESS`.
-2. **Pick a knob:** turn a knob of the selected track on any page: HOME, EDIT (SOUND, LAYER), FX (FILTER, the sends, SLICER, RESON), LFO, PATTERN, or LEVEL / LEN / PAN on TRACKS. It edits as usual and the footer says `T3 DECAY: SEND A CC`.
-3. **Or pick an action:** while LEARN is on, PLAY, REC, ALGORITHM and the PERFORM keys pick their action instead of doing their job. The footer says `PLAY: SEND CC/NOTE`, `FX R1/16: SEND CC/NOTE`, `FX MUTE T3: SEND CC/NOTE`.
+2. **Pick a knob:** turn a knob of the selected track on any page: HOME, EDIT (SOUND, LAYER), FX (FILTER, the sends, INSERT and SRR, SLICER, RESON), LFO, PATTERN, or LEVEL / LEN / PAN on TRACKS. It edits as usual and the footer says `T3 DECAY: SEND A CC`.
+3. **Or pick an action:** while LEARN is on, PLAY, REC, ALGORITHM and the PERFORM keys pick their action instead of doing their job. The footer says `PLAY: SEND CC/NOTE`, `FX R1/16: SEND CC/NOTE`, `FX RPT T3: SEND CC/NOTE`.
 4. **Move the controller's knob, or press its button or pad.** The first CC (or, for an action, note) that arrives on any channel is learned: `CC74 -> T3 DECAY`, `NOTE36 -> PLAY`, `CC20 -> FX FILTER`. Then pick the next one. An already learned one shows `T3 DECAY = CC74`; sending another replaces it.
 5. **Finish:** [[OCT+]] ends LEARN (`LEARN DONE`), as GLO + G4 does.
 
@@ -80,6 +81,6 @@ Up to **32** controls of any controller. A learned CC moves one knob of one trac
 - **One control, one thing:** learning again moves it to the new pick. `LEARN FULL` after 32. CC 0 and 32 (bank select) and 120 to 127 (channel mode) are never learned (`CC NOT LEARNABLE`). MODEL and RESON's MODEL cannot be learned (`NOT LEARNABLE`).
 - **While LEARN is on, [[OCT-]] clears** the pick's CC or note (`T3 DECAY CC CLEARED`, `PLAY CLEARED`); with nothing picked it asks `CLEAR ALL LEARNED?` ([[OCT+]] yes, [[OCT-]] no). So pick the page first (LAYER, the step bank, a DEST slot), then turn LEARN on. The menu, a confirm, or NAME also end it. EDIT held does nothing during LEARN. It is always off at power-on.
 - **What a CC does on a knob:** 0 to 127 spans the knob's whole range; a centred knob (PAN, an LFO's DEPTH, FILTER ENV) is 0 at 64; a list (FILTER TYPE, DIV, WAVE) steps through it in order. A model's knob follows the track's model. An LFO on the same knob keeps moving it around the new value. During a song, PATTERN's knobs stay as they are. CC moves are not recorded as motion.
-- **Buttons:** a CC of 64 or more is a press, under 64 a release (only the change counts); a note on is a press, its note off (or velocity 0) the release. A learned note plays no drum.
+- **Buttons:** a CC of 64 or more is a press, under 64 a release (only the change counts); a note on is a press, its note off (or velocity 0) the release. A learned note plays no drum. Learned names read like `T3 I.DRIVE`, `T3 SRR`, `T3 L1.RATE`, `T3 L.SLOT`, `T3 R.TUNE`.
 - Learned CCs and notes act whether LEARN is on or off, on every input except Bluetooth in SMC DAW mode. PLAY, REC and track buttons act where the FM-1's own would (not in the menu or a confirm).
 - They are saved in the FM-1's flash (**not in projects**) after each change, when stopped. The 16 CCs of the first MIDI LEARN load as they were.

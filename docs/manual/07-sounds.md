@@ -3,7 +3,7 @@
 
 ## How a track's sound works
 
-Press [[EDIT]] to open the selected track's sound. [[KNOB 1]] picks the **MODEL**; the SOUND page then shows the model's knobs, four per page, followed by LEVEL, PAN, NOTE, CHOKE and PRIO. Every model has **TUNE** (-24 to +24 semitones), **DECAY**, and then its own knobs (all 0 to 127 unless stated). The first four knobs are the ones on HOME.
+Press [[EDIT]] to open the selected track's sound. [[KNOB 1]] picks the **MODEL**; the SOUND page then shows the model's knobs, four per page, followed by LEVEL, PAN, NOTE, CHOKE and PRIO (SAMPL adds PLAY and CUT, and a fifth page with ATK SUS REL LOOP). Every model has **TUNE** (-24 to +24 semitones), **DECAY**, and then its own knobs (all 0 to 127 unless stated). The first four knobs are the ones on HOME.
 
 The SOUND page shows the model's name, its place in the list (`#NN/45`), VOICES, CHOKE and `+ LAYER`, and on the right a graph. Models without a graph of their own show *the hit*: the voice's real sound (one hit at velocity 100, played silently in the background) as a waveform, labelled e.g. `HIT / 300 MS`; it redraws a few frames after MODEL or a knob changes. SAMPL shows its sample. The page also shows the track's preset, with `*` once a SOUND knob has moved.
 
@@ -66,7 +66,7 @@ Integer ports of Mutable Instruments Plaits drum algorithms (MIT), DaisySP physi
 | 28 | SKIN | A struck drum head (modal physical model): HEAD from ideal to loaded (toms and timpani to tabla), POS centre to rim, BEND, STICK (heavy). Was MEMB. | TUNE DECAY TONE HEAD / POS BEND STICK | 1 |
 | 29 | FM | Two-operator FM percussion: a carrier phase-modulated by a sine at RATIO x pitch. MDEC the FM envelope decay, SWEEP a pitch rise, FBK modulator feedback, VEL velocity into INDEX. Bells, metallic toms, woodblocks, zaps, FM kicks. The graph shows the ratio's sidebands. | TUNE DECAY INDEX RATIO / MDEC SWEEP FBK VEL | 2 |
 | 30 | ACID | 303-style mono bass: saw or square into a 24 dB ladder filter, with accent, slide and tie from the steps. Max two ACID tracks. | TUNE DECAY CUTOF RESO / ENVMD ACCNT WAVE GATE | 1 |
-| 31 | SAMPL | One-shot sample player (see Samples). Was SMPL. | TUNE DECAY TONE DRIVE / SET KEY | 2 |
+| 31 | SAMPL | Sample player: one sample of a set, with start / end, envelope, loop and chop (see Samples). Was SMPL. | TUNE DECAY TONE DRIVE / SET SLOT START END (+ PLAY CUT, ATK SUS REL LOOP) | 2 |
 
 Lists: FM **RATIO** is one of 0.5, 1, 1.41, 1.5, 2, 2.76, 3, 3.5, 4, 5.4, 6, 7, 8, 9.2, 11, 14. ACID **WAVE** is SAW or SQR. ACID **GATE** is how long a hit that no step drives stays open, as a fraction of the step. ACID is skipped in the MODEL list and PRESETS once two ACID tracks exist (`ACID: 2 TRACKS MAX`).
 
@@ -97,32 +97,36 @@ At power-on, on TOOLS **INIT ALL** and in a new project the eight tracks load th
 
 ## Presets
 
-A **preset** is one voice: MODEL plus the eight SOUND knobs and a name. It does not store the FILTER, LFOs, sends, LEVEL, PAN, NOTE, CHOKE or steps.
+A **preset** is one voice: MODEL plus the eight SOUND knobs (the SAMPLE model's PLAY, CUT, ATK, SUS, REL and LOOP too) and a name. A **USER** preset also stores the track's **FX**: the DIST, CHO, DLY and REV sends, FILTER, INSERT, SRR and RESON. No preset stores LEVEL, PAN, NOTE, CHOKE, PRIO, the SLICER, LAYER, the LFOs or steps. Factory presets change only the sound; the track's FX stay.
 
 | Bank | Presets |
 | --- | --- |
 | MACHINEDRUM | 55, from the original machine's factory kits (1 to 4 per voice; none for SHTRX and CLTRX) |
 | MODERN | 40 (4 per voice, ACID and SAMPL included) |
 | CLASSIC | 56 (4 per voice) |
-| USER | 128 empty slots for yours, stored in flash |
+| USER | 96 slots for yours, stored in flash; each keeps the sound and the track's FX |
 
 151 factory presets in all. Every voice's **first preset is its default sound**: a MODEL change loads it.
 
 - **PRESETS encoder.** Each detent loads the next / previous preset onto the selected track, through every bank with wrap-around. A popup shows the bank, the preset, and two before and after (about 1.5 s). Empty USER slots, and ACID beyond two tracks, are skipped.
-- **The PRESETS list.** Hold [[EDIT]] about 0.4 s (a tap opens EDIT as before). Seven presets on screen. [[KNOB 1]] or PRESETS move the cursor; [[KNOB 2]] or [[SELECT]] pick the bank (MD, MODERN, CLASSIC, USER); every move auditions the preset on the selected track. [[OCT+]] **LOAD** keeps it and closes the list; [[EDIT]] or [[HOME]] closes it and restores the track's own sound. **SAVE** stores the track's own sound (not the auditioned one) in the first free USER slot or the chosen one (a used slot: SAVE twice); [[OCT-]] twice **DELETE**s a USER preset. USER presets are named from the voice and slot (`SDTRX 03`). Saved while playing, they are written at the next STOP. While MIDI LEARN is on, EDIT held does nothing.
+- **The PRESETS list.** Hold [[EDIT]] about 0.4 s (a tap opens EDIT as before). Seven presets on screen. [[KNOB 1]] or PRESETS move the cursor; [[KNOB 2]] or [[SELECT]] pick the bank (MD, MODERN, CLASSIC, USER); every move auditions the preset on the selected track. [[OCT+]] **LOAD** keeps it and closes the list; [[EDIT]] or [[HOME]] closes it and restores the track's own sound. **SAVE** stores the track's own sound and its FX (not the auditioned one) in the first free USER slot or the chosen one (a used slot: SAVE twice); [[OCT-]] twice **DELETE**s a USER preset. USER presets are named from the voice and slot (`SDTRX 03`). Saved while playing, they are written at the next STOP. While MIDI LEARN is on, EDIT held does nothing.
 - **Display.** The SOUND pages and the TRACKS footer show `PRESET <name>` with `*` once a SOUND knob moved. A track whose USER slot now holds another voice (or none) shows `-`. Projects keep each track's preset and its mark; older projects load with no preset and their sound unchanged. SAVE while MOTION plays stores the knobs as set, not MOTION's values.
 
 ## Samples
 
-SAMPL plays a sample set. **SET** chooses the set: **PERC** (built in) or **USR1**, **USR2**, **USR3**. **KEY** (0 to 127, default 36) selects the zone whose key range contains it; the sample is pitched by KEY and the step's note relative to the zone's root, plus TUNE (limited to three octaves up). DECAY, TONE (a one-pole low-pass) and DRIVE (a soft clip) shape it. If no zone matches, or a slot is empty, the hit is silent.
+SAMPL plays one sample of a **set**. **SET** chooses the set: **PERC** (built in) or **USR1**, **USR2**, **USR3** (yours). **SLOT** steps through the set's samples, shown `3/16` (`--` for an empty set); each plays at its own pitch, and **TUNE** (-24 to +24) transposes it. Turning SET keeps SLOT inside the new set. **START** and **END** (0 to 127 over the sample) play only part of it. **DECAY**, **TONE** (a one-pole low-pass) and **DRIVE** (a soft clip) shape it. An empty set is silent.
 
-- **PERC** is a General MIDI-style drum map on the keys: kick, rim, snare, clap, hats, toms, crash and ride, tambourine, cowbell, conga, shaker, claves and woodblock. It is Hortator's generated drum samples (Hügelton Sample Pack) and CC0 hand percussion (Versilian Studios VSCO-2 CE and VCSL), stored as 22,050 Hz IMA ADPCM.
-- **User slots** USR1 (80 KiB), USR2 and USR3 (48 KiB each; the rest of their flash holds the project variations and the lock banks). Each holds up to 16 zones, mono 22,050 Hz IMA ADPCM; 80 KiB is about 7 s of audio, 48 KiB about 4 s.
-- **Hortator has no sample upload.** Its firmware has no editor protocol, so the Felucca web editor at `/webapp/editor/` and `tools/fm1_sample_upload.py` do not load samples into it. USR1 to USR3 are empty unless filled earlier under upstream Felucca.
-- A longer USR2 or USR3 (uploaded under upstream Felucca) is shortened once at the next power-on (`USR2 SHORTENED TO 48K`, `USR3 SHORTENED TO 48K`). If that fails (`USR2 CLAMP FAILED`, `USR3 CLAMP FAILED`), SAVE says `USR2 ERROR: NO SAVE` until the next power-on. Do not upload 80 KiB to USR2 or USR3 under upstream Felucca afterwards: it overwrites Hortator's variations and lock banks.
+The SAMPLE model has five SOUND pages: 1 MODEL TUNE DECAY TONE; 2 DRIVE SET SLOT START; 3 END LVL PAN NOTE; 4 CHOKE PRIO PLAY CUT; 5 ATK SUS REL LOOP.
 
-> **Web editor.** The site carries the Felucca editor from the upstream project at `/webapp/editor/`. It speaks Felucca's SysEx protocol, which Hortator does not implement, so it will find the FM-1's USB port but get no replies. Do not rely on it with Hortator.
+- **ATK SUS REL.** ATK fades the hit in (0 at once, up to 2 s). SUS 0 plays the sample once with DECAY; above 0, DECAY falls only to that level and the sound holds while the note is held, then REL fades it out. A step holds for one step of its track, longer through TIE steps; a KEYS key, a track's key or a MIDI note holds until you let go.
+- **LOOP** plays the part between START and END again and again: **FWD** (crossfaded seam), **PING** (forward and back; loops up to about a quarter of a second at 44.1 kHz, longer ones play FWD), **LOOPI** (loops until the track's next hit, a choke or STOP; the end of the note does nothing) or **ONE** (START to END whatever the note's length). OFF is the one-shot.
+- **PLAY KEY** is the default: the keys play the SLOT's sample up and down. **PLAY CHOP**: the 16 white keys play samples 1 to 16 on any octave, each at its own pitch (TUNE shifts all); the black keys and keys past the set play nothing; the screen shows `CHOP 5/12`. A step stores its sample as its note; a MIDI note picks a sample too (C4 is sample 1, C#4 sample 2, again every 16 notes).
+- **CUT ON** makes each hit cut the one still sounding (chops included); OFF lets them overlap.
+- ATK, SUS, REL, LOOP, PLAY, START, END and SLOT take MOTION, step locks, MIDI LEARN and LFO DEST; CUT takes MIDI LEARN. All are saved with projects and in USER presets; a factory SAMPLE preset sets ATK 0, SUS 0, REL 40, LOOP OFF, PLAY KEY. With ATK 0, SUS 0 and LOOP OFF a hit sounds as it always did.
+- **PERC** has 16 samples, in this order: 1 kick, 2 rim, 3 snare, 4 clap, 5 low tom, 6 closed hat, 7 open hat, 8 high tom, 9 crash, 10 ride, 11 tambourine, 12 cowbell, 13 conga, 14 shaker, 15 claves, 16 wood block. They are Hortator's generated drum samples (Hügelton Sample Pack) and CC0 hand percussion (Versilian Studios VSCO-2 CE and VCSL), stored as 22,050 Hz IMA ADPCM.
+- **User slots.** USR1 holds 80 KiB, USR2 and USR3 48 KiB each (the rest of their flash holds the projects' variations and lock banks). Each holds a set of up to 16 samples, mono IMA ADPCM at rates up to 44.1 kHz. USR1 holds about 3.7 s at 44.1 kHz, 7.4 s at 22.05 kHz or 14.8 s at 11.025 kHz; USR2 and USR3 about 2.2, 4.4 and 8.8 s. Load them with the **web editor's Samples tab**, which also trims, normalizes, resamples and chops a sound.
+- A longer USR2 or USR3 written under upstream Felucca is shortened once at the next power-on (`USR2 SHORTENED TO 48K`, `USR3 SHORTENED TO 48K`); if that fails (`USR2 CLAMP FAILED`, `USR3 CLAMP FAILED`), SAVE says `USR2 ERROR: NO SAVE` until the next power-on. Do not upload to USR2 or USR3 with upstream Felucca's tools: an 80 KiB upload overwrites Hortator's variations and lock banks.
 
 ## LAYER: a sample under any model
 
-Press [[EDIT]], then [[OCT+]] (with KEYS off) for the **LAYER** page: a sample layer under any model, with **LSET** (set), **LKEY** (key), **LLVL** (level, 0 = off), **LTUNE** (plus or minus 24) and **LDEC** (decay). [[OCT-]] returns to SOUND.
+Press [[EDIT]], then [[OCT+]] (with KEYS off) for the **LAYER** pages: a sample layer under any model. Page 1/2: **SET**, **SLOT**, **LEVEL** (0 = off, the default) and **TUNE** (-24 to +24); page 2/2: **DECAY**. SET and SLOT work as on the SAMPLE model. [[OCT-]] returns to SOUND. MIDI LEARN names them `T3 L.SET`, `L.SLOT`, `L.LEVEL`, `L.TUNE`, `L.DECAY`.

@@ -19,6 +19,7 @@ Each release has a second version, **Hortator + Bluetooth MIDI** (experimental).
 
 - **USB AUDIO 10 CH MIX and 10 CH FX**: USB audio is always 2 CH and the menu has no USB AUDIO row. Use the plain version for 10 channels.
 - **The web simulator** runs the plain version; it has no Bluetooth page.
+- **The web editor** works over USB only, in both versions; Bluetooth is not an editor link.
 - It is **experimental**: the audio has less headroom while Bluetooth is on.
 
 > **Known issue.** A saved device that is not connected can make the sound stutter: while BLUETOOTH is ON the FM-1 keeps looking for every saved device it is not linked to. Remove devices you no longer use (on the Bluetooth page turn [[KNOB 1]] left on its line, `FORGET <name>?`, [[OCT+]]) or switch BLUETOOTH OFF when you don't need it.
@@ -109,5 +110,5 @@ The M-VAVE SMC-Mixer in its DAW (Mackie Control) mode, MODE AUTO or SMC DAW. Onl
 - While a song plays or is armed, REC 1-8 and REC say `STOP TO EDIT`. While a dialog or NAME is on screen, the mixer's buttons and knobs do nothing.
 - **LEDs:** MUTE n lit = muted (or waiting for the next bar), SOLO n = soloed, REC n = armed, SELECT n = selected, PLAY = playing, STOP = stopped, REC = any track armed. They are sent again on every connection.
 - **Fader pickup:** a fader does nothing until it reaches its track's level (within 2, or passing it); until then the mixer blinks its LED. On every connection, and whenever a track's LEVEL changes some other way (knob, LOAD, INIT, LEVEL motion), that fader has to be picked up again.
-- **Solo:** while any track is soloed, only the soloed tracks are heard; several can be soloed. A silenced track is dimmed on HOME and TRACKS; the mutes are unchanged. Solo clears itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (nothing is cut). Solo is not saved: INIT and a power-on clear it too.
+- **Solo:** while any track is soloed, only the soloed tracks are heard; several can be soloed. A silenced track is dimmed on HOME and TRACKS; the mutes are unchanged. Solo clears itself when the SMC-Mixer disconnects and when MODE leaves SMC DAW (nothing is cut). Solo is not saved: INIT and a power-on clear it too. It is the same solo as the MUTE screen's (hold GLO, black keys).
 - **Leaving SMC DAW** while connected: Hortator turns the mixer's LEDs off once and sends it nothing more.

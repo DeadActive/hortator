@@ -3,27 +3,28 @@
 
 ## GLO pages
 
-Tap [[GLO]] for **GLOBAL 1/3**, **SYSTEM 2/3** and **GLOBAL 3/3**.
+Tap [[GLO]] for seven pages: **GLOBAL 1/7**, **SYSTEM 2/7**, **GLOBAL 3/7**, then **DLY 4/7**, **DLY 5/7**, **REVERB 6/7** and **CHORUS 7/7** (the last four are described under *Effects*).
 
 | Page | Knob | Label | Values (default) |
 | --- | --- | --- | --- |
-| GLOBAL 1/3 | **KNOB 1** | BPM | 40 to 240 (120); `CLK <source>` while following an outside clock |
-| GLOBAL 1/3 | **KNOB 2** | SWG | global swing 0 to 100 % (0) |
-| GLOBAL 1/3 | **KNOB 3** | CLK | INT (default), USB, TRS; BLE and LINK in the Bluetooth version |
-| GLOBAL 1/3 | **KNOB 4** | CH | the drum MIDI channel, 1 to 16 (10) |
-| SYSTEM 2/3 | **KNOB 1** | USB | read-only status: OFF, WAIT, BUS, ENUM, MIDI |
-| SYSTEM 2/3 | **KNOB 2** | SYNC | MIDI clock out: OFF (default), USB; BLE and BOTH in the Bluetooth version |
-| SYSTEM 2/3 | **KNOB 3** | ROUT | MIDI-in routing: NOTE (default), SEL, TRACK |
-| SYSTEM 2/3 | **KNOB 4** | CPU | read-only load, in % |
-| GLOBAL 3/3 | **KNOB 1** | MUTE | NOW or BAR (NEXT BAR): when mutes land |
-| GLOBAL 3/3 | **KNOB 2** | METRO | OFF, LOW, MID, HIGH |
-| GLOBAL 3/3 | **KNOB 3** | THRU | OFF (default), ON |
+| GLOBAL 1/7 | **KNOB 1** | BPM | 40 to 240 (120); `CLK <source>` while following an outside clock |
+| GLOBAL 1/7 | **KNOB 2** | SWG | global swing 0 to 100 % (0) |
+| GLOBAL 1/7 | **KNOB 3** | CLK | INT (default), USB, TRS; BLE and LINK in the Bluetooth version |
+| GLOBAL 1/7 | **KNOB 4** | CH | the drum MIDI channel, 1 to 16 (10) |
+| SYSTEM 2/7 | **KNOB 1** | USB | read-only status: OFF, WAIT, BUS, ENUM, MIDI |
+| SYSTEM 2/7 | **KNOB 2** | SYNC | MIDI clock out: OFF (default), USB; BLE and BOTH in the Bluetooth version |
+| SYSTEM 2/7 | **KNOB 3** | ROUT | MIDI-in routing: NOTE (default), SEL, TRACK |
+| SYSTEM 2/7 | **KNOB 4** | CPU | read-only load, in % |
+| GLOBAL 3/7 | **KNOB 1** | MUTE | NOW or BAR (NEXT BAR): when mutes land |
+| GLOBAL 3/7 | **KNOB 2** | METRO | OFF, LOW, MID, HIGH |
+| GLOBAL 3/7 | **KNOB 3** | THRU | OFF (default), ON |
+| GLOBAL 3/7 | **KNOB 4** | QUANT | 1/16 (default), 1/8, 1/32, OFF: where live recording puts a hit (see Sequencer) |
 
-**METRO** is a click on every quarter note while playing, the bar's first higher, on the FM-1's clock or following one. It comes after the PERFORM effects and follows MASTER, on the speaker, headphones and USB audio. METRO, THRU and MUTE are device settings; SYNC and ROUT are saved with each project. See *MIDI* for how they work.
+**METRO** is a click on every quarter note while playing, the bar's first higher, on the FM-1's clock or following one. It comes after the PERFORM effects and follows MASTER, on the speaker, headphones and USB audio. METRO, THRU, MUTE, QUANT and the solo mode are device settings; SYNC and ROUT are saved with each project. See *MIDI* for how they work.
 
 ## The menu
 
-Hold [[HOME]] (0.7 s) for the **MENU**. [[SELECT]] moves the cursor, [[KNOB 1]] changes the value, [[OCT+]] is OK (it steps or toggles; on COLOR, SPEAKER EQ and BACKLIGHT it steps with wrap), [[OCT-]] goes back or closes, and holding [[HOME]] again closes it. The menu saves when it closes.
+Hold [[HOME]] (0.7 s) for the **MENU**. [[SELECT]] moves the cursor, [[KNOB 1]] changes the value (on COLOR it wraps; on SPEAKER EQ, BACKLIGHT and USB AUDIO it stops at the ends; on ON / OFF rows right is ON, left is OFF), [[OCT+]] is OK (it steps on and wraps, or toggles), [[OCT-]] goes back or closes, and holding [[HOME]] again closes it. The menu saves when it closes.
 
 | Row | Values (default) | Notes |
 | --- | --- | --- |
@@ -36,8 +37,9 @@ Hold [[HOME]] (0.7 s) for the **MENU**. [[SELECT]] moves the cursor, [[KNOB 1]] 
 | **ACCEL** | OFF, ON (ON) | knob acceleration |
 | **BACKLIGHT** | OFF, DIM LO, DIM HI, INV, INV LO, INV HI (OFF) | key and button LED levels |
 | **HARDWARE CALIBRATION** | OCT+ runs it | teach each button and knob; also reachable by holding [[OCT-]] and [[OCT+]] at power-on; times out after 30 s idle |
-| **ABOUT** | OCT+ opens | the logo, version (`DRUM-0.26.0` and so on), build date; [[SELECT]] scrolls the credits |
-| **BLUETOOTH** | Bluetooth version only | before ABOUT; see *Bluetooth* |
+| **ABOUT** | OCT+ opens | the logo, version (`DRUM-1.0.1`), build date; [[SELECT]] scrolls the credits |
+| **BACK** | OCT+ closes the menu | the last row |
+| **BLUETOOTH** | Bluetooth version only | between HARDWARE CALIBRATION and ABOUT; the USB AUDIO row is absent there; see *Bluetooth* |
 
 ### COLOR
 
@@ -62,7 +64,7 @@ Credits everyone whose work is in the firmware: Felucca, Mutable Instruments, Da
 
 ## CPU and PRIO
 
-When an audio block takes more than 95 % of its time, the FM-1 stops one sounding voice to catch up and the top bar shows a red CPU icon for 2 s. A track with **PRIO LOW** loses its voices before a **PRIO HIGH** one, the oldest first; a held ACID note goes last. The same order picks the voice to stop when too many play at once. PRIO is on the track's last EDIT (SOUND) page, after CHOKE: HIGH by default, saved in the project. GLOBAL SYSTEM 2/3 CPU shows the load.
+When an audio block takes more than 85 % of its time (95 % before 1.0.0, so a sudden peak no longer runs past the deadline), the FM-1 stops one sounding voice to catch up and the top bar shows a red CPU icon for 2 s. A track with **PRIO LOW** loses its voices before a **PRIO HIGH** one, the oldest first; a held ACID note goes last. The same order picks the voice to stop when too many play at once. PRIO is on the track's last EDIT (SOUND) page, after CHOKE: HIGH by default, saved in the project. SYSTEM 2/7 CPU shows the load.
 
 ## Start screen
 

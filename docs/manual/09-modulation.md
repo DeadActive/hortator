@@ -34,6 +34,10 @@ Each slot has a **SRC** (LFO 1 or LFO 2), a **DEST** and its own **DEPTH** (-100
 | LVL, PAN |
 | R.TUN, R.DCY, R.MIX, R.TON, R.STR, R.POS (RESON) |
 | F.CUT, F.RES (FILTER) |
+| SRR, DST, CHO, DLY, REV (the SRR and the sends) |
+| MIX, then A, B, C (the INSERT's mix and its three knobs, shown by the TYPE's names) |
+
+The last two groups were added in 1.0.0 after F.RES, so projects, presets, step locks and MIDI LEARN keep their meaning; nothing changes until an LFO is routed to one.
 
 An LFO on a knob moves it around its set value. A locked step or a MIDI LEARN CC sets the centre value; the LFO keeps modulating around it. Older projects load with their LFO 1 and LFO 2 routing as slots 1 and 2. MOTION records an LFO's RATE, MORPH and DEPTH (not SRC or DEST); MODEL, WAVE, DEST and SRC cannot be locked.
 

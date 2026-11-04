@@ -17,12 +17,14 @@ Press [[SEQ]] for the sequencer. It has four pages, reached by pressing [[SEQ]] 
 | **KNOB 1** | PROB, the chance the step plays | 0 %, 5 % to 100 % in 5 % steps; **1-SHOT** (plays once after PLAY); **1/2 ... 8/8** (plays on loop A of every B: 1/2 is every other loop, 3/4 three loops of four, and so on); **FILL** (only during a fill); **!FILL** (only outside a fill) |
 | **KNOB 2** | RATCH, ratchet repeats inside the step | 1 to 4 |
 | **KNOB 3** | ACC, accent | turn right: on, left: off |
+| **KNOB 4** | NUDGE | -50 to +50 hundredths of a step |
 
 - **Accent with a tap:** hold [[OCT+]] and tap a step: the step is accented (an off step turns on accented), or plain again. While [[OCT+]] is held the keys show the bank's accents.
 - **Banks:** [[KNOB 1]] on STEP shows `BANK n/m`. [[OCT+]] alone (on its release) goes to the next bank, [[OCT-]] to the previous.
 - **Piano roll:** on an ACID track the STEP page is a piano roll; notes, SLIDE and TIE are described under *Playing and recording*.
 - **Grids tracks:** a track whose PATTERN SRC is a Grids lane (`G-KCK`, `G-SNR`, `G-HAT`) shows that pattern read-only.
-- **Clear:** hold [[REC]] 0.7 s on a SEQ page to be asked CLEAR TRACK. TOOLS **CLRSQ** clears the selected track's pattern.
+- **Clear:** hold [[REC]] 0.7 s on a SEQ page to be asked `CLEAR TRACK n?` ([[OCT+]] yes). It and TOOLS **CLRSQ** clear the track's steps, its MOTION events and its parameter locks. An off step's first edit turns it on; a held key beyond LEN, or on a Grids track, takes the turn and does nothing.
+- **Where the held-step knobs work:** STEP, PATTERN, MOTION, SONG and TRACKS (with no track armed). Under ENV STEPS on other pages the same hold plus a knob is a parameter lock.
 
 ## Fills
 
@@ -70,8 +72,8 @@ SONG chains up to **16 rows**. Each row plays one project slot a number of times
 
 ## Tempo, swing, clock
 
-- **BPM** 40 to 240 (default 120): on TRACKS [[SELECT]] sets it (a `TEMPO` popup shows); on GLOBAL 1/3 [[KNOB 1]] sets it on any page.
-- **SWG** (GLOBAL 1/3) is global swing, 0 to 100 %; each track adds its own.
+- **BPM** 40 to 240 (default 120): on TRACKS [[SELECT]] sets it (a `TEMPO` popup shows); on GLOBAL 1/7 [[KNOB 1]] sets it on any page.
+- **SWG** (GLOBAL 1/7) is global swing, 0 to 100 %; each track adds its own.
 - When the clock is external, the tempo controls say `CLK USB`, `CLK TRS`, `CLK BLE` or `CLK LINK` instead.
 - The four boxes on HOME above `PROJ` show the bar of a four-bar cycle.
 
@@ -84,3 +86,41 @@ While a pattern plays you can queue the next project slot (A to D) or another va
 - A **slot** switch brings the slot's sounds, steps, timing and locks; the tempo, swing, clock, MIDI, master effects, Grids, mutes and selected track stay. The old sounds fade out over the last 5 ms. A **variation** switch changes the steps and timing only; the sounds ring on.
 - Each slot has **8 variations** (both versions): variation 1 is its own steps; 2 to 8 hold their own steps and timing and share the slot's sounds and locks. A variation never used before starts as a copy of the one playing. A slot comes back on the variation it played last. When a slot's variations are full: `VARIATIONS FULL`.
 - Following an external clock (USB or TRS) the switch comes on the pulse that ends the pattern.
+
+## NUDGE: a step early or late
+
+On a step page hold a step and turn [[KNOB 4]] (NUDGE): -50 to +50, the hit moved by that many hundredths of a step (+50 is halfway to the next step, -50 halfway to the previous one, 0 on the step). It follows the track's division and swing (+25 is a quarter of the step as it plays).
+
+- A late hit keeps its PROB, RATCH and locks (its ratchet hits spread over what is left of the step). An early hit plays in the step before, its locks from the hit to the end of its own step.
+- A nudged step has a mark beside its box in the grid: on the left if early, on the right if late. A tap that turns a step off makes it plain again.
+- NUDGE is part of the step: copied, saved and played everywhere (variations, live cue, song rows, slot COPY / PASTE). In a song an early first step does not reach into the row before. Step record writes NUDGE 0. All steps start at 0 and play exactly as before.
+
+## QUANT: where live recording lands
+
+GLOBAL 3/7 [[KNOB 4]] **QUANT** decides where a live-recorded hit goes (keys, MIDI notes and the SMC-Mixer; step record is not affected). It is a device setting, kept over power-off.
+
+| QUANT | The hit goes to |
+| --- | --- |
+| **1/16** (default) | the nearest step |
+| **1/8** | the nearest even step |
+| **1/32** | the nearest half step (NUDGE 0 or +-50) |
+| **OFF** | the nearest step, keeping how early or late you played as its NUDGE (up to +-50) |
+
+## Step tools: hold SEQ
+
+Hold [[SEQ]] (0.4 s, or press a key with it) for the **TOOLS** screen for the selected track. A quick SEQ tap still turns the SEQ pages, now on its release. The white keys are the bank's 16 steps, [[OCT-]] / [[OCT+]] the bank, and the black keys are the tools:
+
+| Key | Tool |
+| --- | --- |
+| **F#3** COPY STEP | hold it and tap a step: it goes into the step buffer |
+| **G#3** PASTE STEP | hold it and tap steps: the buffered step goes into each (`NO STEP COPIED` if empty) |
+| **A#3** COPY PAGE | the bank's 16 steps into the clipboard |
+| **C#4** REPLACE | the clipboard over the bank shown |
+| **D#4** MERGE | only the clipboard's steps that are on |
+| **F#4** FILL | the clipboard repeated over the whole pattern up to LEN |
+| **G#4** COPY SEL | [[KNOB 1]] START, [[KNOB 2]] END (1 to 64); G#4 again copies |
+| **A#4** PASTE SEL | then tap a step (`PICK A STEP`); hold A#4 to paste at several steps |
+| **C#5** DUPLICATE | every track's pattern twice as long, up to 64 steps, the new half a copy (`DUPLICATED`) |
+| **D#5** CLEAR | `CLEAR TRACK n?` ([[OCT+]] yes, [[OCT-]] no) |
+
+A copied step keeps everything: accent, PROB, ratchet, note, slide and tie, its NUDGE and its parameter locks. With the locks full a paste brings what fits and says `LOCKS FULL`. Other messages: `COPIED a-b`, `COPIED, LOCKS CUT`, `CLIPBOARD EMPTY`. Keys pressed with SEQ play nothing, send nothing and record nothing; [[PLAY]] works. While a song plays, pastes are refused (`STOP TO EDIT`), copies are fine. The clipboard is kept until power-off, across projects. Holding SEQ while switching on is still the safe start.

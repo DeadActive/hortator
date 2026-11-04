@@ -45,7 +45,27 @@
 | **SYNC** | MIDI clock out. |
 | **THRU** | pass MIDI from each input to the other outputs. |
 | **THROW** | PERFORM macro that sends the dry mix into the delay and reverb. |
-| **USR1 to USR3** | user sample slots. |
+| **USR1 to USR3** | user sample slots, each a set of up to 16 samples. |
+| **ATK / SUS / REL** | the SAMPLE model's envelope: fade-in, held level, release (SOUND 5/5). |
+| **CHOP** | SAMPLE PLAY CHOP: the 16 white keys (and a step's NOTE) pick a sample of the set. Also the editor's Chop tool. |
+| **CUT** | SAMPLE: ON makes each hit cut the one sounding. |
+| **EDITOR** | the web editor (Sound, Presets, Projects, Patterns, Samples). |
+| **+FX** | a USER preset that also sets the track's FX when loaded. |
+| **HALL** | the third REVERB TYPE: a smooth stereo reverb. |
+| **INSERT** | the per-track effect after DIST: SOFT, HARD, FOLD, FUZZ, CRUSH, PHASR, FLANG, CHOR. |
+| **LOOP / LOOPI / ONE** | SAMPLE loop modes: OFF, FWD, PING; LOOPI loops until the next hit; ONE plays START to END. |
+| **NUDGE** | a step's hit moved early or late, -50 to +50 hundredths of a step. |
+| **PERC** | the built-in sample set: 16 drum and percussion samples. |
+| **PLAY** | SAMPLE: KEY (the keys play one sample up and down) or CHOP. |
+| **QUANT** | where live recording puts a hit: 1/16, 1/8, 1/32 or OFF (GLOBAL 3/7 KNOB 4). |
+| **REPEAT STEP** | PERFORM: a held white key (F3 to F4) repeats that track's step; D5 to G5 pick the rate. |
+| **SET / SLOT** | SAMPLE and LAYER: SET picks PERC or USR1 to USR3, SLOT one of its samples (`3/16`). |
+| **SOLO** | MUTE screen black keys; TGL or MOM mode. |
+| **SRR** | sample rate reduction on a track (INSERT 2/2). |
+| **START / END** | SAMPLE: play part of a sample, 0 to 127 over its length. |
+| **TOOLS (hold SEQ)** | the step tools screen: copy, paste, fill, duplicate. (The SAVE page's TOOLS is a different screen.) |
+| **USER** | the 96 slots for your own presets; each keeps the track's FX. |
+| **Write** | in the editor, sends your changes to the FM-1 (user presets, sample sets). |
 | **Safe start** | hold SEQ at power-on: loads nothing; USB updates still answer. |
 
 ## Panel abbreviations
@@ -58,5 +78,5 @@ HOME, EDIT, SEQ, FX, ARP, LFO, ENV, SCL, GLO, SAVE, PLAY, REC, OCT-, OCT+, SELEC
 | --- | --- |
 | white keys, steps 1 to 16 | F3, G3, A3, B3, C4, D4, E4, F4, G4, A4, B4, C5, D5, E5, F5, G5 |
 | black keys | F#3, G#3, A#3, C#4, D#4, F#4, G#4, A#4, C#5, D#5, F#5 |
-| PERFORM effects | F#3 REPEAT 1/8, G#3 REPEAT 1/16, A#3 REPEAT 1/32, C#4 REVERSE, D#4 TAPE STOP, F#4 LPF, G#4 HPF, A#4 FREEZE, C#5 OCT UP, D#5 OCT DOWN (F#5 does nothing) |
-| MUTE screen | track keys F3 to F4; top C# `MUTE: NOW`; top D# `MUTE: NEXT BAR`; G4 MIDI LEARN |
+| PERFORM effects | F#3 REPEAT 1/8, G#3 REPEAT 1/16, A#3 REPEAT 1/32, C#4 REVERSE, D#4 TAPE STOP, F#4 LPF, G#4 HPF, A#4 FREEZE, C#5 OCT UP, D#5 OCT DOWN; white F3 to F4 REPEAT STEP of tracks 1 to 8; D5 E5 F5 G5 its rate 1/4, 1/8, 1/16 (default), 1/32; G4 A4 B4 C5 and F#5 nothing |
+| MUTE screen | white F3 to F4 mute tracks 1 to 8; black F#3 to A#4 solo them; C#5 `MUTE: NOW`; D#5 `MUTE: NEXT BAR`; F#5 solo TGL / MOM; G4 MIDI LEARN |

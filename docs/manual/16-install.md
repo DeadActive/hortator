@@ -7,6 +7,8 @@
 2. Connect the FM-1 straight to the computer with a USB **data** cable. No probe or Transporter is needed.
 3. Press **Install** and keep the cable in until it says *Done*. The FM-1 restarts with Hortator.
 
+The site also carries the **web editor** (see Web editor): a firmware update always comes first, so while the installer runs the editor goes quiet and connects again afterwards.
+
 Before installing: keep M-VAVE's official updater and stock firmware at hand, note the current firmware version, charge the battery and use a known-good cable. After power-on, let the FM-1 run 30 s: a restart inside the first 30 s counts as a failed start, and two in a row enter the built-in bootloader.
 
 ### Two versions
@@ -35,15 +37,15 @@ fm1_install.py --info [--port NAME]
 
 ### Names on USB
 
-The running firmware appears as **Hortator** (earlier versions: Felucca), as **Hortator 8ch** in 10 CH USB audio, and as **Felucca Update** while an update is being written. The installers and tools find all of them, so updating from any earlier build works.
+The running firmware appears as **Hortator** (earlier versions: Felucca), as **Hortator 8ch** in 10 CH USB audio, and as **Felucca Update** while an update is being written. The installers and tools find all of them, so updating from any earlier build works. The editor asks ports named Hortator, Felucca or FM-1 who they are (macOS keeps the first name it saw), and never sends anything to a port named "... Update".
 
 ### Privacy
 
-The site counts visits and finished installs with GoatCounter (no cookies, no personal data; one anonymous "install" event after the installer says Done). Nothing is counted on a local copy, and `fm1_install.py` sends nothing.
+The site (the landing page, installer and editor) counts visits and finished installs with GoatCounter (no cookies, no personal data; one anonymous "install" event after the installer says Done). Nothing is counted on a local copy, and `fm1_install.py` sends nothing.
 
 ## Updating
 
-Run the installer again with the newer version; it uses the same update path as any earlier build. Projects saved by a newer version may not load in an older one (see *Version history* for each version's compatibility notes).
+Run the installer again with the newer version; it uses the same update path as any earlier build. Projects saved by 1.0.0 or later show an empty slot (`LOAD FAILED`) on 0.26.0 and older. 1.0.1 makes newer FM-1s with a different flash chip save projects, presets and settings. See *Version history* for each version's compatibility notes.
 
 ## Safe start
 
@@ -71,7 +73,7 @@ If the FM-1 reaches neither normal mode nor `WL80UBOOT`, only the FM-1 Transport
 - The firmware and its package: `BUILDING.md` (`./build.sh`; `DRUM_PACKAGE=1 ./build.sh` for an installable package and the site).
 - The web simulator and landing page: `tools/build_sim.sh`. This manual: `tools/build_manual.py`.
 - Tests: `tests/run_tests.sh`, `tests/run_drum_tests.sh`. Versions and publishing: `docs/VERSIONING.md`, `tools/publish.sh`.
-- Versions are MAJOR.MINOR.PATCH from `VERSION.txt`. MINOR means a new feature or compatible project format; MAJOR means saved data no longer loads. MENU, ABOUT shows `DRUM-<version>`.
+- Versions are MAJOR.MINOR.PATCH from `VERSION.txt`. MINOR means a new feature or compatible project format; MAJOR means saved data no longer loads. MENU, ABOUT shows `DRUM-<version>` (`DRUM-1.0.1`).
 
 ## Licence and credits
 

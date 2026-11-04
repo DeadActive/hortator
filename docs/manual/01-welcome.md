@@ -3,16 +3,16 @@
 
 ## What Hortator is
 
-Hortator is drum-machine firmware for the **M-VAVE FM-1**. It turns the FM-1 into a self-contained groovebox: eight drum tracks, a step sequencer, a Grids pattern generator, a ducking compressor, two LFOs per track, per-track effects, live performance effects, USB audio and MIDI, all on the FM-1's own keys, knobs and screen.
+Hortator is drum-machine firmware for the **M-VAVE FM-1**. It turns the FM-1 into a self-contained groovebox: eight drum tracks, a step sequencer, a Grids pattern generator, a ducking compressor, two LFOs per track, per-track effects, live performance effects, USB audio and MIDI, all on the FM-1's own keys, knobs and screen, and, from 1.0.0, a browser editor over USB for sound, presets, projects, patterns and your own samples. This manual is for version **1.0.1**.
 
 It is built by DEADACTIVE on [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita. On a Roman galley the *hortator* beat the drum that kept the rowers in time; Felucca is a Nile sailing boat; this is its drummer.
 
-> **Beta.** Hortator is untested on most hardware and may be unstable. You install it at your own risk. M-VAVE's own updater takes you back to the official firmware (see Install, update and recovery).
+> **Install at your own risk.** Hortator is independent firmware and untested on most hardware; the author accepts no responsibility if your FM-1 is damaged or misbehaves. M-VAVE's own updater takes you back to the official firmware (see Install, update and recovery).
 
 ## What you need
 
 - An M-VAVE FM-1 and a USB data cable.
-- A computer with Chrome or Edge to install (the web installer uses WebUSB).
+- A computer with Chrome or Edge to install (the web installer uses WebUSB). The web editor works in Chrome, Edge or Opera (computer or Android), and in Firefox after a permission prompt; not in Safari (no Web MIDI).
 - Nothing else to play: the FM-1 makes sound on its own speaker or headphone output. MIDI, USB audio and Bluetooth are optional.
 - No hardware at all to try it: the **web simulator** at [deadactive.github.io/hortator](https://deadactive.github.io/hortator/) runs the real firmware in your browser.
 
@@ -22,10 +22,10 @@ The sections run from first steps to full reference. Use the sidebar, the Previo
 
 1. **Quick start** gets a beat playing in a few minutes.
 2. **The panel** names every control and the conventions used everywhere.
-3. **Sequencer**, **Playing and recording** and **Projects and songs** cover making music.
-4. **Sounds**, **Effects**, **Modulation** and **Grids and compressor** are the reference for the voices and processing.
-5. **MIDI**, **USB audio**, **Bluetooth** and **Settings** cover connections and the device menu.
-6. **Install**, **Simulator**, **Troubleshooting**, **Glossary** and **Version history** finish the book.
+3. **Sequencer**, **Playing and recording** and **Projects and tools** cover making music.
+4. **Sounds**, **Effects** and **Modulation, Grids and compressor** are the reference for the voices and processing.
+5. **MIDI**, **USB audio**, **Bluetooth**, **Settings and menu** and the **Web editor** cover connections, the device menu and editing from the browser.
+6. **Web simulator**, **Install, update and recovery**, **Troubleshooting**, **Glossary** and **Version history** finish the book.
 
 ## Conventions
 
