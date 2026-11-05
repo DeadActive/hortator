@@ -189,7 +189,8 @@ test('manual: the panel map lists every knob and button, with the keys; every gu
     for (const k of keys) assert.ok(labels.has(k), `${id}: ${k} is not on the panel`);
   }
   assert.match(sec, /href="https:\/\/github\.com\/DeadActive\/hortator#readme"/, 'the whole manual: the README');
-  assert.match(LANDING.slice(0, LANDING.indexOf('id="scene"')), /href="#manual"/, 'the nav leads to it');
+  assert.match(LANDING.slice(0, LANDING.indexOf('id="scene"')), /<a href="manual\/">Guide<\/a>/, 'the nav has a Guide button to the full manual');
+  assert.match(LANDING, /id="more-cue" href="#manual"/, 'More below leads to the on-page manual');
   const foot = LANDING.slice(LANDING.indexOf('<footer'), LANDING.indexOf('</footer>'));
   assert.ok(foot.includes('href="#manual"'), 'and the footer');
   assert.match(readFileSync('web/sim/app.js', 'utf8'), /^initManual\(\);/m);
