@@ -1211,7 +1211,16 @@ static int cue_stage(uint32_t s, uint32_t v)
         const var_bank_t *b = &var_buf[var_play];
         if (v == var_cur)
             return CUE_E_SAME;
-        if (v && var_unused(b, v)) {                  /* never used: a copy of the live one */
+        if (v && var_unused(b, v) && cue.blank) {     /* never used, the dialog's CLEAR: empty steps, the live timing */
+            if (!cue_out_fits(b, 0))
+                return CUE_E_FULL;
+            for (k = 0; k < NTRK; k++) {
+                memset(g->st[k], 0, sizeof g->st[k]);
+                for (j = 0; j < 4u; j++)
+                    g->tm[k][j] = trk[k].p[CHAIN_TIMING[j]];
+            }
+            cue.stg = STG_VAR;
+        } else if (v && var_unused(b, v)) {           /* never used: a copy of the live one */
             if (!cue_out_fits(b, v))
                 return CUE_E_FULL;
             cue.stg = STG_COPY;
@@ -1509,6 +1518,13 @@ static uint32_t slot_var_mask(uint32_t s)
     }
     return 1u | var_fmask.mask[s & 3u];
 }
+/* the loaded slot's used variations (bit v: variation v + 1; variation 1 always), 0 none loaded: HOME and the SEQ pages'
+ * black keys show them dim (ui_leds) */
+static uint32_t cue_used_mask(void)
+{
+    int32_t ld = proj_loaded();
+    return ld >= 0 ? slot_var_mask((uint32_t)ld) : 0u;
+}
 /* the cue map's key n (1..12, ui_leds: 1..4 white keys 1..4, 5..12 the black keys F#3 .. A#4): slots A..D lit used,
  * winking playing, blinking queued, breathing with unsaved edits; variations 1..8 of the playing slot (of the queued
  * one, if one is) lit used, winking playing, blinking queued */
@@ -1578,8 +1594,142 @@ static void project_copy(uint32_t s)              /* COPY: slot s remembered (al
         return;
     }
     copy_src = (uint8_t)(s + 1u);
+    copy_var = 0;
     m[7] = (char)('A' + s);
     ui_message(m);
+}
+/* variation n (1..8) of slot s's image: g's steps and timing. 1 read, 0 not there (a free one, an unreadable bank) */
+static int var_read(uint32_t s, uint32_t v, cue_stage_t *g)
+{
+    uint32_t k, j;
+    const var_bank_t *b;
+    if (!v) {                                         /* variation 1: the record's */
+        if (!proj_ok(&proj_slot[s]))
+            return 0;
+        for (k = 0; k < NTRK; k++) {
+            proj_steps_to(g->st[k], proj_slot[s].t[k].step);
+            for (j = 0; j < 4u; j++) {
+                uint32_t id = CHAIN_TIMING[j];
+                g->tm[k][j] = (int16_t)clamp(proj_slot[s].t[k].p[id], TP[id].min, TP[id].max);
+            }
+        }
+        return 1;
+    }
+    b = var_who[var_play] == s + 1u ? &var_buf[var_play] : var_who[var_play ^ 1u] == s + 1u ? &var_buf[var_play ^ 1u]
+                                                                                           : proj_var_flash(s);
+    if (!b || var_unused(b, v))
+        return 0;
+    for (k = 0; k < NTRK; k++)
+        var_lp[k] = g->st[k];
+    return var_get(b, v, var_lp, g->tm) == 1;
+}
+/* COPY with VAR 1..8: variation n of slot s remembered (read at the PASTE) */
+static void project_copy_var(uint32_t s, uint32_t n)
+{
+    char m[] = "COPIED A1";
+    s &= 3u;
+    n = (n - 1u) & 7u;
+    if (!project_used(s) && proj_loaded() != (int32_t)s) {
+        ui_message("EMPTY SLOT");
+        return;
+    }
+    if (n && !((slot_var_mask(s) >> n) & 1u) && !((int32_t)s == proj_loaded() && n == var_cur)) {
+        char e[] = "VARIATION 1 EMPTY";
+        e[10] = (char)('1' + n);
+        ui_message(e);
+        return;
+    }
+    copy_src = (uint8_t)(s + 1u);
+    copy_var = (uint8_t)(n + 1u);
+    m[7] = (char)('A' + s);
+    m[8] = (char)('1' + n);
+    ui_message(m);
+}
+/* PASTE with VAR 1..8: the copied variation overwrites variation n of the LOADED slot t (stopped only; RAM until SAVE) */
+static void project_paste_var(uint32_t t, uint32_t n)
+{
+    int32_t ld;
+    uint32_t src, sv, k, j, d = (n - 1u) & 7u;
+    cue_stage_t *g;
+    cue_cancel();
+    ld = proj_loaded();
+    t &= 3u;
+    if (ui_locked())
+        return;
+    if (transport_busy() || chain_busy()) {
+        ui_message("STOP TO PASTE");
+        return;
+    }
+    if (!copy_src || !copy_var) {
+        ui_message("COPY A VARIATION FIRST");
+        return;
+    }
+    if (ld != (int32_t)t) {
+        char m[] = "LOAD SLOT A FIRST";
+        m[10] = (char)('A' + t);
+        ui_message(m);
+        return;
+    }
+    src = copy_src - 1u;
+    sv = copy_var - 1u;
+    if (src == t && sv == d) {
+        ui_message("SAME VARIATION");
+        return;
+    }
+    if (proj_writeback()) {                           /* the live edits first (the source may be the playing one) */
+        ui_message("VARIATIONS FULL");
+        return;
+    }
+    g = cue_stg();
+    if (!var_read(src, sv, g)) {
+        ui_message("COPIED ONE IS EMPTY");
+        return;
+    }
+    if (d == var_cur) {                               /* the playing variation: the live steps and timing */
+        fm1_irq_off();
+        for (k = 0; k < NTRK; k++) {
+            track_t *tr = &trk[k];
+            if (song.lfo_in)
+                lfo_restore_track(tr);
+            memcpy(tr->step, g->st[k], sizeof tr->step);
+            for (j = 0; j < 4u; j++)
+                tr->p[CHAIN_TIMING[j]] = g->tm[k][j];
+        }
+        fm1_irq_on();
+        if (proj_writeback()) {
+            ui_message("VARIATIONS FULL");
+            return;
+        }
+    } else if (!d) {                                  /* variation 1 while another plays: the record's */
+        project_t *p = &proj_slot[t];
+        for (k = 0; k < NTRK; k++) {
+            memcpy(p->t[k].step, g->st[k], sizeof p->t[k].step);
+            for (j = 0; j < 4u; j++)
+                p->t[k].p[CHAIN_TIMING[j]] = g->tm[k][j];
+        }
+        proj_seal(t);
+    } else {                                          /* variation d + 1 in the bank */
+        int r;
+        for (k = 0; k < NTRK; k++)
+            var_sp[k] = g->st[k];
+        r = var_put(&var_buf[var_play], d, var_sp, g->tm);
+        if (r < 0) {
+            ui_message("VARIATIONS FULL");
+            return;
+        }
+        if (r == 0)
+            var_dirty |= (uint8_t)(1u << t);
+        proj_seal(t);
+    }
+    paste_undo = 0;
+    ui.force = 1;
+    {
+        char m[] = "PASTED A1 TO 1";
+        m[7] = (char)('A' + src);
+        m[8] = (char)('1' + sv);
+        m[13] = (char)('1' + d);
+        ui_message(m);
+    }
 }
 /* PASTE onto slot t: its image, lock bank, song and variations become the copied slot's (the loaded source's live
  * edits written back first; the name + " COPY"), in RAM only (flash at SAVE), t marked; t loaded: the live tracks too
@@ -1606,7 +1756,7 @@ static void project_paste(uint32_t t)
         ui_message("PASTE UNDONE");
         return;
     }
-    if (!copy_src) {
+    if (!copy_src || copy_var) {
         ui_message("COPY A SLOT FIRST");
         return;
     }
@@ -1770,6 +1920,29 @@ static int cue_var(uint32_t v)
         return 0;
     }
     return cue_queue(cue.q_slot, v + 1u);
+}
+
+/* the panel's variation key (ui_input.c: SAVE held, or HOME / the SEQ pages' black keys): as cue_var, but a variation never
+ * used asks first (the CONFIRM_VAR dialog: OCT+ a copy of the playing one, OCT- empty, HOME cancels). The web editor's
+ * remote cue keeps cue_var's copy */
+static int cue_var_key(uint32_t v)
+{
+    uint32_t w = v & 7u;
+    if (!chain_busy() && proj_loaded() >= 0 && !cue.q_slot && cue.q_var != w + 1u && w != var_cur && w &&
+        var_unused(&var_buf[var_play], w)) {
+        ui.confirm = CONFIRM_VAR;
+        ui.confirm_trk = w;
+        ui.force = 1;
+        return 0;
+    }
+    return cue_var(v);
+}
+/* the dialog's answer: variation w (1..7) cued as a copy (blank 0) or empty (1) */
+static void cue_var_go(uint32_t w, uint32_t blank)
+{
+    cue.blank = (uint8_t)blank;
+    (void)cue_var(w);
+    cue.blank = 0;
 }
 
 /* power-on (drum_boot_init, not in safe start): the last project saved to flash loads as a LOAD does, stopped, its

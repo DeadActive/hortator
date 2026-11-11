@@ -1951,6 +1951,170 @@ static void load_global_edit_asks(void)
     check("LOAD: a tempo-only edit of the loaded slot asks DISCARD EDITS?; loading another slot keeps it in RAM", (int)ok);
 }
 
+/* ---- the variation keys' dim lights, the free-variation dialog and the COPY page's VAR (2026-11) */
+static int key_mid(uint32_t k)                        /* key k's LED in the dim (mid) layer, not lit */
+{
+    uint32_t q = led_pos[14u + k];
+    return q != 0xFF && led_dim_on && ((led_lay[q >> 3] >> (8u + (q & 7u))) & 1u) && !key_led(k);
+}
+static void var_dim_lights(void)
+{
+    uint32_t ok = 1, bl;
+    for (bl = 0; bl < 2u; bl++) {                     /* BACKLIGHT OFF and DIM LO: the same variation lights */
+        two_slots();                                  /* A loaded: variation 1 and variation 3 (and 4: see two_slots) used */
+        backlight = bl ? BL_DIM_LO : BL_OFF;
+        release_all();
+        go_page(PG_HOME);
+        OK(key_led(BK[0]) && !key_mid(BK[0]));        /* the playing one: lit */
+        OK(key_mid(BK[2]));                           /* variation 3, in use: dim */
+        OK(!key_mid(BK[4]) && !key_led(BK[4]));       /* variation 5, free: dark (in DIM LO: the glow layer's own) */
+        OK(!key_mid(BK[1]));
+        go_page(PG_SOUND);                            /* not a cue page: no variation lights */
+        OK(!key_mid(BK[2]));
+    }
+    backlight = BL_OFF;
+    check("black keys: the variations in use glow dim (BACKLIGHT OFF or DIM LO), the playing one lit, the free ones dark",
+          (int)ok);
+}
+static void tap_btn(uint32_t label)                   /* a button tapped: pressed one frame, released the next */
+{
+    press(label);
+    ui_frame();
+    release_all();
+    ui_frame();
+}
+static void free_variation_dialog(void)
+{
+    uint32_t ok = 1, k, i, len;
+    two_slots();
+    release_all();
+    go_page(PG_HOME);
+    trk[1].step[7].on = 1;                            /* something live to copy */
+    trk[0].p[P_SLEN] = 12;
+    black(4);                                         /* variation 5: free: asks */
+    OK(ui.confirm == CONFIRM_VAR && var_cur == 0u && !cue.q_var);
+    black(3);                                         /* (the keys rest while it is up) */
+    OK(ui.confirm == CONFIRM_VAR && var_cur == 0u);
+    tap_btn(B_OCTUP);                                 /* COPY */
+    OK(!ui.confirm && var_cur == 4u && trk[1].step[7].on && trk[0].p[P_SLEN] == 12);
+    black(0);                                         /* back to 1: variation 5 filed, in use now */
+    OK(var_cur == 0u && ((var_mask(live_bank()) >> 4) & 1u));
+    black(4);                                         /* in use: no question */
+    OK(!ui.confirm && var_cur == 4u);
+    black(0);
+    black(5);                                         /* variation 6: free */
+    OK(ui.confirm == CONFIRM_VAR);
+    len = (uint32_t)trk[0].p[P_SLEN];
+    tap_btn(B_OCTDN);                                 /* CLEAR: empty steps, the timing of the playing one */
+    OK(!ui.confirm && var_cur == 5u && (uint32_t)trk[0].p[P_SLEN] == len);
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++)
+            OK(!trk[k].step[i].on && !trk[k].step[i].acc && !trk[k].step[i].rat);
+    black(0);
+    OK(var_cur == 0u && ((var_mask(live_bank()) >> 5) & 1u) && trk[1].step[7].on);   /* (an empty one is "in use") */
+    black(5);
+    OK(!ui.confirm && var_cur == 5u && !trk[1].step[7].on);
+    black(0);
+    black(6);                                         /* variation 7: free; HOME cancels */
+    OK(ui.confirm == CONFIRM_VAR);
+    tap_btn(B_HOME);
+    OK(!ui.confirm && var_cur == 0u && !cue.q_var);
+    black(6);                                         /* playing: the question, then the queue after the answer */
+    OK(ui.confirm == CONFIRM_VAR);
+    ui.confirm = 0;
+    check("a free variation's key asks: OCT+ a copy of the playing one, OCT- empty (its timing kept), HOME nothing; a "
+          "used one switches; the new one is in use once filed",
+          (int)ok);
+    two_slots();                                      /* playing: the answer queues the cue for the pattern's end */
+    release_all();
+    go_page(PG_HOME);
+    play();
+    black(4);
+    OK(ui.confirm == CONFIRM_VAR && !cue.q_var);
+    tap_btn(B_OCTDN);
+    OK(!ui.confirm && cue.q_var == 5u && cue.blank == 0u);
+    stop();
+    check("playing: the answer queues the variation (empty) for the pattern's end", (int)ok);
+    two_slots();                                      /* the web editor's remote cue is unchanged: a copy, no dialog */
+    OK(cue_var(5) == 0 && !ui.confirm && var_cur == 5u);
+    check("cue_var (the web editor's cue) still starts a free variation as a copy, no dialog", (int)ok);
+}
+static void var_copy_paste(void)
+{
+    uint32_t ok = 1, k, i;
+    char b[NAME_LEN + 1u];
+    (void)b;
+    two_slots();                                      /* A: variation 3 holds VS / VTM */
+    project_copy_var(0, 3);
+    OK(str_eq(ui.msg, "COPIED A3") && copy_src == 1u && copy_var == 3u);
+    project_paste_var(0, 5);                          /* onto the free variation 5 */
+    OK(str_eq(ui.msg, "PASTED A3 TO 5") && var_is(live_bank(), 4) && var_is(live_bank(), 2) && var_cur == 0u);
+    OK(slot_dirty(0));
+    project_paste_var(0, 3);
+    OK(str_eq(ui.msg, "SAME VARIATION"));
+    project_copy_var(0, 7);                           /* a free one: refused */
+    OK(str_eq(ui.msg, "VARIATION 7 EMPTY") && copy_var == 3u);
+    project_copy_var(0, 1);                           /* variation 1 (the record's) */
+    OK(str_eq(ui.msg, "COPIED A1") && copy_var == 1u);
+    project_paste_var(1, 2);                          /* only the loaded slot */
+    OK(str_eq(ui.msg, "LOAD SLOT B FIRST"));
+    cue_var(2);                                       /* variation 3 playing; paste variation 1 onto it: the live one */
+    OK(var_cur == 2u);
+    project_paste_var(0, 3);
+    OK(str_eq(ui.msg, "PASTED A1 TO 3"));
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < NSTEP; i++)
+            OK(!memcmp(&trk[k].step[i], &proj_slot[0].t[k].step[i], sizeof(step_t)));
+    cue_var(0);                                       /* variation 1 again; paste variation 3 (now = 1) onto variation 4 */
+    project_copy_var(0, 3);
+    trk[2].step[9].on = 1;                            /* an edit of the playing variation 1, not yet written back */
+    project_copy_var(0, 1);
+    project_paste_var(0, 2);                          /* variation 2 free: filled with the live variation 1's edit */
+    OK(str_eq(ui.msg, "PASTED A1 TO 2") && ((var_mask(live_bank()) >> 1) & 1u));
+    cue_var(1);
+    OK(var_cur == 1u && trk[2].step[9].on);
+    cue_var(2);
+    project_copy_var(0, 2);                           /* variation 2 onto variation 1, the record's, while 3 plays */
+    project_paste_var(0, 1);
+    OK(str_eq(ui.msg, "PASTED A2 TO 1") && proj_slot[0].t[2].step[9].on);
+    play();
+    project_paste_var(0, 4);
+    OK(str_eq(ui.msg, "STOP TO PASTE"));
+    stop();
+    copy_src = 0;
+    project_paste_var(0, 4);
+    OK(str_eq(ui.msg, "COPY A VARIATION FIRST"));
+    project_copy(0);                                  /* a slot copy, then a variation paste / a slot paste after a variation copy */
+    OK(copy_var == 0u);
+    project_paste_var(0, 4);
+    OK(str_eq(ui.msg, "COPY A VARIATION FIRST"));
+    project_copy_var(0, 2);
+    project_paste(1);
+    OK(str_eq(ui.msg, "COPY A SLOT FIRST"));
+    check("COPY page VAR: a variation copied and pasted over a free, the playing, the first and a used variation of the "
+          "loaded slot; refused playing, onto another slot, empty source, same one",
+          (int)ok);
+}
+static void copy_page_var_knob(void)
+{
+    uint32_t ok = 1;
+    const page_t *pg = 0;
+    uint32_t i;
+    int16_t *vp;
+    for (i = 0; i < NPAGES; i++)
+        if (str_eq(PAGES[i].title, "COPY"))
+            pg = &PAGES[i];
+    OK(pg && pg->id[3] == G_CPVAR);
+    if (pg) {
+        const param_desc_t *d = page_desc(pg, 3, &vp);
+        OK(d && str_eq(d->label, "VAR") && d->max == 8 && vp == &song.act[6] && str_eq(d->names[0], "ALL") &&
+           str_eq(d->names[8], "8"));
+        d = page_desc(pg, 1, &vp);                    /* COPY / PASTE still GO buttons on their own cells */
+        OK(d && str_eq(d->label, "COPY") && vp == &song.act[0]);
+    }
+    check("the COPY page's KNOB 4 is VAR (ALL, 1..8), its value song.act[6]; COPY / PASTE unchanged", (int)ok);
+}
+
 int main(void)
 {
     vptrs();
@@ -1996,6 +2160,10 @@ int main(void)
     cue_top_line();
     cue_keys_queue();
     cue_black_keys_queue();
+    var_dim_lights();
+    free_variation_dialog();
+    var_copy_paste();
+    copy_page_var_knob();
     cue_black_keys_elsewhere();
     cue_black_leds();
     cue_save_black();

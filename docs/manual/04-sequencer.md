@@ -84,7 +84,7 @@ While a pattern plays you can queue the next project slot (A to D) or another va
 - On HOME and the SEQ pages the first 8 black keys (F#3 to A#4) queue variations 1 to 8 of the playing slot: the playing one's key lit, a queued one blinking (not with KEYS on).
 - **Hold SAVE** (0.4 s, or press a key with it) for the **cue map**: white keys 1 to 4 queue slots A to D; black keys queue variations 1 to 8 (lit: used, winking: playing, blinking: queued, breathing: unsaved edits). A slot key then a variation key queues both (`CUE>B3` on top). The same key again switches at the next step; the playing slot's key cancels; stopped, a cue switches at once; STOP drops a queued cue. Keys pressed with SAVE play no note, send no MIDI and record nothing.
 - A **slot** switch brings the slot's sounds, steps, timing and locks; the tempo, swing, clock, MIDI, master effects, Grids, mutes and selected track stay. The old sounds fade out over the last 5 ms. A **variation** switch changes the steps and timing only; the sounds ring on.
-- Each slot has **8 variations** (both versions): variation 1 is its own steps; 2 to 8 hold their own steps and timing and share the slot's sounds and locks. A variation never used before starts as a copy of the one playing. A slot comes back on the variation it played last. When a slot's variations are full: `VARIATIONS FULL`.
+- Each slot has **8 variations** (both versions): variation 1 is its own steps; 2 to 8 hold their own steps and timing and share the slot's sounds and locks. A slot comes back on the variation it played last. When a slot's variations are full: `VARIATIONS FULL`.
 - Following an external clock (USB or TRS) the switch comes on the pulse that ends the pattern.
 
 ## NUDGE: a step early or late
@@ -124,3 +124,11 @@ Hold [[SEQ]] (0.4 s, or press a key with it) for the **TOOLS** screen for the se
 | **D#5** CLEAR | `CLEAR TRACK n?` ([[OCT+]] yes, [[OCT-]] no) |
 
 A copied step keeps everything: accent, PROB, ratchet, note, slide and tie, its NUDGE and its parameter locks. With the locks full a paste brings what fits and says `LOCKS FULL`. Other messages: `COPIED a-b`, `COPIED, LOCKS CUT`, `CLIPBOARD EMPTY`. Keys pressed with SEQ play nothing, send nothing and record nothing; [[PLAY]] works. While a song plays, pastes are refused (`STOP TO EDIT`), copies are fine. The clipboard is kept until power-off, across projects. Holding SEQ while switching on is still the safe start.
+
+### Which variations exist, and a free one
+
+On HOME and the SEQ pages the eight black keys show the variations of the playing slot: the playing one **lit**, a queued one **blinking**, the others in use **dim**, a free one **dark**. The dim light shows even with BACKLIGHT OFF.
+
+Pressing the key of a variation that was **never used** (a black key, or SAVE held plus a black key) asks what to start with: `VARIATION 3 IS FREE`. [[OCT+]] **COPY** starts it as a copy of the playing variation, [[OCT-]] **CLEAR** starts it empty (every step off, with the playing variation's LEN, DIV, SWG and SRC), [[HOME]] changes nothing. While playing, the answer queues the variation for the end of the pattern. Once you leave it, it counts as in use, even if it is empty. The web editor's cue still starts a free variation as a copy.
+
+To put a copy of one variation over another, see COPY and PASTE under *Projects and tools*.

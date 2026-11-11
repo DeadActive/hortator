@@ -5,6 +5,18 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **Variations in use glow dim**: on HOME and the SEQ pages the eight black keys now show the variations of the
+  playing slot: the playing one lit, a queued one blinking, the others in use dim, a free one dark. It works with
+  BACKLIGHT OFF too.
+- **A free variation asks first**: cueing a variation that was never used (a black key, or SAVE held) opens
+  `VARIATION 3 IS FREE`: OCT+ COPY starts it as a copy of the playing one (as before), OCT- CLEAR starts it empty (with
+  the playing one's LEN, DIV, SWG and SRC), HOME changes nothing. Playing, the answer queues the variation for the end
+  of the pattern. The web editor's cue still starts a free variation as a copy.
+- **Copy a variation over another**: the COPY page (SAVE, page 3) has a fourth knob, VAR: ALL (a whole slot, as before)
+  or 1 to 8. With a variation chosen, COPY remembers it (`COPIED A3`, its number in the slot list) and PASTE writes it
+  over variation 1 to 8 of the loaded slot (`PASTED A3 TO 5`): a free one, a used one, the playing one or the first.
+  Stopped only, in RAM until SAVE, never onto another slot (`LOAD SLOT B FIRST`).
+
 ## 1.0.1 - 2026-11-03
 
 - **Newer FM-1s save again**: FM-1s sold recently come with a different flash chip of the same size. Hortator now

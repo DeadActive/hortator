@@ -96,10 +96,11 @@ enum {                          /* global parameters */
 };
 #define G_NSTORED G_DMODE        /* the globals in a project's block (FDR7 .. FDRF: G_BPM .. G_RTYPE) */
 enum { CG_MUTE, CG_KEEP, CG_HIDE };                 /* GHOST: muted = muted; muted still keys; never heard, keys */
-enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE, G_THRU, G_QUANT };   /* TOOLS actions, the
+enum { G_CLRALL = G_COUNT, G_INITALL, G_MUTEBAR, G_METRO, G_COPY, G_PASTE, G_THRU, G_QUANT, G_CPVAR };   /* TOOLS actions, the
                                                      * MUTE and METRO settings, COPY / PASTE of a slot (spec 2026-10-26),
                                                      * the THRU setting (midi_out.c), QUANT (seq.c rec_quant, spec
-                                                     * 2026-10-31): shown like globals, not stored in projects */
+                                                     * 2026-10-31), CPVAR (the COPY page's VAR: ALL = a whole slot,
+                                                     * 1..8 one variation): shown like globals, not stored in projects */
 #define SY_USB 1u                                   /* G_SYNC: the outputs the clock goes to (OFF 0, USB 1, BLE 2, BOTH 3) */
 #define SY_BLE 2u
 enum { RT_NOTE, RT_SEL, RT_TRACK };                 /* G_ROUTE: a note on CH plays the tracks with its NOTE; on CH, the
@@ -237,7 +238,7 @@ typedef struct {
     uint32_t sheds;              /* overload sheds (audio.c shed_voice): the top bar's CPU icon (ui_draw.c) */
     uint32_t master_q12;
     int32_t batt_raw;            /* smoothed ADC ch3 (battery divider), 0 = not read yet */
-    int16_t act[6];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
+    int16_t act[7];              /* TOOLS action knobs CLR* INIT* (G_CLRALL ..): GO buttons, never stored; MUTE: a
                                   * copy of settings.mutebar; METRO: of fx_metro; THRU: of midi_thru; QUANT: of
                                   * rec_quant */
     uint8_t mute_q;              /* mutes to flip on the next bar (bit per track; seq.c) */

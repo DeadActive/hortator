@@ -1224,7 +1224,7 @@ static void graph_slots(void)
         md_fit(f, used ? (nb[0] ? nb : "USED") : "EMPTY", sizeof f, 180);
         row[0] = (char)('A' + i);
         row[1] = (char)((dirty >> i) & 1u ? '*' : ' ');   /* unsaved edits (spec 2026-10-26) */
-        row[2] = (char)(copy_src == i + 1u ? '#' : ' ');  /* the slot COPY took */
+        row[2] = (char)(copy_src == i + 1u ? (copy_var ? '0' + copy_var : '#') : ' ');  /* the slot COPY took */
         str_cpy(row + 3, f, sizeof row - 3);
         list_row(2, 237, 22 + (int32_t)i * 16, row, 0, sel);
     }
@@ -1896,7 +1896,7 @@ static uint32_t graph_signature(void)
             h ^= (uint32_t)project_name(i, nb) << (20u + i);
             h = str_hash(h, nb);
         }
-        h ^= slots_dirty() * 0x9E3779B1u + copy_src * 0x85EBCA6Bu;
+        h ^= slots_dirty() * 0x9E3779B1u + copy_src * 0x85EBCA6Bu + copy_var * 0x27D4EB2Du;
         h = str_hash(h, chain.name);
     }
     if (pg->graph == GR_STEPS || pg->graph == GR_GRID)
@@ -2663,7 +2663,7 @@ static int draw_tempo(void)                          /* 1: drawn */
 }
 
 /* a confirm (spec §7): a popup over the page, the question's first word its title, OCT- NO / OCT+ YES as keycaps */
-static void draw_confirm(const char *q, const char *q2)
+static void draw_confirm(const char *q, const char *q2, const char *no, const char *yes)
 {
     char verb[12];
     uint32_t n = 0;
@@ -2677,8 +2677,8 @@ static void draw_confirm(const char *q, const char *q2)
     md_text(92 - md_text_w(&MD_F3, 2, q) / 2, 10, &MD_F3, 2, q, C_INK);
     if (q2)
         md_text(92 - md_text_w(&MD_F3, 2, q2) / 2, 24, &MD_F3, 2, q2, C_INK);
-    cv_keycap(11, 40, "OCT-", "NO", C_INK);
-    cv_keycap(99, 40, "OCT+", "YES", C_INK);
+    cv_keycap(11, 40, "OCT-", no, C_INK);
+    cv_keycap(99, 40, "OCT+", yes, C_INK);
     cv_blit(28, 82);
     popup_tab(28, 82, 184, verb);
 }
@@ -3037,6 +3037,9 @@ __attribute__((always_inline)) static inline void ui_draw(void)
             } else if (ui.confirm == 5u) {              /* the power-on load failed (project.c project_boot) */
                 str_cpy(b, "LOAD FAILED: SLOT A", sizeof b);
                 b[18] = (char)('A' + ui.confirm_trk % 4u);
+            } else if (ui.confirm == CONFIRM_VAR) {     /* a free variation cued (project.c cue_var_key) */
+                str_cpy(b, "VARIATION 1 IS FREE", sizeof b);
+                b[10] = (char)('1' + (ui.confirm_trk & 7u));   /* (confirm_trk 1..7: variation 2..8) */
             } else if (ui.confirm == CONFIRM_DISCARD) { /* LOAD of a slot with unsaved edits (project.c) */
                 str_cpy(b, "DISCARD EDITS?", sizeof b);
             } else if (ui.confirm == CONFIRM_OVERWRITE) {   /* SAVE onto a slot with unsaved edits (project.c) */
@@ -3055,7 +3058,9 @@ __attribute__((always_inline)) static inline void ui_draw(void)
                 char q2[20] = "LOAD SLOT A SAVED";
                 q2[10] = (char)('A' + ui.confirm_trk % 4u);
                 draw_confirm(b, ui.confirm == 5u ? "START NEW PROJECT?" : ui.confirm == CONFIRM_DISCARD ? q2
-                                : ui.confirm == CONFIRM_OVERWRITE ? "ITS EDITS ARE LOST" : 0);
+                                : ui.confirm == CONFIRM_OVERWRITE ? "ITS EDITS ARE LOST"
+                                : ui.confirm == CONFIRM_VAR ? "COPY PLAYING ONE?" : 0,
+                             ui.confirm == CONFIRM_VAR ? "CLEAR" : "NO", ui.confirm == CONFIRM_VAR ? "COPY" : "YES");
             }
             ui.force = 0;
         }

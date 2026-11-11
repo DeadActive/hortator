@@ -38,15 +38,25 @@ TOOLS 2/3. All four are GO actions: the first right-turn detent arms (`AGAIN: <l
 
 ## COPY and PASTE
 
-COPY 3/3 copies a whole slot.
+COPY 3/3 copies a whole slot, or one variation.
 
 | Knob | Label | Behaviour |
 | --- | --- | --- |
 | **KNOB 1** | SLOT | A to D |
-| **KNOB 2** | COPY | remembers SLOT's slot (`COPIED A`; `EMPTY SLOT` if unused) |
-| **KNOB 3** | PASTE | turn twice: makes SLOT's slot a copy (kit, steps, locks, variations and song), named `... COPY`, unsaved until SAVE |
+| **KNOB 2** | COPY | remembers SLOT's slot (`COPIED A`; `EMPTY SLOT` if unused), or with VAR 1 to 8 that variation (`COPIED A3`) |
+| **KNOB 3** | PASTE | turn twice: with VAR ALL, makes SLOT's slot a copy (kit, steps, locks, variations and song), named `... COPY`, unsaved until SAVE; with VAR 1 to 8, see below |
+| **KNOB 4** | VAR | ALL (a whole slot, as before) or 1 to 8 (a variation) |
 
 PASTE again on the same slot before saving undoes it (`PASTE UNDONE`). Not while playing (`STOP TO PASTE`); `COPY A SLOT FIRST`, `SAME SLOT`. The tempo and other globals are kept when pasting onto the loaded slot.
+
+### Copy a variation over another
+
+Set VAR to the variation, [[KNOB 2]] COPY (the slot list then shows its number next to the slot: `3` for variation 3). Change VAR to the target variation and turn [[KNOB 3]] PASTE twice: the copied variation's steps and timing (LEN, DIV, SWG, SRC) overwrite the target (`PASTED A3 TO 5`). The target can be a free variation, a used one, variation 1, or the one playing now.
+
+- It only works on the **loaded** slot (`LOAD SLOT B FIRST` otherwise); the copied variation may come from any slot.
+- Stopped only (`STOP TO PASTE`), and it stays in RAM until SAVE. There is no undo: copy the old variation first if you need it back.
+- Messages: `VARIATION 7 EMPTY` (a free variation cannot be copied), `SAME VARIATION`, `COPY A VARIATION FIRST`, `COPY A SLOT FIRST` (a variation was copied but VAR is ALL), `VARIATIONS FULL` (the slot's variation space is used up).
+- Sounds, locks and the song are not copied: a variation holds only steps and timing.
 
 ## Compatibility
 

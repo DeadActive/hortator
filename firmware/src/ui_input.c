@@ -170,14 +170,15 @@ static uint32_t oct_leds(void)
  * frames of 20, the glow's pulse (led_dim.c) */
 static const uint32_t BL_MID_PH[BL_COUNT] = {0u, LED_PH_25, 0x22489u, 0u, 0x401u, LED_PH_25};   /* 25 30 - 10 25 % */
 static const uint32_t BL_GLOW_W[BL_COUNT] = {0u, LED_GLOW_LO, LED_GLOW_HI, 0u, 0u, 0u};       /* the glow's pulse */
-static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats)
-{
+static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats, uint32_t dimk)
+{                                                     /* dimk: keys (bit k = key k) that glow in the mid layer when
+                                                       * unlit, whatever the BACKLIGHT (the variations in use) */
     uint32_t lay[FM1_NCOL] = {0}, k, c, br = 0, m = backlight < BL_COUNT ? backlight : BL_OFF;
     for (c = 0; c < FM1_NCOL; c++) {
         nl[c] &= (uint8_t)~nb[c];
         br |= nb[c];
     }
-    if (m == BL_OFF && !br) {
+    if (m == BL_OFF && !br && !dimk) {
         led_dim_on = 0;                               /* (before fm1_led: the hook stops composing) */
         led_br_on = 0;
         for (c = 0; c < FM1_NCOL; c++)
@@ -194,7 +195,10 @@ static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats)
         if (nb[q >> 3] & bit)
             lay[q >> 3] |= bit << 24;                 /* breathing */
         else if (m == BL_DIM_LO || m == BL_DIM_HI)
-            lay[q >> 3] |= lit ? bit : k >= 14u && ((beats >> (k - 14u)) & 1u) ? bit << 8 : bit << 16;
+            lay[q >> 3] |= lit ? bit
+                               : k >= 14u && (((beats | dimk) >> (k - 14u)) & 1u) ? bit << 8 : bit << 16;
+        else if (m == BL_OFF)
+            lay[q >> 3] |= lit ? bit : k >= 14u && ((dimk >> (k - 14u)) & 1u) ? bit << 8 : 0u;
         else if (m == BL_INV)
             lay[q >> 3] |= lit ? 0u : bit;
         else if (m >= BL_INV_LO)
@@ -202,7 +206,7 @@ static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats)
         else
             lay[q >> 3] |= lit;
     }
-    led_mid_ph = BL_MID_PH[m];
+    led_mid_ph = m == BL_OFF && dimk ? LED_PH_25 : BL_MID_PH[m];   /* (OFF: the mid layer only for the dim variations) */
     led_glow_w = BL_GLOW_W[m];
     led_br_on = br != 0u;
     for (c = 0; c < FM1_NCOL; c++)
@@ -213,7 +217,8 @@ static void leds_out(uint8_t *nl, const uint8_t *nb, uint32_t beats)
 static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0}, nb[FM1_NCOL] = {0};
-    uint32_t k, fam = cur_fam(), beats = 0;           /* beats: the keys of steps 1 5 9 13 (step keys) */
+    uint32_t k, fam = cur_fam(), beats = 0, dimk = 0; /* beats: the keys of steps 1 5 9 13 (step keys); dimk: the
+                                                       * variations in use */
     uint32_t bk = !ui.cue_map && cue_bk_page() ? CUE_BK_MASK : 0u;   /* the black keys show the variations */
     static uint8_t ready;
     if (safe_start) {                                 /* safe start: LEDs off */
@@ -302,17 +307,21 @@ static void ui_leds(void)
             led_put(nl, 14u + k, (int)(((fm1_in.notes & ~bk) >> k) & 1u));
     }
     if (bk) {                                         /* the black keys: the playing variation lit, a queued one
-                                                       * blinking (cue_bk_page) */
+                                                       * blinking, the others in use dim (a free one dark) */
         int blink = (int)((fm1_ticks() / (250u * 1000u * FM1_TICKS_PER_US)) & 1u);
-        for (k = 0; k < 8u; k++)
+        uint32_t used = cue_used_mask();
+        for (k = 0; k < 8u; k++) {
             led_put(nl, 14u + CUE_BK[k], cue.q_var == k + 1u ? blink : k == var_cur && proj_loaded() >= 0);
+            if (cue.q_var != k + 1u && k != var_cur && ((used >> k) & 1u))
+                dimk |= 1u << CUE_BK[k];
+        }
     }
     k = oct_leds();                                   /* OCT- / OCT+: lit, or breathing (item 5) */
     led_put(nl, panel.btn[B_OCTDN], (int)(k & OCT_LIT_DN));
     led_put(nl, panel.btn[B_OCTUP], (k & OCT_LIT_UP) != 0u);
     led_put(nb, panel.btn[B_OCTUP], (k & OCT_BR_UP) != 0u);
     led_put(nb, panel.btn[B_OCTDN], (k & OCT_BR_DN) != 0u);
-    leds_out(nl, nb, beats);
+    leds_out(nl, nb, beats, dimk);
 }
 
 /* ---------------------------------------------------------- input --- */
@@ -670,11 +679,17 @@ static void edit_param(uint32_t slot, int32_t steps)
         break;
     case G_COPY:                                      /* the COPY page (spec 2026-10-26): SLOT's slot remembered */
         *vp = 0;
-        project_copy((uint32_t)song.g[G_SLOT] - 1u);
+        if (song.act[6])
+            project_copy_var((uint32_t)song.g[G_SLOT] - 1u, (uint32_t)song.act[6]);
+        else
+            project_copy((uint32_t)song.g[G_SLOT] - 1u);
         break;
     case G_PASTE:                                     /* .. pasted onto SLOT's (again on it: undone) */
         *vp = 0;
-        project_paste((uint32_t)song.g[G_SLOT] - 1u);
+        if (song.act[6])
+            project_paste_var((uint32_t)song.g[G_SLOT] - 1u, (uint32_t)song.act[6]);
+        else
+            project_paste((uint32_t)song.g[G_SLOT] - 1u);
         break;
     case G_CLRSEQ:
         *vp = 0;
@@ -936,7 +951,7 @@ static void cue_keys(uint32_t hits)                    /* white key n: STEP_KEY[
             (void)cue_slot(n);
     for (n = 0; n < 8u; n++)
         if ((hits >> CUE_BK[n]) & 1u)
-            (void)cue_var(n);
+            (void)cue_var_key(n);
 }
 static void cue_input(uint32_t now, uint32_t notes)
 {
@@ -1325,6 +1340,23 @@ static void ui_input(void)
             rec_tap();                                  /* TRACKS: the selected track armed / disarmed; else REC ALL */
         }
     }
+    if (ui.confirm == CONFIRM_VAR) {                    /* a free variation cued: OCT+ COPY, OCT- CLEAR, HOME cancels */
+        uint32_t w = ui.confirm_trk & 7u;
+        if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
+            ui.confirm = 0;
+            ui.force = 1;
+            cue_var_go(w, 0);
+        } else if ((pressed >> panel.btn[B_OCTDN]) & 1u) {
+            ui.confirm = 0;
+            ui.force = 1;
+            cue_var_go(w, 1);
+        } else if (home == BT_TAP) {
+            ui.confirm = 0;
+            ui.force = 1;
+        }
+        enc_drop();
+        return;
+    }
     if (ui.confirm) {                                   /* OCT- cancels (NO), OCT+ clears (YES); nothing else reacts */
         if ((pressed >> panel.btn[B_OCTUP]) & 1u) {
             char m[12] = "1 CLEARED";
@@ -1497,7 +1529,7 @@ static void ui_input(void)
     if (cue_bk_page())                                  /* the black keys: variations 1..8 (2026-10-27) */
         for (k = 0; k < 8u; k++)
             if (((notes >> CUE_BK[k]) & 1u) && !ui_locked())
-                (void)cue_var(k);
+                (void)cue_var_key(k);
     if ((s = panel_enc(EN_PRESET)) != 0 && (fx_knobs || ui.layer)) {
         /* PERFORM up: no preset loaded under it (item 7; the turn dropped) */
     } else if (s) {                                     /* PRESETS: each detent the next / previous preset, loaded */

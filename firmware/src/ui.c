@@ -22,10 +22,16 @@ static void cue_map_refresh(void);         /* .. the cue map's per-slot state, o
 static void cue_poll(void);                /* .. a cue's switch finished (the ISR's: cue.c) */
 static int cue_slot(uint32_t s);           /* .. queue slot s / variation v (SAVE + a white key / a black key) */
 static int cue_var(uint32_t v);
-static int cue_led(uint32_t n);            /* .. the cue map's key n (1..4 slots, 5..12 variations): CM_* */
+static int cue_var_key(uint32_t v);        /* .. the panel's key: a free variation asks first (CONFIRM_VAR) */
+static void cue_var_go(uint32_t w, uint32_t blank);   /* .. the dialog's answer: a copy (0) / empty (1) */
+static uint32_t cue_used_mask(void);       /* .. the variations in use of the loaded slot (dim lights) */
+static int cue_led(uint32_t n);           /* .. the cue map's key n (1..4 slots, 5..12 variations): CM_* */
 static int32_t proj_loaded(void);          /* .. the slot loaded, -1 none */
 static void project_copy(uint32_t s);      /* .. COPY / PASTE of a slot (the COPY page) */
+static void project_copy_var(uint32_t s, uint32_t n);   /* .. and of one variation (the page's VAR 1..8) */
+static void project_paste_var(uint32_t t, uint32_t n);
 static void project_paste(uint32_t t);
+static uint8_t copy_var;                   /* .. the variation COPY took + 1 (VAR 1..8), 0 a whole slot */
 static uint8_t copy_src;                   /* .. the slot COPY took + 1, 0 none (graph_slots marks it) */
 enum { CM_OFF, CM_ON, CM_WINK, CM_BLINK, CM_BREATHE };   /* a cue map key: dark, lit, winking, blinking, breathing */
 static int transport_busy(void);
@@ -43,6 +49,7 @@ static int preset_user_save(uint32_t slot, const track_t *t);   /* project.c: th
 static void preset_user_delete(uint32_t slot);
 
 #define CONFIRM_DISCARD 7u             /* ui.confirm: DISCARD EDITS? (LOAD of a slot with unsaved edits) */
+#define CONFIRM_VAR 9u                 /* .. VARIATION n IS FREE: OCT+ COPY the playing one, OCT- start CLEAR (cue_var_key) */
 #define CONFIRM_OVERWRITE 8u           /* .. OVERWRITE B*? (SAVE onto a slot, not the loaded one, with unsaved edits) */
 enum { CV_NORM, CV_HOT, CV_DIM };              /* a knob cell's value: plain, touched (inverted), inactive (dithered) */
 #define HOT(c) ((c) == ui.hot_col && ui.hot_t ? CV_HOT : CV_NORM)

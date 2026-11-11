@@ -20,6 +20,8 @@ static uint8_t var_cur;                    /* the variation playing: 0 = variati
 static struct {
     volatile uint8_t q_slot, q_var;        /* queued: slot + 1 / variation + 1, 0 none (main writes, the ISR takes) */
     volatile uint8_t now;                  /* the same key again: switch at the next step */
+    uint8_t blank;                         /* main only: the next staging of a never used variation starts EMPTY (the
+                                            * dialog's CLEAR), not as a copy of the live one */
     uint8_t last[4];                       /* each slot's last-played variation (RAM only; power-on 0) */
     uint16_t b24;                          /* 1/24 beats since PLAY at the last restart, mod B24_WRAP */
     volatile uint8_t done, err;            /* ISR -> main: CUE_SW_SLOT | CUE_SW_VAR; a refusal CUE_E_* (said once) */
