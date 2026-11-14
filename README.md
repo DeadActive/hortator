@@ -872,3 +872,5 @@ AUTOSTART ON: then 5 s after each power-on).
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; drum machine fork: 2026 DEADACTIVE; BLE MIDI:
 2026 DEADACTIVE.
+
+You can also try Hortator in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
