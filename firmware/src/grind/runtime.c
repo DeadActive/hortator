@@ -36,7 +36,9 @@ static void gm_runtime_reset(void)
 {
     gm_config c;
     memset(&gmrt, 0, sizeof gmrt);
-    gm_factory_config(0, &c);
+    memset(&c, 0, sizeof c);
+    if (gm_factory_config(1, &c) != GM_OK)             /* (style ids start at 1; 0 is none and left c unset) */
+        memset(&c, 0, sizeof c);
     gm_ctl_init(&gmrt.ctl, &c);
     cue.q_gm = 0;
 }

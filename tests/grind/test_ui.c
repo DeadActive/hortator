@@ -473,6 +473,19 @@ static void knobs_stop_at_the_ends(void)
     check("ui: AGGR DENS CHAOS HUMAN MUT stop at 100 (99) and at 0, however far and fast they are turned", ok);
 }
 
+static void reset_starts_from_a_valid_config(void)
+{
+    gm_config f;
+    uint32_t ok = 1;
+    ui_host_init();
+    memset(&gmrt, 0xA5, sizeof gmrt);                /* whatever was in RAM */
+    gm_runtime_reset();
+    gm_factory_config(1, &f);
+    ok &= gmrt.ctl.active_config.algorithm == 1u && !memcmp(&gmrt.ctl.active_config, &f, sizeof f);
+    ok &= gm_validate_config(&gmrt.ctl.active_config) == GM_OK && gmrt.next_rev == 0u && !gmrt.undo_ok;
+    check("runtime: a reset holds style 1's factory config (the id 0 it used to ask for is not a style)", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -508,6 +521,7 @@ int main(void)
     undo_redo();
     undo_keeps_timing();
     knobs_stop_at_the_ends();
+    reset_starts_from_a_valid_config();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;
