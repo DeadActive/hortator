@@ -88,6 +88,8 @@ the command needs.
 | 25 | SMP_READ | SAMPLES | slot u7, offset u35, crc u35 | slot u7, offset u35, len u14, data pack |
 | 26 | SMP_CLEAR | SAMPLES | slot u7 | slot u7 |
 | 27 | SMP_RENAME | SAMPLES | slot u7, name str (1..8 characters) | slot u7, name str |
+| 28 | GRIND_GET | GRIND | track u7 | GRIND state |
+| 29 | GRIND_SET | GRIND | track, action, index, value (u7 each) | — |
 
 Pushes (only while WATCH is on; seq `7F`; ignore push commands you do not know):
 
@@ -318,6 +320,27 @@ One restore at a time: **BEGIN → DATA … → COMMIT** (or ABORT). The transpo
 - Staging bound: every record format is at most `sizeof(project_t)` (3,840; `editor_backup.c` asserts it), a lock
   bank is `lk_bank_t`, variations at most `var_bank_t` (3,584): BEGIN accepts no other size and DATA writes below it.
 - "Copy to…" another slot = BACKUP_GET the source's three objects + RESTORE them into the target.
+
+### GRIND controls (protocol minor 4)
+
+Capability `0x100` advertises the generator in builds with `GRIND_NATIVE=1`.
+`GRIND_GET` reads the state of a zero-based track. Its successful replies
+contain the seven controls (STYLE, AGGR, DENS, CHAOS, HUMAN, MUT, WHEN), track length,
+64 KEEP flags, pending/undo/redo flags (all u7), the commit count (u35) and a status string.
+Styles are zero-based. WHEN is 0 for STEP and 1 for END.
+
+| Action | Index | Value |
+| --- | --- | --- |
+| 0 Set control | 0–6 | Control value in its panel range |
+| 1 Set role kit | 0 | 0 |
+| 2 Keep step | Zero-based step | 0 to release, 1 to keep |
+| 3 Keep track | 0 | 0 to release, 1 to keep |
+| 4 Free all | 0 | 0 |
+| 5 Undo / redo | 0 | 0 |
+
+Use the normal write retry rules for GRIND_SET. An acknowledged generator change
+can still be pending. Poll GRIND_GET for the commit count and status.
+Use SAVE to persist the resulting project.
 
 ### 2.7 Samples: SMP_INFO, SMP_BEGIN, SMP_DATA, SMP_END, SMP_READ, SMP_CLEAR, SMP_RENAME
 

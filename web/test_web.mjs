@@ -32,9 +32,9 @@ async function editorPage() {
   const html = readFileSync(join(HERE, "editor.html"), "utf8"), app = readFileSync(join(HERE, "editor/app.mjs"), "utf8");
   const tabs = [...app.matchAll(/import \{ tab as (\w+) \} from "\.\/(tab_\w+\.mjs)"/g)];
   const mods = await Promise.all(tabs.map(([, , f]) => import(`./editor/${f}`)));
-  ok(tabs.map((x) => x[1]).join() === "sound,presets,projects,patterns,samples" && /TABS = \[sound, presets, projects, patterns, samples\]/.test(app)
+  ok(tabs.map((x) => x[1]).join() === "sound,grind,presets,projects,patterns,samples" && /TABS = \[sound, grind, presets, projects, patterns, samples\]/.test(app)
     && mods.every((m, i) => m.tab.id === tabs[i][1] && typeof m.tab.mount === "function" && m.tab.cap > 0),
-    "editor: tabs Sound / Presets / Projects / Patterns / Samples, one module each");
+    "editor: tabs Sound / GRIND / Presets / Projects / Patterns / Samples, one module each");
   ok(/<script type="module" src="editor\/app\.mjs"><\/script>/.test(html) && html.split("</body>").length === 2
     && !/<script[^>]+src="(https?:)?\/\/|<link[^>]+href="(https?:)?\/\/|@import|googleapis/.test(html),
     "editor: one local module, no CDN (works offline once loaded)");

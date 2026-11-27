@@ -384,6 +384,9 @@ static void ed_info(void)
 #ifdef ED_HAS_SAMPLES
     caps |= ED_CAP_SAMPLES;
 #endif
+#if GRIND_NATIVE
+    caps |= ED_CAP_GRIND;
+#endif
     if (fw[0] == 'D' && fw[1] == 'R' && fw[2] == 'U' && fw[3] == 'M' && fw[4] == '-')
         fw += 5;                           /* as VERSION.txt holds it */
     ed_reply(ED_INFO, ED_OK);
@@ -593,11 +596,126 @@ static void ed_dump(uint32_t track)
     ed_send();
 }
 
+#if GRIND_NATIVE
+static void ed_grind_state(uint32_t cmd, uint32_t track)
+{
+    uint32_t k, i, length, commits, pending, undo, redo;
+    uint8_t kept[NSTEP];
+    fm1_irq_off();
+    length = (uint32_t)trk[track].p[P_SLEN];
+    commits = gm_runtime_commits();
+    pending = gmrt.ctl.has_pending || cue.q_gm;
+    undo = gmrt.undo_ok;
+    redo = undo && gmrt.undo_was_undo;
+    for (i = 0; i < NSTEP; i++)
+        kept[i] = (uint8_t)gm_keep_get(track, i);
+    fm1_irq_on();
+    ed_reply(cmd, ED_OK);
+    for (k = GU_STYLE; k <= GU_WHEN; k++)
+        ed_b((uint32_t)gm_v[k]);
+    ed_b(length);
+    for (i = 0; i < NSTEP; i++)
+        ed_b(kept[i]);
+    ed_b(pending);
+    ed_b(undo);
+    ed_b(redo);
+    ed_u35(commits);
+    ed_str(gm_last_result == GM_STALE ? "NOT APPLIED" :
+           gm_last_result == GM_LOCK_CONFLICT ? "KEEP DOES NOT FIT" :
+           gm_last_result == GM_OK ? "" : "GRIND REQUEST REFUSED");
+    ed_send();
+}
+
+static void ed_grind_cmd(uint32_t cmd, const uint8_t *a, uint32_t n)
+{
+    uint32_t action, idx, value, track;
+    if (!ed_len(cmd, n, cmd == ED_GRIND_GET ? ED_LEN_GRIND_GET : ED_LEN_GRIND_SET))
+        return;
+    track = a[0];
+    if (track >= NTRK)
+        goto range;
+    if (cmd == ED_GRIND_GET) {
+        ed_grind_state(cmd, track);
+        return;
+    }
+#ifdef ED_HAS_BACKUP
+    if (ed_restoring()) {
+        ed_fail(cmd, ED_E_BUSY, ED_D_RESTORING, "RESTORING");
+        return;
+    }
+#endif
+#ifdef ED_HAS_SAMPLES
+    if (eds.on) {
+        ed_fail(cmd, ED_E_BUSY, ED_D_RESTORING, "SAMPLE UPLOAD ACTIVE");
+        return;
+    }
+#endif
+    action = a[1];
+    idx = a[2];
+    value = a[3];
+    if (chain.running && (action == ED_GRIND_KNOB || action == ED_GRIND_UNDO)) {
+        ed_fail(cmd, ED_E_REFUSED, ED_D_CUE_SONG, "STOP THE SONG");
+        return;
+    }
+    switch (action) {
+    case ED_GRIND_KNOB:
+        if (idx > GU_WHEN || value > (uint32_t)GP_GRIND[idx].max)
+            goto range;
+        gm_v[idx] = (int16_t)value;
+        gm_ui_changed(idx);
+        break;
+    case ED_GRIND_KIT:
+        if (song.playing || transport_req == 1u) {
+            ed_fail(cmd, ED_E_STOP, ED_D_STOP, "STOP FIRST");
+            return;
+        }
+        gm_kit_arm = 0;
+        gm_kit_roles();
+        ui_message("ROLE KIT SET");
+        break;
+    case ED_GRIND_KEEP_STEP:
+        if (idx >= NSTEP || (value && idx >= (uint32_t)trk[track].p[P_SLEN]) || value > 1)
+            goto range;
+        fm1_irq_off();
+        gm_keep_set(track, idx, value);
+        fm1_irq_on();
+        break;
+    case ED_GRIND_KEEP_TRACK:
+        if (value > 1)
+            goto range;
+        fm1_irq_off();
+        gm_keep_track(track, value);
+        fm1_irq_on();
+        break;
+    case ED_GRIND_FREE:
+        fm1_irq_off();
+        gm_keep_free();
+        fm1_irq_on();
+        break;
+    case ED_GRIND_UNDO:
+        if (gm_runtime_undo() != 1) {
+            ed_fail(cmd, ED_E_REFUSED, ED_D_NONE, "NOTHING TO UNDO");
+            return;
+        }
+        gm_last_result = GM_OK;
+        ui_message(gmrt.undo_was_undo ? "UNDONE" : "REDONE");
+        break;
+    default:
+        goto range;
+    }
+    ed_reply(cmd, ED_OK);
+    ed_send();
+    return;
+range:
+    ed_fail(cmd, ED_E_BAD, ED_D_RANGE, "OUT OF RANGE");
+}
+#endif
+
 static int ed_is_write(uint32_t cmd)
 {
     return cmd == ED_SET || cmd == ED_SELECT || cmd == ED_PRESET_LOAD || cmd == ED_STEPS_SET || cmd == ED_LOCK_EDIT ||
            cmd == ED_CUE || cmd == ED_SAVE || cmd == ED_RESTORE || cmd == ED_SMP_BEGIN || cmd == ED_SMP_DATA ||
-           cmd == ED_SMP_END || cmd == ED_SMP_CLEAR || cmd == ED_SMP_RENAME;
+           cmd == ED_SMP_END || cmd == ED_SMP_CLEAR || cmd == ED_SMP_RENAME || cmd == ED_GRIND_SET;
 }
 static void ed_dispatch(uint32_t cmd, const uint8_t *a, uint32_t n)
 {
@@ -610,6 +728,12 @@ static void ed_dispatch(uint32_t cmd, const uint8_t *a, uint32_t n)
         return;
 #endif
     switch (cmd) {
+#if GRIND_NATIVE
+    case ED_GRIND_GET:
+    case ED_GRIND_SET:
+        ed_grind_cmd(cmd, a, n);
+        return;
+#endif
     case ED_INFO:
         if (ed_len(cmd, n, ED_LEN_INFO))
             ed_info();

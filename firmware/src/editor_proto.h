@@ -25,7 +25,7 @@
 #define ED_HDR_N 3u                 /* sx_frame holds the bytes between F0 and F7: [0..2] header, [3] cmd, [4] seq */
 #define ED_MIN_FRAME 5u             /* header + cmd + seq; shorter frames are dropped unanswered */
 #define ED_PROTO_MAJOR 1u
-#define ED_PROTO_MINOR 3u           /* 1: NUDGE (ED_CAP_NUDGE: STEPS_GET / STEPS_SET carry each step's micro);
+#define ED_PROTO_MINOR 4u           /* 1: NUDGE (ED_CAP_NUDGE: STEPS_GET / STEPS_SET carry each step's micro);
                                      * 2: user presets "UPR2" (ED_CAP_UPR2: 96 slots with their FX);
                                      * 3: the user sample slots (ED_CAP_SAMPLES: SMP_INFO .. SMP_RENAME) */
 #define ED_MAGIC "HORTATOR"         /* INFO's first field */
@@ -51,6 +51,7 @@ enum {
     ED_BACKUP_LIST, ED_BACKUP_GET, ED_RESTORE,                                      /* 17..19 */
     ED_TEXT,                                                                        /* 20 */
     ED_SMP_INFO, ED_SMP_BEGIN, ED_SMP_DATA, ED_SMP_END, ED_SMP_READ, ED_SMP_CLEAR, ED_SMP_RENAME,   /* 21..27 */
+    ED_GRIND_GET, ED_GRIND_SET,                                                      /* 28, 29 */
     ED_CMD_N
 };
 enum { ED_P_CHANGED = 0x40, ED_P_STATE, ED_P_STEPS_CHANGED, ED_P_LOCKS_CHANGED };   /* pushes (seq 0x7F) */
@@ -113,7 +114,12 @@ enum {
 #define ED_CAP_UPR2 0x40u           /* user presets: object 0 is "UPR2" (96 slots, voice + FX), minor 2 (editor.c) */
 #define ED_CAP_SAMPLES 0x80u        /* SMP_INFO .. SMP_RENAME, the user sample slots, minor 3 (editor_sample.c) */
 
-/* --------------------------------------------------------------- fields --- */
+#define ED_CAP_GRIND 0x100u          /* GRIND_GET / GRIND_SET, minor 4 (GRIND_NATIVE builds) */
+#define ED_LEN_GRIND_GET 1u          /* track */
+#define ED_LEN_GRIND_SET 4u          /* track, action, index, value */
+enum { ED_GRIND_KNOB, ED_GRIND_KIT, ED_GRIND_KEEP_STEP, ED_GRIND_KEEP_TRACK, ED_GRIND_FREE, ED_GRIND_UNDO };
+
+ /* -------------------------------------------------------------- fields --- */
 enum { ED_SC_TRACK, ED_SC_GLOBAL, ED_SC_MODEL };      /* DESC / GET / SET / TEXT scope (MODEL: DESC only) */
 #define ED_DF_SPLIT 0x01u           /* DESC flags: F_INT whose range is split evenly over the names */
 #define ED_DF_ORDER 0x02u           /*   the values are shown in another order (DESC first = 0x7F gives it) */

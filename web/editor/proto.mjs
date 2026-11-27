@@ -11,7 +11,7 @@
 
 /* ------------------------------------------------------------------ constants --- */
 export const HDR = [0x7d, 0x48, 0x54]; // F0 7D 48 54 <cmd> <seq> ... F7
-export const PROTO = { major: 1, minor: 3, magic: "HORTATOR" }; // minor 1: NUDGE (CAP.NUDGE); 2: UPR2 (CAP.UPR2); 3: SAMPLES
+export const PROTO = { major: 1, minor: 4, magic: "HORTATOR" }; // minor 1: NUDGE (CAP.NUDGE); 2: UPR2 (CAP.UPR2); 3: SAMPLES
 export const SEQ_PUSH = 0x7f, NONE = 0x7f, U14_NONE = 0x3fff, DESC_ORDER = 0x7f;
 export const LIMITS = { req: 640, reply: 400, piece: 256, state: 17 };
 export const TIMING = {
@@ -29,6 +29,7 @@ export const CMD = {
   STEPS_GET: 11, STEPS_SET: 12, LOCKS_GET: 13, LOCK_EDIT: 14, CUE: 15, SAVE: 16, BACKUP_LIST: 17, BACKUP_GET: 18,
   RESTORE: 19, TEXT: 20,
   SMP_INFO: 21, SMP_BEGIN: 22, SMP_DATA: 23, SMP_END: 24, SMP_READ: 25, SMP_CLEAR: 26, SMP_RENAME: 27, // minor 3 (§2.7)
+  GRIND_GET: 28, GRIND_SET: 29,
 };
 export const PUSH = { CHANGED: 0x40, STATE: 0x41, STEPS_CHANGED: 0x42, LOCKS_CHANGED: 0x43 };
 export const RC = { OK: 0, BAD: 1, REFUSED: 2, STOP: 3, FLASH: 4, STALE: 5, BUSY: 6 };
@@ -39,7 +40,9 @@ export const DETAIL = {
   TOO_BIG: 31, CUE_FIRST: 32, CHANGED: 33, ORDER: 34, REFUSED_DATA: 35, RESTORING: 40, NOT_RESTORING: 41, STOP: 42,
   UNKNOWN: 43, LENGTH: 44, RANGE: 45, NO_CAP: 46,
 };
-export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10, NUDGE: 0x20, UPR2: 0x40, SAMPLES: 0x80 };
+export const CAP = { LIVE: 0x01, PRESETS: 0x02, PATTERNS: 0x04, BACKUP: 0x08, RESTORE: 0x10, NUDGE: 0x20, UPR2: 0x40, SAMPLES: 0x80, GRIND: 0x100 };
+export const GRIND = { KNOB: 0, KIT: 1, KEEP_STEP: 2, KEEP_TRACK: 3, FREE: 4, UNDO: 5 };
+export const GRIND_MAX = [21, 100, 100, 100, 100, 99, 1];
 export const CMD_CAP = {
   [CMD.INFO]: 0, [CMD.PAGES]: CAP.LIVE, [CMD.DESC]: CAP.LIVE, [CMD.GET]: CAP.LIVE, [CMD.SET]: CAP.LIVE,
   [CMD.DUMP]: CAP.LIVE, [CMD.SELECT]: CAP.LIVE, [CMD.WATCH]: CAP.LIVE, [CMD.TEXT]: CAP.LIVE,
@@ -49,10 +52,11 @@ export const CMD_CAP = {
   [CMD.BACKUP_LIST]: CAP.BACKUP, [CMD.BACKUP_GET]: CAP.BACKUP, [CMD.RESTORE]: CAP.RESTORE,
   [CMD.SMP_INFO]: CAP.SAMPLES, [CMD.SMP_BEGIN]: CAP.SAMPLES, [CMD.SMP_DATA]: CAP.SAMPLES, [CMD.SMP_END]: CAP.SAMPLES,
   [CMD.SMP_READ]: CAP.SAMPLES, [CMD.SMP_CLEAR]: CAP.SAMPLES, [CMD.SMP_RENAME]: CAP.SAMPLES,
+  [CMD.GRIND_GET]: CAP.GRIND, [CMD.GRIND_SET]: CAP.GRIND,
 };
 /** commands that change the device: a repeated (cmd, seq) is not executed twice (the duplicate rule) */
 export const WRITES = new Set([CMD.SET, CMD.SELECT, CMD.PRESET_LOAD, CMD.STEPS_SET, CMD.LOCK_EDIT, CMD.CUE, CMD.SAVE,
-  CMD.RESTORE, CMD.SMP_BEGIN, CMD.SMP_DATA, CMD.SMP_END, CMD.SMP_CLEAR, CMD.SMP_RENAME]);
+  CMD.RESTORE, CMD.SMP_BEGIN, CMD.SMP_DATA, CMD.SMP_END, CMD.SMP_CLEAR, CMD.SMP_RENAME, CMD.GRIND_SET]);
 /** TIMING.longTimeout (+ RESTORE COMMIT): flash writes */
 export const LONG = new Set([CMD.SAVE, CMD.SMP_BEGIN, CMD.SMP_DATA, CMD.SMP_END, CMD.SMP_CLEAR, CMD.SMP_RENAME]);
 export const SCOPE = { TRACK: 0, GLOBAL: 1, MODEL: 2 };
@@ -192,7 +196,11 @@ const NUDGE_F = ["micro", "nudge", "steps"];
 const VALUE = [["value", "v14"], ["text", "str"], ["unit", "str"]];
 const KNOB = [["scope", "u7"], ["track", "u7"], ["id", "u14"]];
 const PART_F = [["size", "u14"], ["crc", "u35"]];
+const GRIND_STATE = [["knobs", "u7", 7], ["length", "u7"], ["kept", "u7", 64], ["pending", "u7"],
+  ["undo", "u7"], ["redo", "u7"], ["commits", "u35"], ["message", "str"]];
 export const SCHEMA = {
+  [CMD.GRIND_GET]: { req: [["track", "u7"]], rep: GRIND_STATE },
+  [CMD.GRIND_SET]: { req: [["track", "u7"], ["action", "u7"], ["index", "u7"], ["value", "u7"]], rep: [] },
   [CMD.INFO]: { req: [], rep: [["magic", "str"], ["firmware", "str"], ["major", "u7"], ["minor", "u7"], ["caps", "u14"],
     ["ntrk", "u7"], ["nstep", "u7"], ["pcount", "u7"], ["gcount", "u7"], ["nmodels", "u7"], ["nfact", "u14"],
     ["nuser", "u14"], ["nbanks", "u7"], ["nslot", "u7"], ["nvar", "u7"], ["maxreq", "u14"], ["ble", "u7"],
@@ -378,16 +386,16 @@ export const timeoutOf = (cmd, args = {}) => (LONG.has(cmd) || (cmd === CMD.REST
  * update mode: send nothing), null (other gear: asked only when the user searches). The name proves nothing — macOS
  * keeps the name it first saw for a device, so a Hortator FM-1 can show up as "Felucca" — INFO's answer decides. */
 export function classifyPort(name = "") {
-  if (/Update/i.test(name) && /Felucca|Hortator|FM-1/i.test(name)) return "update";
+  if (/Update/i.test(name) && /Felucca|Hortator|FM-1|GRIND MACHINE/i.test(name)) return "update";
   if (/BLE|Bluetooth/i.test(name)) return null;
-  if (/Hortator|Felucca|FM-1/i.test(name)) return "fm1";
+  if (/Hortator|Felucca|FM-1|GRIND MACHINE/i.test(name)) return "fm1";
   return null;
 }
 /** an INFO reply (or null: no reply after the tries) -> { ok } or { ok: false, why, message } */
 export function checkInfo(info) {
   if (!info) return { ok: false, why: "noeditor",
     message: "This FM-1 does not answer the editor: it runs Felucca, the stock firmware or a Hortator before 1.0.0 " +
-      "(or it is busy updating). Install Hortator 1.0.0 or later to use the editor." };
+      "(or it is busy updating). Install an editor-compatible firmware to use the editor." };
   if (info.rc || info.magic !== PROTO.magic) return { ok: false, why: "magic", message: "Not a Hortator editor device." };
   if (info.major > PROTO.major) return { ok: false, why: "newer",
     message: `This FM-1 runs a newer Hortator (editor protocol ${info.major}): use the editor from its release.` };

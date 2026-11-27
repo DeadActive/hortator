@@ -29,7 +29,7 @@
 // opts: name ("Hortator"), editor (false: an FM-1 without the editor, it never answers), firmware ("1.0.0"),
 //       major / minor, magic, caps, latency (ms, the access' replies), powerOnKit (no slot loaded), seed
 import {
-  BF, CAP, CMD, CMD_CAP, CUE, DESC_ORDER, DETAIL, DF, LAYOUT, LIMITS, LK, MAGIC, NONE, OLD_PROJECTS, PROTO, PUSH,
+  BF, CAP, CMD, CMD_CAP, CUE, DESC_ORDER, DETAIL, DF, GRIND, GRIND_MAX, LAYOUT, LIMITS, LK, MAGIC, NONE, OLD_PROJECTS, PROTO, PUSH,
   RC, RK, RS, SCOPE, SEQ_PUSH, STEP, SZ, TIMING, U14_NONE, WRITES, crc32, decodeFrame, decodeLocks,
   decodePresets, decodeProject, decodeRequest, decodeVars, emptyStep, encodeLocks, encodePresets, encodePresetsV1, encodeProject,
   encodePush, encodeReply, encodeRequest, encodeVars, isFullRecord, lockLink, lockOrd, sealProject, varLink,
@@ -92,6 +92,12 @@ export class MockDevice {
     this.o = { name: "Hortator", editor: true, firmware: "1.0.0", major: PROTO.major, minor: PROTO.minor,
       magic: PROTO.magic, caps: CAP.LIVE | CAP.PRESETS | CAP.PATTERNS | CAP.BACKUP | CAP.RESTORE | CAP.NUDGE | CAP.UPR2 | CAP.SAMPLES, latency: 1,
       seed: 7, ...opts };
+    if (opts.grind) {
+      this.o.caps |= CAP.GRIND;
+      // The mock exercises the editor protocol and UI. Rhythm generation runs on the real firmware.
+      this.grind = { knobs: [0, 75, 65, 20, 25, 0, 1], kept: Array.from({ length: 8 }, () => Array(64).fill(0)),
+        undo: 0, redo: 0, pending: 0, commits: 0, message: "" };
+    }
     this.uprOld = !(this.o.caps & CAP.UPR2); // an FM-1 before minor 2: "UPR1", 128 voices
     this.nuser = this.uprOld ? LAYOUT.nuserOld : LAYOUT.nuser;
     this.uprMoved = Array(LAYOUT.nuserOld - LAYOUT.nuser).fill(0); // UPR1's slots 97..128: where they moved (+1)
@@ -556,9 +562,61 @@ export class MockDevice {
     return s;
   }
 
+  grindOp(cmd, { track, action, index, value }) {
+    const g = this.grind;
+    if (track >= 8) refuse(RC.BAD, DETAIL.RANGE);
+    const length = this.tracks[track].p[this.P.SLEN];
+    if (cmd === CMD.GRIND_SET) {
+      this.busy();
+      if (this.smp.up) refuse(RC.BUSY, DETAIL.RESTORING, "SAMPLE UPLOAD ACTIVE");
+      if (this.song && (action === GRIND.KNOB || action === GRIND.UNDO))
+        refuse(RC.REFUSED, DETAIL.CUE_SONG, "STOP THE SONG");
+      switch (action) {
+        case GRIND.KNOB:
+          if (index >= GRIND_MAX.length || value > GRIND_MAX[index]) refuse(RC.BAD, DETAIL.RANGE);
+          g.knobs[index] = value;
+          if (index === 0) g.knobs[5] = 0;
+          if (this.playing) g.pending = 1;
+          else this.commitGrind();
+          break;
+        case GRIND.KIT:
+          if (this.playing) refuse(RC.STOP, DETAIL.STOP);
+          break;
+        case GRIND.KEEP_STEP:
+          if (index >= 64 || (value && index >= length) || value > 1) refuse(RC.BAD, DETAIL.RANGE);
+          g.kept[track][index] = value;
+          break;
+        case GRIND.KEEP_TRACK:
+          if (value > 1) refuse(RC.BAD, DETAIL.RANGE);
+          g.kept[track] = g.kept[track].map((_, i) => i < length ? value : 0);
+          break;
+        case GRIND.FREE:
+          g.kept.forEach((steps) => steps.fill(0));
+          break;
+        case GRIND.UNDO:
+          if (!g.undo) refuse(RC.REFUSED, 0, "NOTHING TO UNDO");
+          g.redo ^= 1;
+          g.pending = 0;
+          break;
+        default:
+          refuse(RC.BAD, DETAIL.RANGE);
+      }
+      return {};
+    }
+    return { ...g, kept: g.kept[track], length };
+  }
+  commitGrind() {
+    this.grind.pending = 0;
+    this.grind.commits++;
+    this.grind.undo = 1;
+    this.grind.redo = 0;
+  }
+
   exec(cmd, a) {
     const P = this.P;
     switch (cmd) {
+      case CMD.GRIND_GET:
+      case CMD.GRIND_SET: return this.grindOp(cmd, a);
       case CMD.INFO:
         return { magic: this.o.magic, firmware: this.o.firmware, major: this.o.major, minor: this.o.minor, caps: this.o.caps,
           ntrk: 8, nstep: 64, pcount: this.d.tp.length, gcount: this.d.gp.length, nmodels: this.d.models.length,
@@ -819,6 +877,7 @@ export class MockDevice {
   /** the pattern's end (or the next step after the same key again): a queued switch happens; the pass' pushes */
   boundary() {
     this.switchQueued();
+    if (this.grind?.pending) this.commitGrind();
     return this.poll();
   }
 
@@ -1115,7 +1174,12 @@ export class MockDevice {
   turnGlobal(id, v) { this.g[id] = clamp(v, this.d.gp[id].min, this.d.gp[id].max); return this.kick(); }
   select(t) { this.sel = t; return this.kick(); }
   play() { this.playing = true; return this.kick(); }
-  stop() { this.playing = false; this.q = { slot: -1, var: -1, now: false }; return this.kick(); }
+  stop() {
+    this.playing = false;
+    this.q = { slot: -1, var: -1, now: false };
+    if (this.grind) this.grind.pending = 0;
+    return this.kick();
+  }
   setSong(on) { this.song = !!on; return this.kick(); }
   editStep(track, step, s) { this.tracks[track].steps[step] = { ...emptyStep(), ...s }; return this.kick(); }
   lockOnDevice(track, step, param, value) {

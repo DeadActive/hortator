@@ -25,6 +25,26 @@ const HERE = new URL(".", import.meta.url).pathname, ROOT = join(HERE, "../..");
 const data = await loadDeviceData();
 const fresh = (o) => createMockDevice(data, o);
 
+/* GRIND discovery and state use the same wire codec as the editor. */
+{
+  const mock = fresh({ grind: true });
+  const read = (track = 0) => mock.request(CMD.GRIND_GET, { track });
+  const set = (action, index, value) => mock.request(CMD.GRIND_SET, { track: 0, action, index, value });
+  ok(P.has(mock.request(CMD.INFO), CMD.GRIND_GET) && !P.has(fresh().request(CMD.INFO), CMD.GRIND_GET),
+    "GRIND is advertised only by compatible firmware");
+  ok(set(P.GRIND.KEEP_STEP, 0, 1).rc === RC.OK && read().kept[0] === 1 && read(1).kept[0] === 0,
+    "GRIND KEEP is scoped to the selected track");
+  mock.play();
+  ok(set(P.GRIND.KNOB, 0, 5).rc === RC.OK && read().pending === 1 && read().commits === 0,
+    "GRIND generation waits for the playback boundary");
+  mock.boundary();
+  ok(read().pending === 0 && read().commits === 1 && read().knobs[0] === 5 && read().kept[0] === 1,
+    "GRIND generation is acknowledged after publication");
+  ok(set(P.GRIND.KIT, 0, 0).rc === RC.STOP, "GRIND kit requires a stopped transport");
+  mock.stop();
+  ok(set(P.GRIND.UNDO, 0, 0).rc === RC.OK && read().redo === 1, "GRIND undo is reflected in the state");
+}
+
 /* ---------------------------------------------- SAMPLE's ATK SUS REL LOOP in the objects --- */
 {
   const smpl = P.LAYOUT.smpl, fx = P.fxDefaults(), K = [0, 127, 127, 0, 1, -16, 0, 127];
@@ -65,7 +85,7 @@ const fresh = (o) => createMockDevice(data, o);
   }
   for (const m of h.matchAll(/#define\s+(ED_\w+)\s+(0x[0-9A-Fa-f]+|\d+)u?\b/g)) E[m[1]] = Number(m[2]);
   const toC = (k) => k.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
-  ok(Object.entries(CMD).every(([k, v]) => E[`ED_${k}`] === v) && E.ED_CMD_N === 28, "header: command ids = proto.mjs CMD");
+  ok(Object.entries(CMD).every(([k, v]) => E[`ED_${k}`] === v) && E.ED_CMD_N === 30, "header: command ids = proto.mjs CMD");
   ok(Object.entries(PUSH).every(([k, v]) => E[`ED_P_${k}`] === v), "header: push ids");
   const rcName = { OK: "ED_OK", BAD: "ED_E_BAD", REFUSED: "ED_E_REFUSED", STOP: "ED_E_STOP", FLASH: "ED_E_FLASH", STALE: "ED_E_STALE", BUSY: "ED_E_BUSY" };
   ok(Object.entries(RC).every(([k, v]) => E[rcName[k]] === v), "header: rc codes");
@@ -127,7 +147,7 @@ const fresh = (o) => createMockDevice(data, o);
     && same(data.uprFx, P.LAYOUT.uprFx) && same(P.LAYOUT.uprFxDef, data.uprFx.map((id) => data.tp[id].def))
     && P.LAYOUT.nuserOld === c.UPR_NOLD && P.LAYOUT.uprFx.length === c.UPR_NFX && P.UPR.USED === c.UPR_USED
     && P.UPR.VOICE === c.UPR_VOICE && P.MAGIC.UPR1 === data.magic.UPR1 && P.UPR_FX_LABELS.length === c.UPR_NFX
-    && P.CAP.UPR2 === 0x40 && P.PROTO.minor === 3, "layout: the user presets (UPR2: 96 slots with their FX, the moves; UPR1's size) = the firmware's");
+    && P.CAP.UPR2 === 0x40 && P.PROTO.minor === 4, "layout: the user presets (UPR2: 96 slots with their FX, the moves; UPR1's size) = the firmware's");
   ok(P.LAYOUT.pcount === c.P_COUNT && P.LAYOUT.gcount === c.G_COUNT && P.LAYOUT.pStored === c.P_NSTORED && P.LAYOUT.gStored === c.G_NSTORED
     && P.LAYOUT.nuser === c.PRE_NUSER && P.LAYOUT.lkMax === c.LK_MAX && P.LAYOUT.nameLen === c.NAME_LEN && P.SZ.VARS_MAX === c.VAR_BYTES
     && P.NAME_SET === data.nameSet, "layout: counts = the firmware's");
@@ -193,7 +213,7 @@ m.feed = (f) => { const out = feed0(f); seen.push(...out); return out; };
 const q = (cmd, args) => m.request(cmd, args);
 {
   const info = q(CMD.INFO);
-  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 3 && info.caps === 0xff && info.ntrk === 8 && info.pcount === 82
+  ok(info.rc === 0 && info.magic === "HORTATOR" && info.major === 1 && info.minor === 4 && info.caps === 0xff && info.ntrk === 8 && info.pcount === 82
     && info.gcount === 42 && info.nmodels === 45 && info.nfact === 151 && info.nuser === 96 && info.maxreq === 640
     && info.state.slot === 0 && info.state.used === 7 && info.state.dirty === 0 && P.checkInfo(info).ok, "INFO: the device, A loaded, nothing unsaved");
   ok(info.state.vmask[0] === 0b10111 && info.state.vmask[1] === 0b11 && info.state.vmask[3] === 1, "INFO: the variations used per slot");
@@ -623,7 +643,7 @@ function restore(dev, kind, slot, parts) {
   ok(d.request(CMD.INFO) === undefined && d.request(CMD.INFO) === undefined && d.request(CMD.INFO).rc === 0, "faults: n requests unanswered (timeouts)");
   d.faults.refuse[CMD.SAVE] = { rc: RC.FLASH, msg: "SAVE ERROR" };
   ok(d.request(CMD.SAVE, { slot: NONE }).rc === RC.FLASH && d.request(CMD.SAVE, { slot: NONE }).rc === 0, "faults: a refusal injected once");
-  const u = d.feed(Uint8Array.from([0xf0, 0x7d, 0x48, 0x54, 28, 3, 0xf7])).map(P.decodeFrame);
+  const u = d.feed(Uint8Array.from([0xf0, 0x7d, 0x48, 0x54, 30, 3, 0xf7])).map(P.decodeFrame);
   const caps = fresh({ caps: P.CAP.LIVE }).request(CMD.STEPS_GET, { slot: 0, var: 0, track: 0 });
   ok(u[0].rc === RC.BAD && u[0].detail === DETAIL.UNKNOWN && u[0].seq === 3 && caps.rc === RC.BAD && caps.detail === DETAIL.NO_CAP,
     "unknown command -> rc 1 (43); a missing capability -> rc 1 (46)");

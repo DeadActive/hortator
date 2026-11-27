@@ -11,12 +11,13 @@ import { SingleTab } from "./instance.mjs";
 import { mountHeader } from "./header.mjs";
 import { esc, h } from "./ui.mjs";
 import { tab as sound } from "./tab_sound.mjs";
+import { tab as grind } from "./tab_grind.mjs";
 import { tab as presets } from "./tab_presets.mjs";
 import { tab as projects } from "./tab_projects.mjs";
 import { tab as patterns } from "./tab_patterns.mjs";
 import { tab as samples } from "./tab_samples.mjs";
 
-export const TABS = [sound, presets, projects, patterns, samples];
+export const TABS = [sound, grind, presets, projects, patterns, samples];
 const TAB_KEY = "hortator-editor-tab";
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
@@ -76,7 +77,7 @@ async function access() {
   if (MOCK) {
     if (!mock) {
       const { createMockDevice, loadDeviceData } = await import("./mock_device.mjs");
-      mock = createMockDevice(await loadDeviceData(), { latency: 2 });
+      mock = createMockDevice(await loadDeviceData(), { latency: 2, grind: true });
       await seedMockSample(mock);
       setInterval(() => mock.deliver(mock.advance(100)), 100); // the device's clock runs (WATCH, the update silence)
       mockBar(mock);
@@ -147,7 +148,10 @@ function show(id) {
   if (!id) return;
   for (const b of document.querySelectorAll("#tabs [data-tab]")) b.setAttribute("aria-selected", b.dataset.tab === id ? "true" : "false");
   for (const p of document.querySelectorAll("#panels .panel")) p.hidden = p.dataset.tab !== id;
-  views.find((v) => v.id === id)?.view.show?.();
+  for (const { id: tabId, view } of views) {
+    if (tabId === id) view.show?.();
+    else view.hide?.();
+  }
   try { localStorage.setItem(TAB_KEY, id); } catch { /* storage off */ }
   history.replaceState(null, "", location.pathname + location.search + "#" + id);
 }
