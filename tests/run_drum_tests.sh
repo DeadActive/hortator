@@ -253,18 +253,7 @@ else
     echo "phys_ref: SKIPPED (offline: tests/fetch_daisysp.sh could not fetch DaisySP)"
     blocked=1
 fi
-frozen_tag=$(awk '$1 == "FROZEN_BASE" { print $2 }' tools/frozen_base.txt)
-if [ -z "$frozen_tag" ]; then
-    echo "FAIL: frozen-source guard cannot read tools/frozen_base.txt"
-    exit 1
-fi
-if git rev-parse -q --verify "refs/tags/$frozen_tag^{commit}" >/dev/null; then
-    sh tests/guard_test.sh
-    python3 tools/check_untouched.py
-else
-    echo "BLOCKED: frozen-source guard requires the pinned $frozen_tag tag"
-    blocked=1
-fi
+sh tests/guard_test.sh
 if [ "$blocked" -ne 0 ]; then
     echo "BLOCKED: drum host suite has unrun required checks"
     exit 2

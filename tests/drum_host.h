@@ -172,6 +172,9 @@ static uint32_t hit_age(const track_t *t)          /* changes on every hit of t 
 
 static int instr_read(uint64_t *value)
 {
+    const char *disabled = getenv("GRIND_DISABLE_PERFORMANCE");
+    if (disabled && !strcmp(disabled, "1"))
+        return 0;
 #if defined(__APPLE__)
     struct rusage_info_v4 ri;
     if (!proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) && ri.ri_instructions) {

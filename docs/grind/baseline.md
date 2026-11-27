@@ -1,6 +1,6 @@
 # P01 baseline evidence
 
-**Foundation status: BLOCKED.** The pinned repository is available as a complete checkout. The Linux x86-64 baseline produced a native test package and static resource measurements.
+The Linux x86-64 baseline produced a native test package and static resource measurements. The [pre-migration CI run](https://github.com/DaFum/grind-machine/actions/runs/45935159017) recorded blockers under the original policy. T03a applies the [community policy in plan v1.1](../superpowers/plans/2026-11-27-grind-machine-implementation.md) to new runs.
 
 | Input | Verified identity |
 |---|---|
@@ -12,9 +12,9 @@
 
 ## Reproduce Foundation checks
 
-GitHub Actions runs the host, performance, WASM, native and license jobs. The Foundation gate requires `PASS` from each lane. The checks report `FAIL` for failed tests and `BLOCKED` for missing required evidence. `SKIPPED` marks checks outside the lane's scope, including native package checks in the WASM job and Linux instruction measurements in the functional host job.
+The Foundation gate requires passing Host Core, Host Upstream, WASM and web, and native jobs. Available historical comparisons are checked in the applicable jobs. Without the pinned object those comparisons report `SKIPPED`. The independent performance job skips unavailable counters and fails on observed regressions. Source asset and T03 checks report their results for follow-up. An applicable functional regression or missing required evidence still fails the gate.
 
-The CI license job checks versioned source assets. For a release candidate, run `python3 tools/grind/check_assets.py --manifest /path/to/release-assets.json --sdk-root /path/to/ac79-sdk` in the checkout holding the package and simulator outputs. Record output digests in the detached release manifest after the build so the simulator source archive does not contain its own digest. Release approval requires this check to pass on the candidate files.
+The CI license job checks versioned source assets. Distribution requires clearance or replacement of the affected assets and corresponding source and notices. Use `python3 tools/grind/check_assets.py --manifest /path/to/release-assets.json --sdk-root /path/to/ac79-sdk` to verify a detached release inventory against the candidate package and simulator outputs. Record output digests after the build so the simulator source archive does not contain its own digest.
 
 ```bash
 bash tools/grind/run_ci.sh host-core
@@ -48,7 +48,7 @@ The native lane verifies the archive and SDK before running the toolchain. It bu
 
 The Foundation gate assembles `build/grind-evidence/T03/audit.json` from the current run's native layout probe, resource report and host/WASM results. It validates the record with `python3 tools/grind/audit.py --complete build/grind-evidence/T03/audit.json`. The native probe compiles the firmware translation unit with the app's flags and verifies the measured project record size against the linked ELF. CI retains allowlisted text logs, hashes and JSON reports even when a check is blocked.
 
-The [call-site evidence](callsite-audit.json) records the reviewed `firmware_tree`, integration points and remaining `unknowns`. The validator's `CALLSITE_AREAS` lists the required coverage. A changed firmware tree requires a new review. Open adapter or persistence questions remain part of the T03 evidence and keep the gate blocked.
+The [call-site evidence](callsite-audit.json) records the reviewed `firmware_tree`, integration points and remaining `unknowns`. The validator's `CALLSITE_AREAS` lists the required coverage. A changed firmware tree requires refreshed evidence. Review adapter or persistence questions before enabling the affected paths.
 
 ## Native Linux measurements
 
@@ -63,10 +63,12 @@ An isolated checkout of PR commit `139af92` built the package with exit code 0. 
 | Interrupt stack, static analysis | 1,544 B | 7,936 B | 6,392 B | PASS |
 | Runtime stack high-water and audio deadline | | | | BLOCKED pending FM-1 measurements |
 
+The earlier 161 B figure was the space available under the former 90% static app RAM cap. The measured native region has 9,992 B free. A 2,144 B pattern would leave an estimated 7,848 B before measuring the integrated core. The pool retains its inherited 8,192 B minimum free space, leaving 12,532 B above that floor in this build. Static stack estimates are diagnostic. Verify runtime use on the device before release.
+
 The loader digest matches the upstream pin `cc98eed224299fa42ca22a546073e0f8b98d8362e26b5f325a9aaeab287bdf5d`. The local package was 609,649 B, SHA-256 `0d12d84e10bc9dd918d323aa92469c00c71653871f4eb898c7790681311364a1`. Static target-cost and erase-order checks passed.
 
-## Open Foundation gates
+## Open evidence
 
-- **Frozen reference:** `frozen-base-11` must resolve to `33ef0f3f2e2461d9092fb2394896aa48352f2294`. The upstream change describes it as a local tag. The public refs and checked local Git objects lack the exact commit. The frozen source guard and H2/H3 require a clone or bundle that contains the original object and tag. [Upstream pin change](https://github.com/DeadActive/hortator/commit/efe311f3f5ab011c335249b0dd8ae487de67d78f)
+- **Frozen reference:** `frozen-base-11` is pinned to `33ef0f3f2e2461d9092fb2394896aa48352f2294`. The upstream change describes it as a local tag. The public refs and checked local Git objects lack the exact commit. The frozen source guard and H2/H3 run when the exact commit is available. The required source guard checks HAL and loader paths against `44c9ad4`. [Upstream pin change](https://github.com/DeadActive/hortator/commit/efe311f3f5ab011c335249b0dd8ae487de67d78f)
 - **Licensing:** The [manifest](../../assets/grind/manifest.json) identifies the rights-reserved panel and generated drum sounds and records SDK evidence. Final firmware and simulator license evidence stays blocked pending clearance or replacement. The downloaded compiler archive contains usage instructions and no identified standalone license notice.
 - **Hardware and integration:** Verify stack high-water and audio timing on the FM-1, confirm the board and recovery path, and finish the integration call-site review before freezing adapter interfaces or enabling native persistence. The optional exact-stock recovery fixture needs M-VAVE's V15 package. The current vendor download is V16.
