@@ -61,6 +61,17 @@ typedef struct {
 typedef char gm_cell_size_is_four[sizeof(gm_cell) == 4u ? 1 : -1];
 typedef char gm_lock_covers_cells[GM_LOCK_BYTES * 8u == GM_TRACKS * GM_STEPS ? 1 : -1];
 
+typedef struct {
+    uint64_t anchors[GM_TRACKS], optional[GM_TRACKS], rat1[GM_TRACKS];
+    uint64_t optional_rat1[GM_TRACKS], accents[GM_TRACKS], forbidden, paired;
+    uint8_t length[GM_TRACKS];
+} gm_rule_masks;
+
+const char *gm_style_name(uint8_t id);
+gm_result gm_factory_config(uint8_t id, gm_config *out);
+gm_result gm_factory_pattern(uint8_t id, gm_pattern *out);
+gm_result gm_rules_build(const gm_config *c, gm_rule_masks *out);
+
 /* Length is written only on success. Timing validation covers portable bounds. */
 gm_result gm_grid_length(gm_grid grid, uint8_t *length);
 gm_result gm_validate_config(const gm_config *c);

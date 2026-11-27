@@ -26,10 +26,12 @@ case "${1:-all}" in
     grid) run_test grid "$CORE/grid.c" ;;
     rng) run_rng ;;
     codec) run_test codec "$CORE/serialize.c" "$CORE/grid.c" ;;
+    rules) run_test rules "$CORE/rules.c" "$CORE/grid.c" ;;
     all)
         run_test grid "$CORE/grid.c"
         run_rng
         run_test codec "$CORE/serialize.c" "$CORE/grid.c"
+        run_test rules "$CORE/rules.c" "$CORE/grid.c"
         ;;
     *) echo "unknown suite: $1" >&2; exit 2 ;;
 esac
