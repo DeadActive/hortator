@@ -5,6 +5,16 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **GRIND pages (builds with GRIND_NATIVE=1 only; not in the default image)**: press ARP again after GRIDS for two
+  pages, STYLE AGGR DENS CHAOS and HUMAN MUT WHEN. STYLE picks one of 22 rhythm styles and brings its factory
+  controls; the other knobs re-generate the pattern of all eight tracks from them, MUT rolls a new variation. While
+  the sequencer plays, WHEN END waits for the end of the longest pattern and WHEN STEP for the next step, then every
+  track restarts from its first step together; stopped, the pattern changes at once. A step, LEN, DIV, SWG or SRC you
+  edit while a change waits wins: the waiting change is dropped ("NOT APPLIED"). A running song refuses ("STOP THE
+  SONG"). The GRIND values are not saved in projects and nothing about the project format changes. Not yet: locking
+  single steps against a new pattern, undo, kits matched to the eight roles (the tracks keep their own sounds), the
+  web editor and saving the settings.
+
 ## 1.0.1 - 2026-11-03
 
 - **Newer FM-1s save again**: FM-1s sold recently come with a different flash chip of the same size. Hortator now
