@@ -36,3 +36,30 @@ The plain build uses 88,312 of 98,304 bytes of static app RAM, leaving 9,992 raw
 The native compiler measures `cue_stage_t` at 3,424 bytes and its backing `st_buf` at 3,840 bytes. `cue_stage` fills staged steps and timing in the main loop. `proj_cue_apply` swaps live and staged state at the cue boundary, and `cue_file_out` uses the same buffer to file the outgoing state. Reuse can only be considered once that lifetime and the storage/editor users of `st_buf` have been audited together. Its 416-byte size difference cannot hold a concurrent full pattern.
 
 For P04, evaluate writing one candidate directly into the existing staging representation outside the ISR, with explicit ownership through cue queue, cancellation, swap and file-out. Keep lock metadata separate and account for it in the actual native build. Verify that a rejected generation, concurrent edit or transport change preserves the live, staged and saved state. The pool has 12,532 bytes above its upstream minimum in the baseline. Any pool allocation requires a measured lifetime, contention check and new linker and runtime measurements before the adapter is frozen.
+
+## T10 runtime design (decided, not yet implemented)
+
+Done on this branch: `controller.c` (portable state machine, `tests/grind/test_controller.c`) and the adapter. Still to
+build, in this order, each with a red test on the real sequencer first:
+
+1. **Switch.** `GRIND_NATIVE` (default 0) gates everything below, so the default image and its RAM/flash budget do not
+   change. With 0, `gm_touch()` is an empty inline.
+2. **Stage.** One RAM stage, no heap: `union { gm_pattern base; step_t st[NTRK][NSTEP] + timing }` plus one `gm_pattern
+   out`. `base` is only used while WRITING and the native stage only while READY/READING, and the controller never
+   has both, so they share bytes (about 4.3 KB, to be measured by the native link, not assumed). The main loop
+   generates `base -> out`, checks it with `gm_native_check`, then converts `out` into the native stage; the ISR only
+   copies it (no generator, no conversion loop, no flash in the callback).
+3. **Boundary.** A third queue flag `cue.q_gm` next to `q_slot`/`q_var`: `cue_tick` takes it with the same
+   longest-track (`cue_longest`) or next-step (`cue.now`) boundary, `cue_switch` calls the Grind commit instead of
+   `proj_cue_apply`, then runs the unchanged `seq_restart(x, b24)`; `seq_cut_ahead` treats it like a queued cue so an
+   early micro hit cannot cross the replacement; `cue_stop` and `cue_cancel` drop it. BAR boundaries are refused
+   (`GM_UNSUPPORTED`) until the sequencer has a bar boundary of its own.
+4. **Arbitration.** A native slot/variation cue and a Grind stage never queue together: a native cue key cancels a
+   pending Grind stage (visible status), and a Grind request waits while a native cue is queued.
+5. **Revisions.** `gm_touch()` before every write of a native step by the user, the editor, a tool, a load or a
+   recorded hit (ISR callers use the guard-free variant). Audited sites: `ui.c` step_hold/step_tap/step_accent/
+   track_clear, `ui_input.c` step parameter edits, `ui_tools.c` `tl_step_in`, `editor_pattern.c`, `project.c` loads and
+   `proj_cue_apply`, `seq.c` `rec_hit`/key recording. A missed site is a data-loss risk, so the audit gets its own
+   test that greps the firmware for step writers and fails on an unlisted one.
+6. **Native build.** Link with `GRIND_NATIVE=1` in CI, read the real app RAM, pool floor and ISR budget, and only then
+   decide whether the image ships the engine. Nothing is enabled by default until that evidence exists.
