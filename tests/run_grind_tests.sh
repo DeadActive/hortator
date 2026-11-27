@@ -16,7 +16,20 @@ run_test() {
     "$OUT/test_$suite"
 }
 
+run_rng() {
+    "${PYTHON:-python3}" tools/grind/rng_reference.py > "$OUT/rng-reference.txt"
+    cmp tests/grind/golden/rng-v1.txt "$OUT/rng-reference.txt"
+    run_test rng "$CORE/rng.c"
+}
+
 case "${1:-all}" in
-    grid|all) run_test grid "$CORE/grid.c" ;;
+    grid) run_test grid "$CORE/grid.c" ;;
+    rng) run_rng ;;
+    codec) run_test codec "$CORE/serialize.c" "$CORE/grid.c" ;;
+    all)
+        run_test grid "$CORE/grid.c"
+        run_rng
+        run_test codec "$CORE/serialize.c" "$CORE/grid.c"
+        ;;
     *) echo "unknown suite: $1" >&2; exit 2 ;;
 esac
