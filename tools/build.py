@@ -52,7 +52,8 @@ SDK_SHA256 = {
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
 
-PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
+PRODUCT = "FM-1_984"                # package identity: this firmware's own (the hub marks "on your FM-1" only for an
+                                    # identity no other firmware answers with; FM-1_900 is Felucca's and Hortator's)
 VERSION = None                      # FELUCCA_VERSION for release builds (default: the drum version, VERSION.txt)
 
 
@@ -472,7 +473,7 @@ def drum_label():
 def main():
     global PRODUCT, VERSION
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string X.Y")
+    ap.add_argument("--release", metavar="X.Y", help="release build: version string X.Y (the identity stays FM-1_984)")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     ap.add_argument("--gen-only", action="store_true", help="only the generated headers (host tests)")
     a = ap.parse_args()
@@ -488,7 +489,6 @@ def main():
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y or X.Y-suffix, one digit each")
-        PRODUCT = "FM-1_9" + m[1] + m[2]
         VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
         name = f"felucca-{a.release}.fwsc"
     if ble:                         # a gated BLE build (gates 1-5) may be packaged, named as one

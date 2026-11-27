@@ -63,6 +63,15 @@ jobs:
           JIELI_DOCKER: '0'
         run: |
           ./build.sh 2>&1 | tee build-log.txt
+          python3 - <<'PY'
+          import glob, sys
+          sys.path.insert(0, 'tools')
+          import fm1_install as I
+          for f in glob.glob('build/site/firmware/*.fwsc'):
+              p = I.product_of(open(f, 'rb').read())
+              print(f, 'identity', p)
+              assert p == 'FM-1_984', 'the package must carry this firmware own identity, not ' + p
+          PY
           ls -l build/site/firmware build/site/webapp/installer
       - name: Collect what is published
         id: collect
