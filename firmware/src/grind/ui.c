@@ -39,8 +39,9 @@ static const char *const N_GKIT[] = {"--", "ROLE"};
 static const char *const N_GUNDO[] = {"--", "UNDO"};
 static const char *const N_GFREE[] = {"--", "ALL"};
 static const char *const N_GOK[] = {"--", "OK"};
+static const char *const N_GCUT[] = {"--", "CUT"};
 
-enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_BROWSE, GU_PVBANK, GU_OK, GU_VARY, GU_N };
+enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_BROWSE, GU_PVBANK, GU_OK, GU_VARY, GU_SINK, GU_SWELL, GU_CUT, GU_N };
 static const param_desc_t GP_GRIND[GU_N] = {
     [GU_STYLE] = PE("STYLE", N_GSTYLE, 0),
     [GU_AGGR] = PD("AGGR", F_PCT, 0, 100, 75),
@@ -57,9 +58,12 @@ static const param_desc_t GP_GRIND[GU_N] = {
     [GU_BROWSE] = PE("STYLE", N_GSTYLE, 0),           /* the style browser: the style looked at, nothing live changes */
     [GU_PVBANK] = PD("BANK", F_INT, 1, 4, 1),         /* which 16 steps of a longer pattern the preview shows */
     [GU_VARY] = PD("VARY", F_INT, 0, 100, 0),         /* natural hit variation: a velocity swing per hit (seq.c), no pattern change */
+    [GU_SINK] = PD("SINK", F_INT, 0, 100, 0),         /* B3: the master sinks toward a lowpass; back to 0 it is the normal sound */
+    [GU_SWELL] = PD("SWELL", F_INT, 0, 100, 0),       /* B3: more of the mix into the delay and reverb; back to 0, as before */
+    [GU_CUT] = PE("CUT", N_GCUT, 0),                  /* B3: a performance stop: the transport, a pending change and the voices */
     [GU_OK] = PE("APPLY", N_GOK, 0),                  /* an action: the browsed style becomes the committed one */
 };
-static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
+static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
 
 /* KIT: the eight tracks' sounds for the eight roles the generator writes (gm_role order: K S H R C X TH TL), from the
  * models the default kit already has. The cymbals share one model and the toms another, told apart by TUNE and
@@ -196,10 +200,36 @@ static void gm_pv_update(void)
 }
 
 /* a knob of the GRIND pages was turned (edit_param): the style brings its factory controls, then the request goes out */
+/* B3: SINK and SWELL (0..100) */
+static void gm_master_set(uint32_t sink, uint32_t swell)
+{
+    gm_sink = (uint8_t)(sink > 100u ? 100u : sink);
+    gm_swell = (uint8_t)(swell > 100u ? 100u : swell);
+}
+/* B3: CUT, a performance stop through the ordinary paths: STOP (a queued cue is dropped, the notes end), every track's voices
+ * cut, a staged or waiting Grind change cancelled. Nothing is written to a pattern or a setting; a later PLAY is an ordinary
+ * PLAY (transport_req is a request the sequencer consumes, a CUT leaves nothing behind). The delay and reverb tails ring out. */
+static void gm_master_cut(void)
+{
+    gm_runtime_cancel();
+    transport_req = 2;
+    panic_req = (uint8_t)((1u << NTRK) - 1u);
+}
 static void gm_ui_changed(uint32_t id)
 {
     gm_config c;
     gm_result r;
+    if (id == GU_SINK || id == GU_SWELL) {             /* the macros: held levels, read by perform.c every block */
+        gm_master_set((uint32_t)gm_v[GU_SINK], (uint32_t)gm_v[GU_SWELL]);
+        return;
+    }
+    if (id == GU_CUT) {
+        if (!gm_v[GU_CUT])
+            return;
+        gm_v[GU_CUT] = 0;
+        gm_master_cut();
+        return;
+    }
     if (id == GU_VARY) {                               /* a feel, not a pattern: read by the sequencer per hit */
         gm_vary = (uint8_t)gm_v[GU_VARY];
         return;

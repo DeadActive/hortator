@@ -72,6 +72,7 @@ case "${1:-all}" in
     cue) run_native cue ;;
     ui) run_native ui ;;
     vary) run_native vary ;;
+    master_fx) run_native master_fx ;;
     persist) run_native persist ;;
     menu) run_native menu ;;
     controller) run_test controller "$CORE/controller.c" "$CORE/grid.c" "$CORE/rules.c" "$CORE/core.c" "$CORE/locks.c" \
@@ -100,6 +101,7 @@ case "${1:-all}" in
         run_native cue
         run_native ui
         run_native vary
+        run_native master_fx
         run_native persist
         run_native menu
         run_grind_editor

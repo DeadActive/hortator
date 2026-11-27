@@ -45,7 +45,7 @@ static int grind_page(void)                         /* 0 .. 3 on a GRIND page, e
 {
     if (cur_page()->scope != SC_GRIND)
         return -1;
-    return cur_page()->id[0] == GU_HUMAN ? 1 : cur_page()->id[0] == GU_KEEP ? 2 : cur_page()->id[0] == GU_BROWSE ? 3 : 0;
+    return cur_page()->id[0] == GU_HUMAN ? 1 : cur_page()->id[0] == GU_KEEP ? 2 : cur_page()->id[0] == GU_BROWSE ? 3 : cur_page()->id[0] == GU_SINK ? 4 : 0;
 }
 static void open_grind(uint32_t page)               /* ARP, then ARP again until the GRIND page `page` (0 .. 3) shows */
 {
@@ -704,6 +704,29 @@ static void vary_knob(void)
     check("ui: VARY is a live knob on the KEEP page, it makes no request", ok);
 }
 
+static void live_page(void)
+{
+    uint32_t ok = 1, before;
+    fresh();
+    open_grind(4);
+    ok &= grind_page() == 4;
+    before = sig();
+    turn(EN_K1, 7);
+    turn(EN_K2, 3);
+    frames(4);
+    ok &= gm_sink == 7 && gm_swell == 3;                        /* the macros reach the mixer */
+    ok &= sig() == before && !gmrt.ctl.has_pending;             /* no pattern, no request */
+    turn(EN_K1, -7);
+    turn(EN_K2, -3);
+    frames(4);
+    ok &= gm_sink == 0 && gm_swell == 0;
+    song.playing = 1;
+    turn(EN_K3, 1);                                             /* CUT */
+    frames(4);
+    ok &= !song.playing && gm_v[GU_CUT] == 0;
+    check("ui: the LIVE page: SINK and SWELL are held levels, CUT stops", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -748,6 +771,7 @@ int main(void)
     browser_follows_live_edits_and_keep();
     browser_busy_while_a_request_waits();
     vary_knob();
+    live_page();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

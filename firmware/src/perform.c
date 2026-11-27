@@ -34,6 +34,17 @@
  * Chain: [REPEAT / REVERSE / TAPE / FREEZE / OCT] -> LPF -> HPF -> CRUSH, after the master level and before
  * master_out (the limiter); THROW acts before the buses (fx.c mix_block).
  * Idle (no key, no knob, no ramp left) every stage is skipped: the output is bit-identical. */
+#if GRIND_NATIVE
+/* B3 (grind/ui.c LIVE page): SINK is the FILTER macro's LPF end, SWELL the THROW macro, whichever is stronger of the knob and the
+ * macro; at 0 both read the knob alone, so the idle chain is untouched */
+#define PF_FK(k0) ((int32_t)gm_sink && -(int32_t)gm_sink < (int32_t)(k0) ? -(int32_t)gm_sink : (int32_t)(k0))
+#define PF_TK(k2) ((int32_t)gm_swell > (int32_t)(k2) ? (int32_t)gm_swell : (int32_t)(k2))
+#define PF_GM() ((uint32_t)gm_sink | (uint32_t)gm_swell)
+#else
+#define PF_FK(k0) ((int32_t)(k0))
+#define PF_TK(k2) ((int32_t)(k2))
+#define PF_GM() 0u
+#endif
 enum { PF_R8, PF_R16, PF_R32, PF_REV, PF_LPF, PF_HPF, PF_TAPE, PF_FRZ, PF_OUP, PF_ODN, PF_T1, PF_N = PF_T1 + NTRK };
 #define PF_BIT(e) (1u << (e))
 #define PF_REPEAT 0x7u                                         /* the three REPEAT rates */
@@ -268,7 +279,7 @@ static __attribute__((noinline)) int perf_begin(uint32_t n)
     uint32_t fx = perf_held & ~PF_TRK, held = perf_kill || !fx ? 0u : fx & perf_avail();   /* (idle: no divide) */
     uint32_t q, k, on16 = seq_16th();                 /* (read every block: it is this block's) */
     int32_t m;
-    if (!held && !pf.busy && !(perf_k[0] | perf_k[1] | perf_k[2])) {   /* idle */
+    if (!held && !pf.busy && !(perf_k[0] | perf_k[1] | perf_k[2]) && !PF_GM()) {   /* idle */
         perf_act = 0;
         return 0;
     }
@@ -285,7 +296,7 @@ static __attribute__((noinline)) int perf_begin(uint32_t n)
     }
     perf_act = pf.act;
     /* the filters: LPF from open down over a bar while its key is held, KNOB 1 left; HPF up, KNOB 1 right */
-    m = perf_k[0];
+    m = PF_FK(perf_k[0]);
     {
         uint32_t bar = 16u * pf.P, t;
         int32_t lt = PF_TOP, ht = 0;
@@ -320,7 +331,7 @@ static __attribute__((noinline)) void perf_pre(const int32_t *ml, const int32_t 
                                                uint32_t n)
 {
     uint32_t i;
-    int32_t m = perf_k[2] * 327;
+    int32_t m = PF_TK(perf_k[2]) * 327;
     for (i = 0; i < n; i++) {
         pf.td += clamp(m - pf.td, -SL_SLOPE, SL_SLOPE);
         if (pf.td) {
@@ -564,7 +575,7 @@ static __attribute__((noinline)) void perf_block(int32_t *bl, int32_t *br, uint3
         }
         if (pf.mode != BM_NONE)
             perf_buf(&l, &r);
-        lt = (a & PF_BIT(PF_LPF)) || perf_k[0] < 0 || pf.lc < PF_TOP ? 32768 : 0;
+        lt = (a & PF_BIT(PF_LPF)) || PF_FK(perf_k[0]) < 0 || pf.lc < PF_TOP ? 32768 : 0;
         pf.la += clamp(lt - pf.la, -SL_SLOPE, SL_SLOPE);
         if (pf.la) {
             int32_t fl = pf_svf(clamp(l >> 2, -32767, 32767), &pf.lz[0], pf.lk, 0) << 2;
@@ -600,5 +611,5 @@ static __attribute__((noinline)) void perf_block(int32_t *bl, int32_t *br, uint3
         br[i] = r;
     }
     pf.busy = pf.act || pf.mode != BM_NONE || pf.w || pf.la || pf.ha || pf.cw || pf.td || perf_k[0] ||
-              perf_k[1] || perf_k[2];
+              perf_k[1] || perf_k[2] || PF_GM();
 }
