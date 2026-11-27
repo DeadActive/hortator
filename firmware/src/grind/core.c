@@ -19,6 +19,22 @@ static int empty_cell(gm_cell cell)
     return !cell.flags && !cell.cond && !cell.note && !cell.micro;
 }
 
+static int structurally_valid(const gm_pattern *p)
+{
+    for (unsigned t = 0; t < GM_TRACKS; ++t) {
+        gm_timing timing = p->timing[t];
+        if (gm_validate_timing(timing) != GM_OK || timing.swing > 100u || timing.source > 3u)
+            return 0;
+        for (unsigned s = 0; s < GM_STEPS; ++s) {
+            gm_cell cell = p->cell[t][s];
+            if (!valid_cell(cell) || (s >= timing.length &&
+                                      (!empty_cell(cell) || gm_is_locked(p, t, s))))
+                return 0;
+        }
+    }
+    return 1;
+}
+
 static gm_result validate_pattern(const gm_config *c, const gm_rule_masks *rules, const gm_pattern *p)
 {
     unsigned simultaneous[GM_STEPS] = {0}, sum_track_max = 0, polymetric = 0;
@@ -79,7 +95,10 @@ static gm_cell generated_cell(const gm_config *c, const gm_rule_masks *rules, gm
         return cell;
 
     unsigned required_accent = (rules->accents[track] & bit) != 0u;
-    unsigned accent = chance(c, track, step, GM_DOMAIN_ACCENT, c->aggression);
+    unsigned accent_step = c->algorithm == 18u ? 0u : step;
+    unsigned accent = chance(c, track, accent_step, GM_DOMAIN_ACCENT, c->aggression);
+    if (c->algorithm == 4u && track == GM_SNARE && timing.division == 32u)
+        accent = required_accent;
     if (optional && chance(c, track, step, GM_DOMAIN_CHAOS, c->chaos))
         accent ^= 1u;
     if (optional && chance(c, track, step, GM_DOMAIN_ACCENT_HUMANIZE, c->humanize / 4u))
@@ -105,7 +124,7 @@ static gm_cell generated_cell(const gm_config *c, const gm_rule_masks *rules, gm
 
 gm_result gm_generate(const gm_config *c, const gm_pattern *base, gm_pattern *out)
 {
-    if (!out || base == out)
+    if (!out || base == out || (base && !structurally_valid(base)))
         return GM_INVALID;
     gm_rule_masks rules;
     gm_result result = gm_rules_build(c, &rules);
@@ -123,9 +142,6 @@ gm_result gm_generate(const gm_config *c, const gm_pattern *base, gm_pattern *ou
                 if (s >= rules.length[t] || s >= old.length ||
                     old.division != c->grid.division || old.source != 0u)
                     return GM_LOCK_CONFLICT;
-                if (gm_validate_timing(old) != GM_OK || old.swing > 100u ||
-                    !valid_cell(base->cell[t][s]))
-                    return GM_INVALID;
                 next.timing[t].swing = old.swing;
                 next.cell[t][s] = base->cell[t][s];
                 (void)gm_set_lock(&next, t, s, 1);

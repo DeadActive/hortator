@@ -116,10 +116,27 @@ static void add_optional(const gm_config *c, gm_rule_masks *m)
             m->optional[GM_KICK] = m->optional[GM_SNARE] = m->paired;
         }
         break;
+    case 8:
+        if (c->grid.division == 32u)
+            for (unsigned s = 1; s < m->length[GM_KICK]; s += 2)
+                m->optional[GM_KICK] |= step_bit(s) & ~m->anchors[GM_KICK];
+        break;
     case 16:
         for (unsigned s = 2; s < m->length[GM_KICK]; s += 4)
             m->optional[GM_KICK] |= step_bit(s) & ~m->anchors[GM_KICK];
         break;
+    case 17: {
+        /* Ghost candidates between the fixed snare accents. Keep the ride pulse. */
+        const uint32_t zone = UINT32_C(0x8484);
+        const unsigned bar_steps = m->length[GM_SNARE] / c->grid.bars;
+        for (unsigned s = 0; s < m->length[GM_SNARE]; ++s) {
+            unsigned numerator = (s % bar_steps) * 16u;
+            unsigned ref = numerator / c->grid.division % REFERENCE_STEPS;
+            if (numerator % c->grid.division == 0 && (zone & (UINT32_C(1) << ref)))
+                m->optional[GM_SNARE] |= step_bit(s) & ~m->anchors[GM_SNARE];
+        }
+        break;
+    }
     default:
         break;
     }

@@ -53,6 +53,24 @@ int main(void)
     assert(!memcmp(&previous, &next, sizeof next));
     assert(!memcmp(&base, &before, sizeof base));
 
+    assert(gm_factory_config(1, &c) == GM_OK);
+    assert(gm_generate(&c, NULL, &base) == GM_OK);
+    base.cell[GM_KICK][0].flags |= UINT8_C(0x80);
+    before = base;
+    previous = next;
+    assert(gm_generate(&c, &base, &next) == GM_INVALID);
+    assert(!memcmp(&base, &before, sizeof base));
+    assert(!memcmp(&previous, &next, sizeof next));
+
+    assert(gm_factory_config(4, &c) == GM_OK);
+    c.grid.division = 32;
+    c.aggression = 100;
+    assert(gm_generate(&c, NULL, &next) == GM_OK);
+    for (unsigned s = 0; s < 32; s += 4) {
+        assert((next.cell[GM_SNARE][s].flags & (GM_ON | GM_ACC)) == (GM_ON | GM_ACC));
+        assert((next.cell[GM_SNARE][s + 1u].flags & (GM_ON | GM_ACC)) == GM_ON);
+    }
+
     assert(gm_factory_config(2, &c) == GM_OK);
     c.aggression = c.humanize = 0;
     c.chaos = 0;
@@ -76,6 +94,40 @@ int main(void)
     assert(!memcmp(&previous, &next, sizeof next));
     assert(gm_validate(&c, &before) == GM_OK);
 
+    assert(gm_factory_config(17, &c) == GM_OK);
+    c.density = 0;
+    assert(gm_generate(&c, NULL, &base) == GM_OK);
+    c.density = 100;
+    assert(gm_generate(&c, NULL, &next) == GM_OK);
+    assert(!(base.cell[GM_SNARE][2].flags & GM_ON));
+    assert(next.cell[GM_SNARE][2].flags & GM_ON);
+    assert(!memcmp(next.cell[GM_RIDE], base.cell[GM_RIDE], sizeof next.cell[GM_RIDE]));
+
+    assert(gm_factory_config(8, &c) == GM_OK);
+    c.grid.division = 32;
+    c.density = 0;
+    assert(gm_generate(&c, NULL, &base) == GM_OK);
+    c.density = 100;
+    assert(gm_generate(&c, NULL, &next) == GM_OK);
+    for (unsigned s = 0; s < 32; ++s) {
+        assert(!!(base.cell[GM_KICK][s].flags & GM_ON) == !(s & 1u));
+        assert(next.cell[GM_KICK][s].flags & GM_ON);
+    }
+
+    assert(gm_factory_config(18, &c) == GM_OK);
+    assert(gm_generate(&c, NULL, &next) == GM_OK);
+    for (unsigned t = 0; t < GM_TRACKS; ++t) {
+        int accent = -1;
+        for (unsigned s = 0; s < 16; ++s) {
+            gm_cell cell = next.cell[t][s];
+            if (!(cell.flags & GM_ON))
+                continue;
+            int got = !!(cell.flags & GM_ACC);
+            assert(accent == -1 || accent == got);
+            assert(cell.micro == 0);
+            accent = got;
+        }
+    }
 
     assert(gm_factory_config(13, &c) == GM_OK);
     c.aggression = c.chaos = c.density = c.humanize = 100;

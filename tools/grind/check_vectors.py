@@ -40,6 +40,8 @@ def pattern(row, seed):
             optional = ((1 << length) - 1) ^ anchors
         elif style == 16 and role == "kick":
             optional = sum(1 << s for s in range(2, length, 4)) & ~anchors
+        elif style == 17 and role == "snare":
+            optional = sum(1 << s for s in (2, 7, 10, 15))
         for step in range(64):
             bit = 1 << step
             key = mix(base_key ^ (track * 256 + step))
@@ -48,7 +50,8 @@ def pattern(row, seed):
             if not (anchors & bit or optional_hit):
                 data.extend(bytes(4))
                 continue
-            accent = mix(key ^ 3) % 100 < 75
+            accent_key = mix(base_key ^ (track << 8)) if style == 18 else key
+            accent = mix(accent_key ^ 3) % 100 < 75
             if optional_hit:
                 accent ^= mix(key ^ 2) % 100 < 20
                 accent ^= mix(key ^ 5) % 100 < human // 4
