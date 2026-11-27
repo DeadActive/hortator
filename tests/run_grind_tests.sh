@@ -71,11 +71,13 @@ case "${1:-all}" in
     adapter) run_native adapter ;;
     cue) run_native cue ;;
     ui) run_native ui ;;
+    vary) run_native vary ;;
     persist) run_native persist ;;
     menu) run_native menu ;;
     controller) run_test controller "$CORE/controller.c" "$CORE/grid.c" "$CORE/rules.c" "$CORE/core.c" "$CORE/locks.c" \
         "$CORE/rng.c" "$CORE/serialize.c" ;;
     grid) run_test grid "$CORE/grid.c" ;;
+    hit_variation) run_test hit_variation ;;
     rng) run_rng ;;
     codec) run_test codec "$CORE/serialize.c" "$CORE/grid.c" ;;
     rules) run_test rules "$CORE/rules.c" "$CORE/grid.c" ;;
@@ -84,6 +86,7 @@ case "${1:-all}" in
     golden) run_golden ;;
     all)
         run_test grid "$CORE/grid.c"
+        run_test hit_variation
         run_rng
         run_test codec "$CORE/serialize.c" "$CORE/grid.c"
         run_test rules "$CORE/rules.c" "$CORE/grid.c"
@@ -96,6 +99,7 @@ case "${1:-all}" in
         run_native adapter
         run_native cue
         run_native ui
+        run_native vary
         run_native persist
         run_native menu
         run_grind_editor

@@ -14,6 +14,7 @@
 #endif
 #if GRIND_NATIVE
 static void gm_touch(void);
+static uint8_t gm_vary;                       /* A3: natural hit variation, 0..100 (0 = off; GRIND page, not stored) */
 static void gm_touch_isr(void);
 static void gm_context_isr(void);
 static void gm_runtime_stop(void);

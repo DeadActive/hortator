@@ -685,6 +685,25 @@ static void browser_busy_while_a_request_waits(void)
     check("ui: the preview waits (BUSY) while a request is staged, then appears", ok);
 }
 
+static void vary_knob(void)
+{
+    uint32_t ok = 1, before;
+    fresh();
+    open_grind(2);
+    ok &= gm_vary == 0;
+    before = sig();
+    turn(EN_K4, 5);
+    frames(4);
+    ok &= gm_vary > 0 && gm_vary == (uint8_t)gm_v[GU_VARY];     /* VARY reaches the sequencer */
+    ok &= sig() == before && !gmrt.ctl.has_pending;             /* a performance feel: no pattern, no request */
+    turn(EN_K4, -5);
+    frames(4);
+    ok &= gm_vary == 0;
+    if (!ok)
+        printf("v=%d vary=%d sig=%d pend=%d\n", gm_v[GU_VARY], gm_vary, sig() == before, gmrt.ctl.has_pending);
+    check("ui: VARY is a live knob on the KEEP page, it makes no request", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -728,6 +747,7 @@ int main(void)
     browser_confirm_playing();
     browser_follows_live_edits_and_keep();
     browser_busy_while_a_request_waits();
+    vary_knob();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

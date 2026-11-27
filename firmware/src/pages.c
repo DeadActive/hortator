@@ -60,7 +60,7 @@ static const page_t PAGES[] = {
 #if GRIND_NATIVE                  /* the portable rhythm engine: ARP again, after GRIDS (grind/ui.c) */
     {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS}},
     {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT}},
-    {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_KEEP, GU_UNDO, GU_FREE, 0xFF}},
+    {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_KEEP, GU_UNDO, GU_FREE, GU_VARY}},
     {"GRIND", FAM_GRIDS, SC_GRIND, GR_GRINDPV, {GU_BROWSE, GU_PVBANK, GU_OK, 0xFF}},
 #endif
     /* LFO: both LFOs on every page, LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4; then DEST, the track's 4 slots: KNOB 1 the

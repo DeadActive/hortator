@@ -40,7 +40,7 @@ static const char *const N_GUNDO[] = {"--", "UNDO"};
 static const char *const N_GFREE[] = {"--", "ALL"};
 static const char *const N_GOK[] = {"--", "OK"};
 
-enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_BROWSE, GU_PVBANK, GU_OK, GU_N };
+enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_BROWSE, GU_PVBANK, GU_OK, GU_VARY, GU_N };
 static const param_desc_t GP_GRIND[GU_N] = {
     [GU_STYLE] = PE("STYLE", N_GSTYLE, 0),
     [GU_AGGR] = PD("AGGR", F_PCT, 0, 100, 75),
@@ -56,9 +56,10 @@ static const param_desc_t GP_GRIND[GU_N] = {
     [GU_KIT] = PE("KIT", N_GKIT, 0),                  /* an action: ROLE sets the eight sounds (twice to act) */
     [GU_BROWSE] = PE("STYLE", N_GSTYLE, 0),           /* the style browser: the style looked at, nothing live changes */
     [GU_PVBANK] = PD("BANK", F_INT, 1, 4, 1),         /* which 16 steps of a longer pattern the preview shows */
+    [GU_VARY] = PD("VARY", F_INT, 0, 100, 0),         /* natural hit variation: a velocity swing per hit (seq.c), no pattern change */
     [GU_OK] = PE("APPLY", N_GOK, 0),                  /* an action: the browsed style becomes the committed one */
 };
-static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0, 0, 1, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
+static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
 
 /* KIT: the eight tracks' sounds for the eight roles the generator writes (gm_role order: K S H R C X TH TL), from the
  * models the default kit already has. The cymbals share one model and the toms another, told apart by TUNE and
@@ -199,6 +200,10 @@ static void gm_ui_changed(uint32_t id)
 {
     gm_config c;
     gm_result r;
+    if (id == GU_VARY) {                               /* a feel, not a pattern: read by the sequencer per hit */
+        gm_vary = (uint8_t)gm_v[GU_VARY];
+        return;
+    }
     if (id == GU_BROWSE || id == GU_PVBANK)
         return;                                        /* looking: nothing live changes, the frame makes the preview */
     if (id == GU_OK) {                                 /* APPLY: the browsed style, as a STYLE turn (its factory controls) */
