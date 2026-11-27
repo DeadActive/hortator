@@ -10,7 +10,7 @@ frozen-base-11 storage.c's variation objects OBJ_VAR0..3 at 0xC0000..0xC7FFF, 20
 
   tools/check_untouched.py [--tree DIR]     historical source comparison
   tools/check_untouched.py --available-reference [--tree DIR]
-                                          protected HAL/loader source at the available Hortator pin
+                                          protected HAL/loader and application boot recovery at the available Hortator pin
   tools/check_untouched.py --historical-ref
                                           exact historical commit SHA, if available
 
@@ -96,11 +96,15 @@ def check_available(tree):
         p = tree / name
         if p.is_symlink() or not p.is_file() or p.read_bytes() != git("show", f"{AVAILABLE_PIN}:{name}", check=True).stdout:
             problems.append(f"{name} differs from {AVAILABLE_PIN}")
+    main = tree / "firmware/src/main.c"
+    if (main.is_symlink() or not main.is_file() or
+            strip_main(main.read_text()) != strip_main(upstream(AVAILABLE_PIN, "firmware/src/main.c"))):
+        problems.append("firmware/src/main.c differs outside felucca_init() and the boot titles")
     if problems:
         for detail in problems:
             print(f"FAIL: available source: {detail}")
         return 1
-    print(f"PASS: available Hortator HAL/loader source matches {AVAILABLE_PIN}")
+    print(f"PASS: available Hortator HAL/loader and application recovery source matches {AVAILABLE_PIN}")
     return 0
 
 

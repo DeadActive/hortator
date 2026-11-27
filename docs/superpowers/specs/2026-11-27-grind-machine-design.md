@@ -465,7 +465,7 @@ Neue Funktionen erhalten relevante reproduzierbare Regressionstests. Host/WASM p
 Vor dem ersten GRIND-Flash:
 1. Exakte FM-1-Hardware-/Flash-ID und bestehende Firmwareversion über ein dokumentiertes, ausschließlich lesendes Verfahren feststellen. Neue Flash-Chips separat behandeln. Felucca dokumentiert z. B. eine Beta-Unterstützung für UC25HQ80 (`0xB36014`), deren damalige reale Validierung offen war [S5]. Daraus folgt keine automatische Hortator-/GRIND-Freigabe.
 2. Kompatibilitätsmatrix mit genauem Gerät, Flash-Typ, gepinntem Upstream-Stand, Loader-/Installer-Version und unterstütztem Paket erstellen.
-3. Nutzerprojekte/Presets/Samples mit passendem Felucca-Werkzeug sichern und den dokumentierten Rückweg bereithalten. Vollständiger Flash-Readback ist keine zusätzliche Pflicht.
+3. Nutzerprojekte/Presets/Samples mit passendem Felucca-Werkzeug sichern, die Lesbarkeit und Wiederherstellbarkeit der Sicherung vor der Installation mit dem unterstützten Backup-/Restore-Werkzeug bzw. dessen vorhandener Prüf-/Restore-Funktion überprüfen und den dokumentierten Rückweg bereithalten. Vollständiger Flash-Readback oder eine physische Testwiederherstellung vor dem Update ist keine zusätzliche Pflicht.
 4. Original-Firmware und bekannte funktionierende Felucca-Version, Quellen/Installer und Wiederherstellungsanleitung bereithalten; Stromversorgung und bekannt gutes Datenkabel prüfen. Kein zweiter Installer/Editor gleichzeitig.
 5. Verifizieren, dass das konkrete Rückkehrverfahren zum Gerät und Betriebssystem passt. Upstream dokumentiert Boot-ROM-Recovery auf einem Mac für bestimmte Fälle; wenn das Gerät Boot-Modus nicht erreicht, kann zusätzliche Transporter-Hardware nötig sein [S3]. Es besteht kein garantierter risikofreier Rückweg in jedem Defektfall.
 

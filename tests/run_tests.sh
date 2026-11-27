@@ -82,7 +82,8 @@ frozen_pin=$(python3 tools/check_untouched.py --historical-ref) || historical_st
 case "$historical_status" in
     0)
         if [ ! -d build/upstream/build ]; then
-            echo "SKIPPED: historical: H2/H3 require a build of $frozen_pin (sh tools/upstream_build.sh)"
+            echo "BLOCKED: H2 requires a build of available historical commit $frozen_pin (sh tools/upstream_build.sh)"
+            blocked=1
         elif ! sh tools/upstream_build.sh --verify; then
             fail=1
         else

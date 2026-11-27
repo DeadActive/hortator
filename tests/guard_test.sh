@@ -9,6 +9,8 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 "$PY" "$GUARD" --available-reference
 mkdir "$TMP/available" "$TMP/available/firmware"
 cp -R firmware/hal firmware/loader "$TMP/available/firmware/"
+mkdir -p "$TMP/available/firmware/src"
+cp firmware/src/main.c "$TMP/available/firmware/src/main.c"
 printf '\n/* guard negative fixture */\n' >> "$TMP/available/firmware/hal/fm1_audio.h"
 status=0
 "$PY" "$GUARD" --available-reference --tree "$TMP/available" > "$TMP/available.log" 2>&1 || status=$?
@@ -18,6 +20,16 @@ if [ "$status" -ne 1 ] || ! grep -Fq 'FAIL: available source: firmware/hal/fm1_a
     exit 1
 fi
 echo "PASS: guard rejects a protected HAL change"
+cp firmware/hal/fm1_audio.h "$TMP/available/firmware/hal/fm1_audio.h"
+sed -i.bak 's/fm1_enter_uboot();/fm1_reboot();/' "$TMP/available/firmware/src/main.c"
+status=0
+"$PY" "$GUARD" --available-reference --tree "$TMP/available" > "$TMP/recovery.log" 2>&1 || status=$?
+if [ "$status" -ne 1 ] || ! grep -Fq 'FAIL: available source: firmware/src/main.c differs' "$TMP/recovery.log"; then
+    cat "$TMP/recovery.log"
+    echo "FAIL: available source guard did not reject a boot recovery change"
+    exit 1
+fi
+echo "PASS: guard rejects a boot recovery change"
 
 status=0
 "$PY" "$GUARD" --historical-ref >/dev/null || status=$?

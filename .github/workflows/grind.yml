@@ -125,6 +125,7 @@ jobs:
           name: grind-wasm-evidence-attempt-${{ github.run_attempt }}
           if-no-files-found: ignore
           path: |
+            build/grind-evidence/grind-core-wasm.log
             build/grind-evidence/wasm-preview.log
             build/grind-evidence/web-regression.log
             build/grind-evidence/web-editor.log

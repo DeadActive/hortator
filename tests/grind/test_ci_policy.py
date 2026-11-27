@@ -34,11 +34,46 @@ class CiPolicyTests(unittest.TestCase):
         self.assertEqual(status, 'status=SKIPPED')
         self.assertIn('PASS: functional suite', result.stdout)
 
-    def test_lost_instruction_counter_is_skipped(self):
+    def test_lost_instruction_counter_retries_all_functional_checks(self):
         result, status = self.run_lane(
-            'performance', "echo 'BLOCKED: performance: host instruction counter stopped responding'\nexit 2\n")
+            'performance', "if [ \"${GRIND_DISABLE_PERFORMANCE:-0}\" = 1 ]; then\n"
+            "  echo 'SKIPPED: performance: disabled'\n  echo 'PASS: backup restore'\n"
+            "else\n  echo 'BLOCKED: performance: host instruction counter stopped responding'\n  exit 2\nfi\n")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(status, 'status=SKIPPED')
+        self.assertIn('PASS: backup restore', result.stdout)
+
+    def test_retry_failure_is_not_hidden(self):
+        result, status = self.run_lane(
+            'performance', "if [ \"${GRIND_DISABLE_PERFORMANCE:-0}\" = 1 ]; then\n"
+            "  echo 'FAIL: backup restore'\n  exit 1\n"
+            "else\n  echo 'BLOCKED: performance: host instruction counter did not advance'\n  exit 2\nfi\n")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(status, 'status=FAIL')
+
+    def test_retry_required_skip_is_not_hidden(self):
+        result, status = self.run_lane(
+            'performance', "if [ \"${GRIND_DISABLE_PERFORMANCE:-0}\" = 1 ]; then\n"
+            "  echo 'fidelity: SKIPPED (offline)'\n"
+            "else\n  echo 'BLOCKED: performance: host instruction counter stopped responding'\n  exit 2\nfi\n")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(status, 'status=BLOCKED')
+
+    def test_available_historical_commit_requires_a_build(self):
+        source = (ROOT / 'tests/run_tests.sh').read_text(encoding='utf-8')
+        start = source.index('historical_status=0\n')
+        end = source.index('run "H3 self-test', start)
+        with tempfile.TemporaryDirectory() as directory:
+            # Run the actual historical branch without requiring the native SDK.
+            script = ("fail=0; blocked=0; "
+                      "python3() { echo 33ef0f3f2e2461d9092fb2394896aa48352f2294; };\n"
+                      + source[start:end]
+                      + 'if [ "$fail" -ne 0 ]; then exit 1; fi\n'
+                      + 'if [ "$blocked" -ne 0 ]; then exit 2; fi\n')
+            result = subprocess.run(['sh', '-c', script], cwd=directory,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn('BLOCKED: H2 requires a build', result.stdout)
 
     def test_lost_instruction_counter_does_not_hide_earlier_failure(self):
         result, status = self.run_lane(

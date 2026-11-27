@@ -3,17 +3,32 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-CC=${CC:-cc}
+WASM=${GRIND_WASM:-0}
+if [ "$WASM" = 1 ]; then
+    CC=${CC:-emcc}
+    OUT=build/grind-wasm
+else
+    CC=${CC:-cc}
+    OUT=build/grind-host
+fi
 CFLAGS="-std=c99 -O1 -g -Wall -Wextra -Werror -UNDEBUG ${GRIND_SAN_FLAGS:-}"
-OUT=build/grind-host
 CORE=firmware/src/grind
 mkdir -p "$OUT"
 
 run_test() {
     suite=$1
     shift
-    $CC $CFLAGS -I"$CORE" "tests/grind/test_$suite.c" "$@" -o "$OUT/test_$suite"
-    "$OUT/test_$suite"
+    if [ "$WASM" = 1 ]; then
+        case "$suite" in
+            rng) set -- "$@" --embed-file tests/grind/golden/rng-v1.txt@/tests/grind/golden/rng-v1.txt ;;
+            golden) set -- "$@" --embed-file tests/grind/golden/patterns-v1.bin@/tests/grind/golden/patterns-v1.bin ;;
+        esac
+        $CC $CFLAGS -sEXIT_RUNTIME=1 -sSTACK_SIZE=256KB -I"$CORE" "tests/grind/test_$suite.c" "$@" -o "$OUT/test_$suite.js"
+        "${NODE:-node}" "$OUT/test_$suite.js"
+    else
+        $CC $CFLAGS -I"$CORE" "tests/grind/test_$suite.c" "$@" -o "$OUT/test_$suite"
+        "$OUT/test_$suite"
+    fi
 }
 
 run_rng() {

@@ -68,25 +68,31 @@ check() {
 suite() {
     local name=$1 performance=$2 status=0
     shift 2
+    local log="$evidence/$name.log" skipped
     capture "$name" "$@" || status=$?
-    if [[ $name == native-host ]] && grep -Fq 'official V15 restore: skipped' "$evidence/$name.log"; then
+    if [[ $performance == diagnostic || $performance == optional ]] && (( status == 2 )) &&
+        grep -q '^BLOCKED: performance: host instruction counter ' "$log" &&
+        ! grep -qE '^FAIL([:[:space:]]|$)' "$log"; then
+        report SKIPPED "$name interrupted instruction measurement; retrying functional suite"
+        if [[ $performance == diagnostic ]]; then lane_status=SKIPPED; fi
+        status=0
+        capture "$name-retry" env GRIND_DISABLE_PERFORMANCE=1 GRIND_REQUIRE_PERFORMANCE=0 "$@" || status=$?
+        cat "$evidence/$name-retry.log" >> "$log" || { report FAIL "$name retry evidence"; return; }
+        log="$evidence/$name-retry.log"
+    fi
+    if [[ $name == native-host ]] && grep -Fq 'official V15 restore: skipped' "$log"; then
         report SKIPPED 'official stock recovery fixture (requires M-VAVE V15)'
     fi
     if (( status != 0 )); then
-        if grep -qE '^FAIL([:[:space:]]|$)' "$evidence/$name.log"; then
+        if grep -qE '^FAIL([:[:space:]]|$)' "$log"; then
             report FAIL "$name"
-        elif [[ $performance == diagnostic ]] && (( status == 2 )) &&
-            grep -q '^BLOCKED: performance:' "$evidence/$name.log"; then
-            report SKIPPED "$name instruction counts"
-            lane_status=SKIPPED
-        elif (( status == 2 )) && grep -q '^BLOCKED:' "$evidence/$name.log"; then
+        elif (( status == 2 )) && grep -q '^BLOCKED:' "$log"; then
             report BLOCKED "$name"
         else
             report FAIL "$name"
         fi
         return
     fi
-    local log="$evidence/$name.log" skipped
     skipped=$(grep -iE '^SKIPPED:|^== (H2/H3 )?skip|^[[:alnum:]_.-]+: skipped([[:space:]]|$)' "$log" || true)
     if printf '%s\n' "$skipped" | grep -q '^SKIPPED: historical:'; then
         report SKIPPED "$name historical comparisons"
@@ -218,6 +224,15 @@ case $lane in
         suite performance diagnostic env GRIND_REQUIRE_PERFORMANCE=0 sh tests/run_drum_tests.sh
         ;;
     wasm)
+        if [[ -f tests/run_grind_tests.sh ]]; then
+            if mkdir -p build/grind-wasm; then
+                check grind-core-wasm docker run --rm -v "$PWD":/src -w /src -u "$(id -u):$(id -g)" \
+                    -e GRIND_WASM=1 -e EM_CACHE=/src/build/grind-wasm/emcache emscripten/emsdk:6.0.11 \
+                    sh tests/run_grind_tests.sh all
+            else
+                report FAIL 'prepare Grind WASM output'
+            fi
+        fi
         check wasm-preview bash tools/build_sim.sh --preview
         preview_status=$result
         suite web-regression wasm node web/test_web.mjs
