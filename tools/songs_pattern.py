@@ -120,6 +120,12 @@ def quantize(song):
     return dict(events=events, phase=phase, err=err(phase), dropped=dropped, accents=len(vels) > 1)
 
 
+def shifted(events, n):
+    """the hits `n` 16ths later (earlier when negative); the grid's own downbeat is a guess for an excerpt cut from
+    the middle of a song, and a window that starts one 16th off is slid back with this"""
+    return [(s + n, r, a, d) for s, r, a, d in events if s + n >= 0]
+
+
 def bar_counts(events):
     n = {}
     for s, _, _, _ in events:
@@ -359,6 +365,7 @@ def cmd_list(a):
 def cmd_show(a):
     name, s = pick(load(a.file), a.song)
     q = quantize(s)
+    q["events"] = shifted(q["events"], a.shift)
     bar = a.bar - 1 if a.bar else best_bar(q["events"])
     cells = window(q["events"], bar)
     print(f"{name}: {s['bpm']:g} BPM, bars {bar + 1}..{bar + 4}  (x hit, X accent)")
@@ -390,6 +397,7 @@ def cmd_compare(a):
 def cmd_send(a):
     name, s = pick(load(a.file), a.song)
     q = quantize(s)
+    q["events"] = shifted(q["events"], a.shift)
     bar = a.bar - 1 if a.bar else best_bar(q["events"])
     cells = window(q["events"], bar)
     print(f"{name}: bars {bar + 1}..{bar + 4}, {s['bpm']:g} BPM")
@@ -430,6 +438,7 @@ def main(argv=None):
     p.add_argument("file")
     p.add_argument("song")
     p.add_argument("--bar", type=bar_arg, help="first bar of the window, counted from 1 (default: the densest)")
+    p.add_argument("--shift", type=int, default=0, help="slide the hits by N 16ths (e.g. -1) if the bar line looks off")
     p.set_defaults(fn=cmd_show)
     p = sub.add_parser("compare")
     p.add_argument("file")
@@ -439,6 +448,7 @@ def main(argv=None):
     p.add_argument("file")
     p.add_argument("song")
     p.add_argument("--bar", type=bar_arg)
+    p.add_argument("--shift", type=int, default=0, help="slide the hits by N 16ths (e.g. -1)")
     p.add_argument("--var", type=var_arg, help="variation of the loaded pattern, 0..7 (default: the playing one)")
     p.add_argument("--port", help="regex for the FM-1's MIDI port name")
     p.add_argument("--bpm", action="store_true", help="also set the song's tempo")

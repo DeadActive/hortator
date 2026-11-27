@@ -101,6 +101,11 @@ class Window(unittest.TestCase):
         q = sp.quantize(song(h))
         self.assertEqual(sp.best_bar(q["events"]), 8)
 
+    def test_shifted_slides_the_hits_and_drops_what_falls_before_the_start(self):
+        ev = sp.quantize(song([(0, 36), (4, 38), (8, 36)]))["events"]
+        self.assertEqual(sorted(e[0] for e in sp.shifted(ev, 1)), [1, 5, 9])
+        self.assertEqual(sorted(e[0] for e in sp.shifted(ev, -1)), [3, 7])
+
     def test_best_bar_counts_a_step_once(self):
         thin = [(s, 36) for s in range(0, 64, 2)]                              # 32 hits, one role
         stacked = [(s, 36) for s in range(0, 8, 2)] * 20                       # 80 notes on 4 steps
