@@ -340,6 +340,7 @@ Styles are zero-based. WHEN is 0 for STEP and 1 for END.
 
 Use the normal write retry rules for GRIND_SET. An acknowledged generator change
 can still be pending. Poll GRIND_GET for the commit count and status.
+A KEEP mask change invalidates an already staged pattern. Generate again to apply the new mask.
 Use SAVE to persist the resulting project.
 
 ### 2.7 Samples: SMP_INFO, SMP_BEGIN, SMP_DATA, SMP_END, SMP_READ, SMP_CLEAR, SMP_RENAME

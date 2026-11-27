@@ -11,13 +11,13 @@ const ROLES = ["Kick", "Snare", "Hi-hat", "Ride", "Crash", "China", "High tom", 
 function mount(panel, { session, confirm }) {
   panel.innerHTML = `
     <h2>GRIND</h2>
-    <p>Generate a pattern across eight tracks. Save the result in Projects before switching off the FM-1.</p>
+    <p>Generate a pattern across eight tracks. Stop playback and use <strong>Patterns → Save on FM-1</strong> to save the loaded project. If no project is loaded, choose a slot with <strong>SAVE</strong> on the device.</p>
     <fieldset data-controls><legend>Generator</legend><div class="grind-controls"></div>
       <div class="grind-actions"><button type="button" data-roll>New variation</button>
         <button type="button" data-kit>Apply role kit</button><button type="button" data-undo>Undo</button></div>
     </fieldset>
     <fieldset data-keep><legend>Keep steps</legend>
-      <p>Protected hits and rests carry over to the next generation. Protection is temporary.</p>
+      <p>Protected hits and rests carry over to the next generation. Changing protection can cancel a waiting pattern.</p>
       <label>Track <select data-track></select></label>
       <div class="grind-actions"><button type="button" data-protect>Keep track</button>
         <button type="button" data-clear>Free track</button><button type="button" data-free>Free all tracks</button></div>
@@ -37,6 +37,7 @@ function mount(panel, { session, confirm }) {
   selectTrack.addEventListener("change", () => {
     track = Number(selectTrack.value);
     state = undefined;
+    feedback = "";
     render();
     refresh();
   });
@@ -120,6 +121,9 @@ function mount(panel, { session, confirm }) {
     try {
       const next = await session.request(CMD.GRIND_GET, { track: target });
       if (!active || target !== track || writing) return;
+      if (state && (next.pending !== state.pending || next.commits !== state.commits ||
+          next.message !== state.message || next.undo !== state.undo || next.redo !== state.redo ||
+          next.knobs.some((value, i) => value !== state.knobs[i]))) feedback = "";
       state = next;
       if (waiting !== undefined && !next.pending) {
         feedback = next.message || (next.commits !== waiting ? "Pattern applied." : "Pattern change canceled.");
@@ -154,7 +158,10 @@ function mount(panel, { session, confirm }) {
     }
   }
 
-  const off = [session.on("state", render), session.on("busy", render), session.on("restore", render), session.on("resync", () => refresh())];
+  const off = [session.on("state", ({ state: current, prev }) => {
+    if ((current.flags ^ (prev?.flags ?? 0)) & SF.SONG) feedback = "";
+    render();
+  }), session.on("busy", render), session.on("restore", render), session.on("resync", () => refresh())];
   const hide = () => {
     active = false;
     clearInterval(timer);

@@ -674,9 +674,13 @@ static void ed_grind_cmd(uint32_t cmd, const uint8_t *a, uint32_t n)
         ui_message("ROLE KIT SET");
         break;
     case ED_GRIND_KEEP_STEP:
-        if (idx >= NSTEP || (value && idx >= (uint32_t)trk[track].p[P_SLEN]) || value > 1)
+        if (idx >= NSTEP || value > 1)
             goto range;
         fm1_irq_off();
+        if (value && idx >= (uint32_t)trk[track].p[P_SLEN]) {
+            fm1_irq_on();
+            goto range;
+        }
         gm_keep_set(track, idx, value);
         fm1_irq_on();
         break;

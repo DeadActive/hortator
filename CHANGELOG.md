@@ -25,7 +25,7 @@ released yet are listed under Unreleased.
   lengths; not your own edits made since).
 - **GRIND in the USB web editor:** compatible firmware exposes the GRIND tab for style, generation controls, the role
   kit, step and track KEEP, and undo/redo. The tab shows when a pattern is waiting for a playback boundary. Save
-  the resulting pattern using the Projects tab. Earlier firmware keeps its existing editor tabs.
+  the loaded project with Patterns → Save on FM-1 while stopped. Use SAVE on the device to choose a slot when none is loaded. Earlier firmware keeps its existing editor tabs.
 
 ## 1.0.1 - 2026-11-03
 

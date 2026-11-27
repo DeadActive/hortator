@@ -511,6 +511,7 @@ export class MockDevice {
     this.t += ms;
     if (this.restore && this.t - this.restore.at > TIMING.restoreIdle) this.abortRestore();
     if (this.smp.up && this.t - this.smp.up.at > TIMING.restoreIdle) this.smp.up = null;
+    if (this.grind?.pending && this.t >= this.grindBoundaryAt) this.commitGrind();
     return this.poll();
   }
   get silent() { return this.t < this.silentUntil; }
@@ -576,7 +577,8 @@ export class MockDevice {
           if (index >= GRIND_MAX.length || value > GRIND_MAX[index]) refuse(RC.BAD, DETAIL.RANGE);
           g.knobs[index] = value;
           if (index === 0) g.knobs[5] = 0;
-          if (this.playing) g.pending = 1;
+          g.message = "";
+          if (this.playing) this.queueGrind();
           else this.commitGrind();
           break;
         case GRIND.KIT:
@@ -584,13 +586,16 @@ export class MockDevice {
           break;
         case GRIND.KEEP_STEP:
           if (index >= 64 || (value && index >= length) || value > 1) refuse(RC.BAD, DETAIL.RANGE);
+          if (g.kept[track][index] !== value) this.invalidateGrind();
           g.kept[track][index] = value;
           break;
         case GRIND.KEEP_TRACK:
           if (value > 1) refuse(RC.BAD, DETAIL.RANGE);
+          if (g.kept[track].some((keep, i) => keep !== (i < length ? value : 0))) this.invalidateGrind();
           g.kept[track] = g.kept[track].map((_, i) => i < length ? value : 0);
           break;
         case GRIND.FREE:
+          if (g.kept.some((steps) => steps.includes(1))) this.invalidateGrind();
           g.kept.forEach((steps) => steps.fill(0));
           break;
         case GRIND.UNDO:
@@ -605,11 +610,28 @@ export class MockDevice {
     }
     return { ...g, kept: g.kept[track], length };
   }
+  queueGrind() {
+    // Approximate the device's straight playback grid for the browser mock.
+    const beatMs = 60000 / this.g[this.G.BPM];
+    const fractions = [1, 1/2, 1/4, 1/8, 1/3, 1/6, 2, 4, 8, 16];
+    const steps = this.tracks.map((t) => beatMs * fractions[t.p[this.P.SDIV]]);
+    const period = this.grind.knobs[6]
+      ? Math.max(...steps.map((ms, track) => ms * this.tracks[track].p[this.P.SLEN]))
+      : Math.min(...steps);
+    this.grindBoundaryAt = this.grindPlaybackStart + (Math.floor((this.t - this.grindPlaybackStart) / period) + 1) * period;
+    this.grind.pending = 1;
+  }
+  invalidateGrind() {
+    if (!this.grind.pending) return;
+    this.grind.pending = 0;
+    this.grind.message = "NOT APPLIED";
+  }
   commitGrind() {
     this.grind.pending = 0;
     this.grind.commits++;
     this.grind.undo = 1;
     this.grind.redo = 0;
+    this.grindPlaybackStart = this.t;
   }
 
   exec(cmd, a) {
@@ -1173,7 +1195,11 @@ export class MockDevice {
   turn(track, id, v) { const t = this.tracks[track]; t.p[id] = clamp(v, this.trackDesc(t, id).min, this.trackDesc(t, id).max); return this.kick(); }
   turnGlobal(id, v) { this.g[id] = clamp(v, this.d.gp[id].min, this.d.gp[id].max); return this.kick(); }
   select(t) { this.sel = t; return this.kick(); }
-  play() { this.playing = true; return this.kick(); }
+  play() {
+    if (!this.playing) this.grindPlaybackStart = this.t;
+    this.playing = true;
+    return this.kick();
+  }
   stop() {
     this.playing = false;
     this.q = { slot: -1, var: -1, now: false };

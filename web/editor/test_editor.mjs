@@ -37,9 +37,15 @@ const fresh = (o) => createMockDevice(data, o);
   mock.play();
   ok(set(P.GRIND.KNOB, 0, 5).rc === RC.OK && read().pending === 1 && read().commits === 0,
     "GRIND generation waits for the playback boundary");
-  mock.boundary();
+  mock.advance(1);
+  ok(read().pending === 1, "GRIND mock keeps the request pending before the boundary");
+  mock.advance(60000);
   ok(read().pending === 0 && read().commits === 1 && read().knobs[0] === 5 && read().kept[0] === 1,
-    "GRIND generation is acknowledged after publication");
+    "GRIND mock clock publishes the request automatically");
+  set(P.GRIND.KNOB, 5, 1);
+  set(P.GRIND.KEEP_STEP, 1, 1);
+  mock.advance(60000);
+  ok(read().commits === 1 && read().message === "NOT APPLIED", "GRIND KEEP cancels the queued mock generation");
   ok(set(P.GRIND.KIT, 0, 0).rc === RC.STOP, "GRIND kit requires a stopped transport");
   mock.stop();
   ok(set(P.GRIND.UNDO, 0, 0).rc === RC.OK && read().redo === 1, "GRIND undo is reflected in the state");
@@ -199,10 +205,10 @@ const fresh = (o) => createMockDevice(data, o);
     && eqb(P.fromBase64(P.toBase64(blob.slice(0, n))), blob.slice(0, n))), "base64: as node's, round trip");
   /* the whitelist: only F0 7D 48 54 frames of known commands with a request seq */
   bad = 0;
-  for (const f of [() => P.encodeRequest(0, 0), () => P.encodeRequest(28, 0), () => P.encodeRequest(PUSH.STATE, 0, {}),
+  for (const f of [() => P.encodeRequest(0, 0), () => P.encodeRequest(30, 0), () => P.encodeRequest(CMD.GRIND_GET, 0), () => P.encodeRequest(PUSH.STATE, 0, {}),
     () => P.encodeRequest(CMD.INFO, 127), () => P.encodeRequest(CMD.INFO, -1),
     () => P.encodeRequest(CMD.RESTORE, 0, { op: RS.DATA, part: 0, offset: 0, data: new Uint8Array(600) })]) try { f(); } catch { bad++; }
-  ok(bad === 6, "whitelist: no unknown command, push id, bad seq or request over 640 bytes can be built");
+  ok(bad === 7, "whitelist: no unknown command, push id, bad seq or request over 640 bytes can be built");
 }
 
 /* ------------------------------------------------- every command against the mock --- */

@@ -913,6 +913,16 @@ static void t_grind(void)
     song.playing = 0;
     check("GRIND role kit sets a kick on track 1", rc_is(grind_set(0, ED_GRIND_KIT, 0, 0, 75), ED_OK, 0) &&
           trk[0].p[P_MODEL] == DM_KTRX);
+    check("GRIND sets a 32-step base pattern", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 10, 76), ED_OK, 0));
+    gm_ui_frame();
+    song.playing = 1;
+    check("GRIND queues a shorter pattern while playing", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 5, 77), ED_OK, 0));
+    gm_ui_frame();
+    check("GRIND stages the shorter pattern", cue.q_gm && trk[0].p[P_SLEN] == 32);
+    check("GRIND KEEP invalidates the staged pattern", rc_is(grind_set(0, ED_GRIND_KEEP_STEP, 20, 1, 78), ED_OK, 0) &&
+          !cue.q_gm && gm_keep_get(0, 20) && gm_runtime_status() == GM_STALE);
+    check("GRIND boundary cannot publish the stale pattern", gm_runtime_commit() == CUE_E_SAME && trk[0].p[P_SLEN] == 32);
+
 }
 #else
 static void t_grind(void)
