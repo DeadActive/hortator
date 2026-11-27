@@ -2,6 +2,30 @@
   "schema_version": 1,
   "upstream_sha": "44c9ad4aa57bebf63f412bd552e57143c30b4065",
   "source": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/LICENSING.md",
+  "cc0_source_evidence": {
+    "method": "Compared all local WAV bytes to the pinned original from byte offset 0. A match covers the entire source when the byte counts are equal.",
+    "repositories": {
+      "sgossner/VCSL": {
+        "commit": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+        "license": "CC0-1.0",
+        "license_url": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/LICENSE",
+        "license_sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+        "notice_urls": [
+          "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/README.md"
+        ]
+      },
+      "sgossner/VSCO-2-CE": {
+        "commit": "440300901dfe9275fd84e0b7763af1f8443ae62e",
+        "license": "CC0-1.0",
+        "license_url": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/LICENSE",
+        "license_sha256": "36ffd9dc085d529a7e60e1276d73ae5a030b020313e6c5408593a6ae2af39673",
+        "notice_urls": [
+          "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/README.md",
+          "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Readme.txt"
+        ]
+      }
+    }
+  },
   "sdk_revision": {
     "tag": "AC79NN_SDK_V1.2.1_2023-12-13",
     "commit": "d179b4484759423312073f5fbb232501aa491047"
@@ -9,7 +33,6 @@
   "release_approved": false,
   "scope": "Foundation inventory of tracked media, identified upstream ports, native BLE=0 SDK package inputs and site build outputs.",
   "open_reviews": [
-    "Confirm the original source revision and file-level notices for the excerpted CC0 samples.",
     "Replace or obtain distribution permission for the generated Hügelton Sample Pack. Review every compiled or recorded derivative.",
     "Clear or replace restricted media and review the exact corresponding-source archive contents.",
     "Record verified hashes and notices for actual release-candidate build outputs. Confirm that the candidate includes the required SDK notices.",
@@ -206,244 +229,354 @@
     {
       "path": "assets/samples-cc0/FLUTE/00_LDFlute_susvib_C4_v1_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VSCO-2-CE — Woodwinds/Flute/susvib/LDFlute_susvib_C4_v1_1.wav",
+      "origin": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C4_v1_1.wav",
       "license": "CC0-1.0",
       "sha256": "37fd620f41b3ef8eb96bd0b1d2d4660266e61b4720b8f00d16b1be7886673568",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2009832
+      }
     },
     {
       "path": "assets/samples-cc0/FLUTE/01_LDFlute_susvib_C5_v1_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VSCO-2-CE — Woodwinds/Flute/susvib/LDFlute_susvib_C5_v1_1.wav",
+      "origin": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C5_v1_1.wav",
       "license": "CC0-1.0",
       "sha256": "f80ea0857ba925e1d491499a3742c31d45cee45371041ecb9bd64b2167343d59",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 1930938
+      }
     },
     {
       "path": "assets/samples-cc0/FLUTE/02_LDFlute_susvib_C6_v1_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VSCO-2-CE — Woodwinds/Flute/susvib/LDFlute_susvib_C6_v1_1.wav",
+      "origin": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C6_v1_1.wav",
       "license": "CC0-1.0",
       "sha256": "8b8a1b59010358607edf2daaa68e4916206c9e1f341be32d1e70ca85d35bb729",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 1260120
+      }
     },
     {
       "path": "assets/samples-cc0/KIT/00_Tamb1_Hit_v2_rr1_Mid.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Idiophones/Struck Idiophones/Tambourine 1/Tamb1_Hit_v2_rr1_Mid.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Tambourine%201/Tamb1_Hit_v2_rr1_Mid.wav",
       "license": "CC0-1.0",
       "sha256": "885ebf1d70f8e888f576682e4e4112b92b69649162f392c83b3379c91a09cf41",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 293256,
+        "source_bytes": 293256
+      }
     },
     {
       "path": "assets/samples-cc0/KIT/01_Mid_ShakerDouble_Down_rr1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Idiophones/Struck Idiophones/Shaker, Small/Mid_ShakerDouble_Down_rr1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Shaker%2C%20Small/Mid_ShakerDouble_Down_rr1.wav",
       "license": "CC0-1.0",
       "sha256": "0df7c271e1dba4de7304f7df81886390dd9ae698bfdd6df570026af4f2223574",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 46844,
+        "source_bytes": 46844
+      }
     },
     {
       "path": "assets/samples-cc0/KIT/02_Conga_HitN_v2_rr1_Sum.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Membranophones/Struck Membranophones/Conga/Conga_HitN_v2_rr1_Sum.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Conga/Conga_HitN_v2_rr1_Sum.wav",
       "license": "CC0-1.0",
       "sha256": "13d322c0e7a830cdbcbdc5a6e05566dfe3f5a073b7b82a3262d3f6fc10f96764",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 140012,
+        "source_bytes": 140012
+      }
     },
     {
       "path": "assets/samples-cc0/KIT/03_Claves1_Hit_v2_rr1_Mid.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Idiophones/Struck Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav",
       "license": "CC0-1.0",
       "sha256": "bcabe27330761309eb4b4f6207e6e3b4be59815df86449ac05bfb9b81f19efc9",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 191812,
+        "source_bytes": 191812
+      }
     },
     {
       "path": "assets/samples-cc0/KIT/04_wood_click_mp.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Idiophones/Struck Idiophones/Woodblock/wood_click_mp.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Woodblock/wood_click_mp.wav",
       "license": "CC0-1.0",
       "sha256": "00b76f9fe96c118f29dfc69866c12ec11f2e1264f6cb9c0b36912c2210b015fe",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 134674,
+        "source_bytes": 134674
+      }
     },
     {
       "path": "assets/samples-cc0/PIANO/00_GPiano_sus_C1_v2_rr1_Player.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C1_v2_rr1_Player.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C1_v2_rr1_Player.wav",
       "license": "CC0-1.0",
       "sha256": "894007bb4757871ff92d7f46d80f8550ec14be592a449d554e450463c0c4bb6f",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 5268340
+      }
     },
     {
       "path": "assets/samples-cc0/PIANO/01_GPiano_sus_C2_v2_rr1_Player.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C2_v2_rr1_Player.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C2_v2_rr1_Player.wav",
       "license": "CC0-1.0",
       "sha256": "52a876ee3ac54f3cc2db3272797ecf5a59d9181dae6ca355f12baab5bd367883",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 4116252
+      }
     },
     {
       "path": "assets/samples-cc0/PIANO/02_GPiano_sus_C3_v2_rr1_Player.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C3_v2_rr1_Player.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C3_v2_rr1_Player.wav",
       "license": "CC0-1.0",
       "sha256": "ec73fb8ed123fbbc34d6a29ff0dc3c2b02f625c1e28cb71d611fa964eb4c826e",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 4283328
+      }
     },
     {
       "path": "assets/samples-cc0/PIANO/03_GPiano_sus_C4_v2_rr1_Player.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C4_v2_rr1_Player.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C4_v2_rr1_Player.wav",
       "license": "CC0-1.0",
       "sha256": "bbcc113724a0fb8335ad124170957d8e10f445d384bf75a36897ab03f92f9d6e",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2613976
+      }
     },
     {
       "path": "assets/samples-cc0/PIANO/04_GPiano_sus_C5_v2_rr1_Player.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Grand Piano, Kawai/Sustains/GPiano_sus_C5_v2_rr1_Player.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C5_v2_rr1_Player.wav",
       "license": "CC0-1.0",
       "sha256": "d3f2b0b8faa13734e6823a19c62ba9d7a9c2a8c6934c58ba3e281cc0c9ae2b70",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 1706624
+      }
     },
     {
       "path": "assets/samples-cc0/SAX/00_BrettTenor_NV_Main_A#1_vl2_rr1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Aerophones/Reed Aerophones/Tenor Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#1_vl2_rr1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Aerophones/Reed%20Aerophones/Tenor%20Saxophone/Non-Vibrato/BrettTenor_NV_Main_A%231_vl2_rr1.wav",
       "license": "CC0-1.0",
       "sha256": "834af8a876236c85c28dbc35fa8b0748e3163c6c14875668cd858ce11398e3e7",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2283038
+      }
     },
     {
       "path": "assets/samples-cc0/SAX/01_BrettTenor_NV_Main_A#2_vl2_rr1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Aerophones/Reed Aerophones/Tenor Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#2_vl2_rr1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Aerophones/Reed%20Aerophones/Tenor%20Saxophone/Non-Vibrato/BrettTenor_NV_Main_A%232_vl2_rr1.wav",
       "license": "CC0-1.0",
       "sha256": "efe1b40fe1dbfee931f0a4a0b0ce12a782e613f42469a791205164c78b06d6ca",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2181806
+      }
     },
     {
       "path": "assets/samples-cc0/SAX/02_BrettTenor_NV_Main_A#3_vl2_rr1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Aerophones/Reed Aerophones/Tenor Saxophone/Non-Vibrato/BrettTenor_NV_Main_A#3_vl2_rr1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Aerophones/Reed%20Aerophones/Tenor%20Saxophone/Non-Vibrato/BrettTenor_NV_Main_A%233_vl2_rr1.wav",
       "license": "CC0-1.0",
       "sha256": "d56af1ce4b729f09b17bc4ba9b885937ef0dd683c8b9d64822cf285d87ab9c6a",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2783300
+      }
     },
     {
       "path": "assets/samples-cc0/TRANH/00_B1_mf_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Dan Tranh/Normal/B1_mf_1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/B1_mf_1.wav",
       "license": "CC0-1.0",
       "sha256": "d3c57b409c49cb5ae19fd0aae5d3b9567ae5ef2a0166ed78cd086d8197e5f873",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 889304
+      }
     },
     {
       "path": "assets/samples-cc0/TRANH/01_F#2_mf_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Dan Tranh/Normal/F#2_mf_1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/F%232_mf_1.wav",
       "license": "CC0-1.0",
       "sha256": "8c8f0809d583703e8ed0c6a7376bdbf17884993a223dc7d29df189566a9d4f86",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 839318
+      }
     },
     {
       "path": "assets/samples-cc0/TRANH/02_C#3_mf_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Dan Tranh/Normal/C#3_mf_1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/C%233_mf_1.wav",
       "license": "CC0-1.0",
       "sha256": "715e04687e4a5b5713552e5299bc5e06a20abb1856bcaa893920d3ceb373b462",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 799406
+      }
     },
     {
       "path": "assets/samples-cc0/TRANH/03_G#3_mf_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Dan Tranh/Normal/G#3_mf_1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/G%233_mf_1.wav",
       "license": "CC0-1.0",
       "sha256": "70513aa5abc9584091e08ef6d228975246b90c434deb218f281c30d01ca04d6e",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 787553
+      }
     },
     {
       "path": "assets/samples-cc0/TRANH/04_D#4_mf_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Dan Tranh/Normal/D#4_mf_1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/D%234_mf_1.wav",
       "license": "CC0-1.0",
       "sha256": "880dbeb9ab37d2f222254117cc3d2f927be6824906221a321db06db590f73277",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 780944
+      }
     },
     {
       "path": "assets/samples-cc0/TRANH/05_B4_mf_1.wav",
       "kind": "tracked",
-      "origin": "https://github.com/sgossner/VCSL — Chordophones/Zithers/Dan Tranh/Normal/B4_mf_1.wav",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/B4_mf_1.wav",
       "license": "CC0-1.0",
       "sha256": "782da5b4bd0951d4f8d75fb13c3f86db0f733ed95dca0676e859b010a24ea42a",
-      "status": "review_pending",
+      "status": "cleared",
       "notices": [
-        "assets/samples-cc0/ATTRIBUTION.txt"
-      ]
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 290825,
+        "source_bytes": 290825
+      }
     },
     {
       "path": "docs/panel.jpg",
