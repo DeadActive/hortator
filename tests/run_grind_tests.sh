@@ -27,13 +27,19 @@ run_pattern_test() {
         "$CORE/rng.c" "$CORE/serialize.c"
 }
 
+run_golden() {
+    "${PYTHON:-python3}" tools/grind/check_vectors.py
+    run_pattern_test golden
+}
+
 case "${1:-all}" in
     grid) run_test grid "$CORE/grid.c" ;;
     rng) run_rng ;;
     codec) run_test codec "$CORE/serialize.c" "$CORE/grid.c" ;;
     rules) run_test rules "$CORE/rules.c" "$CORE/grid.c" ;;
     locks) run_test locks "$CORE/locks.c" ;;
-    morph) run_pattern_test "$1" ;;
+    morph|properties) run_pattern_test "$1" ;;
+    golden) run_golden ;;
     all)
         run_test grid "$CORE/grid.c"
         run_rng
@@ -41,6 +47,8 @@ case "${1:-all}" in
         run_test rules "$CORE/rules.c" "$CORE/grid.c"
         run_test locks "$CORE/locks.c"
         run_pattern_test morph
+        run_pattern_test properties
+        run_golden
         ;;
     *) echo "unknown suite: $1" >&2; exit 2 ;;
 esac
