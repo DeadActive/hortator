@@ -61,6 +61,7 @@ run_native() {
 case "${1:-all}" in
     adapter) run_native adapter ;;
     cue) run_native cue ;;
+    ui) run_native ui ;;
     controller) run_test controller "$CORE/controller.c" "$CORE/grid.c" "$CORE/rules.c" "$CORE/core.c" "$CORE/locks.c" \
         "$CORE/rng.c" "$CORE/serialize.c" ;;
     grid) run_test grid "$CORE/grid.c" ;;
@@ -83,6 +84,7 @@ case "${1:-all}" in
             "$CORE/rng.c" "$CORE/serialize.c"
         run_native adapter
         run_native cue
+        run_native ui
         ;;
     *) echo "unknown suite: $1" >&2; exit 2 ;;
 esac

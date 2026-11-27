@@ -40,6 +40,7 @@ static void gm_runtime_reset(void)
 }
 static uint32_t gm_runtime_commits(void) { return gmrt.ctl.commits; }
 static gm_result gm_runtime_status(void) { return gmrt.ctl.status; }
+static void gm_runtime_ack_status(void) { gmrt.ctl.status = GM_OK; }   /* (shown: said once) */
 
 /* A native write of a step happened (or is about to): any candidate made from the old pattern is dropped. */
 static void gm_touch_isr(void)

@@ -68,6 +68,7 @@
 #include "grind/amalgam.c"
 #include "grind/seq_adapter.c"
 #include "grind/runtime.c"
+#include "grind/ui.c"
 #endif
 #include "bench.c"           /* BENCH: the performance cases (console `bench`) */
 #include "audio.c"

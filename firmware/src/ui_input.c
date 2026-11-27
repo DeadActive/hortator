@@ -622,6 +622,12 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
         gm_touch_param((uint32_t)(vp - TSEL->p));      /* GRIND: LEN DIV SWG SRC are part of the pattern */
     *vp = (int16_t)v;
+#if GRIND_NATIVE
+    if (pg->scope == SC_GRIND) {
+        gm_ui_changed(id);
+        return;
+    }
+#endif
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
         fm1_irq_off();
         smp_set_moved(TSEL, (uint32_t)(vp - TSEL->p));   /* presets.c: a SET keeps its SLOT inside its samples */
@@ -1238,6 +1244,9 @@ static void ui_input(void)
 #endif
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     cue_poll();                                         /* project.c: a cue's switch finished (spec 2026-10-26) */
+#if GRIND_NATIVE
+    gm_ui_frame();                                      /* grind/ui.c: the engine's main-loop work */
+#endif
     cue_input(now, notes);                              /* SAVE: tap / hold, the cue map */
     if (cue_owns_keys())
         notes = 0;                                      /* (the map's keys: no step, no select, no record) */

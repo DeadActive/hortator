@@ -4,7 +4,8 @@
 /* Drum UI pages: a family per page button (pressing it again steps through its pages), and what
  * the four knobs edit on each page. */
 enum { FAM_HOME, FAM_SND, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS, FAM_LFO, FAM_MIX, FAM_COUNT };
-enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX };   /* knobs edit: the selected track, song.g, the STEP grid, the mixer */
+enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX, SC_GRIND };   /* knobs edit: the selected track, song.g, the STEP grid, the
+                                                            * mixer, the GRIND screen state (grind/ui.c) */
 enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS, GR_COMP, GR_LFO, GR_RESON, GR_MOTION, GR_SONG, GR_FILTER,
        GR_LDEST, GR_INSERT, GR_DLY, GR_REV, GR_CHO };
 
@@ -56,6 +57,10 @@ static const page_t PAGES[] = {
     {"COPY", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_COPY, G_PASTE, 0xFF}},   /* a slot's COPY / PASTE (project.c) */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GMODE, G_GX, G_GY, G_GCHAOS}},   /* EUCLID: MODE LEN K S H */
     {"GRIDS", FAM_GRIDS, SC_GLOBAL, GR_GRIDS, {G_GFILL1, G_GFILL2, G_GFILL3, 0xFF}},
+#if GRIND_NATIVE                  /* the portable rhythm engine: ARP again, after GRIDS (grind/ui.c) */
+    {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS}},
+    {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_HUMAN, GU_MUT, GU_WHEN, 0xFF}},
+#endif
     /* LFO: both LFOs on every page, LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4; then DEST, the track's 4 slots: KNOB 1 the
      * slot (song.lslot), 2-4 its SRC DEST DEPTH (page_id; lfo.c LS_ID) */
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LFO1 + LF_WAVE, P_LFO1 + LF_RATE, P_LFO2 + LF_WAVE, P_LFO2 + LF_RATE}},
@@ -122,6 +127,14 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     *valp = 0;
     if (id == 0xFFu || pg->scope == SC_GRID || pg->scope == SC_MIX)
         return 0;
+#if GRIND_NATIVE
+    if (pg->scope == SC_GRIND) {
+        if (id >= GU_N)
+            return 0;
+        *valp = &gm_v[id];
+        return &GP_GRIND[id];
+    }
+#endif
     if (pg->scope == SC_GLOBAL && id >= G_COUNT) {   /* TOOLS actions, MUTE, METRO, COPY / PASTE, THRU, QUANT */
         id = id - G_COUNT < 8u ? id - G_COUNT : 0u;
         *valp = &song.act[id < 4u ? id : id < 6u ? id - 4u : id - 2u];   /* (COPY / PASTE: GO buttons, 0 at rest:

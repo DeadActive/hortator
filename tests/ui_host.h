@@ -81,6 +81,9 @@ static uint32_t scope_w;
 static struct { uint32_t stage, page, home, ui_frames; } felucca_dbg;
 #include "../firmware/src/gfx.c"
 #include "../firmware/src/panel.c"
+#if GRIND_NATIVE
+#include "../firmware/src/grind/ui.c"
+#endif
 #include "../firmware/src/pages.c"
 #include "../firmware/src/ui.c"
 #ifndef UI_NO_DRAW
