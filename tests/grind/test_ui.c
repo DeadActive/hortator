@@ -727,6 +727,22 @@ static void live_page(void)
     check("ui: the LIVE page: SINK and SWELL are held levels, CUT stops", ok);
 }
 
+static void init_clears_macros(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    open_grind(4);
+    turn(EN_K1, 30);
+    turn(EN_K2, 20);
+    frames(4);
+    gm_vary = 9;
+    ok &= gm_sink == 30 && gm_swell == 20;
+    init_all();
+    ok &= gm_sink == 0 && gm_swell == 0 && gm_vary == 0;
+    ok &= gm_v[GU_SINK] == 0 && gm_v[GU_SWELL] == 0 && gm_v[GU_VARY] == 0;
+    check("ui: TOOLS INIT clears SINK, SWELL and VARY", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -772,6 +788,7 @@ int main(void)
     browser_busy_while_a_request_waits();
     vary_knob();
     live_page();
+    init_clears_macros();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

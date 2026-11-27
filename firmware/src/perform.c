@@ -37,8 +37,18 @@
 #if GRIND_NATIVE
 /* B3 (grind/ui.c LIVE page): SINK is the FILTER macro's LPF end, SWELL the THROW macro, whichever is stronger of the knob and the
  * macro; at 0 both read the knob alone, so the idle chain is untouched */
-#define PF_FK(k0) ((int32_t)gm_sink && -(int32_t)gm_sink < (int32_t)(k0) ? -(int32_t)gm_sink : (int32_t)(k0))
-#define PF_TK(k2) ((int32_t)gm_swell > (int32_t)(k2) ? (int32_t)gm_swell : (int32_t)(k2))
+static inline int32_t pf_fk(int32_t k0)       /* (the volatile read once) */
+{
+    int32_t s = gm_sink;
+    return s && -s < k0 ? -s : k0;
+}
+static inline int32_t pf_tk(int32_t k2)
+{
+    int32_t s = gm_swell;
+    return s > k2 ? s : k2;
+}
+#define PF_FK(k0) pf_fk((int32_t)(k0))
+#define PF_TK(k2) pf_tk((int32_t)(k2))
 #define PF_GM() ((uint32_t)gm_sink | (uint32_t)gm_swell)
 #else
 #define PF_FK(k0) ((int32_t)(k0))
@@ -585,7 +595,7 @@ static __attribute__((noinline)) void perf_block(int32_t *bl, int32_t *br, uint3
         } else {
             pf.lz[0] = pf.lz[1] = pf.lz[2] = pf.lz[3] = 0;
         }
-        ht = (a & PF_BIT(PF_HPF)) || perf_k[0] > 0 || pf.hc > 0 ? 32768 : 0;
+        ht = (a & PF_BIT(PF_HPF)) || PF_FK(perf_k[0]) > 0 || pf.hc > 0 ? 32768 : 0;
         pf.ha += clamp(ht - pf.ha, -SL_SLOPE, SL_SLOPE);
         if (pf.ha) {
             int32_t fl = pf_svf(clamp(l >> 2, -32767, 32767), &pf.hz[0], pf.hk, 1) << 2;

@@ -14,6 +14,7 @@
 #endif
 #if GRIND_NATIVE
 static void gm_touch(void);
+static void gm_macros_reset(void);
 static volatile uint8_t gm_sink, gm_swell;      /* B3: master SINK / SWELL macro levels 0..100 (perform.c reads them, 0 = off; not stored) */
 static uint8_t gm_vary;                       /* A3: natural hit variation, 0..100 (0 = off; GRIND page, not stored) */
 static void gm_touch_isr(void);

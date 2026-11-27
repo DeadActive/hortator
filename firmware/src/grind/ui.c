@@ -200,6 +200,12 @@ static void gm_pv_update(void)
 }
 
 /* a knob of the GRIND pages was turned (edit_param): the style brings its factory controls, then the request goes out */
+/* TOOLS INIT: the performance macros (SINK, SWELL, VARY) off, their knobs back to 0 */
+static void gm_macros_reset(void)
+{
+    gm_sink = gm_swell = gm_vary = 0;
+    gm_v[GU_SINK] = gm_v[GU_SWELL] = gm_v[GU_VARY] = 0;
+}
 /* B3: SINK and SWELL (0..100) */
 static void gm_master_set(uint32_t sink, uint32_t swell)
 {

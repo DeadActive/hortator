@@ -897,6 +897,7 @@ static void t_grind(void)
     gm_runtime_reset();
     check("GRIND_GET rejects invalid track", rc_is(req1(ED_GRIND_GET, NTRK), ED_E_BAD, ED_D_RANGE));
     check("GRIND_SET rejects invalid style", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 23, 70), ED_E_BAD, ED_D_RANGE));
+    check("GRIND_SET accepts the 23rd style (MATH)", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 22, 72), 0, 0));
     check("GRIND_SET queues D-Beat on the firmware", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 5, 71), ED_OK, 0));
     gm_ui_frame(0);
     f = req1(ED_GRIND_GET, 0);
