@@ -43,9 +43,11 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
 
-  const wasm = page.waitForResponse(response => new URL(response.url()).pathname === '/fm1sim.wasm');
-  await page.goto(base);
-  assert.equal((await wasm).status(), 200);
+  const [wasm] = await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === '/fm1sim.wasm'),
+    page.goto(base),
+  ]);
+  assert.equal(wasm.status(), 200);
   const power = page.getByRole('switch', { name: 'Power' });
   await power.click();
   await page.locator('#power-note').waitFor({ state: 'hidden' });

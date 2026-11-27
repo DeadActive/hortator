@@ -174,10 +174,13 @@ case $lane in
         ;;
     wasm)
         check wasm-preview bash tools/build_sim.sh --preview
+        preview_status=$result
         suite web-regression wasm node web/test_web.mjs
         check web-editor node web/editor/test_editor.mjs
         browser=${GRIND_CHROMIUM:-$(command -v google-chrome || command -v chromium || true)}
-        if [[ -x $browser && -f build/grind-browser/node_modules/playwright-core/index.mjs ]]; then
+        if (( preview_status != 0 )); then
+            report BLOCKED 'browser smoke requires successful WASM preview build'
+        elif [[ -x $browser && -f build/grind-browser/node_modules/playwright-core/index.mjs ]]; then
             check browser-smoke env GRIND_CHROMIUM="$browser" node tests/grind/browser_smoke.mjs
         else
             report BLOCKED 'browser smoke requires Chromium and Playwright Core'

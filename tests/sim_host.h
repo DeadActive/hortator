@@ -8,6 +8,8 @@
  * simulator is the plain build). tests/sim_test.c checks this list against felucca.c. */
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+/* Mask target attributes only while including the firmware. */
 #define __attribute__(x)
 #define SIM_HOST 1                                    /* (firmware: no USB hardware, ui_menu.c) */
 #define memset felucca_memset
@@ -18,7 +20,6 @@
 #undef memset
 #undef memcpy
 #undef memcmp
-#include <string.h>
 
 /* ---- clock: TIMER4 (24 MHz) from the audio sample count; time stops when the audio does */
 #define FM1_TICKS_PER_US 24u
@@ -186,3 +187,4 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 }
 #include "../firmware/src/storage.c"
 #include "../firmware/src/project.c"
+#undef __attribute__
