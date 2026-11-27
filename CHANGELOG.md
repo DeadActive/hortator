@@ -5,6 +5,12 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **GRIND style browser**: a fifth GRIND page (STYLE, BANK, APPLY) shows any of the 23 styles as eight roles over a 16-step bank before
+  anything changes; APPLY is a normal STYLE turn, leaving the page cancels. See docs/grind/live-pages.md.
+- **VARY (GRIND, page 3)**: a deterministic velocity swing per generated hit (up to +-8), 0 = unchanged sound. Not stored.
+- **LIVE page (GRIND)**: SINK (master lowpass), SWELL (more delay/reverb send) and CUT (performance stop); at 0 the sound is
+  bit-identical to before. Not stored.
+- **Fix**: a GRIND runtime reset started from the invalid style id 0; it starts from style 1's config now.
 - **7/4 Mathcore (GRIND)**: the STYLE list has a 23rd entry, MATH: Technical on a seven-quarter bar (3+2+2), LEN 28 at 1/16
   (56 at 1/32, 14 at 1/8; two bars at 1/16 fit as 56). Kick and its accent on steps 1, 13, 21, snare on 9, 17, 25, crash
   on the downbeat, ride on every second step. Only Technical has a 7/4 rule: other styles on a 7/4 grid are refused
