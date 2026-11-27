@@ -226,7 +226,7 @@ async function counter() {
   const site = { protocol: "https:", hostname: "deadactive.github.io" };
   const calls = [];
   const spy = (url, opt) => { calls.push([url, opt]); return Promise.resolve({ ok: true }); };
-  ok(GC_CODE === "deadactive" && counterOn(site), "counter: the site's code, deadactive: on at the published site");
+  ok(GC_CODE === "" && !counterOn(site), "counter: this fork has no counter code: no visit count, no ping, even on the published site");
   ok(!counterOn(site, "") && countInstall("0.23.0", { code: "", loc: site, fetch: spy }) === false && calls.length === 0,
     "counter: off without a code: no ping");
   ok(await installCount({ code: "", loc: site, fetch: spy }) === null && calls.length === 0, "counter: off: no read");

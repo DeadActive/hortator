@@ -6,7 +6,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Install Hortator</title>
+<title>Install GRIND MACHINE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Silkscreen&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -80,11 +80,11 @@
 </head>
 <body>
 <main>
-  <a class="back" href="../../">← Hortator: play it in the browser</a>
+  <a class="back" href="https://github.com/DaFum/grind-machine">← GRIND MACHINE on GitHub</a>
   <header class="plate">
-    <p class="silk">HORTATOR</p>
-    <h1>Install Hortator on your FM-1</h1>
-    <p>Drum-machine firmware for the M-VAVE FM-1. It installs over USB from this page, in a few minutes.</p>
+    <p class="silk">GRIND MACHINE</p>
+    <h1>Install GRIND MACHINE on your FM-1</h1>
+    <p>Drum-machine firmware for the M-VAVE FM-1 with a built-in rhythm generator: 22 styles on the GRIND pages (press ARP again after GRIDS). It installs over USB from this page, in a few minutes.</p>
   </header>
 
   <ol class="steps">
@@ -107,9 +107,10 @@
   </ol>
 
   <section class="notes" aria-label="Before you install">
+    <p class="risk" data-t="exp"></p>
     <p class="risk" data-t="risk"></p>
     <p><span data-t="brick"></span>
-      <a href="https://github.com/DeadActive/hortator/blob/main/docs/RECOVERY.md" target="_blank" rel="noopener">Recovery
+      <a href="https://github.com/DaFum/grind-machine/blob/main/docs/RECOVERY.md" target="_blank" rel="noopener">Recovery
       guide</a>. <span data-t="brick2"></span>
       <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">FM-1-transporter</a></p>
     <p><span data-t="back"></span>
@@ -122,11 +123,11 @@
   </details>
 
   <footer>
-    <p>Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
+    <p>GRIND MACHINE is a fork of Hortator by DEADACTIVE, built on Felucca by Leo Kuroshita (@kurogedelic),
       <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.</p>
     <p>Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and
-      VCSL (CC0 1.0). M-VAVE and FM-1 are trademarks of their respective owners.</p>
-    <p><span data-t="license"></span> <a href="../../source.tar.gz">Source code</a></p>
+      VCSL (CC0 1.0). Drum sounds: the Hügelton Sample Pack, © 2026 Hügelton Instruments, all rights reserved (see LICENSING.md in the release). M-VAVE and FM-1 are trademarks of their respective owners.</p>
+    <p><span data-t="license"></span> <a href="https://github.com/DaFum/grind-machine" target="_blank" rel="noopener">Source code</a></p>
   </footer>
 </main>
 <script type="module">
@@ -138,14 +139,15 @@ const TEXT = {
     direct: "Connect the FM-1 straight to the computer with a USB data cable. No probe or Transporter is needed.",
     warn: "Keep the cable in and this page open until it says Done. The FM-1 restarts by itself.",
     install: "Install",
-    risk: "You install Hortator at your own risk: the author accepts no responsibility if your FM-1 is damaged or misbehaves.",
+    exp: "Preview build, not tested on a real FM-1 yet. It comes from a continuous-integration run, not from a hardware-qualified release, and the GRIND pages are new. Expect rough edges, and do not install it on a unit you cannot recover.",
+    risk: "You install GRIND MACHINE at your own risk: the author accepts no responsibility if your FM-1 is damaged or misbehaves.",
     brick: "If the FM-1 stops answering the installer, it can be brought back from a Mac over the same USB cable, with no extra hardware:",
     brick2: "If it does not start at all and does not even reach boot mode, recovering it needs a Transporter:",
     back: "To go back to the official firmware, use M-VAVE's updater M-UPGRADE (Downloads → PC Software → M-UPGRADE) with the official firmware (PC Firmware → FM-1 V15).",
     nomidi: "This browser cannot install firmware. Open the page in Chrome or Edge on a computer.", loadfail: "Could not load the firmware: ",
     start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
     counted: "Counts visits and installs anonymously with GoatCounter: no cookies, no personal data.",
-    reboot: "Restarting", done: "Done. The FM-1 restarts with Hortator.", stopped: "Stopped. Replug the USB cable and press Install again.",
+    reboot: "Restarting", done: "Done. The FM-1 restarts with GRIND MACHINE.", stopped: "Stopped. Replug the USB cable and press Install again.",
     error: "Error: ",
     denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
     notfound: "FM-1 not found. Check the USB cable (a data cable), close other apps that use MIDI, and press Install again.",
@@ -158,7 +160,7 @@ const TEXT = {
     leave: "Writing. Do not close the page.",
     license: "GPL-3.0, no warranty.",
     which: "Version",
-    v_std: "Hortator",
+    v_std: "GRIND MACHINE",
     v_ble: "Hortator + Bluetooth MIDI (experimental)",
     v_ble_note: "The same Hortator with Bluetooth MIDI added: MENU (hold HOME) > BLUETOOTH connects a BLE-MIDI keyboard or the M-VAVE SMC-Mixer (DAW mode: faders, knobs, mute, solo, record, transport). Bluetooth is off at every power-on until you turn it on there.",
   },
@@ -189,7 +191,7 @@ const load = async () => {
     const pkg = new Uint8Array(await r.arrayBuffer());
     if (productOf(pkg) !== meta.product) { sayK("badpkg"); return; }
     image = logicalImage(pkg);
-    say(`Hortator ${meta.version}`);
+    say(`GRIND MACHINE ${meta.version}`);
     $("go").disabled = false;
   } catch (e) { sayK("loadfail", e.message); }
 };

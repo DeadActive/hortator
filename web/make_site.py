@@ -176,9 +176,9 @@ def main(pkg, version, out, ble_pkg=None):
     landing = sim_page(out)
     if not landing:
         (out / "index.html").write_text(
-            '<!doctype html><meta charset="utf-8"><title>Hortator</title>'
+            '<!doctype html><meta charset="utf-8"><title>GRIND MACHINE</title>'
             '<meta http-equiv="refresh" content="0; url=webapp/installer/">'
-            '<a href="webapp/installer/">Hortator installer</a>\n', encoding="utf-8")
+            '<a href="webapp/installer/">GRIND MACHINE installer</a>\n', encoding="utf-8")
     print(f"site: {out}: {landing or 'index.html (redirect)'}, webapp/installer ({len(html)} B), webapp/editor, "
           f"firmware/{name} ({len(raw)} B, {product})" + (f" + {ble_name}" if ble_pkg is not None else ""))
 
