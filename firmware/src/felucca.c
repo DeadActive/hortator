@@ -64,6 +64,11 @@
 #define ED_RESTORE_LOCK 1          /* seq.c / ui.c refuse the device's own edits while the editor restores (ed_restoring) */
 #endif
 #include "seq.c"
+#if GRIND_NATIVE            /* the Grind engine on the native cue boundary (off by default: grind/runtime.c) */
+#include "grind/amalgam.c"
+#include "grind/seq_adapter.c"
+#include "grind/runtime.c"
+#endif
 #include "bench.c"           /* BENCH: the performance cases (console `bench`) */
 #include "audio.c"
 #include "enc.c"           /* the knobs: upstream 1.1.5's decoder (#126) on the scan's frames (led_dim.c hook) */
