@@ -112,7 +112,7 @@ export async function runPageTests(log = console.log, mods = {}) {
   }
   {
     const iac = dev({ name: "IAC Driver Bus 1" }), r = await connect(access(iac), { timing: FAST });
-    ok(!r.ok && r.why === "none" && /No Hortator/.test(r.message) && r.search && iac.received.length === 0,
+    ok(!r.ok && r.why === "none" && /No compatible FM-1/.test(r.message) && r.search && iac.received.length === 0,
       "other gear: nothing sent unasked; the page offers to search the other ports");
     const r2 = await connect(access(iac), { timing: FAST, all: true });
     ok(r2.ok && r2.port === "IAC Driver Bus 1" && isInfo(iac.received[0]), "search other ports (the user's click): a Hortator under any name connects");
@@ -125,7 +125,7 @@ export async function runPageTests(log = console.log, mods = {}) {
   {
     const old = dev({ editor: false }), r = await connect(access(old), { timing: FAST });
     const seqs = new Set(old.received.map((f) => f[5]));
-    ok(!r.ok && r.why === "noeditor" && /Install Hortator 1\.0/.test(r.message) && old.received.length === FAST.tries
+    ok(!r.ok && r.why === "noeditor" && /Install an editor-compatible firmware/.test(r.message) && old.received.length === FAST.tries
       && old.received.every(isInfo) && seqs.size === 1, "an older Hortator (no editor): INFO x3 (one seq), nothing else, update message");
   }
   {

@@ -58,7 +58,16 @@ run_native() {
     "$OUT/test_$suite"
 }
 
+run_grind_editor() {
+    [ "$WASM" = 1 ] && return 0
+    "${PYTHON:-python3}" tools/build.py --gen-only > /dev/null
+    $CC -DGRIND_NATIVE=1 -std=gnu11 -O1 -g -Wno-int-to-pointer-cast \
+        -Ibuild/gen -Ifirmware/src tests/editor_test.c -o "$OUT/test_editor" -lm
+    "$OUT/test_editor"
+}
+
 case "${1:-all}" in
+    editor) run_grind_editor ;;
     adapter) run_native adapter ;;
     cue) run_native cue ;;
     ui) run_native ui ;;
@@ -89,6 +98,7 @@ case "${1:-all}" in
         run_native ui
         run_native persist
         run_native menu
+        run_grind_editor
         ;;
     *) echo "unknown suite: $1" >&2; exit 2 ;;
 esac

@@ -15,7 +15,7 @@ import { INFO_ONLY, Link } from "./link.mjs";
 
 export const LINKS = {
   installer: { text: "Open the installer", href: "../installer/" },
-  releases: { text: "Hortator releases", href: "https://github.com/DeadActive/hortator/releases" },
+  releases: { text: "GRIND MACHINE releases", href: "https://github.com/DaFum/grind-machine/releases" },
 };
 export const BUSY_MSG = "FM-1 busy (update?)";
 export const ASLEEP_MSG = "FM-1 busy: Reconnect when the update is done";
@@ -23,7 +23,7 @@ const restoreBusy = (l) => `Writing ${l.what} to the FM-1 (${l.owner} tab).`;
 const REFUSAL = {
   nomidi: { message: "This browser has no Web MIDI. Use Chrome, Edge or Opera (desktop or Android), or Firefox.", links: [] },
   denied: { message: "MIDI access was refused. Allow MIDI (with SysEx) for this page, then connect again.", links: [] },
-  none: { message: "No Hortator FM-1 found. Connect it by USB (Bluetooth is not an editor link), then connect again. " +
+  none: { message: "No compatible FM-1 found. Connect it by USB (Bluetooth is not an editor link), then connect again. " +
     "If it is connected under another name, search the other MIDI ports.", links: [LINKS.installer], search: true },
   update: { message: "The FM-1 is in update mode: finish the update in the installer, then connect again. Nothing was sent to it.",
     links: [LINKS.installer] },

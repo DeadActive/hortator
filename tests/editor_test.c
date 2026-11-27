@@ -170,7 +170,7 @@ static void rd_str(rd_t *r, char *s, uint32_t max)
 }
 static int rc_is(const frame_t *f, uint32_t rc, uint32_t detail)
 {
-    return f && f->n >= 9u && f->b[6] == rc && (rc == 0u || f->b[7] == detail);
+    return f && f->n >= 8u && f->b[6] == rc && (rc == 0u || (f->n >= 9u && f->b[7] == detail));
 }
 static int ends_ok(const frame_t *f, rd_t *r) { return f && !r->bad && r->i == f->n - 1u && f->b[f->n - 1u] == 0xF7; }
 static int all_short(void)                             /* every frame out <= ED_REPLY_MAX */
@@ -220,6 +220,11 @@ static void t_info(void)
     r = rd_of(f, 7);
     rd_str(&r, magic, sizeof magic);
     rd_str(&r, fw, sizeof fw);
+    const uint32_t caps = ED_CAP_LIVE | ED_CAP_UPR2
+#if GRIND_NATIVE
+                          | ED_CAP_GRIND
+#endif
+    ;
     v[0] = rd_b(&r);                                   /* major, minor, caps */
     v[1] = rd_b(&r);
     v[2] = rd_u14(&r);
@@ -237,10 +242,10 @@ static void t_info(void)
     v[14] = rd_b(&r);
     for (i = 0; i < ED_STATE_N; i++)
         rd_b(&r);
-    check("INFO: HORTATOR, the firmware version without DRUM-, protocol 1.3, LIVE and UPR2 only (no backup / pattern files), the "
+    check("INFO: HORTATOR, the firmware version without DRUM-, protocol 1.4 and the build capabilities, the "
           "sizes, the state block",
           rc_is(f, 0, 0) && ends_ok(f, &r) && !strcmp(magic, "HORTATOR") && !strcmp(fw, "DEV") && v[0] == 1u &&
-              v[1] == ED_PROTO_MINOR && ED_PROTO_MINOR == 3u && v[2] == (ED_CAP_LIVE | ED_CAP_UPR2) && v[3] == 8u && v[4] == 64u && v[5] == P_COUNT && v[6] == G_COUNT &&
+              v[1] == ED_PROTO_MINOR && ED_PROTO_MINOR == 4u && v[2] == caps && v[3] == 8u && v[4] == 64u && v[5] == P_COUNT && v[6] == G_COUNT &&
               v[7] == NMODELS && v[8] == 151u && v[9] == 96u && v[10] == 3u && v[11] == 4u && v[12] == 8u &&
               v[13] == 640u && v[14] == 0u && f->b[f->n - 1u - ED_STATE_N + 1u] == ED_NONE &&
               f->b[f->n - 1u - ED_STATE_N + 5u] == song.sel);
@@ -875,6 +880,58 @@ static void t_clock_pause(void)
     check("update traffic (its frame, the upgrade command, an ota reply) still pauses it, 3 s after", ok);
 }
 
+#if GRIND_NATIVE
+static const frame_t *grind_set(uint32_t track, uint32_t op, uint32_t index, uint32_t value, uint32_t seq)
+{
+    rq_begin(ED_GRIND_SET, seq);
+    rq_b(track);
+    rq_b(op);
+    rq_b(index);
+    rq_b(value);
+    return ask();
+}
+static void t_grind(void)
+{
+    const frame_t *f;
+    ed_reset();
+    gm_runtime_reset();
+    check("GRIND_GET rejects invalid track", rc_is(req1(ED_GRIND_GET, NTRK), ED_E_BAD, ED_D_RANGE));
+    check("GRIND_SET rejects invalid style", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 22, 70), ED_E_BAD, ED_D_RANGE));
+    check("GRIND_SET queues D-Beat on the firmware", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 5, 71), ED_OK, 0));
+    gm_ui_frame();
+    f = req1(ED_GRIND_GET, 0);
+    check("GRIND_GET sees D-Beat committed with 16 steps", rc_is(f, ED_OK, 0) && f->b[7] == 5 &&
+          f->b[14] == 16 && gm_runtime_commits() == 1);
+    check("GRIND KEEP step is accepted", rc_is(grind_set(0, ED_GRIND_KEEP_STEP, 2, 1, 72), ED_OK, 0));
+    f = req1(ED_GRIND_GET, 0);
+    check("GRIND KEEP step round-trips", rc_is(f, ED_OK, 0) && f->b[17] == 1 && gm_keep_get(0, 2));
+    check("GRIND UNDO applies once", rc_is(grind_set(0, ED_GRIND_UNDO, 0, 0, 73), ED_OK, 0) && gmrt.undo_was_undo);
+    check("GRIND UNDO retry does not redo", rc_is(grind_set(0, ED_GRIND_UNDO, 0, 0, 73), ED_OK, 0) &&
+          gmrt.undo_was_undo);
+    song.playing = 1;
+    check("GRIND role kit blocked during playback", rc_is(grind_set(0, ED_GRIND_KIT, 0, 0, 74), ED_E_STOP, ED_D_STOP));
+    song.playing = 0;
+    check("GRIND role kit sets a kick on track 1", rc_is(grind_set(0, ED_GRIND_KIT, 0, 0, 75), ED_OK, 0) &&
+          trk[0].p[P_MODEL] == DM_KTRX);
+    check("GRIND sets a 32-step base pattern", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 10, 76), ED_OK, 0));
+    gm_ui_frame();
+    song.playing = 1;
+    check("GRIND queues a shorter pattern while playing", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 5, 77), ED_OK, 0));
+    gm_ui_frame();
+    check("GRIND stages the shorter pattern", cue.q_gm && trk[0].p[P_SLEN] == 32);
+    check("GRIND KEEP invalidates the staged pattern", rc_is(grind_set(0, ED_GRIND_KEEP_STEP, 20, 1, 78), ED_OK, 0) &&
+          !cue.q_gm && gm_keep_get(0, 20) && gm_runtime_status() == GM_STALE);
+    check("GRIND boundary cannot publish the stale pattern", gm_runtime_commit() == CUE_E_SAME && trk[0].p[P_SLEN] == 32);
+
+}
+#else
+static void t_grind(void)
+{
+    ed_reset();
+    check("GRIND commands require a GRIND build", rc_is(req1(ED_GRIND_GET, 0), ED_E_BAD, ED_D_NO_CAP));
+}
+#endif
+
 int main(int argc, char **argv)
 {
     if (argc > 1 && !(dump = fopen(argv[1], "w")))
@@ -889,6 +946,7 @@ int main(int argc, char **argv)
     t_watch();
     t_silence();
     t_clock_pause();
+    t_grind();
     if (dump)
         fclose(dump);
     printf(fails ? "editor_test: %d FAILED\n" : "editor_test: all passed\n", fails);

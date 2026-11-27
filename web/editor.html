@@ -9,7 +9,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hortator Editor</title>
+<title>GRIND MACHINE Editor</title>
 <meta name="description" content="Edit a Hortator FM-1 from the browser over USB MIDI: live sound, presets, projects, patterns and samples.">
 <style>
   /* The landing page's screen palette and typeface (web/sim/sim.css): five greys of one colour, white as accent. */
@@ -126,24 +126,27 @@
     .hb-tracks { margin-left: 0; }
     #mockbar { position: static; margin: 16px; }
   }
+  .grind-controls, .grind-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: .65rem 0; }
+  .grind-controls label { display: grid; gap: .25rem; }
+  .grind-controls input { width: 6rem; }
+  .grind-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(2.65rem, 1fr)); gap: .3rem; }
+  .grind-steps button[aria-pressed="true"] { background: var(--c5); color: var(--k); font-weight: bold; }
 </style>
 </head>
 <body>
 <header class="top wrap">
-  <a class="silk" href="../../">HORTATOR</a>
+  <a class="silk" href="../../">GRIND MACHINE</a>
   <nav><a href="../../">Home</a><a href="../installer/">Install</a></nav>
 </header>
 <main class="wrap">
   <section id="start">
     <h1>Edit your FM-1 from the browser.</h1>
-    <p class="lead">Live sound on every page, presets, projects, patterns and your own samples, over USB MIDI. For a Hortator FM-1 with
-      firmware 1.0.0 or later.</p>
+    <p class="lead">Edit sounds, presets, projects, patterns and samples over USB MIDI. The GRIND tab appears when the connected FM-1 supports remote generation.</p>
     <button type="button" id="connect" class="cta">Connect</button><span id="mode"></span>
     <div id="msg" role="status" hidden></div>
     <div id="taken" role="status" hidden><p></p><button type="button" id="usehere" class="cta ghost">Use here</button></div>
     <p class="fine">Chrome, Edge or Opera (desktop or Android); Firefox asks for a site permission first; Safari has no
-      Web MIDI. The browser asks for MIDI with SysEx. Nothing is sent before you click Connect, and only to ports named
-      "Hortator": an FM-1 running Felucca or the stock firmware, and other MIDI gear, get nothing.</p>
+      Web MIDI. The browser asks for MIDI with SysEx. Nothing is sent before you click Connect, and the editor identifies compatible FM-1 ports before sending editing commands.</p>
   </section>
   <section id="app" hidden>
     <div id="hb" class="hb"></div>
@@ -158,7 +161,7 @@
 <div id="toast" role="status" hidden></div>
 <dialog id="choose" aria-label="Question"><p></p><div class="acts"></div></dialog>
 <footer class="foot wrap">
-  <p>Hortator, drum-machine firmware for the M-VAVE FM-1 by DEADACTIVE. GPL-3.0.</p>
+  <p>GRIND MACHINE for M-VAVE FM-1, based on Hortator by DEADACTIVE and Felucca by Leo Kuroshita. GPL-3.0.</p>
   <p>The editor's protocol shape follows Felucca's editor by Leo Kuroshita (Hügelton Instruments), GPL-3.0.</p>
 </footer>
 <script type="module" src="editor/app.mjs"></script>

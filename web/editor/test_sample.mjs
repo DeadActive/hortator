@@ -234,7 +234,7 @@ x = json.loads(sys.stdin.read()); b, st = s.ima_encode(x, 0); sys.stdout.write(b
   };
   {
     const i = q(CMD.INFO);
-    ok(i.minor === 3 && i.caps === 0xff && P.has(i, CMD.SMP_BEGIN), "mock INFO: minor 3, caps 0xFF (SAMPLES)");
+    ok(i.minor === P.PROTO.minor && i.caps === 0xff && P.has(i, CMD.SMP_BEGIN), "mock INFO: current minor, caps 0xFF (SAMPLES)");
     const e = [0, 1, 2].map(info);
     ok(e.every((x, k) => x.rc === 0 && x.slot === k && x.valid === 0 && x.name === "" && x.len === 0 && x.crc === 0 && x.max === S.SLOT_MAX[k]
       && x.nz === 0 && x.n === 0 && x.rate === 0), "SMP_INFO: three empty slots, each with its room");

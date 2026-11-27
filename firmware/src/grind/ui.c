@@ -95,6 +95,7 @@ static void gm_settings_unpack(uint32_t v)
     }
     gm_v[GU_MUT] = 0;
 }
+static gm_result gm_last_result;                     /* retained for the USB editor after the panel reports it */
 static uint8_t gm_save_t;                              /* frames until a changed style / WHEN is written (a turn through
                                                         * the list writes once, not at every detent) */
 
@@ -139,10 +140,14 @@ static void gm_ui_changed(uint32_t id)
     if (id == GU_KEEP) {                               /* the knob shows the count: up keeps the track, down frees it */
         uint32_t n = gm_keep_count(song.sel);
         if ((uint32_t)gm_v[GU_KEEP] > n) {
+            fm1_irq_off();
             gm_keep_track(song.sel, 1);
+            fm1_irq_on();
             ui_message("TRACK KEPT");
         } else if ((uint32_t)gm_v[GU_KEEP] < n) {
+            fm1_irq_off();
             gm_keep_track(song.sel, 0);
+            fm1_irq_on();
             ui_message("TRACK FREE");
         }
         gm_v[GU_KEEP] = (int16_t)gm_keep_count(song.sel);
@@ -151,7 +156,9 @@ static void gm_ui_changed(uint32_t id)
     if (id == GU_FREE) {
         if (gm_v[GU_FREE]) {
             gm_v[GU_FREE] = 0;
+            fm1_irq_off();
             gm_keep_free();
+            fm1_irq_on();
             ui_message("ALL FREE");
         }
         return;
@@ -181,6 +188,7 @@ static void gm_ui_changed(uint32_t id)
     if (r == GM_OK)
         r = gm_runtime_submit(&c, gm_v[GU_WHEN] ? GM_BOUNDARY_PATTERN : GM_BOUNDARY_STEP,
                               id == GU_STYLE ? GM_REQUEST_STYLE : id == GU_MUT ? GM_REQUEST_MUTATE : GM_REQUEST_MORPH);
+    gm_last_result = r;
     if (r == GM_UNSUPPORTED)
         ui_message(chain.running ? "STOP THE SONG" : "NOT NOW");
     else if (r != GM_OK)
@@ -207,6 +215,7 @@ static void gm_ui_frame(void)
     }
     st = gm_runtime_status();
     if (st != GM_OK) {
+        gm_last_result = st;
         ui_message(st == GM_STALE ? "NOT APPLIED" : st == GM_LOCK_CONFLICT ? "KEEP DOES NOT FIT" : "GRIND ?");
         gm_runtime_ack_status();
     }

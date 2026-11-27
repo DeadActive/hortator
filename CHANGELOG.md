@@ -12,6 +12,12 @@ released yet are listed under Unreleased.
   BACKLIGHT, the mute timing, MIDI THRU, SOLO, QUANT, the GRIND style and WHEN and the panel table back to what a
   first start has. Projects, presets, samples and the Bluetooth device and mode are not touched. The menu has twelve
   rows now (a 13 px pitch).
+- **`tools/songs_pattern.py`**: drum patterns from song excerpts (a JSON of songs with a tempo map and drum notes). `show` prints a
+  4-bar window as the eight GRIND roles, `compare` sets each song against the 22 styles' golden patterns (nearest
+  styles and role densities), `send` writes the window to the FM-1's loaded pattern over USB-MIDI (steps, accents,
+  each step's NUDGE for what the 16th grid cannot hold, LEN 64 / 16th, optionally the tempo; not saved unless
+  `--save`). Tested on made-up songs and against the editor's mock FM-1. The band's song excerpts are in `assets/songs/`
+  (reference material, not part of any build; see its README).
 - **GRIND pages (builds with GRIND_NATIVE=1 only; not in the default image)**: press ARP again after GRIDS for two
   pages, STYLE AGGR DENS CHAOS and HUMAN MUT WHEN. STYLE picks one of 22 rhythm styles and brings its factory
   controls; the other knobs re-generate the pattern of all eight tracks from them, MUT rolls a new variation. While
@@ -29,7 +35,10 @@ released yet are listed under Unreleased.
   whole track and down to free it; FREE frees every track. A change whose grid the kept steps do not fit says
   `KEEP DOES NOT FIT` and applies nothing. KEEPs are not stored and go when another pattern is loaded or cued.
   UNDO takes the tracks back to what they were before the last GRIND change; UNDO again goes forward (steps and
-  lengths; not your own edits made since). Not yet: the web editor.
+  lengths; not your own edits made since).
+- **GRIND in the USB web editor:** compatible firmware exposes the GRIND tab for style, generation controls, the role
+  kit, step and track KEEP, and undo/redo. The tab shows when a pattern is waiting for a playback boundary. Save
+  the loaded project with Patterns → Save on FM-1 while stopped. Use SAVE on the device to choose a slot when none is loaded. Earlier firmware keeps its existing editor tabs.
 
 ## 1.0.1 - 2026-11-03
 

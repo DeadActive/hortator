@@ -1503,7 +1503,9 @@ static void ui_input(void)
                     uint32_t si = ui.step_si[k];        /* as it is (a rest too), and the step itself stays as it was */
                     if (si < NSTEP) {
                         char m[24];
+                        fm1_irq_off();
                         gm_keep_set(song.sel, si, !gm_keep_get(song.sel, si));
+                        fm1_irq_on();
                         str_cpy(m, "STEP ", sizeof m);
                         fmt_int(m + 5, (int32_t)si + 1);
                         str_cpy(m + str_len(m), gm_keep_get(song.sel, si) ? " KEPT" : " FREE", sizeof m - str_len(m));

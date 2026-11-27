@@ -138,13 +138,22 @@ static int gm_keep_get(uint32_t t, uint32_t s)
     uint32_t i = t * NSTEP + s;
     return (gmrt.lock[i >> 3] >> (i & 7u)) & 1u;
 }
-static void gm_keep_set(uint32_t t, uint32_t s, int on)
+static int gm_keep_bit(uint32_t t, uint32_t s, int on)
 {
     uint32_t i = t * NSTEP + s;
+    if (gm_keep_get(t, s) == !!on)
+        return 0;
     if (on)
         gmrt.lock[i >> 3] |= (uint8_t)(1u << (i & 7u));
     else
         gmrt.lock[i >> 3] &= (uint8_t)~(1u << (i & 7u));
+    return 1;
+}
+/* Call with IRQs disabled so the old candidate cannot publish during a mask change. */
+static void gm_keep_set(uint32_t t, uint32_t s, int on)
+{
+    if (gm_keep_bit(t, s, on))
+        gm_touch_isr();
 }
 static uint32_t gm_keep_count(uint32_t t)
 {
@@ -156,10 +165,22 @@ static uint32_t gm_keep_count(uint32_t t)
 static void gm_keep_track(uint32_t t, int on)             /* the steps the track has: the core refuses a keep past its length */
 {
     uint32_t s, n = (uint32_t)trk[t].p[P_SLEN];
+    int changed = 0;
     for (s = 0; s < NSTEP; s++)
-        gm_keep_set(t, s, on && s < n);
+        changed |= gm_keep_bit(t, s, on && s < n);
+    if (changed)
+        gm_touch_isr();
 }
-static void gm_keep_free(void) { memset(gmrt.lock, 0, sizeof gmrt.lock); }
+static void gm_keep_free(void)
+{
+    uint32_t i;
+    for (i = 0; i < sizeof gmrt.lock; i++)
+        if (gmrt.lock[i]) {
+            memset(gmrt.lock, 0, sizeof gmrt.lock);
+            gm_touch_isr();
+            break;
+        }
+}
 
 
 /* Main loop: one request, the latest wins. A running song and a bar boundary are refused, not queued. */
