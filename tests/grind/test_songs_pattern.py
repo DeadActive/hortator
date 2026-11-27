@@ -78,6 +78,17 @@ class Quantize(unittest.TestCase):
         self.assertEqual(q["dropped"], 1)
         self.assertEqual([(e[0], e[1], e[2]) for e in q["events"]], [(0, 0, 0), (8, 1, 1)])   # only the loud one is an accent
 
+    def test_a_groove_a_little_early_keeps_its_downbeat(self):
+        # a hit at 0 ms, then quarters 12.5 ms (a tenth of a step) early: the shift is -10 %, not +90 %
+        s = song([(0, 36)] + [(4 * i, 36) for i in range(1, 12)])
+        for n in s["notes"][1:]:
+            n["t"] -= SIXTEENTH_MS * 0.1
+        q = sp.quantize(s)
+        steps = sorted(e[0] for e in q["events"])
+        self.assertEqual(steps, [0] + [4 * i for i in range(1, 12)])          # the opening kick is still there
+        self.assertLess(q["phase"], 0)
+        self.assertEqual(sp.window(q["events"], 0)[0][4]["nudge"], 0)
+
     def test_two_hits_on_one_step_become_one(self):
         cells = sp.window(sp.quantize(song([(0, 42), (0, 44)]))["events"], 0)
         self.assertEqual(sp.count(cells)[2], 1)
@@ -89,6 +100,13 @@ class Window(unittest.TestCase):
         h += four_bars(base=64 * 2)                                           # then a full kit, from bar 9
         q = sp.quantize(song(h))
         self.assertEqual(sp.best_bar(q["events"]), 8)
+
+    def test_best_bar_counts_a_step_once(self):
+        thin = [(s, 36) for s in range(0, 64, 2)]                              # 32 hits, one role
+        stacked = [(s, 36) for s in range(0, 8, 2)] * 20                       # 80 notes on 4 steps
+        h = thin + [(64 * 4 + s, p) for s, p in stacked]
+        q = sp.quantize(song(h))
+        self.assertEqual(sp.best_bar(q["events"]), 0)
 
     def test_render_has_the_eight_roles(self):
         text = sp.render(sp.window(sp.quantize(song(four_bars()))["events"], 0))
@@ -150,6 +168,7 @@ class Device(unittest.TestCase):
         self.assertEqual(sets[1][4:], sp.v14(2))                              # DIV 2 = 16th
         steps = [a for c, a in link.sent if c == sp.STEPS_SET]
         self.assertEqual(len(steps), 8)
+        self.assertEqual(link.sent[0][0], sp.STEPS_SET)                       # the steps first: the variation switches
         k = steps[0]
         self.assertEqual(k[:5], [0x7F, 2, 0, 0, 64])
         self.assertEqual(len(k), 5 + 64 * 3 + 64)
@@ -160,10 +179,53 @@ class Device(unittest.TestCase):
         self.assertIn((sp.SET, [1, 0] + sp.u14(gbpm) + sp.v14(150)), link.sent)
         self.assertEqual(link.sent[-1], (sp.SAVE, [0x7F]))
 
+    class Playing(Fake):
+        def __init__(self, state):
+            super().__init__()
+            self._state = state
+
+        def state(self):
+            return self._state
+
+    def test_send_refuses_a_playing_fm1_and_writes_nothing(self):
+        cells = sp.window(sp.quantize(song(four_bars()))["events"], 0)
+        for st in ([1, 0, 0, 127, 127, 0, 0], [0, 0, 0, 127, 127, 0, 2], [0, 0, 0, 127, 127, 0, 1]):
+            link = self.Playing(st + [0] * 10)
+            with self.assertRaises(RuntimeError):
+                sp.send(link, cells, log=lambda *_: None)
+            self.assertEqual(link.sent, [])
+
+    def test_send_without_a_variation_writes_the_playing_one(self):
+        cells = sp.window(sp.quantize(song(four_bars()))["events"], 0)
+        link = self.Playing([0, 0, 5, 127, 127, 0, 0] + [0] * 10)             # stopped, variation 5 loaded
+        sp.send(link, cells, log=lambda *_: None)
+        self.assertEqual({a[1] for c, a in link.sent if c == sp.STEPS_SET}, {5})
+
+    def test_send_refuses_a_window_without_hits(self):
+        link = self.Fake()
+        with self.assertRaises(RuntimeError):
+            sp.send(link, sp.window([], 0), log=lambda *_: None)
+        self.assertEqual(link.sent, [])
+
     def test_send_without_bpm_or_save(self):
         link = self.Fake()
-        sp.send(link, sp.window([], 0), log=lambda *_: None)
+        sp.send(link, sp.window(sp.quantize(song(four_bars()))["events"], 0), log=lambda *_: None)
         self.assertFalse(any(c in (sp.SAVE,) or (c == sp.SET and a[0] == 1) for c, a in link.sent))
+
+
+class Cli(unittest.TestCase):
+    def test_a_bar_counts_from_one_and_a_variation_is_0_to_7(self):
+        for bad in (["--bar", "0"], ["--bar", "-4"], ["--bar", "x"], ["--var", "8"], ["--var", "-1"]):
+            with self.subTest(bad), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                sp.main(["send", "f.json", "01"] + bad)
+
+    def test_send_of_an_empty_window_stops_before_the_midi_port(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "songs.json"
+            p.write_text(json.dumps({"01 Test": song(four_bars())}), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as e:
+                sp.main(["send", str(p), "01", "--bar", "99"])
+            self.assertIn("hold no hits", str(e.exception))
 
 
 class Files(unittest.TestCase):

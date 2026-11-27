@@ -103,6 +103,10 @@ def quantize(song):
     phases = [i * grid / 120.0 for i in range(120)]
     best = min(phases, key=err)
     phase = 0.0 if err(0.0) <= err(best) + 0.01 else best      # no shift when the grid already fits
+    if phase > grid / 2:
+        phase -= grid                                           # the offset nearest zero: a groove a little early is
+                                                                # early, not nearly a whole step late (step numbers count
+                                                                # from the downbeat)
     vels = {v for _, _, v in hits}
     top = max(vels)
     events = []
@@ -131,8 +135,8 @@ def best_bar(events, bars=4):
         return 0
 
     def score(b):
-        inside = [e for e in events if b <= e[0] // BAR < b + bars]
-        return len(inside) + 6 * len({e[1] for e in inside})
+        inside = {(e[0], e[1]) for e in events if b <= e[0] // BAR < b + bars}      # a step and role count once
+        return len(inside) + 6 * len({r for _, r in inside})
 
     return max(range(min(n), max(n) + 1), key=lambda b: (score(b), -b))
 
@@ -257,12 +261,22 @@ def step_bytes(c):
     return [0, 0, 60] if c is None else [1 | (2 if c["acc"] else 0), 0, 60]
 
 
-def send(link, cells, bpm=None, var=0, save=False, log=print):
-    """the window to the loaded pattern: timing knobs, then the steps (+ NUDGE) of every track"""
+def send(link, cells, bpm=None, var=None, save=False, log=print):
+    """the window to the loaded pattern: the steps (+ NUDGE) of every track, then the timing knobs. The steps go first:
+    a STEPS_SET for another variation makes the FM-1 switch to it (stopped), and the timing knobs belong to the
+    variation that plays; a refused upload (playing, a queued slot) then changes nothing. `var` None: the playing one."""
+    st = link.state() if hasattr(link, "state") else None
+    if st is not None:
+        if st[0] or st[6] & 0x02:
+            raise RuntimeError("the FM-1 is playing (or a song runs): stop it first")
+        if st[6] & 0x01:
+            raise RuntimeError("the FM-1 is restoring a backup: wait for it")
+        if var is None:
+            var = st[2]
+    var = 0 if var is None else var
+    if not any(c is not None for row in cells for c in row):
+        raise RuntimeError("that window holds no hits: nothing written")
     pid, gbpm = ids()
-    for t in range(8):
-        for name, val in (("SLEN", 64), ("SDIV", 2), ("SSWING", 0), ("SRC", 0)):
-            link.req(SET, [0, t] + u14(pid[name]) + v14(val))
     for t, row in enumerate(cells):
         args = [0x7F, var, t, 0, WINDOW]
         for c in row:
@@ -270,6 +284,9 @@ def send(link, cells, bpm=None, var=0, save=False, log=print):
         args += [(c["nudge"] if c else 0) + 64 for c in row]
         link.req(STEPS_SET, args)
         log(f"  {ROLES[t]:>2}: {sum(c is not None for c in row)} hits")
+    for t in range(8):
+        for name, val in (("SLEN", 64), ("SDIV", 2), ("SSWING", 0), ("SRC", 0)):
+            link.req(SET, [0, t] + u14(pid[name]) + v14(val))
     if bpm:
         link.req(SET, [1, 0] + u14(gbpm) + v14(int(round(bpm))))
     if save:
@@ -295,6 +312,7 @@ class Link:
             sys.exit("no FM-1 MIDI port (try --port NAME): connect the FM-1 by USB")
         self.o, self.i = mido.open_output(outs[0]), mido.open_input(ins[0])
         r = self.req(INFO, [], 1.0)
+        self.info = r
         magic, k = pack_str(r, 0)
         fw, k = pack_str(r, k)
         minor, caps = r[k + 1], r[k + 2] | r[k + 3] << 7
@@ -302,6 +320,11 @@ class Link:
             sys.exit("this FM-1's firmware has no pattern editing over USB")
         if not caps & CAP_NUDGE:
             sys.exit(f"firmware {fw} (protocol minor {minor}) has no NUDGE: update it first")
+
+    def state(self):
+        """the state block (§3), fresh: the last 17 bytes of INFO's reply"""
+        self.info = self.req(INFO, [], 1.0)
+        return list(self.info[-17:])
 
     def req(self, cmd, args, timeout=2.0, tries=3):
         self.seq = (self.seq + 1) % 127
@@ -371,8 +394,30 @@ def cmd_send(a):
     cells = window(q["events"], bar)
     print(f"{name}: bars {bar + 1}..{bar + 4}, {s['bpm']:g} BPM")
     print(render(cells))
+    if not any(c is not None for row in cells for c in row):
+        raise SongError(f"bars {bar + 1}..{bar + 4} hold no hits (the excerpt has {max(bar_counts(q['events']), default=-1) + 1} bars)")
     send(Link(a.port), cells, bpm=s["bpm"] if a.bpm else None, var=a.var, save=a.save)
     print("written" + (" and saved" if a.save else " (not saved: SAVE on the FM-1, or --save)"))
+
+
+def bar_arg(s):
+    try:
+        v = int(s)
+    except ValueError:
+        v = 0
+    if v < 1:
+        raise argparse.ArgumentTypeError("a bar counts from 1")
+    return v
+
+
+def var_arg(s):
+    try:
+        v = int(s)
+    except ValueError:
+        v = -1
+    if not 0 <= v <= 7:
+        raise argparse.ArgumentTypeError("a variation is 0..7")
+    return v
 
 
 def main(argv=None):
@@ -384,7 +429,7 @@ def main(argv=None):
     p = sub.add_parser("show")
     p.add_argument("file")
     p.add_argument("song")
-    p.add_argument("--bar", type=int, help="first bar of the window, counted from 1 (default: the densest)")
+    p.add_argument("--bar", type=bar_arg, help="first bar of the window, counted from 1 (default: the densest)")
     p.set_defaults(fn=cmd_show)
     p = sub.add_parser("compare")
     p.add_argument("file")
@@ -393,8 +438,8 @@ def main(argv=None):
     p = sub.add_parser("send")
     p.add_argument("file")
     p.add_argument("song")
-    p.add_argument("--bar", type=int)
-    p.add_argument("--var", type=int, default=0, help="variation of the loaded pattern, 0..7 (default 0)")
+    p.add_argument("--bar", type=bar_arg)
+    p.add_argument("--var", type=var_arg, help="variation of the loaded pattern, 0..7 (default: the playing one)")
     p.add_argument("--port", help="regex for the FM-1's MIDI port name")
     p.add_argument("--bpm", action="store_true", help="also set the song's tempo")
     p.add_argument("--save", action="store_true", help="save the slot after writing")
