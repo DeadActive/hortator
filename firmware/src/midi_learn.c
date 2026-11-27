@@ -101,6 +101,7 @@ static __attribute__((noinline)) void ml_set(track_t *t, uint32_t id, uint32_t v
     lf = song.lfo_in && (t->lon || lfo_own(id));    /* (lfo_track: lon, the LFOs on; an LFO's or a slot's knob) */
     if (lf)
         lfo_restore_track(t);
+    gm_touch_param_isr(id);                         /* GRIND: LEN DIV SWG SRC are part of the pattern */
     t->p[id] = (int16_t)nv;
     smp_set_moved(t, id);                           /* presets.c: a SET keeps its SLOT inside its samples */
     if (preset_marks(t, id))

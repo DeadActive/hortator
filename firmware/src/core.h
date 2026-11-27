@@ -18,9 +18,14 @@ static void gm_touch_isr(void);
 static void gm_runtime_stop(void);
 static int gm_runtime_commit(void);
 static void gm_runtime_cancel(void);
+#define GM_TIMING_ID(id) ((id) == P_SLEN || (id) == P_SDIV || (id) == P_SSWING || (id) == P_SRC)
+#define gm_touch_param(id) do { if (GM_TIMING_ID(id)) gm_touch(); } while (0)          /* LEN DIV SWG SRC */
+#define gm_touch_param_isr(id) do { if (GM_TIMING_ID(id)) gm_touch_isr(); } while (0)
 #else
 #define gm_touch() ((void)0)
 #define gm_touch_isr() ((void)0)
+#define gm_touch_param(id) ((void)0)
+#define gm_touch_param_isr(id) ((void)0)
 #endif
 #define NTRK 8                   /* drum tracks */
 #define NPART NTRK               /* fx.c / slicer.c: every track is mixed the same way */

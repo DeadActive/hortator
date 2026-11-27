@@ -961,6 +961,7 @@ static void proj_steps_to(step_t *d, const step_t *st)
 static __attribute__((noinline)) void proj_tracks_in(const project_t *p, int cue_in)
 {
     uint32_t i, k;
+    gm_touch_isr();                                      /* GRIND: the pattern is replaced (the callers have the IRQ off) */
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
@@ -1314,6 +1315,7 @@ static __attribute__((noinline)) int proj_cue_apply(void)
     if (!cue.stg || ld < 0 || (cue.q_slot ? cue.q_slot - 1u : (uint32_t)ld) != s ||
         (cue.q_var && cue.q_var - 1u != cue.stg_var))
         return CUE_E_SAME;                            /* (nothing staged for it: dropped) */
+    gm_touch_isr();                                      /* GRIND: the live steps are swapped: a staged pattern is stale */
     cue.out = cue.stg;
     cue.out_var = var_cur;
     if (cue.stg == STG_VAR) {

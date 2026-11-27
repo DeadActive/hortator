@@ -468,6 +468,7 @@ static void step_hold_on(uint32_t k)
         return;
     s = &TSEL->step[ui.step_si[k]];
     if (!s->on) {
+        gm_touch();
         s->nt = new_step_nt(TSEL);                    /* spec §2: ACID's last played / recorded note, a drum's C4 */
         s->on = 1;
         s->acc = 0;
@@ -484,6 +485,7 @@ static void step_tap(uint32_t k)
     if (si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL) || chain_busy())
         return;
     s = &TSEL->step[si];
+    gm_touch();
     if (s->on) {
         memset(s, 0, sizeof *s);
     } else {
@@ -507,6 +509,7 @@ static void step_accent(uint32_t k)
     if (k >= 16u || si >= (uint32_t)TSEL->p[P_SLEN] || view_src(TSEL))
         return;
     s = &TSEL->step[si];
+    gm_touch();
     if (!s->on) {
         s->nt = new_step_nt(TSEL);                    /* (as a tap's new step) */
         s->on = 1;
@@ -520,6 +523,7 @@ static void step_accent(uint32_t k)
 
 static void track_clear(track_t *t)               /* its steps, its motion and its locks; its last KEYS note C4 again */
 {
+    gm_touch();
     memset(t->step, 0, sizeof t->step);
     t->key_nt = 0;
     motion_clear((uint32_t)(t - trk));
@@ -552,6 +556,7 @@ static void init_all(void)
     uint32_t master = song.master_q12;                  /* the volume knob's level (main.c reads it), kept */
     transport_req = 2;
     fm1_irq_off();                                      /* the audio ISR must not see half a kit */
+    gm_touch_isr();                                      /* (the IRQ is off: the guard-free variant) */
     drum_tracks_init();
     song.master_q12 = master;
     song.playing = 0;

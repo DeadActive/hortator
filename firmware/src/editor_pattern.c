@@ -322,6 +322,7 @@ static int edp_steps_set(uint32_t cmd, const uint8_t *a, uint32_t n)
                                         -MICRO_MAX, MICRO_MAX);
             else if (x.on | x.acc | x.slide | x.tie | x.rat | x.cond | x.nt)
                 x.micro = trk[k].step[first + i].micro;
+            gm_touch_isr();                           /* (the IRQ is off: fm1_irq_off above) */
             trk[k].step[first + i] = x;
         }
         done = 1;
