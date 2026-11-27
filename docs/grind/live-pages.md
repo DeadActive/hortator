@@ -7,7 +7,7 @@ all stored: only STYLE and WHEN are (the settings word).
 |---|---|---|
 | 1 | STYLE, AGGR, DENS, CHAOS | a style turn loads that style's factory controls |
 | 2 | HUMAN, MUT, WHEN, KIT | |
-| 3 | KEEP, UNDO, FREE, VARY | VARY 0..100: velocity swing per generated hit, up to +-8 at 100 (seq.c `hv_vel`, grind/hit_variation.h). Deterministic per PLAY (track, step count, roll ordinal). 0 = the exact old sound. ACID/gated tracks, manual hits and MIDI are not varied. Not stored. |
+| 3 | KEEP, UNDO, FREE, VARY | VARY 0..100: velocity swing per generated hit, up to +-8 at 100 (seq.c `hv_vel`, grind/hit_variation.h). Deterministic per PLAY (track, step count, roll ordinal). 0 = the exact old sound. It is a playback feel: it varies every ordinary drum step and its ratchets, hand-programmed and KEEP steps included (the firmware does not record which steps GRIND wrote). ACID/gated tracks (and their rolls), manual hits and MIDI are not varied. Not stored. |
 | 4 | SINK, SWELL, CUT | LIVE macros, see below |
 | 5 | STYLE (browser), BANK, APPLY, | looks at a style with a live preview; nothing changes until APPLY; leaving the page cancels |
 
@@ -26,6 +26,7 @@ Technical on a 3+2+2 seven-quarter bar; see CHANGELOG. Style ids, saved bytes an
 - **SWELL** 0..100: more of the mix into the delay and reverb sends (the THROW macro), smoothed. No gain jump.
 - **CUT**: a performance stop. Stops the transport (a queued cue is dropped), cuts every track's voices, cancels a staged
   or waiting GRIND change. The delay and reverb tails ring out. A later PLAY is an ordinary PLAY. It is not a recovery.
+  Limits: on an FM-Link follower the leader's transport keeps driving the pattern, so CUT only silences the current voices; a REPEAT STEP button held (MIDI) keeps repeating after CUT, as after an ordinary STOP.
   With SINK and SWELL at 0 the output is bit-identical to a firmware without them. The levels are not stored and reset on power-up.
 
 ## Not built (RAM)

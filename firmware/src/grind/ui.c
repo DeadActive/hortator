@@ -246,6 +246,10 @@ static void gm_ui_changed(uint32_t id)
         if (!gm_v[GU_OK])
             return;
         gm_v[GU_OK] = 0;
+        if (gm_pv.state != PV_READY) {                 /* nothing was shown that APPLY could publish: no control changes */
+            ui_message(gm_pv.state == PV_FAIL ? "KEEP DOES NOT FIT" : "WAIT");
+            return;
+        }
         gm_v[GU_STYLE] = gm_v[GU_BROWSE];
         id = GU_STYLE;
     }

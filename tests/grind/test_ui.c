@@ -606,7 +606,7 @@ static void browser_confirm_stopped(void)
     ok &= gm_runtime_commits() == 1u && gm_v[GU_STYLE] == 6 && gm_v[GU_OK] == 0;
     gm_ui_config(&c);
     ok &= c.algorithm == 7u && live_is(&c, &base);   /* the preview's pattern, now live */
-    ok &= preview_equals_core(6) || gm_pv.state == PV_READY;
+    ok &= preview_equals_core(6);
     check("ui: APPLY while stopped publishes the browsed style once and makes it the committed one", ok);
 }
 
@@ -743,6 +743,66 @@ static void init_clears_macros(void)
     check("ui: TOOLS INIT clears SINK, SWELL and VARY", ok);
 }
 
+static void browser_redraws_on_change(void)
+{
+    uint32_t ok = 1, a, b, c;
+    fresh();
+    settings.zoom = 0;
+    open_grind(3);
+    frames(4);
+    a = graph_signature();
+    turn(EN_K1, 6);                                  /* another style: the grid is another */
+    frames(4);
+    b = graph_signature();
+    ok &= a != b;
+    turn(EN_K1, 40);                                 /* MATH: 28 steps, two banks */
+    frames(4);
+    b = graph_signature();
+    turn(EN_K2, 1);                                  /* the next bank of the same preview */
+    frames(4);
+    c = graph_signature();
+    ok &= c != b;
+    check("ui: the browser's graph is redrawn when the style or the bank changes (zoom off)", ok);
+}
+
+static void browser_follows_undo(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 3);                                  /* a change: undoable */
+    frames(3);
+    open_grind(3);
+    frames(4);
+    ok &= gm_pv.state == PV_READY;
+    ok &= gm_runtime_undo() == 1;
+    frames(4);
+    ok &= gm_pv.state == PV_READY && gm_pv.rev == gmrt.ctl.native_revision;   /* made again from the restored pattern */
+    check("ui: UNDO invalidates the browser's preview", ok);
+}
+
+static void browser_apply_refused_keeps_controls(void)
+{
+    uint32_t ok = 1;
+    int16_t aggr;
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 40);                                 /* MATH: 28 steps */
+    frames(4);
+    gm_keep_set(0, 20, 1);                           /* a kept step 21 */
+    turn(EN_K2, 3);
+    frames(2);
+    aggr = gm_v[GU_AGGR];
+    open_grind(3);
+    turn(EN_K1, -40);                                /* a 16-step style: the kept step does not fit */
+    frames(4);
+    ok &= gm_pv.state == PV_FAIL;
+    turn(EN_K3, 1);                                  /* APPLY */
+    frames(4);
+    ok &= gm_v[GU_STYLE] == (int16_t)(GM_UI_STYLES - 1u) && gm_v[GU_AGGR] == aggr;   /* nothing replaced */
+    check("ui: APPLY of a style the kept steps do not fit changes no control", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -789,6 +849,9 @@ int main(void)
     vary_knob();
     live_page();
     init_clears_macros();
+    browser_redraws_on_change();
+    browser_follows_undo();
+    browser_apply_refused_keeps_controls();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

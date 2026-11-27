@@ -1938,6 +1938,11 @@ static uint32_t graph_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)song.g[G_SLOT] * 13u;
+#if GRIND_NATIVE
+    if (pg->graph == GR_GRINDPV)                       /* the browser: the style, the bank and what the preview holds */
+        h = (h ^ (uint32_t)gm_v[GU_BROWSE] * 31u ^ (uint32_t)gm_v[GU_PVBANK] * 977u ^ (uint32_t)gm_pv.state * 7919u ^
+             gm_pv.rev * 104729u ^ (uint32_t)gm_pv.idx * 15485863u) * 16777619u;
+#endif
     if (pg->graph == GR_CHO)                           /* the chorus' globals */
         h = (h ^ (uint32_t)song.g[G_CRATE] * 23u ^ (uint32_t)song.g[G_CDEPTH] * 7919u) * 16777619u;
     if (pg->graph == GR_DLY || pg->graph == GR_REV)    /* the buses' globals (and the tempo: TIME in ms) */

@@ -62,6 +62,30 @@ int main(void)
     check("ratchet hits vary too", lo < hi);
     run(0, 0, 3, &lo, &hi);
     check("ratchet at vary 0 stays flat", lo == hi);
+    host_init();
+    song.g[G_BPM] = 240;
+    gm_runtime_reset();
+    {
+        uint32_t i, b, l = 127, h = 0;
+        drum_set_model(&trk[0], DM_ACID);              /* a gated model: not varied, its rolls neither */
+        for (i = 0; i < 16u; i++) {
+            trk[0].step[i].on = 1;
+            trk[0].step[i].rat = 3;
+        }
+        trk[0].p[P_SLEN] = 16;
+        gm_vary = 100;
+        transport_req = 1;
+        for (b = 0; b < 400u; b++) {
+            render_mix(0, 0, CTL);
+            for (i = 0; i < NDV; i++)
+                if (trk[0].v[i].active) {
+                    uint32_t v = trk[0].v[i].vel;
+                    l = v < l ? v : l;
+                    h = v > h ? v : h;
+                }
+        }
+        check("a gated track (ACID) and its ratchets are not varied", l == h);
+    }
     printf(fails ? "test_vary: %d FAILED\n" : "test_vary: all passed\n", fails);
     return fails != 0;
 }

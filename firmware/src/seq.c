@@ -358,6 +358,8 @@ static __attribute__((noinline)) void acid_step(track_t *t, const step_t *s, con
 /* A3: the velocity of a step's hit (ordinal 0) or roll hit k: from where it is (track, step count), so a PLAY repeats */
 static uint32_t hv_vel(const track_t *t, uint32_t base, uint32_t k)
 {
+    if (!gm_vary || trk_model(t)->gate)
+        return base;                                    /* off: no hashing in the audio block; gated (ACID) tracks never vary */
     return gm_hit_velocity(base, gm_vary, gm_hit_key(0x47524Eu, (uint32_t)(t - trk), t->seq_cnt, 0, k));
 }
 #else
