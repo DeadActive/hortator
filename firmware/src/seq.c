@@ -810,7 +810,11 @@ static __attribute__((noinline)) int seq_cut_ahead(uint32_t rem)
         if (chain.left > 1u)
             return 0;                               /* (a repeat: the tracks just loop) */
         r = &trk[chain.ref];
+#if GRIND_NATIVE
+    } else if (cue.q_slot || cue.q_var || cue.q_gm) {
+#else
     } else if (cue.q_slot || cue.q_var) {
+#endif
         if (cue.now)
             return 1;                               /* (at the soonest next step) */
         r = &trk[cue_longest()];

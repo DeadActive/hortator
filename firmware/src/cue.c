@@ -20,6 +20,9 @@ static uint8_t var_cur;                    /* the variation playing: 0 = variati
 static struct {
     volatile uint8_t q_slot, q_var;        /* queued: slot + 1 / variation + 1, 0 none (main writes, the ISR takes) */
     volatile uint8_t now;                  /* the same key again: switch at the next step */
+#if GRIND_NATIVE
+    volatile uint8_t q_gm;                 /* a staged Grind pattern waits for the boundary (grind/runtime.c) */
+#endif
     uint8_t last[4];                       /* each slot's last-played variation (RAM only; power-on 0) */
     uint16_t b24;                          /* 1/24 beats since PLAY at the last restart, mod B24_WRAP */
     volatile uint8_t done, err;            /* ISR -> main: CUE_SW_SLOT | CUE_SW_VAR; a refusal CUE_E_* (said once) */
@@ -53,9 +56,16 @@ static __attribute__((noinline)) int cue_switch(uint32_t x, uint32_t k)
 {
     uint32_t den, b24 = song.playing ? (cue.b24 + (trk[k].seq_cnt + 1u) * step24((uint32_t)trk[k].p[P_SDIV], &den)) %
                                            B24_WRAP : cue.b24;   /* the grid's time: + the steps track k played */
+#if GRIND_NATIVE
+    int r = cue.q_gm ? gm_runtime_commit() : proj_cue_apply();   /* (one arbitration: never both) */
+#else
     int r = proj_cue_apply();
+#endif
     if (r) {
         cue.q_slot = cue.q_var = cue.now = 0;
+#if GRIND_NATIVE
+        cue.q_gm = 0;
+#endif
         if (r != CUE_E_SAME)
             cue.err = (uint8_t)r;
         cue_fade_up();
@@ -79,6 +89,9 @@ static __attribute__((noinline)) int cue_switch(uint32_t x, uint32_t k)
         cue.fg = 32767;
     }
     cue.q_slot = cue.q_var = cue.now = 0;
+#if GRIND_NATIVE
+    cue.q_gm = 0;
+#endif
     return 0;
 }
 
@@ -122,8 +135,13 @@ static __attribute__((noinline)) void cue_tick(uint32_t n, uint32_t adv, uint32_
                                                    * audio ISR's loops stay as they were: target_budget.py) */
 {
     uint32_t k, best = NTRK, dist = 0xFFFFFFFFu;
+#if GRIND_NATIVE
+    if (!cue.q_slot && !cue.q_var && !cue.q_gm)
+        return;
+#else
     if (!cue.q_slot && !cue.q_var)
         return;
+#endif
     if (!song.playing || chain.running)
         return;
     if (cue.now) {                                 /* the soonest next step of any track */
@@ -166,4 +184,8 @@ static void cue_start(void)                        /* seq_start: the grid's time
 static void cue_stop(void)                         /* seq_stop: a queued cue dropped (a fade goes back up) */
 {
     cue.q_slot = cue.q_var = cue.now = 0;
+#if GRIND_NATIVE
+    cue.q_gm = 0;
+    gm_runtime_stop();
+#endif
 }

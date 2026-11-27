@@ -162,6 +162,29 @@ static void reading_is_owned_by_audio(void)
     check("controller: a stage being read is never reused or cancelled; a request behind it needs the new base", ok);
 }
 
+static void superseded_while_writing(void)
+{
+    gm_controller c = fresh();
+    gm_request a = req(&c, 20, 0), b = req(&c, 21, 0), got;
+    uint32_t ok = 1;
+    gm_ctl_submit(&c, &a);
+    ok &= gm_ctl_begin(&c, &got) == GM_OK && got.revision == 20;
+    ok &= gm_ctl_submit(&c, &b) == GM_OK;                                    /* a newer request while 20 is made */
+    ok &= gm_ctl_finish(&c, 20, GM_OK) == GM_STALE && c.stage_state == GM_STAGE_FREE;
+    ok &= gm_ctl_consume(&c, 20) == 0 && c.commits == 0u;                    /* 20 can never go live */
+    ok &= gm_ctl_begin(&c, &got) == GM_OK && got.revision == 21 && got.base_revision == c.native_revision;
+    check("controller: a request replaced while its candidate is being made never publishes; the new one starts", ok);
+}
+
+static void revision_zero_is_no_request(void)
+{
+    gm_controller c = fresh();
+    gm_request r = req(&c, 0, 0);
+    uint32_t ok = 1;
+    ok &= gm_ctl_submit(&c, &r) == GM_INVALID && !c.has_pending;
+    check("controller: revision 0 is refused, so an acknowledgement of 0 can never hide a commit", ok);
+}
+
 static void invalid_and_wrap(void)
 {
     gm_controller c = fresh();
@@ -191,6 +214,8 @@ int main(void)
     stale_pending();
     stop_cancels();
     reading_is_owned_by_audio();
+    superseded_while_writing();
+    revision_zero_is_no_request();
     invalid_and_wrap();
     printf("test_controller: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

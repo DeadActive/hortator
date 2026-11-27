@@ -9,4 +9,5 @@
 #include "rules.c"
 #include "core.c"
 #include "serialize.c"
+#include "controller.c"
 #endif

@@ -16,6 +16,9 @@ gm_result gm_ctl_submit(gm_controller *c, const gm_request *r)
     gm_result v = gm_validate_config(&r->config);
     if (v != GM_OK)
         return v;
+    if (!r->revision)
+        return GM_INVALID;                                       /* (0 is no request: gm_ctl_reconcile
+                                                              * returns it for "nothing acknowledged") */
     c->pending = *r;
     c->has_pending = 1;
     if (c->stage_state == GM_STAGE_READY && c->stage_req.revision != r->revision)
@@ -50,7 +53,7 @@ gm_result gm_ctl_finish(gm_controller *c, uint32_t revision, gm_result result)
         c->status = result;
         return result;
     }
-    if (c->stage_req.base_revision != c->native_revision) {
+    if (c->has_pending || c->stage_req.base_revision != c->native_revision) {   /* (superseded, or its base moved) */
         c->stage_state = GM_STAGE_FREE;
         c->status = GM_STALE;
         return GM_STALE;

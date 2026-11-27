@@ -157,6 +157,9 @@ static void publish_refusals(void)
     song.playing = 1;
     ok &= gm_native_publish(&p) == GM_UNSUPPORTED && native_signature() == sig;
     song.playing = 0;
+    transport_req = 1;                                 /* (PLAY queued: the audio loop starts it next block) */
+    ok &= gm_native_publish(&p) == GM_UNSUPPORTED && native_signature() == sig;
+    transport_req = 0;
     ok &= gm_native_publish(&p) == GM_OK && native_signature() != sig;
     check("adapter: invalid, song-running and playing publishes leave the live pattern untouched", ok);
 }

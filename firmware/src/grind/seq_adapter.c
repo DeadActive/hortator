@@ -72,7 +72,7 @@ static gm_result gm_native_check(const gm_pattern *p)
     return GM_OK;
 }
 
-/* The live pattern as the core sees it. The native steps carry no lock: the caller keeps its own mask. */
+/* The live pattern as the core sees it: what plays. The native steps carry no lock: the caller keeps its own mask. */
 static gm_result gm_native_export(gm_pattern *out)
 {
     uint32_t t, s;
@@ -83,20 +83,22 @@ static gm_result gm_native_export(gm_pattern *out)
             return GM_UNSUPPORTED;
         out->timing[t] = (gm_timing){(uint8_t)trk[t].p[P_SLEN], mus, (uint8_t)trk[t].p[P_SSWING],
                                      (uint8_t)trk[t].p[P_SRC]};
-        for (s = 0; s < GM_STEPS; s++)
+        for (s = 0; s < out->timing[t].length && s < GM_STEPS; s++)   /* (steps past LEN never play: the native bank
+                                                                       * keeps them, the core requires them empty) */
             out->cell[t][s] = gm_from_native(&trk[t].step[s]);
     }
     return GM_OK;
 }
 
-/* Stopped transport, no song: all or nothing. The song's rows keep their own steps, so a running song refuses. */
+/* Stopped transport (no PLAY queued either), no song: all or nothing. The song's rows keep their own steps, so a
+ * running song refuses. */
 static gm_result gm_native_publish(const gm_pattern *p)
 {
     uint32_t t, s;
     gm_result r = gm_native_check(p);
     if (r != GM_OK)
         return r;
-    if (song.playing || chain.running)
+    if (song.playing || transport_req == 1u || chain.running)   /* (a queued PLAY starts next block) */
         return GM_UNSUPPORTED;
     fm1_irq_off();                                    /* (no ISR reads a half-written track) */
     for (t = 0; t < GM_TRACKS; t++) {

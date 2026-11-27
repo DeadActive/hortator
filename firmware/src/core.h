@@ -5,6 +5,23 @@
  * optional sample layer, through Felucca's per-track DIST / INSERT / SLICER / sends (fx.c). */
 #include <stdint.h>
 #include "dm_state.h"
+/* GRIND (grind/runtime.c): the portable rhythm engine published at the native cue boundary. Off by default: the
+ * image, its RAM and its ISR are then exactly what they were. gm_touch() is called before a native step is
+ * written by anything but the engine (the user, the editor, a tool, a load, live recording): it invalidates a
+ * staged candidate made from the old pattern. gm_touch_isr() is the same from the audio ISR (no guard). */
+#ifndef GRIND_NATIVE
+#define GRIND_NATIVE 0
+#endif
+#if GRIND_NATIVE
+static void gm_touch(void);
+static void gm_touch_isr(void);
+static void gm_runtime_stop(void);
+static int gm_runtime_commit(void);
+static void gm_runtime_cancel(void);
+#else
+#define gm_touch() ((void)0)
+#define gm_touch_isr() ((void)0)
+#endif
 #define NTRK 8                   /* drum tracks */
 #define NPART NTRK               /* fx.c / slicer.c: every track is mixed the same way */
 #define NDV 2                    /* voices per track; a model uses 1 or 2 */

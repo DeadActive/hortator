@@ -42,13 +42,14 @@ typedef struct {
 
 void gm_ctl_init(gm_controller *c, const gm_config *active);
 /* Latest wins: an older pending request is replaced, a READY stage made for another request is dropped. A stage
- * being read keeps going. Invalid configs are refused here, before they can queue. */
+ * being read keeps going. Invalid configs and revision 0 (no request) are refused here, before they can queue. */
 gm_result gm_ctl_submit(gm_controller *c, const gm_request *r);
 /* Moves the pending request into the stage (FREE -> WRITING) and copies it out. GM_NO_CHANGE: nothing to do.
  * GM_STALE: its base is not the live pattern any more (the request is dropped). */
 gm_result gm_ctl_begin(gm_controller *c, gm_request *out);
 /* The generated candidate is complete (result GM_OK) or failed: WRITING -> READY, or back to FREE. A candidate whose
- * base moved or whose request was cancelled while it was being made is dropped (GM_STALE). */
+ * base moved, whose request was cancelled or that a newer request replaced while it was being made is dropped
+ * (GM_STALE): only the latest request can ever go live. */
 gm_result gm_ctl_finish(gm_controller *c, uint32_t revision, gm_result result);
 /* A manual edit, an import, a load: the live pattern changed. A READY stage of the old base is dropped at once. */
 void gm_ctl_native_edit(gm_controller *c);
