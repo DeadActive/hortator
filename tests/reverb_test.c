@@ -346,6 +346,8 @@ static void test_cost(void)
     uint64_t c[2];
     uint32_t m, b, i;
     char what[160];
+    if (!instr_available("HALL and ROOM reverb cost"))
+        return;
     for (m = 0; m < 2u; m++) {
         uint64_t i0;
         model_reset(m ? M_HALL : M_ROOM, 127, 0);
@@ -357,11 +359,7 @@ static void test_cost(void)
             }
             model_block(m ? M_HALL : M_ROOM, in, o, sd, CTL);
         }
-        c[m] = instr_now() - i0;
-    }
-    if (!c[0]) {
-        printf("     cost: no instruction counter here\n");
-        return;
+        c[m] = instr_elapsed(i0);
     }
     snprintf(what, sizeof what, "cost: HALL %.0f host instructions / sample, ROOM %.0f (with the noise send): HALL at most "
              "ROOM + 30 %%", c[1] / (4.0 * FS), c[0] / (4.0 * FS));

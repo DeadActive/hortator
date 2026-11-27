@@ -7,6 +7,7 @@
   python3 tools/version.py bump patch|minor|major
                                                 raise it, date CHANGELOG.md's "Unreleased" section with it
   python3 tools/version.py check build          the built app and build/site carry it
+  python3 tools/version.py check-app build      check the app in a DRUM_SITE=0 build
   python3 tools/version.py --selftest
 """
 import datetime
@@ -60,12 +61,14 @@ def bump(part, root=ROOT, today=None):
     return old, new
 
 
-def check(build, root=ROOT):
+def check(build, root=ROOT, *, app_only=False):
     """errors: the version the build should carry, against what build/ holds"""
     v, errors = read(root), []
     app = build / "felucca.bin"
     if firmware_string(v).encode() + b"\0" not in app.read_bytes():
         errors.append(f"{app}: no '{firmware_string(v)}' string (ABOUT page, console)")
+    if app_only:
+        return errors
     page = build / "site" / "webapp" / "installer" / "index.html"
     if page.exists():
         m = re.search(r'"version": ("[^"]*")', page.read_text(encoding="utf-8"))
@@ -114,9 +117,12 @@ def selftest():
         def label(x):
             page.write_text("<script>const META = " + json.dumps({"version": x, "product": "FM-1_900"}) + ";</script>")
         (b / "felucca.bin").write_bytes(b"\x00xDRUM-0.5.0\x00y")
+        expect("a build without a site passes the app-only check", check(b, r, app_only=True) == [])
+        expect("a build without a site fails the full check", len(check(b, r)) == 1)
         label("drum-0.5.0+57f7e31")
         expect("a build carrying 0.5.0 passes", check(b, r) == [])
         (b / "felucca.bin").write_bytes(b"\x00xDRUM-0.5.01\x00y")
+        expect("a mismatched version fails the app-only check", len(check(b, r, app_only=True)) == 1)
         expect("a build carrying another version fails", len(check(b, r)) == 1)
         (b / "felucca.bin").write_bytes(b"\x00xDRUM-0.5.0\x00y")
         label("drum-0.5.0+57f7e31-dirty")
@@ -133,12 +139,15 @@ def main(argv):
         old, new = bump(argv[1])
         print(f"{old} -> {new}: commit VERSION.txt + CHANGELOG.md, then tag it: git tag drum-v{new}")
         return 0
-    if argv[:1] == ["check"] and len(argv) == 2:
-        errors = check(Path(argv[1]))
+    if len(argv) == 2 and argv[0] in ("check", "check-app"):
+        app_only = argv[0] == "check-app"
+        errors = check(Path(argv[1]), app_only=app_only)
         for e in errors:
             print("  FAIL", e)
         if not errors:
-            print(f"  ok   build carries {firmware_string(read())} (installer drum-{read()}+<commit>)")
+            v = read()
+            print(f"  ok   app carries {firmware_string(v)}" +
+                  ("" if app_only else f" (installer drum-{v}+<commit>)"))
         return 1 if errors else 0
     if not argv:
         print(read())

@@ -14,7 +14,7 @@ static int check(const char *what, int ok)
 }
 #define SECS(s) ((uint32_t)((s) * FS) / CTL * CTL)
 static int32_t wl[SECS(6)];
-static double ref[SECS(1.2)];
+static double ref[HOST_FRAMES_MS(1200)];
 static int32_t seed;                                    /* the hit's noise seed (the core's, per hit) */
 
 static double tau_d32(uint32_t d) { return -1 / (FS * log(1 - d / 4294967296.0)); }   /* a Q32 fall's tau, s */

@@ -293,7 +293,7 @@ static void test_sdtrx_snap(void)
                          S64[8] = {0, 64, 64, 64, 0, 64, 0, 0};
     double a, b;
     uint32_t i, same = 1, n = SECS(0.1);
-    static int32_t body[SECS(0.1)];
+    static int32_t body[HOST_FRAMES_MS(100)];
     sd_hit(S0, 127, body, n);
     sd_hit(S32, 127, wl, n);
     for (i = 0; i < n; i++)

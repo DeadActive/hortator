@@ -4871,6 +4871,8 @@ static void test_ui_frame_cost(void)
 {
     uint64_t i0, worst = 0, c;
     uint32_t i;
+    if (!instr_available("TRACKS frame cost"))
+        return;
     ui_host_init();
     kit_session();
     transport_req = 1;
@@ -4880,12 +4882,12 @@ static void test_ui_frame_cost(void)
         ui_input();
         ui_leds();
         ui_draw();
-        c = instr_now() - i0;
+        c = instr_elapsed(i0);
         worst = c > worst ? c : worst;
         render_mix(0, 0, CTL);
     }
     printf("     ui: heaviest frame %llu host instructions (TRACKS, playing)\n", (unsigned long long)worst);
-    check("ui frame cost: under 4,000,000 host instructions (8 s watchdog, 100x margin)", !i0 || worst < 4000000u);
+    check("ui frame cost: under 4,000,000 host instructions (8 s watchdog, 100x margin)", worst < 4000000u);
 }
 
 /* a white key on a per-track page (SOUND, TRACK, MIDI, LAYER, FX, SLICER) selects its track and still plays it;
@@ -7797,8 +7799,10 @@ static void test_acid_edit_graph(void)
 
 static void test_roll_frame_cost(void)
 {
-    uint64_t i0 = 0, worst = 0, c;
+    uint64_t i0, worst = 0, c;
     uint32_t i;
+    if (!instr_available("ACID piano-roll frame cost"))
+        return;
     ui_host_init();
     old_set_model(TSEL, DM_ACID);
     acid_line(TSEL);
@@ -7810,13 +7814,13 @@ static void test_roll_frame_cost(void)
         ui_input();
         ui_leds();
         ui_draw();
-        c = instr_now() - i0;
+        c = instr_elapsed(i0);
         worst = c > worst ? c : worst;
         render_mix(0, 0, CTL);
     }
     printf("     ui: heaviest frame %llu host instructions (STEP, the ACID piano roll, playing)\n",
            (unsigned long long)worst);
-    check("ui frame cost, the piano roll: under 4,000,000 host instructions (as every page)", !i0 || worst < 4000000u);
+    check("ui frame cost, the piano roll: under 4,000,000 host instructions (as every page)", worst < 4000000u);
     transport_req = 2;
     ui_frame();
 }
@@ -9484,6 +9488,8 @@ static void test_vg_budget(void)
     for (f = 0; f < 30u; f++)
         ui_frame();
     check("rendered hit: idle frames render nothing, redraw nothing", vg.work == w && host_graph_blits == b);
+    if (!instr_available("rendered-hit frame cost"))
+        return;
     for (i = 0; i < NMODELS; i++) {
         uint32_t mi = MODEL_LIST[i], n;
         if (!vg_drawn(mi))
@@ -9493,7 +9499,7 @@ static void test_vg_budget(void)
         w = vg.work;
         i0 = instr_now();
         vg_settle();
-        d = instr_now() - i0;
+        d = instr_elapsed(i0);
         n = vg.work - w;
         printf("     %-5s %4u MS span, %6u samples, %8llu host instructions (%3llu a sample, ~%5.1f ms on the FM-1), "
                "%2u frames\n", N_MODEL[mi], (unsigned)vg.span, n, (unsigned long long)d,

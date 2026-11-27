@@ -7,13 +7,13 @@
 // - editor.html (Hortator's editor, protocol 1): its tab modules, no CDN, and editor/test_page.mjs (the page's
 //   logic against editor/mock_device.mjs). The protocol codec and the mock itself: node web/editor/test_editor.mjs
 // - the editor as the site publishes it (make_site.py: one file, nothing fetched; the landing page links it)
-// - fm1pkg.js: productOf and logicalImage on build/felucca.fwsc (skipped without a build)
+// - fm1pkg.js: productOf and logicalImage on FELUCCA_TEST_PACKAGE or build/felucca.fwsc
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
 // - sim/counter.js: the GoatCounter install count (off without a site code; never blocks or breaks an install)
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { logicalImage, productOf } from "./fm1pkg.js";
 import { Updater, pack7, unpack7 } from "./fm1ota.js";
 import { GC_CODE, counterOn, countInstall, installCount, loadPageCounter } from "./sim/counter.js";
@@ -98,9 +98,11 @@ async function editorSite() {
 
 /* ------------------------------------------------------- packages: JS == Python --- */
 async function packages() {
-  const pkg = join(HERE, "../build/felucca.fwsc");
+  const configuredPackage = process.env.FELUCCA_TEST_PACKAGE;
+  const pkg = resolve(HERE, "..", configuredPackage || "build/felucca.fwsc");
   if (!existsSync(pkg)) {
-    console.log("packages: skipped (run ./build.sh first)");
+    if (configuredPackage) ok(false, `package does not exist: ${pkg}`);
+    else console.log("packages: skipped (run ./build.sh first)");
     return;
   }
   const raw = readFileSync(pkg);

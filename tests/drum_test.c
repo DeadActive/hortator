@@ -783,7 +783,7 @@ static double kit_cost(uint32_t mi, int layers, int reson)
     render_mix(0, 0, SECS(0.5));
     i0 = instr_now();
     render_mix(wl, wr, SECS(2));
-    return i0 ? (double)(instr_now() - i0) / SECS(2) : 0;
+    return (double)instr_elapsed(i0) / SECS(2);
 }
 
 static double cost_ref(const char *key)               /* tests/drum_cost_ref.txt "key value" */
@@ -812,6 +812,8 @@ static void test_cost(void)
     printf("     cost: measured by the build without overflow checks (drum_test)\n");
     return;
 #endif
+    if (!instr_available("drum render cost"))
+        return;
     host_init();                                     /* realistic heavy use: the demo with everything on */
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
@@ -828,7 +830,7 @@ static void test_cost(void)
     render_mix(0, 0, SECS(0.5));
     i0 = instr_now();
     render_mix(wl, wr, SECS(4));
-    real = i0 ? (double)(instr_now() - i0) / SECS(4) : 0;
+    real = (double)instr_elapsed(i0) / SECS(4);
     for (mi = 0; mi < NMODELS; mi++)                 /* the extreme: every model kept busy on 8 tracks */
         for (lay = 0; lay < 2; lay++) {
             c = kit_cost(mi, (int)lay, 0);
@@ -840,29 +842,29 @@ static void test_cost(void)
         }
     c = kit_cost(wm, (int)wl_, 1);                   /* the same worst kit, every track ringing (2 CHORD) */
     printf("     extreme kit with RESON on 4 tracks (2 CHORD): %.0f (its own limit %.0f)\n", c, rmax);
-    check("cost: the extreme kit with RESON at most (4 tracks, 2 CHORD) within its recorded limit", !i0 || rmax == 0 || c <= rmax);
+    check("cost: the extreme kit with RESON at most (4 tracks, 2 CHORD) within its recorded limit", rmax > 0 && c <= rmax);
     c = kit_cost(wm, (int)wl_, 2);                   /* the same, the other 2 MODAL (PHYS) */
     printf("     extreme kit with RESON on 4 tracks (2 CHORD + 2 MODAL): %.0f (its own limit %.0f)\n", c, rmax);
-    check("cost: the extreme kit with RESON at most (2 CHORD + 2 MODAL) within its recorded limit", !i0 || rmax == 0 || c <= rmax);
+    check("cost: the extreme kit with RESON at most (2 CHORD + 2 MODAL) within its recorded limit", rmax > 0 && c <= rmax);
     kit_keyf = 1;
     c = kit_cost(wm, (int)wl_, 1);                   /* RESON's caps with KEYF: every hit glides the lines */
     printf("     extreme kit with RESON on 4 tracks (2 CHORD), KEYF 100 %%, notes 2 octaves apart: %.0f (limit %.0f)\n", c, rmax);
-    check("cost: .. with KEYF retuning every hit (2 CHORD + 2 STRNG) within RESON's recorded limit", !i0 || rmax == 0 || c <= rmax);
+    check("cost: .. with KEYF retuning every hit (2 CHORD + 2 STRNG) within RESON's recorded limit", rmax > 0 && c <= rmax);
     c = kit_cost(wm, (int)wl_, 2);
     printf("     extreme kit with RESON on 4 tracks (2 CHORD + 2 MODAL), KEYF 100 %%: %.0f (limit %.0f)\n", c, rmax);
-    check("cost: .. with KEYF retuning every hit (2 CHORD + 2 MODAL) within RESON's recorded limit", !i0 || rmax == 0 || c <= rmax);
+    check("cost: .. with KEYF retuning every hit (2 CHORD + 2 MODAL) within RESON's recorded limit", rmax > 0 && c <= rmax);
     kit_keyf = 0;
     kit_filter = 1;
     c = kit_cost(wm, (int)wl_, 0);                   /* the same worst kit, the FILTER on all 8 */
     kit_filter = 0;
     printf("     extreme kit with the FILTER on 8: %.0f (its own limit %.0f)\n", c, cost_ref("extreme_filter_max"));
     check("cost: the extreme kit with the FILTER on 8 within its recorded limit",
-          !i0 || cost_ref("extreme_filter_max") == 0 || c <= cost_ref("extreme_filter_max"));
+          cost_ref("extreme_filter_max") > 0 && c <= cost_ref("extreme_filter_max"));
     printf("     realistic heavy kit: %.0f host instructions / sample (reference %.0f)\n", real, ref);
     printf("     extreme kit: %.0f (8 x %s%s; limit %.0f, above the reference by design: device shedding)\n", worst,
            N_MODEL[wm], wl_ ? " + layers" : "", emax);
-    check("cost: realistic heavy use within the stock Felucca reference", !i0 || ref == 0 || real <= ref);
-    check("cost: the extreme case has not grown past its recorded limit", !i0 || emax == 0 || worst <= emax);
+    check("cost: realistic heavy use within the stock Felucca reference", ref > 0 && real <= ref);
+    check("cost: the extreme case has not grown past its recorded limit", emax > 0 && worst <= emax);
 }
 
 static uint32_t fnv(const int32_t *x, uint32_t n)
@@ -877,7 +879,7 @@ static uint32_t fnv(const int32_t *x, uint32_t n)
  * with TUNE 7 (every model), and the transpose is clamped to +-24 */
 static void test_drum_transpose(void)
 {
-    static int32_t a[SECS(0.5)];
+    static int32_t a[HOST_FRAMES_MS(500)];
     uint32_t mi, ok = 1, clamp_ok = 1;
     for (mi = 0; mi < NMODELS; mi++) {
         if (mi == DM_ACID)                           /* ACID plays the note itself, unclamped (acid_test) */
@@ -908,7 +910,7 @@ static void test_drum_transpose(void)
 /* a transposed step moves the sample layer as it moves the model: nt +7 = LTUNE + 7 (and TUNE + 7) at nt 0 */
 static void test_layer_transpose(void)
 {
-    static int32_t a[SECS(0.5)];
+    static int32_t a[HOST_FRAMES_MS(500)];
     host_init();
     old_set_model(&trk[0], DM_K909);
     trk[0].p[P_E0] = 0;
@@ -1448,18 +1450,20 @@ static void test_boot_cost(void)
 #ifdef DM_QCHECK
     return;
 #endif
+    if (!instr_available("boot cost"))
+        return;
     i0 = instr_now();
     host_init_live();                                /* drum_tracks_init and the power-on state (the firmware's) */
-    init = instr_now() - i0;
+    init = instr_elapsed(i0);
     render_mix(0, 0, SECS(0.5));
     i0 = instr_now();
     render_mix(0, 0, SECS(4));
-    idle = i0 ? (double)(instr_now() - i0) / SECS(4) : 0;
+    idle = (double)instr_elapsed(i0) / SECS(4);
     printf("     boot: power-on init %llu host instructions; idle audio %.0f / sample (upstream idle %.0f)\n",
            (unsigned long long)init, idle, up);
-    check("boot cost: power-on init under 2,000,000 host instructions", !i0 || init < 2000000u);
+    check("boot cost: power-on init under 2,000,000 host instructions", init < 2000000u);
     check("boot cost: idle audio within 1.25 x upstream's idle (tests/drum_cost_ref.txt upstream_idle)",
-          !i0 || (up > 0 && idle <= 1.25 * up));
+          up > 0 && idle <= 1.25 * up);
 }
 
 /* a LEN change while playing: the track stays on the shared clock (its step = steps since PLAY mod LEN), so
@@ -2045,7 +2049,7 @@ static void test_comp_ghost_modes(void)
 /* GHOST changed while the source rings (KEEP -> HIDE -> KEEP -> MUTE with the source muted): 5 ms fades, no click */
 static void test_comp_ghost_switch(void)
 {
-    static int32_t ref[SECS(0.12)], out[SECS(0.12)];
+    static int32_t ref[HOST_FRAMES_MS(120)], out[HOST_FRAMES_MS(120)];
     int32_t dref = 0, dout = 0, hid = 0;
     uint32_t r, f, i;
     for (r = 0; r < 2u; r++) {
@@ -3141,7 +3145,7 @@ static double rs_kf_cents(double f, double note) { return 1200 * log2(f / rs_not
 
 static void test_reson_keyfollow(void)
 {
-    static int32_t ref[SECS(0.8)];
+    static int32_t ref[HOST_FRAMES_MS(800)];
     uint32_t m, i, same = 1;
     double f, c, want;
     int32_t before = 0, after = 0, k;
@@ -3655,7 +3659,7 @@ static double lfo_slots_cost(int mode)          /* host instructions a block (lf
         lfo_apply(CTL);
         lfo_restore();
     }
-    return i0 ? (double)(instr_now() - i0) / 20000.0 : 0;
+    return (double)instr_elapsed(i0) / 20000.0;
 }
 static void test_lfo_dest_slots(void)
 {
@@ -3714,13 +3718,15 @@ static void test_lfo_dest_slots(void)
     lfo_apply(CTL);
     check("LFO slot 4 on R.TUN: the resonator's fine pitch", trk[0].rfine != 0 && lfo_live(&trk[0], P_RTUNE, &mv));
     lfo_restore();
-    {
+#ifndef DM_QCHECK
+    if (instr_available("LFO slot cost")) {
         double c0 = lfo_slots_cost(0), c2 = lfo_slots_cost(1), c4 = lfo_slots_cost(2);
         printf("     LFO cost, host instructions a block (8 tracks): none %.0f, 2 slots (an older project's routes) %.0f, "
                "4 slots %.0f (0e76751, 2 LFOs routed: none 663, 2 routes 3712)\n", c0, c2, c4);
         check("LFO slots: 4 slots on 2 LFOs cost less than twice the 2 routes (the LFOs are computed once)",
-              !c0 || c4 < 2.0 * c2);
+              c4 < 2.0 * c2);
     }
+#endif
 }
 
 /* LFO DEST 19..27: SRR DST CHO DLY REV MIX and the INSERT's A B C (appended: 1..18 keep their meaning) */

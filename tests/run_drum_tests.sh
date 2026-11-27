@@ -6,6 +6,7 @@ PY="${PYTHON:-python3}"
 "$PY" tools/build.py --gen-only >/dev/null
 "$PY" tools/gen_presets.py --check                 # firmware/src/preset_bank.h = tools/presets.json
 OUT=build/host
+blocked=0
 mkdir -p "$OUT"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/drum_test" tests/drum_test.c -lm
 "$OUT/drum_test"
@@ -17,6 +18,9 @@ cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wn
 "$OUT/reverb_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
 "$OUT/usb_audio_test"
+cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src \
+    -o "$OUT/usb8_test" tests/usb8_test.c tests/usb8_ref.c -lm
+"$OUT/usb8_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/usbmode_test" tests/usbmode_test.c tests/usb8_ref.c -lm   # (MENU > USB AUDIO: the reconnect)
 "$OUT/usbmode_test"
 cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/midi_clock_test" tests/midi_clock_test.c -lm
@@ -121,7 +125,9 @@ cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-re
 tail -1 "$OUT/boot_test.txt"
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/cue_test" tests/cue_test.c -lm   # (cue / variations: ASan + UBSan)
-"$OUT/cue_test" > "$OUT/cue_test.txt" 2>&1 || { grep -v "^ok" "$OUT/cue_test.txt" | tail -30; exit 1; }
+"$OUT/cue_test" > "$OUT/cue_test.txt" 2>&1 ||
+    { status=$?; grep -v "^ok" "$OUT/cue_test.txt" | tail -30; exit "$status"; }
+grep '^SKIPPED: performance:' "$OUT/cue_test.txt" || true
 tail -1 "$OUT/cue_test.txt"
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_test" tests/editor_test.c -lm   # (the web editor's core: ASan + UBSan)
@@ -134,6 +140,7 @@ if command -v node >/dev/null 2>&1; then
     node tests/editor_wire.mjs "$OUT/editor_frames.txt" "$OUT/editor_xcheck"
 else
     echo "editor_wire: SKIPPED (no node)"
+    blocked=1
 fi
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_pattern_test" tests/editor_pattern_test.c -lm   # (the editor's presets / patterns: ASan + UBSan)
@@ -142,7 +149,9 @@ tail -1 "$OUT/editor_pattern_test.txt"
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_backup_test" \
     tests/editor_backup_test.c -lm   # (the web editor's backup / restore: ASan + UBSan)
-"$OUT/editor_backup_test" > "$OUT/editor_backup_test.txt" 2>&1 || { grep -v "^ok" "$OUT/editor_backup_test.txt" | tail -30; exit 1; }
+"$OUT/editor_backup_test" > "$OUT/editor_backup_test.txt" 2>&1 ||
+    { status=$?; grep -v "^ok" "$OUT/editor_backup_test.txt" | tail -30; exit "$status"; }
+grep '^SKIPPED: performance:' "$OUT/editor_backup_test.txt" || true
 tail -1 "$OUT/editor_backup_test.txt"
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -Wall -Wno-unused-function \
     -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/editor_sample_test" \
@@ -159,6 +168,7 @@ if command -v node >/dev/null 2>&1; then
     tail -1 "$OUT/sample_xcheck.txt"
 else
     echo "sample_xcheck: SKIPPED (no node)"
+    blocked=1
 fi
 cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base,array-bounds -fno-sanitize-recover=all -Wall \
     -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/slot_test" \
@@ -189,7 +199,6 @@ cc -O1 -g -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Wall -Wn
 "$OUT/comp_overflow"
 "$PY" -c "import glob,PIL.Image as I; [I.open(p).resize((480,480),I.NEAREST).save(p[:-4]+'.png') for p in glob.glob('build/ui_shots/**/*.ppm', recursive=True)]" && rm -f build/ui_shots/*.ppm build/ui_shots/engines/*.ppm build/ui_shots/seq/*.ppm build/ui_shots/grids/*.ppm build/ui_shots/comp/*.ppm build/ui_shots/lfo/*.ppm build/ui_shots/reson/*.ppm build/ui_shots/perform/*.ppm build/ui_shots/motion/*.ppm build/ui_shots/song/*.ppm build/ui_shots/name/*.ppm build/ui_shots/phys/*.ppm build/ui_shots/filter/*.ppm build/ui_shots/insert/*.ppm build/ui_shots/fm/*.ppm build/ui_shots/acid/*.ppm build/ui_shots/bt/*.ppm build/ui_shots/fixes/*.ppm build/ui_shots/learn/*.ppm build/ui_shots/presets/*.ppm build/ui_shots/voicegraph/*.ppm build/ui_shots/locks/*.ppm build/ui_shots/seqtools/*.ppm build/ui_shots/themes/*.ppm build/ui_shots/themes/*/*.ppm && echo "screens: build/ui_shots" && "$PY" tools/theme_sheet.py
 REF=build/drum_ref
-FID=""
 if sh tests/fetch_ref.sh >/dev/null 2>&1; then
     if [ ! -f "$REF/metrics.bin" ] || [ tests/drum_ref.cc -nt "$REF/metrics.bin" ] ||
        [ tests/drum_ref_grid.h -nt "$REF/metrics.bin" ] || [ tests/drum_metrics.h -nt "$REF/metrics.bin" ]; then
@@ -224,7 +233,7 @@ if sh tests/fetch_ref.sh >/dev/null 2>&1; then
     "$OUT/comp_fidelity" "$REF/comp_ref.bin"
 else
     echo "fidelity: SKIPPED (offline: tests/fetch_ref.sh could not fetch the reference)"
-    FID=" (fidelity SKIPPED: offline)"
+    blocked=1
 fi
 if sh tests/fetch_daisysp.sh >/dev/null 2>&1; then
     DS=build/drum_ref/DaisySP/Source
@@ -232,11 +241,26 @@ if sh tests/fetch_daisysp.sh >/dev/null 2>&1; then
     c++ -O2 -std=c++14 -w -I"$DS" -I"$DS/Utility" -o "$OUT/phys_ref" tests/phys_ref.cpp \
         "$DS/PhysicalModeling/modalvoice.cpp" "$DS/PhysicalModeling/resonator.cpp" "$DS/Filters/svf.cpp" \
         "$DS/Dynamics/crossfade.cpp" "$OUT/phys_fixed.o"
-    "$OUT/phys_ref" | tail -1
+    "$OUT/phys_ref" > "$OUT/phys_ref.txt" 2>&1 || { cat "$OUT/phys_ref.txt"; exit 1; }
+    tail -1 "$OUT/phys_ref.txt"
 else
     echo "phys_ref: SKIPPED (offline: tests/fetch_daisysp.sh could not fetch DaisySP)"
-    FID=" (fidelity SKIPPED: offline)"
+    blocked=1
 fi
-sh tests/guard_test.sh
-python3 tools/check_untouched.py
-echo "ALL DRUM HOST TESTS PASSED$FID"
+frozen_tag=$(awk '$1 == "FROZEN_BASE" { print $2 }' tools/frozen_base.txt)
+if [ -z "$frozen_tag" ]; then
+    echo "FAIL: frozen-source guard cannot read tools/frozen_base.txt"
+    exit 1
+fi
+if git rev-parse -q --verify "refs/tags/$frozen_tag^{commit}" >/dev/null; then
+    sh tests/guard_test.sh
+    python3 tools/check_untouched.py
+else
+    echo "BLOCKED: frozen-source guard requires the pinned $frozen_tag tag"
+    blocked=1
+fi
+if [ "$blocked" -ne 0 ]; then
+    echo "BLOCKED: drum host suite has unrun required checks"
+    exit 2
+fi
+echo "PASS: drum host suite (instruction measurements reported separately)"

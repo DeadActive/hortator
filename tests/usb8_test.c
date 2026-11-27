@@ -573,7 +573,7 @@ static uint64_t cost_run(uint32_t ten, uint32_t N)  /* host instructions of N au
         audio_block(out, CTL);
     }
     m_stream(0);
-    return instr_now() - i0;
+    return instr_elapsed(i0);
 }
 
 /* 10 CH FX: channels 9-10 the send effects' return; T1..T8 panned as the FM-1 pans + the pair = the master bus before
@@ -675,13 +675,13 @@ static void test_fx_pair(void)
 static void test_cost(void)
 {
     const uint32_t N = 4000;                            /* 2.9 s of audio */
-    uint64_t two = cost_run(0, N), ten = cost_run(1, N);
+    uint64_t two, ten;
     char s[160];
-    usb10 = 1;
-    if (!two) {
-        printf("cost: no instruction counter on this host (skipped)\n");
+    if (!instr_available("USB audio render cost"))
         return;
-    }
+    two = cost_run(0, N);
+    ten = cost_run(1, N);
+    usb10 = 1;
     snprintf(s, sizeof s, "cost: audio block 2 CH %.1f, 10 CH %.1f instr/sample (8 tracks sounding): +%.1f %%",
              (double)two / (N * CTL), (double)ten / (N * CTL), 100.0 * ((double)ten / (double)two - 1.0));
     check(s, (double)ten / (double)two < 1.05);

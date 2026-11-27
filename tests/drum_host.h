@@ -5,9 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <unistd.h>
+#if defined(__APPLE__)
 #include <libproc.h>
 #include <sys/resource.h>
+#include <unistd.h>
+#endif
 #define __attribute__(x)
 #define memset felucca_memset
 #define memcpy felucca_memcpy
@@ -51,6 +53,7 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
 #include "../firmware/src/bench.c"
+#define HOST_FRAMES_MS(ms) ((uint32_t)(ms) * FS / 1000u / CTL * CTL)
 #ifndef HOST_PROJECT                                  /* (without project.c: the cue never switches) */
 static int proj_cue_apply(void) { return CUE_E_NOSLOT; }
 #endif
@@ -167,10 +170,51 @@ static uint32_t hit_age(const track_t *t)          /* changes on every hit of t 
     return a;
 }
 
+static int instr_read(uint64_t *value)
+{
+#if defined(__APPLE__)
+    struct rusage_info_v4 ri;
+    if (!proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) && ri.ri_instructions) {
+        *value = ri.ri_instructions;
+        return 1;
+    }
+#else
+    (void)value;
+#endif
+    return 0;
+}
+
+static int instr_available(const char *test)
+{
+    uint64_t value;
+    if (instr_read(&value))
+        return 1;
+    const char *required = getenv("GRIND_REQUIRE_PERFORMANCE");
+    if (required && !strcmp(required, "1")) {
+        fflush(stdout);
+        fprintf(stderr, "BLOCKED: performance: %s (host instruction counter unavailable)\n", test);
+        exit(2);
+    }
+    printf("SKIPPED: performance: %s (host instruction counter unavailable)\n", test);
+    return 0;
+}
+
 static uint64_t instr_now(void)
 {
-    struct rusage_info_v4 ri;
-    if (!proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri))
-        return ri.ri_instructions;
-    return 0;
+    uint64_t value;
+    if (instr_read(&value))
+        return value;
+    fflush(stdout);
+    fprintf(stderr, "BLOCKED: performance: host instruction counter stopped responding\n");
+    exit(2);
+}
+
+static uint64_t instr_elapsed(uint64_t start)
+{
+    uint64_t end = instr_now();
+    if (end > start)
+        return end - start;
+    fflush(stdout);
+    fprintf(stderr, "BLOCKED: performance: host instruction counter did not advance\n");
+    exit(2);
 }

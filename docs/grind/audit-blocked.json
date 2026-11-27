@@ -1,20 +1,55 @@
 {
   "upstream_sha": "44c9ad4aa57bebf63f412bd552e57143c30b4065",
-  "native_build": "blocked",
+  "native_build": "pass",
   "host_build": "blocked",
-  "wasm_build": "blocked",
+  "wasm_build": "pass",
   "step_bytes": 4,
   "var_cap": 3576,
-  "project_bytes": null,
-  "ram_app_used": null,
-  "ram_app_limit": null,
-  "flash_app_used": null,
-  "flash_app_limit": null,
+  "project_bytes": 3840,
+  "ram_app_used": 88312,
+  "ram_app_limit": 98304,
+  "flash_app_used": 411360,
+  "flash_app_limit": 581564,
   "integration_points": [
-    {"path": "firmware/src/seq.c", "symbol": "events_block", "owner": "audio ISR event path", "callers": ["existing audio block path (verify exact call sites in checkout)"]},
-    {"path": "firmware/src/cue.c", "symbol": "cue_switch", "owner": "ISR boundary or stopped guarded path", "callers": ["cue_tick", "stopped cue path (verify exact call sites)"]},
-    {"path": "firmware/src/project.c", "symbol": "proj_cue_apply", "owner": "existing staged project switch", "callers": ["cue_switch"]}
+    {
+      "path": "firmware/src/seq.c",
+      "symbol": "events_block",
+      "owner": "audio ISR event path",
+      "callers": [
+        "existing audio block path (verify exact call sites in checkout)"
+      ]
+    },
+    {
+      "path": "firmware/src/cue.c",
+      "symbol": "cue_switch",
+      "owner": "ISR boundary or stopped guarded path",
+      "callers": [
+        "cue_tick",
+        "stopped cue path (verify exact call sites)"
+      ]
+    },
+    {
+      "path": "firmware/src/project.c",
+      "symbol": "proj_cue_apply",
+      "owner": "existing staged project switch",
+      "callers": [
+        "cue_switch"
+      ]
+    }
   ],
-  "unknowns": ["full local checkout unavailable (Git DNS resolution fails; fork and pinned main verified via API)", "native toolchain and SDK not verified", "no host or WASM baseline", "no linker map or measured RAM/flash/stack", "no full call graph or complete asset inventory", "hardware revision and recovery path unverified"],
-  "evidence_class": {"step_bytes": "source-described, not measured", "var_cap": "source constant 3584 minus header 8, not measured", "integration_points": "partial source review"}
+  "unknowns": [
+    "frozen-base-11 and native H2/H3 comparisons unavailable",
+    "runtime stack high-water and audio deadline not measured on FM-1",
+    "incomplete call-site and final release asset inventory",
+    "hardware revision and recovery path unverified"
+  ],
+  "evidence_class": {
+    "step_bytes": "source-described, not measured",
+    "var_cap": "source constant 3584 minus header 8, not measured",
+    "integration_points": "partial source review",
+    "native_build": "local plain Linux x86-64 test package build at 139af92; see baseline.md",
+    "project_bytes": "four 3840-byte project records in the native ELF proj_slot symbol",
+    "ram_app": "static .data+.bss from the native linker-symbol summary",
+    "flash_app": "native app image size and application-slot limit"
+  }
 }

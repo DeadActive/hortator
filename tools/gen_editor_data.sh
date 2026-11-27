@@ -12,7 +12,8 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 "$PY" -c 'import sys; sys.path.insert(0, sys.argv[2] + "/tools"); import build; from pathlib import Path; build.GEN = Path(sys.argv[1]).resolve(); build.generate()' "$T" "$ROOT" >/dev/null
 awk '/static const int8_t FM1_KEYMAP/,/^};/' "$ROOT/firmware/hal/fm1_input.h" > "$T/sim_keymap.h"
-cc -O0 -w -I"$T" -I"$ROOT/firmware/src" -I"$ROOT/tests" -o "$T/editor_ids" "$ROOT/tests/editor_ids.c" -lm
+# Match the simulator host build so unused target-only HAL functions are eliminated.
+cc -O2 -w -I"$T" -I"$ROOT/firmware/src" -I"$ROOT/tests" -o "$T/editor_ids" "$ROOT/tests/editor_ids.c" -lm
 (cd "$ROOT" && "$T/editor_ids") > "$T/device_data.json"
 if [ "$1" = "--check" ]; then
     cmp -s "$T/device_data.json" "$ROOT/web/editor/device_data.json" ||

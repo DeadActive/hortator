@@ -315,7 +315,7 @@ static void test_bdefm_laws(void)
         }
         {                                               /* MOD 0: MFB (CLIC on XTEFM aside) changes nothing */
             int16_t kk[8] = {0, 64, 0, 64, 0, 40, 64, 0};
-            static int32_t a[SECS(0.3)];
+            static int32_t a[HOST_FRAMES_MS(300)];
             int same;
             bdefm_hit(mi, kk, 127, SECS(0.3));
             memcpy(a, wl, sizeof a);
