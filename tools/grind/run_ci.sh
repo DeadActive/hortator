@@ -17,6 +17,21 @@ report() {
     if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
         printf -- '- **%s** %s\n' "$status" "$name" >> "$GITHUB_STEP_SUMMARY"
     fi
+    if [[ ${GITHUB_ACTIONS:-} == true && ( $status == FAIL || $status == BLOCKED ) ]]; then
+        local level=warning details=$name
+        if [[ $status == FAIL ]]; then level=error; fi
+        if [[ -f "$evidence/$name.log" ]]; then
+            if [[ $status == BLOCKED ]]; then
+                details=$(grep -m1 '^BLOCKED:' "$evidence/$name.log" || printf '%s' "$name")
+            else
+                details=$(tail -n 8 "$evidence/$name.log")
+            fi
+        fi
+        details=${details//%/%25}
+        details=${details//$'\r'/%0D}
+        details=${details//$'\n'/%0A}
+        printf '::%s title=Foundation %s::%s\n' "$level" "$status" "${details:0:1600}"
+    fi
     case $status in
         FAIL) result=1 ;;
         BLOCKED) if (( result == 0 )); then result=2; fi ;;
@@ -52,6 +67,9 @@ suite() {
     local name=$1 performance=$2 status=0
     shift 2
     capture "$name" "$@" || status=$?
+    if [[ $name == native-host ]] && grep -Fq 'official V15 restore: skipped' "$evidence/$name.log"; then
+        report SKIPPED 'official stock recovery fixture (requires M-VAVE V15)'
+    fi
     if (( status != 0 )); then
         if (( status == 2 )) && grep -q '^BLOCKED:' "$evidence/$name.log"; then
             report BLOCKED "$name"
