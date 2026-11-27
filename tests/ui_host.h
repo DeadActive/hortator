@@ -70,7 +70,8 @@ static int32_t enc_take(uint32_t e)                   /* (enc.c) */
 static uint32_t fm1_input_edges(uint32_t *released) { uint32_t p = host_btn_edges; (void)released; host_btn_edges = 0; return p; }
 static uint32_t fm1_input_note_edges(void) { uint32_t p = host_note_edges; host_note_edges = 0; return p; }
 static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
-static void fm1_wdt_feed(void) {}
+static void (*host_wdt_hook)(void);                 /* a test's script: called at every busy-wait pass (panel_setup) */
+static void fm1_wdt_feed(void) { if (host_wdt_hook) host_wdt_hook(); }
 #define FM1_DEB_PRESS 2u               /* as hal/fm1_input.h (upstream 1.0) */
 #define FM1_DEB_RELEASE 8u
 static uint32_t host_scans;                          /* the boot's polled scans (tests: SEQ held = fm1_in.buttons) */

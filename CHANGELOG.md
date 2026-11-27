@@ -5,6 +5,13 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **HARDWARE CALIBRATION can be left, and the menu can reset to the defaults**: while a key is asked for, tap it to
+  teach it, or hold it for 1.5 s to cancel; while a knob is asked for, any key cancels (the 30 s without input still
+  gives up). A cancelled calibration keeps the old table (`SETUP CANCELLED`). The new menu row RESET TO DEFAULT
+  (OCT+ asks, OCT+ again within about 1.5 s acts) puts COLOR, SPEAKER EQ, USB LEVEL, USB AUDIO, PERFORM, ZOOM, ACCEL,
+  BACKLIGHT, the mute timing, MIDI THRU, SOLO, QUANT, the GRIND style and WHEN and the panel table back to what a
+  first start has. Projects, presets, samples and the Bluetooth device and mode are not touched. The menu has twelve
+  rows now (a 13 px pitch).
 - **`tools/songs_pattern.py`**: drum patterns from song excerpts (a JSON of songs with a tempo map and drum notes). `show` prints a
   4-bar window as the eight GRIND roles, `compare` sets each song against the 22 styles' golden patterns (nearest
   styles and role densities), `send` writes the window to the FM-1's loaded pattern over USB-MIDI (steps, accents,
