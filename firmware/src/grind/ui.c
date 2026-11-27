@@ -11,7 +11,7 @@ static void ui_say(const char *a, const char *b);      /* ui.c */
 static void ui_message(const char *s);
 static void settings_save(void);                       /* project.c: the device settings, written once stopped */
 
-static const char *const N_GSTYLE[] = {                /* gm_style_name's 22 styles, four letters: a knob column's width */
+static const char *const N_GSTYLE[] = {                /* the 22 core styles (gm_style_name) plus MATH (UI only), four letters: a knob column's width */
     "TRAD", "HAMR", "BOMB", "GRAV", "BLST", "DBET", "SKNK", "2XBS", "TECH", "BRUT", "FSLO",
     "ABRP", "STOP", "BRKD", "2STP", "HALF", "CHAO", "INDU", "POLY", "SLDG", "FUNR", "STNR", "MATH"};
 /* The STYLE list: the 22 styles, then MATH = Technical (9) on a 7/4 grid (3+2+2 quarters, 28 sixteenths). The extra
@@ -142,7 +142,7 @@ static gm_result gm_ui_config(gm_config *c)
     return GM_OK;
 }
 
-/* STYLE BROWSER (the fourth GRIND page): look at a style on the live pattern before it goes live. The preview is made by
+/* STYLE BROWSER (the fifth GRIND page): look at a style on the live pattern before it goes live. The preview is made by
  * the runtime's own gm_runtime_make (the live pattern and the KEEP mask as the base, the style's factory controls), so it
  * is what APPLY would publish; it is made in the main loop only while no stage is in use (the base shares the stage's
  * bytes), else it says BUSY and tries again. Only compact row bitmaps are kept; nothing is published while browsing, and
@@ -199,7 +199,6 @@ static void gm_pv_update(void)
     gm_pv.state = PV_READY;
 }
 
-/* a knob of the GRIND pages was turned (edit_param): the style brings its factory controls, then the request goes out */
 /* TOOLS INIT: the performance macros (SINK, SWELL, VARY) off, their knobs back to 0 */
 static void gm_macros_reset(void)
 {
@@ -217,10 +216,13 @@ static void gm_master_set(uint32_t sink, uint32_t swell)
  * PLAY (transport_req is a request the sequencer consumes, a CUT leaves nothing behind). The delay and reverb tails ring out. */
 static void gm_master_cut(void)
 {
-    gm_runtime_cancel();
+    fm1_irq_off();                                      /* one coherent request at the next audio block */
+    gm_runtime_stop();
     transport_req = 2;
     panic_req = (uint8_t)((1u << NTRK) - 1u);
+    fm1_irq_on();
 }
+/* a knob of the GRIND pages was turned (edit_param): the style brings its factory controls, then the request goes out */
 static void gm_ui_changed(uint32_t id)
 {
     gm_config c;
@@ -246,7 +248,7 @@ static void gm_ui_changed(uint32_t id)
         if (!gm_v[GU_OK])
             return;
         gm_v[GU_OK] = 0;
-        if (gm_pv.state != PV_READY) {                 /* nothing was shown that APPLY could publish: no control changes */
+        if (gm_pv.state != PV_READY || gm_pv.idx != (uint32_t)gm_v[GU_BROWSE] || gm_pv.rev != gmrt.ctl.native_revision) {                 /* nothing was shown that APPLY could publish: no control changes */
             ui_message(gm_pv.state == PV_FAIL ? "KEEP DOES NOT FIT" : "WAIT");
             return;
         }

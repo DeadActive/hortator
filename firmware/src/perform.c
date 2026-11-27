@@ -35,8 +35,8 @@
  * master_out (the limiter); THROW acts before the buses (fx.c mix_block).
  * Idle (no key, no knob, no ramp left) every stage is skipped: the output is bit-identical. */
 #if GRIND_NATIVE
-/* B3 (grind/ui.c LIVE page): SINK is the FILTER macro's LPF end, SWELL the THROW macro, whichever is stronger of the knob and the
- * macro; at 0 both read the knob alone, so the idle chain is untouched */
+/* B3 (grind/ui.c LIVE page): SINK is the FILTER macro's LPF end, SWELL the THROW macro. SINK replaces an HPF knob and any weaker LPF
+ * knob (a stronger LPF knob stays); SWELL is the larger of knob and macro. At 0 both read the knob alone: the idle chain is untouched */
 static inline int32_t pf_fk(int32_t k0)       /* (the volatile read once) */
 {
     int32_t s = gm_sink;

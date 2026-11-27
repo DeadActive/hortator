@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Natural hit variation: a small, deterministic velocity change per hit, so a repeated step is not machine-identical.
- * Pure (no state): the key comes from where the hit is (seed, track, step count, loop, roll ordinal), so every PLAY gives
+ * Pure (no state): the key comes from where the hit is (seed, track, step count, loop (the sequencer passes 0: the step count already grows every pass), roll ordinal), so every PLAY gives
  * the same performance. VARY 0 returns the base velocity unchanged. The swing is +-8 velocity at 100. */
 #ifndef GM_HIT_VARIATION_H
 #define GM_HIT_VARIATION_H

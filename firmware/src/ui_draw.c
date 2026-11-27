@@ -747,7 +747,6 @@ static void step_bar(int32_t x, int32_t y, int32_t w, int32_t h, const step_t *s
         cv_rect(x + r * tick, y - 4, tick > 2 ? tick - 1 : 1, 2, C_INK);
 }
 
-/* PATTERN page: 4 rows of 16 steps over LEN; accent tall, playhead white */
 #if GRIND_NATIVE
 /* GRIND STYLE BROWSER: the eight roles over one bank of 16 steps (x on, a taller bar an accent, a bar above it a ratchet,
  * a line under it a KEEP), and under them the style, its meter, grid, length and its own tempo (a label). */
@@ -773,7 +772,7 @@ static void graph_grind_preview(void)
                 } else {
                     cv_rect(x + 4, y + 3, 2, 1, C_INK);
                 }
-                if (gm_keep_get(r, s))
+                if (s < (uint32_t)trk[r].p[P_SLEN] && gm_keep_get(r, s))   /* (past the track's length the generator ignores it) */
                     cv_rect(x, y + 8, 10, 1, C_INK);
             }
         }
@@ -805,6 +804,7 @@ static void graph_grind_preview(void)
 }
 #endif
 
+/* PATTERN page: 4 rows of 16 steps over LEN; accent tall, playhead white */
 static void graph_steps(const track_t *t, uint16_t c)
 {
     uint32_t i, len = view_len(t);

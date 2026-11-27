@@ -803,6 +803,44 @@ static void browser_apply_refused_keeps_controls(void)
     check("ui: APPLY of a style the kept steps do not fit changes no control", ok);
 }
 
+static void cut_drops_a_pending_change(void)
+{
+    uint32_t ok = 1, before, i;
+    fresh();
+    open_grind(0);
+    transport_req = 1;
+    frames(40);
+    turn(EN_K1, 3);              /* a style request waits for the end of the pattern */
+    frames(2);
+    ok &= gmrt.ctl.has_pending || gmrt.ctl.stage_state != GM_STAGE_FREE || cue.q_gm;
+    before = sig();
+    open_grind(4);
+    turn(EN_K3, 1);                                   /* CUT */
+    frames(4);
+    ok &= !song.playing && !gmrt.ctl.has_pending && gmrt.ctl.stage_state == GM_STAGE_FREE && !cue.q_gm;
+    transport_req = 1;
+    for (i = 0; i < 400u; i++)
+        ui_frame();                                   /* a PLAY across the old boundary: the cancelled change never appears */
+    ok &= sig() == before;
+    check("ui: CUT drops a waiting GRIND change, a later PLAY does not publish it", ok);
+}
+
+static void browser_bank_follows_length(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    open_grind(3);
+    turn(EN_K1, 40);                                  /* MATH: 28 steps, two banks */
+    frames(4);
+    turn(EN_K2, 5);
+    frames(4);
+    ok &= gm_v[GU_PVBANK] == 2;
+    turn(EN_K1, -40);                                 /* a 16-step style: one bank */
+    frames(4);
+    ok &= gm_v[GU_PVBANK] == 1;
+    check("ui: the browser's bank follows the previewed length (clamped to its banks)", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -849,6 +887,8 @@ int main(void)
     vary_knob();
     live_page();
     init_clears_macros();
+    cut_drops_a_pending_change();
+    browser_bank_follows_length();
     browser_redraws_on_change();
     browser_follows_undo();
     browser_apply_refused_keeps_controls();
