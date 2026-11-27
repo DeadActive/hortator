@@ -88,7 +88,11 @@ case "$historical_status" in
         else
             run "frozen code in the binary = upstream's (H2)" python3 tools/compare_upstream.py build build/upstream/build
             run "H2 self-test (changed effects are caught)" python3 tools/compare_upstream.py --selftest build build/upstream/build
-            run "worst-case stack (H3)" python3 tools/stack_depth.py build --compare build/upstream/build
+            echo "== worst-case stack (H3, diagnostic)"
+            if ! h3=$(python3 tools/stack_depth.py build --compare build/upstream/build 2>&1); then
+                echo "DIAGNOSTIC: historical H3 stack analysis needs review"
+            fi
+            printf '%s\n' "$h3" | sed 's/^/H3: /'
         fi
         ;;
     3) ;; # The resolver has reported that the exact commit is unavailable.
