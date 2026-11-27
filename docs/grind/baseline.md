@@ -19,6 +19,8 @@ The CI license job checks versioned source assets. For a release candidate, run 
 ```bash
 bash tools/grind/run_ci.sh host-core
 bash tools/grind/run_ci.sh host-upstream
+# Install the browser driver. The WASM lane uses an installed Chromium or Chrome.
+npm install --prefix build/grind-browser --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.58.2
 bash tools/grind/run_ci.sh wasm
 bash tools/grind/run_ci.sh license
 # macOS with an available instruction counter

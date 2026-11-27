@@ -158,6 +158,12 @@ case $lane in
         check wasm-preview bash tools/build_sim.sh --preview
         suite web-regression wasm node web/test_web.mjs
         check web-editor node web/editor/test_editor.mjs
+        browser=${GRIND_CHROMIUM:-$(command -v google-chrome || command -v chromium || true)}
+        if [[ -x $browser && -f build/grind-browser/node_modules/playwright-core/index.mjs ]]; then
+            check browser-smoke env GRIND_CHROMIUM="$browser" node tests/grind/browser_smoke.mjs
+        else
+            report BLOCKED 'browser smoke requires Chromium and Playwright Core'
+        fi
         ;;
     native) native ;;
     license) check assets python3 tools/grind/check_assets.py --source-only ;;

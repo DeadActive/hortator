@@ -170,13 +170,19 @@ else
     echo "sample_xcheck: SKIPPED (no node)"
     blocked=1
 fi
-cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base,array-bounds -fno-sanitize-recover=all -Wall \
+# These fixtures rebase XIP sample data outside the generated array. GCC also detects that intentional rebase
+# with its object-size check. ASan and the remaining UBSan checks still apply.
+array_bounds=bounds,object-size
+if cc -fno-sanitize=array-bounds -x c -fsyntax-only /dev/null >/dev/null 2>&1; then
+    array_bounds=array-bounds
+fi
+cc -O1 -g -fsanitize=address,undefined "-fno-sanitize=shift-base,$array_bounds" -fno-sanitize-recover=all -Wall \
     -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/slot_test" \
     tests/slot_test.c -lm   # (the SAMPLE / LAYER sample knobs: SLOT, START, END, old KEY values: ASan + UBSan; a user
                             # slot's zones read through SMP_DATA rebased, as the firmware does: no array-bounds check)
 "$OUT/slot_test" > "$OUT/slot_test.txt" 2>&1 || { grep -v "^ok" "$OUT/slot_test.txt" | tail -30; exit 1; }
 tail -1 "$OUT/slot_test.txt"
-cc -O1 -g -fsanitize=address,undefined -fno-sanitize=shift-base,array-bounds -fno-sanitize-recover=all -Wall \
+cc -O1 -g -fsanitize=address,undefined "-fno-sanitize=shift-base,$array_bounds" -fno-sanitize-recover=all -Wall \
     -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src -o "$OUT/sampenv_test" \
     tests/sampenv_test.c -lm   # (the SAMPLE model's ATK SUS REL LOOP: the defaults bit-identical, the gate, the loops
                                # exact both ways, projects / presets / locks: ASan + UBSan)

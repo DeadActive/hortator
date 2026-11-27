@@ -91,6 +91,8 @@ jobs:
           image=emscripten/emsdk@sha256:fca9b3affd2e321ab97ffc657ccc53b9fb88715997712d11d562900e6655f26f
           docker pull "$image"
           docker tag "$image" emscripten/emsdk:6.0.11
+      - name: Install the pinned browser test driver
+        run: npm install --prefix build/grind-browser --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.58.2
       - id: checks
         run: bash tools/grind/run_ci.sh wasm
 
