@@ -136,8 +136,33 @@ static void property_cases(const gm_config *configs, const gm_pattern *patterns)
            success, rejected, preserved);
 }
 
+static void test_seven_four_pattern(void)
+{
+    gm_pattern p;
+    gm_config c;
+    assert(gm_factory_config(9, &c) == GM_OK);
+    c.grid = (gm_grid){7, 4, 16, 1};
+    static const unsigned kick[] = {0, 12, 20}, snare[] = {8, 16, 24};
+    unsigned i, s;
+    c.density = c.chaos = 50;
+    assert(gm_generate(&c, NULL, &p) == GM_OK && gm_validate(&c, &p) == GM_OK);
+    for (i = 0; i < GM_TRACKS; ++i) {
+        assert(p.timing[i].length == 28u && p.timing[i].division == 16u);
+        for (s = 28; s < GM_STEPS; ++s)
+            assert(!p.cell[i][s].flags && !p.cell[i][s].cond && !p.cell[i][s].note && !p.cell[i][s].micro);
+    }
+    for (i = 0; i < 3u; ++i) {
+        assert((p.cell[GM_KICK][kick[i]].flags & GM_ON) && (p.cell[GM_KICK][kick[i]].flags & GM_ACC));
+        assert(p.cell[GM_SNARE][snare[i]].flags & GM_ON);
+    }
+    assert(p.cell[GM_CRASH][0].flags & GM_ON);
+    for (s = 0; s < 28u; s += 2u)
+        assert(p.cell[GM_RIDE][s].flags & GM_ON);
+}
+
 int main(void)
 {
+    test_seven_four_pattern();
     static gm_config configs[GM_ALGORITHM_COUNT];
     static gm_pattern patterns[GM_ALGORITHM_COUNT];
     factory_defaults(configs, patterns);

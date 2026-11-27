@@ -7,7 +7,7 @@ enum { FAM_HOME, FAM_SND, FAM_LAY, FAM_FX, FAM_SEQ, FAM_GLO, FAM_SAVE, FAM_GRIDS
 enum { SC_TRACK, SC_GLOBAL, SC_GRID, SC_MIX, SC_GRIND };   /* knobs edit: the selected track, song.g, the STEP grid, the
                                                             * mixer, the GRIND screen state (grind/ui.c) */
 enum { GR_NONE, GR_MODEL, GR_FX, GR_SLCR, GR_GRID, GR_STEPS, GR_SLOTS, GR_MIX, GR_GRIDS, GR_COMP, GR_LFO, GR_RESON, GR_MOTION, GR_SONG, GR_FILTER,
-       GR_LDEST, GR_INSERT, GR_DLY, GR_REV, GR_CHO };
+       GR_LDEST, GR_INSERT, GR_DLY, GR_REV, GR_CHO, GR_GRINDPV };
 
 #define SND_SLOT 0xC0u                            /* EDIT page ids: SND_SLOT + n = the track's n-th sound knob */
 #define SND_N 20u                                 /* .. at most: 5 SOUND pages (the fifth the SAMPLE model's only) */
@@ -60,7 +60,9 @@ static const page_t PAGES[] = {
 #if GRIND_NATIVE                  /* the portable rhythm engine: ARP again, after GRIDS (grind/ui.c) */
     {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS}},
     {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT}},
-    {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_KEEP, GU_UNDO, GU_FREE, 0xFF}},
+    {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_KEEP, GU_UNDO, GU_FREE, GU_VARY}},
+    {"GRIND", FAM_GRIDS, SC_GRIND, GR_NONE, {GU_SINK, GU_SWELL, GU_CUT, 0xFF}},
+    {"GRIND", FAM_GRIDS, SC_GRIND, GR_GRINDPV, {GU_BROWSE, GU_PVBANK, GU_OK, 0xFF}},
 #endif
     /* LFO: both LFOs on every page, LFO 1 on KNOB 1-2, LFO 2 on KNOB 3-4; then DEST, the track's 4 slots: KNOB 1 the
      * slot (song.lslot), 2-4 its SRC DEST DEPTH (page_id; lfo.c LS_ID) */

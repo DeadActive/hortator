@@ -8,7 +8,7 @@ static int gm_supported_division(uint8_t division)
 
 static int gm_supported_meter(gm_grid grid)
 {
-    return (grid.den == 4u && grid.num >= 3u && grid.num <= 5u) ||
+    return (grid.den == 4u && ((grid.num >= 3u && grid.num <= 5u) || grid.num == 7u)) ||     /* 7/4: grouped 3+2+2, Technical only */
            (grid.den == 8u && (grid.num == 6u || grid.num == 7u || grid.num == 9u));
 }
 

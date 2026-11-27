@@ -41,13 +41,13 @@ static void fresh(void)
     gm_v[GU_WHEN] = 1;
     song.g[G_BPM] = 240;
 }
-static int grind_page(void)                         /* 0 / 1 / 2 on a GRIND page, else -1 */
+static int grind_page(void)                         /* 0 .. 3 on a GRIND page, else -1 */
 {
     if (cur_page()->scope != SC_GRIND)
         return -1;
-    return cur_page()->id[0] == GU_HUMAN ? 1 : cur_page()->id[0] == GU_KEEP ? 2 : 0;
+    return cur_page()->id[0] == GU_HUMAN ? 1 : cur_page()->id[0] == GU_KEEP ? 2 : cur_page()->id[0] == GU_BROWSE ? 3 : cur_page()->id[0] == GU_SINK ? 4 : 0;
 }
-static void open_grind(uint32_t page)               /* ARP, then ARP again until the GRIND page `page` (0 / 1 / 2) shows */
+static void open_grind(uint32_t page)               /* ARP, then ARP again until the GRIND page `page` (0 .. 3) shows */
 {
     uint32_t i;
     for (i = 0; i < 10u && grind_page() != (int)page; i++)
@@ -473,6 +473,374 @@ static void knobs_stop_at_the_ends(void)
     check("ui: AGGR DENS CHAOS HUMAN MUT stop at 100 (99) and at 0, however far and fast they are turned", ok);
 }
 
+static void reset_starts_from_a_valid_config(void)
+{
+    gm_config f;
+    uint32_t ok = 1;
+    ui_host_init();
+    memset(&gmrt, 0xA5, sizeof gmrt);                /* whatever was in RAM */
+    gm_runtime_reset();
+    gm_factory_config(1, &f);
+    ok &= gmrt.ctl.active_config.algorithm == 1u && !memcmp(&gmrt.ctl.active_config, &f, sizeof f);
+    ok &= gm_validate_config(&gmrt.ctl.active_config) == GM_OK && gmrt.next_rev == 0u && !gmrt.undo_ok;
+    check("runtime: a reset holds style 1's factory config (the id 0 it used to ask for is not a style)", ok);
+}
+
+static void seven_four_style(void)
+{
+    uint32_t ok = 1, k, s;
+    static const uint32_t kick[] = {0, 12, 20};
+    fresh();
+    open_grind(0);
+    ok &= GM_UI_STYLES == GM_ALGORITHM_COUNT + 1u && N_GSTYLE[GM_UI_STYLES - 1u][0] == 'M';
+    turn(EN_K1, 40);                                 /* to the last entry: the list stops there */
+    frames(3);
+    ok &= gm_v[GU_STYLE] == (int16_t)(GM_UI_STYLES - 1u);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_SLEN] == 28 && trk[k].p[P_SDIV] == 2;       /* LEN 28, 1/16 */
+    for (s = 0; s < 3u; s++)
+        ok &= trk[0].step[kick[s]].on && trk[0].step[kick[s]].acc;
+    for (s = 28; s < NSTEP; s++)
+        ok &= !trk[0].step[s].on;
+    ok &= str_eq(ui.msg, "Mathcore 7/4");
+    turn(EN_K1, -1);                                 /* back to Stoner: 4/4 and 16 steps again */
+    frames(3);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_SLEN] == 16;
+    check("ui: the last STYLE entry is Technical in 7/4: LEN 28, the 3+2+2 hits; the one before is 4/4 again", ok);
+}
+
+/* the browser's preview against the core's own result for that style on the live pattern */
+static int preview_equals_core(uint32_t idx)
+{
+    gm_config c;
+    gm_pattern base, want;
+    uint32_t k, s;
+    if (gm_ui_style_config(idx, &c) != GM_OK)
+        return 0;
+    c.bpm = (uint16_t)clamp(song.g[G_BPM], 40, 350);
+    gm_native_export(&base);
+    memcpy(base.lock, gmrt.lock, sizeof base.lock);
+    if (gm_generate(&c, &base, &want) != GM_OK || gm_pv.state != PV_READY || gm_pv.idx != idx)
+        return 0;
+    if (gm_pv.len != want.timing[0].length || gm_pv.div != want.timing[0].division)
+        return 0;
+    for (k = 0; k < NTRK; k++)
+        for (s = 0; s < gm_pv.len; s++) {
+            gm_cell a = want.cell[k][s];
+            if (!!(gm_pv.on[k][s >> 3] >> (s & 7u) & 1u) != !!(a.flags & GM_ON) ||
+                !!(gm_pv.acc[k][s >> 3] >> (s & 7u) & 1u) != !!(a.flags & GM_ACC) ||
+                !!(gm_pv.rat[k][s >> 3] >> (s & 7u) & 1u) != !!(a.flags >> GM_RAT_SHIFT))
+                return 0;
+        }
+    return 1;
+}
+
+static void browser_previews_and_cancels(void)
+{
+    uint32_t ok = 1, before, commits;
+    int16_t bpm;
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 1);                                  /* style 2 live */
+    frames(3);
+    before = sig();
+    commits = gm_runtime_commits();
+    bpm = song.g[G_BPM];
+    open_grind(3);
+    ok &= cur_page()->id[0] == GU_BROWSE && gm_v[GU_BROWSE] == gm_v[GU_STYLE];
+    turn(EN_K1, 3);                                  /* browse three on */
+    frames(3);
+    ok &= gm_v[GU_BROWSE] == gm_v[GU_STYLE] + 3 && preview_equals_core((uint32_t)gm_v[GU_BROWSE]);
+    ok &= sig() == before && gm_runtime_commits() == commits && song.g[G_BPM] == bpm;   /* nothing live moved */
+    ok &= gm_v[GU_STYLE] == 1 && gm_ui_style_config(4, &(gm_config){0}) == GM_OK;
+    tap(B_ARP);                                      /* leaving the page cancels */
+    frames(3);
+    ok &= gm_v[GU_BROWSE] == gm_v[GU_STYLE] && sig() == before && gm_runtime_commits() == commits;
+    check("ui: STYLE BROWSER shows what the core would make for the browsed style and changes nothing live; leaving cancels", ok);
+}
+
+static void browser_every_style(void)
+{
+    uint32_t ok = 1, i;
+    fresh();
+    open_grind(3);
+    for (i = 0; i < GM_UI_STYLES; i++) {
+        gm_v[GU_BROWSE] = (int16_t)i;                /* (the knob's value: a turn per style would only slow the test) */
+        frames(2);
+        ok &= preview_equals_core(i);
+        ok &= gm_pv.len == (i == GM_UI_STYLES - 1u ? 28u : gm_pv.len) && gm_pv.bpm > 0 && gm_pv.num >= 3u;
+    }
+    ok &= gm_pv.len == 28u && gm_pv.num == 7u && gm_pv.den == 4u;   /* the last one: 7/4, two banks */
+    gm_v[GU_PVBANK] = 4;                             /* more banks than it has: held at the last one */
+    frames(2);
+    ok &= gm_v[GU_PVBANK] == 2;
+    if (getenv("GRIND_SHOT")) {                      /* (a look at the page: GRIND_SHOT=<prefix>) */
+        char path[256];
+        ui.force = 1;
+        frames(2);
+        snprintf(path, sizeof path, "%s-browser-bank2.ppm", getenv("GRIND_SHOT"));
+        shot(path);
+        gm_v[GU_PVBANK] = 1;
+        gm_v[GU_BROWSE] = 8;
+        ui.force = 1;
+        frames(3);
+        snprintf(path, sizeof path, "%s-browser-technical.ppm", getenv("GRIND_SHOT"));
+        shot(path);
+    }
+    check("ui: STYLE BROWSER previews all 23 entries, the last one 7/4 with LEN 28", ok);
+}
+
+static void browser_confirm_stopped(void)
+{
+    uint32_t ok = 1;
+    gm_pattern base;
+    gm_config c;
+    fresh();
+    open_grind(3);
+    turn(EN_K1, 6);
+    frames(3);
+    gm_native_export(&base);
+    turn(EN_K3, 1);                                  /* APPLY */
+    frames(3);
+    ok &= gm_runtime_commits() == 1u && gm_v[GU_STYLE] == 6 && gm_v[GU_OK] == 0;
+    gm_ui_config(&c);
+    ok &= c.algorithm == 7u && live_is(&c, &base);   /* the preview's pattern, now live */
+    ok &= preview_equals_core(6);
+    check("ui: APPLY while stopped publishes the browsed style once and makes it the committed one", ok);
+}
+
+static void browser_confirm_playing(void)
+{
+    uint32_t ok = 1, i, old, first = 0, last, changes = 0;
+    fresh();
+    open_grind(3);
+    transport_req = 1;
+    frames(40);
+    old = sig();
+    last = old;
+    turn(EN_K1, 4);
+    frames(3);
+    turn(EN_K3, 1);                                  /* APPLY while playing, WHEN = END */
+    ok &= gm_runtime_commits() == 0u && sig() == old;
+    for (i = 0; i < 1500u; i++) {
+        ui_frame();
+        if (sig() != last) {
+            if (!first)
+                first = i;
+            changes++;
+            last = sig();
+        }
+    }
+    ok &= changes == 1u && first > 500u && gm_runtime_commits() == 1u;
+    check("ui: APPLY while playing is pending, then one native commit at the pattern's end", ok);
+}
+
+static void browser_follows_live_edits_and_keep(void)
+{
+    uint32_t ok = 1, s;
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 1);
+    frames(3);
+    open_grind(3);
+    turn(EN_K1, 2);
+    frames(3);
+    ok &= preview_equals_core((uint32_t)gm_v[GU_BROWSE]);
+    for (s = 0; s < 16u; s++)                        /* the player changes the live pattern: native edit */
+        if (!trk[2].step[s].on) {
+            gm_touch();
+            trk[2].step[s].on = 1;
+            break;
+        }
+    frames(3);
+    ok &= preview_equals_core((uint32_t)gm_v[GU_BROWSE]);                    /* regenerated from the new base */
+    gm_keep_track(0, 1);                              /* KEEP the kick track: the preview keeps it too */
+    frames(3);
+    ok &= preview_equals_core((uint32_t)gm_v[GU_BROWSE]);
+    for (s = 0; s < 16u; s++)
+        ok &= !!(gm_pv.on[0][s >> 3] >> (s & 7u) & 1u) == !!trk[0].step[s].on;
+    check("ui: the preview is made again from a changed live pattern and honours KEEP (the base the publish will use)", ok);
+}
+
+static void browser_busy_while_a_request_waits(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    open_grind(0);
+    transport_req = 1;
+    frames(40);
+    turn(EN_K1, 3);                                  /* a style request waits for the end */
+    frames(2);
+    open_grind(3);
+    turn(EN_K1, 1);
+    frames(3);
+    ok &= gm_pv.state == PV_BUSY;                    /* not made while the stage is in use: BUSY, no corruption */
+    {
+        uint32_t i;
+        for (i = 0; i < 1600u && gm_pv.state != PV_READY; i++)
+            ui_frame();
+    }
+    ok &= gm_pv.state == PV_READY && preview_equals_core((uint32_t)gm_v[GU_BROWSE]);   /* made once the stage was free */
+    check("ui: the preview waits (BUSY) while a request is staged, then appears", ok);
+}
+
+static void vary_knob(void)
+{
+    uint32_t ok = 1, before;
+    fresh();
+    open_grind(2);
+    ok &= gm_vary == 0;
+    before = sig();
+    turn(EN_K4, 5);
+    frames(4);
+    ok &= gm_vary > 0 && gm_vary == (uint8_t)gm_v[GU_VARY];     /* VARY reaches the sequencer */
+    ok &= sig() == before && !gmrt.ctl.has_pending;             /* a performance feel: no pattern, no request */
+    turn(EN_K4, -5);
+    frames(4);
+    ok &= gm_vary == 0;
+    if (!ok)
+        printf("v=%d vary=%d sig=%d pend=%d\n", gm_v[GU_VARY], gm_vary, sig() == before, gmrt.ctl.has_pending);
+    check("ui: VARY is a live knob on the KEEP page, it makes no request", ok);
+}
+
+static void live_page(void)
+{
+    uint32_t ok = 1, before;
+    fresh();
+    open_grind(4);
+    ok &= grind_page() == 4;
+    before = sig();
+    turn(EN_K1, 7);
+    turn(EN_K2, 3);
+    frames(4);
+    ok &= gm_sink == 7 && gm_swell == 3;                        /* the macros reach the mixer */
+    ok &= sig() == before && !gmrt.ctl.has_pending;             /* no pattern, no request */
+    turn(EN_K1, -7);
+    turn(EN_K2, -3);
+    frames(4);
+    ok &= gm_sink == 0 && gm_swell == 0;
+    song.playing = 1;
+    turn(EN_K3, 1);                                             /* CUT */
+    frames(4);
+    ok &= !song.playing && gm_v[GU_CUT] == 0;
+    check("ui: the LIVE page: SINK and SWELL are held levels, CUT stops", ok);
+}
+
+static void init_clears_macros(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    open_grind(4);
+    turn(EN_K1, 30);
+    turn(EN_K2, 20);
+    frames(4);
+    gm_vary = 9;
+    ok &= gm_sink == 30 && gm_swell == 20;
+    init_all();
+    ok &= gm_sink == 0 && gm_swell == 0 && gm_vary == 0;
+    ok &= gm_v[GU_SINK] == 0 && gm_v[GU_SWELL] == 0 && gm_v[GU_VARY] == 0;
+    check("ui: TOOLS INIT clears SINK, SWELL and VARY", ok);
+}
+
+static void browser_redraws_on_change(void)
+{
+    uint32_t ok = 1, a, b, c;
+    fresh();
+    settings.zoom = 0;
+    open_grind(3);
+    frames(4);
+    a = graph_signature();
+    turn(EN_K1, 6);                                  /* another style: the grid is another */
+    frames(4);
+    b = graph_signature();
+    ok &= a != b;
+    turn(EN_K1, 40);                                 /* MATH: 28 steps, two banks */
+    frames(4);
+    b = graph_signature();
+    turn(EN_K2, 1);                                  /* the next bank of the same preview */
+    frames(4);
+    c = graph_signature();
+    ok &= c != b;
+    check("ui: the browser's graph is redrawn when the style or the bank changes (zoom off)", ok);
+}
+
+static void browser_follows_undo(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 3);                                  /* a change: undoable */
+    frames(3);
+    open_grind(3);
+    frames(4);
+    ok &= gm_pv.state == PV_READY;
+    ok &= gm_runtime_undo() == 1;
+    frames(4);
+    ok &= gm_pv.state == PV_READY && gm_pv.rev == gmrt.ctl.native_revision;   /* made again from the restored pattern */
+    check("ui: UNDO invalidates the browser's preview", ok);
+}
+
+static void browser_apply_refused_keeps_controls(void)
+{
+    uint32_t ok = 1;
+    int16_t aggr;
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 40);                                 /* MATH: 28 steps */
+    frames(4);
+    gm_keep_set(0, 20, 1);                           /* a kept step 21 */
+    turn(EN_K2, 3);
+    frames(2);
+    aggr = gm_v[GU_AGGR];
+    open_grind(3);
+    turn(EN_K1, -40);                                /* a 16-step style: the kept step does not fit */
+    frames(4);
+    ok &= gm_pv.state == PV_FAIL;
+    turn(EN_K3, 1);                                  /* APPLY */
+    frames(4);
+    ok &= gm_v[GU_STYLE] == (int16_t)(GM_UI_STYLES - 1u) && gm_v[GU_AGGR] == aggr;   /* nothing replaced */
+    check("ui: APPLY of a style the kept steps do not fit changes no control", ok);
+}
+
+static void cut_drops_a_pending_change(void)
+{
+    uint32_t ok = 1, before, i;
+    fresh();
+    open_grind(0);
+    transport_req = 1;
+    frames(40);
+    turn(EN_K1, 3);              /* a style request waits for the end of the pattern */
+    frames(2);
+    ok &= gmrt.ctl.has_pending || gmrt.ctl.stage_state != GM_STAGE_FREE || cue.q_gm;
+    before = sig();
+    open_grind(4);
+    turn(EN_K3, 1);                                   /* CUT */
+    frames(4);
+    ok &= !song.playing && !gmrt.ctl.has_pending && gmrt.ctl.stage_state == GM_STAGE_FREE && !cue.q_gm;
+    transport_req = 1;
+    for (i = 0; i < 400u; i++)
+        ui_frame();                                   /* a PLAY across the old boundary: the cancelled change never appears */
+    ok &= sig() == before;
+    check("ui: CUT drops a waiting GRIND change, a later PLAY does not publish it", ok);
+}
+
+static void browser_bank_follows_length(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    open_grind(3);
+    turn(EN_K1, 40);                                  /* MATH: 28 steps, two banks */
+    frames(4);
+    turn(EN_K2, 5);
+    frames(4);
+    ok &= gm_v[GU_PVBANK] == 2;
+    turn(EN_K1, -40);                                 /* a 16-step style: one bank */
+    frames(4);
+    ok &= gm_v[GU_PVBANK] == 1;
+    check("ui: the browser's bank follows the previewed length (clamped to its banks)", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -508,6 +876,22 @@ int main(void)
     undo_redo();
     undo_keeps_timing();
     knobs_stop_at_the_ends();
+    reset_starts_from_a_valid_config();
+    seven_four_style();
+    browser_previews_and_cancels();
+    browser_every_style();
+    browser_confirm_stopped();
+    browser_confirm_playing();
+    browser_follows_live_edits_and_keep();
+    browser_busy_while_a_request_waits();
+    vary_knob();
+    live_page();
+    init_clears_macros();
+    cut_drops_a_pending_change();
+    browser_bank_follows_length();
+    browser_redraws_on_change();
+    browser_follows_undo();
+    browser_apply_refused_keeps_controls();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

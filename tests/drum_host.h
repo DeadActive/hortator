@@ -106,6 +106,9 @@ static void host_reset_fx(void)                     /* FX buses, master, slicer,
     mute_mask = kb_mute = kb_mute_hit = 0;          /* the MUTE screen's keys (seq.c): none */
     perf_kill = 0;
     perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;
+#if GRIND_NATIVE
+    gm_vary = gm_sink = gm_swell = 0;
+#endif
     perf_seq = 0;
     memset(perf_ord, 0, sizeof perf_ord);
     sl_lent = 0;

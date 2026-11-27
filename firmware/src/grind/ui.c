@@ -11,16 +11,37 @@ static void ui_say(const char *a, const char *b);      /* ui.c */
 static void ui_message(const char *s);
 static void settings_save(void);                       /* project.c: the device settings, written once stopped */
 
-static const char *const N_GSTYLE[] = {                /* gm_style_name's 22 styles, four letters: a knob column's width */
+static const char *const N_GSTYLE[] = {                /* the 22 core styles (gm_style_name) plus MATH (UI only), four letters: a knob column's width */
     "TRAD", "HAMR", "BOMB", "GRAV", "BLST", "DBET", "SKNK", "2XBS", "TECH", "BRUT", "FSLO",
-    "ABRP", "STOP", "BRKD", "2STP", "HALF", "CHAO", "INDU", "POLY", "SLDG", "FUNR", "STNR"};
-typedef char gm_style_names_complete[sizeof N_GSTYLE / sizeof N_GSTYLE[0] == GM_ALGORITHM_COUNT ? 1 : -1];
+    "ABRP", "STOP", "BRKD", "2STP", "HALF", "CHAO", "INDU", "POLY", "SLDG", "FUNR", "STNR", "MATH"};
+/* The STYLE list: the 22 styles, then MATH = Technical (9) on a 7/4 grid (3+2+2 quarters, 28 sixteenths). The extra
+ * entry is a UI choice over the same core, so the core's ids, the saved bytes and the golden patterns stay as they were. */
+#define GM_UI_STYLES (GM_ALGORITHM_COUNT + 1u)
+typedef char gm_style_names_complete[sizeof N_GSTYLE / sizeof N_GSTYLE[0] == GM_UI_STYLES ? 1 : -1];
+static gm_result gm_ui_style_config(uint32_t idx, gm_config *c)
+{
+    gm_result r;
+    if (idx >= GM_UI_STYLES)
+        return GM_INVALID;
+    if (idx < GM_ALGORITHM_COUNT)
+        return gm_factory_config((uint8_t)(idx + 1u), c);
+    r = gm_factory_config(9, c);
+    if (r == GM_OK)
+        c->grid = (gm_grid){7, 4, 16, 1};
+    return r;
+}
+static const char *gm_ui_style_name(uint32_t idx)
+{
+    return idx < GM_ALGORITHM_COUNT ? gm_style_name((uint8_t)(idx + 1u)) : idx == GM_ALGORITHM_COUNT ? "Mathcore 7/4" : "";
+}
 static const char *const N_GWHEN[] = {"STEP", "END"};
 static const char *const N_GKIT[] = {"--", "ROLE"};
 static const char *const N_GUNDO[] = {"--", "UNDO"};
 static const char *const N_GFREE[] = {"--", "ALL"};
+static const char *const N_GOK[] = {"--", "OK"};
+static const char *const N_GCUT[] = {"--", "CUT"};
 
-enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_N };
+enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_BROWSE, GU_PVBANK, GU_OK, GU_VARY, GU_SINK, GU_SWELL, GU_CUT, GU_N };
 static const param_desc_t GP_GRIND[GU_N] = {
     [GU_STYLE] = PE("STYLE", N_GSTYLE, 0),
     [GU_AGGR] = PD("AGGR", F_PCT, 0, 100, 75),
@@ -34,8 +55,15 @@ static const param_desc_t GP_GRIND[GU_N] = {
     [GU_UNDO] = PE("UNDO", N_GUNDO, 0),               /* an action, and its own undo: the last GRIND change back, again: forward */
     [GU_FREE] = PE("FREE", N_GFREE, 0),               /* an action: no step of any track kept */
     [GU_KIT] = PE("KIT", N_GKIT, 0),                  /* an action: ROLE sets the eight sounds (twice to act) */
+    [GU_BROWSE] = PE("STYLE", N_GSTYLE, 0),           /* the style browser: the style looked at, nothing live changes */
+    [GU_PVBANK] = PD("BANK", F_INT, 1, 4, 1),         /* which 16 steps of a longer pattern the preview shows */
+    [GU_VARY] = PD("VARY", F_INT, 0, 100, 0),         /* natural hit variation: a velocity swing per hit (seq.c), no pattern change */
+    [GU_SINK] = PD("SINK", F_INT, 0, 100, 0),         /* B3: the master sinks toward a lowpass; back to 0 it is the normal sound */
+    [GU_SWELL] = PD("SWELL", F_INT, 0, 100, 0),       /* B3: more of the mix into the delay and reverb; back to 0, as before */
+    [GU_CUT] = PE("CUT", N_GCUT, 0),                  /* B3: a performance stop: the transport, a pending change and the voices */
+    [GU_OK] = PE("APPLY", N_GOK, 0),                  /* an action: the browsed style becomes the committed one */
 };
-static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
+static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
 
 /* KIT: the eight tracks' sounds for the eight roles the generator writes (gm_role order: K S H R C X TH TL), from the
  * models the default kit already has. The cymbals share one model and the toms another, told apart by TUNE and
@@ -83,11 +111,11 @@ static void gm_settings_unpack(uint32_t v)
 {
     gm_config f;
     uint32_t style = v & 31u;
-    if (style >= GM_ALGORITHM_COUNT)                   /* (a damaged record: the default style) */
+    if (style >= GM_UI_STYLES)                         /* (a damaged record: the default style) */
         style = 0;
     gm_v[GU_STYLE] = (int16_t)style;
     gm_v[GU_WHEN] = (v >> 5) & 1u ? 0 : 1;
-    if (gm_factory_config((uint8_t)(style + 1u), &f) == GM_OK) {
+    if (gm_ui_style_config(style, &f) == GM_OK) {
         gm_v[GU_AGGR] = f.aggression;
         gm_v[GU_DENS] = f.density;
         gm_v[GU_CHAOS] = f.chaos;
@@ -102,7 +130,7 @@ static uint8_t gm_save_t;                              /* frames until a changed
 /* the knobs as a config: the style's factory grid and seed, the four controls, MUT as the mutation counter */
 static gm_result gm_ui_config(gm_config *c)
 {
-    gm_result r = gm_factory_config((uint8_t)(gm_v[GU_STYLE] + 1), c);
+    gm_result r = gm_ui_style_config((uint32_t)gm_v[GU_STYLE], c);
     if (r != GM_OK)
         return r;
     c->aggression = (uint8_t)gm_v[GU_AGGR];
@@ -114,11 +142,119 @@ static gm_result gm_ui_config(gm_config *c)
     return GM_OK;
 }
 
+/* STYLE BROWSER (the fifth GRIND page): look at a style on the live pattern before it goes live. The preview is made by
+ * the runtime's own gm_runtime_make (the live pattern and the KEEP mask as the base, the style's factory controls), so it
+ * is what APPLY would publish; it is made in the main loop only while no stage is in use (the base shares the stage's
+ * bytes), else it says BUSY and tries again. Only compact row bitmaps are kept; nothing is published while browsing, and
+ * leaving the page puts the cursor back on the committed style. The style's tempo is shown, never applied. */
+enum { PV_NONE, PV_READY, PV_BUSY, PV_FAIL };
+static struct {
+    uint8_t on[GM_TRACKS][8], acc[GM_TRACKS][8], rat[GM_TRACKS][8];   /* bit s of row t: the step is on / accented / ratcheted */
+    uint8_t len, div, num, den, state, idx, res;
+    uint16_t bpm;                                      /* the style's own (a label) */
+    uint32_t rev;                                      /* the live pattern's revision it was made from */
+} gm_pv;
+
+static void gm_pv_update(void)
+{
+    gm_config c;
+    uint32_t idx = (uint32_t)gm_v[GU_BROWSE], k, s, rev = gmrt.ctl.native_revision;
+    gm_result r;
+    if ((gm_pv.state == PV_READY || gm_pv.state == PV_FAIL) && gm_pv.idx == idx && gm_pv.rev == rev)
+        return;
+    gm_pv.idx = (uint8_t)idx;
+    if (gmrt.ctl.stage_state != GM_STAGE_FREE || gmrt.ctl.has_pending) {   /* a request is staged: wait, never share its bytes */
+        gm_pv.state = PV_BUSY;
+        return;
+    }
+    r = gm_ui_style_config(idx, &c);
+    if (r == GM_OK) {
+        gm_pv.bpm = c.bpm;
+        gm_pv.num = c.grid.num;
+        gm_pv.den = c.grid.den;
+        c.bpm = (uint16_t)clamp(song.g[G_BPM], 40, 350);   /* (as a submitted request: the tempo stays the player's) */
+        r = gm_runtime_make(&c);
+    }
+    gm_pv.rev = rev;
+    gm_pv.res = (uint8_t)r;
+    if (r != GM_OK) {
+        gm_pv.state = PV_FAIL;
+        return;
+    }
+    memset(gm_pv.on, 0, sizeof gm_pv.on);
+    memset(gm_pv.acc, 0, sizeof gm_pv.acc);
+    memset(gm_pv.rat, 0, sizeof gm_pv.rat);
+    gm_pv.len = gmrt.out.timing[0].length;
+    gm_pv.div = gmrt.out.timing[0].division;
+    for (k = 0; k < GM_TRACKS; k++)
+        for (s = 0; s < gmrt.out.timing[k].length && s < GM_STEPS; s++) {
+            gm_cell a = gmrt.out.cell[k][s];
+            if (a.flags & GM_ON)
+                gm_pv.on[k][s >> 3] |= (uint8_t)(1u << (s & 7u));
+            if (a.flags & GM_ACC)
+                gm_pv.acc[k][s >> 3] |= (uint8_t)(1u << (s & 7u));
+            if (a.flags >> GM_RAT_SHIFT)
+                gm_pv.rat[k][s >> 3] |= (uint8_t)(1u << (s & 7u));
+        }
+    gm_pv.state = PV_READY;
+}
+
+/* TOOLS INIT: the performance macros (SINK, SWELL, VARY) off, their knobs back to 0 */
+static void gm_macros_reset(void)
+{
+    gm_sink = gm_swell = gm_vary = 0;
+    gm_v[GU_SINK] = gm_v[GU_SWELL] = gm_v[GU_VARY] = 0;
+}
+/* B3: SINK and SWELL (0..100) */
+static void gm_master_set(uint32_t sink, uint32_t swell)
+{
+    gm_sink = (uint8_t)(sink > 100u ? 100u : sink);
+    gm_swell = (uint8_t)(swell > 100u ? 100u : swell);
+}
+/* B3: CUT, a performance stop through the ordinary paths: STOP (a queued cue is dropped, the notes end), every track's voices
+ * cut, a staged or waiting Grind change cancelled. Nothing is written to a pattern or a setting; a later PLAY is an ordinary
+ * PLAY (transport_req is a request the sequencer consumes, a CUT leaves nothing behind). The delay and reverb tails ring out. */
+static void gm_master_cut(void)
+{
+    fm1_irq_off();                                      /* one coherent request at the next audio block */
+    gm_runtime_stop();
+    transport_req = 2;
+    panic_req = (uint8_t)((1u << NTRK) - 1u);
+    fm1_irq_on();
+}
 /* a knob of the GRIND pages was turned (edit_param): the style brings its factory controls, then the request goes out */
 static void gm_ui_changed(uint32_t id)
 {
     gm_config c;
     gm_result r;
+    if (id == GU_SINK || id == GU_SWELL) {             /* the macros: held levels, read by perform.c every block */
+        gm_master_set((uint32_t)gm_v[GU_SINK], (uint32_t)gm_v[GU_SWELL]);
+        return;
+    }
+    if (id == GU_CUT) {
+        if (!gm_v[GU_CUT])
+            return;
+        gm_v[GU_CUT] = 0;
+        gm_master_cut();
+        return;
+    }
+    if (id == GU_VARY) {                               /* a feel, not a pattern: read by the sequencer per hit */
+        gm_vary = (uint8_t)gm_v[GU_VARY];
+        return;
+    }
+    if (id == GU_BROWSE || id == GU_PVBANK)
+        return;                                        /* looking: nothing live changes, the frame makes the preview */
+    if (id == GU_OK) {                                 /* APPLY: the browsed style, as a STYLE turn (its factory controls) */
+        if (!gm_v[GU_OK])
+            return;
+        gm_v[GU_OK] = 0;
+        if (gm_pv.state != PV_READY || gm_pv.idx != (uint32_t)gm_v[GU_BROWSE] || gm_pv.rev != gmrt.ctl.native_revision) {                 /* nothing was shown that APPLY could publish: no control changes */
+            ui_message(gm_pv.state == PV_FAIL ? "KEEP DOES NOT FIT" : "WAIT");
+            return;
+        }
+        gm_v[GU_STYLE] = gm_v[GU_BROWSE];
+        id = GU_STYLE;
+    }
     if (id == GU_KIT) {                                /* a GO button: one detent arms, a second one within ~1.5 s acts */
         if (!gm_v[GU_KIT])
             return;
@@ -174,7 +310,7 @@ static void gm_ui_changed(uint32_t id)
     }
     if (id == GU_STYLE) {
         gm_config f;
-        if (gm_factory_config((uint8_t)(gm_v[GU_STYLE] + 1), &f) == GM_OK) {
+        if (gm_ui_style_config((uint32_t)gm_v[GU_STYLE], &f) == GM_OK) {
             gm_v[GU_AGGR] = f.aggression;
             gm_v[GU_DENS] = f.density;
             gm_v[GU_CHAOS] = f.chaos;
@@ -196,7 +332,7 @@ static void gm_ui_changed(uint32_t id)
 }
 
 /* every UI frame: the runtime's main-loop work, and what became of the requests (said once each) */
-static void gm_ui_frame(void)
+static void gm_ui_frame(int browsing)                  /* browsing: the STYLE BROWSER page is the one shown */
 {
     static uint32_t seen;
     uint32_t n;
@@ -207,10 +343,17 @@ static void gm_ui_frame(void)
         settings_save();
     gm_v[GU_KEEP] = (int16_t)gm_keep_count(song.sel);  /* (the selected track's: it follows the selection) */
     gm_runtime_poll();
+    if (browsing) {
+        gm_pv_update();
+        if (gm_pv.state == PV_READY && gm_v[GU_PVBANK] > (int16_t)((gm_pv.len + 15u) / 16u))
+            gm_v[GU_PVBANK] = (int16_t)((gm_pv.len + 15u) / 16u);   /* (a 16-step style has one bank) */
+    } else {
+        gm_v[GU_BROWSE] = gm_v[GU_STYLE];                /* (leaving the page cancels: the cursor is the committed style) */
+    }
     n = gm_runtime_commits();
     if (n != seen) {
         seen = n;
-        ui_message(gm_style_name((uint8_t)(gm_v[GU_STYLE] + 1)));   /* (the full name: the column has four letters) */
+        ui_message(gm_ui_style_name((uint32_t)gm_v[GU_STYLE]));   /* (the full name: the column has four letters) */
         return;
     }
     st = gm_runtime_status();

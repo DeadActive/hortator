@@ -1245,7 +1245,8 @@ static void ui_input(void)
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     cue_poll();                                         /* project.c: a cue's switch finished (spec 2026-10-26) */
 #if GRIND_NATIVE
-    gm_ui_frame();                                      /* grind/ui.c: the engine's main-loop work */
+    gm_ui_frame(!ui.home && !ui.menu && cur_page()->scope == SC_GRIND && cur_page()->id[0] == GU_BROWSE);   /* grind/ui.c: the
+                                                         * engine's main-loop work (+ the style browser's preview) */
 #endif
     cue_input(now, notes);                              /* SAVE: tap / hold, the cue map */
     if (cue_owns_keys())

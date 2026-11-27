@@ -9,7 +9,8 @@ static void test_supported_grids(void)
         uint8_t num, den, steps[3];
     } meters[] = {
         {3, 4, {6, 12, 24}}, {4, 4, {8, 16, 32}}, {5, 4, {10, 20, 40}},
-        {6, 8, {6, 12, 24}}, {7, 8, {7, 14, 28}}, {9, 8, {9, 18, 36}}
+        {6, 8, {6, 12, 24}}, {7, 8, {7, 14, 28}}, {9, 8, {9, 18, 36}},
+        {7, 4, {14, 28, 56}}                        /* seven quarters: 28 sixteenths, 56 thirty-seconds */
     };
 
     for (size_t m = 0; m < sizeof meters / sizeof meters[0]; ++m) {

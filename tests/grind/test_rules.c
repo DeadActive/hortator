@@ -202,6 +202,54 @@ static void test_segmented_alternation(void)
     }
 }
 
+static void test_seven_four(void)
+{
+    gm_rule_masks masks;
+    gm_config c = config(9, (gm_grid){7, 4, 16, 1});
+    uint64_t ride = 0, k2;
+    unsigned i;
+    for (i = 0; i < 28u; i += 2u)
+        ride |= BIT(i);
+    assert(gm_rules_build(&c, &masks) == GM_OK);
+    assert(masks.anchors[GM_KICK] == (BIT(0) | BIT(12) | BIT(20)));       /* 3 + 2 + 2 quarters */
+    assert(masks.anchors[GM_SNARE] == (BIT(8) | BIT(16) | BIT(24)));
+    assert(masks.anchors[GM_CRASH] == BIT(0) && masks.anchors[GM_RIDE] == ride);
+    assert(masks.accents[GM_KICK] == masks.anchors[GM_KICK]);
+    assert(!masks.anchors[GM_HAT] && !masks.forbidden);
+    for (i = 0; i < GM_TRACKS; ++i)
+        assert(masks.length[i] == 28u);
+
+    c.grid.division = 32;                                                  /* every reference position twice as far */
+    assert(gm_rules_build(&c, &masks) == GM_OK);
+    assert(masks.anchors[GM_KICK] == (BIT(0) | BIT(24) | BIT(40)) && masks.length[GM_KICK] == 56u);
+    assert(masks.anchors[GM_SNARE] == (BIT(16) | BIT(32) | BIT(48)));
+
+    c.grid.division = 8;                                                   /* the hits all sit on even positions */
+    assert(gm_rules_build(&c, &masks) == GM_OK);
+    assert(masks.anchors[GM_KICK] == (BIT(0) | BIT(6) | BIT(10)) && masks.length[GM_KICK] == 14u);
+    assert(masks.anchors[GM_SNARE] == (BIT(4) | BIT(8) | BIT(12)));
+
+    c.grid = (gm_grid){7, 4, 16, 2};                                       /* a second bar starts at step 28 */
+    assert(gm_rules_build(&c, &masks) == GM_OK);
+    k2 = BIT(0) | BIT(12) | BIT(20) | BIT(28) | BIT(40) | BIT(48);
+    assert(masks.anchors[GM_KICK] == k2 && masks.anchors[GM_CRASH] == BIT(0) && masks.length[GM_KICK] == 56u);
+
+    c.grid = (gm_grid){7, 4, 32, 2};                                       /* 112 steps do not fit */
+    assert(gm_rules_build(&c, &masks) == GM_LIMIT);
+    c.grid = (gm_grid){7, 4, 16, 3};
+    assert(gm_rules_build(&c, &masks) == GM_LIMIT);
+
+    for (i = 1; i <= GM_ALGORITHM_COUNT; ++i) {                            /* only Technical has a seven-quarter rule */
+        gm_rule_masks before;
+        memset(&masks, 0x5a, sizeof masks);
+        before = masks;
+        c = config((uint8_t)i, (gm_grid){7, 4, 16, 1});
+        assert(gm_rules_build(&c, &masks) == (i == 9u ? GM_OK : GM_UNSUPPORTED));
+        if (i != 9u)
+            assert(!memcmp(&masks, &before, sizeof masks));                /* nothing written on a refusal */
+    }
+}
+
 static void test_invalid(void)
 {
     gm_rule_masks masks;
@@ -220,6 +268,7 @@ int main(void)
     test_musical_positions();
     test_length_and_pauses();
     test_segmented_alternation();
+    test_seven_four();
     test_invalid();
     puts("rules: ok");
     return 0;

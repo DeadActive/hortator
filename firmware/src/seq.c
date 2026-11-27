@@ -353,6 +353,19 @@ static __attribute__((noinline)) void acid_step(track_t *t, const step_t *s, con
     acid_gate_set(t, next);
 }
 
+#if GRIND_NATIVE
+#include "grind/hit_variation.h"
+/* A3: the velocity of a step's hit (ordinal 0) or roll hit k: from where it is (track, step count), so a PLAY repeats */
+static uint32_t hv_vel(const track_t *t, uint32_t base, uint32_t k)
+{
+    if (!gm_vary || trk_model(t)->gate)
+        return base;                                    /* off: no hashing in the audio block; gated (ACID) tracks never vary */
+    return gm_hit_velocity(base, gm_vary, gm_hit_key(0x47524Eu, (uint32_t)(t - trk), t->seq_cnt, 0, k));
+}
+#else
+#define hv_vel(t, base, k) ((uint32_t)(base))
+#endif
+
 /* the step that came up: decided once (step_plays), then RATCH hits spread over its length len_s, the first
  * now (rat_due plays the others). A track following Grids plays nothing from its steps; a drum's TIE step nothing. */
 static void step_fire(track_t *t, uint32_t len_s)
@@ -374,7 +387,7 @@ static void step_fire(track_t *t, uint32_t len_s)
     if (t->p[P_SRC] || !s->on || s->tie || !step_plays(t, s, len))
         return;
     t->rat_vel = (uint8_t)(s->acc ? 127u : 96u);
-    drum_play(t, t->rat_vel, s->nt);
+    drum_play(t, hv_vel(t, t->rat_vel, 0), s->nt);
     t->rat_nt = t->nt;
     t->rat_n = (uint8_t)(s->rat < 3u ? s->rat + 1u : 4u);
     t->rat_k = 1;
@@ -389,7 +402,7 @@ static void rat_due(track_t *t, uint32_t cur_len)
         int32_t at = t->rat_off + (int32_t)(t->rat_k * t->rat_len / t->rat_n);
         if (at > (int32_t)t->seq_pos || at >= (int32_t)cur_len)
             break;
-        drum_play(t, t->rat_vel, t->rat_nt);
+        drum_play(t, hv_vel(t, t->rat_vel, t->rat_k), t->rat_nt);
         t->rat_k++;
         if (trk_model(t)->gate)
             acid_gate_set(t, seq_next(t));          /* ACID: each hit its gate, the last one held when it slides */

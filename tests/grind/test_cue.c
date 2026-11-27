@@ -101,6 +101,38 @@ static void boundary_exact(void)
         printf("     switched in block %u, boundary at sample %u (block %u)\n", b, BOUNDARY, BOUNDARY / CTL);
 }
 
+/* Technical in 7/4 (LEN 28) playing, a 4/4 style staged for the end: the switch is at step 28, not at 16 */
+static void seven_four_boundary(void)
+{
+    uint32_t i, first = 0xFFFFFFFFu, changes = 0, last, ok = 1;
+    gm_config c;
+    gm_pattern p;
+    starts();
+    fresh();
+    gm_factory_config(9, &c);
+    c.grid = (gm_grid){7, 4, 16, 1};
+    assert(gm_generate(&c, NULL, &p) == GM_OK && gm_native_publish(&p) == GM_OK);
+    ok &= trk[0].p[P_SLEN] == 28;
+    last = sig();
+    transport_req = 1;
+    play_blocks(60);
+    assert(submit(1, GM_BOUNDARY_PATTERN) == GM_OK);
+    for (i = 60; i < START[28] / CTL + 40u; i++) {
+        play_blocks(1);
+        if (sig() != last) {
+            if (first == 0xFFFFFFFFu)
+                first = i;
+            changes++;
+            last = sig();
+        }
+    }
+    ok &= changes == 1u && first >= START[28] / CTL - 1u && first <= START[28] / CTL + 1u && trk[0].p[P_SLEN] == 16;
+    ok &= first > START[16] / CTL + 2u;                                    /* not at the 4/4 bar line */
+    check("cue: END of a 28-step pattern waits for step 28 (not 16), then publishes once", ok);
+    if (!ok)
+        printf("     switched in block %u (changes %u), step 28 ends in block %u\n", first, changes, START[28] / CTL);
+}
+
 static void nothing_before_boundary(void)
 {
     uint32_t i, ok = 1, old, base;
@@ -341,6 +373,7 @@ static void early_micro_blocked(void)
 int main(void)
 {
     boundary_exact();
+    seven_four_boundary();
     nothing_before_boundary();
     longest_track();
     next_step_boundary();

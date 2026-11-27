@@ -747,6 +747,63 @@ static void step_bar(int32_t x, int32_t y, int32_t w, int32_t h, const step_t *s
         cv_rect(x + r * tick, y - 4, tick > 2 ? tick - 1 : 1, 2, C_INK);
 }
 
+#if GRIND_NATIVE
+/* GRIND STYLE BROWSER: the eight roles over one bank of 16 steps (x on, a taller bar an accent, a bar above it a ratchet,
+ * a line under it a KEEP), and under them the style, its meter, grid, length and its own tempo (a label). */
+static void graph_grind_preview(void)
+{
+    static const char *const ROLE[GM_TRACKS] = {"K", "S", "H", "R", "C", "X", "TH", "TL"};
+    char b[40];
+    uint32_t r, i, bank = (uint32_t)(gm_v[GU_PVBANK] < 1 ? 0 : gm_v[GU_PVBANK] - 1);
+    if (gm_pv.state == PV_READY)
+        for (r = 0; r < GM_TRACKS; r++) {
+            int32_t y = 2 + (int32_t)r * 9;
+            md_text(2, y, &MD_F3, 1, ROLE[r], C_INK);
+            for (i = 0; i < 16u; i++) {
+                uint32_t s = bank * 16u + i;
+                int32_t x = 16 + (int32_t)i * 13 + (int32_t)(i / 4u) * 3;
+                if (s >= gm_pv.len)
+                    break;
+                if (gm_pv.on[r][s >> 3] >> (s & 7u) & 1u) {
+                    int acc = (gm_pv.acc[r][s >> 3] >> (s & 7u)) & 1u;
+                    cv_rect(x, acc ? y : y + 2, 10, acc ? 7 : 5, C_INK);
+                    if ((gm_pv.rat[r][s >> 3] >> (s & 7u)) & 1u)
+                        cv_rect(x, y - 1, 10, 1, C_INK);
+                } else {
+                    cv_rect(x + 4, y + 3, 2, 1, C_INK);
+                }
+                if (s < (uint32_t)trk[r].p[P_SLEN] && gm_keep_get(r, s))   /* (past the track's length the generator ignores it) */
+                    cv_rect(x, y + 8, 10, 1, C_INK);
+            }
+        }
+    b[0] = 0;
+    if (gm_pv.state == PV_READY) {
+        str_cpy(b, gm_ui_style_name(gm_pv.idx), sizeof b);
+        if (gm_pv.idx < GM_ALGORITHM_COUNT) {              /* (MATH's name already says 7/4) */
+            str_cpy(b + str_len(b), " ", sizeof b - str_len(b));
+            fmt_int(b + str_len(b), gm_pv.num);
+            str_cpy(b + str_len(b), "/", sizeof b - str_len(b));
+            fmt_int(b + str_len(b), gm_pv.den);
+        }
+        str_cpy(b + str_len(b), " 1/", sizeof b - str_len(b));
+        fmt_int(b + str_len(b), gm_pv.div);
+        str_cpy(b + str_len(b), " LEN ", sizeof b - str_len(b));
+        fmt_int(b + str_len(b), gm_pv.len);
+        md_text(2, 75, &MD_F3, 2, b, C_INK);
+        b[0] = 0;
+        str_cpy(b, "TEMPO ", sizeof b);
+        fmt_int(b + str_len(b), gm_pv.bpm);
+        str_cpy(b + str_len(b), " BPM, NOT SET  BANK ", sizeof b - str_len(b));
+        fmt_int(b + str_len(b), (int32_t)bank + 1);
+        str_cpy(b + str_len(b), "/", sizeof b - str_len(b));
+        fmt_int(b + str_len(b), (gm_pv.len + 15u) / 16u);
+        md_text(2, 90, &MD_F3, 1, b, C_INK);
+    } else {
+        md_text(2, 40, &MD_F3, 2, gm_pv.state == PV_BUSY ? "PREVIEW WAITS" : gm_pv.res == GM_LOCK_CONFLICT ? "KEEP DOES NOT FIT" : "NO PREVIEW", C_INK);
+    }
+}
+#endif
+
 /* PATTERN page: 4 rows of 16 steps over LEN; accent tall, playhead white */
 static void graph_steps(const track_t *t, uint16_t c)
 {
@@ -1881,6 +1938,11 @@ static uint32_t graph_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h ^= (uint32_t)song.g[G_SLOT] * 13u;
+#if GRIND_NATIVE
+    if (pg->graph == GR_GRINDPV)                       /* the browser: the style, the bank and what the preview holds */
+        h = (h ^ (uint32_t)gm_v[GU_BROWSE] * 31u ^ (uint32_t)gm_v[GU_PVBANK] * 977u ^ (uint32_t)gm_pv.state * 7919u ^
+             gm_pv.rev * 104729u ^ (uint32_t)gm_pv.idx * 15485863u) * 16777619u;
+#endif
     if (pg->graph == GR_CHO)                           /* the chorus' globals */
         h = (h ^ (uint32_t)song.g[G_CRATE] * 23u ^ (uint32_t)song.g[G_CDEPTH] * 7919u) * 16777619u;
     if (pg->graph == GR_DLY || pg->graph == GR_REV)    /* the buses' globals (and the tempo: TIME in ms) */
@@ -2324,6 +2386,11 @@ static uint32_t graph_paint(int whole)
         top = 1;
         graph_slots();
         break;
+#if GRIND_NATIVE
+    case GR_GRINDPV:
+        graph_grind_preview();
+        break;
+#endif
     default:
         break;
     }

@@ -4,7 +4,7 @@ import { CAP, CMD, GRIND, GRIND_MAX, SF } from "./proto.mjs";
 const STYLES = [
   "Traditional", "Hammer", "Bomb", "Gravity", "Grind Blast", "D-Beat", "Skank", "Doublebass",
   "Technical", "Brutal", "Fast-Slow", "Abrupt Break", "Stop-and-Go", "Breakdown", "Two-Step",
-  "Half-Time", "Chaos", "Industrial", "Polymetric", "Sludge", "Funeral", "Stoner",
+  "Half-Time", "Chaos", "Industrial", "Polymetric", "Sludge", "Funeral", "Stoner", "Mathcore 7/4",
 ];
 const ROLES = ["Kick", "Snare", "Hi-hat", "Ride", "Crash", "China", "High tom", "Low tom"];
 

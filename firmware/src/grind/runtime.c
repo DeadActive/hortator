@@ -36,7 +36,9 @@ static void gm_runtime_reset(void)
 {
     gm_config c;
     memset(&gmrt, 0, sizeof gmrt);
-    gm_factory_config(0, &c);
+    memset(&c, 0, sizeof c);
+    if (gm_factory_config(1, &c) != GM_OK)             /* (style ids start at 1; 0 is none and left c unset) */
+        memset(&c, 0, sizeof c);
     gm_ctl_init(&gmrt.ctl, &c);
     cue.q_gm = 0;
 }
@@ -206,6 +208,25 @@ static gm_result gm_runtime_submit(const gm_config *c, gm_boundary at, gm_reques
     return v;
 }
 
+/* The candidate for a config from the live pattern: its export as the base, the KEEP mask (steps past a LEN turned down
+ * are not kept), the generator. Main loop only, and only while no stage is in use (the base shares the stage's bytes):
+ * the result is in gmrt.out. The preview of the style browser and a submitted request are made by this one routine, so
+ * what is shown is what would be published. */
+static gm_result gm_runtime_make(const gm_config *cfg)
+{
+    gm_result res = gm_native_export(&gmrt.u.base);
+    uint32_t k;
+    if (res != GM_OK)
+        return res;
+    memcpy(gmrt.u.base.lock, gmrt.lock, sizeof gmrt.lock);
+    for (k = 0; k < NTRK; k++) {                          /* (a LEN turned down since: the steps past it are not kept) */
+        uint32_t s;
+        for (s = gmrt.u.base.timing[k].length; s < NSTEP; s++)
+            gmrt.u.base.lock[(k * NSTEP + s) >> 3] &= (uint8_t)~(1u << ((k * NSTEP + s) & 7u));
+    }
+    return gm_generate(cfg, &gmrt.u.base, &gmrt.out);
+}
+
 /* Main loop, every frame: take the pending request, make the candidate outside the IRQ, publish it. */
 static void gm_runtime_poll(void)
 {
@@ -222,16 +243,7 @@ static void gm_runtime_poll(void)
     fm1_irq_on();
     if (res != GM_OK)
         return;
-    res = gm_native_export(&gmrt.u.base);
-    if (res == GM_OK) {
-        memcpy(gmrt.u.base.lock, gmrt.lock, sizeof gmrt.lock);
-        for (k = 0; k < NTRK; k++) {                      /* (a LEN turned down since: the steps past it are not kept) */
-            uint32_t s;
-            for (s = gmrt.u.base.timing[k].length; s < NSTEP; s++)
-                gmrt.u.base.lock[(k * NSTEP + s) >> 3] &= (uint8_t)~(1u << ((k * NSTEP + s) & 7u));
-        }
-        res = gm_generate(&r.config, &gmrt.u.base, &gmrt.out);
-    }
+    res = gm_runtime_make(&r.config);
     if (res == GM_OK)
         res = gm_native_check(&gmrt.out);
     if (res == GM_OK) {                                   /* (base is dead now: the native stage takes its bytes) */

@@ -566,6 +566,9 @@ static void init_all(void)
     memset(&mo, 0, sizeof mo);                     /* no motion */
     memset(&chain, 0, sizeof chain);               /* no song, no name */
     perf_k[0] = perf_k[1] = perf_k[2] = perf_k[3] = 0;   /* PERFORM's knob effects off (spec §7) */
+#if GRIND_NATIVE
+    gm_macros_reset();                                  /* SINK, SWELL, VARY off too */
+#endif
     fm1_irq_on();
     ui.bank = 0;
     ui.song_row = 0;

@@ -896,9 +896,10 @@ static void t_grind(void)
     ed_reset();
     gm_runtime_reset();
     check("GRIND_GET rejects invalid track", rc_is(req1(ED_GRIND_GET, NTRK), ED_E_BAD, ED_D_RANGE));
-    check("GRIND_SET rejects invalid style", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 22, 70), ED_E_BAD, ED_D_RANGE));
+    check("GRIND_SET rejects invalid style", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 23, 70), ED_E_BAD, ED_D_RANGE));
+    check("GRIND_SET accepts the 23rd style (MATH)", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 22, 72), 0, 0));
     check("GRIND_SET queues D-Beat on the firmware", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 5, 71), ED_OK, 0));
-    gm_ui_frame();
+    gm_ui_frame(0);
     f = req1(ED_GRIND_GET, 0);
     check("GRIND_GET sees D-Beat committed with 16 steps", rc_is(f, ED_OK, 0) && f->b[7] == 5 &&
           f->b[14] == 16 && gm_runtime_commits() == 1);
@@ -914,10 +915,10 @@ static void t_grind(void)
     check("GRIND role kit sets a kick on track 1", rc_is(grind_set(0, ED_GRIND_KIT, 0, 0, 75), ED_OK, 0) &&
           trk[0].p[P_MODEL] == DM_KTRX);
     check("GRIND sets a 32-step base pattern", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 10, 76), ED_OK, 0));
-    gm_ui_frame();
+    gm_ui_frame(0);
     song.playing = 1;
     check("GRIND queues a shorter pattern while playing", rc_is(grind_set(0, ED_GRIND_KNOB, GU_STYLE, 5, 77), ED_OK, 0));
-    gm_ui_frame();
+    gm_ui_frame(0);
     check("GRIND stages the shorter pattern", cue.q_gm && trk[0].p[P_SLEN] == 32);
     check("GRIND KEEP invalidates the staged pattern", rc_is(grind_set(0, ED_GRIND_KEEP_STEP, 20, 1, 78), ED_OK, 0) &&
           !cue.q_gm && gm_keep_get(0, 20) && gm_runtime_status() == GM_STALE);
