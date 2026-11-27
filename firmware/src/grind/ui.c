@@ -38,8 +38,9 @@ static const char *const N_GWHEN[] = {"STEP", "END"};
 static const char *const N_GKIT[] = {"--", "ROLE"};
 static const char *const N_GUNDO[] = {"--", "UNDO"};
 static const char *const N_GFREE[] = {"--", "ALL"};
+static const char *const N_GOK[] = {"--", "OK"};
 
-enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_N };
+enum { GU_STYLE, GU_AGGR, GU_DENS, GU_CHAOS, GU_HUMAN, GU_MUT, GU_WHEN, GU_KIT, GU_KEEP, GU_UNDO, GU_FREE, GU_BROWSE, GU_PVBANK, GU_OK, GU_N };
 static const param_desc_t GP_GRIND[GU_N] = {
     [GU_STYLE] = PE("STYLE", N_GSTYLE, 0),
     [GU_AGGR] = PD("AGGR", F_PCT, 0, 100, 75),
@@ -53,8 +54,11 @@ static const param_desc_t GP_GRIND[GU_N] = {
     [GU_UNDO] = PE("UNDO", N_GUNDO, 0),               /* an action, and its own undo: the last GRIND change back, again: forward */
     [GU_FREE] = PE("FREE", N_GFREE, 0),               /* an action: no step of any track kept */
     [GU_KIT] = PE("KIT", N_GKIT, 0),                  /* an action: ROLE sets the eight sounds (twice to act) */
+    [GU_BROWSE] = PE("STYLE", N_GSTYLE, 0),           /* the style browser: the style looked at, nothing live changes */
+    [GU_PVBANK] = PD("BANK", F_INT, 1, 4, 1),         /* which 16 steps of a longer pattern the preview shows */
+    [GU_OK] = PE("APPLY", N_GOK, 0),                  /* an action: the browsed style becomes the committed one */
 };
-static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
+static int16_t gm_v[GU_N] = {0, 75, 65, 20, 25, 0, 1, 0, 0, 0, 0, 0, 1, 0};   /* = the descriptors' defaults: the factory voicing of style 1 */
 
 /* KIT: the eight tracks' sounds for the eight roles the generator writes (gm_role order: K S H R C X TH TL), from the
  * models the default kit already has. The cymbals share one model and the toms another, told apart by TUNE and
@@ -133,11 +137,77 @@ static gm_result gm_ui_config(gm_config *c)
     return GM_OK;
 }
 
+/* STYLE BROWSER (the fourth GRIND page): look at a style on the live pattern before it goes live. The preview is made by
+ * the runtime's own gm_runtime_make (the live pattern and the KEEP mask as the base, the style's factory controls), so it
+ * is what APPLY would publish; it is made in the main loop only while no stage is in use (the base shares the stage's
+ * bytes), else it says BUSY and tries again. Only compact row bitmaps are kept; nothing is published while browsing, and
+ * leaving the page puts the cursor back on the committed style. The style's tempo is shown, never applied. */
+enum { PV_NONE, PV_READY, PV_BUSY, PV_FAIL };
+static struct {
+    uint8_t on[GM_TRACKS][8], acc[GM_TRACKS][8], rat[GM_TRACKS][8];   /* bit s of row t: the step is on / accented / ratcheted */
+    uint8_t len, div, num, den, state, idx, res;
+    uint16_t bpm;                                      /* the style's own (a label) */
+    uint32_t rev;                                      /* the live pattern's revision it was made from */
+} gm_pv;
+
+static void gm_pv_update(void)
+{
+    gm_config c;
+    uint32_t idx = (uint32_t)gm_v[GU_BROWSE], k, s, rev = gmrt.ctl.native_revision;
+    gm_result r;
+    if ((gm_pv.state == PV_READY || gm_pv.state == PV_FAIL) && gm_pv.idx == idx && gm_pv.rev == rev)
+        return;
+    gm_pv.idx = (uint8_t)idx;
+    if (gmrt.ctl.stage_state != GM_STAGE_FREE || gmrt.ctl.has_pending) {   /* a request is staged: wait, never share its bytes */
+        gm_pv.state = PV_BUSY;
+        return;
+    }
+    r = gm_ui_style_config(idx, &c);
+    if (r == GM_OK) {
+        gm_pv.bpm = c.bpm;
+        gm_pv.num = c.grid.num;
+        gm_pv.den = c.grid.den;
+        c.bpm = (uint16_t)clamp(song.g[G_BPM], 40, 350);   /* (as a submitted request: the tempo stays the player's) */
+        r = gm_runtime_make(&c);
+    }
+    gm_pv.rev = rev;
+    gm_pv.res = (uint8_t)r;
+    if (r != GM_OK) {
+        gm_pv.state = PV_FAIL;
+        return;
+    }
+    memset(gm_pv.on, 0, sizeof gm_pv.on);
+    memset(gm_pv.acc, 0, sizeof gm_pv.acc);
+    memset(gm_pv.rat, 0, sizeof gm_pv.rat);
+    gm_pv.len = gmrt.out.timing[0].length;
+    gm_pv.div = gmrt.out.timing[0].division;
+    for (k = 0; k < GM_TRACKS; k++)
+        for (s = 0; s < gmrt.out.timing[k].length && s < GM_STEPS; s++) {
+            gm_cell a = gmrt.out.cell[k][s];
+            if (a.flags & GM_ON)
+                gm_pv.on[k][s >> 3] |= (uint8_t)(1u << (s & 7u));
+            if (a.flags & GM_ACC)
+                gm_pv.acc[k][s >> 3] |= (uint8_t)(1u << (s & 7u));
+            if (a.flags >> GM_RAT_SHIFT)
+                gm_pv.rat[k][s >> 3] |= (uint8_t)(1u << (s & 7u));
+        }
+    gm_pv.state = PV_READY;
+}
+
 /* a knob of the GRIND pages was turned (edit_param): the style brings its factory controls, then the request goes out */
 static void gm_ui_changed(uint32_t id)
 {
     gm_config c;
     gm_result r;
+    if (id == GU_BROWSE || id == GU_PVBANK)
+        return;                                        /* looking: nothing live changes, the frame makes the preview */
+    if (id == GU_OK) {                                 /* APPLY: the browsed style, as a STYLE turn (its factory controls) */
+        if (!gm_v[GU_OK])
+            return;
+        gm_v[GU_OK] = 0;
+        gm_v[GU_STYLE] = gm_v[GU_BROWSE];
+        id = GU_STYLE;
+    }
     if (id == GU_KIT) {                                /* a GO button: one detent arms, a second one within ~1.5 s acts */
         if (!gm_v[GU_KIT])
             return;
@@ -215,7 +285,7 @@ static void gm_ui_changed(uint32_t id)
 }
 
 /* every UI frame: the runtime's main-loop work, and what became of the requests (said once each) */
-static void gm_ui_frame(void)
+static void gm_ui_frame(int browsing)                  /* browsing: the STYLE BROWSER page is the one shown */
 {
     static uint32_t seen;
     uint32_t n;
@@ -226,6 +296,13 @@ static void gm_ui_frame(void)
         settings_save();
     gm_v[GU_KEEP] = (int16_t)gm_keep_count(song.sel);  /* (the selected track's: it follows the selection) */
     gm_runtime_poll();
+    if (browsing) {
+        gm_pv_update();
+        if (gm_pv.state == PV_READY && gm_v[GU_PVBANK] > (int16_t)((gm_pv.len + 15u) / 16u))
+            gm_v[GU_PVBANK] = (int16_t)((gm_pv.len + 15u) / 16u);   /* (a 16-step style has one bank) */
+    } else {
+        gm_v[GU_BROWSE] = gm_v[GU_STYLE];                /* (leaving the page cancels: the cursor is the committed style) */
+    }
     n = gm_runtime_commits();
     if (n != seen) {
         seen = n;
