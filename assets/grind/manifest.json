@@ -1,0 +1,16 @@
+{
+  "status": "blocked_pending_full_inventory",
+  "upstream_sha": "44c9ad4aa57bebf63f412bd552e57143c30b4065",
+  "source": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/LICENSING.md",
+  "release_approved": false,
+  "assets": [],
+  "source_declared_groups": [
+    {"path": "docs/panel.jpg", "license": "all rights reserved", "release": "exclude unless cleared"},
+    {"path": "tools/gen_waves.py generated drum sounds", "license": "all rights reserved", "release": "replace or clear"},
+    {"path": "assets/samples-cc0/", "license": "CC0-1.0", "release": "verify per-file provenance and hashes"},
+    {"path": "assets/fonts/", "license": "mixed GPL-3.0-only and OFL-1.1 per upstream", "release": "inventory each file and retain notices"},
+    {"path": "web/fukiai.ttf", "license": "MIT", "release": "verify exact file and notice"},
+    {"path": "external AC79 SDK package files", "license": "Apache-2.0 per upstream", "release": "verify exact SDK source and notices before packaging"}
+  ],
+  "notes": "No new audio or media copied. This is a preliminary group-level inventory, not legal clearance or an exhaustive asset manifest. Code GPL does not cover all media. Do not distribute a generated firmware/site containing uncleared assets."
+}

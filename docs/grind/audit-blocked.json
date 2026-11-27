@@ -1,0 +1,20 @@
+{
+  "upstream_sha": "44c9ad4aa57bebf63f412bd552e57143c30b4065",
+  "native_build": "blocked",
+  "host_build": "blocked",
+  "wasm_build": "blocked",
+  "step_bytes": 4,
+  "var_cap": 3576,
+  "project_bytes": null,
+  "ram_app_used": null,
+  "ram_app_limit": null,
+  "flash_app_used": null,
+  "flash_app_limit": null,
+  "integration_points": [
+    {"path": "firmware/src/seq.c", "symbol": "events_block", "owner": "audio ISR event path", "callers": ["existing audio block path (verify exact call sites in checkout)"]},
+    {"path": "firmware/src/cue.c", "symbol": "cue_switch", "owner": "ISR boundary or stopped guarded path", "callers": ["cue_tick", "stopped cue path (verify exact call sites)"]},
+    {"path": "firmware/src/project.c", "symbol": "proj_cue_apply", "owner": "existing staged project switch", "callers": ["cue_switch"]}
+  ],
+  "unknowns": ["full local checkout unavailable (Git DNS resolution fails; fork and pinned main verified via API)", "native toolchain and SDK not verified", "no host or WASM baseline", "no linker map or measured RAM/flash/stack", "no full call graph or complete asset inventory", "hardware revision and recovery path unverified"],
+  "evidence_class": {"step_bytes": "source-described, not measured", "var_cap": "source constant 3584 minus header 8, not measured", "integration_points": "partial source review"}
+}
