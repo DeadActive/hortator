@@ -688,3 +688,7 @@ Every PR body: goal, spec FR/AT IDs, base/pinned SHA and current head, files tou
 - Felucca upstream and existing firmware reference: <https://github.com/hugelton/Felucca>.
 
 **End of plan.** This document authorizes planning/implementation sequencing only; hardware actions and public release are separately gated.
+
+## 17. Selected community-inspired extensions (2026-11-27)
+
+The user selected nine optional extensions from CoralFlower and FRASIL. See [GRIND MACHINE Community Feature Expansion](2026-11-27-grind-community-feature-expansion.md) for the exact scope, dependencies, implementation/test tasks, license and resource decisions. These follow or extend the relevant P05–P09 work without delaying the existing hardware alpha. T01–T24 and the user-approved community quality policy remain unchanged. Unselected features are excluded; no new global gates or resource thresholds.
