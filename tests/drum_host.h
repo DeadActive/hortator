@@ -52,6 +52,11 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
+#if GRIND_NATIVE                                      /* (the Grind engine: tests/grind/test_cue.c) */
+#include "../firmware/src/grind/amalgam.c"
+#include "../firmware/src/grind/seq_adapter.c"
+#include "../firmware/src/grind/runtime.c"
+#endif
 #include "../firmware/src/bench.c"
 #define HOST_FRAMES_MS(ms) ((uint32_t)(ms) * FS / 1000u / CTL * CTL)
 #ifndef HOST_PROJECT                                  /* (without project.c: the cue never switches) */

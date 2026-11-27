@@ -54,6 +54,7 @@ if [ -n "$REF" ]; then
 fi
 VERSION=$(cat "$ROOT/VERSION.txt" 2>/dev/null || echo DEV)
 DEFS=(-DFELUCCA_VERSION="\"DRUM-$VERSION\"")         # ABOUT shows the firmware's version, as tools/build.py does
+[ "${GRIND_NATIVE:-0}" = 1 ] && DEFS+=(-DGRIND_NATIVE=1)   # the Grind engine and its GRIND pages (off by default)
 
 # the landing page's version line and "what's new": VERSION.txt, the commit, CHANGELOG.md's Unreleased and this version
 "$PY" - "$ROOT/CHANGELOG.md" "$VERSION" "$(git rev-parse --short "${REF:-HEAD}")" "$(git log -1 --format=%cs "${REF:-HEAD}")" \

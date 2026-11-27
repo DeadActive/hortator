@@ -105,6 +105,7 @@ static void tl_step_in(uint32_t k, uint32_t s, const step_t *st)   /* the step w
 {
     if (tl_has_locks(k, s))
         lock_clear_step(k, s, 0);
+    gm_touch();
     trk[k].step[s] = *st;
 }
 static void tl_lock_in(uint32_t k, uint32_t s, uint32_t id, int32_t v)
@@ -238,6 +239,7 @@ static void tl_duplicate(void)
             for (i = 0; i < n && i < TL_SLK; i++)
                 tl_lock_in(k, s, id[i], v[i]);
         }
+        gm_touch();
         t->p[P_SLEN] = (int16_t)to;                 /* (after the steps: the new ones play copied) */
     }
     if (tl.full)

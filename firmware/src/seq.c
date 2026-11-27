@@ -437,6 +437,7 @@ static uint32_t rec_hit(track_t *t, uint32_t vel)
     } else if (idx == t->seq_idx % len) {
         t->mic &= (uint8_t)~MIC_DUE;
     }
+    gm_touch_isr();                                      /* GRIND: a recorded hit changes the pattern (the ISR) */
     t->step[idx].micro = (int8_t)m;
     t->step[idx].on = 1;
     t->step[idx].tie = 0;                           /* (a TIE is read first: the hit would never play) */
@@ -528,6 +529,7 @@ static __attribute__((noinline)) void keys_tie(void)
     if (t->seq_idx % len != nx || t->seq_pos >= 0x7FFFFFFFu ||
         t->seq_pos <= step_samples(t, div_period((uint32_t)t->p[P_SDIV], t->seq_rem), t->seq_cnt) / 2u)
         return;
+    gm_touch_isr();
     s = &t->step[nx];
     s->on = 0;
     s->tie = 1;
@@ -810,7 +812,11 @@ static __attribute__((noinline)) int seq_cut_ahead(uint32_t rem)
         if (chain.left > 1u)
             return 0;                               /* (a repeat: the tracks just loop) */
         r = &trk[chain.ref];
+#if GRIND_NATIVE
+    } else if (cue.q_slot || cue.q_var || cue.q_gm) {
+#else
     } else if (cue.q_slot || cue.q_var) {
+#endif
         if (cue.now)
             return 1;                               /* (at the soonest next step) */
         r = &trk[cue_longest()];

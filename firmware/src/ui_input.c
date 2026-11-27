@@ -374,6 +374,7 @@ static int step_edit(uint32_t knob, int32_t steps)
                                                      * track, a restore */
         return 1;
     s = &TSEL->step[ui.step_si[k]];
+    gm_touch();
     step_hold_on(k);
     if (knob == 2u) {
         s->acc = steps > 0;                           /* (absolute: a fast turn's detents never flicker it) */
@@ -408,6 +409,7 @@ static void tracks_edit(uint32_t slot, int32_t steps)
     if (slot == 2u && song_lock())                  /* LEN: a song's row */
         return;
     id = slot == 1u ? P_LEVEL : slot == 2u ? P_SLEN : P_PAN;
+    gm_touch_param(id);
     t->p[id] = (int16_t)clamp(t->p[id] + accel(EN_K1 + slot, steps, TP[id].max - TP[id].min), TP[id].min, TP[id].max);
     motion_capture(t, id);                          /* motion.c: LEVEL / PAN recorded (LEN never) */
     ml_knob(song.sel, id);                          /* (MIDI LEARN: picked) */
@@ -617,7 +619,15 @@ static void edit_param(uint32_t slot, int32_t steps)
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT && preset_marks(TSEL, (uint32_t)(vp - TSEL->p)) &&
         v != *vp)
         preset_touch(TSEL);                           /* presets.c: the preset edited (not a turn at its limit) */
+    if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT)
+        gm_touch_param((uint32_t)(vp - TSEL->p));      /* GRIND: LEN DIV SWG SRC are part of the pattern */
     *vp = (int16_t)v;
+#if GRIND_NATIVE
+    if (pg->scope == SC_GRIND) {
+        gm_ui_changed(id);
+        return;
+    }
+#endif
     if (pg->scope == SC_TRACK && vp >= TSEL->p && vp < TSEL->p + P_COUNT) {
         fm1_irq_off();
         smp_set_moved(TSEL, (uint32_t)(vp - TSEL->p));   /* presets.c: a SET keeps its SLOT inside its samples */
@@ -1023,6 +1033,7 @@ static void srec_note(uint32_t key)                    /* a key pressed: its not
     int32_t nt;
     if (!keys_note(t, key, &nt))
         return;                                        /* (a black key on a CHOP track: nothing) */
+    gm_touch();
     if (ui.sr_key) {                                   /* the cursor's key still held: its step slides into this one */
         t->step[ui.sr_cur].slide = 1;
         srec_next();
@@ -1051,6 +1062,7 @@ static void srec_rest(void)                            /* EDIT: the cursor step 
                                                         * MICRO left for a later note), the cursor on */
 {
     step_t *s = &TSEL->step[ui.sr_cur];
+    gm_touch();
     s->on = 0;
     s->micro = 0;
     s->tie = 0;
@@ -1072,6 +1084,7 @@ static void srec_knob(uint32_t k, int32_t s)
         return;
     }
     st = &t->step[ui.sr_cur];
+    gm_touch();
     if (k == 1u) {
         st->nt = (int8_t)clamp(st->nt + accel(EN_K2, s, NT_MAX - NT_MIN), NT_MIN, NT_MAX);
     } else if (k == 2u) {
@@ -1231,6 +1244,9 @@ static void ui_input(void)
 #endif
     glo_input(now, notes);                              /* GLO: tap / hold, the MUTE screen */
     cue_poll();                                         /* project.c: a cue's switch finished (spec 2026-10-26) */
+#if GRIND_NATIVE
+    gm_ui_frame();                                      /* grind/ui.c: the engine's main-loop work */
+#endif
     cue_input(now, notes);                              /* SAVE: tap / hold, the cue map */
     if (cue_owns_keys())
         notes = 0;                                      /* (the map's keys: no step, no select, no record) */

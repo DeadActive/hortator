@@ -157,6 +157,8 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - id: checks
         name: Verify inputs and build on the ephemeral runner
+        env:
+          GRIND_NATIVE: '1'   # link the Grind engine and its GRIND pages: this lane measures their RAM, flash and ISR cost
         run: |
           archive="$RUNNER_TEMP/jieli-linux-toolchains-20260730.1.tar.xz"
           sdk="$RUNNER_TEMP/grind-ac79-sdk"

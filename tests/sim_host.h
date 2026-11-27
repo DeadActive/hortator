@@ -142,6 +142,12 @@ static void sim_mark(uint32_t off, uint32_t n)
 #include "../firmware/src/midi_uart.c"
 #include "../firmware/src/grids.c"
 #include "../firmware/src/seq.c"
+#if GRIND_NATIVE
+#include "../firmware/src/grind/amalgam.c"
+#include "../firmware/src/grind/seq_adapter.c"
+#include "../firmware/src/grind/runtime.c"
+#include "../firmware/src/grind/ui.c"
+#endif
 #include "../firmware/src/bench.c"
 #include "../firmware/src/audio.c"
 #include "../firmware/src/panel.c"

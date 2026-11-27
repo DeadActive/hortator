@@ -23,7 +23,7 @@ const CHANGES = [
   ['let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";', 'const lang = "en";'],
   ['  $("lang").textContent = t("other");\n', ''],
   ['$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });\n', ''],
-  ['say(`Felucca ${meta.version}`);', 'say(`Hortator ${meta.version}`);'],
+  ['say(`Felucca ${meta.version}`);', 'say(`GRIND MACHINE ${meta.version}`);'],
   // the install count (2026-10-22): one GoatCounter event after Done, never awaited (web/sim/counter.js)
   ['if (k === "done") { $("bar").value = 100; sayK("done"); }',
     'if (k === "done") { $("bar").value = 100; sayK("done"); countInstall(meta.version); }'],
@@ -64,10 +64,10 @@ test('installer: English only, every message the logic can show is still there',
   for (const [, k] of NOW.matchAll(/data-t="(\w+)"/g)) assert.equal(typeof now.en[k], 'string', `data-t ${k}`);
 });
 
-test('installer: named Hortator, no language switch, /*LIB*/ and /*META*/ kept for make_site.py', () => {
+test('installer: named GRIND MACHINE, no language switch, /*LIB*/ and /*META*/ kept for make_site.py', () => {
   assert.match(NOW, /<html lang="en">/);
-  assert.match(NOW.match(/<title>(.*)<\/title>/)[1], /Hortator/);
-  assert.match(NOW.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1], /Hortator/);
+  assert.match(NOW.match(/<title>(.*)<\/title>/)[1], /GRIND MACHINE/);
+  assert.match(NOW.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1], /GRIND MACHINE/);
   assert.doesNotMatch(NOW, /FM-1 Drums|FM-1 DRUMS/, 'the old name is gone');
   assert.doesNotMatch(NOW, /id="lang"/);
   assert.equal(NOW.split('/*LIB*/').length, 2);
@@ -257,7 +257,7 @@ test('make_site: the front page is the landing page with the simulator beside it
     'terminus.woff', 'terminus-license.txt'])        // the pieces, the screens' clips, the typeface and its licence
     assert.ok(existsSync(`${out}/${f}`), `${f} is published`);
   for (const f of ['reel.bin', 'features.bin', 'reel.hash', 'package.fwsc']) assert.ok(!existsSync(`${out}/${f}`), `${f} is not published`);
-  assert.match(readFileSync(`${out}/webapp/installer/index.html`, 'utf8'), /Install Hortator/);
+  assert.match(readFileSync(`${out}/webapp/installer/index.html`, 'utf8'), /Install GRIND MACHINE/);
   rmSync(out, { recursive: true, force: true });
 });
 

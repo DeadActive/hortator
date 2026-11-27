@@ -1,0 +1,141 @@
+name: GRIND MACHINE preview
+
+# Builds the firmware package with the Grind engine linked (GRIND_NATIVE=1) on a GitHub runner and publishes it as a
+# pre-release plus a web installer on GitHub Pages (the gh-pages branch). Runs when a grind-v* tag is pushed, or by hand
+# (a dry run only builds and keeps the files as a workflow artifact).
+#
+# It publishes a PREVIEW: the package comes from this run, it is not hardware-qualified, and the installer says so.
+# Only the installer, the package and the licence files go on Pages: no simulator, editor or manual.
+
+on:
+  push:
+    tags: ['grind-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create (grind-v...). Leave empty for a dry run: build only, nothing published.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grind-preview
+  cancel-in-progress: false
+
+env:
+  PREVIEW_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+
+jobs:
+  build:
+    name: Build, release and installer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare Python (Pillow, as the native lane)
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install Pillow==13.0.0
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Fetch the pinned toolchain and SDK
+        run: |
+          archive="$RUNNER_TEMP/jieli-linux-toolchains-20260730.1.tar.xz"
+          sdk="$RUNNER_TEMP/grind-ac79-sdk"
+          curl --fail --location --retry 2 --max-time 300 -o "$archive" \
+            https://jl-update.oss-cn-shenzhen.aliyuncs.com/jieli-linux-toolchains-20260730.1.tar.xz
+          git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$sdk"
+          tools="$RUNNER_TEMP/jieli-tools"
+          mkdir -p "$tools"
+          python3 tools/grind/native_inputs.py "$archive" "$sdk" "$tools"
+          echo "JIELI_TOOLCHAIN=$tools/jieli-linux-toolchains-20260730.1" >> "$GITHUB_ENV"
+          echo "AC79_SDK=$sdk" >> "$GITHUB_ENV"
+      - name: Build the package and the installer
+        env:
+          GRIND_NATIVE: '1'
+          DRUM_PACKAGE: '1'
+          FELUCCA_BLE: '0'
+          JIELI_DOCKER: '0'
+        run: |
+          ./build.sh 2>&1 | tee build-log.txt
+          ls -l build/site/firmware build/site/webapp/installer
+      - name: Collect what is published
+        id: collect
+        run: |
+          set -eu
+          pkg=$(ls build/site/firmware/*.fwsc | head -1)
+          [ -n "$pkg" ] || { echo 'no package'; exit 1; }
+          sha=$(git rev-parse --short HEAD)
+          out=publish
+          rm -rf "$out"
+          mkdir -p "$out/site/webapp" "$out/files"
+          cp build/site/index.html "$out/site/"
+          cp -R build/site/firmware "$out/site/"
+          cp -R build/site/webapp/installer "$out/site/webapp/"
+          touch "$out/site/.nojekyll"
+          cp "$pkg" "$out/files/grind-machine-$sha.fwsc"
+          cp LICENSE LICENSING.md "$out/files/"
+          (cd build/site/firmware && zip -qr "../../../$out/files/LICENSES.zip" LICENSES)
+          sha256sum "$out"/files/* | tee "$out/files/SHA256SUMS.txt"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "pkg=grind-machine-$sha.fwsc" >> "$GITHUB_OUTPUT"
+      - name: Keep the files of this run
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-machine-preview-${{ steps.collect.outputs.sha }}
+          path: |
+            publish/site
+            publish/files
+            build-log.txt
+          retention-days: 30
+      - name: Pre-release
+        if: env.PREVIEW_TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.collect.outputs.sha }}
+        run: |
+          set -eu
+          repo="$GITHUB_REPOSITORY"
+          owner=${repo%%/*}; name=${repo##*/}
+          cat > publish/notes.md <<EOF
+          **Preview build, not tested on a real FM-1.** It was built by a GitHub Actions run from commit \`$SHA\` with the Grind engine linked (\`GRIND_NATIVE=1\`); it is not a hardware-qualified release. The GRIND pages (ARP, then ARP again after GRIDS) generate 22 rhythm styles; see CHANGELOG.md.
+
+          Install: https://${owner,,}.github.io/$name/webapp/installer/ (Chrome or Edge, over USB). The package holds JieLi SDK files under Apache-2.0 and the Hügelton Sample Pack (all rights reserved): see LICENSING.md and LICENSES.zip. SHA-256 sums are in SHA256SUMS.txt.
+          EOF
+          if gh release view "$PREVIEW_TAG" >/dev/null 2>&1; then
+            gh release upload "$PREVIEW_TAG" publish/files/* --clobber
+            gh release edit "$PREVIEW_TAG" --prerelease --title "GRIND MACHINE preview $PREVIEW_TAG" --notes-file publish/notes.md
+          else
+            gh release create "$PREVIEW_TAG" publish/files/* --prerelease --target "$GITHUB_SHA" \
+              --title "GRIND MACHINE preview $PREVIEW_TAG" --notes-file publish/notes.md
+          fi
+      - name: Installer on GitHub Pages (gh-pages branch)
+        if: env.PREVIEW_TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.collect.outputs.sha }}
+        run: |
+          set -eu
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          rm -rf pages
+          if git ls-remote --exit-code --heads "$remote" gh-pages >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --branch gh-pages "$remote" pages
+          else
+            mkdir pages && git -C pages init -q -b gh-pages && git -C pages remote add origin "$remote"
+          fi
+          git -C pages rm -rqf --ignore-unmatch . >/dev/null 2>&1 || true
+          cp -R publish/site/. pages/
+          git -C pages config user.name 'github-actions[bot]'
+          git -C pages config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C pages add -A
+          git -C pages commit -qm "GRIND MACHINE preview $SHA: installer" || echo 'the site is unchanged'
+          git -C pages push -q origin HEAD:refs/heads/gh-pages
+          gh api "repos/$GITHUB_REPOSITORY/pages" >/dev/null 2>&1 ||
+            gh api -X POST "repos/$GITHUB_REPOSITORY/pages" -f 'source[branch]=gh-pages' -f 'source[path]=/' >/dev/null 2>&1 ||
+            echo 'Pages is not turned on yet: Settings > Pages > Deploy from a branch > gh-pages'
+          echo "Installer: https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY##*/}/webapp/installer/" | tee -a "$GITHUB_STEP_SUMMARY"

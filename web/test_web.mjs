@@ -226,7 +226,7 @@ async function counter() {
   const site = { protocol: "https:", hostname: "deadactive.github.io" };
   const calls = [];
   const spy = (url, opt) => { calls.push([url, opt]); return Promise.resolve({ ok: true }); };
-  ok(GC_CODE === "deadactive" && counterOn(site), "counter: the site's code, deadactive: on at the published site");
+  ok(GC_CODE === "" && !counterOn(site), "counter: this fork has no counter code: no visit count, no ping, even on the published site");
   ok(!counterOn(site, "") && countInstall("0.23.0", { code: "", loc: site, fetch: spy }) === false && calls.length === 0,
     "counter: off without a code: no ping");
   ok(await installCount({ code: "", loc: site, fetch: spy }) === null && calls.length === 0, "counter: off: no read");
@@ -271,17 +271,18 @@ async function counter() {
       createElement: (tag) => ({ tag, dataset: {}, setAttribute(k, v) { this[k] = v; } }), head: { append: (e) => added.push(e) } };
   };
   const d1 = fakeDoc();
-  ok(loadPageCounter({ doc: d1, loc: site }) === true && d1.added.length === 1 && d1.added[0].tag === "script"
+  ok(loadPageCounter({ doc: d1, loc: site, code: "deadactive" }) === true && d1.added.length === 1 && d1.added[0].tag === "script"
     && d1.added[0].src === "https://gc.zgo.at/count.js" && d1.added[0].async === true
     && d1.added[0]["data-goatcounter"] === "https://deadactive.goatcounter.com/count", "counter: count.js on the site, async, https");
-  ok(loadPageCounter({ doc: d1, loc: site }) === false && d1.added.length === 1, "counter: count.js added once");
+  ok(loadPageCounter({ doc: d1, loc: site, code: "deadactive" }) === false && d1.added.length === 1, "counter: count.js added once");
+  ok(loadPageCounter({ doc: fakeDoc(), loc: site }) === false, "counter: the default code is empty: no count.js on this fork's site");
   for (const loc of [{ protocol: "http:", hostname: "127.0.0.1" }, { protocol: "http:", hostname: "localhost" }, undefined]) {
     const d = fakeDoc();
     ok(loadPageCounter({ doc: d, loc }) === false && d.added.length === 0, `counter: no count.js on ${loc ? loc.hostname : "no page"}`);
   }
   const d2 = fakeDoc();
   ok(loadPageCounter({ doc: d2, loc: site, code: "" }) === false && d2.added.length === 0, "counter: no count.js without a code");
-  ok(loadPageCounter({ doc: { createElement() { throw new Error("x"); }, querySelector: () => null }, loc: site }) === false,
+  ok(loadPageCounter({ doc: { createElement() { throw new Error("x"); }, querySelector: () => null }, loc: site, code: "deadactive" }) === false,
     "counter: a failing page never throws");
   const editorSite = py(`import sys; sys.path.insert(0, ${JSON.stringify(HERE)}); import make_site; print(make_site.editor_html())`).toString();
   ok(/loadPageCounter\(\);\s*<\/script>\s*<\/body>/.test(editorSite) && editorSite.includes("function loadPageCounter"),
