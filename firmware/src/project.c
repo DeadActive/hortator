@@ -2175,6 +2175,10 @@ static void persist_boot(void)                    /* before settings_init / pane
         settings.palette = p.palette & 0xFFu;       /* bits 0..7 the palette; bit 8 AUTOSTART (BLE: bt_page.c) */
         btset.bt_auto = (p.palette >> 8) & 1u;
         midi_thru = (uint8_t)((p.palette >> 14) & 1u);   /* bit 14 = MIDI THRU (midi_out.c): older records read OFF */
+#if GRIND_NATIVE
+        gm_settings_unpack(p.palette >> GM_SET_SHIFT);   /* bits 18..23 = the GRIND style and WHEN (grind/ui.c): older records read
+                                                          * the defaults */
+#endif
         rec_quant = (uint8_t)((p.palette >> 16) & 3u);   /* bits 16..17 = QUANT (seq.c rec_hit): older records read
                                                            * 1/16 */
         solo_mom = (uint8_t)((p.palette >> 15) & 1u);    /* bit 15 = SOLO MOMENTARY (the MUTE screen's F#5, ui_input.c):
@@ -2347,6 +2351,9 @@ static void settings_save(void)                    /* asked for while playing: w
     p.palette |= (usbaud & 3u) << 12;
 #endif
     p.palette |= (uint32_t)(midi_thru & 1u) << 14 | (uint32_t)(solo_mom & 1u) << 15 | (uint32_t)(rec_quant & 3u) << 16;
+#if GRIND_NATIVE
+    p.palette |= (gm_settings_pack() & 0x3Fu) << GM_SET_SHIFT;   /* 18..23: GRIND STYLE and WHEN (grind/ui.c) */
+#endif
     /* an older Hortator reads a palette out of range from bit 8: its display settings reset; 9..11 BACKLIGHT's level
      * (item 9: an older one reads lowcut's bit 7, ON); 12 USB AUDIO 10 CH (an older one ignores it); 14 MIDI THRU, 15 SOLO MOMENTARY, 16..17
      * QUANT (an older one ignores them) */

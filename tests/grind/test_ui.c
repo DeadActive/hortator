@@ -102,7 +102,7 @@ static void navigation(void)
     ok &= cur_page()->fam == FAM_GRIDS;
     tap(B_ARP);
     ok &= cur_page()->scope == SC_GRIND && cur_page()->id[0] == GU_HUMAN;
-    check("ui: ARP steps GRIDS, then the two GRIND pages (STYLE AGGR DENS CHAOS / HUMAN MUT WHEN)", ok);
+    check("ui: ARP steps GRIDS, then the two GRIND pages (STYLE AGGR DENS CHAOS / HUMAN MUT WHEN KIT)", ok);
 }
 
 static void style_stopped(void)
@@ -210,6 +210,80 @@ static void song_refuses(void)
     check("ui: while a song runs a GRIND turn is refused with a message and changes nothing", ok);
 }
 
+static void kit_roles(void)
+{
+    static const uint8_t WANT[GM_TRACKS] = {DM_KTRX, DM_SDTRX, DM_CHTRX, DM_CYTRX, DM_CYTRX, DM_CYTRX, DM_XTTRX, DM_XTTRX};
+    uint32_t ok = 1, k;
+    int16_t level[NTRK], pan[NTRK], model[NTRK];
+    uint32_t pattern;
+    fresh();
+    open_grind(0);
+    tap(B_ARP);                                      /* page 2: HUMAN MUT WHEN KIT */
+    ok &= cur_page()->id[3] == GU_KIT;
+    for (k = 0; k < NTRK; k++) {
+        trk[k].p[P_LEVEL] = (int16_t)(40 + k);
+        trk[k].p[P_PAN] = (int16_t)(10 + k);
+        level[k] = trk[k].p[P_LEVEL];
+        pan[k] = trk[k].p[P_PAN];
+        model[k] = trk[k].p[P_MODEL];
+    }
+    pattern = sig();
+    turn(EN_K4, 1);                                  /* one detent: it only asks */
+    frames(2);
+    ok &= gm_v[GU_KIT] == 0 && ui.msg[0] == 'A';     /* AGAIN: ROLE KIT */
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_MODEL] == model[k];
+    turn(EN_K4, 1);                                  /* the second one acts */
+    frames(2);
+    for (k = 0; k < NTRK; k++) {
+        ok &= trk[k].p[P_MODEL] == WANT[k] && trk[k].model == WANT[k];
+        ok &= trk[k].p[P_LEVEL] == level[k] && trk[k].p[P_PAN] == pan[k];     /* the mix stays */
+    }
+    ok &= trk[3].p[P_E0] < trk[5].p[P_E0];           /* ride below china: the shared cymbal model is told apart */
+    ok &= trk[6].p[P_E0] > trk[7].p[P_E0];           /* the high tom above the low one */
+    ok &= gm_v[GU_KIT] == 0 && sig() == pattern;     /* the button is at rest and no step moved */
+    check("ui: KIT asks twice, then gives the eight tracks their role sounds and leaves levels, pans and steps alone", ok);
+}
+
+static void kit_refused_playing(void)
+{
+    uint32_t ok = 1, k;
+    int16_t model[NTRK];
+    fresh();
+    open_grind(0);
+    tap(B_ARP);
+    for (k = 0; k < NTRK; k++)
+        model[k] = trk[k].p[P_MODEL];
+    transport_req = 1;
+    frames(20);
+    turn(EN_K4, 1);
+    frames(2);
+    turn(EN_K4, 1);
+    frames(2);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_MODEL] == model[k];
+    ok &= ui.msg[0] == 'S';                          /* STOP FIRST */
+    check("ui: KIT while playing is refused (STOP FIRST) and changes no sound", ok);
+}
+
+static void kit_arm_times_out(void)
+{
+    uint32_t ok = 1, k;
+    int16_t model[NTRK];
+    fresh();
+    open_grind(0);
+    tap(B_ARP);
+    for (k = 0; k < NTRK; k++)
+        model[k] = trk[k].p[P_MODEL];
+    turn(EN_K4, 1);
+    frames(120);                                     /* far past the confirm window */
+    turn(EN_K4, 1);
+    frames(2);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_MODEL] == model[k];
+    check("ui: a KIT detent after the confirm window only asks again, it does not act", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -235,6 +309,9 @@ int main(void)
     mutate_and_when();
     playing_waits();
     song_refuses();
+    kit_roles();
+    kit_refused_playing();
+    kit_arm_times_out();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

@@ -11,9 +11,13 @@ released yet are listed under Unreleased.
   the sequencer plays, WHEN END waits for the end of the longest pattern and WHEN STEP for the next step, then every
   track restarts from its first step together; stopped, the pattern changes at once. A step, LEN, DIV, SWG or SRC you
   edit while a change waits wins: the waiting change is dropped ("NOT APPLIED"). A running song refuses ("STOP THE
-  SONG"). The GRIND values are not saved in projects and nothing about the project format changes. Not yet: locking
-  single steps against a new pattern, undo, kits matched to the eight roles (the tracks keep their own sounds), the
-  web editor and saving the settings.
+  SONG"). The generator writes kick, snare, hi-hat, ride, crash, china and two toms to tracks 1 to 8, so GRIND page 2 has a
+  KIT action: ROLE gives the eight tracks those sounds (one detent asks, a second within about a second and a half
+  acts; stopped only; levels, pans, FX sends and patterns stay; the cymbal and tom offsets are starting points, not
+  tuned by ear). STYLE and WHEN are remembered with the device settings, not in a project, and nothing about the
+  project format changes: they use palette bits 18 to 23 of the settings record, which an older firmware ignores
+  (the controls come back as the style's factory values). Not yet: locking single steps against a new pattern,
+  undo and the web editor.
 
 ## 1.0.1 - 2026-11-03
 
