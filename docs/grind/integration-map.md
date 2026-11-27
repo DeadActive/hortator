@@ -15,3 +15,11 @@ All references use the approved pin `44c9ad4aa57bebf63f412bd552e57143c30b4065` i
 | `tests/drum_host.h`, `tests/sim_core.c` | host textual includes, `host_irq_hook`, `sim_frame`, `sim_render` | Reuse real firmware paths for parity and concurrency tests. |
 
 Remaining inventory: precise callers/IRQ boundaries, native division/condition IDs, all write paths (MIDI, editor restore, copy/paste, project, variations, recording, presets), native staging buffers, model/preset IDs, boot paths, linker and HAL constraints. Verify using T03 grep commands. Proposed adapter contracts are not frozen. No source changes made.
+
+## P04 staging and RAM budget
+
+The plain build uses 88,312 of 98,304 bytes of static app RAM. The 10% reserve caps static usage at 88,473 bytes, leaving **161 bytes**. The planned `gm_pattern` has 2,144 bytes of payload (32 timing, 2,048 cells and 64 lock bytes). A second static pattern would exceed the budget by 1,983 bytes.
+
+The native compiler measures `cue_stage_t` at 3,424 bytes and its backing `st_buf` at 3,840 bytes. `cue_stage` fills staged steps and timing in the main loop. `proj_cue_apply` swaps live and staged state at the cue boundary, and `cue_file_out` uses the same buffer to file the outgoing state. Reuse can only be considered once that lifetime and the storage/editor users of `st_buf` have been audited together. Its 416-byte size difference cannot hold a concurrent full pattern.
+
+For P04, evaluate writing one candidate directly into the existing staging representation outside the ISR, with explicit ownership through cue queue, cancellation, swap and file-out. Keep lock metadata separate and account for it in the 161-byte allowance. Verify that a rejected generation, concurrent edit or transport change preserves the live, staged and saved state. The pool has 12,532 bytes above its upstream minimum in the baseline. Any pool allocation requires a measured lifetime, contention check and new linker and runtime measurements before the adapter is frozen.

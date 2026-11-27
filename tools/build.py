@@ -195,15 +195,13 @@ def loader_pin():
 
 # ---- app
 
-def build_app():
+def app_flags(ble, core_ref):
     # the app without global merging (user decision 2026-10-06): which small statics the compiler merges depends on
     # the whole program, so the same frozen code would address its data differently here and in the frozen
     # baseline's build (H2). The update loader keeps CFLAGS as they are (its binary is pinned).
     flags = [*CFLAGS, "-mllvm", "-enable-global-merge=false", "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     # FELUCCA_BLE=1: the BLE build (firmware/src/ble/, the JieLi BT libraries; from fm1-lsdj 548ce73).
     # FELUCCA_CORE_REF=1: its core unit (FELUCCA_BLE=1) linked with empty BLE entry points (ble_stub.c), no libraries
-    ble = os.environ.get("FELUCCA_BLE") == "1"
-    core_ref = os.environ.get("FELUCCA_CORE_REF") == "1"
     if core_ref and not ble:
         flags.append("-DFELUCCA_BLE=1")
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
@@ -215,6 +213,13 @@ def build_app():
         flags.append(f"-DBLE_CONSOLE={os.environ['BLE_CONSOLE']}")         # unit and the BLE unit agree; default 1)
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     flags.append(f'-DFELUCCA_VERSION="{VERSION or drum_version.firmware_string(drum_version.read())}"')
+    return flags
+
+
+def build_app():
+    ble = os.environ.get("FELUCCA_BLE") == "1"
+    core_ref = os.environ.get("FELUCCA_CORE_REF") == "1"
+    flags = app_flags(ble, core_ref)
     asm = [("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o")]

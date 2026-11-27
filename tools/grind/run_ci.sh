@@ -100,6 +100,8 @@ suite() {
 }
 
 native() {
+    mkdir -p "$evidence/T03" && rm -f -- "$evidence/T03/native.json" ||
+        { report FAIL 'prepare T03 native evidence'; return; }
     if [[ -z ${GRIND_JIELI_ARCHIVE:-} || -z ${AC79_SDK:-} ]]; then
         report BLOCKED 'native inputs (GRIND_JIELI_ARCHIVE and AC79_SDK)'
         return
@@ -148,6 +150,17 @@ native() {
         2) report BLOCKED resources ;;
         *) report FAIL resources ;;
     esac
+    local native_facts
+    if python3 tools/grind/build_audit.py --resources "$evidence/resources.json" > "$evidence/T03/native.json"; then
+        if [[ -n ${GITHUB_OUTPUT:-} ]]; then
+            native_facts=$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), separators=(",", ":")))' \
+                < "$evidence/T03/native.json") && printf 't03_native=%s\n' "$native_facts" >> "$GITHUB_OUTPUT" ||
+                report FAIL 'publish T03 native evidence status'
+        fi
+    else
+        rm -f -- "$evidence/T03/native.json"
+        report FAIL 'collect T03 native layout evidence'
+    fi
     if ! git describe --tags --abbrev=0 --match 'drum-v*' >/dev/null 2>&1; then
         report BLOCKED 'native host suite (missing reachable drum-v release tags)'
     elif ! command -v rsync >/dev/null 2>&1; then
@@ -155,6 +168,17 @@ native() {
     else
         suite native-host optional env DRUM_PACKAGE=1 sh tests/run_tests.sh
     fi
+}
+
+t03() {
+    mkdir -p "$evidence/T03" || { report FAIL 'prepare T03 evidence'; return; }
+    if ! python3 tools/grind/build_audit.py > "$evidence/T03/audit.json" 2> "$evidence/T03/audit.log"; then
+        rm -f -- "$evidence/T03/audit.json"
+        cat "$evidence/T03/audit.log"
+        report FAIL 'assemble T03 audit'
+        return
+    fi
+    check T03/audit python3 tools/grind/audit.py --complete "$evidence/T03/audit.json"
 }
 
 case $lane in
@@ -187,8 +211,9 @@ case $lane in
         fi
         ;;
     native) native ;;
+    t03) t03 ;;
     license) check assets python3 tools/grind/check_assets.py --source-only ;;
-    *) printf 'usage: %s {host-core|host-upstream|performance|wasm|native|license}\n' "$0" >&2; exit 1 ;;
+    *) printf 'usage: %s {host-core|host-upstream|performance|wasm|native|license|t03}\n' "$0" >&2; exit 1 ;;
 esac
 if [[ -n ${GITHUB_OUTPUT:-} ]]; then
     case $result in

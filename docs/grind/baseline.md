@@ -46,6 +46,10 @@ AC79_SDK="$vendor_dir/ac79-sdk" bash tools/grind/run_ci.sh native
 
 The native lane verifies the archive and SDK before running the toolchain. It builds with `FELUCCA_BLE=0 DRUM_PACKAGE=1 DRUM_SITE=0` and runs the frozen build when its exact ref is available. The native suite consumes the test package locally. Logs, artifact hashes and the JSON resource report go under `build/grind-evidence/`. CI neither publishes packages or simulator output nor connects to devices.
 
+The Foundation gate assembles `build/grind-evidence/T03/audit.json` from the current run's native layout probe, resource report and host/WASM results. It validates the record with `python3 tools/grind/audit.py --complete build/grind-evidence/T03/audit.json`. The native probe compiles the firmware translation unit with the app's flags and verifies the measured project record size against the linked ELF. CI retains allowlisted text logs, hashes and JSON reports even when a check is blocked.
+
+Complete call-site evidence belongs in `docs/grind/callsite-audit.json`. Record the reviewed `firmware_tree` from `git rev-parse HEAD:firmware` and the `integration_points` with their `area`, `path`, `symbol`, `owner` and exact `callers`. The validator's `CALLSITE_AREAS` lists the required coverage. A changed firmware tree requires a new review. The preliminary integration map tracks the remaining work.
+
 ## Native Linux measurements
 
 An isolated checkout of PR commit `139af92` built the package with exit code 0. The resource and stack checks below come from the same build's binary, linker symbols and disassembly. The built ELF's `proj_slot` contains four 3,840-byte project records.

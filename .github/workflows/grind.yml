@@ -26,6 +26,15 @@ jobs:
           persist-credentials: false
       - id: checks
         run: bash tools/grind/run_ci.sh host-core
+      - name: Upload Host Core evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-host-core-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/audit-tests.log
+            build/grind-evidence/grind-core.log
 
   host-upstream:
     name: Host Upstream
@@ -47,6 +56,13 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - id: checks
         run: bash tools/grind/run_ci.sh host-upstream
+      - name: Upload Host Upstream evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-host-upstream-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: build/grind-evidence/host-upstream.log
 
   performance:
     name: Performance
@@ -68,6 +84,13 @@ jobs:
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - id: checks
         run: bash tools/grind/run_ci.sh performance
+      - name: Upload Performance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-performance-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: build/grind-evidence/performance.log
 
   wasm:
     name: WASM and web
@@ -95,6 +118,17 @@ jobs:
         run: npm install --prefix build/grind-browser --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.58.2
       - id: checks
         run: bash tools/grind/run_ci.sh wasm
+      - name: Upload WASM and web evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-wasm-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/wasm-preview.log
+            build/grind-evidence/web-regression.log
+            build/grind-evidence/web-editor.log
+            build/grind-evidence/browser-smoke.log
 
   native:
     name: Native firmware and packages
@@ -102,6 +136,7 @@ jobs:
     timeout-minutes: 45
     outputs:
       status: ${{ steps.checks.outputs.status }}
+      t03_native: ${{ steps.checks.outputs.t03_native }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -134,6 +169,22 @@ jobs:
           fi
           GRIND_JIELI_ARCHIVE="$archive" AC79_SDK="$sdk" bash tools/grind/run_ci.sh native
 
+      # Upload only reviewed text outputs. Build directories also contain release-restricted material.
+      - name: Upload native build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-native-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/native-inputs.log
+            build/grind-evidence/native-build.log
+            build/grind-evidence/frozen-baseline.log
+            build/grind-evidence/native-host.log
+            build/grind-evidence/native-sha256.txt
+            build/grind-evidence/resources.json
+            build/grind-evidence/T03/native.json
+
   license:
     name: Asset and license evidence
     runs-on: ubuntu-24.04
@@ -146,6 +197,13 @@ jobs:
           persist-credentials: false
       - id: checks
         run: bash tools/grind/run_ci.sh license
+      - name: Upload asset and license evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-license-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: build/grind-evidence/assets.log
 
   foundation-gate:
     name: Foundation gate
@@ -154,18 +212,29 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      HOST_CORE: ${{ needs.host-core.outputs.status || needs.host-core.result }}
-      HOST_UPSTREAM: ${{ needs.host-upstream.outputs.status || needs.host-upstream.result }}
-      PERFORMANCE: ${{ needs.performance.outputs.status || needs.performance.result }}
-      WASM: ${{ needs.wasm.outputs.status || needs.wasm.result }}
-      NATIVE: ${{ needs.native.outputs.status || needs.native.result }}
-      LICENSE: ${{ needs.license.outputs.status || needs.license.result }}
+      HOST_CORE: ${{ (needs.host-core.outputs.status == 'PASS' && needs.host-core.result != 'success' && 'FAIL') || needs.host-core.outputs.status || needs.host-core.result }}
+      HOST_UPSTREAM: ${{ (needs.host-upstream.outputs.status == 'PASS' && needs.host-upstream.result != 'success' && 'FAIL') || needs.host-upstream.outputs.status || needs.host-upstream.result }}
+      PERFORMANCE: ${{ (needs.performance.outputs.status == 'PASS' && needs.performance.result != 'success' && 'FAIL') || needs.performance.outputs.status || needs.performance.result }}
+      WASM: ${{ (needs.wasm.outputs.status == 'PASS' && needs.wasm.result != 'success' && 'FAIL') || needs.wasm.outputs.status || needs.wasm.result }}
+      NATIVE: ${{ (needs.native.outputs.status == 'PASS' && needs.native.result != 'success' && 'FAIL') || needs.native.outputs.status || needs.native.result }}
+      LICENSE: ${{ (needs.license.outputs.status == 'PASS' && needs.license.result != 'success' && 'FAIL') || needs.license.outputs.status || needs.license.result }}
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - id: t03
+        name: Assemble and validate the current T03 audit
+        env:
+          T03_NATIVE: ${{ needs.native.outputs.t03_native }}
+        run: bash tools/grind/run_ci.sh t03
       - name: Require measured results for Foundation
+        if: always()
+        env:
+          T03: ${{ steps.t03.outputs.status || steps.t03.outcome }}
         shell: bash
         run: |
           failed=0
-          for lane in HOST_CORE HOST_UPSTREAM PERFORMANCE WASM NATIVE LICENSE; do
+          for lane in HOST_CORE HOST_UPSTREAM PERFORMANCE WASM NATIVE LICENSE T03; do
             case "${!lane}" in
               PASS) status=PASS ;;
               FAIL|failure) status=FAIL ;;
@@ -176,3 +245,12 @@ jobs:
             if [[ $status != PASS ]]; then failed=1; fi
           done
           exit "$failed"
+      - name: Upload T03 audit evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-t03-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/T03/audit.json
+            build/grind-evidence/T03/audit.log

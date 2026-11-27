@@ -1,5 +1,6 @@
 """Audit CLI contract tests; all successful-build fixtures are synthetic."""
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,6 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / 'tools/grind/audit.py'
 PIN = '44c9ad4aa57bebf63f412bd552e57143c30b4065'
+AREAS = ('sequencer', 'cue', 'recording', 'ui_edits', 'midi_edits', 'editor_edits',
+         'project_storage', 'variation_and_lock_storage', 'boot_and_hal')
 
 
 def fixture():
@@ -24,11 +27,11 @@ def fixture():
 
 
 class AuditTests(unittest.TestCase):
-    def run_record(self, record):
+    def run_record(self, record, *options):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'audit.json'
             path.write_text(json.dumps(record), encoding='utf-8')
-            return subprocess.run([sys.executable, str(CLI), str(path)],
+            return subprocess.run([sys.executable, str(CLI), *options, str(path)],
                                   capture_output=True, text=True)
 
     def test_synthetic_complete_record(self):
@@ -72,6 +75,41 @@ class AuditTests(unittest.TestCase):
     def test_build_status_not_green(self):
         a = fixture(); a['wasm_build'] = 'fail'
         self.assertEqual(self.run_record(a).returncode, 2)
+
+    def test_t03_gate_requires_reviewed_callsite_coverage(self):
+        a = fixture()
+        a.update(resource_status='pass', firmware_tree='a' * 40,
+                 reviewed_firmware_tree=None, integration_points=[])
+        result = self.run_record(a, '--complete')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('call-site coverage', result.stdout)
+
+    def test_complete_t03_passes_only_with_current_review_and_builds(self):
+        a = fixture()
+        point = a['integration_points'][0]
+        a.update(resource_status='pass', firmware_tree='a' * 40,
+                 reviewed_firmware_tree='a' * 40,
+                 integration_points=[dict(point, area=area, symbol=f'fixture_{area}') for area in AREAS])
+        result = self.run_record(a, '--complete')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('PASS: complete T03 audit', result.stdout)
+        for update, code in (({'reviewed_firmware_tree': 'b' * 40}, 2),
+                             ({'unknowns': ['unverified evidence']}, 2),
+                             ({'host_build': 'blocked'}, 2),
+                             ({'resource_status': 'fail'}, 1),
+                             ({'var_cap': None}, 1)):
+            with self.subTest(update=update):
+                self.assertEqual(self.run_record(dict(a, **update), '--complete').returncode, code)
+        a['integration_points'][-1]['symbol'] = a['integration_points'][0]['symbol']
+        self.assertEqual(self.run_record(a, '--complete').returncode, 1)
+
+    def test_builder_rejects_stale_native_revision(self):
+        result = subprocess.run(
+            [sys.executable, str(CLI.with_name('build_audit.py'))], cwd=ROOT,
+            env=dict(os.environ, T03_NATIVE=json.dumps({'revision': '0' * 40})),
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('native evidence revision does not match', result.stderr)
 
     def test_ram_and_flash_require_ten_percent_reserve(self):
         for budget in ('ram_app', 'flash_app'):
