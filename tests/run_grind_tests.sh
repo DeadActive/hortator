@@ -22,16 +22,25 @@ run_rng() {
     run_test rng "$CORE/rng.c"
 }
 
+run_pattern_test() {
+    run_test "$1" "$CORE/grid.c" "$CORE/rules.c" "$CORE/core.c" "$CORE/locks.c" \
+        "$CORE/rng.c" "$CORE/serialize.c"
+}
+
 case "${1:-all}" in
     grid) run_test grid "$CORE/grid.c" ;;
     rng) run_rng ;;
     codec) run_test codec "$CORE/serialize.c" "$CORE/grid.c" ;;
     rules) run_test rules "$CORE/rules.c" "$CORE/grid.c" ;;
+    locks) run_test locks "$CORE/locks.c" ;;
+    morph) run_pattern_test "$1" ;;
     all)
         run_test grid "$CORE/grid.c"
         run_rng
         run_test codec "$CORE/serialize.c" "$CORE/grid.c"
         run_test rules "$CORE/rules.c" "$CORE/grid.c"
+        run_test locks "$CORE/locks.c"
+        run_pattern_test morph
         ;;
     *) echo "unknown suite: $1" >&2; exit 2 ;;
 esac
