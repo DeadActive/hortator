@@ -9,6 +9,7 @@
 
 static void ui_say(const char *a, const char *b);      /* ui.c */
 static void ui_message(const char *s);
+static void settings_save(void);                       /* project.c: the device settings, written once stopped */
 
 static const char *const N_GSTYLE[] = {                /* gm_style_name's 22 styles, four letters: a knob column's width */
     "TRAD", "HAMR", "BOMB", "GRAV", "BLST", "DBET", "SKNK", "2XBS", "TECH", "BRUT", "FSLO",
@@ -63,6 +64,34 @@ static void gm_kit_roles(void)
     fm1_irq_on();
 }
 
+/* Saved with the device settings (project.c persist_t.palette, bits 18..23: free until now), not in a project, so no
+ * stored format grows or changes: STYLE (5 bits) and WHEN (1 bit, stored inverted: a record from a firmware without the
+ * engine has these bits clear and so reads STYLE 1, WHEN END, the defaults). AGGR DENS CHAOS HUMAN are the style's
+ * factory values at power-on (MUT 0): the style is what is remembered, not the last knob positions. */
+#define GM_SET_SHIFT 18u
+static uint32_t gm_settings_pack(void)
+{
+    return ((uint32_t)gm_v[GU_STYLE] & 31u) | (uint32_t)(gm_v[GU_WHEN] ? 0u : 1u) << 5;
+}
+static void gm_settings_unpack(uint32_t v)
+{
+    gm_config f;
+    uint32_t style = v & 31u;
+    if (style >= GM_ALGORITHM_COUNT)                   /* (a damaged record: the default style) */
+        style = 0;
+    gm_v[GU_STYLE] = (int16_t)style;
+    gm_v[GU_WHEN] = (v >> 5) & 1u ? 0 : 1;
+    if (gm_factory_config((uint8_t)(style + 1u), &f) == GM_OK) {
+        gm_v[GU_AGGR] = f.aggression;
+        gm_v[GU_DENS] = f.density;
+        gm_v[GU_CHAOS] = f.chaos;
+        gm_v[GU_HUMAN] = f.humanize;
+    }
+    gm_v[GU_MUT] = 0;
+}
+static uint8_t gm_save_t;                              /* frames until a changed style / WHEN is written (a turn through
+                                                        * the list writes once, not at every detent) */
+
 /* the knobs as a config: the style's factory grid and seed, the four controls, MUT as the mutation counter */
 static gm_result gm_ui_config(gm_config *c)
 {
@@ -111,6 +140,8 @@ static void gm_ui_changed(uint32_t id)
             gm_v[GU_MUT] = 0;
         }
     }
+    if (id == GU_STYLE || id == GU_WHEN)
+        gm_save_t = 90;                                /* (about 1.5 s after the last turn) */
     r = gm_ui_config(&c);
     if (r == GM_OK)
         r = gm_runtime_submit(&c, gm_v[GU_WHEN] ? GM_BOUNDARY_PATTERN : GM_BOUNDARY_STEP,
@@ -129,6 +160,8 @@ static void gm_ui_frame(void)
     gm_result st;
     if (gm_kit_arm)
         gm_kit_arm--;
+    if (gm_save_t && !--gm_save_t)
+        settings_save();
     gm_runtime_poll();
     n = gm_runtime_commits();
     if (n != seen) {
