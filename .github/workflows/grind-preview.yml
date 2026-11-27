@@ -85,7 +85,7 @@ jobs:
           mkdir -p "$out/site/webapp" "$out/files"
           cp build/site/index.html "$out/site/"
           cp -R build/site/firmware "$out/site/"
-          cp -R build/site/webapp/installer "$out/site/webapp/"
+          cp -R build/site/webapp/installer build/site/webapp/editor "$out/site/webapp/"
           touch "$out/site/.nojekyll"
           cp "$pkg" "$out/files/grind-machine-$sha.fwsc"
           cp LICENSE LICENSING.md "$out/files/"

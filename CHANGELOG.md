@@ -22,7 +22,10 @@ released yet are listed under Unreleased.
   whole track and down to free it; FREE frees every track. A change whose grid the kept steps do not fit says
   `KEEP DOES NOT FIT` and applies nothing. KEEPs are not stored and go when another pattern is loaded or cued.
   UNDO takes the tracks back to what they were before the last GRIND change; UNDO again goes forward (steps and
-  lengths; not your own edits made since). Not yet: the web editor.
+  lengths; not your own edits made since).
+- **GRIND in the USB web editor:** compatible firmware exposes the GRIND tab for style, generation controls, the role
+  kit, step and track KEEP, and undo/redo. The tab shows when a pattern is waiting for a playback boundary. Save
+  the loaded project with Patterns → Save on FM-1 while stopped. Use SAVE on the device to choose a slot when none is loaded. Earlier firmware keeps its existing editor tabs.
 
 ## 1.0.1 - 2026-11-03
 
