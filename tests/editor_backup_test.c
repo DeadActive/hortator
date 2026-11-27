@@ -951,10 +951,10 @@ static void t_fdrf_record(void)
  * instructions (drum_host.h instr_now) of BACKUP_LIST and of each BACKUP_GET piece, the page's order. A piece after
  * an object's first reuses what the first worked out (edb_get's cache, checked by the storage heads): it must cost a
  * small part of a first piece. `editor_backup_test bench` prints the figures only. */
-static void t_backup_cost(int print_only)
+static void t_backup_cost(int print_only, int measure)
 {
     static uint8_t out[4096];
-    uint64_t a, c, list_c, first = 0, rest = 0, max_rest = 0, first_max = 0;
+    uint64_t a = 0, c, list_c = 0, first = 0, rest = 0, max_rest = 0, first_max = 0;
     uint32_t s, v, k, i, obj, off, nfirst = 0, nrest = 0, ok = 1, bytes = 0;
     static int16_t kv[P_COUNT];
     fresh();
@@ -974,9 +974,11 @@ static void t_backup_cost(int print_only)
         }
         project_save(s);
     }
-    a = instr_now();
+    if (measure)
+        a = instr_now();
     ok &= list() == 0u;
-    list_c = instr_now() - a;
+    if (measure)
+        list_c = instr_elapsed(a);
     for (obj = 0; obj < ED_OBJ_N; obj++) {
         if (!L[obj].present)
             continue;
@@ -985,9 +987,10 @@ static void t_backup_cost(int print_only)
             a_put(obj);
             a_u14(off);
             a_u35(L[obj].seq);
-            a = instr_now();
+            if (measure)
+                a = instr_now();
             ok &= req(ED_BACKUP_GET) == 0u;
-            c = instr_now() - a;
+            c = measure ? instr_elapsed(a) : 0u;
             ok &= ed_unpack7(erp + 12, rp_n - 13u, out + off, ED_PIECE) > 0u;
             if (!off) {
                 first += c;
@@ -1001,25 +1004,30 @@ static void t_backup_cost(int print_only)
         }
         ok &= st_crc32(out, L[obj].size) == L[obj].crc;
     }
-    printf("cost  backup, worst case (%u B, %u pieces): BACKUP_LIST %llu host instructions; BACKUP_GET first pieces "
-           "%llu on average (max %llu), the others %llu on average (max %llu); all pieces %llu\n", bytes,
-           nfirst + nrest, (unsigned long long)list_c, (unsigned long long)(nfirst ? first / nfirst : 0),
-           (unsigned long long)first_max, (unsigned long long)(nrest ? rest / nrest : 0),
-           (unsigned long long)max_rest, (unsigned long long)(first + rest));
+    if (measure)
+        printf("cost  backup, worst case (%u B, %u pieces): BACKUP_LIST %llu host instructions; BACKUP_GET first pieces "
+               "%llu on average (max %llu), the others %llu on average (max %llu); all pieces %llu\n", bytes,
+               nfirst + nrest, (unsigned long long)list_c, (unsigned long long)(nfirst ? first / nfirst : 0),
+               (unsigned long long)first_max, (unsigned long long)(nrest ? rest / nrest : 0),
+               (unsigned long long)max_rest, (unsigned long long)(first + rest));
     if (print_only)
         return;
-    check("backup cost: the 13 objects read whole (CRCs right); a piece after an object's first costs under a quarter "
-          "of a first piece (it reuses its object, checked by the storage heads)",
-          (int)ok && nfirst == ED_OBJ_N && nrest > 100u && (!instr_now() || max_rest * 4u < first / nfirst));
+    check("backup: the 13 objects read whole (CRCs right)", (int)ok && nfirst == ED_OBJ_N && nrest > 100u);
+    if (measure)
+        check("backup cost: subsequent pieces cost under a quarter of a first piece",
+              nfirst && max_rest * 4u < first / nfirst);
 }
 
 int main(int argc, char **argv)
 {
+    int measure = instr_available("editor backup cost");
     if (argc > 1 && !strcmp(argv[1], "bench")) {
-        t_backup_cost(1);
+        if (!measure)
+            return 2;
+        t_backup_cost(1, measure);
         return 0;
     }
-    t_backup_cost(0);
+    t_backup_cost(0, measure);
     t_list_get();
     t_restore_refusals();
     t_abort_timeout_drop();

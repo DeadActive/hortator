@@ -1,0 +1,416 @@
+{
+  "firmware_tree": "d0a72af272caa8d191fe3a60df13814b2e24910d",
+  "integration_points": [
+    {
+      "area": "sequencer",
+      "path": "firmware/src/seq.c",
+      "symbol": "events_block",
+      "owner": "audio ISR, before block rendering",
+      "callers": [
+        "firmware/src/fx.c:929"
+      ]
+    },
+    {
+      "area": "sequencer",
+      "path": "firmware/src/fx.c",
+      "symbol": "mix_block",
+      "owner": "audio ISR; mix and event entry",
+      "callers": [
+        "firmware/src/audio.c:29"
+      ]
+    },
+    {
+      "area": "sequencer",
+      "path": "firmware/src/seq.c",
+      "symbol": "seq_tick",
+      "owner": "audio ISR; advances one track and drains ratchets",
+      "callers": [
+        "firmware/src/seq.c:1050"
+      ]
+    },
+    {
+      "area": "sequencer",
+      "path": "firmware/src/seq.c",
+      "symbol": "mic_early",
+      "owner": "audio ISR; checks sequence restart and early-hit suppression",
+      "callers": [
+        "firmware/src/seq.c:897"
+      ]
+    },
+    {
+      "area": "sequencer",
+      "path": "firmware/src/seq.c",
+      "symbol": "step_fire",
+      "owner": "audio ISR; plays late, early or on-boundary steps",
+      "callers": [
+        "firmware/src/seq.c:837",
+        "firmware/src/seq.c:860",
+        "firmware/src/seq.c:927"
+      ]
+    },
+    {
+      "area": "cue",
+      "path": "firmware/src/cue.c",
+      "symbol": "cue_tick",
+      "owner": "audio ISR; checks the queued boundary",
+      "callers": [
+        "firmware/src/seq.c:979"
+      ]
+    },
+    {
+      "area": "cue",
+      "path": "firmware/src/cue.c",
+      "symbol": "cue_switch",
+      "owner": "audio ISR or stopped main loop with IRQ masked",
+      "callers": [
+        "firmware/src/cue.c:159",
+        "firmware/src/project.c:1679"
+      ]
+    },
+    {
+      "area": "cue",
+      "path": "firmware/src/project.c",
+      "symbol": "proj_cue_apply",
+      "owner": "audio ISR or stopped main loop with IRQ masked; swaps existing state",
+      "callers": [
+        "firmware/src/cue.c:56"
+      ]
+    },
+    {
+      "area": "cue",
+      "path": "firmware/src/project.c",
+      "symbol": "cue_queue",
+      "owner": "main loop; stage before arming under IRQ mask",
+      "callers": [
+        "firmware/src/project.c:1748",
+        "firmware/src/project.c:1772"
+      ]
+    },
+    {
+      "area": "cue",
+      "path": "firmware/src/project.c",
+      "symbol": "cue_poll",
+      "owner": "main loop; files outgoing state and rejects invalid pending cues",
+      "callers": [
+        "firmware/src/ui_input.c:1233",
+        "firmware/src/project.c:1449",
+        "firmware/src/project.c:1684"
+      ]
+    },
+    {
+      "area": "recording",
+      "path": "firmware/src/seq.c",
+      "symbol": "rec_hit",
+      "owner": "audio ISR; writes a quantized step from keys, pads or MIDI",
+      "callers": [
+        "firmware/src/seq.c:456",
+        "firmware/src/seq.c:501",
+        "firmware/src/seq.c:682"
+      ]
+    },
+    {
+      "area": "recording",
+      "path": "firmware/src/seq.c",
+      "symbol": "keys_rec",
+      "owner": "audio ISR; keyboard note recording and legato",
+      "callers": [
+        "firmware/src/seq.c:561"
+      ]
+    },
+    {
+      "area": "recording",
+      "path": "firmware/src/seq.c",
+      "symbol": "keys_tie",
+      "owner": "audio ISR; continues held-note recording",
+      "callers": [
+        "firmware/src/seq.c:623"
+      ]
+    },
+    {
+      "area": "recording",
+      "path": "firmware/src/ui_input.c",
+      "symbol": "rec_tap",
+      "owner": "main loop; changes recording arm state",
+      "callers": [
+        "firmware/src/ui_input.c:1325",
+        "firmware/src/smc.c:204"
+      ]
+    },
+    {
+      "area": "ui_edits",
+      "path": "firmware/src/ui_input.c",
+      "symbol": "step_edit",
+      "owner": "main loop; panel step encoder path",
+      "callers": [
+        "firmware/src/ui_input.c:1540"
+      ]
+    },
+    {
+      "area": "ui_edits",
+      "path": "firmware/src/ui_input.c",
+      "symbol": "srec_note",
+      "owner": "main loop; step-record note entry",
+      "callers": [
+        "firmware/src/ui_input.c:1046"
+      ]
+    },
+    {
+      "area": "ui_edits",
+      "path": "firmware/src/ui_input.c",
+      "symbol": "srec_rest",
+      "owner": "main loop; step-record rest entry",
+      "callers": [
+        "firmware/src/ui_input.c:1394"
+      ]
+    },
+    {
+      "area": "ui_edits",
+      "path": "firmware/src/ui_tools.c",
+      "symbol": "tl_step_in",
+      "owner": "main loop; clipboard, single-step paste and pattern extension",
+      "callers": [
+        "firmware/src/ui_tools.c:120",
+        "firmware/src/ui_tools.c:187",
+        "firmware/src/ui_tools.c:237"
+      ]
+    },
+    {
+      "area": "ui_edits",
+      "path": "firmware/src/ui.c",
+      "symbol": "track_clear",
+      "owner": "main loop; clears steps, motion and locks",
+      "callers": [
+        "firmware/src/ui.c:536",
+        "firmware/src/ui_input.c:681",
+        "firmware/src/ui_input.c:1362"
+      ]
+    },
+    {
+      "area": "midi_edits",
+      "path": "firmware/src/seq.c",
+      "symbol": "midi_block",
+      "owner": "audio ISR; consumes input queue and dispatches clock, learn and note traffic",
+      "callers": [
+        "firmware/src/seq.c:1015"
+      ]
+    },
+    {
+      "area": "midi_edits",
+      "path": "firmware/src/seq.c",
+      "symbol": "midi_play",
+      "owner": "audio ISR; pitched note and optional live record",
+      "callers": [
+        "firmware/src/seq.c:726",
+        "firmware/src/seq.c:735"
+      ]
+    },
+    {
+      "area": "midi_edits",
+      "path": "firmware/src/midi_learn.c",
+      "symbol": "learn_cc",
+      "owner": "audio ISR; parameter edits or queued actions",
+      "callers": [
+        "firmware/src/seq.c:713"
+      ]
+    },
+    {
+      "area": "midi_edits",
+      "path": "firmware/src/midi_learn.c",
+      "symbol": "learn_note",
+      "owner": "audio ISR; resolves assigned actions before normal note routing",
+      "callers": [
+        "firmware/src/seq.c:716"
+      ]
+    },
+    {
+      "area": "editor_edits",
+      "path": "firmware/src/editor.c",
+      "symbol": "ed_dispatch",
+      "owner": "main loop; input frame dispatch through ed_service",
+      "callers": [
+        "firmware/src/editor.c:696"
+      ]
+    },
+    {
+      "area": "editor_edits",
+      "path": "firmware/src/editor_pattern.c",
+      "symbol": "edp_steps_set",
+      "owner": "main loop; updates active variation under IRQ mask",
+      "callers": [
+        "firmware/src/editor_pattern.c:486"
+      ]
+    },
+    {
+      "area": "editor_edits",
+      "path": "firmware/src/editor_pattern.c",
+      "symbol": "edp_lock_edit",
+      "owner": "main loop; changes native parameter locks",
+      "callers": [
+        "firmware/src/editor_pattern.c:490"
+      ]
+    },
+    {
+      "area": "editor_edits",
+      "path": "firmware/src/editor_backup.c",
+      "symbol": "ed_backup_cmd",
+      "owner": "main loop; backup and stopped restore transaction",
+      "callers": [
+        "firmware/src/editor.c:604"
+      ]
+    },
+    {
+      "area": "editor_edits",
+      "path": "firmware/src/editor_backup.c",
+      "symbol": "edb_write",
+      "owner": "main loop; restore after CRC and linked object validation",
+      "callers": [
+        "firmware/src/editor_backup.c:408"
+      ]
+    },
+    {
+      "area": "project_storage",
+      "path": "firmware/src/project.c",
+      "symbol": "project_save_go",
+      "owner": "stopped main loop; variation and lock before project record",
+      "callers": [
+        "firmware/src/ui_input.c:1345",
+        "firmware/src/editor_pattern.c:454",
+        "firmware/src/project.c:927"
+      ]
+    },
+    {
+      "area": "project_storage",
+      "path": "firmware/src/project.c",
+      "symbol": "project_load",
+      "owner": "main loop; native project selection",
+      "callers": [
+        "firmware/src/ui_input.c:665"
+      ]
+    },
+    {
+      "area": "project_storage",
+      "path": "firmware/src/project.c",
+      "symbol": "project_paste",
+      "owner": "stopped main loop; updates destination project and linked banks",
+      "callers": [
+        "firmware/src/ui_input.c:677"
+      ]
+    },
+    {
+      "area": "project_storage",
+      "path": "firmware/src/project.c",
+      "symbol": "proj_fetch",
+      "owner": "main loop or boot; loads and checks a project record",
+      "callers": [
+        "firmware/src/project.c:816",
+        "firmware/src/project.c:1016",
+        "firmware/src/project.c:2218",
+        "firmware/src/editor_backup.c:215"
+      ]
+    },
+    {
+      "area": "project_storage",
+      "path": "firmware/src/storage.c",
+      "symbol": "st_save",
+      "owner": "stopped main loop or boot migration; sector CRC then commit header",
+      "callers": [
+        "firmware/src/project.c:839",
+        "firmware/src/project.c:890",
+        "firmware/src/project.c:891",
+        "firmware/src/project.c:2357",
+        "firmware/src/editor_backup.c:246",
+        "firmware/src/editor_backup.c:248",
+        "firmware/src/editor_backup.c:262",
+        "firmware/src/editor_backup.c:263",
+        "firmware/src/project.c:1883",
+        "firmware/src/project.c:1907",
+        "firmware/src/project.c:2275",
+        "firmware/src/project.c:2281"
+      ]
+    },
+    {
+      "area": "variation_and_lock_storage",
+      "path": "firmware/src/project.c",
+      "symbol": "var_write",
+      "owner": "stopped main loop; writes native variation bank",
+      "callers": [
+        "firmware/src/project.c:889",
+        "firmware/src/editor_backup.c:262"
+      ]
+    },
+    {
+      "area": "variation_and_lock_storage",
+      "path": "firmware/src/project.c",
+      "symbol": "var_link_of",
+      "owner": "main loop; binds project to a CRC-verified variation bank",
+      "callers": [
+        "firmware/src/project.c:585",
+        "firmware/src/project.c:678",
+        "firmware/src/editor_backup.c:259",
+        "firmware/src/editor_backup.c:143",
+        "firmware/src/editor_backup.c:291"
+      ]
+    },
+    {
+      "area": "variation_and_lock_storage",
+      "path": "firmware/src/varpack.c",
+      "symbol": "var_put",
+      "owner": "main loop; capacity-checked packing or cue file-out",
+      "callers": [
+        "firmware/src/project.c:712",
+        "firmware/src/project.c:1403",
+        "firmware/src/project.c:1435"
+      ]
+    },
+    {
+      "area": "variation_and_lock_storage",
+      "path": "firmware/src/varpack.c",
+      "symbol": "var_get",
+      "owner": "main loop; unpacks the incoming variation into staged steps",
+      "callers": [
+        "firmware/src/project.c:1224",
+        "firmware/src/project.c:1267"
+      ]
+    },
+    {
+      "area": "boot_and_hal",
+      "path": "firmware/src/main.c",
+      "symbol": "fm1_cstart",
+      "owner": "boot before IRQ enable; initializes memory and calls main",
+      "callers": [
+        "firmware/crt0.S:25"
+      ]
+    },
+    {
+      "area": "boot_and_hal",
+      "path": "firmware/src/project.c",
+      "symbol": "persist_boot",
+      "owner": "boot before settings, panel and audio; may run storage migrations",
+      "callers": [
+        "firmware/src/main.c:107"
+      ]
+    },
+    {
+      "area": "boot_and_hal",
+      "path": "firmware/src/ui.c",
+      "symbol": "safe_start_check",
+      "owner": "boot during drum setup; reads SEQ key after persistence boot",
+      "callers": [
+        "firmware/src/ui.c:644"
+      ]
+    },
+    {
+      "area": "boot_and_hal",
+      "path": "firmware/src/audio.c",
+      "symbol": "fm1_alnk0_irq",
+      "owner": "ALNK0 hardware ISR; drives the half-buffer render",
+      "callers": [
+        "firmware/hal/fm1_isr.S:20"
+      ]
+    }
+  ],
+  "unknowns": [
+    "The T03 host probe reproduces lost outgoing edits when a new cue is queued between the ISR swap and file-out. Adapter staging ownership remains open.",
+    "The T03 host probe reproduces a lost linked lock bank after two interruptions before the project commit. Linked-record recovery remains open."
+  ]
+}

@@ -573,7 +573,7 @@ static uint64_t cost_run(uint32_t ten, uint32_t N)  /* host instructions of N au
         audio_block(out, CTL);
     }
     m_stream(0);
-    return instr_now() - i0;
+    return instr_elapsed(i0);
 }
 
 /* 10 CH FX: channels 9-10 the send effects' return; T1..T8 panned as the FM-1 pans + the pair = the master bus before
@@ -675,13 +675,13 @@ static void test_fx_pair(void)
 static void test_cost(void)
 {
     const uint32_t N = 4000;                            /* 2.9 s of audio */
-    uint64_t two = cost_run(0, N), ten = cost_run(1, N);
+    uint64_t two, ten;
     char s[160];
-    usb10 = 1;
-    if (!two) {
-        printf("cost: no instruction counter on this host (skipped)\n");
+    if (!instr_available("USB audio render cost"))
         return;
-    }
+    two = cost_run(0, N);
+    ten = cost_run(1, N);
+    usb10 = 1;
     snprintf(s, sizeof s, "cost: audio block 2 CH %.1f, 10 CH %.1f instr/sample (8 tracks sounding): +%.1f %%",
              (double)two / (N * CTL), (double)ten / (N * CTL), 100.0 * ((double)ten / (double)two - 1.0));
     check(s, (double)ten / (double)two < 1.05);
@@ -725,19 +725,25 @@ static uint64_t wire_ns(uint32_t bytes)                 /* token + data packet (
 
 /* ms of bus time; poll_hz: the device's extra uac_service cadence; jit_ns: the token's place in its frame varies by
  * up to this (the host schedules it) */
-static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, uint32_t phase_ns)
+struct bus_clock {
+    uint64_t next_token;
+    double next_tick;
+    uint32_t sub;
+};
+
+static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, struct bus_clock *clock)
 {
-    uint64_t end = now_ns + (uint64_t)ms * 1000000u, next_tok = (now_ns / 1000000u + 1u) * 1000000u + 20000u;
-    double tick = 1e9 / 10000.0 * (1.0 + 30e-6), next_tick = (double)now_ns + phase_ns;
-    uint32_t sub = 0, every = 10000u / poll_hz;
+    uint64_t end = now_ns + (uint64_t)ms * 1000000u;
+    double tick = 1e9 / 10000.0 * (1.0 + 30e-6);
+    uint32_t every = poll_hz ? 10000u / poll_hz : 0u;
     while (now_ns < end) {
-        uint64_t t = end, tk = (uint64_t)next_tick;
+        uint64_t t = end, tk = (uint64_t)clock->next_tick;
         if (next_half < t)
             t = next_half;
         if (blocks_left && next_block < t)
             t = next_block;
-        if (next_tok < t)
-            t = next_tok;
+        if (clock->next_token < t)
+            t = clock->next_token;
         if (tk < t)
             t = tk;
         if (ep.rdy && ep.busy_end && ep.busy_end < t)
@@ -759,9 +765,10 @@ static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, uint32_t pha
             render_block();
             blocks_left--;
             next_block += rend_len / (HALF_FRAMES / CTL);
-        } else if (now_ns == next_tok) {                /* the host's IN token */
+        } else if (now_ns == clock->next_token) {        /* the host's IN token */
             lcg = lcg * 1103515245u + 12345u;
-            next_tok = (now_ns / 1000000u + 1u) * 1000000u + 20000u + (jit_ns ? (lcg >> 8) % jit_ns : 0u);
+            clock->next_token = (now_ns / 1000000u + 1u) * 1000000u + 20000u
+                                + (jit_ns ? (lcg >> 8) % jit_ns : 0u);
             if (ep.rdy && !ep.busy_end) {
                 ep.busy_end = now_ns + wire_ns(ep.bytes);
                 check_frames(ep.d, ep.bytes / (M10 ? 2u * UA8_NCH : 4u));
@@ -771,13 +778,13 @@ static void run_bus(uint32_t ms, uint32_t poll_hz, uint32_t jit_ns, uint32_t pha
                 ep.zlp++;
             }
         } else if (now_ns == tk) {                      /* TIMER5 */
-            next_tick += tick;
-            if (sub % 5u == 0)
+            clock->next_tick += tick;
+            if (clock->sub % 5u == 0)
                 svc();                                  /* usb_poll's (2 kHz) */
-            if (every && sub % every == 0)
+            if (every && clock->sub % every == 0)
                 svc();                                  /* the extra cadence (UAC8_POLL_HZ) */
-            if (++sub == 10u)
-                sub = 0;
+            if (++clock->sub == 10u)
+                clock->sub = 0;
         }
     }
 }
@@ -788,6 +795,8 @@ static void bus_case(const char *what, uint32_t two, uint32_t poll_hz, uint32_t 
     char s[200];
     for (ph = 0; ph < 10u; ph++) {                      /* the device's poll phase against the host's frames */
         uint32_t d0, o0;
+        uint32_t poll_period_ns = 1000000000u / (poll_hz ? poll_hz : 2000u);
+        struct bus_clock clock = {1020000u, ph * (poll_period_ns / 10u), 0u};
         usb10 = (uint8_t)!two;                          /* two: 2 CH, usb_app.c's stream */
         usb.config = 1;
         m_reset();
@@ -798,11 +807,11 @@ static void bus_case(const char *what, uint32_t two, uint32_t poll_hz, uint32_t 
         now_ns = 0;
         next_half = 300000;
         blocks_left = 0;
-        run_bus(500, poll_hz, jit_ns, ph * 10000u);     /* (the stream starts; flowing after the first packet) */
+        run_bus(500, poll_hz, jit_ns, &clock);           /* warm up without resetting the clocks for measurement */
         d0 = ep.delivered;
         o0 = UA(overruns);
         cons_bad = cons_rep = 0;
-        run_bus(4000, poll_hz, jit_ns, 0);
+        run_bus(4000, poll_hz, jit_ns, &clock);
         if ((ep.delivered - d0) / 4u < rate_min)
             rate_min = (ep.delivered - d0) / 4u;
         sum += (ep.delivered - d0) / 4u;

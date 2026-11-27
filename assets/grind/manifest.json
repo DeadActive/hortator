@@ -1,0 +1,788 @@
+{
+  "schema_version": 1,
+  "upstream_sha": "44c9ad4aa57bebf63f412bd552e57143c30b4065",
+  "source": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/LICENSING.md",
+  "cc0_source_evidence": {
+    "method": "Compared all local WAV bytes to the pinned original from byte offset 0. A match covers the entire source when the byte counts are equal.",
+    "repositories": {
+      "sgossner/VCSL": {
+        "commit": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
+        "license": "CC0-1.0",
+        "license_url": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/LICENSE",
+        "license_sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+        "notice_urls": [
+          "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/README.md"
+        ]
+      },
+      "sgossner/VSCO-2-CE": {
+        "commit": "440300901dfe9275fd84e0b7763af1f8443ae62e",
+        "license": "CC0-1.0",
+        "license_url": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/LICENSE",
+        "license_sha256": "36ffd9dc085d529a7e60e1276d73ae5a030b020313e6c5408593a6ae2af39673",
+        "notice_urls": [
+          "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/README.md",
+          "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Readme.txt"
+        ]
+      }
+    }
+  },
+  "sdk_revision": {
+    "tag": "AC79NN_SDK_V1.2.1_2023-12-13",
+    "commit": "d179b4484759423312073f5fbb232501aa491047"
+  },
+  "release_approved": false,
+  "scope": "Foundation inventory of tracked media, identified upstream ports, native BLE=0 SDK package inputs and site build outputs.",
+  "open_reviews": [
+    "Replace or obtain distribution permission for the generated Hügelton Sample Pack. Review every compiled or recorded derivative.",
+    "Clear or replace restricted media and review the exact corresponding-source archive contents.",
+    "Record verified hashes and notices for actual release-candidate build outputs. Confirm that the candidate includes the required SDK notices.",
+    "Review the complete native package and simulator site against the inventory before release. BLE uses additional SDK components and is outside this inventory."
+  ],
+  "assets": [
+    {
+      "path": "build/felucca-UNTESTED.fwsc",
+      "kind": "generated",
+      "origin": "tools/build.py and tools/fm1pkg_make.py assemble the native Foundation test package from the app, loader and JieLi SDK inputs",
+      "license": "NOASSERTION",
+      "sha256": null,
+      "status": "review_pending",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/Apache-2.0.txt",
+        "assets/samples-cc0/ATTRIBUTION.txt"
+      ]
+    },
+    {
+      "path": "build/gen/felucca_font.h",
+      "kind": "generated",
+      "origin": "tools/gen_font.py and assets/fonts/md_font.txt",
+      "license": "GPL-3.0-only",
+      "sha256": null,
+      "status": "review_pending",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "build/gen/felucca_samples.h",
+      "kind": "generated",
+      "origin": "tools/gen_samples.py combines source WAVs under assets/samples-cc0/ and synthesized WAVs from tools/gen_waves.py",
+      "license": "CC0-1.0 AND LicenseRef-All-Rights-Reserved",
+      "sha256": null,
+      "status": "restricted",
+      "notices": [
+        "LICENSING.md",
+        "assets/samples-cc0/ATTRIBUTION.txt"
+      ]
+    },
+    {
+      "path": "build/sim/features.bin.gz",
+      "kind": "generated",
+      "origin": "tests/sim_feature_reel.c records the DSP and UI from the simulator",
+      "license": "NOASSERTION",
+      "sha256": null,
+      "status": "review_pending",
+      "notices": [
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "build/sim/fm1sim.wasm",
+      "kind": "generated",
+      "origin": "tools/build_sim.sh compiles tests/sim_core.c and the generated firmware assets",
+      "license": "NOASSERTION",
+      "sha256": null,
+      "status": "review_pending",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "build/sim/reel.bin.gz",
+      "kind": "generated",
+      "origin": "tests/sim_record.c records the DSP and UI from the simulator",
+      "license": "NOASSERTION",
+      "sha256": null,
+      "status": "review_pending",
+      "notices": [
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "build/sim/source.tar.gz",
+      "kind": "generated",
+      "origin": "tools/build_sim.sh archives the Git source tree, including docs/panel.jpg and UI studies",
+      "license": "NOASSERTION",
+      "sha256": null,
+      "status": "restricted",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "build/sim/terminus.woff",
+      "kind": "generated",
+      "origin": "tests/sim_font.mjs converts assets/fonts/ter-u16n.bdf",
+      "license": "OFL-1.1",
+      "sha256": null,
+      "status": "review_pending",
+      "notices": [
+        "assets/fonts/Terminus-LICENSE.txt"
+      ]
+    },
+    {
+      "path": "LICENSE",
+      "kind": "sdk",
+      "origin": "https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK/blob/d179b4484759423312073f5fbb232501aa491047/LICENSE",
+      "license": "Apache-2.0",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "status": "cleared",
+      "notices": [
+        "LICENSES/Apache-2.0.txt"
+      ]
+    },
+    {
+      "path": "cpu/wl82/tools/cfg/eq_cfg_hw.bin",
+      "kind": "sdk",
+      "origin": "https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK/blob/d179b4484759423312073f5fbb232501aa491047/cpu/wl82/tools/cfg/eq_cfg_hw.bin",
+      "license": "Apache-2.0",
+      "sha256": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
+      "status": "review_pending",
+      "notices": [
+        "LICENSES/Apache-2.0.txt",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "cpu/wl82/tools/cfg_tool.bin",
+      "kind": "sdk",
+      "origin": "https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK/blob/d179b4484759423312073f5fbb232501aa491047/cpu/wl82/tools/cfg_tool.bin",
+      "license": "Apache-2.0",
+      "sha256": "276579954f076886a6a7694f65dc71c034a63a2c204b76749065c0ac7b010d1b",
+      "status": "review_pending",
+      "notices": [
+        "LICENSES/Apache-2.0.txt",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "cpu/wl82/tools/uboot.boot",
+      "kind": "sdk",
+      "origin": "https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK/blob/d179b4484759423312073f5fbb232501aa491047/cpu/wl82/tools/uboot.boot",
+      "license": "Apache-2.0",
+      "sha256": "4e3b4c220dc96641cb5a723f41e68ce41d5261ae9434bb33fbd7f2c59976ded4",
+      "status": "review_pending",
+      "notices": [
+        "LICENSES/Apache-2.0.txt",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "assets/fonts/UnifrakturCook-Bold.ttf",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/assets/fonts/UnifrakturCook-Bold.ttf",
+      "license": "OFL-1.1",
+      "sha256": "ea002fa9c65f1a612af100e00d87ab65f16381f450020ec3d021f3dbf79a6dcd",
+      "status": "cleared",
+      "notices": [
+        "assets/fonts/UnifrakturCook-LICENSE.txt"
+      ]
+    },
+    {
+      "path": "assets/fonts/UnifrakturMaguntia-Book.ttf",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/assets/fonts/UnifrakturMaguntia-Book.ttf",
+      "license": "OFL-1.1",
+      "sha256": "d64afc0547059dd2e4a78da48bda0aba0a9901be58c7f8c201a8b2b6b4492cc8",
+      "status": "cleared",
+      "notices": [
+        "assets/fonts/UnifrakturMaguntia-LICENSE.txt"
+      ]
+    },
+    {
+      "path": "assets/fonts/md_font.txt",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/assets/fonts/md_font.txt",
+      "license": "GPL-3.0-only",
+      "sha256": "db36f894b53640a8e63fd6e40726fd210b7c87475ae83c9bf5ff6090e642c632",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "assets/fonts/ter-u16n.bdf",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/assets/fonts/ter-u16n.bdf",
+      "license": "OFL-1.1",
+      "sha256": "5197662b22bf9f3e68d4af9f969a7fefa3edae40dd82ae969a147381130fb4ae",
+      "status": "cleared",
+      "notices": [
+        "assets/fonts/Terminus-LICENSE.txt"
+      ]
+    },
+    {
+      "path": "assets/samples-cc0/FLUTE/00_LDFlute_susvib_C4_v1_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C4_v1_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "37fd620f41b3ef8eb96bd0b1d2d4660266e61b4720b8f00d16b1be7886673568",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2009832
+      }
+    },
+    {
+      "path": "assets/samples-cc0/FLUTE/01_LDFlute_susvib_C5_v1_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C5_v1_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "f80ea0857ba925e1d491499a3742c31d45cee45371041ecb9bd64b2167343d59",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 1930938
+      }
+    },
+    {
+      "path": "assets/samples-cc0/FLUTE/02_LDFlute_susvib_C6_v1_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VSCO-2-CE/blob/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C6_v1_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "8b8a1b59010358607edf2daaa68e4916206c9e1f341be32d1e70ca85d35bb729",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 1260120
+      }
+    },
+    {
+      "path": "assets/samples-cc0/KIT/00_Tamb1_Hit_v2_rr1_Mid.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Tambourine%201/Tamb1_Hit_v2_rr1_Mid.wav",
+      "license": "CC0-1.0",
+      "sha256": "885ebf1d70f8e888f576682e4e4112b92b69649162f392c83b3379c91a09cf41",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 293256,
+        "source_bytes": 293256
+      }
+    },
+    {
+      "path": "assets/samples-cc0/KIT/01_Mid_ShakerDouble_Down_rr1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Shaker%2C%20Small/Mid_ShakerDouble_Down_rr1.wav",
+      "license": "CC0-1.0",
+      "sha256": "0df7c271e1dba4de7304f7df81886390dd9ae698bfdd6df570026af4f2223574",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 46844,
+        "source_bytes": 46844
+      }
+    },
+    {
+      "path": "assets/samples-cc0/KIT/02_Conga_HitN_v2_rr1_Sum.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Membranophones/Struck%20Membranophones/Conga/Conga_HitN_v2_rr1_Sum.wav",
+      "license": "CC0-1.0",
+      "sha256": "13d322c0e7a830cdbcbdc5a6e05566dfe3f5a073b7b82a3262d3f6fc10f96764",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 140012,
+        "source_bytes": 140012
+      }
+    },
+    {
+      "path": "assets/samples-cc0/KIT/03_Claves1_Hit_v2_rr1_Mid.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Claves/Claves1_Hit_v2_rr1_Mid.wav",
+      "license": "CC0-1.0",
+      "sha256": "bcabe27330761309eb4b4f6207e6e3b4be59815df86449ac05bfb9b81f19efc9",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 191812,
+        "source_bytes": 191812
+      }
+    },
+    {
+      "path": "assets/samples-cc0/KIT/04_wood_click_mp.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Idiophones/Struck%20Idiophones/Woodblock/wood_click_mp.wav",
+      "license": "CC0-1.0",
+      "sha256": "00b76f9fe96c118f29dfc69866c12ec11f2e1264f6cb9c0b36912c2210b015fe",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 134674,
+        "source_bytes": 134674
+      }
+    },
+    {
+      "path": "assets/samples-cc0/PIANO/00_GPiano_sus_C1_v2_rr1_Player.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C1_v2_rr1_Player.wav",
+      "license": "CC0-1.0",
+      "sha256": "894007bb4757871ff92d7f46d80f8550ec14be592a449d554e450463c0c4bb6f",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 5268340
+      }
+    },
+    {
+      "path": "assets/samples-cc0/PIANO/01_GPiano_sus_C2_v2_rr1_Player.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C2_v2_rr1_Player.wav",
+      "license": "CC0-1.0",
+      "sha256": "52a876ee3ac54f3cc2db3272797ecf5a59d9181dae6ca355f12baab5bd367883",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 4116252
+      }
+    },
+    {
+      "path": "assets/samples-cc0/PIANO/02_GPiano_sus_C3_v2_rr1_Player.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C3_v2_rr1_Player.wav",
+      "license": "CC0-1.0",
+      "sha256": "ec73fb8ed123fbbc34d6a29ff0dc3c2b02f625c1e28cb71d611fa964eb4c826e",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 4283328
+      }
+    },
+    {
+      "path": "assets/samples-cc0/PIANO/03_GPiano_sus_C4_v2_rr1_Player.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C4_v2_rr1_Player.wav",
+      "license": "CC0-1.0",
+      "sha256": "bbcc113724a0fb8335ad124170957d8e10f445d384bf75a36897ab03f92f9d6e",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2613976
+      }
+    },
+    {
+      "path": "assets/samples-cc0/PIANO/04_GPiano_sus_C5_v2_rr1_Player.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Grand%20Piano%2C%20Kawai/Sustains/GPiano_sus_C5_v2_rr1_Player.wav",
+      "license": "CC0-1.0",
+      "sha256": "d3f2b0b8faa13734e6823a19c62ba9d7a9c2a8c6934c58ba3e281cc0c9ae2b70",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 1706624
+      }
+    },
+    {
+      "path": "assets/samples-cc0/SAX/00_BrettTenor_NV_Main_A#1_vl2_rr1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Aerophones/Reed%20Aerophones/Tenor%20Saxophone/Non-Vibrato/BrettTenor_NV_Main_A%231_vl2_rr1.wav",
+      "license": "CC0-1.0",
+      "sha256": "834af8a876236c85c28dbc35fa8b0748e3163c6c14875668cd858ce11398e3e7",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2283038
+      }
+    },
+    {
+      "path": "assets/samples-cc0/SAX/01_BrettTenor_NV_Main_A#2_vl2_rr1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Aerophones/Reed%20Aerophones/Tenor%20Saxophone/Non-Vibrato/BrettTenor_NV_Main_A%232_vl2_rr1.wav",
+      "license": "CC0-1.0",
+      "sha256": "efe1b40fe1dbfee931f0a4a0b0ce12a782e613f42469a791205164c78b06d6ca",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2181806
+      }
+    },
+    {
+      "path": "assets/samples-cc0/SAX/02_BrettTenor_NV_Main_A#3_vl2_rr1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Aerophones/Reed%20Aerophones/Tenor%20Saxophone/Non-Vibrato/BrettTenor_NV_Main_A%233_vl2_rr1.wav",
+      "license": "CC0-1.0",
+      "sha256": "d56af1ce4b729f09b17bc4ba9b885937ef0dd683c8b9d64822cf285d87ab9c6a",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 2783300
+      }
+    },
+    {
+      "path": "assets/samples-cc0/TRANH/00_B1_mf_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/B1_mf_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "d3c57b409c49cb5ae19fd0aae5d3b9567ae5ef2a0166ed78cd086d8197e5f873",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 889304
+      }
+    },
+    {
+      "path": "assets/samples-cc0/TRANH/01_F#2_mf_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/F%232_mf_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "8c8f0809d583703e8ed0c6a7376bdbf17884993a223dc7d29df189566a9d4f86",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 839318
+      }
+    },
+    {
+      "path": "assets/samples-cc0/TRANH/02_C#3_mf_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/C%233_mf_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "715e04687e4a5b5713552e5299bc5e06a20abb1856bcaa893920d3ceb373b462",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 799406
+      }
+    },
+    {
+      "path": "assets/samples-cc0/TRANH/03_G#3_mf_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/G%233_mf_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "70513aa5abc9584091e08ef6d228975246b90c434deb218f281c30d01ca04d6e",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 787553
+      }
+    },
+    {
+      "path": "assets/samples-cc0/TRANH/04_D#4_mf_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/D%234_mf_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "880dbeb9ab37d2f222254117cc3d2f927be6824906221a321db06db590f73277",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 420000,
+        "source_bytes": 780944
+      }
+    },
+    {
+      "path": "assets/samples-cc0/TRANH/05_B4_mf_1.wav",
+      "kind": "tracked",
+      "origin": "https://github.com/sgossner/VCSL/blob/c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e/Chordophones/Zithers/Dan%20Tranh/Normal/B4_mf_1.wav",
+      "license": "CC0-1.0",
+      "sha256": "782da5b4bd0951d4f8d75fb13c3f86db0f733ed95dca0676e859b010a24ea42a",
+      "status": "cleared",
+      "notices": [
+        "assets/samples-cc0/ATTRIBUTION.txt",
+        "assets/samples-cc0/CREDITS.txt"
+      ],
+      "source_match": {
+        "verified_bytes": 290825,
+        "source_bytes": 290825
+      }
+    },
+    {
+      "path": "docs/panel.jpg",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/LICENSING.md",
+      "license": "LicenseRef-All-Rights-Reserved",
+      "sha256": "a6c803cd51938b055f2b0ab73689bc288e5a6389f159a073ebd4b501d1bee7df",
+      "status": "restricted",
+      "notices": [
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-19-md-ui/home.png",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/docs/superpowers/specs/2026-10-19-md-ui/home.png",
+      "license": "NOASSERTION",
+      "sha256": "83d98ff9ac1c5685ae699a7bd84f314481bb0b331b018d566d70eed8f5514b09",
+      "status": "review_pending",
+      "notices": [
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-19-md-ui/layout-a-vs-b.png",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/docs/superpowers/specs/2026-10-19-md-ui/layout-a-vs-b.png",
+      "license": "NOASSERTION",
+      "sha256": "19c5ee3391c59773a46aa238e65945440a388d1908dc253bc27f7b289605ae43",
+      "status": "review_pending",
+      "notices": [
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-19-md-ui/screens.png",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/docs/superpowers/specs/2026-10-19-md-ui/screens.png",
+      "license": "NOASSERTION",
+      "sha256": "496a8d33a356c647c5b15b4d68ff3bf765b248c6e40f9e7c74350f5411184c53",
+      "status": "review_pending",
+      "notices": [
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-19-md-ui/themes.png",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/docs/superpowers/specs/2026-10-19-md-ui/themes.png",
+      "license": "NOASSERTION",
+      "sha256": "136959e0b6786cfc4c664dc6ffa1ced30dee88e165d98524839d14a63be0fc79",
+      "status": "review_pending",
+      "notices": [
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "firmware/src/comp.c",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/eurorack/tree/master/streams",
+      "license": "GPL-3.0-only AND MIT",
+      "sha256": "fdc3b76eff9e0fe872fa01912df147b65d6e32aea43c9a183e4c1568438f7e11",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/MIT-Mutable-Instruments.txt"
+      ]
+    },
+    {
+      "path": "firmware/src/comp_tables.h",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/eurorack/tree/master/streams",
+      "license": "GPL-3.0-only AND MIT",
+      "sha256": "3374dcb05038e580843d34ec82f2d9d0012d7329cead3fbe3fd317ecf3b8a912",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/MIT-Mutable-Instruments.txt"
+      ]
+    },
+    {
+      "path": "firmware/src/dm_dsp.c",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/stmlib",
+      "license": "GPL-3.0-only AND MIT",
+      "sha256": "a044428d99d00e164e4db3986740ff4851b8c0bfa93f3e6bda8cdd9e810ba1be",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/MIT-Mutable-Instruments.txt"
+      ]
+    },
+    {
+      "path": "firmware/src/dm_kick.c",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/eurorack/tree/master/plaits",
+      "license": "GPL-3.0-only AND MIT",
+      "sha256": "278805430986d4cd641fd4c454fc2bc6ac8d0403d65486e17e07be4d97608fa1",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/MIT-Mutable-Instruments.txt"
+      ]
+    },
+    {
+      "path": "firmware/src/dm_metal.c",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/eurorack/tree/master/plaits",
+      "license": "GPL-3.0-only AND MIT",
+      "sha256": "f91cc206b99488e742d9474b8cbb510fbbdc3dbab1cc6dfc06267dd7b051ac67",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/MIT-Mutable-Instruments.txt"
+      ]
+    },
+    {
+      "path": "firmware/src/dm_snare.c",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/eurorack/tree/master/plaits",
+      "license": "GPL-3.0-only AND MIT",
+      "sha256": "8936833b6d139acdb8eef64b30ddd7cef40a14d07cc5a6edf686a93f6636ce6e",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/MIT-Mutable-Instruments.txt"
+      ]
+    },
+    {
+      "path": "firmware/src/grids.c",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/eurorack/tree/master/grids",
+      "license": "GPL-3.0-or-later",
+      "sha256": "8a418a3838d992e8958e8de97bb650b4fab3b293c643d0a7d5ed5084f356785f",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "firmware/src/grids_tables.h",
+      "kind": "tracked",
+      "origin": "https://github.com/pichenettes/eurorack/tree/master/grids",
+      "license": "GPL-3.0-or-later",
+      "sha256": "b64e5fcbe4d3c929b67d6f3108125df02a5dd890fd251d127c4b74879389cd2f",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "firmware/src/phys_dsp.c",
+      "kind": "tracked",
+      "origin": "https://github.com/electro-smith/DaisySP",
+      "license": "MIT",
+      "sha256": "16ffa8d84383d7ee51ee8acc5b306bcd1bf59a1247b2e23c6c32d183e8726ec7",
+      "status": "cleared",
+      "notices": [
+        "LICENSES/MIT-DaisySP.txt",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "tools/gen_waves.py",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/tools/gen_waves.py",
+      "license": "GPL-3.0-only",
+      "sha256": "d574048795c3e3824bdf367e952b855fdad568efc28c55d42029ece9dd46d0fe",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md"
+      ]
+    },
+    {
+      "path": "tools/rescue/fm1_uboot.py",
+      "kind": "tracked",
+      "origin": "https://github.com/kagaimiq/jl-uboot-tool",
+      "license": "GPL-3.0-only AND MIT",
+      "sha256": "510d932d09fefc9aed0a918218d00e9db653556ae2fcc46a316cdc199769d93a",
+      "status": "cleared",
+      "notices": [
+        "LICENSE",
+        "LICENSING.md",
+        "LICENSES/MIT-jl-uboot-tool.txt"
+      ]
+    },
+    {
+      "path": "web/fukiai.ttf",
+      "kind": "tracked",
+      "origin": "https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/web/fukiai.ttf",
+      "license": "MIT",
+      "sha256": "6111a741524c2f3935442830f67e9c220b234f0f7718bd2e9dd3587867d30e01",
+      "status": "cleared",
+      "notices": [
+        "LICENSES/MIT-Fukiai.txt",
+        "web/FUKIAI-LICENSE.txt"
+      ]
+    }
+  ]
+}

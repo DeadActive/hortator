@@ -1,0 +1,256 @@
+name: GRIND Foundation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grind-foundation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-core:
+    name: Host Core
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      status: ${{ steps.checks.outputs.status }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - id: checks
+        run: bash tools/grind/run_ci.sh host-core
+      - name: Upload Host Core evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-host-core-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/audit-tests.log
+            build/grind-evidence/grind-core.log
+
+  host-upstream:
+    name: Host Upstream
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      status: ${{ steps.checks.outputs.status }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: |
+          python3 -m venv .venv
+          .venv/bin/pip install Pillow==13.0.0
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - id: checks
+        run: bash tools/grind/run_ci.sh host-upstream
+      - name: Upload Host Upstream evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-host-upstream-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: build/grind-evidence/host-upstream.log
+
+  performance:
+    name: Performance
+    runs-on: macos-15
+    timeout-minutes: 30
+    outputs:
+      status: ${{ steps.checks.outputs.status }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: |
+          python3 -m venv .venv
+          .venv/bin/pip install Pillow==13.0.0
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - id: checks
+        run: bash tools/grind/run_ci.sh performance
+      - name: Upload Performance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-performance-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: build/grind-evidence/performance.log
+
+  wasm:
+    name: WASM and web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      status: ${{ steps.checks.outputs.status }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: |
+          python3 -m venv .venv
+          .venv/bin/pip install Pillow==13.0.0
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Use the resolved Linux amd64 Emscripten image
+        run: |
+          image=emscripten/emsdk@sha256:fca9b3affd2e321ab97ffc657ccc53b9fb88715997712d11d562900e6655f26f
+          docker pull "$image"
+          docker tag "$image" emscripten/emsdk:6.0.11
+      - name: Install the pinned browser test driver
+        run: npm install --prefix build/grind-browser --no-save --ignore-scripts --no-audit --no-fund playwright-core@1.58.2
+      - id: checks
+        run: bash tools/grind/run_ci.sh wasm
+      - name: Upload WASM and web evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-wasm-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/wasm-preview.log
+            build/grind-evidence/web-regression.log
+            build/grind-evidence/web-editor.log
+            build/grind-evidence/browser-smoke.log
+
+  native:
+    name: Native firmware and packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      status: ${{ steps.checks.outputs.status }}
+      t03_native: ${{ steps.checks.outputs.t03_native }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Restore upstream release refs
+        run: |
+          git fetch --no-tags https://github.com/DeadActive/hortator.git 'refs/tags/drum-v*:refs/tags/drum-v*' ||
+            echo 'BLOCKED: upstream release refs unavailable; the native build can still run'
+      - name: Prepare native Python environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install Pillow==13.0.0
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - id: checks
+        name: Verify inputs and build on the ephemeral runner
+        run: |
+          archive="$RUNNER_TEMP/jieli-linux-toolchains-20260730.1.tar.xz"
+          sdk="$RUNNER_TEMP/grind-ac79-sdk"
+          if ! curl --fail --location --retry 2 --max-time 150 -o "$archive" \
+            https://jl-update.oss-cn-shenzhen.aliyuncs.com/jieli-linux-toolchains-20260730.1.tar.xz ||
+            ! git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+              https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$sdk"; then
+            echo 'BLOCKED: pinned vendor inputs could not be downloaded' | tee -a "$GITHUB_STEP_SUMMARY"
+            echo 'status=BLOCKED' >> "$GITHUB_OUTPUT"
+            exit 2
+          fi
+          GRIND_JIELI_ARCHIVE="$archive" AC79_SDK="$sdk" bash tools/grind/run_ci.sh native
+
+      # Upload only reviewed text outputs. Build directories also contain release-restricted material.
+      - name: Upload native build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-native-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/native-inputs.log
+            build/grind-evidence/native-build.log
+            build/grind-evidence/frozen-baseline.log
+            build/grind-evidence/native-host.log
+            build/grind-evidence/native-sha256.txt
+            build/grind-evidence/resources.json
+            build/grind-evidence/T03/native.json
+
+  license:
+    name: Asset and license evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      status: ${{ steps.checks.outputs.status }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - id: checks
+        run: bash tools/grind/run_ci.sh license
+      - name: Upload asset and license evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-license-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: build/grind-evidence/assets.log
+
+  foundation-gate:
+    name: Foundation gate
+    if: always()
+    needs: [host-core, host-upstream, performance, wasm, native, license]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      HOST_CORE: ${{ (needs.host-core.outputs.status == 'PASS' && needs.host-core.result != 'success' && 'FAIL') || needs.host-core.outputs.status || needs.host-core.result }}
+      HOST_UPSTREAM: ${{ (needs.host-upstream.outputs.status == 'PASS' && needs.host-upstream.result != 'success' && 'FAIL') || needs.host-upstream.outputs.status || needs.host-upstream.result }}
+      PERFORMANCE: ${{ (needs.performance.outputs.status == 'PASS' && needs.performance.result != 'success' && 'FAIL') || needs.performance.outputs.status || needs.performance.result }}
+      WASM: ${{ (needs.wasm.outputs.status == 'PASS' && needs.wasm.result != 'success' && 'FAIL') || needs.wasm.outputs.status || needs.wasm.result }}
+      NATIVE: ${{ (needs.native.outputs.status == 'PASS' && needs.native.result != 'success' && 'FAIL') || needs.native.outputs.status || needs.native.result }}
+      LICENSE: ${{ (needs.license.outputs.status == 'PASS' && needs.license.result != 'success' && 'FAIL') || needs.license.outputs.status || needs.license.result }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - id: t03
+        name: Assemble and validate the current T03 audit
+        env:
+          T03_NATIVE: ${{ needs.native.outputs.t03_native }}
+        run: bash tools/grind/run_ci.sh t03
+      - name: Require measured results for Foundation
+        if: always()
+        env:
+          T03: ${{ steps.t03.outputs.status || steps.t03.outcome }}
+        shell: bash
+        run: |
+          failed=0
+          for lane in HOST_CORE HOST_UPSTREAM PERFORMANCE WASM NATIVE LICENSE T03; do
+            case "${!lane}" in
+              PASS) status=PASS ;;
+              FAIL|failure) status=FAIL ;;
+              SKIPPED) status=SKIPPED ;;
+              *) status=BLOCKED ;;
+            esac
+            printf -- '- **%s** %s (%s)\n' "$status" "$lane" "${!lane}" | tee -a "$GITHUB_STEP_SUMMARY"
+            if [[ $status != PASS ]]; then failed=1; fi
+          done
+          exit "$failed"
+      - name: Upload T03 audit evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: grind-t03-evidence-attempt-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          path: |
+            build/grind-evidence/T03/audit.json
+            build/grind-evidence/T03/audit.log

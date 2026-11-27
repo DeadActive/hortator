@@ -13,10 +13,27 @@ PKG=build/felucca-UNTESTED.fwsc
 mkdir -p "$OUT"
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 fail=0
-UPSKIP=""
-run() { echo "== $1"; shift; "$@" || fail=1; }
+blocked=0
+run() {
+    label=$1
+    shift
+    echo "== $label"
+    if "$@"; then
+        echo "PASS: $label"
+    else
+        status=$?
+        if [ "$status" -eq 2 ]; then
+            echo "BLOCKED: $label"
+            blocked=1
+        else
+            echo "FAIL: $label"
+            fail=1
+        fi
+    fi
+}
 
-[ -f "$PKG" ] || { echo "run DRUM_PACKAGE=1 ./build.sh first"; exit 1; }
+[ -s "$PKG" ] || { echo "BLOCKED: missing $PKG (run DRUM_PACKAGE=1 ./build.sh first)"; exit 2; }
+export FELUCCA_TEST_PACKAGE="$PWD/$PKG"
 if grep -q "^ble_service:" build/felucca.dis 2>/dev/null; then
     echo "build/ holds a BLE build: H2 / H3, the budgets and the package tests are for the default build."
     echo "Run DRUM_PACKAGE=1 ./build.sh first."
@@ -34,9 +51,6 @@ $CC -DT_CDC=1 -DHALF_FRAMES=$HALF -o "$OUT/uac_test" tests/uac_test.c
 run "USB audio input: descriptors (with CDC), ring and packets" "$OUT/uac_test"
 $CC -DT_CDC=0 -DHALF_FRAMES=$HALF -o "$OUT/uac_test_nocdc" tests/uac_test.c
 run "USB audio input: descriptors (without CDC), ring and packets" "$OUT/uac_test_nocdc"
-cc -O2 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Wno-macro-redefined -Ibuild/gen -Ifirmware/src \
-    -o "$OUT/usb8_test" tests/usb8_test.c tests/usb8_ref.c -lm
-run "USB AUDIO 2 CH / 10 CH: descriptors, 2 CH = usb_app.c byte for byte, ring, mix, EP4 timing (usb_app8.c)" "$OUT/usb8_test"
 run "the app's USB driver = the frozen usb_app.c + USB8 blocks, insertions only" python3 tools/check_usb_fork.py
 run "fork check self-test (a changed, removed or added line is caught)" python3 tools/check_usb_fork.py --selftest
 $CC -o "$OUT/input_test" tests/input_test.c
@@ -55,17 +69,32 @@ run "update loader = the pinned one (tools/frozen_base.txt)" python3 tools/check
 run "loader pin self-test (a changed loader is caught)" python3 tools/check_loader.py --selftest build
 run "storage erase: IRQs off before the audio is silenced (st_save)" python3 tools/check_erase_order.py build/felucca.dis
 run "erase-order self-test (the old order is caught)" python3 tools/check_erase_order.py --selftest
-run "version: the app and the installer carry VERSION.txt (docs/VERSIONING.md)" python3 tools/version.py check build
+if [ "${DRUM_SITE:-1}" = "0" ]; then
+    run "version: the app carries VERSION.txt" python3 tools/version.py check-app build
+else
+    run "version: the app and the installer carry VERSION.txt (docs/VERSIONING.md)" python3 tools/version.py check build
+fi
 run "version tool self-test (bump, the build check)" python3 tools/version.py --selftest
 run "TRS MIDI input on in the built app (FELUCCA_UART, console lines)" python3 tools/check_trs.py build
 run "USB audio input on in the built app (FELUCCA_UAC, console lines)" python3 tools/check_uac.py build
-if [ -f build/upstream/build/felucca.dis ]; then
+frozen_tag=$(awk '$1 == "FROZEN_BASE" { print $2 }' tools/frozen_base.txt)
+frozen_pin=$(awk '$1 == "FROZEN_BASE" { print $3 }' tools/frozen_base.txt)
+tag_sha=$(git rev-parse -q --verify "refs/tags/$frozen_tag^{commit}" || true)
+upstream_sha=""
+if [ -e build/upstream/.git ]; then
+    upstream_sha=$(git -C build/upstream rev-parse -q --verify HEAD || true)
+fi
+if [ -z "$frozen_tag" ] || [ -z "$frozen_pin" ] || { [ -n "$tag_sha" ] && [ "$tag_sha" != "$frozen_pin" ]; }; then
+    echo "FAIL: H2/H3 frozen tag does not match tools/frozen_base.txt"
+    fail=1
+elif [ "$tag_sha" = "$frozen_pin" ] && [ "$upstream_sha" = "$frozen_pin" ] &&
+     [ -s build/upstream/build/felucca.dis ]; then
     run "frozen code in the binary = upstream's (H2)" python3 tools/compare_upstream.py build build/upstream/build
     run "H2 self-test (changed effects are caught)" python3 tools/compare_upstream.py --selftest build build/upstream/build
     run "worst-case stack (H3)" python3 tools/stack_depth.py build --compare build/upstream/build
 else
-    echo "== H2/H3 SKIPPED: no upstream build (sh tools/upstream_build.sh)"
-    UPSKIP=" (H2/H3 SKIPPED: no upstream build)"
+    echo "BLOCKED: H2/H3 need the pinned $frozen_tag checkout and build (sh tools/upstream_build.sh)"
+    blocked=1
 fi
 run "H3 self-test (an unknown stack form is caught)" python3 tools/stack_depth.py --selftest
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
@@ -89,8 +118,17 @@ if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
     run "web editor: Hortator editor protocol 1 (codec, mock device, files)" node web/editor/test_editor.mjs
 else
-    echo "== skip web tests (no node)"
+    echo "BLOCKED: web tests require Node.js"
+    blocked=1
 fi
 # last: it rebuilds build/ (the default build, the same bytes as the packaged one when it passes)
 run "gate 5: the default build byte-identical without the Bluetooth files" sh tools/check_default_build.sh
-[ $fail -eq 0 ] && echo "ALL HOST TESTS PASSED$UPSKIP" || { echo "HOST TESTS FAILED"; exit 1; }
+if [ "$fail" -ne 0 ]; then
+    echo "FAIL: native host suite"
+    exit 1
+fi
+if [ "$blocked" -ne 0 ]; then
+    echo "BLOCKED: native host suite has unrun required checks"
+    exit 2
+fi
+echo "PASS: native host suite"

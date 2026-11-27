@@ -394,7 +394,7 @@ static void test_efmn_noise(void)
     static const int16_t N0[8] = {0, 64, 0, 64, 0, 64, 64, 0}, N32[8] = {0, 64, 32, 64, 0, 64, 64, 0},
                          N64[8] = {0, 64, 64, 64, 0, 64, 64, 0}, F[8] = {0, 64, 0, 64, 64, 64, 64, 0},
                          DC[8] = {0, 64, 64, 64, 64, 64, 64, 0}, DR[8] = {0, 64, 64, 0, 64, 64, 64, 64};
-    static int32_t body[SECS(0.1)];
+    static int32_t body[HOST_FRAMES_MS(100)];
     static const uint32_t M[3] = {DM_SDEFM, DM_CPEFM, DM_RSEFM};
     double a, a0, b;
     uint32_t i, m, n = SECS(0.1), same = 1, differ = 0;

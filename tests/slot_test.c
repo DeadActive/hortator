@@ -291,7 +291,7 @@ static void t_slot_play(void)
         check("TUNE pitches a SLOT as it pitched a KEY (+5)", !memcmp(wa, wb, sizeof(int32_t) * SECS(0.5)));
     }
     {
-        static int32_t la[SECS(0.5)];
+        static int32_t la[HOST_FRAMES_MS(500)];
         host_init();
         old_set_model(&trk[0], DM_K909);
         trk[0].p[P_LLEVEL] = 100;
@@ -348,7 +348,7 @@ static void t_conv(void)
 /* a project from before SLOT (KEY notes, START / END 0): saved, loaded after a power cycle, converted, the same sound */
 static void t_project(void)
 {
-    static int32_t a[2][SECS(0.5)];
+    static int32_t a[2][HOST_FRAMES_MS(500)];
     static const int16_t K[2][8] = {{1, 127, 127, 0, 0, 50, 0, 0}, {23, 127, 127, 0, 0, 50, 0, 0}};
     uint32_t k;
     fresh();
@@ -403,7 +403,7 @@ static void t_project(void)
         loaded[0] = trk[0];
         loaded[1] = trk[1];
     for (k = 0; k < 2u; k++) {
-        static int32_t b[SECS(0.5)];
+        static int32_t b[HOST_FRAMES_MS(500)];
         track_t keep = loaded[k];
         uint32_t i;
         host_init();

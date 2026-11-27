@@ -473,13 +473,15 @@ static void test_cost(void)
     track_t *t = &trk[0];
     uint32_t i, ty, reps = 200;
     uint64_t c0, c;
+    if (!instr_available("SRR and INSERT cost"))
+        return;
     host_init();
     make_sig(3);
     t->p[P_SRR] = 40;
     c0 = instr_now();
     for (i = 0; i < reps; i++)
         track_srr(t, sig_a + (i % 64u) * CTL, CTL, 1);
-    c = instr_now() - c0;
+    c = instr_elapsed(c0);
     printf("     cost: SRR %.1f host instructions a sample\n", (double)c / (reps * CTL));
     for (ty = 1; ty < IT_N; ty++) {
         memset(ins, 0, sizeof ins);
@@ -490,7 +492,7 @@ static void test_cost(void)
         c0 = instr_now();
         for (i = 0; i < reps; i++)
             track_insert(t, sig_a + (8u + i % 64u) * CTL, CTL);
-        c = instr_now() - c0;
+        c = instr_elapsed(c0);
         printf("     cost: INSERT %-5s %.1f host instructions a sample\n", N_ITYPE[ty], (double)c / (reps * CTL));
     }
     check("cost measured (printed above)", 1);

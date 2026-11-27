@@ -1826,7 +1826,7 @@ static uint64_t blk_cost(void)
 {
     uint64_t a = instr_now();
     run_blk();
-    return instr_now() - a;
+    return instr_elapsed(a);
 }
 static uint64_t switch_cost(int slotcue, uint32_t target, uint64_t *norm, uint64_t *abs_)
 {
@@ -1858,6 +1858,8 @@ static void cue_switch_cost(void)
 {
     uint64_t nv, ns, xv, xs, xb, av, as, ab;
     uint32_t ok = 1;
+    if (!instr_available("cue switch cost"))
+        return;
     fresh();
     dense_slot(1, 100);
     dense_slot(0, 200);
@@ -1909,7 +1911,8 @@ static void save_overwrite_asks(void)
 static void cue_led_cost(void)
 {
     uint32_t ok = 1, n, k;
-    uint64_t a, c;
+    uint64_t a = 0, c;
+    int measure = instr_available("cue map LED cost");
     fresh();
     trk[0].p[P_LEVEL] = 10;
     project_save(0);
@@ -1925,17 +1928,20 @@ static void cue_led_cost(void)
         run_blk();
     cue_slot(1);
     ui.cue_map = 1;
-    a = instr_now();
+    if (measure)
+        a = instr_now();
     cue_map_refresh();
     for (n = 1; n <= 12u; n++)
         (void)cue_led(n);
-    c = instr_now() - a;
-    OK(c < 80000u && cue_led(6) == CM_ON && cue_led(2) == CM_BLINK);
-    printf("     cue map LEDs, a frame (B queued): %llu host instructions\n",
-           (unsigned long long)c);
+    if (measure) {
+        c = instr_elapsed(a);
+        printf("     cue map LEDs, a frame (B queued): %llu host instructions\n", (unsigned long long)c);
+        check("cue map cost: the 12 keys' states computed once a frame, under 80000 host instructions", c < 80000u);
+    }
+    OK(cue_led(6) == CM_ON && cue_led(2) == CM_BLINK);
     ui.cue_map = 0;
     stop();
-    check("cue map: the 12 keys' states computed once a frame, cheaply (was ~690k host instructions)", (int)ok);
+    check("cue map: the current variation lights and the queued slot blinks", (int)ok);
 }
 /* fix 4: a tempo-only edit is not dropped silently */
 static void load_global_edit_asks(void)

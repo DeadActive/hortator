@@ -39,7 +39,7 @@ static double measure(uint32_t c)                    /* host instructions per sa
     render_mix(0, 0, SECS(0.5));
     i0 = instr_now();
     render_mix(0, 0, SECS(2));
-    return i0 ? (double)(instr_now() - i0) / SECS(2) : 0;
+    return (double)instr_elapsed(i0) / SECS(2);
 }
 
 /* the audio ISR's side of the run (audio.c, checked by audio_isr_test): HOLD counts the halves held, LIVE times
@@ -114,6 +114,8 @@ int main(int argc, char **argv)
     uint32_t c, d, ok = 1;
     char a[32], b[32];
     if (argc > 1 && !strcmp(argv[1], "measure")) {
+        if (!instr_available("BENCH"))
+            return 2;
         for (c = 0; c < BENCH_N; c++) {
             double best = 1e18, x;
             int k;
