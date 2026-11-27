@@ -146,14 +146,16 @@ static void test_length_and_pauses(void)
         gm_config c = config(11, (gm_grid){3, 4, 16, 1});
         assert(gm_rules_build(&c, &masks) == GM_UNSUPPORTED);
         c.grid.bars = 2;
+        assert(gm_rules_build(&c, &masks) == GM_UNSUPPORTED);
+        c.grid.division = 32;
         assert(gm_rules_build(&c, &masks) == GM_OK);
-        assert(masks.length[GM_KICK] == 24);
-        assert(masks.anchors[GM_CRASH] == (BIT(0) | BIT(12)));
+        assert(masks.length[GM_KICK] == 48);
+        assert(masks.anchors[GM_CRASH] == (BIT(0) | BIT(24)));
 
-        c = config(12, (gm_grid){3, 4, 16, 1});
+        c = config(12, (gm_grid){3, 4, 32, 1});
         assert(gm_rules_build(&c, &masks) == GM_OK);
-        assert(masks.forbidden == (BIT(6) | BIT(7) | BIT(8)));
-        assert(masks.anchors[GM_CRASH] == (BIT(0) | BIT(9)));
+        assert(masks.forbidden == (UINT64_C(0x3f) << 12));
+        assert(masks.anchors[GM_CRASH] == (BIT(0) | BIT(18)));
 
         c = config(13, (gm_grid){3, 4, 16, 1});
         assert(gm_rules_build(&c, &masks) == GM_UNSUPPORTED);
@@ -174,6 +176,32 @@ static void test_length_and_pauses(void)
     }
 }
 
+static void test_segmented_alternation(void)
+{
+    gm_config c;
+    gm_rule_masks masks, untouched;
+    memset(&untouched, 0xa5, sizeof untouched);
+    for (uint8_t id = 11; id <= 12; ++id) {
+        assert(gm_factory_config(id, &c) == GM_OK);
+        c.grid.num = 3;
+        masks = untouched;
+        assert(gm_rules_build(&c, &masks) == GM_UNSUPPORTED);
+        assert(memcmp(&masks, &untouched, sizeof masks) == 0);
+        c.grid.num = 4; c.grid.division = 8;
+        assert(gm_rules_build(&c, &masks) == GM_UNSUPPORTED);
+        assert(memcmp(&masks, &untouched, sizeof masks) == 0);
+        c.grid.division = 16;
+        assert(gm_rules_build(&c, &masks) == GM_OK);
+        assert((masks.anchors[GM_KICK] & masks.anchors[GM_SNARE]) ==
+               (id == 12 ? BIT(12) : 0));
+        c.grid.num = 3; c.grid.division = 32;
+        assert(gm_rules_build(&c, &masks) == GM_OK);
+        assert((masks.anchors[GM_KICK] & masks.anchors[GM_SNARE]) ==
+               (id == 12 ? BIT(18) : 0));
+        if (id == 12) assert(masks.forbidden == (UINT64_C(0x3f) << 12));
+    }
+}
+
 static void test_invalid(void)
 {
     gm_rule_masks masks;
@@ -191,6 +219,7 @@ int main(void)
     test_division();
     test_musical_positions();
     test_length_and_pauses();
+    test_segmented_alternation();
     test_invalid();
     puts("rules: ok");
     return 0;

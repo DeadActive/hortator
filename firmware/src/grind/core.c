@@ -96,13 +96,15 @@ static gm_cell generated_cell(const gm_config *c, const gm_rule_masks *rules, gm
 
     unsigned required_accent = (rules->accents[track] & bit) != 0u;
     unsigned accent_step = c->algorithm == 18u ? 0u : step;
-    unsigned accent = chance(c, track, accent_step, GM_DOMAIN_ACCENT, c->aggression);
+    unsigned accent_score = gm_random(c, (uint8_t)track, (uint8_t)accent_step, GM_DOMAIN_ACCENT) % 100u;
+    /* Perturb the score, not the decision, so Aggression remains monotonic. */
+    if (optional && chance(c, track, step, GM_DOMAIN_CHAOS, c->chaos))
+        accent_score = 99u - accent_score;
+    if (optional && chance(c, track, step, GM_DOMAIN_ACCENT_HUMANIZE, c->humanize / 4u))
+        accent_score = 99u - accent_score;
+    unsigned accent = accent_score < c->aggression;
     if (c->algorithm == 4u && track == GM_SNARE && timing.division == 32u)
         accent = required_accent;
-    if (optional && chance(c, track, step, GM_DOMAIN_CHAOS, c->chaos))
-        accent ^= 1u;
-    if (optional && chance(c, track, step, GM_DOMAIN_ACCENT_HUMANIZE, c->humanize / 4u))
-        accent ^= 1u;
     unsigned rat = ((rules->rat1[track] & bit) != 0u) ||
                    ((rules->optional_rat1[track] & bit) &&
                     chance(c, track, step, GM_DOMAIN_DENSITY, c->density));

@@ -156,6 +156,9 @@ gm_result gm_rules_build(const gm_config *c, gm_rule_masks *out)
     uint8_t length;
     (void)gm_grid_length(c->grid, &length);
     const unsigned bar_steps = length / c->grid.bars;
+    /* These alternating figures need an injective mapping of reference positions. */
+    if ((c->algorithm == 11u || c->algorithm == 12u) && bar_steps < REFERENCE_STEPS)
+        return GM_UNSUPPORTED;
     const unsigned bar_ticks = c->grid.num * 4u * QUARTER_TICKS / c->grid.den;
     const unsigned unit = 4u * QUARTER_TICKS / c->grid.division;
     gm_rule_masks masks = {0};

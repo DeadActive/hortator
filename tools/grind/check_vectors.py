@@ -51,11 +51,13 @@ def pattern(row, seed):
                 data.extend(bytes(4))
                 continue
             accent_key = mix(base_key ^ (track << 8)) if style == 18 else key
-            accent = mix(accent_key ^ 3) % 100 < 75
+            score = mix(accent_key ^ 3) % 100
             if optional_hit:
-                accent ^= mix(key ^ 2) % 100 < 20
-                accent ^= mix(key ^ 5) % 100 < human // 4
-            accent = accent or (style == 4 and role == "snare")
+                if mix(key ^ 2) % 100 < 20:
+                    score = 99 - score
+                if mix(key ^ 5) % 100 < human // 4:
+                    score = 99 - score
+            accent = score < 75 or (style == 4 and role == "snare")
             twice = bool(rats & bit or (style == 5 and role == "kick" and step == 15
                                       and mix(key ^ 1) % 100 < 65))
             span = min(12, bpm // 25) * human // 100

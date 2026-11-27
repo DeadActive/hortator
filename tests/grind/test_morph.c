@@ -2,8 +2,40 @@
 #include "common.h"
 #include <string.h>
 
+static void test_aggression_monotonic(void)
+{
+    gm_config c;
+    gm_pattern prev, next;
+    const uint8_t variations[] = {0, 25, 100};
+    for (unsigned i = 0; i < sizeof variations; ++i)
+        for (unsigned j = 0; j < sizeof variations; ++j) {
+            assert(gm_factory_config(2, &c) == GM_OK);
+            c.seed = 42;
+            c.density = 100;
+            c.chaos = variations[i];
+            c.humanize = variations[j];
+            c.aggression = 0;
+            assert(gm_generate(&c, NULL, &prev) == GM_OK);
+            for (unsigned a = 1; a <= 100; ++a) {
+                c.aggression = (uint8_t)a;
+                assert(gm_generate(&c, NULL, &next) == GM_OK);
+                for (unsigned t = 0; t < GM_TRACKS; ++t)
+                    for (unsigned s = 0; s < GM_STEPS; ++s) {
+                        assert(!((prev.cell[t][s].flags ^ next.cell[t][s].flags) & GM_ON));
+                        assert(!(prev.cell[t][s].flags & GM_ACC) || (next.cell[t][s].flags & GM_ACC));
+                    }
+                prev = next;
+            }
+            for (unsigned s = 1; s < 16; s += 2) {
+                assert(next.cell[GM_KICK][s].flags & GM_ACC);
+                assert(next.cell[GM_SNARE][s].flags & GM_ACC);
+            }
+        }
+}
+
 int main(void)
 {
+    test_aggression_monotonic();
     gm_config c;
     gm_pattern base, before, previous, next;
     assert(gm_factory_config(1, &c) == GM_OK);

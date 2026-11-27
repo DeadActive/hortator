@@ -61,6 +61,7 @@ check() {
             ;;
         *) report FAIL "$name" ;;
     esac
+    return "$status"
 }
 
 # The upstream scripts sometimes exit 0 even when a required check did not run.
@@ -233,8 +234,8 @@ case $lane in
                 report FAIL 'prepare Grind WASM output'
             fi
         fi
-        check wasm-preview bash tools/build_sim.sh --preview
-        preview_status=$result
+        preview_status=0
+        check wasm-preview bash tools/build_sim.sh --preview || preview_status=$?
         suite web-regression wasm node web/test_web.mjs
         check web-editor node web/editor/test_editor.mjs
         browser=${GRIND_CHROMIUM:-$(command -v google-chrome || command -v chromium || true)}

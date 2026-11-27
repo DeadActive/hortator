@@ -19,6 +19,7 @@ class WasmRunnerTests(unittest.TestCase):
             shutil.copyfile(ROOT / 'tests/run_grind_tests.sh', root / 'tests/run_grind_tests.sh')
             (root / 'tests/grind/golden/rng-v1.txt').write_text('fixture\n', encoding='utf-8')
             (root / 'tests/grind/golden/patterns-v1.bin').write_bytes(b'fixture')
+            (root / 'tests/grind/golden/styles-v1.csv').write_text('fixture\n', encoding='utf-8')
             (root / 'tools/grind/rng_reference.py').write_text('print("fixture")\n', encoding='utf-8')
             (root / 'tools/grind/check_vectors.py').write_text('pass\n', encoding='utf-8')
             compiler = root / 'bin/emcc'
@@ -49,6 +50,9 @@ class WasmRunnerTests(unittest.TestCase):
 
     def test_pattern_fixture(self):
         self.run_fixture('golden', 'patterns-v1.bin')
+
+    def test_style_fixture(self):
+        self.run_fixture('rules', 'styles-v1.csv')
 
 
 if __name__ == '__main__':

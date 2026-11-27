@@ -15,9 +15,37 @@ STAMP="$UP/build/.grind-frozen-artifacts"
 fingerprint() {
     "$PY" -c 'from hashlib import sha256
 from pathlib import Path
+import os
+import platform
+import subprocess
 import sys
 
 print(sys.argv[1])
+# Hash the installed tools and their resources, independent of extraction path.
+root = Path(os.environ.get("JIELI_TOOLCHAIN") or Path.home() / ".jieli/toolchain")
+for tool in ("pi32v2/bin/clang", "pi32v2/bin/ld", "common/bin/objdump"):
+    if not (root / tool).is_file():
+        raise SystemExit(f"missing historical build tool: {tool}")
+digest = sha256()
+for directory in ("pi32v2", "common"):
+    for path in sorted((root / directory).rglob("*")):
+        if path.is_file():
+            digest.update(path.relative_to(root).as_posix().encode() + b"\0")
+            file_hash = sha256()
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    file_hash.update(chunk)
+            digest.update(file_hash.digest())
+print("toolchain", digest.hexdigest())
+native = platform.system() == "Linux" and platform.machine() in ("x86_64", "AMD64")
+if os.environ.get("JIELI_DOCKER", "0" if native else "1") == "1":
+    image = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
+    identity = subprocess.check_output(["docker", "image", "inspect", "--format", "{{.Id}}", image], text=True).strip()
+    if not identity:
+        raise SystemExit("historical build Docker image identity unavailable")
+    print("docker", identity)
+else:
+    print("native", platform.system(), platform.machine())
 for name in sys.argv[3:]:
     path = Path(sys.argv[2]) / name
     if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:

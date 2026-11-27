@@ -21,6 +21,7 @@ run_test() {
     if [ "$WASM" = 1 ]; then
         case "$suite" in
             rng) set -- "$@" --embed-file tests/grind/golden/rng-v1.txt@/tests/grind/golden/rng-v1.txt ;;
+            rules) set -- "$@" --embed-file tests/grind/golden/styles-v1.csv@/tests/grind/golden/styles-v1.csv ;;
             golden) set -- "$@" --embed-file tests/grind/golden/patterns-v1.bin@/tests/grind/golden/patterns-v1.bin ;;
         esac
         $CC $CFLAGS -sEXIT_RUNTIME=1 -sSTACK_SIZE=256KB -I"$CORE" "tests/grind/test_$suite.c" "$@" -o "$OUT/test_$suite.js"
