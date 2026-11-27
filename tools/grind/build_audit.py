@@ -9,7 +9,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 
-from audit import BUDGETS, CALLSITE_AREAS, PIN, require
+from audit import BUDGETS, CALLSITE_AREAS, PIN, nonempty, require
 from native_inputs import sha256
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -99,12 +99,16 @@ def assemble():
         review = json.loads(REVIEW.read_text(encoding='utf-8'))
         reviewed_tree = review['firmware_tree']
         points = review['integration_points']
+        review_unknowns = review['unknowns']
         require(isinstance(points, list) and all(isinstance(point, dict) for point in points),
                 'reviewed integration_points must be a list of objects')
+        require(isinstance(review_unknowns, list) and all(nonempty(item) for item in review_unknowns),
+                'call-site review unknowns must be a list of nonempty strings')
         if reviewed_tree == tree:
             tracked = set(git('ls-tree', '-r', '--name-only', 'HEAD', '--', 'firmware').splitlines())
             require(all(isinstance(point.get('path'), str) and point['path'] in tracked for point in points),
                     'call-site review must reference tracked firmware paths')
+            unknowns.extend(review_unknowns)
     if reviewed_tree != tree or {p.get('area') for p in points} != set(CALLSITE_AREAS):
         unknowns.append('Complete reviewed call-site coverage for this firmware tree is missing')
 

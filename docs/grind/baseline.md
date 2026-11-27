@@ -48,7 +48,7 @@ The native lane verifies the archive and SDK before running the toolchain. It bu
 
 The Foundation gate assembles `build/grind-evidence/T03/audit.json` from the current run's native layout probe, resource report and host/WASM results. It validates the record with `python3 tools/grind/audit.py --complete build/grind-evidence/T03/audit.json`. The native probe compiles the firmware translation unit with the app's flags and verifies the measured project record size against the linked ELF. CI retains allowlisted text logs, hashes and JSON reports even when a check is blocked.
 
-Complete call-site evidence belongs in `docs/grind/callsite-audit.json`. Record the reviewed `firmware_tree` from `git rev-parse HEAD:firmware` and the `integration_points` with their `area`, `path`, `symbol`, `owner` and exact `callers`. The validator's `CALLSITE_AREAS` lists the required coverage. A changed firmware tree requires a new review. The preliminary integration map tracks the remaining work.
+The [call-site evidence](callsite-audit.json) records the reviewed `firmware_tree`, integration points and remaining `unknowns`. The validator's `CALLSITE_AREAS` lists the required coverage. A changed firmware tree requires a new review. Open adapter or persistence questions remain part of the T03 evidence and keep the gate blocked.
 
 ## Native Linux measurements
 
@@ -67,6 +67,6 @@ The loader digest matches the upstream pin `cc98eed224299fa42ca22a546073e0f8b98d
 
 ## Open Foundation gates
 
-- **Frozen reference:** `frozen-base-11` must resolve to `33ef0f3f2e2461d9092fb2394896aa48352f2294`. Neither the Fork nor Hortator advertises the tag. The Fork rejects fetching the commit by SHA, and the upstream API reports it unavailable. The frozen source guard and H2/H3 comparisons require the exact object and tag.
+- **Frozen reference:** `frozen-base-11` must resolve to `33ef0f3f2e2461d9092fb2394896aa48352f2294`. The upstream change describes it as a local tag. The public refs and checked local Git objects lack the exact commit. The frozen source guard and H2/H3 require a clone or bundle that contains the original object and tag. [Upstream pin change](https://github.com/DeadActive/hortator/commit/efe311f3f5ab011c335249b0dd8ae487de67d78f)
 - **Licensing:** The [manifest](../../assets/grind/manifest.json) identifies the rights-reserved panel and generated drum sounds and records SDK evidence. Final firmware and simulator license evidence stays blocked pending clearance or replacement. The downloaded compiler archive contains usage instructions and no identified standalone license notice.
 - **Hardware and integration:** Verify stack high-water and audio timing on the FM-1, confirm the board and recovery path, and finish the integration call-site review before freezing adapter interfaces or enabling native persistence. The optional exact-stock recovery fixture needs M-VAVE's V15 package. The current vendor download is V16.

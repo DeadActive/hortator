@@ -1,6 +1,6 @@
-# Native integration map (preliminary source audit)
+# Native integration map
 
-All references use the approved pin `44c9ad4aa57bebf63f412bd552e57143c30b4065` in https://github.com/DeadActive/hortator. These are observed source anchors from selected file reads, not an exhaustive call graph. Full `git grep` inventory and compiled checks are pending.
+All references use the approved pin `44c9ad4aa57bebf63f412bd552e57143c30b4065` in https://github.com/DeadActive/hortator. The [call-site inventory](callsite-audit.json) records source anchors and execution contexts for the pinned firmware tree. It includes native scheduler, cue, recording, panel edits, MIDI, editor, storage and boot entry points.
 
 | Path | Observed symbols / context | Proposed responsibility and constraints |
 |---|---|---|
@@ -14,7 +14,20 @@ All references use the approved pin `44c9ad4aa57bebf63f412bd552e57143c30b4065` i
 | `firmware/src/storage.c` | `st_save`, `st_load`, `st_current`, `st_crc32` | A/B commit protocol. Reuse and test; never add unsupported flash address. |
 | `tests/drum_host.h`, `tests/sim_core.c` | host textual includes, `host_irq_hook`, `sim_frame`, `sim_render` | Reuse real firmware paths for parity and concurrency tests. |
 
-Remaining inventory: precise callers/IRQ boundaries, native division/condition IDs, all write paths (MIDI, editor restore, copy/paste, project, variations, recording, presets), native staging buffers, model/preset IDs, boot paths, linker and HAL constraints. Verify using T03 grep commands. Proposed adapter contracts are not frozen. No source changes made.
+The native pattern limits are eight tracks and 64 steps. LEN accepts 1–64. The stored division IDs for straight eighth, sixteenth and thirty-second notes are 1, 2 and 3. Swing is 0–100. Conditions 0–20 encode probability, 21 is one-shot, 22–56 encode A/B, and 57–58 are FILL and !FILL. Micro timing uses −50 to +50 percent of a step. Early hits consult `seq_cut_ahead` before the next boundary. These values describe the pinned source ABI. [Parameter table](https://github.com/DeadActive/hortator/blob/44c9ad4aa57bebf63f412bd552e57143c30b4065/firmware/src/params.c)
+
+The adapter proof concerns buffer ownership. A queued cue owns `st_buf` until its incoming state is swapped and the outgoing state is filed. The pinned host fixture accepts a new cue after the ISR swap and before main-loop file-out, then loses an edited outgoing step. A second probe commits two different lock-bank copies while interrupting both saves before the project record commit. The original project can find its linked bank after the first interruption and loses the link after the second. A/B commit is per object, so linked-record recovery needs its own fault-injection cases.
+
+Reproduce both findings in the host fixture:
+
+```bash
+python3 tools/build.py --gen-only
+cc -O1 -Wall -Wno-unused-function -Wno-int-to-pointer-cast -Ibuild/gen -Ifirmware/src -Itests \
+  tests/grind/t03_host_probe.c -o build/t03-host-probe -lm
+build/t03-host-probe
+```
+
+The pinned source returns exit 1 with `outgoing step preserved=0` and `old linked lock bank status=-1`. The T03 evidence keeps both items open until the relevant invariants pass.
 
 ## P04 staging and RAM budget
 
