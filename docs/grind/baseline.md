@@ -12,7 +12,7 @@ The Linux x86-64 baseline produced a native test package and static resource mea
 
 ## Reproduce Foundation checks
 
-The Foundation gate requires passing Host Core, Host Upstream, WASM and web, and native jobs. Available historical comparisons are checked in the applicable jobs. Without the pinned object those comparisons report `SKIPPED`. Host instruction counts depend on a supported counter. An unavailable counter skips those measurements and a failed measurement still fails the gate. Source asset and T03 checks report their results for follow-up. An applicable functional regression or missing required evidence still fails the gate.
+The Foundation gate requires passing Host Core, Host Upstream, WASM and web, and native jobs. Available historical comparisons are checked in the applicable jobs. Without the pinned object those comparisons report `SKIPPED`. The independent performance job skips unavailable counters and fails on observed regressions. Source asset and T03 checks report their results for follow-up. An applicable functional regression or missing required evidence still fails the gate.
 
 The CI license job checks versioned source assets. Distribution requires clearance or replacement of the affected assets and corresponding source and notices. Use `python3 tools/grind/check_assets.py --manifest /path/to/release-assets.json --sdk-root /path/to/ac79-sdk` to verify a detached release inventory against the candidate package and simulator outputs. Record output digests after the build so the simulator source archive does not contain its own digest.
 

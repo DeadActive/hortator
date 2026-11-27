@@ -209,16 +209,14 @@ jobs:
   foundation-gate:
     name: Foundation gate
     if: always()
-    needs: [host-core, host-upstream, performance, wasm, native, license]
+    needs: [host-core, host-upstream, wasm, native]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       HOST_CORE: ${{ (needs.host-core.outputs.status == 'PASS' && needs.host-core.result != 'success' && 'FAIL') || needs.host-core.outputs.status || needs.host-core.result }}
       HOST_UPSTREAM: ${{ (needs.host-upstream.outputs.status == 'PASS' && needs.host-upstream.result != 'success' && 'FAIL') || needs.host-upstream.outputs.status || needs.host-upstream.result }}
-      PERFORMANCE: ${{ needs.performance.outputs.status || needs.performance.result }}
       WASM: ${{ (needs.wasm.outputs.status == 'PASS' && needs.wasm.result != 'success' && 'FAIL') || needs.wasm.outputs.status || needs.wasm.result }}
       NATIVE: ${{ (needs.native.outputs.status == 'PASS' && needs.native.result != 'success' && 'FAIL') || needs.native.outputs.status || needs.native.result }}
-      LICENSE: ${{ (needs.license.outputs.status == 'PASS' && needs.license.result != 'success' && 'FAIL') || needs.license.outputs.status || needs.license.result }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -236,7 +234,7 @@ jobs:
         shell: bash
         run: |
           failed=0
-          for lane in HOST_CORE HOST_UPSTREAM PERFORMANCE WASM NATIVE LICENSE T03; do
+          for lane in HOST_CORE HOST_UPSTREAM WASM NATIVE T03; do
             case "${!lane}" in
               PASS) status=PASS ;;
               FAIL|failure) status=FAIL ;;
@@ -244,14 +242,7 @@ jobs:
               *) status=BLOCKED ;;
             esac
             printf -- '- **%s** %s (%s)\n' "$status" "$lane" "${!lane}" | tee -a "$GITHUB_STEP_SUMMARY"
-            case "$lane" in
-              HOST_CORE|HOST_UPSTREAM|WASM|NATIVE)
-                if [[ $status != PASS ]]; then failed=1; fi
-                ;;
-              PERFORMANCE)
-                if [[ $PERFORMANCE == FAIL ]]; then failed=1; fi
-                ;;
-            esac
+            if [[ $lane != T03 && $status != PASS ]]; then failed=1; fi
           done
           exit "$failed"
       - name: Upload T03 audit evidence
