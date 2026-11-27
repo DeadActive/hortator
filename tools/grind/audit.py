@@ -44,6 +44,7 @@ def validate(a):
                     f'{budget}{suffix}: invalid or unmeasured')
         if used is not None and limit is not None:
             require(used <= limit, f'{budget}_used exceeds {budget}_limit')
+            require(used * 10 <= limit * 9, f'{budget}_used leaves less than 10% reserve')
     points = a['integration_points']
     require(isinstance(points, list) and bool(points), 'integration_points: empty or invalid')
     for p in points:

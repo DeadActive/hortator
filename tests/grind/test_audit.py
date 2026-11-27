@@ -73,6 +73,18 @@ class AuditTests(unittest.TestCase):
         a = fixture(); a['wasm_build'] = 'fail'
         self.assertEqual(self.run_record(a).returncode, 2)
 
+    def test_ram_and_flash_require_ten_percent_reserve(self):
+        for budget in ('ram_app', 'flash_app'):
+            for used, expected_exit in ((90, 0), (91, 1), (100, 1)):
+                with self.subTest(budget=budget, used=used):
+                    a = fixture()
+                    a[f'{budget}_used'] = used
+                    result = self.run_record(a)
+                    self.assertEqual(result.returncode, expected_exit, result)
+                    if expected_exit:
+                        self.assertIn(f'{budget}_used', result.stderr)
+                        self.assertIn('10% reserve', result.stderr)
+
     def test_integration_point_needs_callers(self):
         a = fixture(); a['integration_points'][0]['callers'] = []
         result = self.run_record(a)
