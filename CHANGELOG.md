@@ -5,6 +5,13 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **HARDWARE CALIBRATION can be left, and the menu can reset to the defaults**: while a key is asked for, tap it to
+  teach it, or hold it for 1.5 s to cancel; while a knob is asked for, any key cancels (the 30 s without input still
+  gives up). A cancelled calibration keeps the old table (`SETUP CANCELLED`). The new menu row RESET TO DEFAULT
+  (OCT+ asks, OCT+ again within about 1.5 s acts) puts COLOR, SPEAKER EQ, USB LEVEL, USB AUDIO, PERFORM, ZOOM, ACCEL,
+  BACKLIGHT, the mute timing, MIDI THRU, SOLO, QUANT, the GRIND style and WHEN and the panel table back to what a
+  first start has. Projects, presets, samples and the Bluetooth device and mode are not touched. The menu has twelve
+  rows now (a 13 px pitch).
 - **GRIND pages (builds with GRIND_NATIVE=1 only; not in the default image)**: press ARP again after GRIDS for two
   pages, STYLE AGGR DENS CHAOS and HUMAN MUT WHEN. STYLE picks one of 22 rhythm styles and brings its factory
   controls; the other knobs re-generate the pattern of all eight tracks from them, MUT rolls a new variation. While

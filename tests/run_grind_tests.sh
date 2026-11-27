@@ -63,6 +63,7 @@ case "${1:-all}" in
     cue) run_native cue ;;
     ui) run_native ui ;;
     persist) run_native persist ;;
+    menu) run_native menu ;;
     controller) run_test controller "$CORE/controller.c" "$CORE/grid.c" "$CORE/rules.c" "$CORE/core.c" "$CORE/locks.c" \
         "$CORE/rng.c" "$CORE/serialize.c" ;;
     grid) run_test grid "$CORE/grid.c" ;;
@@ -87,6 +88,7 @@ case "${1:-all}" in
         run_native cue
         run_native ui
         run_native persist
+        run_native menu
         ;;
     *) echo "unknown suite: $1" >&2; exit 2 ;;
 esac

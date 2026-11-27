@@ -4,10 +4,10 @@
 /* ------------------------------------------------------------ menu --- */
 #if FELUCCA_BLE                                     /* the Bluetooth page's row (bt_page.c) before ABOUT */
 /* (no USB AUDIO row: 10 CH is the standard build's only, fx.c USB10_BUILD) */
-enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_DEFAULTS, MI_BT, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "PERFORM", "ZOOM", "ACCEL",
-                                              "BACKLIGHT", "HARDWARE CALIBRATION", "BLUETOOTH", "ABOUT", "BACK"};
-#define MENU_DY 14u                                 /* eleven rows above the hints (screen y) */
+                                              "BACKLIGHT", "HARDWARE CALIBRATION", "RESET TO DEFAULT", "BLUETOOTH", "ABOUT", "BACK"};
+#define MENU_DY 13u                                 /* twelve rows above the hints (screen y) */
 #define MENU_HY 196u
 static void bt_page_open(void);                     /* bt_page.c (after ble/ble_core.h): ui.menu 3 */
 static void bt_page_close(void);
@@ -15,13 +15,14 @@ static void bt_page_draw(void);
 static void bt_page_input(uint32_t pressed);
 static void bt_autostart(void);                     /* AUTOSTART: once, 5 s after power-on (ui_input only, gate 3) */
 #else
-enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_USBAUD, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_ABOUT, MI_BACK,
-       MI_COUNT };
+enum { MI_COLOR, MI_SPKEQ, MI_USB, MI_USBAUD, MI_PERF, MI_ZOOM, MI_ACCEL, MI_BACKLIGHT, MI_PANEL, MI_DEFAULTS, MI_ABOUT,
+       MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "SPEAKER EQ", "USB LEVEL", "USB AUDIO", "PERFORM", "ZOOM",
-                                              "ACCEL", "BACKLIGHT", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
-#define MENU_DY 14u                                 /* eleven rows above the hints (screen y) */
+                                              "ACCEL", "BACKLIGHT", "HARDWARE CALIBRATION", "RESET TO DEFAULT", "ABOUT", "BACK"};
+#define MENU_DY 13u                                 /* twelve rows above the hints (screen y) */
 #define MENU_HY 196u
 #endif
+static uint8_t menu_def_t;                             /* RESET TO DEFAULT: frames left to confirm */
 #define MENU_Y0 40u                                 /* the first row (screen y), inside the MENU window */
 static const char *const SPK_EQ[3] = {"FLAT", "LOWCUT", "BASS+"};   /* settings.lowcut (fx_lowcut) */
 static uint32_t *menu_onoff(uint32_t i)            /* an ON / OFF row's setting, 0 if none */
@@ -248,6 +249,8 @@ static void draw_menu(void)
                     v = BL_NAME[backlight % BL_COUNT];
                 if (i == MI_COLOR)                  /* the theme's name (owner 2026-10-23) */
                     v = THEMES[theme_index(settings.palette)].name;
+                if (i == MI_DEFAULTS && menu_def_t)
+                    v = "SURE?";                    /* OCT+ again within ~1.5 s */
                 list_row(10, 225, y, MI_NAME[i], v, sel);
             }
             i = (uint32_t)cv_keycap(12, (int32_t)MENU_HY, "OCT+", "OK", C_INK);
@@ -267,8 +270,40 @@ static void enc_drop(void)                             /* knob turns nobody take
         panel_enc(k);
 }
 
+/* RESET TO DEFAULT: the device settings back to what a first start has (COLOR, SPEAKER EQ, USB LEVEL, USB AUDIO,
+ * PERFORM, ZOOM, ACCEL, BACKLIGHT, the mutes, MIDI THRU, SOLO, QUANT), the GRIND style and WHEN, and the panel table
+ * (HARDWARE CALIBRATION). Not touched: projects, presets, samples, the Bluetooth device and mode. Asks twice. */
+static void mute_bar_set(uint32_t on);                 /* ui_input.c */
+static void menu_defaults(void)
+{
+    settings.palette = THEME_TAG | 0u;
+    settings.lowcut = 0;
+    settings.zoom = 0;
+    settings.accel = 1;
+    settings.usbfix = 0;
+    settings.perfpage = 0;
+    mute_bar_set(0);
+    backlight = BL_OFF;
+#if USB10_BUILD
+    usbaud = UA_2CH;
+#endif
+    midi_thru = 0;
+    solo_mom = 0;
+    rec_quant = 0;
+#if GRIND_NATIVE
+    gm_settings_unpack(0);                             /* STYLE 1, WHEN END, the style's factory controls */
+#endif
+    panel = PANEL_DEFAULT;
+    theme_set(settings.palette);
+    fx_lowcut = 0;
+    fx_usb_fixed = 0;
+    ui.force = 1;
+    settings_save();
+}
+
 static void menu_close(void)
 {
+    menu_def_t = 0;
 #if FELUCCA_BLE
     if (ui.menu == 3u)                                 /* HOME held on the Bluetooth page: it closes too */
         bt_page_close();
@@ -300,6 +335,8 @@ static void menu_input(uint32_t pressed)
 {
     int32_t s;
     uint32_t ok = (pressed >> panel.btn[B_OCTUP]) & 1u, back = (pressed >> panel.btn[B_OCTDN]) & 1u;
+    if (menu_def_t && !--menu_def_t)
+        ui.force = 1;                                  /* (the row says SURE? no more) */
 #if FELUCCA_BLE
     if (ui.menu == 3u) {                               /* the Bluetooth page (OCT-: back to the list) */
         bt_page_input(pressed);
@@ -314,8 +351,13 @@ static void menu_input(uint32_t pressed)
             menu_close();
         return;
     }
-    if ((s = panel_enc(EN_SELECT)) != 0 && ui.menu == 1)
+    if ((s = panel_enc(EN_SELECT)) != 0 && ui.menu == 1) {
         ui.menu_sel = (uint8_t)((ui.menu_sel + (s > 0 ? 1u : MI_COUNT - 1u)) % MI_COUNT);
+        if (menu_def_t) {
+            menu_def_t = 0;
+            ui.force = 1;
+        }
+    }
     else if (s != 0 && ui.menu == 2) {                 /* ABOUT: the credits a row a detent, clamped */
         int32_t t = (int32_t)ui.about_top + s, mx = (int32_t)about_max();
         ui.about_top = (uint8_t)(t < 0 ? 0 : t > mx ? mx : t);
@@ -369,6 +411,16 @@ static void menu_input(uint32_t pressed)
         case MI_PANEL:
             panel_setup();
             ui.force = 1;
+            break;
+        case MI_DEFAULTS:
+            if (!menu_def_t) {
+                menu_def_t = 90;                       /* asks first: the row says SURE? */
+                ui.force = 1;
+            } else {
+                menu_def_t = 0;
+                menu_defaults();
+                ui_message("DEFAULTS SET");
+            }
             break;
 #if FELUCCA_BLE
         case MI_BT:

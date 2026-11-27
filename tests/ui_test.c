@@ -3437,7 +3437,7 @@ static void test_backlight_beats_everywhere(void)
 }
 
 /* MENU > BACKLIGHT (fixes 2026-10-21 item 9: upstream Felucca's LEDS levels): KNOB 1 steps OFF DIM LO DIM HI INV INV LO
- * INV HI, stopping at the ends; OCT+ steps and wraps; the keys follow at once; the row drawn (default build: ten rows) */
+ * INV HI, stopping at the ends; OCT+ steps and wraps; the keys follow at once; the row drawn (default build: twelve rows) */
 static void test_backlight_menu(void)
 {
     uint32_t ok = 1, i;
@@ -3477,7 +3477,7 @@ static void test_backlight_menu(void)
     ui.force = 1;
     ui_frame();
     snap_page("fixes/menu_backlight");
-    check("menu: ten rows, BACK's drawn above the hints",
+    check("menu: twelve rows, BACK's drawn above the hints",
           fb_count(12, MENU_Y0 + (MI_COUNT - 1u) * MENU_DY, 214, 10, C_INK) > 50u &&
           fb_count(12, MENU_Y0 + (MI_COUNT - 1u) * MENU_DY + 12u, 214, MENU_HY - (MENU_Y0 + (MI_COUNT - 1u) * MENU_DY + 12u),
                    C_INK) == 0u && fb_count(12, MENU_HY, 214, 14, C_INK) > 50u);
@@ -3643,7 +3643,8 @@ static void test_theme_menu(void)
 /* the menu row's value: s in F3 at 2x right-aligned at the row's end (list_row 10..225), the row's pen, 2 px clear */
 static int menu_value_is(uint32_t row, const char *s, int sel)
 {
-    uint32_t w = (uint32_t)md_text_w(&MD_F3, 2, s) + 4u, h = 14u, x0 = 225u - 4u - (w - 4u) - 2u,
+    uint32_t w = (uint32_t)md_text_w(&MD_F3, 2, s) + 4u, h = 13u, x0 = 225u - 4u - (w - 4u) - 2u,   /* (13: the next row's
+                                                       * cursor bar, 14 high at a 13 pitch, covers the 14th line) */
              y0 = MENU_Y0 + row * MENU_DY - 2u, x, y;
     uint16_t pen = sel ? C_BG : C_INK, gr = sel ? C_INK : C_BG;
     cv_begin(w, h, gr);

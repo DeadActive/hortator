@@ -440,6 +440,39 @@ static void undo_keeps_timing(void)
     check("ui: UNDO restores the lengths too", ok);
 }
 
+static void knobs_stop_at_the_ends(void)
+{
+    static const struct { uint32_t page, enc, id; int16_t max; } K[] = {
+        {0, EN_K2, GU_AGGR, 100}, {0, EN_K3, GU_DENS, 100}, {0, EN_K4, GU_CHAOS, 100},
+        {1, EN_K1, GU_HUMAN, 100}, {1, EN_K2, GU_MUT, 99}};
+    uint32_t ok = 1, i, j, a;
+    for (a = 0; a < 2u; a++) {                       /* knob acceleration on and off */
+        fresh();
+        settings.accel = a;
+        for (i = 0; i < sizeof K / sizeof K[0]; i++) {
+            open_grind(K[i].page);
+            for (j = 0; j < 12u; j++) {              /* turned on far past the top, in clicks of every size */
+                turn(K[i].enc, 1 + (int32_t)j * 3);
+                frames(1);
+            }
+            ok &= gm_v[K[i].id] == K[i].max;         /* stopped at the top: no wrap to 0 */
+            turn(K[i].enc, 1);
+            frames(1);
+            ok &= gm_v[K[i].id] == K[i].max;
+            for (j = 0; j < 12u; j++) {              /* and off the bottom */
+                turn(K[i].enc, -(1 + (int32_t)j * 3));
+                frames(1);
+            }
+            ok &= gm_v[K[i].id] == 0;                /* stopped at 0: no wrap to the top */
+            turn(K[i].enc, -1);
+            frames(1);
+            ok &= gm_v[K[i].id] == 0;
+        }
+    }
+    settings.accel = 1;
+    check("ui: AGGR DENS CHAOS HUMAN MUT stop at 100 (99) and at 0, however far and fast they are turned", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -474,6 +507,7 @@ int main(void)
     keep_goes_with_the_pattern();
     undo_redo();
     undo_keeps_timing();
+    knobs_stop_at_the_ends();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

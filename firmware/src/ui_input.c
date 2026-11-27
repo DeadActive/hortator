@@ -1606,8 +1606,11 @@ static void ui_input(void)
 }
 
 /* ---------------------------------------------------- panel setup --- */
-/* 30 s without input: give up and keep the old table (a stuck key cannot hang the boot) */
+/* 30 s without input: give up and keep the old table (a stuck key cannot hang the boot). To leave sooner: while a key is
+ * being taught, HOLD it SETUP_CANCEL_MS instead of tapping it; while a knob is being taught, press any key. Both keep
+ * the old table, as the 30 s do. */
 #define SETUP_IDLE_MS 30000u
+#define SETUP_CANCEL_MS 1500u
 static void panel_setup(void)
 {
     uint32_t i, used = 0, t0 = fm1_ms;
@@ -1615,10 +1618,11 @@ static void panel_setup(void)
     lcd_fill(0, 0, 240, 240, C_BG);
     draw_text_box(0, 10, 240, &FONT_S, "HARDWARE CALIBRATION", C_INK, 1);
     draw_text_box(0, 30, 240, &FONT_S, "TEACH EACH BUTTON AND KNOB", C_INK, 1);
+    draw_text_box(0, 200, 240, &FONT_S, "HOLD A KEY: CANCEL", C_INK, 1);
     while (fm1_in.buttons) {                             /* wait for OCT-/OCT+ release */
         fm1_wdt_feed();
         if (fm1_ms - t0 > SETUP_IDLE_MS)
-            goto timeout;
+            goto cancelled;
     }
     fm1_input_edges(0);
     for (i = 0; i < NB; i++) {
@@ -1630,15 +1634,24 @@ static void panel_setup(void)
             fm1_wdt_feed();
             p |= fm1_input_edges(0);
             if (fm1_ms - t0 > SETUP_IDLE_MS)
-                goto timeout;
+                goto cancelled;
         }
         for (id = 0; id < 14u; id++)
             if (((p & ~used) >> id) & 1u)
                 break;
+        t0 = fm1_ms;
+        while ((fm1_in.buttons >> id) & 1u) {            /* a tap teaches the key; holding it cancels */
+            fm1_wdt_feed();
+            if (fm1_ms - t0 >= SETUP_CANCEL_MS)
+                goto cancelled;
+        }
         panel.btn[i] = (uint8_t)id;
         used |= 1u << id;
     }
     used = 0;
+    lcd_fill(0, 200, 240, 16, C_BG);
+    draw_text_box(0, 200, 240, &FONT_S, "ANY KEY: CANCEL", C_INK, 1);
+    fm1_input_edges(0);                                  /* (the last key's own edges are not a cancel) */
     for (i = 0; i < NE; i++) {
         uint32_t e;
         int32_t st = 0;
@@ -1649,8 +1662,8 @@ static void panel_setup(void)
         t0 = fm1_ms;
         for (;;) {
             fm1_wdt_feed();
-            if (fm1_ms - t0 > SETUP_IDLE_MS)
-                goto timeout;
+            if (fm1_ms - t0 > SETUP_IDLE_MS || fm1_input_edges(0))
+                goto cancelled;                          /* (30 s without input, or a key pressed) */
             for (e = 0; e < 7u; e++)
                 if (!((used >> e) & 1u) && (st = enc_take(e)) != 0)
                     break;
@@ -1667,7 +1680,7 @@ static void panel_setup(void)
     lcd_fill(0, 0, 240, 240, C_BG);
     ui.force = 1;
     return;
-timeout:
+cancelled:
     panel = old;
     lcd_fill(0, 0, 240, 240, C_BG);
     ui.force = 1;
