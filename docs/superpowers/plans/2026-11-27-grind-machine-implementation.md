@@ -692,3 +692,7 @@ Every PR body: goal, spec FR/AT IDs, base/pinned SHA and current head, files tou
 ## 17. Selected community-inspired extensions (2026-11-27)
 
 The user selected nine optional extensions from CoralFlower and FRASIL. See [GRIND MACHINE Community Feature Expansion](2026-11-27-grind-community-feature-expansion.md) for the exact scope, dependencies, implementation/test tasks, license and resource decisions. These follow or extend the relevant P05–P09 work without delaying the existing hardware alpha. T01–T24 and the user-approved community quality policy remain unchanged. Unselected features are excluded; no new global gates or resource thresholds.
+
+## 18. GRIND DNA ENGINE (approved hybrid extension, 2026-11-27)
+
+The approved combination of RIFF INTELLIGENCE, DRUMMER BRAIN, GROOVE DNA and GENETIC BREEDING is specified in [GRIND DNA ENGINE design](../specs/2026-11-27-grind-dna-engine-design.md) and scheduled in [the DNA implementation plan](2026-11-27-grind-dna-engine-implementation.md) (D01–D07, T25–T38). Preserve T01–T24, the selected community extensions and the user-approved community quality policy. DNA is opt-in and does not delay the original hardware alpha; no new global release gates or resource thresholds.
