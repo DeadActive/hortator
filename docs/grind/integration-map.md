@@ -31,7 +31,7 @@ The pinned source returns exit 1 with `outgoing step preserved=0` and `old linke
 
 ## P04 staging and RAM budget
 
-The plain build uses 88,312 of 98,304 bytes of static app RAM, leaving 9,992 raw bytes within the region. The previously reported 161 bytes was based on the superseded project-specific reserve policy; existing CI still needs the T03a migration. The planned `gm_pattern` has 2,144 bytes of payload (32 timing, 2,048 cells and 64 lock bytes). This does not establish actual allocation headroom: link the real adapter and account for alignment, other state and native limits.
+The plain build uses 88,312 of 98,304 bytes of static app RAM, leaving 9,992 raw bytes within the region. The previously reported 161 bytes came from the superseded project-specific reserve. T03a checks the actual RAM and flash limits and retains the existing 8 KiB pool floor. Subtracting the planned 2,144-byte `gm_pattern` payload (32 timing, 2,048 cells and 64 lock bytes) leaves an estimated 7,848 B. Link the real adapter and measure the allocation with alignment and other state included.
 
 The native compiler measures `cue_stage_t` at 3,424 bytes and its backing `st_buf` at 3,840 bytes. `cue_stage` fills staged steps and timing in the main loop. `proj_cue_apply` swaps live and staged state at the cue boundary, and `cue_file_out` uses the same buffer to file the outgoing state. Reuse can only be considered once that lifetime and the storage/editor users of `st_buf` have been audited together. Its 416-byte size difference cannot hold a concurrent full pattern.
 

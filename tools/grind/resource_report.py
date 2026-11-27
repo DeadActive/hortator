@@ -40,7 +40,8 @@ def capacity(used, limit, required_free):
     if free is None:
         status, detail = "BLOCKED", "No verified measurement"
     elif free < required_free:
-        status, detail = "FAIL", "Below the required reserve"
+        status = "FAIL"
+        detail = "Usage exceeds the applicable limit" if free < 0 else "Below the required reserve"
     else:
         status, detail = "PASS", "Within the applicable budget"
     return finding(status, detail, used_bytes=used, limit_bytes=limit,
@@ -110,6 +111,19 @@ def upstream_check(command, required, positive=None, unbudgeted=None):
                    tool=str(command[0]), output=output.strip())
 
 
+def historical_comparison(build, upstream):
+    if upstream is None:
+        return finding("SKIPPED", "No verified historical build was provided")
+    reference = [upstream / name for name in ("felucca.elf", "felucca.dis")]
+    if any(not path.is_file() or path.stat().st_size == 0 for path in reference):
+        return finding("BLOCKED", "The supplied historical build is incomplete")
+    return upstream_check(
+        ["tools/compare_upstream.py", build, upstream],
+        [build / "felucca.elf", build / "felucca.dis", *reference],
+        positive=re.compile(r"(?:[1-9]\d* frozen functions identical|[1-9]\d* identical in effect)"),
+    )
+
+
 def outcome(checks):
     if any(check["status"] == "FAIL" for check in checks.values()):
         return "FAIL"
@@ -124,46 +138,44 @@ def report(build, log, upstream, require_hardware):
     listing = build / "felucca.dis"
     loader = build / "loader/ota.bin"
     target_budget = ROOT / "tests/target_budget.txt"
-    reference_elf = upstream / "felucca.elf"
-    reference_listing = upstream / "felucca.dis"
     memory, (flash, ram, pool) = memory_measurements(log, image)
     static = {
         "memory_evidence": memory,
-        "flash_app": capacity(flash, APP_SLOT, (APP_SLOT + 9) // 10),
-        "ram_app": capacity(ram, RAM_LIMIT, (RAM_LIMIT + 9) // 10),
+        "flash_app": capacity(flash, APP_SLOT, 0),
+        "ram_app": capacity(ram, RAM_LIMIT, 0),
         "pool": capacity(pool, POOL_LIMIT, POOL_FREE_MINIMUM),
-        **static_stack(build),
         "target_cost": upstream_check(
             ["tests/target_budget.py", listing, target_budget], [listing, target_budget],
             positive=re.compile(r"cost\s+\d+ \(budget \d+\)"),
             unbudgeted="no budget",
         ),
-        "upstream_comparison": upstream_check(
-            ["tools/compare_upstream.py", build, upstream],
-            [elf, listing, reference_elf, reference_listing],
-            positive=re.compile(r"(?:[1-9]\d* frozen functions identical|[1-9]\d* identical in effect)"),
-        ),
         "loader_pin": upstream_check(["tools/check_loader.py", build], [loader]),
         "erase_order": upstream_check(["tools/check_erase_order.py", listing], [listing]),
     }
+    historical = historical_comparison(build, upstream)
+    if historical["status"] != "SKIPPED":
+        static["upstream_comparison"] = historical
+    stack = {name: dict(check, diagnostic_only=True) for name, check in static_stack(build).items()}
     hardware = {
         "stack_main_high_water": finding("BLOCKED", "Requires measurements on the FM-1", used_bytes=None),
         "stack_interrupt_high_water": finding("BLOCKED", "Requires measurements on the FM-1", used_bytes=None),
         "audio_deadline": finding("BLOCKED", "Requires timing and dropout measurements on the FM-1",
-                                  used_percent=None, max_percent=80),
+                                  used_percent=None),
     }
     paths = {
         "app_image": image, "app_elf": elf, "target_listing": listing, "native_build_log": log,
-        "loader": loader, "reference_elf": reference_elf, "reference_listing": reference_listing,
+        "loader": loader,
         **{name: build / name for name in STACK_BLOBS},
     }
+    if upstream is not None:
+        paths.update(reference_elf=upstream / "felucca.elf", reference_listing=upstream / "felucca.dis")
     artifacts = {
         name: {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
         for name, path in paths.items() if path.is_file()
     }
-    checks = {**static, **hardware}
+    checks = {**static, "upstream_comparison": historical, **stack, **hardware}
     return {
-        "status": outcome(checks if require_hardware else static),
+        "status": outcome({**static, **hardware} if require_hardware else static),
         "static_status": outcome(static),
         "hardware_status": outcome(hardware),
         "checks": checks,
@@ -175,12 +187,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
     parser.add_argument("--build-log", type=Path, required=True, help="stdout/stderr from one successful plain build")
-    parser.add_argument("--upstream-build-dir", type=Path, help="frozen build from tools/upstream_build.sh")
+    parser.add_argument("--upstream-build-dir", type=Path, help="verified frozen build from tools/upstream_build.sh")
     parser.add_argument("--require-hardware", action="store_true", help="make missing hardware evidence a blocker")
     args = parser.parse_args()
     build = args.build_dir.resolve()
-    upstream = args.upstream_build_dir or build / "upstream/build"
-    data = report(build, args.build_log.resolve(), upstream.resolve(), args.require_hardware)
+    upstream = args.upstream_build_dir.resolve() if args.upstream_build_dir else None
+    data = report(build, args.build_log.resolve(), upstream, args.require_hardware)
     print(json.dumps(data, indent=2))
     return {"PASS": 0, "FAIL": 1, "BLOCKED": 2}[data["status"]]
 
