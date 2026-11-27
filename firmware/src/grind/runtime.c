@@ -22,7 +22,9 @@ typedef char gm_stage_fits_the_pattern[sizeof(gm_native_stage) <= sizeof(gm_patt
 static struct {
     gm_controller ctl;
     uint32_t next_rev;
-    uint8_t lock[GM_LOCK_BYTES];
+    uint8_t lock[GM_LOCK_BYTES];                          /* KEEP: the cells the generator leaves as they are */
+    gm_native_stage undo;                                 /* the pattern before the last GRIND publish (or, after an UNDO, the one it undid) */
+    uint8_t undo_ok, undo_was_undo;
     gm_pattern out;
     union {
         gm_pattern base;
@@ -56,6 +58,14 @@ static void gm_touch(void)
     fm1_irq_on();
 }
 
+/* The pattern in the tracks is another one (a load, a cue's pattern switch): its KEEPs and its UNDO are not this one's. */
+static void gm_context_isr(void)
+{
+    memset(gmrt.lock, 0, sizeof gmrt.lock);
+    gmrt.undo_ok = 0;
+    gm_touch_isr();
+}
+
 /* STOP (seq_stop -> cue_stop) and a load or context reset: nothing pending, nothing waiting for a boundary. */
 static void gm_runtime_stop(void)
 {
@@ -77,15 +87,80 @@ static int gm_runtime_commit(void)
     if (!gm_ctl_consume(&gmrt.ctl, rev))
         return CUE_E_SAME;
     for (k = 0; k < NTRK; k++) {
+        memcpy(gmrt.undo.st[k], trk[k].step, sizeof trk[k].step);       /* (what UNDO brings back) */
+        gmrt.undo.len[k] = (uint8_t)trk[k].p[P_SLEN];
+        gmrt.undo.div[k] = (uint8_t)trk[k].p[P_SDIV];
+        gmrt.undo.swing[k] = (uint8_t)trk[k].p[P_SSWING];
+        gmrt.undo.src[k] = (uint8_t)trk[k].p[P_SRC];
         memcpy(trk[k].step, gmrt.u.n.st[k], sizeof trk[k].step);
         trk[k].p[P_SLEN] = gmrt.u.n.len[k];
         trk[k].p[P_SDIV] = gmrt.u.n.div[k];
         trk[k].p[P_SSWING] = gmrt.u.n.swing[k];
         trk[k].p[P_SRC] = gmrt.u.n.src[k];
     }
+    gmrt.undo_ok = 1;
+    gmrt.undo_was_undo = 0;
     gm_ctl_commit(&gmrt.ctl, rev);
     return 0;
 }
+
+/* UNDO / REDO (main loop): the tracks swap with the pattern kept before the last publish, so a second one undoes the
+ * first. Whatever waits for a boundary is dropped. 1 done, 0 nothing kept yet, -1 a song runs. The IRQ is off for
+ * the swap: the audio ISR sees the old pattern or the new one, never a mix. */
+static int gm_runtime_undo(void)
+{
+    uint32_t k;
+    step_t tmp[NSTEP];
+    if (chain.running)
+        return -1;
+    if (!gmrt.undo_ok)
+        return 0;
+    fm1_irq_off();
+    gm_runtime_stop();
+    for (k = 0; k < NTRK; k++) {
+        uint8_t t8;
+        memcpy(tmp, trk[k].step, sizeof tmp);
+        memcpy(trk[k].step, gmrt.undo.st[k], sizeof tmp);
+        memcpy(gmrt.undo.st[k], tmp, sizeof tmp);
+        t8 = (uint8_t)trk[k].p[P_SLEN]; trk[k].p[P_SLEN] = gmrt.undo.len[k]; gmrt.undo.len[k] = t8;
+        t8 = (uint8_t)trk[k].p[P_SDIV]; trk[k].p[P_SDIV] = gmrt.undo.div[k]; gmrt.undo.div[k] = t8;
+        t8 = (uint8_t)trk[k].p[P_SSWING]; trk[k].p[P_SSWING] = gmrt.undo.swing[k]; gmrt.undo.swing[k] = t8;
+        t8 = (uint8_t)trk[k].p[P_SRC]; trk[k].p[P_SRC] = gmrt.undo.src[k]; gmrt.undo.src[k] = t8;
+    }
+    gmrt.undo_was_undo ^= 1u;
+    fm1_irq_on();
+    return 1;
+}
+
+/* KEEP (main loop only: the ISR never reads the mask) */
+static int gm_keep_get(uint32_t t, uint32_t s)
+{
+    uint32_t i = t * NSTEP + s;
+    return (gmrt.lock[i >> 3] >> (i & 7u)) & 1u;
+}
+static void gm_keep_set(uint32_t t, uint32_t s, int on)
+{
+    uint32_t i = t * NSTEP + s;
+    if (on)
+        gmrt.lock[i >> 3] |= (uint8_t)(1u << (i & 7u));
+    else
+        gmrt.lock[i >> 3] &= (uint8_t)~(1u << (i & 7u));
+}
+static uint32_t gm_keep_count(uint32_t t)
+{
+    uint32_t s, n = 0;
+    for (s = 0; s < NSTEP; s++)
+        n += (uint32_t)gm_keep_get(t, s);
+    return n;
+}
+static void gm_keep_track(uint32_t t, int on)             /* the steps the track has: the core refuses a keep past its length */
+{
+    uint32_t s, n = (uint32_t)trk[t].p[P_SLEN];
+    for (s = 0; s < NSTEP; s++)
+        gm_keep_set(t, s, on && s < n);
+}
+static void gm_keep_free(void) { memset(gmrt.lock, 0, sizeof gmrt.lock); }
+
 
 /* Main loop: one request, the latest wins. A running song and a bar boundary are refused, not queued. */
 static gm_result gm_runtime_submit(const gm_config *c, gm_boundary at, gm_request_kind kind)
@@ -129,6 +204,11 @@ static void gm_runtime_poll(void)
     res = gm_native_export(&gmrt.u.base);
     if (res == GM_OK) {
         memcpy(gmrt.u.base.lock, gmrt.lock, sizeof gmrt.lock);
+        for (k = 0; k < NTRK; k++) {                      /* (a LEN turned down since: the steps past it are not kept) */
+            uint32_t s;
+            for (s = gmrt.u.base.timing[k].length; s < NSTEP; s++)
+                gmrt.u.base.lock[(k * NSTEP + s) >> 3] &= (uint8_t)~(1u << ((k * NSTEP + s) & 7u));
+        }
         res = gm_generate(&r.config, &gmrt.u.base, &gmrt.out);
     }
     if (res == GM_OK)
