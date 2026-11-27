@@ -1,5 +1,7 @@
 # P01 baseline evidence
 
+> Historical evidence: the current CI still applies the old gates. [Plan v1.1](../superpowers/plans/2026-11-27-grind-machine-implementation.md) defines the user-requested community policy and T03a migration. No recorded test result is changed by this documentation update.
+
 **Foundation status: BLOCKED.** The pinned repository is available as a complete checkout. The Linux x86-64 baseline produced a native test package and static resource measurements.
 
 | Input | Verified identity |
