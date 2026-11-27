@@ -1,0 +1,11 @@
+# Portable rhythm core
+
+P03 covers the 22 planned styles, deterministic pattern generation and protected cells. The standalone C suite runs on the host and can run as WebAssembly under Node. The firmware and the upstream simulator still use their existing entry points.
+
+The core accepts 3/4, 4/4, 5/4, 6/8, 7/8 and 9/8, straight eighth, sixteenth and thirty-second subdivisions, and one to four bars within 64 steps. Style rules can reject a compatible grid when it cannot preserve distinct hits or a planned rest. Fast-Slow requires two bars. Traditional and Gravity reject the 4/4 eighth-note grid. Hammer preserves paired hits, and Bomb and Gravity use single hits at thirty-second-note resolution in place of their sixteenth-note doubles.
+
+Pattern generation keeps whole protected ON and OFF cells. A change of subdivision, a lock outside the new track length or a locked cell in a non-step source causes a conflict. The generator uses the existing two-level accent representation and constrains generated micro timing. Humanization leaves note onsets in their original cells. Planned rests allow a hit only when the user has protected that cell.
+
+The host validation ceiling counts 16 onsets assigned to a common grid position, including extra ratchet hits. For differing track lengths it sums each track's busiest position to cover arbitrary alignment. The native adapter must verify event timing, staging ownership, voice cost and audio deadlines before publication. Audible style acceptance belongs to the later integration tests.
+
+Run the standalone host checks with `sh tests/run_grind_tests.sh all`. The golden fixtures cover all 22 factory configurations at seeds 0, 1, 42 and 4,294,967,295. The independent Python encoder uses the reviewed style fixture and the portable generation contract. `python3 tools/grind/check_vectors.py` verifies the checked-in reference bytes.

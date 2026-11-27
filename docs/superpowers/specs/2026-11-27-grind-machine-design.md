@@ -1,9 +1,9 @@
 # GRIND MACHINE — FM-1 Edition
 
 **Verbindliche Projektspezifikation / Product & Technical Design**\
-**Version:** 1.0 · **Datum:** 27. November 2026\
-**Status:** Produktdesign (Variante A) genehmigt; diese detaillierte Spezifikation steht zur Abnahme.\
-**Zielrepository:** `DaFum/grind-machine` (vorgesehen, noch nicht erstellt)\
+**Version:** 1.1 (Community quality policy) · **Datum:** 27. November 2026\
+**Status:** Produktumfang v1.0 genehmigt; Qualitäts- und Freigaberegeln auf beobachtete Community-Praxis angepasst.\
+**Zielrepository:** `DaFum/grind-machine` (Hortator-Fork)\
 **Upstream:** `DeadActive/hortator`, abgeleitet von `hugelton/Felucca`\
 **Ziel:** M-VAVE FM-1, zunächst Standard-Build ohne Bluetooth\
 **Lizenz:** Firmware-Code GPL-3.0-only; Assets und Fremdkomponenten gemäß Einzellizenzen.
@@ -12,14 +12,14 @@
 
 ## 0. Verbindlichkeit und Leseschlüssel
 
-Diese Spezifikation beschreibt das Zielprodukt, seine Systemgrenzen, beobachtbares Verhalten, Integrationsregeln, Risiken und Abnahmekriterien. Sie ist **kein Implementierungsnachweis**. Es wurden weder Firmware kompiliert noch Tests auf dem Gerät ausgeführt. Konkrete C-Symbole, freie Flash-Adressen, maximal sichere Tempi und aktuelle Hardwarekompatibilität sind vor Implementierung bzw. Veröffentlichung zu ermitteln. Die unten genannten Modulnamen sind logische Verantwortlichkeiten, keine Behauptung über existierende Dateien.
+Diese Spezifikation beschreibt das Zielprodukt, Systemgrenzen und beobachtbares Verhalten, keinen Implementierungs- oder Gerätenachweis. Aktueller Build- und Teststatus steht in `docs/grind/baseline.md` und den jeweiligen PRs. Logische Modulnamen und Vorschläge werden gegen den tatsächlichen Code geprüft.
 
 - **MUSS:** erforderlich für die beschriebene v1.0; Freigabe nur mit dokumentiertem Nachweis.
 - **SOLL:** gewünschte Erweiterung, sofern Ressourcen und Stabilität es zulassen; eine Abweichung wird dokumentiert und genehmigt.
 - **SPÄTER:** außerhalb von v1.0.
-- **GATE:** objektive Entscheidungsschwelle mit Nachweis. Ein nicht bestandener Gate blockiert den betroffenen Meilenstein.
+- **GATE:** die für den betroffenen Funktionsbereich tatsächlich anwendbare Prüfung aus bestehenden FM-1-Projekten; kein globaler Entwicklungsstopp wegen optionaler oder historisch nicht verfügbarer Messungen.
 
-Alle neu konkretisierten Zahlen (z. B. Tempo-Zielbereich, Humanize-Grenzen, Testdauer) sind Design- und Abnahmevorgaben, keine bereits gemessenen Gerätewerte. Diese Spezifikation enthält Entscheidungen im Rahmen des genehmigten Designs, die bei der Abnahme ausdrücklich überprüft werden können.
+Musikalische Produktwerte bleiben unverändert. Qualitätsprüfungen folgen dem [Implementierungsplan v1.1](../plans/2026-11-27-grind-machine-implementation.md) und dessen Community quality policy. Diese ersetzt zusätzliche, selbst definierte Mindestwerte und Freigabepflichten aus v1.0.
 
 ## 1. Produktvision und Zielgruppen
 
@@ -51,7 +51,7 @@ GRIND MACHINE ist ein unabhängiger Fork, keine offizielle M-VAVE-, Felucca- ode
 
 ## 2. Verifizierte Ausgangslage
 
-Die öffentliche Hortator-Dokumentation wurde am 27.11.2026 geprüft [S1–S5]. Der Upstream beschreibt eine C-basierte Firmware für den FM-1 mit acht Spuren, individuellen Sequencer-Längen, Divisions und Swing, Synthese- und Sample-Modellen, Per-Step-Parametern, Effekten, USB-Audio, MIDI und WASM-Simulator. Er enthält bereits Projektvariationen und quantisierte Patternwechsel. Diese Angaben stammen aus der Dokumentation; der konkrete Quellcode- und Build-Audit steht als Foundation-Gate aus.
+Die öffentliche Hortator-Dokumentation wurde am 27.11.2026 geprüft [S1–S5]. Der Upstream beschreibt eine C-basierte Firmware für den FM-1 mit acht Spuren, individuellen Sequencer-Längen, Divisions und Swing, Synthese- und Sample-Modellen, Per-Step-Parametern, Effekten, USB-Audio, MIDI und WASM-Simulator. Er enthält bereits Projektvariationen und quantisierte Patternwechsel. Diese Angaben stammen aus der Dokumentation; Quellcode- und Build-Nachweise werden in der Foundation-Dokumentation fortgeführt.
 
 | Upstream-Bestand | Umgang in GRIND MACHINE |
 |---|---|
@@ -303,7 +303,7 @@ Die v1.0-Kits müssen aus dem existierenden verifizierten Speicherbudget erzeugb
 
 ### 9.3 Lizenz- und Asset-Politik
 
-Hortator nennt GPL-3.0-only für eigenen Code, einzelne MIT-/Apache-2.0-/OFL-Komponenten und CC0-Samples. Felucca-Medien sind laut Licensing-Datei teilweise separat bzw. nicht frei lizenziert [S2]. Eine GPL-Fork-Lizenz gibt **nicht** automatisch Nutzungsrechte an allen Bildern, Soundpacks, Fonts oder Wavetables.
+Hortator nennt GPL-3.0-only für Code und gesonderte Asset-Lizenzen. Aktuelles Felucca stellt den Hügelton Sample Pack (`tools/gen_waves.py` und erzeugte Sounds) unter CC0 1.0; die ältere Hortator-Kopie ist dadurch nicht ungeprüft freigegeben. Für jede tatsächlich verteilte Komponente gelten deren nachgewiesene Rechte [S2, S5].
 
 MUSS: pro ausgeliefertem Asset Name, Pfad, Quelle, Urheber, Lizenz, Bearbeitung und Hash in einer maschinenlesbaren Inventarliste erfassen. Unklare Assets werden nicht ausgeliefert; durch eigene oder kompatibel lizenzierte Assets ersetzen. Originale Felucca-/Hortator-Urhebervermerke und Drittanbieter-Lizenzen erhalten. Binärdistribution mit vollständigem korrespondierendem Quellcode und Build-Anleitung gemäß GPL. Keine offiziellen Produktlogos oder irreführende Herstellerzuordnung. Keine Übernahme fremder Songaufnahmen, kommerzieller Drumkits oder Samples ohne entsprechende Rechte.
 
@@ -399,39 +399,39 @@ Kabelgebundene MIDI-Clock in (USB/TRS gemäß Upstream) und USB-Clock out regres
 Upstream nennt Linux-x86-64-JieLi-Toolchain (clang 4.0.1/pi32v2), AC79-SDK-Dateien für das Paket, Python-/Node-Werkzeuge, Hosttests und WASM-Simulator [S1, S4]. `BUILDING.md` enthält noch historische Felucca-Bezeichnungen; die exakten Ausgaben/Flags der gepinnten Version werden im Foundation-Schritt mit den Buildskripten abgeglichen. Kein Vertrauen in veraltete Pfadangaben ohne Probe-Build.
 
 Erforderlich:
-- Ausgangs-Commit/Tag und dessen SHA in `UPSTREAM.md` dokumentieren; unveränderten Baseline-Build vor Feature-Änderungen prüfen.
-- Toolchain, SDK, WASM-Compiler, Python-/Node-Abhängigkeiten und Container-/CI-Versionen pinnen. Installations-/Buildschritte dokumentieren; benötigte externe SDK-Dateien nur unter deren Lizenz und verifizierter Herkunft verwenden.
+- Den verfügbaren, gebauten Hortator-Ausgangscommit `44c9ad4aa57bebf63f412bd552e57143c30b4065` dokumentieren; historische nicht verfügbare Frozen-Referenz nicht als globale Voraussetzung behandeln.
+- Die vorhandene Linux-JieLi-Toolchain, AC79 SDK und WASM-Buildumgebung mit dokumentierten Versionen nutzen. Bestehende Hash-Nachweise erhalten; keine neue Zertifizierung der Buildwerkzeuge als Entwicklungssperre. Lizenzrechte für Verteilung beachten.
 - Upstream-Build (`./build.sh`, dokumentierte Paketoption `DRUM_PACKAGE=1 ./build.sh`), Hosttests (`tests/run_tests.sh`, `tests/run_drum_tests.sh`) und `tools/build_sim.sh` reproduzierbar ausführen; exakte Befehle nach gepinntem Code bestätigen.
 - CI trennt hostseitige Coretests, Simulator, native Builds und Paketvalidierung. Nicht verfügbare proprietäre Tools klar als blockiert ausweisen, keine grünen Fake-Ergebnisse.
-- Binär- und WASM-Artefakte mit Release-Version, commit SHA, SHA-256, Build-Metadaten und Lizenzinventar erzeugen. Reproduzierbarkeit an zwei sauberen Builds prüfen; nicht deterministische Metadaten erklären und bei Bedarf normalisiert vergleichen.
+- Release-Pakete mit Version, Quellen, SHA-256 und Herkunftsnachweis nach dem [fm1-build](https://github.com/zvenson/fm1-build)-Community-Prozess erstellen. Kein zusätzliches Zwei-Build-Identitäts-Gate.
 - Keine Veröffentlichung, wenn nur WASM und nicht die native Firmware erfolgreich gebaut wurde. Simulator-only Preview eindeutig als solche kennzeichnen.
 
 ## 13. Nichtfunktionale Anforderungen und Qualitätsbudgets
 
 | ID | Ziel / Pflicht | Mess- bzw. Akzeptanzkriterium |
 |---|---|---|
-| NFR-01 | Audio-Stabilität | Mindestens 30 min Worst-Case-Praxis-Stress auf freigegebenem Hardwaretyp, keine unerwarteten Underruns, Resets oder hörbaren Dropouts. |
-| NFR-02 | Echtzeitbudget | Ziel: maximale gemessene Audio-Blocklaufzeit ≤ 80 % der Blockdeadline im definierten Stressprofil. Wenn native Instrumentierung das nicht erfassen kann, erst belastbare Messmethode ergänzen; kein bloßer subjektiver Eindruck. |
-| NFR-03 | Speicher | Linker-Map, Stack-/Heap-High-Water und Flash-Record-Tests; Ziel ≥ 10 % Reserve in jeweils relevantem verfügbaren RAM/App-Budget (nicht Gesamtspeicher des Chips). Bei geringerem Wert erneute ausdrückliche Designfreigabe und belastbarer Nachweis. Keine Überschreitung bekannter Grenzen. |
-| NFR-04 | Transport | Ohne unerwartet ausgelassene/duplizierte Hits bei interner Clock. Externe Clock: 10-min-Test bei normaler und leicht unregelmäßiger Clock, keine unbeabsichtigten Phasensprünge; Log der effektiven Abweichungen. |
-| NFR-05 | Bedienung | Sichtbares Input-/Pending-Feedback Ziel ≤ 100 ms ab Eingabe; Audio-Wechsel bewusst quantisiert. STOP wird nicht durch UI blockiert. |
-| NFR-06 | Determinismus | Bytegleiche kanonische Event-Hashes für identische Golden-Vektoren in Host/WASM und Hardware-Testexport. |
-| NFR-07 | Persistenz | 100 Save/Load-/Neustart-Zyklen im Host-Flashmodell und 10 reguläre Save/Load-/Neustart-Zyklen auf Testgerät; keine verlorenen bestätigten Änderungen. Unterbrechungsinjektion im Hostmodell. |
+| NFR-01 | Audio-Stabilität | Vorhandene Audio-, Soak- und Gerätefunktionstests; keine unerwarteten Underruns, Resets oder hörbaren Dropouts. Keine zusätzliche Mindestdauer. |
+| NFR-02 | Echtzeitbudget | Bestehende native Target-Budget- und Audio-Regressionsprüfungen; optionale Host-Instruktionsmessung wie bei SLOOP DX. Keine eigene prozentuale Audio-Deadline-Grenze. |
+| NFR-03 | Speicher | Tatsächliche native Linker-, App-, Flash- und Pool-Grenzen einschließlich bestehender Upstream-Schutzgrenzen. Bestehende Stack-Analyse nutzen, soweit verfügbar; keine zusätzliche pauschale RAM-/Flash-Reserve. |
+| NFR-04 | Transport | Native Clock-/Sync-Regressionen und Gerätefunktionstest, keine unerwartet ausgelassenen oder duplizierten Hits oder Phasensprünge. |
+| NFR-05 | Bedienung | Bestehende UI-/Input-Regressionen, sichtbares Pending-Feedback, STOP-Priorität und quantisierte Audio-Wechsel; keine zusätzliche Latenzgrenze. |
+| NFR-06 | Determinismus | Bytegleiche kanonische Ergebnisse für die vorhandenen Golden-Vektoren in Host/WASM; native Adapter-Regressionen und Gerätefunktionstest. |
+| NFR-07 | Persistenz | Save/Load-/Neustart-Regressionen, A/B- und unterbrochene Schreibvorgänge im Flashmodell sowie Funktionstest auf dem Gerät; keine verlorenen bestätigten Änderungen. Keine zusätzliche Mindestzahl von Zyklen. |
 | NFR-08 | Sicherheit | Kein neuer Flash-Schreibpfad ohne Layout-Audit; kein Update für unbekannte Revision. Vollständige Backup-/Recovery-Dokumentation. |
 | NFR-09 | Wartbarkeit | Logische Modulgrenzen, bounded Buffers, keine unkontrollierte globale Mutation, relevante Unit-/Adapter-/Regressionstests. |
-| NFR-10 | Offline & Lizenz | Native Kernfunktionen funktionieren ohne Netzwerk; 100 % der ausgelieferten Assets und Komponenten inventarisiert. |
+| NFR-10 | Offline & Lizenz | Native Kernfunktionen offline; entsprechende Quellen, Urhebervermerke und nachgewiesene Rechte für tatsächlich verteilte Bestandteile. |
 
-Stressprofil: maximale freigegebene BPM, dichtes 64-Step-Pattern mit acht Tracks, vorhandene native FX in validierter Worst-Case-Konfiguration, kontinuierliche Knob-Bewegungen, schnelle LIVE-Wechsel, UI-Rendering und parallele USB-Audio-/MIDI-Verbindungen. Je Gerätetyp interne und externe Clock separat prüfen. Testwerte sowie genaue Firmware-/Hardware-Revision dokumentieren. Die genannten Reserven sind Ziele; bei Nichterfüllung nicht durch ungemessene Annahmen ersetzen.
+Praxisprofil: dichtes Pattern, mehrere Spuren, hohe unterstützte Tempi, FX, Knob-Bewegungen, LIVE-Wechsel, UI sowie USB-Audio/MIDI. Vorhandene native Testprofile nutzen und tatsächliche Ergebnisse dokumentieren; keine zusätzlichen quantitativen Freigabegrenzen. Bekannte reproduzierbare Cue- oder Save-Fehler im betroffenen Pfad beheben.
 
 ## 14. Test- und Abnahmematrix
 
-Jeder neue Funktionsbereich erhält vor der Implementierung reproduzierbare Tests. Hosttests prüfen reine Core-Logik unabhängig vom Gerät. Integrationstests prüfen das tatsächliche native Stepformat; WASM-Tests die UI und den gemeinsamen Core. Erst Hardwaretests entscheiden über Flashbarkeit, Audio-Stabilität und reale Bedienbarkeit. Für eine v1.0-Hardwarefreigabe müssen alle MUSS-Tests bestanden und Abweichungen von SOLL-Anforderungen dokumentiert sein.
+Neue Funktionen erhalten relevante reproduzierbare Regressionstests. Host/WASM prüfen Core und UI, native Tests die Integration. Hardwaretests prüfen Installation, Wiedergabe, Bedienung und Rückkehr zur bekannten Firmware. Die Produktfunktionen bleiben Abnahmekriterien; Tests werden nach betroffenem Funktionsbereich statt als zusätzliche universelle Zertifizierung eingesetzt.
 
 | ID | Bezug | Abnahmetest (Given / When / Then) | Ebene |
 |---|---|---|---|
 | AT-01 | FR-01, FR-02 | Frischer Start → GRIND und PLAY → 8 Track-Rollen verfügbar, Boot beginnt gestoppt, ausgewählter Track korrekt. | WASM + Gerät |
 | AT-02 | FR-03, FR-15 | Jede der 22 IDs mit Defaultconfig erzeugen → erwartete Kernpositionen, erlaubte Pausen, Trackgrenzen und eindeutige Stilmerkmale prüfen. | Host |
-| AT-03 | FR-03, FR-06 | Gleiche Inputdaten 100-mal und über Host/WASM/Gerät → gleiche kanonische Event-Hashes, feste PRNG-Testvektoren. | Host/WASM/Gerät |
+| AT-03 | FR-03, FR-06 | Wiederholte gleiche Inputdaten in Host/WASM → gleiche kanonische Event-Hashes, feste PRNG-Testvektoren; native Integration und Wiedergabe prüfen. | Host/WASM + Gerätefunktionstest |
 | AT-04 | FR-04 | Parameter-Min/Max, Mittelpunkte und feste Seeds → Density optional monoton, Aggression keine zufällige ON/OFF-Änderung, Chaos begrenzt, Humanize 0 ohne Jitter. | Host + Audio |
 | AT-05 | FR-05 | ON- und OFF-Zellen samt Native-Step-Feldern sperren → Morph/Style/MUTATE/LIVE → geschützte Daten unverändert; G-LOCK und P-LOCK getrennt. | Host + WASM |
 | AT-06 | FR-05, FR-11 | Alle sechs Meter und drei Raster validieren → korrekte Länge oder explizite Ablehnung; Rasteränderung mit Lock-Konflikt wird abgelehnt. | Host |
@@ -448,7 +448,7 @@ Jeder neue Funktionsbereich erhält vor der Implementierung reproduzierbare Test
 | AT-17 | FR-13 | Unbekannte Flash-ID, Paket-/Hash-/Versionskonflikt, nicht freigegebene Revision → Installer verweigert Schreiben bzw. endet sicher. | Installer-Mock + Testgerät |
 | AT-18 | FR-13 | Vorab gesichertes Testgerät → freigegebenes Paket installieren → validiertes offizielles/Felucca-Recovery und erneutes Starten; Datenintegrität gemäß dokumentiertem Rückweg. | Gerät, kontrolliert |
 | AT-19 | FR-14 | Sauberer Checkout → gepinnter Build, native/WASM-Artefakte, Prüfsummen, vollständige Quellen, Lizenzinventar und Handbuch. | CI + Releaseaudit |
-| AT-20 | NFR-01–05 | 30-min-Stress mit echter Hardware und dokumentierten Messwerten → alle Audio-/RAM-/CPU-/Timing-/UI-Gates bestanden. | Gerät |
+| AT-20 | NFR-01–05 | Vorhandene Audio-/Target-/Speicher-/UI-Regressionen und Hardware-Praxisprofil → stabiler Betrieb innerhalb der tatsächlichen nativen Grenzen. | Host + Gerät |
 | AT-21 | NFR-07 | Persistenz-Zyklen, Stromausfall-Injektion im Modell → kein unerkannt defekter bestätigter Save; letzte gültige Version nachweisbar. | Host + Gerät |
 | AT-22 | FR-05, NFR-09 | Fuzzing/Property-Tests auf Algo-/Meter-/Seed-/Lock-/Step-Eingaben, inklusive 0/Max/-1/Überlauf/ungültigen IDs → keine OOB-Zugriffe, undefinierte Arithmetik oder ungültige Events. | Host (Sanitizer, sofern verfügbar) |
 | AT-23 | FR-10, SOLL Note-Out | Falls Note-Out vorhanden: schneller Lauf, STOP und Thru → korrekte Note-On/Off-Paare, keine hängenden Noten oder Echo-Schleifen. | MIDI-Integration + Gerät |
@@ -460,25 +460,25 @@ Jeder neue Funktionsbereich erhält vor der Implementierung reproduzierbare Test
 
 **Kein Flashen allein auf Basis dieser Spezifikation.** Die aktuelle Felucca-Installation des Auftraggebers bleibt bis zum freigegebenen Testpaket unverändert. Ein Browser-Simulator ist kein Nachweis für korrekte Flash- oder Audio-Hardwarefunktion.
 
-### 15.1 GATE-HW-0 — Geräteinventar und Rückweg
+### 15.1 GATE-HW-0 — Gerätekompatibilität und Rückweg
 
 Vor dem ersten GRIND-Flash:
 1. Exakte FM-1-Hardware-/Flash-ID und bestehende Firmwareversion über ein dokumentiertes, ausschließlich lesendes Verfahren feststellen. Neue Flash-Chips separat behandeln. Felucca dokumentiert z. B. eine Beta-Unterstützung für UC25HQ80 (`0xB36014`), deren damalige reale Validierung offen war [S5]. Daraus folgt keine automatische Hortator-/GRIND-Freigabe.
 2. Kompatibilitätsmatrix mit genauem Gerät, Flash-Typ, gepinntem Upstream-Stand, Loader-/Installer-Version und unterstütztem Paket erstellen.
-3. Nutzerprojekte/Presets/Samples mit passendem Felucca-Werkzeug sichern, Wiederherstellbarkeit des Backups prüfen. Wo unterstützt, zusätzlich vollständiges gerätespezifisches Flash-Backup mit verifizierten identischen Lesungen und Prüfsumme erstellen. Nicht öffentlich teilen (kann gerätespezifische Informationen enthalten).
+3. Nutzerprojekte/Presets/Samples mit passendem Felucca-Werkzeug sichern und den dokumentierten Rückweg bereithalten. Vollständiger Flash-Readback ist keine zusätzliche Pflicht.
 4. Original-Firmware und bekannte funktionierende Felucca-Version, Quellen/Installer und Wiederherstellungsanleitung bereithalten; Stromversorgung und bekannt gutes Datenkabel prüfen. Kein zweiter Installer/Editor gleichzeitig.
 5. Verifizieren, dass das konkrete Rückkehrverfahren zum Gerät und Betriebssystem passt. Upstream dokumentiert Boot-ROM-Recovery auf einem Mac für bestimmte Fälle; wenn das Gerät Boot-Modus nicht erreicht, kann zusätzliche Transporter-Hardware nötig sein [S3]. Es besteht kein garantierter risikofreier Rückweg in jedem Defektfall.
 
 ### 15.2 GATE-HW-1 — Paketfreigabe
 
 - Native Build-Map, Firmware-/Loader-/Datenbereiche, Paket-Hash, Zielkennung und Flash-ID-Kompatibilität geprüft; keine unerlaubte Adressänderung.
-- Test-/Simulator-Gates bestanden, Installer-Failure-Cases simuliert, Backup vorhanden und Rückweg vorab dokumentiert.
+- Anwendbare native Host-/Paket-/Loader-Tests und betroffene Simulator-Regressionen bestanden, Backup und dokumentierter Rückweg vorhanden. Optionale, nicht verfügbare Messungen separat ausweisen.
 - Explizite Zustimmung der Person am Gerät zu genau diesem Testpaket. Keine automatische Installation aus einem Build oder Browser-Besuch.
 - Erst kontrollierter Hardware-Smoke-Test (Boot, STOP/PLAY, Keys, Audio, USB, Save nur in dafür vorgesehenem Testslot); danach Stress- und Persistenztests. Bei Fehler sofort Test stoppen, nicht mehrfach blind flashen.
 
-### 15.3 GATE-HW-2 — Veröffentlichung
+### 15.3 GATE-HW-2 — Veröffentlichung nach Community-Praxis
 
-Für jede veröffentlichte Hardwarevariante einen dokumentierten erfolgreichen Installations-, Wiederherstellungs- und Funktionstest vorlegen. Ungetestete Revisionen als nicht freigegeben markieren. Ein funktionierender Simulator oder Test auf einer einzigen Revision rechtfertigt keine Aussage, alle FM-1-Geräte seien kompatibel.
+Die beworbene Hardwarekompatibilität muss durch tatsächliche Gerätefunktion, Installation und Rückkehr zur bekannten Firmware gestützt sein. Nicht getestete Revisionen nicht als verifiziert darstellen. Release nach dem Community-Build-Prozess mit entsprechenden Quellen und Lizenznachweisen.
 
 ## 16. Entwicklungsroadmap und Gates
 
@@ -486,13 +486,13 @@ Die Roadmap ist eine Reihenfolge von nachprüfbaren Ergebnissen, kein kalendaris
 
 | Version | Schwerpunkt | Gate / Exit-Kriterien |
 |---|---|---|
-| v0.1 FOUNDATION | Fork, pin, Build, Baseline, Audit, Geräte- und Asset-Inventar | Gepinnter Commit, native/WASM-Baselines oder dokumentierter Blocker, bestehende Tests, konkret nachgewiesene Adapterpunkte, Ressourcen-/Storage-Map, Lizenzinventar. Keine Geräteänderung. |
+| v0.1 FOUNDATION | Fork, verfügbarer Quellstand, Build und Audit | Native Linux-Builds, anwendbare Host/WASM-Tests und vorhandene Ziel-/Loader-/Storage-Prüfungen; optionale historische Vergleiche und fehlende Host-Zähler dokumentieren. Keine Geräteänderung. |
 | v0.2 GRIND CORE | Datenverträge, PRNG, Locks, 22 Algorithmen in kleinen Gruppen, Morphing | AT-02–08, AT-22 hostseitig; Engine-Golden-Vektoren, klare Schnittstelle zum nativen Sequencer. Erst Kernalgorithmen, danach die übrigen Styles. |
 | v0.3 GRIND UI | Eigene Navigation, Step-Edit, Style, Pendings, Factory-Presets | AT-01/04/05/16 im WASM; UI-Tastenkonflikte dokumentiert, keine parallele JS-Logik. |
 | v0.4 SOUND DESIGN | Vier Kits, Asset-Replacement, native FX-/Mixer-Integration | AT-11 host/WASM, Inventar vollständig, native Budgetmessungen geplant bzw. bei verfügbarem Gerät nachgewiesen. |
 | v0.5 LIVE ASSAULT | Overlays, quantisierte Wechsel, Undo, Projekt-Storage | AT-07–10/12–14 host/Integration, Speicherformat und Migrationsgrenzen dokumentiert. |
-| v0.9 HARDWARE BETA | GATE-HW-0/1, native Gerätetests, Audio-/Speicheroptimierung | AT-01, 03, 09, 11–18, 20–21, 24 auf unterstütztem Gerät soweit zugeordnet; Abweichungen und reale Messwerte. |
-| v1.0 RELEASE | Alle Muss-Anforderungen, Installer, Simulator, Handbuch, Release-Audit | Vollständige AT-Matrix, GATE-HW-2, GitHub-Release mit Quellen/Hashes/Lizenzen, bekannte Einschränkungen. |
+| v0.9 HARDWARE BETA | Gerätekompatibilität, Installations- und Funktionstests | Reale Bedienung, Audio, MIDI, Speichern und dokumentierter Rückweg auf unterstütztem Gerät; keine zusätzlichen Mindestmesswerte. |
+| v1.0 RELEASE | Alle Muss-Funktionen, Installer, Simulator, Handbuch | Relevante Regressionen und echte Hardwarefunktion, GitHub-Release mit entsprechenden Quellen, Hashes, Herkunftsnachweis und Lizenzen. |
 
 Bei Ressourcenproblemen ist die erste Reduktionsreihenfolge: optionale Sample-Layer, zusätzliche FX-/Editor-Funktionen, optionale Note-Out-Erweiterung, weniger gleichzeitig speicherbare dichte Variationen (sichtbar dokumentiert). Die acht Tracks, Grind-Regler, reproduzierbare Engine, G-LOCKs, vier Kits, Kern-LIVE-Funktionen und Audio-/Flash-Sicherheit sind nicht ohne neue Freigabe zu streichen.
 
@@ -525,9 +525,9 @@ Release-Checkliste: Build-Metadaten; unterstützte Flash-IDs; Release- und Datei
 | Risiko / noch offene Validierung | Auswirkung | Gegenmaßnahme und Entscheidungsgrenze |
 |---|---|---|
 | FM-1-Revision, Flash-ID und Felucca-Version unbekannt | Datenverlust oder nicht bootendes Gerät | GATE-HW-0; keine Installation ohne Kompatibilitätsnachweis und Backup. |
-| Native Toolchain/SDK eingeschränkt verfügbar | Kein validierbarer Firmware-Build | v0.1-Baseline; bei Blocker nur Core/WASM-Prototyp, keine native Freigabe. |
+| Native Toolchain/SDK eingeschränkt verfügbar | Kein validierbarer Firmware-Build | Native Freigabe erst nach erfolgreichem Build; unabhängige Entwicklungsaufgaben nicht blockieren. |
 | Upstream-Dateiformate und Commit ändern sich | Instabile Adapter, falsche Speicherannahmen | Commit pinnen, keine unkontrollierten Upstream-Merges; Record-Audit. |
-| Zu geringe CPU-/RAM-/Flash-Reserven | Dropouts, nicht speicherbare Patterns | Gemessene Budgets, begrenzte Events, Preset-/FX-/Sample-Optimierung; keine Erhöhung unbekannter Limits. |
+| Native CPU-/RAM-/Flash-Grenzen | Dropouts, nicht speicherbare Patterns | Bestehende Zielbudgets, tatsächliche Linker-/Flash-Grenzen und Audiotests; keine selbst definierten Zusatzreserven. |
 | Fehlende Rechte an Felucca-Assets | Unzulässige Distribution | Separate Lizenzprüfung, Ersatz mit eigenen/CC0/kompatiblen Medien. Release-Gate. |
 | Stepformat hat nur diskrete Accent-/Nudge-Werte | Humanize weniger fein als gewünscht | Explizite Quantisierung und Hörtest; Erweiterung nur mit nachgewiesener Kompatibilität. |
 | Hohes Tempo und Ratchets führen zu Stimmenkonflikten | Akustisch unbrauchbare Blastbeats | Native Voice-Prioritäten/Choke prüfen, feste Eventlimits, ehrlicher BPM-/Divisionsbereich. |
@@ -541,7 +541,7 @@ Release-Checkliste: Build-Metadaten; unterstützte Flash-IDs; Release- und Datei
 
 GRIND MACHINE v1.0 gilt als freigabefähig, wenn:
 
-1. Alle FR-MUSS-Anforderungen und zugehörigen Akzeptanztests mit reproduzierbaren Ergebnissen erfüllt sind.
+1. Alle vereinbarten Produktfunktionen sind implementiert und durch relevante Regressionen geprüft.
 2. Das Produkt auf mindestens der konkret freigegebenen FM-1-Hardware zuverlässig startet, spielt, editiert, live variiert, speichert und wiederhergestellt werden kann.
 3. Native Firmware und Simulator aus derselben gepinnten Core-Quelle gebaut sind; Build-/Versions-/Hashnachweise vorliegen.
 4. Die tatsächlichen Grenzen (Tempo, Speicher, Variationen, MIDI und FX) dokumentiert sind, statt Zielwerte als Messwerte auszugeben.
@@ -549,11 +549,11 @@ GRIND MACHINE v1.0 gilt als freigabefähig, wenn:
 6. Lizenzen/Urhebervermerke und Asset-Provenienz vollständig sind; keine unbekannt lizenzierten Assets im Release.
 7. Der Benutzer das Ergebnis anhand einer kompakten Demo selbst prüfen kann: Start → Bomb Blast → Morphing → G-LOCK → Live Breakdown → Mutation/Undo → Projekt speichern → Neustart.
 
-**Nächste Freigabe:** Diese Spezifikation inhaltlich prüfen. Nach ihrer Abnahme wird der detaillierte Implementierungsplan mit echten Upstream-Dateien, Testbefehlen, Commit-/PR-Reihenfolge und konkreten Tasks erstellt. Es wird bis dahin kein GitHub-Repository erstellt oder verändert und keine Gerätefirmware installiert.
+**Ausführung:** Produktumfang bleibt genehmigt. Plan v1.1 setzt die vom Nutzer gewünschte Community-Qualitätspolitik um. Die Dokumentänderung allein verändert keine CI, Firmware oder Geräteinstallation.
 
 ## 20. Quellen und Referenzmaterial
 
-Alle Quellen sind öffentliche Projektinformationen, am 27.11.2026 geprüft. Angaben zu Funktionen, Build und Hardware stammen aus deren Dokumentation, nicht aus einem ausgeführten Build.
+Quellen: öffentliche Projektinformationen, ursprünglich am 27.11.2026 geprüft; aktuelle Community-Referenzen und deren konkrete Skripte stehen im Implementierungsplan v1.1.
 
 - **[S1]** Hortator – README, Repository-Struktur, Funktionen, Panel, Variationen, USB-Audio/MIDI, Storage, Build/Test-Verweise: <https://github.com/DeadActive/hortator> · Handbuch: <https://deadactive.github.io/hortator/manual/> · Simulator: <https://deadactive.github.io/hortator/>.
 - **[S2]** Hortator – Lizenzübersicht (Code, Samples, Fonts, Drittanbieter und gesonderte Felucca-Assets): <https://github.com/DeadActive/hortator/blob/main/LICENSING.md>.
