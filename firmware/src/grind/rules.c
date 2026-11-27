@@ -142,6 +142,34 @@ static void add_optional(const gm_config *c, gm_rule_masks *m)
     }
 }
 
+/* 7/4 (3+2+2 quarters, 28 sixteenths a bar): its own reference positions, not a 4/4 phrase repeated. Only Technical (9)
+ * has them: kick (and its accent) on 0, 12, 20, snare on 8, 16, 24, crash on the first bar's downbeat, ride on every
+ * second position. A reference position maps to division / 16 steps (8ths: only the even ones, which these are). */
+static gm_result rules_seven_four(const gm_config *c, unsigned length, gm_rule_masks *out)
+{
+    static const uint8_t kick[] = {0, 12, 20}, snare[] = {8, 16, 24};
+    gm_rule_masks m = {0};
+    const unsigned bar_steps = length / c->grid.bars, d = c->grid.division;
+    if (c->algorithm != 9u)
+        return GM_UNSUPPORTED;
+    for (unsigned t = 0; t < GM_TRACKS; ++t)
+        m.length[t] = (uint8_t)length;
+    for (unsigned bar = 0; bar < c->grid.bars; ++bar) {
+        const unsigned start = bar * bar_steps;
+        for (unsigned i = 0; i < 3u; ++i) {
+            m.anchors[GM_KICK] |= step_bit(start + kick[i] * d / 16u);
+            m.anchors[GM_SNARE] |= step_bit(start + snare[i] * d / 16u);
+        }
+        for (unsigned r = 0; r < 28u; r += 2u)
+            m.anchors[GM_RIDE] |= step_bit(start + r * d / 16u);
+        if (!bar)
+            m.anchors[GM_CRASH] |= step_bit(0);
+    }
+    m.accents[GM_KICK] = m.anchors[GM_KICK];
+    *out = m;
+    return GM_OK;
+}
+
 gm_result gm_rules_build(const gm_config *c, gm_rule_masks *out)
 {
     if (!out)
@@ -155,6 +183,8 @@ gm_result gm_rules_build(const gm_config *c, gm_rule_masks *out)
         return GM_UNSUPPORTED;
     uint8_t length;
     (void)gm_grid_length(c->grid, &length);
+    if (c->grid.den == 4u && c->grid.num == 7u)
+        return rules_seven_four(c, length, out);
     const unsigned bar_steps = length / c->grid.bars;
     /* These alternating figures need an injective mapping of reference positions. */
     if ((c->algorithm == 11u || c->algorithm == 12u) && bar_steps < REFERENCE_STEPS)

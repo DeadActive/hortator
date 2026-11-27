@@ -13,8 +13,27 @@ static void settings_save(void);                       /* project.c: the device 
 
 static const char *const N_GSTYLE[] = {                /* gm_style_name's 22 styles, four letters: a knob column's width */
     "TRAD", "HAMR", "BOMB", "GRAV", "BLST", "DBET", "SKNK", "2XBS", "TECH", "BRUT", "FSLO",
-    "ABRP", "STOP", "BRKD", "2STP", "HALF", "CHAO", "INDU", "POLY", "SLDG", "FUNR", "STNR"};
-typedef char gm_style_names_complete[sizeof N_GSTYLE / sizeof N_GSTYLE[0] == GM_ALGORITHM_COUNT ? 1 : -1];
+    "ABRP", "STOP", "BRKD", "2STP", "HALF", "CHAO", "INDU", "POLY", "SLDG", "FUNR", "STNR", "MATH"};
+/* The STYLE list: the 22 styles, then MATH = Technical (9) on a 7/4 grid (3+2+2 quarters, 28 sixteenths). The extra
+ * entry is a UI choice over the same core, so the core's ids, the saved bytes and the golden patterns stay as they were. */
+#define GM_UI_STYLES (GM_ALGORITHM_COUNT + 1u)
+typedef char gm_style_names_complete[sizeof N_GSTYLE / sizeof N_GSTYLE[0] == GM_UI_STYLES ? 1 : -1];
+static gm_result gm_ui_style_config(uint32_t idx, gm_config *c)
+{
+    gm_result r;
+    if (idx >= GM_UI_STYLES)
+        return GM_INVALID;
+    if (idx < GM_ALGORITHM_COUNT)
+        return gm_factory_config((uint8_t)(idx + 1u), c);
+    r = gm_factory_config(9, c);
+    if (r == GM_OK)
+        c->grid = (gm_grid){7, 4, 16, 1};
+    return r;
+}
+static const char *gm_ui_style_name(uint32_t idx)
+{
+    return idx < GM_ALGORITHM_COUNT ? gm_style_name((uint8_t)(idx + 1u)) : idx == GM_ALGORITHM_COUNT ? "Mathcore 7/4" : "";
+}
 static const char *const N_GWHEN[] = {"STEP", "END"};
 static const char *const N_GKIT[] = {"--", "ROLE"};
 static const char *const N_GUNDO[] = {"--", "UNDO"};
@@ -83,11 +102,11 @@ static void gm_settings_unpack(uint32_t v)
 {
     gm_config f;
     uint32_t style = v & 31u;
-    if (style >= GM_ALGORITHM_COUNT)                   /* (a damaged record: the default style) */
+    if (style >= GM_UI_STYLES)                         /* (a damaged record: the default style) */
         style = 0;
     gm_v[GU_STYLE] = (int16_t)style;
     gm_v[GU_WHEN] = (v >> 5) & 1u ? 0 : 1;
-    if (gm_factory_config((uint8_t)(style + 1u), &f) == GM_OK) {
+    if (gm_ui_style_config(style, &f) == GM_OK) {
         gm_v[GU_AGGR] = f.aggression;
         gm_v[GU_DENS] = f.density;
         gm_v[GU_CHAOS] = f.chaos;
@@ -102,7 +121,7 @@ static uint8_t gm_save_t;                              /* frames until a changed
 /* the knobs as a config: the style's factory grid and seed, the four controls, MUT as the mutation counter */
 static gm_result gm_ui_config(gm_config *c)
 {
-    gm_result r = gm_factory_config((uint8_t)(gm_v[GU_STYLE] + 1), c);
+    gm_result r = gm_ui_style_config((uint32_t)gm_v[GU_STYLE], c);
     if (r != GM_OK)
         return r;
     c->aggression = (uint8_t)gm_v[GU_AGGR];
@@ -174,7 +193,7 @@ static void gm_ui_changed(uint32_t id)
     }
     if (id == GU_STYLE) {
         gm_config f;
-        if (gm_factory_config((uint8_t)(gm_v[GU_STYLE] + 1), &f) == GM_OK) {
+        if (gm_ui_style_config((uint32_t)gm_v[GU_STYLE], &f) == GM_OK) {
             gm_v[GU_AGGR] = f.aggression;
             gm_v[GU_DENS] = f.density;
             gm_v[GU_CHAOS] = f.chaos;
@@ -210,7 +229,7 @@ static void gm_ui_frame(void)
     n = gm_runtime_commits();
     if (n != seen) {
         seen = n;
-        ui_message(gm_style_name((uint8_t)(gm_v[GU_STYLE] + 1)));   /* (the full name: the column has four letters) */
+        ui_message(gm_ui_style_name((uint32_t)gm_v[GU_STYLE]));   /* (the full name: the column has four letters) */
         return;
     }
     st = gm_runtime_status();

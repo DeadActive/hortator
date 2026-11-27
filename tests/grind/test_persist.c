@@ -54,7 +54,7 @@ static void fresh_flash(void)
 static void roundtrip(void)
 {
     uint32_t style, when, ok = 1;
-    for (style = 0; style < GM_ALGORITHM_COUNT; style++)
+    for (style = 0; style < GM_UI_STYLES; style++)
         for (when = 0; when < 2u; when++) {
             gm_config f;
             fresh_flash();
@@ -62,12 +62,12 @@ static void roundtrip(void)
             gm_v[GU_WHEN] = (int16_t)when;
             settings_save();
             power_cycle();
-            gm_factory_config((uint8_t)(style + 1u), &f);
+            gm_ui_style_config(style, &f);
             ok &= gm_v[GU_STYLE] == (int16_t)style && gm_v[GU_WHEN] == (int16_t)when;
             ok &= gm_v[GU_AGGR] == f.aggression && gm_v[GU_DENS] == f.density && gm_v[GU_CHAOS] == f.chaos &&
                   gm_v[GU_HUMAN] == f.humanize && gm_v[GU_MUT] == 0;       /* (the style's own voicing) */
         }
-    check("persist: all 22 styles x both WHEN survive a power cycle; the controls come back as the style's factory values", ok);
+    check("persist: all 23 styles x both WHEN survive a power cycle; the controls come back as the style's factory values", ok);
 }
 
 static void older_record_reads_the_defaults(void)
@@ -127,10 +127,10 @@ static void bits_do_not_overlap(void)
 static void damaged_style_falls_back(void)
 {
     uint32_t ok = 1, v;
-    for (v = GM_ALGORITHM_COUNT; v < 32u; v++) {     /* style bits 22..31: none is a style */
+    for (v = GM_UI_STYLES; v < 32u; v++) {           /* style bits 23..31: none is a style */
         gm_settings_unpack(v | (1u << 5));
         ok &= gm_v[GU_STYLE] == 0 && gm_v[GU_WHEN] == 0;
-        ok &= gm_v[GU_STYLE] >= 0 && gm_v[GU_STYLE] < (int16_t)GM_ALGORITHM_COUNT;   /* (an index into N_GSTYLE) */
+        ok &= gm_v[GU_STYLE] >= 0 && gm_v[GU_STYLE] < (int16_t)GM_UI_STYLES;   /* (an index into N_GSTYLE) */
     }
     gm_settings_unpack(0xFFFFFFFFu);                 /* a record of all ones: still a valid screen state */
     ok &= gm_v[GU_STYLE] == 0 && gm_v[GU_WHEN] == 0 && gm_v[GU_AGGR] <= 100 && gm_v[GU_MUT] == 0;

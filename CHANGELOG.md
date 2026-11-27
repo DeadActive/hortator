@@ -5,6 +5,11 @@ released yet are listed under Unreleased.
 
 ## Unreleased
 
+- **7/4 Mathcore (GRIND)**: the STYLE list has a 23rd entry, MATH: Technical on a seven-quarter bar (3+2+2), LEN 28 at 1/16
+  (56 at 1/32, 14 at 1/8; two bars at 1/16 fit as 56). Kick and its accent on steps 1, 13, 21, snare on 9, 17, 25, crash
+  on the downbeat, ride on every second step. Only Technical has a 7/4 rule: other styles on a 7/4 grid are refused
+  (`GM_UNSUPPORTED`). The core's style ids, the saved bytes and the golden patterns are unchanged; an older firmware
+  reads the saved entry as STYLE 1. A pattern staged for the end waits for step 28.
 - **HARDWARE CALIBRATION can be left, and the menu can reset to the defaults**: while a key is asked for, tap it to
   teach it, or hold it for 1.5 s to cancel; while a knob is asked for, any key cancels (the 30 s without input still
   gives up). A cancelled calibration keeps the old table (`SETUP CANCELLED`). The new menu row RESET TO DEFAULT

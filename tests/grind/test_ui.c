@@ -486,6 +486,30 @@ static void reset_starts_from_a_valid_config(void)
     check("runtime: a reset holds style 1's factory config (the id 0 it used to ask for is not a style)", ok);
 }
 
+static void seven_four_style(void)
+{
+    uint32_t ok = 1, k, s;
+    static const uint32_t kick[] = {0, 12, 20};
+    fresh();
+    open_grind(0);
+    ok &= GM_UI_STYLES == GM_ALGORITHM_COUNT + 1u && N_GSTYLE[GM_UI_STYLES - 1u][0] == 'M';
+    turn(EN_K1, 40);                                 /* to the last entry: the list stops there */
+    frames(3);
+    ok &= gm_v[GU_STYLE] == (int16_t)(GM_UI_STYLES - 1u);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_SLEN] == 28 && trk[k].p[P_SDIV] == 2;       /* LEN 28, 1/16 */
+    for (s = 0; s < 3u; s++)
+        ok &= trk[0].step[kick[s]].on && trk[0].step[kick[s]].acc;
+    for (s = 28; s < NSTEP; s++)
+        ok &= !trk[0].step[s].on;
+    ok &= str_eq(ui.msg, "Mathcore 7/4");
+    turn(EN_K1, -1);                                 /* back to Stoner: 4/4 and 16 steps again */
+    frames(3);
+    for (k = 0; k < NTRK; k++)
+        ok &= trk[k].p[P_SLEN] == 16;
+    check("ui: the last STYLE entry is Technical in 7/4: LEN 28, the 3+2+2 hits; the one before is 4/4 again", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -522,6 +546,7 @@ int main(void)
     undo_keeps_timing();
     knobs_stop_at_the_ends();
     reset_starts_from_a_valid_config();
+    seven_four_style();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;
