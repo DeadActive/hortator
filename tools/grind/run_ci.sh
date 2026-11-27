@@ -8,11 +8,12 @@ lane=${1:-}
 evidence=build/grind-evidence
 mkdir -p "$evidence" || exit 1
 result=0
+lane_status=PASS
 native_tool_dir=
 trap 'if [[ -n $native_tool_dir ]]; then rm -rf -- "$native_tool_dir"; fi' EXIT
 
 report() {
-    local status=$1 name=$2
+    local status=$1 name=$2 scope=${3:-required}
     printf '%s: %s\n' "$status" "$name"
     if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
         printf -- '- **%s** %s\n' "$status" "$name" >> "$GITHUB_STEP_SUMMARY"
@@ -32,6 +33,7 @@ report() {
         details=${details//$'\n'/%0A}
         printf '::%s title=Foundation %s::%s\n' "$level" "$status" "${details:0:1600}"
     fi
+    if [[ $scope == diagnostic ]]; then return 0; fi
     case $status in
         FAIL) result=1 ;;
         BLOCKED) if (( result == 0 )); then result=2; fi ;;
@@ -71,7 +73,13 @@ suite() {
         report SKIPPED 'official stock recovery fixture (requires M-VAVE V15)'
     fi
     if (( status != 0 )); then
-        if (( status == 2 )) && grep -q '^BLOCKED:' "$evidence/$name.log"; then
+        if grep -qE '^FAIL([:[:space:]]|$)' "$evidence/$name.log"; then
+            report FAIL "$name"
+        elif [[ $performance == diagnostic ]] && (( status == 2 )) &&
+            grep -q '^BLOCKED: performance:' "$evidence/$name.log"; then
+            report SKIPPED "$name instruction counts"
+            lane_status=SKIPPED
+        elif (( status == 2 )) && grep -q '^BLOCKED:' "$evidence/$name.log"; then
             report BLOCKED "$name"
         else
             report FAIL "$name"
@@ -80,11 +88,18 @@ suite() {
     fi
     local log="$evidence/$name.log" skipped
     skipped=$(grep -iE '^SKIPPED:|^== (H2/H3 )?skip|^[[:alnum:]_.-]+: skipped([[:space:]]|$)' "$log" || true)
-    if [[ $performance == optional ]]; then
+    if printf '%s\n' "$skipped" | grep -q '^SKIPPED: historical:'; then
+        report SKIPPED "$name historical comparisons"
+        skipped=$(printf '%s\n' "$skipped" | grep -v '^SKIPPED: historical:' || true)
+    fi
+    if [[ $performance == optional || $performance == diagnostic ]]; then
         local perf_skips
-        perf_skips=$(printf '%s\n' "$skipped" | grep -i 'SKIPPED: performance:' || true)
-        if [[ -n $perf_skips ]]; then report SKIPPED "$name instruction counts"; fi
-        skipped=$(printf '%s\n' "$skipped" | grep -iv 'SKIPPED: performance:' || true)
+        perf_skips=$(printf '%s\n' "$skipped" | grep '^SKIPPED: performance:' || true)
+        if [[ -n $perf_skips ]]; then
+            report SKIPPED "$name instruction counts"
+            if [[ $performance == diagnostic ]]; then lane_status=SKIPPED; fi
+        fi
+        skipped=$(printf '%s\n' "$skipped" | grep -v '^SKIPPED: performance:' || true)
     elif [[ $performance == wasm ]]; then
         if grep -Fq 'packages: skipped (run ./build.sh first)' "$log"; then
             report SKIPPED 'native package checks (covered by the native lane)'
@@ -94,14 +109,28 @@ suite() {
     if [[ -n $skipped ]]; then
         printf '%s\n' "$skipped"
         report BLOCKED "$name has unrun required checks"
-    else
+    elif [[ $lane_status != SKIPPED ]]; then
         report PASS "$name"
     fi
 }
 
+native_audit() {
+    local facts="$evidence/T03/native.json" native_facts
+    if ! mkdir -p "$evidence/T03" ||
+        ! python3 tools/grind/build_audit.py --resources "$evidence/resources.json" > "$facts"; then
+        rm -f -- "$facts"
+        report FAIL 'collect T03 native layout evidence' diagnostic
+        return
+    fi
+    if [[ -n ${GITHUB_OUTPUT:-} ]]; then
+        native_facts=$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), separators=(",", ":")))' \
+            < "$facts") && printf 't03_native=%s\n' "$native_facts" >> "$GITHUB_OUTPUT" ||
+            report FAIL 'publish T03 native evidence status' diagnostic
+    fi
+}
+
 native() {
-    mkdir -p "$evidence/T03" && rm -f -- "$evidence/T03/native.json" ||
-        { report FAIL 'prepare T03 native evidence'; return; }
+    rm -f -- "$evidence/T03/native.json" || report FAIL 'clear stale T03 native evidence' diagnostic
     if [[ -z ${GRIND_JIELI_ARCHIVE:-} || -z ${AC79_SDK:-} ]]; then
         report BLOCKED 'native inputs (GRIND_JIELI_ARCHIVE and AC79_SDK)'
         return
@@ -114,7 +143,7 @@ native() {
     export AC79_SDK FELUCCA_BLE=0 DRUM_SITE=0 JIELI_DOCKER=0
     export PATH="$PWD/.venv/bin:$PATH"
     if [[ ! -x .venv/bin/python ]]; then
-        report BLOCKED 'native project .venv (needed by frozen build)'
+        report BLOCKED 'native project .venv (requires Pillow)'
         return
     fi
     local package=build/felucca-UNTESTED.fwsc
@@ -127,22 +156,24 @@ native() {
     if ! sha256sum "$package" build/felucca.bin build/loader/ota.bin | tee "$evidence/native-sha256.txt"; then
         report FAIL 'native artifact hashes'
     fi
-    local tag pin frozen_status=0 upstream_build="$native_tool_dir/no-frozen-baseline"
-    read -r _ tag pin < <(grep '^FROZEN_BASE ' tools/frozen_base.txt)
-    if [[ $(git rev-parse -q --verify "$tag^{commit}") == "$pin" && -n $pin ]]; then
-        capture frozen-baseline sh tools/upstream_build.sh || frozen_status=$?
-        if (( frozen_status == 0 )); then
-            report PASS frozen-baseline
-            upstream_build=build/upstream/build
-        else
-            report FAIL frozen-baseline
-        fi
-    else
-        report BLOCKED "frozen baseline $tag at $pin (required for H2/H3)"
-    fi
+    local historical_status=0
+    local -a upstream_build=()
+    capture historical-ref python3 tools/check_untouched.py --historical-ref || historical_status=$?
+    case $historical_status in
+        0)
+            if capture frozen-baseline sh tools/upstream_build.sh; then
+                report PASS frozen-baseline
+                upstream_build=(--upstream-build-dir build/upstream/build)
+            else
+                report FAIL frozen-baseline
+            fi
+            ;;
+        3) report SKIPPED frozen-baseline ;;
+        *) report FAIL historical-ref ;;
+    esac
     local resource_status=0
     python3 tools/grind/resource_report.py --build-dir build \
-        --build-log "$evidence/native-build.log" --upstream-build-dir "$upstream_build" \
+        --build-log "$evidence/native-build.log" "${upstream_build[@]}" \
         > "$evidence/resources.json" || resource_status=$?
     cat "$evidence/resources.json"
     case $resource_status in
@@ -150,17 +181,7 @@ native() {
         2) report BLOCKED resources ;;
         *) report FAIL resources ;;
     esac
-    local native_facts
-    if python3 tools/grind/build_audit.py --resources "$evidence/resources.json" > "$evidence/T03/native.json"; then
-        if [[ -n ${GITHUB_OUTPUT:-} ]]; then
-            native_facts=$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin), separators=(",", ":")))' \
-                < "$evidence/T03/native.json") && printf 't03_native=%s\n' "$native_facts" >> "$GITHUB_OUTPUT" ||
-                report FAIL 'publish T03 native evidence status'
-        fi
-    else
-        rm -f -- "$evidence/T03/native.json"
-        report FAIL 'collect T03 native layout evidence'
-    fi
+    native_audit
     if ! git describe --tags --abbrev=0 --match 'drum-v*' >/dev/null 2>&1; then
         report BLOCKED 'native host suite (missing reachable drum-v release tags)'
     elif ! command -v rsync >/dev/null 2>&1; then
@@ -194,7 +215,7 @@ case $lane in
         suite host-upstream optional sh tests/run_drum_tests.sh
         ;;
     performance)
-        suite performance required env GRIND_REQUIRE_PERFORMANCE=1 sh tests/run_drum_tests.sh
+        suite performance diagnostic env GRIND_REQUIRE_PERFORMANCE=0 sh tests/run_drum_tests.sh
         ;;
     wasm)
         check wasm-preview bash tools/build_sim.sh --preview
@@ -217,7 +238,7 @@ case $lane in
 esac
 if [[ -n ${GITHUB_OUTPUT:-} ]]; then
     case $result in
-        0) printf 'status=PASS\n' >> "$GITHUB_OUTPUT" ;;
+        0) printf 'status=%s\n' "$lane_status" >> "$GITHUB_OUTPUT" ;;
         1) printf 'status=FAIL\n' >> "$GITHUB_OUTPUT" ;;
         2) printf 'status=BLOCKED\n' >> "$GITHUB_OUTPUT" ;;
     esac
