@@ -9,7 +9,8 @@ released yet are listed under Unreleased.
   4-bar window as the eight GRIND roles, `compare` sets each song against the 22 styles' golden patterns (nearest
   styles and role densities), `send` writes the window to the FM-1's loaded pattern over USB-MIDI (steps, accents,
   each step's NUDGE for what the 16th grid cannot hold, LEN 64 / 16th, optionally the tempo; not saved unless
-  `--save`). Tested on made-up songs and against the editor's mock FM-1; no song data is in the repository.
+  `--save`). Tested on made-up songs and against the editor's mock FM-1. The band's song excerpts are in `assets/songs/`
+  (reference material, not part of any build; see its README).
 - **GRIND pages (builds with GRIND_NATIVE=1 only; not in the default image)**: press ARP again after GRIDS for two
   pages, STYLE AGGR DENS CHAOS and HUMAN MUT WHEN. STYLE picks one of 22 rhythm styles and brings its factory
   controls; the other knobs re-generate the pattern of all eight tracks from them, MUT rolls a new variation. While
