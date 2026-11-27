@@ -16,8 +16,13 @@ released yet are listed under Unreleased.
   acts; stopped only; levels, pans, FX sends and patterns stay; the cymbal and tom offsets are starting points, not
   tuned by ear). STYLE and WHEN are remembered with the device settings, not in a project, and nothing about the
   project format changes: they use palette bits 18 to 23 of the settings record, which an older firmware ignores
-  (the controls come back as the style's factory values). Not yet: locking single steps against a new pattern,
-  undo and the web editor.
+  (the controls come back as the style's factory values). GRIND page 3 has KEEP, UNDO and FREE. KEEP marks steps of
+  the selected track that a new pattern must leave as they are, rests included: hold a step key in STEPS (ENV) on any
+  GRIND page to toggle one (`STEP 3 KEPT`; the step itself is not touched), or turn the KEEP knob up to keep the
+  whole track and down to free it; FREE frees every track. A change whose grid the kept steps do not fit says
+  `KEEP DOES NOT FIT` and applies nothing. KEEPs are not stored and go when another pattern is loaded or cued.
+  UNDO takes the tracks back to what they were before the last GRIND change; UNDO again goes forward (steps and
+  lengths; not your own edits made since). Not yet: the web editor.
 
 ## 1.0.1 - 2026-11-03
 

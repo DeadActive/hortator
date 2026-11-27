@@ -15,6 +15,7 @@
 #if GRIND_NATIVE
 static void gm_touch(void);
 static void gm_touch_isr(void);
+static void gm_context_isr(void);
 static void gm_runtime_stop(void);
 static int gm_runtime_commit(void);
 static void gm_runtime_cancel(void);
@@ -24,6 +25,7 @@ static void gm_runtime_cancel(void);
 #else
 #define gm_touch() ((void)0)
 #define gm_touch_isr() ((void)0)
+#define gm_context_isr() ((void)0)
 #define gm_touch_param(id) ((void)0)
 #define gm_touch_param_isr(id) ((void)0)
 #endif

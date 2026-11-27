@@ -41,14 +41,17 @@ static void fresh(void)
     gm_v[GU_WHEN] = 1;
     song.g[G_BPM] = 240;
 }
-static void open_grind(uint32_t page)               /* ARP, then ARP again until the GRIND page `page` (0 / 1) shows */
+static int grind_page(void)                         /* 0 / 1 / 2 on a GRIND page, else -1 */
 {
-    uint32_t i, seen = 0;
-    for (i = 0; i < 8u && !(cur_page()->scope == SC_GRIND && seen == page); i++) {
+    if (cur_page()->scope != SC_GRIND)
+        return -1;
+    return cur_page()->id[0] == GU_HUMAN ? 1 : cur_page()->id[0] == GU_KEEP ? 2 : 0;
+}
+static void open_grind(uint32_t page)               /* ARP, then ARP again until the GRIND page `page` (0 / 1 / 2) shows */
+{
+    uint32_t i;
+    for (i = 0; i < 10u && grind_page() != (int)page; i++)
         tap(B_ARP);
-        if (cur_page()->scope == SC_GRIND)
-            seen = cur_page()->id[0] == GU_HUMAN ? 1u : 0u;
-    }
 }
 static uint32_t sig(void)
 {
@@ -102,7 +105,9 @@ static void navigation(void)
     ok &= cur_page()->fam == FAM_GRIDS;
     tap(B_ARP);
     ok &= cur_page()->scope == SC_GRIND && cur_page()->id[0] == GU_HUMAN;
-    check("ui: ARP steps GRIDS, then the two GRIND pages (STYLE AGGR DENS CHAOS / HUMAN MUT WHEN KIT)", ok);
+    tap(B_ARP);
+    ok &= cur_page()->scope == SC_GRIND && cur_page()->id[0] == GU_KEEP && cur_page()->id[1] == GU_UNDO && cur_page()->id[2] == GU_FREE;
+    check("ui: ARP steps GRIDS, then the three GRIND pages (STYLE AGGR DENS CHAOS / HUMAN MUT WHEN KIT / KEEP UNDO FREE)", ok);
 }
 
 static void style_stopped(void)
@@ -284,6 +289,157 @@ static void kit_arm_times_out(void)
     check("ui: a KIT detent after the confirm window only asks again, it does not act", ok);
 }
 
+static void keep_track(void)
+{
+    uint32_t ok = 1, k, s, other_changed = 0;
+    step_t t0[NSTEP];
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 2);                                  /* a first style: something on the tracks */
+    frames(3);
+    memcpy(t0, trk[0].step, sizeof t0);
+    open_grind(2);
+    ok &= gm_v[GU_KEEP] == 0;
+    turn(EN_K1, 1);                                  /* KEEP up: the selected track, whole */
+    frames(2);
+    ok &= gm_v[GU_KEEP] == trk[0].p[P_SLEN] && gm_keep_count(0) == (uint32_t)trk[0].p[P_SLEN] && gm_keep_count(1) == 0 && ui.msg[0] == 'T';
+    open_grind(0);
+    for (k = 0; k < 4u; k++) {                       /* four re-rolls of the same style: AGGR, DENS, CHAOS, AGGR */
+        static step_t snap[NTRK][NSTEP];
+        for (s = 0; s < NTRK; s++)
+            memcpy(snap[s], trk[s].step, sizeof snap[s]);
+        turn(k == 2u ? EN_K4 : k == 1u ? EN_K3 : EN_K2, k == 0u ? -35 : 30);
+        frames(3);
+        ok &= memcmp(trk[0].step, t0, sizeof t0) == 0;                 /* the kept track: untouched */
+        for (s = 1; s < NTRK; s++)
+            other_changed |= memcmp(trk[s].step, snap[s], sizeof snap[s]) != 0;
+    }
+    ok &= other_changed != 0;
+    track_select(1);
+    frames(2);
+    open_grind(2);
+    ok &= gm_v[GU_KEEP] == 0;                        /* the knob shows the selected track's count */
+    track_select(0);
+    frames(2);
+    ok &= gm_v[GU_KEEP] == trk[0].p[P_SLEN];
+    turn(EN_K1, -1);                                 /* down: freed */
+    frames(2);
+    ok &= gm_keep_count(0) == 0 && ui.msg[0] == 'T';
+    check("ui: KEEP up keeps the selected track through four re-rolls, down frees it; the knob follows the selection", ok);
+}
+
+static void keep_does_not_fit(void)
+{
+    uint32_t ok = 1, i, refused = 0, fits = 0, n;
+    step_t t0[NSTEP];
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 1);
+    frames(3);
+    memcpy(t0, trk[0].step, sizeof t0);
+    n = (uint32_t)trk[0].p[P_SLEN];
+    gm_keep_track(0, 1);
+    for (i = 0; i < 21u; i++) {                      /* every other style, one detent at a time */
+        turn(EN_K1, 1);
+        frames(3);
+        if (str_eq(ui.msg, "KEEP DOES NOT FIT"))
+            refused++;
+        else
+            fits++;
+        ok &= memcmp(trk[0].step, t0, n * sizeof t0[0]) == 0;      /* kept, or the change refused: the steps are as they were */
+    }
+    printf("     keep through 21 styles: %u fit, %u refused\n", fits, refused);
+    trk[0].p[P_SDIV] = (int16_t)(trk[0].p[P_SDIV] == 0 ? 1 : trk[0].p[P_SDIV] - 1);   /* the track is on another grid now */
+    gm_touch();
+    turn(EN_K2, -7);
+    frames(3);
+    ok &= str_eq(ui.msg, "KEEP DOES NOT FIT") && memcmp(trk[0].step, t0, n * sizeof t0[0]) == 0;
+    check("ui: through every style the kept steps stay as they were (a style they do not fit is refused, not applied)", ok);
+}
+
+static void keep_step_and_free(void)
+{
+    uint32_t ok = 1, h, i;
+    fresh();
+    open_grind(0);
+    turn(EN_K1, 2);
+    frames(3);
+    h = sig();
+    ui.env = 1;                                      /* STEPS: the white keys are the selected track's steps */
+    keys(1u << STEP_KEY[2]);
+    for (i = 0; i < STEP_HOLD_MS + 60u; i++)
+        ui_frame();
+    keys(0);
+    ui_frame();
+    ok &= gm_keep_get(0, 2) == 1 && gm_keep_count(0) == 1 && str_eq(ui.msg, "STEP 3 KEPT");
+    ok &= sig() == h;                                /* the hold changed no step, an off one did not turn on */
+    keys(1u << STEP_KEY[2]);
+    for (i = 0; i < STEP_HOLD_MS + 60u; i++)
+        ui_frame();
+    keys(0);
+    ui_frame();
+    ok &= gm_keep_get(0, 2) == 0 && str_eq(ui.msg, "STEP 3 FREE") && sig() == h;   /* the same hold again: free */
+    gm_keep_set(3, 9, 1);
+    gm_keep_set(5, 63, 1);
+    open_grind(2);
+    turn(EN_K3, 1);                                  /* FREE: every track */
+    frames(2);
+    ok &= gm_keep_count(3) == 0 && gm_keep_count(5) == 0 && gm_v[GU_FREE] == 0;
+    check("ui: a held step key (STEPS, a GRIND page) toggles that step's KEEP without touching it; FREE frees every track", ok);
+}
+
+static void keep_goes_with_the_pattern(void)
+{
+    uint32_t ok = 1;
+    fresh();
+    gm_keep_set(2, 5, 1);
+    gm_context_isr();
+    ok &= gm_keep_count(2) == 0;
+    check("ui: a loaded or switched pattern starts with no KEEP", ok);
+}
+
+static void undo_redo(void)
+{
+    uint32_t ok = 1, a, b;
+    fresh();
+    open_grind(2);
+    turn(EN_K2, 1);                                  /* nothing published yet */
+    frames(2);
+    ok &= str_eq(ui.msg, "NOTHING TO UNDO");
+    open_grind(0);
+    a = sig();
+    turn(EN_K1, 2);
+    frames(3);
+    b = sig();
+    ok &= a != b;
+    open_grind(2);
+    turn(EN_K2, 1);
+    frames(2);
+    ok &= sig() == a && str_eq(ui.msg, "UNDONE") && gm_v[GU_UNDO] == 0;
+    turn(EN_K2, 1);
+    frames(2);
+    ok &= sig() == b && str_eq(ui.msg, "REDONE");
+    check("ui: UNDO brings back the pattern before the last GRIND change, a second one goes forward again", ok);
+}
+
+static void undo_keeps_timing(void)
+{
+    uint32_t ok = 1, k;
+    uint8_t len[NTRK];
+    fresh();
+    for (k = 0; k < NTRK; k++)
+        len[k] = (uint8_t)trk[k].p[P_SLEN];
+    open_grind(0);
+    turn(EN_K1, 9);                                  /* a style that may set its own lengths */
+    frames(3);
+    open_grind(2);
+    turn(EN_K2, 1);
+    frames(2);
+    for (k = 0; k < NTRK; k++)
+        ok &= (uint8_t)trk[k].p[P_SLEN] == len[k];
+    check("ui: UNDO restores the lengths too", ok);
+}
+
 static void not_stored(void)
 {
     uint32_t ok = 1, i;
@@ -312,6 +468,12 @@ int main(void)
     kit_roles();
     kit_refused_playing();
     kit_arm_times_out();
+    keep_track();
+    keep_does_not_fit();
+    keep_step_and_free();
+    keep_goes_with_the_pattern();
+    undo_redo();
+    undo_keeps_timing();
     not_stored();
     printf("test_ui: %s\n", fails ? "FAILED" : "all passed");
     return fails ? 1 : 0;

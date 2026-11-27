@@ -23,7 +23,7 @@ STORE = re.compile(
 )
 # a timing parameter written by number
 TIMING = re.compile(r"\bp\[\s*(?:P_SLEN|P_SDIV|P_SSWING|P_SRC)\s*\]\s*=(?!=)|\bp\[id\]\s*=(?!=)")
-TOUCH = re.compile(r"\bgm_touch(?:_isr|_param|_param_isr)?\s*\(")
+TOUCH = re.compile(r"\bgm_(?:touch(?:_isr|_param|_param_isr)?|context_isr)\s*\(")   # (gm_context_isr: a touch, and KEEP / UNDO go too)
 
 # (file, function): why a writer without gm_touch is safe
 ALLOWED = {

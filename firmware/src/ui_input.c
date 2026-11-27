@@ -1498,6 +1498,20 @@ static void ui_input(void)
                 *t0 = 0;
             } else if (held_long && !(*t0 & 2u)) {
                 *t0 |= 2u;                              /* a hold: no tap; the STEP n PROB RATCH line; */
+#if GRIND_NATIVE
+                if (cur_page()->scope == SC_GRIND) {    /* on a GRIND page the hold is KEEP: the generator leaves this step */
+                    uint32_t si = ui.step_si[k];        /* as it is (a rest too), and the step itself stays as it was */
+                    if (si < NSTEP) {
+                        char m[24];
+                        gm_keep_set(song.sel, si, !gm_keep_get(song.sel, si));
+                        str_cpy(m, "STEP ", sizeof m);
+                        fmt_int(m + 5, (int32_t)si + 1);
+                        str_cpy(m + str_len(m), gm_keep_get(song.sel, si) ? " KEPT" : " FREE", sizeof m - str_len(m));
+                        ui_message(m);
+                    }
+                    continue;
+                }
+#endif
                 step_hold_on(k);                        /* an off step on now */
             }
         }
